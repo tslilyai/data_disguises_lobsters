@@ -16,12 +16,14 @@ def getStats():
                         if line == '\n' or '[]' in line:
                             continue
                         times += ([float(x) for x in line.strip()[1:-1].split(' ')])
-                        print("\t", statistics.mean(times), statistics.median(times), statistics.variance(times))
+                        print("\t", statistics.mean(times), statistics.median(times), statistics.stdev(times),
+                             max(times), min(times), len(times))
 
 def plotFiles(files):
     for filename in files:
         with open("{}.csv".format(filename), 'r') as f:
             y = []
+
             for line in f.readlines():
                 y += [float(x) for x in line.strip('[]').split(' ')[:-1]]
             plt.hist(y, 5)
