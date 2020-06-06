@@ -34,8 +34,8 @@ def gen_user_articles(num_art, user):
         return version
 
 def gen_user_comments_and_votes(count, user, version):
-        version = gen_user_comments(count*5, user, version)
-        gen_user_votes(count*10, user, version)
+        version = gen_user_comments(count*2, user, version)
+        gen_user_votes(count*3, user, version)
 
 def gen_user_comments(num_com, user, version):
         usrstr = "comment from %d" % user
@@ -75,4 +75,4 @@ def gen_user_shards(num_users):
             args = list(zip(user_counts, range(num_users), versions))
             pool.starmap(gen_user_comments_and_votes, args)
 
-gen_user_shards(10000)
+gen_user_shards(1000)

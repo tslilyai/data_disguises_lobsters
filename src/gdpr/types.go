@@ -15,6 +15,27 @@ type EffectsPolicies struct {
 	TextPolicy EffectsPolicy
 }
 
+func PolicyToString (p EffectsPolicy) string {
+    switch p {
+    case Retain:
+        return "Retain"
+    case Revoke:
+        return "Revoke"
+    case RevokeDelete:
+        return "RevokeDel"
+    default:
+        return ""
+    }
+}
+func PoliciesToString (p EffectsPolicies) string {
+    s := "vote_"
+    s += PolicyToString(p.VotePolicy)
+    s += "_text_"
+    s += PolicyToString(p.TextPolicy)
+    s += ""
+    return s
+}
+
 /* Data Representations */
 type VoteCounts struct {
 	Upvotes   int
