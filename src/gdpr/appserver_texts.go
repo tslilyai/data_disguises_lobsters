@@ -19,23 +19,18 @@ func (as *AppServer) deleteTextRecordAndChildren(text Text) {
 	}
 }
 
-func (as *AppServer) revokeTextRecordAndChildren(text Text) string {
+func (as *AppServer) revokeTextRecordAndChildren(text Text) int64 {
 	// change all entries under this text record to invis entries
 	// keep parent IDs for restoration, just in case
-	invisIdBytes := as.encrypt(text.Id, text.User)
-	children := []string{}
+    invisId := text.Id
 
 	for _, cid := range text.Children {
 		if childText, found := as.Id2Texts[cid]; found {
-			children = append(children, as.revokeTextRecordAndChildren(childText))
+			as.revokeTextRecordAndChildren(childText)
 		}
 	}
-	as.InvisId2InvisTexts[invisIdBytes] = InvisText{
-		InvisId:       invisIdBytes,
-		InvisChildren:       children,
-        TextCopy : text,
-	}
-	return string(invisIdBytes)
+	as.InvisId2InvisTexts[invisId] = text
+	return invisId
 }
 
 func (as *AppServer) deleteTextRecords(texts []Text) Err {
@@ -66,7 +61,7 @@ func (as *AppServer) deleteTextRecords(texts []Text) Err {
 			switch as.policies.TextPolicy {
 			case Retain:
                 // ensure that we authorize user if reuploads data
-				text.Content = as.encrypt(text.Id, text.User) 
+				text.Content = ""
 				text.User = -1
 				text.Version = -1
 				text.Id = -1
@@ -76,12 +71,11 @@ func (as *AppServer) deleteTextRecords(texts []Text) Err {
 				invisId := as.revokeTextRecordAndChildren(newtext)
 				// erase all data of this top-level content
 				// underlying comment chain is simply inaccessible
-				invisText, found := as.InvisId2InvisTexts[invisId]
+				_, found := as.InvisId2InvisTexts[invisId]
 				if !found {
 					log.Fatalf("Huh? Should have just been added")
 				}
-                invisText.TextCopy = Text{}
-                as.InvisId2InvisTexts[invisId] = invisText
+                as.InvisId2InvisTexts[invisId] = Text{}
 
 				// delete non-invis records of text and children
 				as.deleteTextRecordAndChildren(newtext)
@@ -95,7 +89,7 @@ func (as *AppServer) deleteTextRecords(texts []Text) Err {
 			// erase properly in case it was currently invis
 			invisId := as.revokeTextRecordAndChildren(newtext)
 			if invisText, found := as.InvisId2InvisTexts[invisId]; found {
-                invisText.TextCopy = Text{}
+                invisText = Text{}
                 as.InvisId2InvisTexts[invisId] = invisText
 			}
 		}
@@ -104,27 +98,27 @@ func (as *AppServer) deleteTextRecords(texts []Text) Err {
 	return OK
 }
 
-func (as *AppServer) exposeTextRecordAndChildren(invisText InvisText) Err {
-	parent, found := as.Id2Texts[invisText.TextCopy.Parent]
+func (as *AppServer) exposeTextRecordAndChildren(invisText Text) Err {
+	parent, found := as.Id2Texts[invisText.Parent]
     if !found {
         as.DPrintf("Exposing content but parent not around?")
         return ErrNotFound
     } 
     
     // update parent's children list
-    parent.Children = append(parent.Children, invisText.TextCopy.Id)
-    as.Id2Texts[invisText.TextCopy.Parent] = parent
+    parent.Children = append(parent.Children, invisText.Id)
+    as.Id2Texts[invisText.Parent] = parent
     
     // make this text visible
-    as.Id2Texts[invisText.TextCopy.Id] = invisText.TextCopy
-    as.U2Ids[invisText.TextCopy.User][invisText.TextCopy.Id] = true
+    as.Id2Texts[invisText.Id] = invisText
+    as.U2Ids[invisText.User][invisText.Id] = true
     
     // change all entries under this text record to visible entries
-    for _, invis_cid := range invisText.InvisChildren {
+    for _, invis_cid := range invisText.Children {
         if childText, found := as.InvisId2InvisTexts[invis_cid]; found {
             // if the child was actually deleted by its owner,
             // don't expose it or its children
-            if childText.TextCopy.Version != -1 && childText.TextCopy.Parent != -1 {
+            if childText.Version != -1 && childText.Parent != -1 {
                 // we only want to attach children if parent exists
                 // (which it should...)
                 err := as.exposeTextRecordAndChildren(childText)
@@ -136,7 +130,7 @@ func (as *AppServer) exposeTextRecordAndChildren(invisText InvisText) Err {
     }
 
     // remove from invis list!
-    delete(as.InvisId2InvisTexts, invisText.InvisId)
+    delete(as.InvisId2InvisTexts, invisText.Id)
     return OK
 }
 
@@ -146,7 +140,7 @@ func (as *AppServer) updateTextRecords(texts []Text, isUpload bool) Err {
 		// we found the text existing!
 		if text, found := as.Id2Texts[newText.Id]; found {
             // the owner must be the same!
-			if text.User != newText.User || (text.User == -1 && text.Content != as.encrypt(text.Id, newText.User)) {
+			if (text.User != newText.User) {
                 as.DPrintf("Update User %d: not equivalent to owner %d of text %d! Not authorized\n",
 					text.User, newText.User, newText.Id)
 				return ErrUnauthorized
@@ -195,11 +189,11 @@ func (as *AppServer) updateTextRecords(texts []Text, isUpload bool) Err {
 				// XXX should we pull children from user shards if policy was revokeAndDelete?
 				break
 			case Revoke:
-				invisId := as.encrypt(newText.Id, newText.User)
+				invisId := newText.Id
 				invisText, found := as.InvisId2InvisTexts[invisId]
 				if found {
                     // update with new contents
-					invisText.TextCopy = newText
+                    as.InvisId2InvisTexts[invisId] = newText
                     if err := as.exposeTextRecordAndChildren(invisText); err != OK {
                         return err
                     }

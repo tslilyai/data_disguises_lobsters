@@ -1,10 +1,6 @@
 package gdpr
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"encoding/binary"
-	"encoding/hex"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -25,15 +21,13 @@ type AppServer struct {
 	me       int
 	dead int32 // set by Kill()
 	policies EffectsPolicies
-	key      []byte
-	block    cipher.Block
 
 	// Mapping from Ids to content
 	Id2Texts      map[int64]Text
 	Id2VoteCounts map[int64]VoteCounts
 	// For "revoke" policy
-	InvisId2InvisTexts map[string]InvisText
-	InvisId2InvisIsPos map[string]bool
+	InvisId2InvisTexts map[int64]Text
+	InvisId2InvisIsPos map[int64]bool
 
 	// Mapping from users to user contents
 	U2Ids   map[int]Id2BoolMap // copy of IDs owned by each user
@@ -62,14 +56,8 @@ func StartAppServer(me int, policies EffectsPolicies) *AppServer {
 	as.U2Time = make(map[int]time.Time)
 	as.NumWrites = 0
 
-	as.InvisId2InvisTexts = make(map[string]InvisText)
-	as.InvisId2InvisIsPos = make(map[string]bool)
-	as.key, _ = hex.DecodeString("6368616e676520746869732070617373776f726420746f206120736563726574")
-	var err error
-	as.block, err = aes.NewCipher(as.key)
-	if err != nil {
-		panic(err.Error())
-	}
+	as.InvisId2InvisTexts = make(map[int64]Text)
+	as.InvisId2InvisIsPos = make(map[int64]bool)
 
 	// thread that checks to see if user leases are up
 	go func() {
@@ -90,24 +78,6 @@ func StartAppServer(me int, policies EffectsPolicies) *AppServer {
 
 	as.DPrintf("App server starting!")
 	return as
-}
-
-func (as *AppServer) encrypt(ID int64, user int) string {
-	// TODO make secret, randomly generated + stored by appserver
-	idb := make([]byte, 8)
-	userb := make([]byte, 8)
-	binary.LittleEndian.PutUint64(idb, uint64(ID))
-	binary.LittleEndian.PutUint64(userb, uint64(user))
-	bytes := append(idb, userb...)
-
-	aesgcm, err := cipher.NewGCM(as.block)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// for now, just use the bytes as the nonce
-    ciphertext := aesgcm.Seal(nil, bytes[:12], bytes, nil)
-	return string(ciphertext)
 }
 
 /* Must be locked */

@@ -42,16 +42,6 @@ type VoteCounts struct {
 	Downvotes int
 }
 
-type InvisText struct {
-	// invisible ids
-	InvisId       string
-	InvisChildren []string
-
-	// necessary to revive a dead text
-    // will be empty if entry actually deleted
-    TextCopy Text
-}
-
 type Text struct {
 	User    int
 	Id      int64

@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-func TestReads(t *testing.T) {
-	fmt.Printf("TestReads\n")
-	nUsers := []int{1}
-	nTrials := 1
-	testDuration := 40 * time.Second
-	minUpdateMs := 50
+func TestNormalExecution(t *testing.T) {
+	fmt.Printf("TestNormalExecution\n")
+	nUsers := []int{5}
+	nTrials := 5
+	testDuration := 20 * time.Second
+	minUpdateMs := 10
 	maxUpdateMs := 100
 
 	policyRet := EffectsPolicies{
@@ -72,7 +72,7 @@ func TestReads(t *testing.T) {
                     fmt.Printf("Running users\n")
                     for i := 0; i < n; i++ {
                         go func(i int) {
-                            cfg.runUserReadOnly(i, minUpdateMs, maxUpdateMs, &wg)
+                            cfg.runUser(i, minUpdateMs, maxUpdateMs, &wg)
                         }(i)
                     }
                     wg.Wait()

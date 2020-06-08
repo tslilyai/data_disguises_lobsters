@@ -51,7 +51,7 @@ func (as *AppServer) updateVoteRecords(votes []Vote, isUpload bool) Err {
 				switch as.policies.VotePolicy {
 				case Retain:
 					// we need to see if this vote was here before.
-					invisId := as.encrypt(newv.Id, newv.User)
+					invisId := newv.Id
 					if invisV, found := as.InvisId2InvisIsPos[invisId]; found {
 						if foundUVote {
 							log.Fatalf("No user vote should exist for invis entry!")
@@ -116,7 +116,7 @@ func (as *AppServer) deleteVoteRecords(votes []Vote) Err {
 			case Retain:
 				// keep effects, don't do anything to votecount
 				// add invisId entry for vote
-				invisId := as.encrypt(newv.Id, newv.User)
+				invisId := newv.Id
 				as.InvisId2InvisIsPos[invisId] = newv.IsPos
 				break
 			case Revoke, RevokeDelete:

@@ -196,55 +196,6 @@ func (cfg *config) crash1(i int) {
 	}
 }
 
-func (cfg *config) runUserReadOnly(user int, minUpdateMs int, maxUpdateMs int, wg *sync.WaitGroup) {
-	sleepTime := 10 * time.Millisecond
-	cfg.updateFreq[user] = int64(minUpdateMs) // int64(rand.Intn(maxUpdateMs-minUpdateMs+1) + minUpdateMs)
-
-	wg.Done()
-	wg.Wait()
-	for !cfg.killed() {
-		start := time.Now()
-		time.Sleep(sleepTime)
-		for time.Now().Sub(start).Milliseconds() < cfg.updateFreq[user] {
-			time.Sleep(sleepTime)
-		}
-		if cfg.users[user].killed() {
-			return
-		}
-
-		uIndex := int(rand.Intn(cfg.nusers))
-		var myId, otherId int64
-		if len(cfg.ids[user]) == 0 {
-            continue
-		} else if len(cfg.ids[uIndex]) == 0 {
-			cfg.mus[user].Lock()
-			myId = getRandomKey(cfg.ids[user])
-			cfg.mus[user].Unlock()
-			otherId = myId
-		} else {
-			cfg.mus[user].Lock()
-			myId = getRandomKey(cfg.ids[user])
-			cfg.mus[user].Unlock()
-			cfg.mus[uIndex].Lock()
-			otherId = getRandomKey(cfg.ids[uIndex])
-			cfg.mus[uIndex].Unlock()
-		}
-
-		t0 := time.Now()
-        readRep := cfg.users[user].Read(otherId)
-        if readRep.Err != OK {
-            DPrintf("runUser %d: unknown read %d err %d", user, otherId, readRep.Err)
-        } else {
-            DPrintf("User %d, read article %d\n", user, myId)
-            cfg.mus[user].Lock()
-            testTime := float64((time.Now().Sub(t0)).Microseconds())
-            cfg.readTimes[user] = append(cfg.readTimes[user], testTime)
-            cfg.mus[user].Unlock()
-		}
-	}
-}
-
-
 func (cfg *config) runUser(user int, minUpdateMs int, maxUpdateMs int, wg *sync.WaitGroup) {
 	sleepTime := 10 * time.Millisecond
 	cfg.updateFreq[user] = int64(minUpdateMs) // int64(rand.Intn(maxUpdateMs-minUpdateMs+1) + minUpdateMs)
@@ -280,9 +231,12 @@ func (cfg *config) runUser(user int, minUpdateMs int, maxUpdateMs int, wg *sync.
 			cfg.mus[uIndex].Unlock()
 		}
 
+        // only do vote updates for now
+        action = 1
+
 		t0 := time.Now()
 		switch {
-		case action < 2: // add text (comment)
+		case action == 1: // add text (comment)
 			id, err := cfg.users[user].AddComment(fmt.Sprintf("hello world %d:%d", user, rand.Intn(math.MaxInt64)), otherId)
 			if err != OK {
 				DPrintf("runUser %d: unknown add comment err %d", user, err)
@@ -295,7 +249,7 @@ func (cfg *config) runUser(user int, minUpdateMs int, maxUpdateMs int, wg *sync.
 			    cfg.mus[user].Unlock()
 			}
 			break
-		case action < 4: // add (or update) vote
+		case action == 2: // add (or update) vote
 			err := cfg.users[user].AddVote(otherId, rand.Intn(2) == 1)
 			if err != OK && err != ErrNotFound {
 				DPrintf("runUser %d: unknown add vote %d err %d", user, otherId, err)
@@ -307,7 +261,7 @@ func (cfg *config) runUser(user int, minUpdateMs int, maxUpdateMs int, wg *sync.
 			    cfg.mus[user].Unlock()
 			}
 			break
-		case action < 8: // delete text
+		case action == 3: // delete text
 			err := cfg.users[user].DeleteText(myId)
 			if err != OK {
 				DPrintf("runUser %d: unknown delete %d err %d", user, myId, err)
@@ -318,7 +272,7 @@ func (cfg *config) runUser(user int, minUpdateMs int, maxUpdateMs int, wg *sync.
 			    cfg.mus[user].Unlock()
 			}
 			break
-		case action < 10: // read
+		case action == 4: // read
 			readRep := cfg.users[user].Read(otherId)
 			if readRep.Err != OK {
 				DPrintf("runUser %d: unknown read %d err %d", user, otherId, readRep.Err)

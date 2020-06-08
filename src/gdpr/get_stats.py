@@ -16,8 +16,9 @@ def getStats():
                         if line == '\n' or '[]' in line:
                             continue
                         times += ([float(x) for x in line.strip()[1:-1].split(' ')])
-                        print("\t", statistics.mean(times), statistics.median(times), statistics.stdev(times),
-                             max(times), min(times), len(times))
+                    if len(times) == 0:
+                        continue
+                    print("\t{:d}: {:.0f}, {:.0f}, {:.0f} ({:.0f}-{:.0f})".format(len(times), statistics.mean(times), statistics.median(times), statistics.stdev(times), max(times), min(times)))
 
 def plotFiles(files):
     for filename in files:
