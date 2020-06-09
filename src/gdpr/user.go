@@ -245,12 +245,12 @@ func (u *User) AddComment(content string, parentId int64) (int64, Err) {
 		IsUpload: false,
 	}
 
-	_ = u.logger.SaveLogEntry(&args)
+	//_ = u.logger.SaveLogEntry(&args)
 	err := u.SendAppServerUpdate(&args)
 	if err == OK && u.statusOK() {
-		if dberr := u.InsertTextRecordsDB(newText); dberr != nil {
+		/*if dberr := u.InsertTextRecordsDB(newText); dberr != nil {
 			err = ErrDB
-		}
+		}*/
 	}
 
 	// update that this log entry has committed. but what if the prior entry hasn't?

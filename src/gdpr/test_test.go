@@ -12,7 +12,7 @@ import (
 func TestNormalExecution(t *testing.T) {
 	fmt.Printf("TestNormalExecution\n")
 	nUsers := []int{5}
-	nTrials := 5
+	nTrials := 2
 	testDuration := 20 * time.Second
 	minUpdateMs := 10
 	maxUpdateMs := 100
@@ -68,9 +68,9 @@ func TestNormalExecution(t *testing.T) {
                     cfg.begin("test")
 
                     var wg sync.WaitGroup
-                    wg.Add(n)
+                    wg.Add(1)
                     fmt.Printf("Running users\n")
-                    for i := 0; i < n; i++ {
+                    for i := 0; i < 1; i++ {
                         go func(i int) {
                             cfg.runUser(i, minUpdateMs, maxUpdateMs, &wg)
                         }(i)
