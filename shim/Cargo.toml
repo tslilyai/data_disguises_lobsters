@@ -1,0 +1,11 @@
+[package]
+name = "shim"
+version = "0.1.0"
+authors = ["Lily Tsai <tslilyai@mit.edu>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mysql = "*"
+msql-srv = "0.9.1"
