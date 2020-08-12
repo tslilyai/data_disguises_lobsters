@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::*;
@@ -6,13 +5,20 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UserTable{
-    name : String,
-    user_cols : Vec<String>,
+    pub name : String,
+    pub id_col : String,
 }
 #[derive(Serialize, Deserialize, Debug)]
+pub struct DataTable{
+    pub name : String,
+    pub id_col : String,
+    pub user_cols : Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    user_table: UserTable,
-    data_tables: HashMap<String, Vec<String>>, 
+    pub user_table: UserTable,
+    pub data_tables: Vec<DataTable>,
 }
 
 pub fn parse_config(filename : String) -> io::Result<Config> {

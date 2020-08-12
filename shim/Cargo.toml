@@ -9,3 +9,6 @@ edition = "2018"
 [dependencies]
 mysql = "*"
 msql-srv = "0.9.1"
+sqlparser = "0.6.1"
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }

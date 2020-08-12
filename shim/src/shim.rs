@@ -1,5 +1,3 @@
-mod config;
-
 extern crate mysql;
 use msql_srv::*;
 use mysql::prelude::*;
@@ -7,9 +5,81 @@ use sqlparser::dialect::MySqlDialect;
 use sqlparser::parser::Parser;
 use sqlparser::ast::*;
 use std::*;
+mod config;
 
 const SCHEMA : &'static str = include_str!("schema.sql");
 const CONFIG_FILE : &'static str = "config.json";
+const CREATE_GHOST_METADATA_Q : &'static str = r"CREATE TABLE IF NOT EXISTS ghost_metadata (
+                user_id int unsigned,
+                ghost_id int unsigned NOT NULL,
+                record_id int unsigned NOT NULL,
+                table_name varchar(50),
+                user_col_name varchar(50),
+                UNIQUE INDEX ghost_id (ghost_id)
+            );";
+
+fn gen_create_user_mv_query(
+    user_table_name: &String, 
+    user_id_column: &String,
+    all_columns: &Vec<String>) -> String
+{
+    let mut other_columns = String::new();
+    for col in all_columns {
+        if col == user_id_column {
+            continue;
+        }
+        other_columns.push_str(&format!("{}.{}, ", user_table_name, col));
+    }
+
+    let query = format!(
+    "CREATE MATERIALIZED VIEW {user_table_name}_mv AS SELECT 
+        COALESCE ({user_table_name}.{user_id_column}, ghost_metadata.ghost_id) as {user_id_column}, {other_columns}
+        FROM ghost_metadata LEFT JOIN {user_table_name} 
+        ON ghost_metadata.user_id = {user_table_name}.{user_id_column};",
+        user_table_name = user_table_name,
+        user_id_column = user_id_column,
+        other_columns = other_columns);
+    return query;
+}
+
+fn gen_create_data_mv_query(
+    table_name: &String, 
+    table_id_col: &String, 
+    user_id_columns: &Vec<String>,
+    all_columns: &Vec<String>) -> String
+{
+    let mut user_id_col_str = String::new();
+    for col in user_id_columns {
+        // XXX does this actually do the right thing?
+        // only replace user id with ghost id if it matches the user_col_name
+        // this resolves issues where two ghost_metadata entries have the same table and record ids
+        user_id_col_str.push_str(&format!(
+                "COALESCE({}.{}, 
+                    (ghost_metadata.ghost_id WHERE ghost_metadata.user_col_name = {})) 
+                    as {}, ", table_name, col, col, col));
+    }
+    
+    let mut data_col_str = String::new();
+    for col in all_columns {
+        if user_id_columns.contains(&col) {
+            continue;
+        }
+        data_col_str.push_str(&format!("{}.{}, ", table_name, col));
+    }
+
+    let query = format!(
+    "CREATE MATERIALIZED VIEW {table_name}_mv AS SELECT 
+        {id_col_str} {data_col_str}
+        FROM {table_name} LEFT JOIN ghost_metadata
+        ON 
+            ghost_metadata.record_id = {table_name}.{record_id}
+            AND ghost_metadata.table_name = {table_name};",
+        table_name = table_name,
+        record_id = table_id_col,
+        id_col_str = user_id_col_str,
+        data_col_str = data_col_str);
+    return query;
+}
 
 pub struct Shim { db: mysql::Conn }
 
@@ -54,70 +124,59 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 ));
         }   
         /* create ghost metadata table */
-        self.db.query_drop(
-            r"CREATE TABLE IF NOT EXISTS ghost_metadata (
-                user_id int unsigned,
-                ghost_id int unsigned NOT NULL,
-                record_id int unsigned NOT NULL,
-                table_id varchar(50),
-                UNIQUE INDEX ghost_id (ghost_id)
-            );"
-        ).unwrap();
+        self.db.query_drop(CREATE_GHOST_METADATA_Q).unwrap();
 
         /* get config so we can detect data tables */
-        let cfg = config::parse_config(CONFIG_FILE.to_string());
-
+        let cfg = config::parse_config(CONFIG_FILE.to_string()).unwrap();
+        
         /* create materialized view for all data tables */
         /* for debugging purposes, print these queries out... */
         let dialect = MySqlDialect{};
-        let mut q = String::new();
+        let mut sql = String::new();
+        let mut mv_query : String;
         for line in SCHEMA.lines() {
             if line.starts_with("--") || line.is_empty() {
                 continue;
             }
-            if !q.is_empty() {
-                q.push_str(" ");
+            if !sql.is_empty() {
+                sql.push_str(" ");
             }
-            q.push_str(line);
+            sql.push_str(line);
         }
-        let stmts = Parser::parse_sql(&dialect, &q).unwrap();
+        let stmts = Parser::parse_sql(&dialect, &sql).unwrap();
         for stmt in stmts {
             match stmt {
                 Statement::CreateTable {
                     name,
-                    //columns,
-                    //constraints,
-                    //with_options,
+                    columns,
                     ..
                 } => {
-                    let query  = r"SELECT
-                        COALESCE (ghost_metadata.ghost_id, users.id) AS user_id,
-                        users.username,
-                        users.karma
-                    FROM ghost_metadata LEFT JOIN users
-                    ON ghost_metadata.user_id = users.id;";
-
-                    // TODO 
-                    // - construct query properly
-                    // - match against user id cols, table names
-                    // - actually execute query
-                    // - write tests
-                    let mut query_stmts = Parser::parse_sql(&dialect, &query).unwrap();
-                    let only_query = query_stmts.pop().unwrap(); 
-                    match only_query {
-                        Statement::Query(query) => {
-                            let mut mvname = name.to_string();
-                            mvname.push_str("_mv");
-                            let view_q = Statement::CreateView {
-                                name: ObjectName(vec![Ident::new(mvname)]),
-                                columns: Vec::<Ident>::new(),
-                                query: Box::new(*query),
-                                materialized: true,
-                                with_options: Vec::<SqlOption>::new(), 
-                            };
-                        },
-                        _ => panic!("Expected Query"),
+                    // construct query to create MV 
+                    let mut col_names = Vec::<String>::new();
+                    for col in columns {
+                        col_names.push(col.name.to_string());
                     }
+                    if name.to_string() == cfg.user_table.name {
+                        mv_query = gen_create_user_mv_query(
+                            &cfg.user_table.name, 
+                            &cfg.user_table.id_col, 
+                            &col_names);
+                    } else {
+                        let dtopt = cfg.data_tables.iter().find(|&dt| dt.name == name.to_string());
+                        match dtopt {
+                            Some(dt) => {
+                                mv_query = gen_create_data_mv_query(
+                                    &dt.name,
+                                    &dt.id_col,
+                                    &dt.user_cols,
+                                    &col_names)
+                            },
+                            _ => continue,
+                        }                     
+                    }
+                    // TODO 
+                    // execute query
+                    self.db.query_drop(mv_query).unwrap();
                 },
                 _ => continue, // we only handle create table stmts
             }
