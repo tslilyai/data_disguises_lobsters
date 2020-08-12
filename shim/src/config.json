@@ -1,6 +1,14 @@
-{
-    "table": "users",
-    "user_rows": [
-        "user_id",
-    ]
+{ 
+    "user_table" : {
+        "name": "users",
+        "user_cols": ["id"],
+    },
+    "data_tables" : {
+        "comments": ["user_id"],
+        "moderations": ["user_id", "moderator_user_id"],
+        "stories": ["user_id"],
+        "votes": ["user_id"],
+    }
 }
+
+
