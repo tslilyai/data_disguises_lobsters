@@ -1,22 +1,34 @@
 extern crate mysql;
 use msql_srv::*;
 use mysql::prelude::*;
+use regex::Regex;
 use sqlparser::dialect::MySqlDialect;
 use sqlparser::parser::Parser;
 use sqlparser::ast::*;
 use std::*;
 mod config;
 
-const SCHEMA : &'static str = include_str!("schema.sql");
-const CONFIG_FILE : &'static str = "config.json";
-const CREATE_GHOST_METADATA_Q : &'static str = r"CREATE TABLE IF NOT EXISTS ghost_metadata (
-                user_id int unsigned,
-                ghost_id int unsigned NOT NULL,
-                record_id int unsigned NOT NULL,
-                table_name varchar(50),
-                user_col_name varchar(50),
-                UNIQUE INDEX ghost_id (ghost_id)
-            );";
+pub const SCHEMA : &'static str = include_str!("./schema.sql");
+const CONFIG : &'static str = include_str!("./config.json");
+
+fn gen_create_ghost_metadata_query(user_col_names : &mut Vec<String>) -> String
+{
+    user_col_names.sort_unstable();
+    user_col_names.dedup();
+
+    let mut user_id_cols_str  = String::new();
+    for col in user_col_names {
+        user_id_cols_str.push_str(&format!(", {} int unsigned DEFAULT NULL", col));
+    }
+    let query = format!(r"CREATE TABLE IF NOT EXISTS ghost_metadata (
+                gmd_user_id int unsigned,
+                gmd_record_id int unsigned NOT NULL,
+                gmd_table_name varchar(50)
+                {}
+            );", user_id_cols_str);
+    println!("Create ghost metadata query: {}", query);
+    return query;
+}
 
 fn gen_create_user_mv_query(
     user_table_name: &String, 
@@ -28,17 +40,20 @@ fn gen_create_user_mv_query(
         if col == user_id_column {
             continue;
         }
-        other_columns.push_str(&format!("{}.{}, ", user_table_name, col));
+        other_columns.push_str(&format!(", {}.{}", user_table_name, col));
     }
 
     let query = format!(
-    "CREATE MATERIALIZED VIEW {user_table_name}_mv AS SELECT 
-        COALESCE ({user_table_name}.{user_id_column}, ghost_metadata.ghost_id) as {user_id_column}, {other_columns}
+    // XXX mysql doesn't support materialized views? only views?
+    r"CREATE VIEW {user_table_name}_mv AS SELECT 
+        COALESCE ({user_table_name}.{user_id_column}, ghost_metadata.{user_id_column}) as {user_id_column} 
+        {other_columns}
         FROM ghost_metadata LEFT JOIN {user_table_name} 
-        ON ghost_metadata.user_id = {user_table_name}.{user_id_column};",
+        ON ghost_metadata.gmd_user_id = {user_table_name}.{user_id_column};",
         user_table_name = user_table_name,
         user_id_column = user_id_column,
         other_columns = other_columns);
+    println!("Create user mv query: {}", query);
     return query;
 }
 
@@ -49,14 +64,14 @@ fn gen_create_data_mv_query(
     all_columns: &Vec<String>) -> String
 {
     let mut user_id_col_str = String::new();
-    for col in user_id_columns {
-        // XXX does this actually do the right thing?
-        // only replace user id with ghost id if it matches the user_col_name
-        // this resolves issues where two ghost_metadata entries have the same table and record ids
+    for (i, col) in user_id_columns.iter().enumerate() {
+        // only replace user id with ghost id if its present in the appropriate user id column
         user_id_col_str.push_str(&format!(
-                "COALESCE({}.{}, 
-                    (ghost_metadata.ghost_id WHERE ghost_metadata.user_col_name = {})) 
-                    as {}, ", table_name, col, col, col));
+                "COALESCE({}.{}, ghost_metadata.{}) as {}",
+                    table_name, col, col, col));
+        if i < user_id_columns.len()-1 {
+            user_id_col_str.push_str(", ");
+        }
     }
     
     let mut data_col_str = String::new();
@@ -64,20 +79,27 @@ fn gen_create_data_mv_query(
         if user_id_columns.contains(&col) {
             continue;
         }
-        data_col_str.push_str(&format!("{}.{}, ", table_name, col));
+        data_col_str.push_str(", ");
+        data_col_str.push_str(&format!("{}.{}", table_name, col));
     }
 
+    // XXX mysql doesn't support materialized views? only views?
+    // add GROUP BY to ensure that we only get one row per data table record
+    // this is necessary in cases where a data record has more than 1 user_id_col
     let query = format!(
-    "CREATE MATERIALIZED VIEW {table_name}_mv AS SELECT 
+    "CREATE VIEW {table_name}_mv AS SELECT 
         {id_col_str} {data_col_str}
         FROM {table_name} LEFT JOIN ghost_metadata
         ON 
-            ghost_metadata.record_id = {table_name}.{record_id}
-            AND ghost_metadata.table_name = {table_name};",
+            ghost_metadata.gmd_record_id = {table_name}.{record_id}
+            AND ghost_metadata.gmd_table_name = '{table_name}'
+        GROUP BY
+           {table_name}.{record_id};",
         table_name = table_name,
         record_id = table_id_col,
         id_col_str = user_id_col_str,
         data_col_str = data_col_str);
+    println!("Create data mv query: {}", query);
     return query;
 }
 
@@ -115,6 +137,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     }
 
     fn on_init(&mut self, schema: &str, _: InitWriter<W>) -> io::Result<()> { 
+        println!("On init called!");
         let res = self.db.select_db(schema);
         if !res {
             return Err(
@@ -123,14 +146,39 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                     "select db packet error",
                 ));
         }   
-        /* create ghost metadata table */
-        self.db.query_drop(CREATE_GHOST_METADATA_Q).unwrap();
+
+        /* Set up schema */
+        let mut current_q = String::new();
+        for line in SCHEMA.lines() {
+            if line.starts_with("--") || line.is_empty() {
+                continue;
+            }
+            if !current_q.is_empty() {
+                current_q.push_str(" ");
+            }
+            current_q.push_str(line);
+            if current_q.ends_with(';') {
+                self.db.query_drop(&current_q).unwrap();
+                println!("Query executed: {}", current_q);
+                current_q.clear();
+            }
+        }
 
         /* get config so we can detect data tables */
-        let cfg = config::parse_config(CONFIG_FILE.to_string()).unwrap();
+        let cfg = config::parse_config(CONFIG).unwrap();
+        let mut all_user_cols = Vec::<String>::new();
+        all_user_cols.push(cfg.user_table.id_col.clone());
+        for dt in &cfg.data_tables{
+            all_user_cols.extend(dt.user_cols.iter().cloned());
+        }
+
+        /* create ghost metadata table with boolean cols for each user id */
+        let create_ghost_table_q = gen_create_ghost_metadata_query(&mut all_user_cols);
+        // XXX temp: create a new ghost metadata table
+        self.db.query_drop("DROP TABLE IF EXISTS ghost_metadata;").unwrap();
+        self.db.query_drop(create_ghost_table_q).unwrap();
         
         /* create materialized view for all data tables */
-        /* for debugging purposes, print these queries out... */
         let dialect = MySqlDialect{};
         let mut sql = String::new();
         let mut mv_query : String;
@@ -142,8 +190,29 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 sql.push_str(" ");
             }
             sql.push_str(line);
+            if sql.ends_with(';') {
+                sql.push_str("\n");
+            }
         }
+
+        // XXX hack because parser doesn't support these: note that we just need the table and col names
+        // seems like mysql specific parsing hasn't yet been merge in official crate
+        // - remove backticks
+        // - remove autoincrement options
+        // - remove unsigned options
+        // - remove tinyint(1) 
+        let re = Regex::new(r"`|(?i)AUTO_INCREMENT|unsigned|tiny|\(1\)")
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        sql = re.replace_all(&sql, "").to_string();
+        
+        // sqlparser also doesn't support indexes in create table stmts for mysql
+        let re_end = Regex::new(", (fulltext|UNIQUE)? INDEX .*")
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        sql = re_end.replace_all(&sql, ");").to_string();
+
         let stmts = Parser::parse_sql(&dialect, &sql).unwrap();
+        println!("parsed {} into {} statements!", sql, stmts.len());
+
         for stmt in stmts {
             match stmt {
                 Statement::CreateTable {
@@ -174,13 +243,13 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                             _ => continue,
                         }                     
                     }
-                    // TODO 
                     // execute query
                     self.db.query_drop(mv_query).unwrap();
                 },
                 _ => continue, // we only handle create table stmts
             }
         }
+        println!("done with init!");
         Ok(())
     }
 
@@ -247,6 +316,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 results.error(ErrorKind::ER_BAD_SLAVE, format!("{:?}", e).as_bytes())?;
             }
         }
+        println!("Performed query {}", query);
         Ok(())
     }
 }

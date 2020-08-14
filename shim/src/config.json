@@ -1,30 +1,30 @@
 { 
     "user_table" : {
         "name": "users",
-        "id_col": "id",
+        "id_col": "id"
     },
     "data_tables" : [
         {
             "name": "comments",
             "id_col": "id",
-            "user_cols": ["user_id"],
+            "user_cols": ["user_id"]
         },
         {
             "name": "stories",
             "id_col": "id",
-            "user_cols": ["user_id"],
+            "user_cols": ["user_id"]
         },
         {
             "name": "votes",
             "id_col": "id",
-            "user_cols": ["user_id"],
+            "user_cols": ["user_id"]
         },
         {
             "name": "moderations",
             "id_col": "id",
-            "user_cols": ["user_id", "moderator_user_id"],
-        },
-    ],
+            "user_cols": ["user_id", "moderator_user_id"]
+        }
+    ]
 }
 
 

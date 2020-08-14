@@ -13,14 +13,15 @@ fn main() {
             let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
             assert_eq!(db.ping(), true);
             MysqlIntermediary::run_on_tcp(shim::Shim::new(db), s).unwrap();
-            println!("Accept!")
         }
     });
 
     let mut db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
     assert_eq!(db.ping(), true);
-    assert_eq!(db.query_iter("SELECT a, b FROM foo").unwrap().count(), 1);
-    assert_eq!(db.query_iter("SELECT a, b FROM foo").unwrap().count(), 1);
+    assert_eq!(db.select_db("gdpr"), true);
+    println!("Done selecting db");
+    assert_eq!(db.query_iter("SELECT * FROM comments").unwrap().count(), 0);
+    //assert_eq!(db.query_iter("SELECT a, b FROM foo").unwrap().count(), 1);*/
     drop(db);
     jh.join().unwrap();
 }
