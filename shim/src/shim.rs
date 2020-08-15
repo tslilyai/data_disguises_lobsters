@@ -136,15 +136,14 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     fn on_close(&mut self, _: u32) {
     }
 
-    fn on_init(&mut self, schema: &str, _: InitWriter<W>) -> io::Result<()> { 
+    fn on_init(&mut self, schema: &str, w: InitWriter<W>) -> io::Result<()> { 
         println!("On init called!");
         let res = self.db.select_db(schema);
         if !res {
-            return Err(
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    "select db packet error",
-                ));
+            return w.error(
+                    ErrorKind::ER_BAD_DB_ERROR,
+                    b"select db failed",
+                );
         }   
 
         /* Set up schema */
@@ -250,7 +249,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             }
         }
         println!("done with init!");
-        Ok(())
+        w.ok()
     }
 
     fn on_query(&mut self, query: &str, results: QueryResultWriter<W>) -> io::Result<()> {

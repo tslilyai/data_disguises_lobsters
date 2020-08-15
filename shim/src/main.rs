@@ -11,6 +11,9 @@ fn main() {
     let jh = thread::spawn(move || {
         if let Ok((s, _)) = listener.accept() {
             let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
+            // just for testing
+            db.query_drop("DROP DATABASE gdpr;").unwrap();
+            db.query_drop("CREATE DATABASE gdpr;").unwrap();
             assert_eq!(db.ping(), true);
             MysqlIntermediary::run_on_tcp(shim::Shim::new(db), s).unwrap();
         }
