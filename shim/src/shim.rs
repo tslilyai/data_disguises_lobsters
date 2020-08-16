@@ -9,6 +9,7 @@ use std::*;
 mod config;
 
 pub const SCHEMA : &'static str = include_str!("./schema.sql");
+const DIALECT : sqlparser::dialect::MySqlDialect = MySqlDialect{};
 const CONFIG : &'static str = include_str!("./config.json");
 
 fn gen_create_ghost_metadata_query(user_col_names : &mut Vec<String>) -> String
@@ -178,7 +179,6 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         self.db.query_drop(create_ghost_table_q).unwrap();
         
         /* create materialized view for all data tables */
-        let dialect = MySqlDialect{};
         let mut sql = String::new();
         let mut mv_query : String;
         for line in SCHEMA.lines() {
@@ -209,7 +209,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         sql = re_end.replace_all(&sql, ");").to_string();
 
-        let stmts = Parser::parse_sql(&dialect, &sql).unwrap();
+        let stmts = Parser::parse_sql(&DIALECT, &sql).unwrap();
         println!("parsed {} into {} statements!", sql, stmts.len());
 
         for stmt in stmts {
@@ -253,7 +253,68 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     }
 
     fn on_query(&mut self, query: &str, results: QueryResultWriter<W>) -> io::Result<()> {
-        match self.db.query_iter(query) {
+        let stmts = Parser::parse_sql(&DIALECT, &query).unwrap();
+        println!("parsed {} into {} statements!", query, stmts.len());
+
+        let mut changed_q = query;
+        for stmt in stmts {
+            match stmt {
+                Statement::Query{
+                    ..
+                } => {
+                    unimplemented!("Does not support arbitrary queries");
+                },
+                Statement::Insert {
+                    table_name,
+                    columns,
+                    source,
+                } => {
+                    println!("INSERT INTO {} ", table_name);
+                    //if !columns.is_empty() {
+                    //}
+                },
+                Statement::Copy {
+                    table_name,
+                    columns,
+                    values,
+                } => {
+                },
+                Statement::Update {
+                    table_name,
+                    assignments,
+                    selection,
+                } => {
+                },
+                Statement::Delete {
+                    table_name,
+                    selection,
+                } => {
+                },
+                Statement::CreateView {
+                    name,
+                    columns,
+                    query,
+                    materialized,
+                    with_options,
+                } => {
+                    // TODO translate query properly
+                },
+                // TODO support adding and modifying data tables
+                /*Statement::CreateTable {} => {}
+                Statement::CreateVirtualTable {} => {}
+                Statement::CreateIndex {} => {}
+                Statement::AlterTable { name, operation } => {}
+                Statement::CreateSchema { schema_name } => {}*/
+                Statement::ShowColumns {
+                    ..
+                } => {
+                },
+                _ => {  
+                    changed_q = query;
+                }
+            }
+        }
+        match self.db.query_iter(changed_q) {
             Ok(rows) => {
                 let cols : Vec<_> = rows
                     .columns()
