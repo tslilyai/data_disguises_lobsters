@@ -4,6 +4,8 @@ use mysql::prelude::*;
 use std::*;
 mod shim;
 
+const CONFIG : &'static str = include_str!("./config.json");
+
 fn main() {
     let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -15,7 +17,7 @@ fn main() {
             db.query_drop("DROP DATABASE gdpr;").unwrap();
             db.query_drop("CREATE DATABASE gdpr;").unwrap();
             assert_eq!(db.ping(), true);
-            MysqlIntermediary::run_on_tcp(shim::Shim::new(db), s).unwrap();
+            MysqlIntermediary::run_on_tcp(shim::Shim::new(db, CONFIG), s).unwrap();
         }
     });
 

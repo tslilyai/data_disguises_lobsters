@@ -1,8 +1,0 @@
-\BOOKMARK [1][-]{section.1}{Problem Statement}{}% 1
-\BOOKMARK [1][-]{section.2}{Design Sketch}{}% 2
-\BOOKMARK [2][-]{subsection.2.1}{RPC Interface}{section.2}% 3
-\BOOKMARK [2][-]{subsection.2.2}{Consistency Model}{section.2}% 4
-\BOOKMARK [2][-]{subsection.2.3}{Leases}{section.2}% 5
-\BOOKMARK [2][-]{subsection.2.4}{Inter-user Dependencies and Revoked Data}{section.2}% 6
-\BOOKMARK [1][-]{section.3}{Implementation Details}{}% 7
-\BOOKMARK [1][-]{section.4}{Deliverables and Plan}{}% 8
