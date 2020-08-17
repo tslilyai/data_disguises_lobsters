@@ -14,23 +14,11 @@ const DIALECT : sqlparser::dialect::MySqlDialect = MySqlDialect{};
 const MV_SUFFIX : &'static str = "_mv"; 
 
 
-fn gen_create_ghost_metadata_query(user_col_names : &mut Vec<String>) -> String
-{
-    user_col_names.sort_unstable();
-    user_col_names.dedup();
-
-    let mut user_id_cols_str  = String::new();
-    for col in user_col_names {
-        user_id_cols_str.push_str(&format!(", {} int unsigned DEFAULT NULL", col));
-    }
-    let query = format!(r"CREATE TABLE IF NOT EXISTS ghost_metadata (
-                gmd_user_id int unsigned,
-                gmd_record_id int unsigned NOT NULL,
-                gmd_table_name varchar(50)
-                {}
-            );", user_id_cols_str);
-    println!("Create ghost metadata query: {}", query);
-    return query;
+fn gen_create_ghost_metadata_query() -> String {
+    return r"CREATE TABLE IF NOT EXISTS `ghost_metadata` (
+                `user_id` int unsigned,
+                `ghost_id` int unsigned NOT NULL,
+                UNIQUE INDEX `ghost_id` (`ghost_id`));".to_string();
 }
 
 fn gen_create_user_mv_query(
@@ -47,12 +35,12 @@ fn gen_create_user_mv_query(
     }
 
     let query = format!(
-    // XXX mysql doesn't support materialized views? only views?
-    r"CREATE VIEW {user_table_name}{suffix} AS SELECT 
-        COALESCE ({user_table_name}.{user_id_column}, ghost_metadata.{user_id_column}) as {user_id_column} 
-        {other_columns}
+    // XXX mysql doesn't support materialized views, so just create a new table
+    r"CREATE TABLE {user_table_name}{suffix} AS (SELECT 
+            COALESCE (ghost_metadata.user_id, {user_table_name}.{user_id_column}, ) as {user_id_column} 
+            {other_columns}
         FROM ghost_metadata LEFT JOIN {user_table_name} 
-        ON ghost_metadata.gmd_user_id = {user_table_name}.{user_id_column};",
+        ON ghost_metadata.user_id = {user_table_name}.{user_id_column});",
         suffix = MV_SUFFIX,
         user_table_name = user_table_name,
         user_id_column = user_id_column,
@@ -71,8 +59,8 @@ fn gen_create_data_mv_query(
     for (i, col) in user_id_columns.iter().enumerate() {
         // only replace user id with ghost id if its present in the appropriate user id column
         user_id_col_str.push_str(&format!(
-                "COALESCE({}.{}, ghost_metadata.{}) as {}",
-                    table_name, col, col, col));
+                "COALESCE(ghost_metadata.user_id, {}.{}) as {}",
+                    table_name, col, col));
         if i < user_id_columns.len()-1 {
             user_id_col_str.push_str(", ");
         }
@@ -91,14 +79,13 @@ fn gen_create_data_mv_query(
     // add GROUP BY to ensure that we only get one row per data table record
     // this is necessary in cases where a data record has more than 1 user_id_col
     let query = format!(
-    "CREATE VIEW {table_name}{suffix} AS SELECT 
-        {id_col_str} {data_col_str}
+    "CREATE TABLE {table_name}{suffix} AS (SELECT 
+            {id_col_str} 
+            {data_col_str}
         FROM {table_name} LEFT JOIN ghost_metadata
         ON 
-            ghost_metadata.gmd_record_id = {table_name}.{record_id}
-            AND ghost_metadata.gmd_table_name = '{table_name}'
-        GROUP BY
-           {table_name}.{record_id};",
+            ghost_metadata.record_id = {table_name}.{record_id}
+            AND ghost_metadata.table_name = '{table_name}';)",
         suffix = MV_SUFFIX,
         table_name = table_name,
         record_id = table_id_col,
@@ -117,23 +104,19 @@ pub struct Shim {
     db: mysql::Conn,
     cfg: config::Config,
     table_names: Vec<String>,
-    user_col_names: Vec<String>,
     prepared: HashMap<u32, Prepared>,
 }
 
 impl Shim {
     pub fn new(db: mysql::Conn, cfg_json: &str) -> Self {
         let cfg = config::parse_config(cfg_json).unwrap();
-        let mut user_col_names = Vec::<String>::new();
         let mut table_names = Vec::<String>::new();
-        user_col_names.push(cfg.user_table.id_col.clone());
         table_names.push(cfg.user_table.name.clone());
         for dt in &cfg.data_tables{
             table_names.push(dt.name.clone());
-            user_col_names.extend(dt.user_cols.iter().cloned());
         }
         let prepared = HashMap::new();
-        Shim{db, cfg, table_names, user_col_names, prepared}
+        Shim{db, cfg, table_names, prepared}
     }   
 
     fn query_using_mv_tables(&self, query: &str) -> String {
@@ -247,7 +230,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         }
 
         /* create ghost metadata table with boolean cols for each user id */
-        let create_ghost_table_q = gen_create_ghost_metadata_query(&mut self.user_col_names);
+        let create_ghost_table_q = gen_create_ghost_metadata_query();
         // XXX temp: create a new ghost metadata table
         self.db.query_drop("DROP TABLE IF EXISTS ghost_metadata;").unwrap();
         self.db.query_drop(create_ghost_table_q).unwrap();
