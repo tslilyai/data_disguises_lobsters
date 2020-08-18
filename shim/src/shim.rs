@@ -13,56 +13,32 @@ pub const SCHEMA : &'static str = include_str!("./schema.sql");
 const DIALECT : sqlparser::dialect::MySqlDialect = MySqlDialect{};
 const MV_SUFFIX : &'static str = "_mv"; 
 
-
 fn gen_create_ghost_metadata_query() -> String {
     return r"CREATE TABLE IF NOT EXISTS `ghost_metadata` (
+                `ghost_id` int unsigned NOT NULL AUTO_INCREMENT,
                 `user_id` int unsigned,
-                `ghost_id` int unsigned NOT NULL,
-                UNIQUE INDEX `ghost_id` (`ghost_id`));".to_string();
+                );".to_string();
 }
 
-fn gen_create_user_mv_query(
-    user_table_name: &String, 
-    user_id_column: &String,
-    all_columns: &Vec<String>) -> String
-{
-    let mut other_columns = String::new();
-    for col in all_columns {
-        if col == user_id_column {
-            continue;
-        }
-        other_columns.push_str(&format!(", {}.{}", user_table_name, col));
-    }
-
-    let query = format!(
-    // XXX mysql doesn't support materialized views, so just create a new table
-    r"CREATE TABLE {user_table_name}{suffix} AS (SELECT 
-            COALESCE (ghost_metadata.user_id, {user_table_name}.{user_id_column}, ) as {user_id_column} 
-            {other_columns}
-        FROM ghost_metadata LEFT JOIN {user_table_name} 
-        ON ghost_metadata.user_id = {user_table_name}.{user_id_column});",
-        suffix = MV_SUFFIX,
-        user_table_name = user_table_name,
-        user_id_column = user_id_column,
-        other_columns = other_columns);
-    println!("Create user mv query: {}", query);
-    return query;
-}
-
-fn gen_create_data_mv_query(
+fn gen_create_mv_query(
     table_name: &String, 
-    table_id_col: &String, 
     user_id_columns: &Vec<String>,
     all_columns: &Vec<String>) -> String
 {
     let mut user_id_col_str = String::new();
+    let mut join_on_str = String::new();
     for (i, col) in user_id_columns.iter().enumerate() {
         // only replace user id with ghost id if its present in the appropriate user id column
         user_id_col_str.push_str(&format!(
                 "COALESCE(ghost_metadata.user_id, {}.{}) as {}",
                     table_name, col, col));
+        join_on_str.push_str(&format!(
+                "ghost_metadata.ghost_id = {}.{}",
+                    table_name, col));
+
         if i < user_id_columns.len()-1 {
             user_id_col_str.push_str(", ");
+            join_on_str.push_str(" OR ");
         }
     }
     
@@ -83,12 +59,10 @@ fn gen_create_data_mv_query(
             {id_col_str} 
             {data_col_str}
         FROM {table_name} LEFT JOIN ghost_metadata
-        ON 
-            ghost_metadata.record_id = {table_name}.{record_id}
-            AND ghost_metadata.table_name = '{table_name}';)",
+        ON {join_on_str};",
         suffix = MV_SUFFIX,
         table_name = table_name,
-        record_id = table_id_col,
+        join_on_str = join_on_str,
         id_col_str = user_id_col_str,
         data_col_str = data_col_str);
     println!("Create data mv query: {}", query);
@@ -104,6 +78,7 @@ pub struct Shim {
     db: mysql::Conn,
     cfg: config::Config,
     table_names: Vec<String>,
+    // NOTE: not *actually* static, but tied to our connection's lifetime.
     prepared: HashMap<u32, Prepared>,
 }
 
@@ -118,6 +93,14 @@ impl Shim {
         let prepared = HashMap::new();
         Shim{db, cfg, table_names, prepared}
     }   
+
+    /* 
+     * Set all user_ids in the ghost_metadata table to NULL
+     * refresh "materialized views"
+     */
+    pub fn unsubscribe() -> bool {
+        false
+    }
 
     fn query_using_mv_tables(&self, query: &str) -> String {
         // TODO handle insertions or updates --> need to modify ghost_metadata table
@@ -170,7 +153,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                     })
                     .collect();
                 info.reply(stmt.id(), &params, &columns)?;
-                self.prepared.insert(stmt.id(), Prepared{stmt, params});
+                self.prepared.insert(stmt.id(), Prepared{stmt: stmt.clone(), params});
             },
             Err(e) => {
                 match e {
@@ -197,7 +180,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 let args : Vec<mysql::Value> = ps
                     .into_iter()
                     .map(|p| match p.value.into_inner() {
-                        NULL => {
+                        msql_srv::ValueInner::NULL => {
                             mysql::Value::NULL
                         }
                         ValueInner::Bytes(bs) => {
@@ -224,7 +207,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 }).collect();
 
                 let res = self.db.exec_iter(
-                    prepped.stmt, 
+                    prepped.stmt.clone(), 
                     mysql::params::Params::Positional(args),
                 );
 
@@ -239,7 +222,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         match self.prepared.get(&id) {
             None => return,
             Some(prepped) => {
-                self.db.close(prepped.stmt);
+                self.db.close(prepped.stmt.clone());
                 self.prepared.remove(&id); 
             }
         }
@@ -308,7 +291,6 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         sql = re_end.replace_all(&sql, ");").to_string();
 
         let stmts = Parser::parse_sql(&DIALECT, &sql).unwrap();
-        println!("parsed {} into {} statements!", sql, stmts.len());
 
         for stmt in stmts {
             match stmt {
@@ -323,17 +305,16 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                         col_names.push(col.name.to_string());
                     }
                     if name.to_string() == self.cfg.user_table.name {
-                        mv_query = gen_create_user_mv_query(
+                        mv_query = gen_create_mv_query(
                             &self.cfg.user_table.name, 
-                            &self.cfg.user_table.id_col, 
+                            &vec![self.cfg.user_table.id_col], 
                             &col_names);
                     } else {
                         let dtopt = self.cfg.data_tables.iter().find(|&dt| dt.name == name.to_string());
                         match dtopt {
                             Some(dt) => {
-                                mv_query = gen_create_data_mv_query(
+                                mv_query = gen_create_mv_query(
                                     &dt.name,
-                                    &dt.id_col,
                                     &dt.user_cols,
                                     &col_names)
                             },
@@ -352,25 +333,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     }
 
     fn on_query(&mut self, query: &str, results: QueryResultWriter<W>) -> Result<(), Self::Error> {
-        // TODO support adding and modifying data tables
-        /* Statement::CreateTable {} => {}
-            Statement::CreateVirtualTable {} => {}
-            Statement::CreateIndex {} => {}
-            Statement::AlterTable { name, operation } => {}
-            Statement::CreateSchema { schema_name } => {}*/
-        answer_rows(results, self.db.query_iter(self.query_using_mv_tables(query)))
-    }
-}
-
-fn answer_rows<W: io::Write>(
-    results: QueryResultWriter<W>,
-    query: &str,
-    rows: mysql::Result<mysql::QueryResult<mysql::Text>>,
-) -> Result<(), mysql::Error> 
-{
-    let stmts = Parser::parse_sql(&DIALECT, &query).unwrap();
-        println!("parsed {} into {} statements!", query, stmts.len());
-
+        let stmts = Parser::parse_sql(&DIALECT, &query)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         for stmt in stmts {
             match stmt {
                 Statement::Insert {
@@ -378,16 +342,60 @@ fn answer_rows<W: io::Write>(
                     columns,
                     source,
                 } => {
-                    /*if table_name in self.table_names {
-                        
-                    }*/
-
+                    let value_exprs : &[Vec<Expr>] = Vec::Expr::new();
+                    match &source.body {
+                        SetExpr::Values(Values(values)) => values = values.as_slice(),
+                        // TODO currently not supporting nested queries (insert into _ with _ as select _)
+                        _=> unimplemented!("No support for nested queries in VALUES"),
+                    }
+                    // we want to insert into both the MV and the data table
+                    // and to insert a unique ghost_id in place of the user_id 
+                    // 1. check if this table even has user_ids that we need to replace
+                    /
+                    for dt in self.cfg.data_tables {
+                        if table_name == dt.name {
+                            for (i, c) in columns.enumerate() {
+                                if c.value in dt.user_cols {
+                                    // 2. get param value of user_id columns
+                                    // 3. replace param values with unique ghost IDs by inserting an equivalent 
+                                    //      number of entries into the ghost_metadata table with the user_id param, 
+                                    let mut user_id = String::new();
+                                    match value_exprs[i] {
+                                        Value(Number(n)) => user_id = n,
+                                        _ => unimplemented("No support for different representations of user_ids in values, or 
+                                                           user_ids that are not numbers")
+                                    }
+                                    self.db.query_iter(format!("INSERT INTO ghost_metadata (user_id) VALUES ({});", user_id))?;
+                                    // 4. get the ghost_id fields of the new entry 
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    // 4. issue the modified query to the data table (err if error)
+                    self.db.query_iter(query)?;
+                    // 5. issue the actual query to the data table
+                    return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(query)))
                 }
+                Statement::Update{..} => {
+                }
+                Statement::Delete {..} => {
+                }
+                // TODO support adding and modifying data tables (create table, etc.)
+                _ => {
+                    // return the result from the "materialized view"
+                    return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(query)));
+                } 
             }
         }
+    }
+}
 
-
-        
+fn answer_rows<W: io::Write>(
+    results: QueryResultWriter<W>,
+    rows: mysql::Result<mysql::QueryResult<mysql::Text>>,
+) -> Result<(), mysql::Error> 
+{
     match rows {
         Ok(rows) => {
             let cols : Vec<_> = rows
@@ -451,7 +459,6 @@ fn answer_rows<W: io::Write>(
         }
     }
     Ok(())
-
 }
 
 /// Convert a MySQL type to MySQL_svr type 
