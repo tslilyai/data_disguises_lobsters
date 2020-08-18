@@ -134,6 +134,7 @@ impl Shim {
 
 impl Drop for Shim {
     fn drop(&mut self) {
+        self.prepared.clear();
         // drop the connection (implicitly done).
     }
 }
@@ -234,7 +235,14 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         }
     }
     
-    fn on_close(&mut self, _: u32) {
+    fn on_close(&mut self, id: u32) {
+        match self.prepared.get(&id) {
+            None => return,
+            Some(prepped) => {
+                self.db.close(prepped.stmt);
+                self.prepared.remove(&id); 
+            }
+        }
     }
 
     fn on_init(&mut self, schema: &str, w: InitWriter<W>) -> Result<(), Self::Error> {
