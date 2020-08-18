@@ -191,14 +191,47 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     ) -> Result<(), Self::Error> {
         match self.prepared.get(&id) {
             None => return Ok(results.error(ErrorKind::ER_NO, b"no such prepared statement")?),
-            Some(stmt) => {
+            Some(prepped) => {
+                // parse params
+                let args : Vec<mysql::Value> = ps
+                    .into_iter()
+                    .map(|p| match p.value.into_inner() {
+                        NULL => {
+                            mysql::Value::NULL
+                        }
+                        ValueInner::Bytes(bs) => {
+                            mysql::Value::Bytes(bs.to_vec())
+                        }
+                        ValueInner::Int(v) => {
+                            mysql::Value::Int(v)
+                        }
+                        ValueInner::UInt(v) => {
+                            mysql::Value::UInt(v)
+                        }
+                        ValueInner::Double(v) => {
+                            mysql::Value::Float(v)
+                        }
+                        ValueInner::Date(bs) => {
+                            assert!(bs.len() == 7);
+                            mysql::Value::Date(bs[0].into(), bs[1].into(), bs[2], bs[3], bs[4], bs[5], bs[6].into())
+                        }
+                        ValueInner::Time(bs) => {
+                            assert!(bs.len() == 6);
+                            mysql::Value::Time(bs[0] == 0, bs[1].into(), bs[2], bs[3], bs[4], bs[5].into())
+                        }
+                        ct => unimplemented!("no translation for param type {:?}", ct)
+                }).collect();
+
+                let res = self.db.exec_iter(
+                    prepped.stmt, 
+                    mysql::params::Params::Positional(args),
+                );
+
+                // TODO get response
                 return Ok(());
-            }//TODO 
+                //answer_rows(results, self.db.query_iter(self.query_using_mv_tables("")))
+            }
         }
-        // parse params
-        // remember statement id map
-        // exec_iter
-        answer_rows(results, self.db.query_iter(self.query_using_mv_tables("")))
     }
     
     fn on_close(&mut self, _: u32) {
@@ -337,9 +370,9 @@ fn answer_rows<W: io::Write>(
                     columns,
                     source,
                 } => {
-                    if table_name in self.table_names {
+                    /*if table_name in self.table_names {
                         
-                    }
+                    }*/
 
                 }
             }
