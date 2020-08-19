@@ -111,6 +111,15 @@ impl Shim {
         false
     }
 
+    fn get_user_cols_of(&self, table_name: String) -> Option<&Vec<String>> {
+         for dt in &self.cfg.data_tables {
+             if table_name == dt.name {
+                 return Some(&dt.user_cols);
+             }
+         }
+         None
+    }
+
     fn query_using_mv_tables(&self, query: &str) -> String {
         // TODO handle insertions or updates --> need to modify ghost_metadata table
         let mut changed_q = query.to_string();
@@ -345,7 +354,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
 
     fn on_query(&mut self, query: &str, results: QueryResultWriter<W>) -> Result<(), Self::Error> {
         let stmts_res = Parser::parse_sql(&DIALECT, &query);
-        let mut query = String::from(query);
+        let mut query_with_ghosts = String::from(query);
         match stmts_res {
             Err(e) => {
                 results.error(ErrorKind::ER_PARSE_ERROR, format!("{:?}", e).as_bytes())?;
@@ -368,42 +377,91 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                             // we want to insert into both the MV and the data table
                             // and to insert a unique ghost_id in place of the user_id 
                             // 1. check if this table even has user_ids that we need to replace
-                            for dt in &self.cfg.data_tables {
-                                if table_name.to_string() == dt.name {
-                                    for (i, c) in columns.iter().enumerate() {
-                                        if dt.user_cols.iter().any(|col| *col == c.value) {
-                                            // 2. get param value of user_id columns
-                                            // 3. insert user_id val into the ghost_metadata table
-                                            //    as a new ghost_id entry
-                                            let user_id_q = format!("{:?}", value_exprs[i]);
-                                            self.db.query_drop(format!("INSERT INTO ghost_metadata (user_id) VALUES ({});", 
-                                                                       self.query_using_mv_tables(&user_id_q)))?;
-                                            // 4. get the ghost_id field of the new entry 
-                                            let res = self.db.query_iter("SELECT LAST_INSERT_ID()")?;
-                                            match res.last_insert_id() {
-                                                None => return Ok(results.error(
-                                                        ErrorKind::ER_INTERNAL_ERROR, 
-                                                        b"call to last insert ID failed")?),
-                                                Some(ghost_id) => {
-                                                    // 5. replace user_id value in query with ghost_id
-                                                    // XXX this seems brittle (could replace more than once? would that be problematic?)
-                                                    query = query.replace(&user_id_q, &format!("{:?}", ghost_id));
-                                                }
-                                            }
+                            let mut user_cols : Vec<String> = Vec::<String>::new();
+                            match self.get_user_cols_of(table_name.to_string()) {
+                                Some(uc) => user_cols = uc.clone(),
+                                None => (),
+                            }
+                            for (i, c) in columns.iter().enumerate() {
+                                if user_cols.iter().any(|col| *col == c.value) {
+                                    // 2. get param value of user_id columns
+                                    // 3. insert user_id val into the ghost_metadata table
+                                    //    as a new ghost_id entry
+                                    let user_id_q = format!("{:?}", value_exprs[i]);
+                                    self.db.query_drop(format!("INSERT INTO ghost_metadata (user_id) VALUES ({});", 
+                                                               self.query_using_mv_tables(&user_id_q)))?;
+                                    // 4. get the ghost_id field of the new entry 
+                                    let res = self.db.query_iter("SELECT LAST_INSERT_ID()")?;
+                                    match res.last_insert_id() {
+                                        None => return Ok(results.error(
+                                                ErrorKind::ER_INTERNAL_ERROR, 
+                                                b"call to last insert ID failed")?),
+                                        Some(ghost_id) => {
+                                            // 5. replace user_id value in query with ghost_id
+                                            // XXX this seems brittle (could replace more than once? would that be problematic?)
+                                            query_with_ghosts = query_with_ghosts.replace(&user_id_q, &format!("{:?}", ghost_id));
                                         }
                                     }
-                                    // break because only one table can match anyway
-                                    break;
                                 }
                             }
-                            // 4. issue the modified query to the data table (err if error)
-                            self.db.query_iter(&query)?;
-                            // 5. issue the actual query to the "materialized view" table
-                            //      Note that this may insert the actual user_id, which is fine
+                            // 4. issue the MODIFIED query to the data table (err if error)
+                            self.db.query_drop(&query_with_ghosts)?;
+                            // 5. issue the UNMODIFIED query to the "materialized view" table by
+                            //    replacing table names.
+                            //    Note that this may insert the actual user_id, which is fine
                             return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
                         }
-                        Statement::Update{..} => {
-                            return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
+                        Statement::Update{
+                            table_name,
+                            assignments,
+                            selection,
+                        } => {
+                            let mut user_cols : Vec<String> = Vec::<String>::new();
+                            match self.get_user_cols_of(table_name.to_string()) {
+                                Some(uc) => user_cols = uc.clone(),
+                                None => (),
+                            }
+
+                            let mut selection_str = String::from(";");
+                            match selection {
+                                Some(ref s) => selection_str.push_str(&format!("WHERE {};", s)),
+                                None => (),
+                            }
+
+                            // TODO 
+                            // if the user id is used as part of the selection, we need to instead
+                            // use the corresponding ghost id
+ 
+                            // next, if there are assignments to user IDs, we need to update the
+                            // corresponding ghost values in the ghost metadata table 
+                            for assn in assignments {
+                                // go column by column and update ghost ids respectively
+                                if user_cols.iter().any(|col| *col == assn.id.to_string()) {
+                                    let new_user_id = &format!("{:?}", assn.value);
+
+                                    // get ghost value corresponding to this user
+                                    // and update it to the new assigned userid value
+                                    let mut ghost_id = 0;
+                                    let get_ghost_val_q = format!("SELECT {} FROM {} {}", assn.id, table_name, selection_str);
+                                    let mut rows = self.db.query_iter(get_ghost_val_q)?;
+                                    for (i, c) in rows.columns().as_ref().into_iter().enumerate() {
+                                        if c.name_str().to_string() == assn.id.to_string() {
+                                            let vals = rows.nth(i).unwrap();
+                                            let vals = vals.unwrap();
+                                            ghost_id = vals.get::<u64, _>(i).unwrap();
+                                        }
+                                        break;
+                                    }
+                                    // update entry of ghost id in table to point to new user id
+                                    let update_ghost_val_q = format!(
+                                        "UPDATE ghost_metadata SET user_id = {} WHERE ghost_id = {};", new_user_id, ghost_id);
+                                    
+                                    // XXX put this drop in to make borrow checker happy?
+                                    drop(rows);
+                                    self.db.query_drop(update_ghost_val_q)?;
+                                }
+                            }
+                           return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
                         }
                         Statement::Delete {..} => {
                             return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
