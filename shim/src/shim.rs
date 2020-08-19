@@ -102,6 +102,15 @@ impl Shim {
         false
     }
 
+    /* 
+     * Set all user_ids in the ghost_metadata table to specified user 
+     * refresh "materialized views"
+     * TODO add back deleted content from shard
+     */
+    pub fn resubscribe() -> bool {
+        false
+    }
+
     fn query_using_mv_tables(&self, query: &str) -> String {
         // TODO handle insertions or updates --> need to modify ghost_metadata table
         let mut changed_q = query.to_string();
@@ -204,7 +213,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                             mysql::Value::Time(bs[0] == 0, bs[1].into(), bs[2], bs[3], bs[4], bs[5].into())
                         }
                         ct => unimplemented!("no translation for param type {:?}", ct)
-                }).collect();
+                    }).collect();
 
                 let res = self.db.exec_iter(
                     prepped.stmt.clone(), 
@@ -222,7 +231,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         match self.prepared.get(&id) {
             None => return,
             Some(prepped) => {
-                self.db.close(prepped.stmt.clone());
+                // XXX todo should handle error
+                // why doesn't on_close return a result?
+                self.db.close(prepped.stmt.clone()).unwrap();
                 self.prepared.remove(&id); 
             }
         }
@@ -307,7 +318,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                     if name.to_string() == self.cfg.user_table.name {
                         mv_query = gen_create_mv_query(
                             &self.cfg.user_table.name, 
-                            &vec![self.cfg.user_table.id_col], 
+                            &vec![self.cfg.user_table.id_col.clone()], 
                             &col_names);
                     } else {
                         let dtopt = self.cfg.data_tables.iter().find(|&dt| dt.name == name.to_string());
@@ -333,64 +344,82 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     }
 
     fn on_query(&mut self, query: &str, results: QueryResultWriter<W>) -> Result<(), Self::Error> {
-        let stmts = Parser::parse_sql(&DIALECT, &query)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-        for stmt in stmts {
-            match stmt {
-                Statement::Insert {
-                    table_name,
-                    columns,
-                    source,
-                } => {
-                    let value_exprs : &[Vec<Expr>] = Vec::Expr::new();
-                    match &source.body {
-                        SetExpr::Values(Values(values)) => values = values.as_slice(),
-                        // TODO currently not supporting nested queries (insert into _ with _ as select _)
-                        _=> unimplemented!("No support for nested queries in VALUES"),
-                    }
-                    // we want to insert into both the MV and the data table
-                    // and to insert a unique ghost_id in place of the user_id 
-                    // 1. check if this table even has user_ids that we need to replace
-                    /
-                    for dt in self.cfg.data_tables {
-                        if table_name == dt.name {
-                            for (i, c) in columns.enumerate() {
-                                if c.value in dt.user_cols {
-                                    // 2. get param value of user_id columns
-                                    // 3. replace param values with unique ghost IDs by inserting an equivalent 
-                                    //      number of entries into the ghost_metadata table with the user_id param, 
-                                    let mut user_id = String::new();
-                                    match value_exprs[i] {
-                                        Value(Number(n)) => user_id = n,
-                                        _ => unimplemented("No support for different representations of user_ids in values, or 
-                                                           user_ids that are not numbers")
+        let stmts_res = Parser::parse_sql(&DIALECT, &query);
+        let mut query = String::from(query);
+        match stmts_res {
+            Err(e) => {
+                results.error(ErrorKind::ER_PARSE_ERROR, format!("{:?}", e).as_bytes())?;
+                return Ok(());
+            }
+            Ok(stmts) => {
+                for stmt in stmts {
+                    match stmt {
+                        Statement::Insert {
+                            table_name,
+                            columns,
+                            source,
+                        } => {
+                            let value_exprs : &[Vec<Expr>];
+                            match &source.body {
+                                SetExpr::Values(Values(values)) => value_exprs = values.as_slice(),
+                                // TODO currently not supporting nested queries (insert into _ with _ as select _)
+                                _=> unimplemented!("No support for nested queries in VALUES"),
+                            }
+                            // we want to insert into both the MV and the data table
+                            // and to insert a unique ghost_id in place of the user_id 
+                            // 1. check if this table even has user_ids that we need to replace
+                            for dt in &self.cfg.data_tables {
+                                if table_name.to_string() == dt.name {
+                                    for (i, c) in columns.iter().enumerate() {
+                                        if dt.user_cols.iter().any(|col| *col == c.value) {
+                                            // 2. get param value of user_id columns
+                                            // 3. insert user_id val into the ghost_metadata table
+                                            //    as a new ghost_id entry
+                                            let user_id_q = format!("{:?}", value_exprs[i]);
+                                            self.db.query_drop(format!("INSERT INTO ghost_metadata (user_id) VALUES ({});", 
+                                                                       self.query_using_mv_tables(&user_id_q)))?;
+                                            // 4. get the ghost_id field of the new entry 
+                                            let res = self.db.query_iter("SELECT LAST_INSERT_ID()")?;
+                                            match res.last_insert_id() {
+                                                None => return Ok(results.error(
+                                                        ErrorKind::ER_INTERNAL_ERROR, 
+                                                        b"call to last insert ID failed")?),
+                                                Some(ghost_id) => {
+                                                    // 5. replace user_id value in query with ghost_id
+                                                    // XXX this seems brittle (could replace more than once? would that be problematic?)
+                                                    query = query.replace(&user_id_q, &format!("{:?}", ghost_id));
+                                                }
+                                            }
+                                        }
                                     }
-                                    self.db.query_iter(format!("INSERT INTO ghost_metadata (user_id) VALUES ({});", user_id))?;
-                                    // 4. get the ghost_id fields of the new entry 
+                                    // break because only one table can match anyway
+                                    break;
                                 }
                             }
-                            break;
+                            // 4. issue the modified query to the data table (err if error)
+                            self.db.query_iter(&query)?;
+                            // 5. issue the actual query to the "materialized view" table
+                            //      Note that this may insert the actual user_id, which is fine
+                            return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
                         }
+                        Statement::Update{..} => {
+                            return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
+                        }
+                        Statement::Delete {..} => {
+                            return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
+                        }
+                        // TODO support adding and modifying data tables (create table, etc.)
+                        _ => {
+                            // return the result from the "materialized view"
+                            return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
+                        } 
                     }
-                    // 4. issue the modified query to the data table (err if error)
-                    self.db.query_iter(query)?;
-                    // 5. issue the actual query to the data table
-                    return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(query)))
                 }
-                Statement::Update{..} => {
-                }
-                Statement::Delete {..} => {
-                }
-                // TODO support adding and modifying data tables (create table, etc.)
-                _ => {
-                    // return the result from the "materialized view"
-                    return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(query)));
-                } 
+                Ok(())
             }
         }
     }
 }
-
 fn answer_rows<W: io::Write>(
     results: QueryResultWriter<W>,
     rows: mysql::Result<mysql::QueryResult<mysql::Text>>,
@@ -404,61 +433,61 @@ fn answer_rows<W: io::Write>(
                 .into_iter()
                 .map(|c| {
                     Column {
-                        table : c.table_str().to_string(),
-                        column : c.name_str().to_string(),
-                        coltype : get_coltype(&c.column_type()),
-                        colflags: ColumnFlags::from_bits(c.flags().bits()).unwrap(),
-                    }
-                })
-                .collect();
-            let mut writer = results.start(&cols)?;
-            for row in rows {
-                let vals = row.unwrap();
-                for (c, col) in cols.iter().enumerate() {
-                    match col.coltype {
-                        ColumnType::MYSQL_TYPE_DECIMAL => writer.write_col(vals.get::<f64, _>(c))?,
-                        ColumnType::MYSQL_TYPE_TINY => writer.write_col(vals.get::<i16, _>(c))?,
-                        ColumnType::MYSQL_TYPE_SHORT => writer.write_col(vals.get::<i16, _>(c))?,
-                        ColumnType::MYSQL_TYPE_LONG => writer.write_col(vals.get::<i32, _>(c))?,
-                        ColumnType::MYSQL_TYPE_FLOAT => writer.write_col(vals.get::<f32, _>(c))?,
-                        ColumnType::MYSQL_TYPE_DOUBLE => writer.write_col(vals.get::<f64, _>(c))?,
-                        ColumnType::MYSQL_TYPE_NULL => writer.write_col(vals.get::<i16, _>(c))?,
-                        ColumnType::MYSQL_TYPE_LONGLONG => writer.write_col(vals.get::<i64, _>(c))?,
-                        ColumnType::MYSQL_TYPE_INT24 => writer.write_col(vals.get::<i32, _>(c))?,
-                        ColumnType::MYSQL_TYPE_VARCHAR => writer.write_col(vals.get::<String, _>(c))?,
-                        ColumnType::MYSQL_TYPE_BIT => writer.write_col(vals.get::<i16, _>(c))?,
-                        ColumnType::MYSQL_TYPE_TINY_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
-                        ColumnType::MYSQL_TYPE_MEDIUM_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
-                        ColumnType::MYSQL_TYPE_LONG_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
-                        ColumnType::MYSQL_TYPE_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
-                        ColumnType::MYSQL_TYPE_VAR_STRING => writer.write_col(vals.get::<String, _>(c))?,
-                        ColumnType::MYSQL_TYPE_STRING => writer.write_col(vals.get::<String, _>(c))?,
-                        ColumnType::MYSQL_TYPE_GEOMETRY => writer.write_col(vals.get::<i16, _>(c))?,
-                        //ColumnType::MYSQL_TYPE_TIMESTAMP => writer.write_col(vals.get::<i16, _>(c))?,
-                        //ColumnType::MYSQL_TYPE_DATE => writer.write_col(vals.get::<i16, _>(c))?,
-                        //ColumnType::MYSQL_TYPE_TIME => writer.write_col(vals.get::<i16, _>(c))?,
-                        //ColumnType::MYSQL_TYPE_DATETIME => writer.write_col(vals.get::<i16, _>(c))?,
-                        //ColumnType::MYSQL_TYPE_YEAR => writer.write_col(vals.get::<i16, _>(c))?,
-                        //ColumnType::MYSQL_TYPE_NEWDATE => writer.write_col(vals.get::<i16, _>(c))?,
-                        //ColumnType::MYSQL_TYPE_TIMESTAMP2 => writer.write_col(vals.get::<i16, _>(c))?,
-                        //ColumnType::MYSQL_TYPE_DATETIME2 => writer.write_col(vals.get::<i16, _>(c))?,
-                        //ColumnType::MYSQL_TYPE_TIME2 => writer.write_col(vals.get::<i16, _>(c))?,
-                        //ColumnType::MYSQL_TYPE_JSON => writer.write_col(vals.get::<i16, _>(c))?,
-                        //ColumnType::MYSQL_TYPE_NEWDECIMAL => writer.write_col(vals.get::<i16, _>(c))?,
-                        //ColumnType::MYSQL_TYPE_ENUM => writer.write_col(vals.get::<i16, _>(c))?,
-                        //ColumnType::MYSQL_TYPE_SET => writer.write_col(vals.get::<i16, _>(c))?,
-                        ct => unimplemented!("Cannot translate row type {:?} into value", ct),
-                    }
+                    table : c.table_str().to_string(),
+                    column : c.name_str().to_string(),
+                    coltype : get_coltype(&c.column_type()),
+                    colflags: ColumnFlags::from_bits(c.flags().bits()).unwrap(),
                 }
-                writer.end_row()?;
+            })
+            .collect();
+        let mut writer = results.start(&cols)?;
+        for row in rows {
+            let vals = row.unwrap();
+            for (c, col) in cols.iter().enumerate() {
+                match col.coltype {
+                    ColumnType::MYSQL_TYPE_DECIMAL => writer.write_col(vals.get::<f64, _>(c))?,
+                    ColumnType::MYSQL_TYPE_TINY => writer.write_col(vals.get::<i16, _>(c))?,
+                    ColumnType::MYSQL_TYPE_SHORT => writer.write_col(vals.get::<i16, _>(c))?,
+                    ColumnType::MYSQL_TYPE_LONG => writer.write_col(vals.get::<i32, _>(c))?,
+                    ColumnType::MYSQL_TYPE_FLOAT => writer.write_col(vals.get::<f32, _>(c))?,
+                    ColumnType::MYSQL_TYPE_DOUBLE => writer.write_col(vals.get::<f64, _>(c))?,
+                    ColumnType::MYSQL_TYPE_NULL => writer.write_col(vals.get::<i16, _>(c))?,
+                    ColumnType::MYSQL_TYPE_LONGLONG => writer.write_col(vals.get::<i64, _>(c))?,
+                    ColumnType::MYSQL_TYPE_INT24 => writer.write_col(vals.get::<i32, _>(c))?,
+                    ColumnType::MYSQL_TYPE_VARCHAR => writer.write_col(vals.get::<String, _>(c))?,
+                    ColumnType::MYSQL_TYPE_BIT => writer.write_col(vals.get::<i16, _>(c))?,
+                    ColumnType::MYSQL_TYPE_TINY_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
+                    ColumnType::MYSQL_TYPE_MEDIUM_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
+                    ColumnType::MYSQL_TYPE_LONG_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
+                    ColumnType::MYSQL_TYPE_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
+                    ColumnType::MYSQL_TYPE_VAR_STRING => writer.write_col(vals.get::<String, _>(c))?,
+                    ColumnType::MYSQL_TYPE_STRING => writer.write_col(vals.get::<String, _>(c))?,
+                    ColumnType::MYSQL_TYPE_GEOMETRY => writer.write_col(vals.get::<i16, _>(c))?,
+                    //ColumnType::MYSQL_TYPE_TIMESTAMP => writer.write_col(vals.get::<i16, _>(c))?,
+                    //ColumnType::MYSQL_TYPE_DATE => writer.write_col(vals.get::<i16, _>(c))?,
+                    //ColumnType::MYSQL_TYPE_TIME => writer.write_col(vals.get::<i16, _>(c))?,
+                    //ColumnType::MYSQL_TYPE_DATETIME => writer.write_col(vals.get::<i16, _>(c))?,
+                    //ColumnType::MYSQL_TYPE_YEAR => writer.write_col(vals.get::<i16, _>(c))?,
+                    //ColumnType::MYSQL_TYPE_NEWDATE => writer.write_col(vals.get::<i16, _>(c))?,
+                    //ColumnType::MYSQL_TYPE_TIMESTAMP2 => writer.write_col(vals.get::<i16, _>(c))?,
+                    //ColumnType::MYSQL_TYPE_DATETIME2 => writer.write_col(vals.get::<i16, _>(c))?,
+                    //ColumnType::MYSQL_TYPE_TIME2 => writer.write_col(vals.get::<i16, _>(c))?,
+                    //ColumnType::MYSQL_TYPE_JSON => writer.write_col(vals.get::<i16, _>(c))?,
+                    //ColumnType::MYSQL_TYPE_NEWDECIMAL => writer.write_col(vals.get::<i16, _>(c))?,
+                    //ColumnType::MYSQL_TYPE_ENUM => writer.write_col(vals.get::<i16, _>(c))?,
+                    //ColumnType::MYSQL_TYPE_SET => writer.write_col(vals.get::<i16, _>(c))?,
+                    ct => unimplemented!("Cannot translate row type {:?} into value", ct),
+                }
             }
-            writer.finish()?;
+            writer.end_row()?;
         }
-        Err(e) => {
-            results.error(ErrorKind::ER_BAD_SLAVE, format!("{:?}", e).as_bytes())?;
-        }
+        writer.finish()?;
     }
-    Ok(())
+    Err(e) => {
+        results.error(ErrorKind::ER_BAD_SLAVE, format!("{:?}", e).as_bytes())?;
+    }
+}
+Ok(())
 }
 
 /// Convert a MySQL type to MySQL_svr type 
