@@ -74,6 +74,12 @@ struct Prepared {
     params: Vec<Column>,
 }
 
+struct SelectSubst {
+    user_col: String,
+    user_val: String,
+    ghost_ids: Vec<String>,
+}
+
 pub struct Shim { 
     db: mysql::Conn,
     cfg: config::Config,
@@ -119,9 +125,20 @@ impl Shim {
          }
          None
     }
+    
+    fn vals_to_sql_set(&self, vals: Vec<String>) -> String {
+        let mut s = String::from("(");
+        for (i, v) in vals.iter().enumerate() {
+            if i > 0 {
+                s.push_str(", ");
+            }
+            s.push_str(v);
+        }
+        s.push_str(")");
+        s
+    }
 
     fn query_using_mv_tables(&self, query: &str) -> String {
-        // TODO handle insertions or updates --> need to modify ghost_metadata table
         let mut changed_q = query.to_string();
         let mut new_name : String; 
         for table_name in &self.table_names {
@@ -130,6 +147,59 @@ impl Shim {
             changed_q = changed_q.replace(table_name, &new_name);
         }
         changed_q
+    }
+
+    fn substs_for_selection_expr(&mut self, user_cols: &Vec<String>, s: &Expr) -> Result<Vec<SelectSubst>, mysql::Error>
+    {
+        let mut substs = Vec::<SelectSubst>::new();
+        // if the user id is used as part of the selection, we need to instead
+        // use the corresponding ghost id
+        // only match on `user_id = [x] AND ...` type selections
+        // split selections into pairs of col_name, select_value
+        // TODO actually check if string matches this pattern,
+        // otherwise might end up with some funny results...
+        let sels_str = format!("{:?}", s);
+        let selections : Vec<&str> = sels_str.split(" AND ").collect();
+        let selection_pairs : Vec<(String, String)> = selections
+            .iter()
+            .map(|sel| {
+                // TODO could support more operands?
+                let pair : Vec<&str> = sel.split("=").collect();
+                if pair.len() != 2 {
+                    unimplemented!("Not a supported selection pattern: {}", s);
+                } else {
+                    // strip whitespace
+                    (pair[0].replace(" ", ""), pair[1].replace(" ", ""))
+                }
+            }).collect();
+        for (col, user_val) in selection_pairs {
+            if user_cols.iter().any(|c| *c == col) {
+                // check to see if there's a match of the userid with a ghostid 
+                // if this is the case, we can save this mapping so
+                // that we don't need to look up the ghost id later on
+                let get_ghost_record_q = format!(
+                    "SELECT ghost_id FROM ghost_metadata WHERE user_id = {}", 
+                    user_val);
+                let mut matching_ghost_ids = Vec::<String>::new();
+                let rows = self.db.query_iter(get_ghost_record_q)?;
+                for r in rows {
+                    let vals = r.unwrap().unwrap();
+                    matching_ghost_ids.push(format!("{}", vals[0].as_sql(true /*no backslash escape*/)));
+                }
+                // if there is a matching ghost_id, replace the id in the query
+                substs.push(SelectSubst{
+                    user_col : col.to_string(), 
+                    user_val : user_val.to_string(),
+                    ghost_ids: matching_ghost_ids,
+                });
+                // we don't really care otherwise because no entry will match in underlying
+                // data table either
+                // NOTE potential optimization---ignore this query because it won't
+                // actually affect any data?
+                // TODO this can race with concurrent queries... keep ghost-to-user mapping in memory and protect with locks?
+            }
+        }
+        Ok(substs)
     }
 }
 
@@ -375,6 +445,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                             match &source.body {
                                 SetExpr::Values(Values(values)) => value_exprs = values.as_slice(),
                                 // TODO currently not supporting nested queries (insert into _ with _ as select _)
+                                // we could probably support this by issuing the select statement
+                                // and getting values from the MVs, or by substituting ghost values
+                                // into the select statement
                                 _=> unimplemented!("No support for nested queries in VALUES"),
                             }
                             // we want to insert into both the MV and the data table
@@ -419,94 +492,57 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                             assignments,
                             selection,
                         } => {
-                            let mut user_cols : Vec<String> = Vec::<String>::new();
-                            match self.get_user_cols_of(table_name.to_string()) {
-                                Some(uc) => user_cols = uc.clone(),
-                                None => (),
-                            }
-
-                            // if the user id is used as part of the selection, we need to instead
-                            // use the corresponding ghost id
-                            let mut user_col_to_ghost_ids = Vec::<(String, String)>::new();
-                            let mut selection_str_ghosts = String::new();
                             match selection {
                                 None => (),
                                 Some(ref s) => {
-                                    // only match on `user_id = [x] type selections`
-                                    // split selections into pairs of col_name, select_value
-                                    // TODO actually check if string matches this pattern,
-                                    // otherwise might end up with some funny results...
-                                    let sels_str = format!("{:?}", s).replace(" ", "");
-                                    let selections : Vec<&str> = sels_str.split(",").collect();
-                                    let selection_pairs : Vec<(&str, &str)> = selections
-                                        .iter()
-                                        .map(|sel| {
-                                            let pair : Vec<&str> = sel.split("=").collect();
-                                            if pair.len() != 2 {
-                                                unimplemented!("Not a supported selection pattern: {}", s);
-                                            } else {
-                                                (pair[0], pair[1])
-                                            }
-                                        }).collect();
-                                    for (col, val) in selection_pairs {
-                                        if user_cols.iter().any(|c| *c == col) {
-                                            // check to see if there's a match of the userid with a ghostid 
-                                            // if this is the case, we can save this mapping so
-                                            // that we don't need to look up the ghost id later on
-                                            let get_ghost_record_q = format!(
-                                                "SELECT ghost_id FROM ghost_metadata WHERE user_id = {}", 
-                                                val);
-                                            let mut matching_ghost_ids = String::from("(");
-                                            let rows = self.db.query_iter(get_ghost_record_q)?;
-                                            for (i, r) in rows.enumerate() {
-                                                if i != 0 {
-                                                    matching_ghost_ids.push_str(",");
+                                    let mut user_cols : Vec<String> = Vec::<String>::new();
+                                    match self.get_user_cols_of(table_name.to_string()) {
+                                        Some(uc) => user_cols = uc.clone(),
+                                        None => (),
+                                    }
+                                    let substs = self.substs_for_selection_expr(&user_cols, s)?;
+                                    let mut selection_str_ghosts = format!("{:?}", s);
+                                    for subst in substs {
+                                        let ghost_ids = self.vals_to_sql_set(subst.ghost_ids);
+                                        selection_str_ghosts = selection_str_ghosts
+                                            .replace(" = ", "=") // get rid of whitespace just in case
+                                            .replace(&format!("{}={}", subst.user_col, subst.user_val),
+                                                &format!("{} IN {}", subst.user_col, ghost_ids));
+                                    } 
+                                    selection_str_ghosts.push_str(&format!("WHERE {};", selection_str_ghosts));
+                                    // next, if there are assignments to user IDs, we need to update the
+                                    // corresponding ghost values in the ghost metadata table 
+                                    for assn in assignments {
+                                        // go column by column and update ghost ids respectively
+                                        if user_cols.iter().any(|col| *col == assn.id.to_string()) {
+                                            let new_user_id = &format!("{:?}", assn.value);
+
+                                            // get ghost value corresponding to this user id
+                                            // and update it to the new assigned userid value
+                                            let mut ghost_id = 0;
+                                            let get_ghost_val_q = format!("SELECT {} FROM {} {}", assn.id, table_name, selection_str_ghosts);
+                                            let mut rows = self.db.query_iter(get_ghost_val_q)?;
+                                            for (i, c) in rows.columns().as_ref().into_iter().enumerate() {
+                                                if c.name_str().to_string() == assn.id.to_string() {
+                                                    let vals = rows.nth(i).unwrap().unwrap();
+                                                    ghost_id = vals.get::<u64, _>(i).unwrap();
                                                 }
-                                                let vals = r.unwrap().unwrap();
-                                                matching_ghost_ids.push_str(&format!("{}", vals[0].as_sql(true /*no backslash escape*/)));
+                                                break;
                                             }
-                                            matching_ghost_ids.push_str(")");
-                                            // if so, replace the id in the query
-                                            selection_str_ghosts = sels_str.replace(
-                                                &format!("{}={}", col.to_string(), val),
-                                                &format!("{} IN {}", col.to_string(), matching_ghost_ids));
-                                            user_col_to_ghost_ids.push((col.to_string(), matching_ghost_ids));
-                                            selection_str_ghosts.push_str(&format!("WHERE {};", selection_str_ghosts));
+                                            // update entry of ghost id in table to point to new user id
+                                            let update_ghost_val_q = format!(
+                                                "UPDATE ghost_metadata SET user_id = {} WHERE ghost_id = {};", new_user_id, ghost_id);
+                                            
+                                            // XXX put this drop in to make borrow checker happy?
+                                            drop(rows);
+                                            self.db.query_drop(update_ghost_val_q)?;
                                         }
-                                    }
-                                }
-                            }
-
-                            // next, if there are assignments to user IDs, we need to update the
-                            // corresponding ghost values in the ghost metadata table 
-                            for assn in assignments {
-                                // go column by column and update ghost ids respectively
-                                if user_cols.iter().any(|col| *col == assn.id.to_string()) {
-                                    let new_user_id = &format!("{:?}", assn.value);
-
-                                    // get ghost value corresponding to this user id
-                                    // and update it to the new assigned userid value
-                                    let mut ghost_id = 0;
-                                    let get_ghost_val_q = format!("SELECT {} FROM {} {}", assn.id, table_name, selection_str_ghosts);
-                                    let mut rows = self.db.query_iter(get_ghost_val_q)?;
-                                    for (i, c) in rows.columns().as_ref().into_iter().enumerate() {
-                                        if c.name_str().to_string() == assn.id.to_string() {
-                                            let vals = rows.nth(i).unwrap().unwrap();
-                                            ghost_id = vals.get::<u64, _>(i).unwrap();
-                                        }
-                                        break;
-                                    }
-                                    // update entry of ghost id in table to point to new user id
-                                    let update_ghost_val_q = format!(
-                                        "UPDATE ghost_metadata SET user_id = {} WHERE ghost_id = {};", new_user_id, ghost_id);
-                                    
-                                    // XXX put this drop in to make borrow checker happy?
-                                    drop(rows);
-                                    self.db.query_drop(update_ghost_val_q)?;
-                                }
                             }
                            return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
-                        }
+
+                                }
+                            }
+                                                    }
                         Statement::Delete {..} => {
                             return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
                         }
