@@ -144,6 +144,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     type Error = mysql::Error;
 
     fn on_prepare(&mut self, query: &str, info: StatementMetaWriter<W>) -> Result<(), Self::Error> {
+        // TODO save prepared stmts modified for MVs and ghost_metadata table
         match self.db.prep(self.query_using_mv_tables(query)) {
             Ok(stmt) => {
                 let params: Vec<_> = stmt
@@ -242,7 +243,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             Some(prepped) => {
                 // XXX todo should handle error
                 // why doesn't on_close return a result?
-                self.db.close(prepped.stmt.clone()).unwrap();
+                if let Err(e) = self.db.close(prepped.stmt.clone()){
+                    eprintln!("{}", e);
+                };
                 self.prepared.remove(&id); 
             }
         }
@@ -422,16 +425,58 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                                 None => (),
                             }
 
-                            let mut selection_str = String::from(";");
-                            match selection {
-                                Some(ref s) => selection_str.push_str(&format!("WHERE {};", s)),
-                                None => (),
-                            }
-
-                            // TODO 
                             // if the user id is used as part of the selection, we need to instead
                             // use the corresponding ghost id
- 
+                            let mut user_col_to_ghost_ids = Vec::<(String, String)>::new();
+                            let mut selection_str_ghosts = String::new();
+                            match selection {
+                                None => (),
+                                Some(ref s) => {
+                                    // only match on `user_id = [x] type selections`
+                                    // split selections into pairs of col_name, select_value
+                                    // TODO actually check if string matches this pattern,
+                                    // otherwise might end up with some funny results...
+                                    let sels_str = format!("{:?}", s).replace(" ", "");
+                                    let selections : Vec<&str> = sels_str.split(",").collect();
+                                    let selection_pairs : Vec<(&str, &str)> = selections
+                                        .iter()
+                                        .map(|sel| {
+                                            let pair : Vec<&str> = sel.split("=").collect();
+                                            if pair.len() != 2 {
+                                                unimplemented!("Not a supported selection pattern: {}", s);
+                                            } else {
+                                                (pair[0], pair[1])
+                                            }
+                                        }).collect();
+                                    for (col, val) in selection_pairs {
+                                        if user_cols.iter().any(|c| *c == col) {
+                                            // check to see if there's a match of the userid with a ghostid 
+                                            // if this is the case, we can save this mapping so
+                                            // that we don't need to look up the ghost id later on
+                                            let get_ghost_record_q = format!(
+                                                "SELECT ghost_id FROM ghost_metadata WHERE user_id = {}", 
+                                                val);
+                                            let mut matching_ghost_ids = String::from("(");
+                                            let rows = self.db.query_iter(get_ghost_record_q)?;
+                                            for (i, r) in rows.enumerate() {
+                                                if i != 0 {
+                                                    matching_ghost_ids.push_str(",");
+                                                }
+                                                let vals = r.unwrap().unwrap();
+                                                matching_ghost_ids.push_str(&format!("{}", vals[0].as_sql(true /*no backslash escape*/)));
+                                            }
+                                            matching_ghost_ids.push_str(")");
+                                            // if so, replace the id in the query
+                                            selection_str_ghosts = sels_str.replace(
+                                                &format!("{}={}", col.to_string(), val),
+                                                &format!("{} IN {}", col.to_string(), matching_ghost_ids));
+                                            user_col_to_ghost_ids.push((col.to_string(), matching_ghost_ids));
+                                            selection_str_ghosts.push_str(&format!("WHERE {};", selection_str_ghosts));
+                                        }
+                                    }
+                                }
+                            }
+
                             // next, if there are assignments to user IDs, we need to update the
                             // corresponding ghost values in the ghost metadata table 
                             for assn in assignments {
@@ -439,15 +484,14 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                                 if user_cols.iter().any(|col| *col == assn.id.to_string()) {
                                     let new_user_id = &format!("{:?}", assn.value);
 
-                                    // get ghost value corresponding to this user
+                                    // get ghost value corresponding to this user id
                                     // and update it to the new assigned userid value
                                     let mut ghost_id = 0;
-                                    let get_ghost_val_q = format!("SELECT {} FROM {} {}", assn.id, table_name, selection_str);
+                                    let get_ghost_val_q = format!("SELECT {} FROM {} {}", assn.id, table_name, selection_str_ghosts);
                                     let mut rows = self.db.query_iter(get_ghost_val_q)?;
                                     for (i, c) in rows.columns().as_ref().into_iter().enumerate() {
                                         if c.name_str().to_string() == assn.id.to_string() {
-                                            let vals = rows.nth(i).unwrap();
-                                            let vals = vals.unwrap();
+                                            let vals = rows.nth(i).unwrap().unwrap();
                                             ghost_id = vals.get::<u64, _>(i).unwrap();
                                         }
                                         break;
