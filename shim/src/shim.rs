@@ -435,7 +435,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
 
     fn on_query(&mut self, query: &str, results: QueryResultWriter<W>) -> Result<(), Self::Error> {
         let stmts_res = Parser::parse_sql(&DIALECT, &query);
-        let mut query_with_ghosts = String::from(query);
+        let mut data_table_query = String::from(query);
+        let mv_query = self.query_using_mv_tables(query);
+
         match stmts_res {
             Err(e) => {
                 results.error(ErrorKind::ER_PARSE_ERROR, format!("{:?}", e).as_bytes())?;
@@ -483,17 +485,17 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                                         Some(ghost_id) => {
                                             // 5. replace user_id value in query with ghost_id
                                             // XXX this seems brittle (could replace more than once? would that be problematic?)
-                                            query_with_ghosts = query_with_ghosts.replace(&user_id_q, &format!("{:?}", ghost_id));
+                                            data_table_query = data_table_query.replace(&user_id_q, &format!("{:?}", ghost_id));
                                         }
                                     }
                                 }
                             }
                             // 4. issue the MODIFIED query to the data table (err if error)
-                            self.db.query_drop(&query_with_ghosts)?;
+                            self.db.query_drop(&data_table_query)?;
                             // 5. issue the UNMODIFIED query to the "materialized view" table by
                             //    replacing table names.
                             //    Note that this may insert the actual user_id, which is fine
-                            return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
+                            return answer_rows(results, self.db.query_iter(mv_query));
                         }
                         Statement::Update{
                             table_name,
@@ -508,7 +510,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                                         Some(uc) => user_cols = uc.clone(),
                                         None => (),
                                     }
-                                    let (substs, selection_str_ghosts) = self.substs_for_selection_expr(&user_cols, s)?;
+
+                                    // get substitued selection string, get user_id to ghost_ids mapping
+                                    let (_substs, selection_str_ghosts) = self.substs_for_selection_expr(&user_cols, s)?;
+                                    
                                     // next, if there are assignments to user IDs, we need to update the
                                     // corresponding ghost values in the ghost metadata table 
                                     for assn in assignments {
@@ -516,11 +521,16 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                                         if user_cols.iter().any(|col| *col == assn.id.to_string()) {
                                             let new_user_id = &format!("{:?}", assn.value);
 
-                                            // get ghost value corresponding to this user id
-                                            // and update it to the new assigned userid value
+                                            // get ghost value in corresponding to this usercol in
+                                            // the data table
                                             let mut ghost_id = 0;
-                                            let get_ghost_val_q = format!("SELECT {} FROM {} {}", assn.id, table_name, selection_str_ghosts);
-                                            let mut rows = self.db.query_iter(get_ghost_val_q)?;
+                                            
+                                            // TODO can do for all user_cols at once 
+                                            // rather than one query for each user_col
+                                            let mut rows = self.db.query_iter(
+                                                format!("SELECT {} FROM {} {}", 
+                                                        assn.id, table_name, selection_str_ghosts
+                                                        ))?;
                                             for (i, c) in rows.columns().as_ref().into_iter().enumerate() {
                                                 if c.name_str().to_string() == assn.id.to_string() {
                                                     let vals = rows.nth(i).unwrap().unwrap();
@@ -528,22 +538,49 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                                                 }
                                                 break;
                                             }
-                                            // update entry of ghost id in table to point to new user id
+
+                                            // update corresponding of ghost id in table to point to new user id
                                             let update_ghost_val_q = format!(
-                                                "UPDATE ghost_metadata SET user_id = {} WHERE ghost_id = {};", new_user_id, ghost_id);
-                                            
+                                                "UPDATE ghost_metadata SET user_id = {} WHERE ghost_id = {};", 
+                                                new_user_id, ghost_id);
+
+                                            // make sure that the update doesn't replace the ghost
+                                            // id in the data table
+                                            data_table_query = data_table_query.replace(new_user_id, &format!("{}", ghost_id));
+
                                             // XXX put this drop in to make borrow checker happy?
                                             drop(rows);
                                             self.db.query_drop(update_ghost_val_q)?;
                                         }
-                            }
-                           return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
-
+                                    }
+                                    let parts : Vec<&str> = data_table_query.split(" WHERE ").collect();
+                                    if parts.len() != 2 {
+                                        unimplemented!("Not a supported selection pattern: {}", s);
+                                    }
+                                    data_table_query = format!("{} WHERE {} ;", parts[0], selection_str_ghosts);
                                 }
                             }
-                                                    }
-                        Statement::Delete {..} => {
-                            return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
+                            self.db.query_drop(data_table_query)?;
+                            // return the "results" from the query
+                            return answer_rows(results, self.db.query_iter(mv_query));
+                        }
+                        Statement::Delete {
+                            table_name,
+                            selection,
+                        } => {
+                            let mut user_cols : Vec<String> = Vec::<String>::new();
+                            match self.get_user_cols_of(table_name.to_string()) {
+                                Some(uc) => user_cols = uc.clone(),
+                                None => (),
+                            }
+
+                            match selection {
+                                None => (),
+                                Some(ref s) => {
+                                    let (_substs, selection_str_ghosts) = self.substs_for_selection_expr(&user_cols, s)?;
+                                    return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
+                                }
+                            }
                         }
                         // TODO support adding and modifying data tables (create table, etc.)
                         _ => {
