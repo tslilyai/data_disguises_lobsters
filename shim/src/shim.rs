@@ -519,45 +519,32 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                                     for assn in assignments {
                                         // go column by column and update ghost ids respectively
                                         if user_cols.iter().any(|col| *col == assn.id.to_string()) {
-                                            let new_user_id = &format!("{:?}", assn.value);
 
-                                            // get ghost value in corresponding to this usercol in
-                                            // the data table
-                                            let mut ghost_id = 0;
-                                            
                                             // TODO can do for all user_cols at once 
                                             // rather than one query for each user_col
-                                            let mut rows = self.db.query_iter(
-                                                format!("SELECT {} FROM {} {}", 
-                                                        assn.id, table_name, selection_str_ghosts
-                                                        ))?;
-                                            for (i, c) in rows.columns().as_ref().into_iter().enumerate() {
-                                                if c.name_str().to_string() == assn.id.to_string() {
-                                                    let vals = rows.nth(i).unwrap().unwrap();
-                                                    ghost_id = vals.get::<u64, _>(i).unwrap();
-                                                }
-                                                break;
-                                            }
-
+                                            // get ghost value in corresponding to this usercol
+                                            let update_select_str = format!("SELECT {} FROM {} {}", 
+                                                assn.id, table_name, selection_str_ghosts);
                                             // update corresponding of ghost id in table to point to new user id
                                             let update_ghost_val_q = format!(
                                                 "UPDATE ghost_metadata SET user_id = {} WHERE ghost_id = {};", 
-                                                new_user_id, ghost_id);
+                                                format!("{:?}", assn.value),
+                                                update_select_str);
+                                            self.db.query_drop(update_ghost_val_q)?;
 
                                             // make sure that the update doesn't replace the ghost
-                                            // id in the data table
-                                            data_table_query = data_table_query.replace(new_user_id, &format!("{}", ghost_id));
-
-                                            // XXX put this drop in to make borrow checker happy?
-                                            drop(rows);
-                                            self.db.query_drop(update_ghost_val_q)?;
+                                            // id in the data table by not updating this entry
+                                            // in the data table (just set it back to the same
+                                            // value)
+                                            data_table_query = data_table_query
+                                                .replace(&format!("{}", assn), &format!("{} = {}", assn.id, assn.id));
                                         }
                                     }
                                     let parts : Vec<&str> = data_table_query.split(" WHERE ").collect();
                                     if parts.len() != 2 {
                                         unimplemented!("Not a supported selection pattern: {}", s);
                                     }
-                                    data_table_query = format!("{} WHERE {} ;", parts[0], selection_str_ghosts);
+                                    data_table_query = format!("{} WHERE {};", parts[0], selection_str_ghosts);
                                 }
                             }
                             self.db.query_drop(data_table_query)?;
