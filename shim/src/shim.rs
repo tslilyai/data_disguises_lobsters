@@ -126,7 +126,7 @@ impl Shim {
          None
     }
     
-    fn vals_to_sql_set(&self, vals: Vec<String>) -> String {
+    fn vals_to_sql_set(&self, vals: &Vec<String>) -> String {
         let mut s = String::from("(");
         for (i, v) in vals.iter().enumerate() {
             if i > 0 {
@@ -149,57 +149,65 @@ impl Shim {
         changed_q
     }
 
-    fn substs_for_selection_expr(&mut self, user_cols: &Vec<String>, s: &Expr) -> Result<Vec<SelectSubst>, mysql::Error>
+    fn substs_for_selection_expr(&mut self, user_cols: &Vec<String>, s: &Expr) -> Result<(Vec<SelectSubst>, String), mysql::Error>
     {
         let mut substs = Vec::<SelectSubst>::new();
+        let mut selection_str_ghosts = format!("{:?}", s);
+
         // if the user id is used as part of the selection, we need to instead
         // use the corresponding ghost id
-        // only match on `user_id = [x] AND ...` type selections
-        // split selections into pairs of col_name, select_value
+        // currently only match on `user_id = [x] AND ...` type selections
         // TODO actually check if string matches this pattern,
         // otherwise might end up with some funny results...
-        let sels_str = format!("{:?}", s);
-        let selections : Vec<&str> = sels_str.split(" AND ").collect();
-        let selection_pairs : Vec<(String, String)> = selections
-            .iter()
-            .map(|sel| {
-                // TODO could support more operands?
-                let pair : Vec<&str> = sel.split("=").collect();
-                if pair.len() != 2 {
-                    unimplemented!("Not a supported selection pattern: {}", s);
-                } else {
-                    // strip whitespace
-                    (pair[0].replace(" ", ""), pair[1].replace(" ", ""))
+ 
+        // split selections into pairs of col_name, select_value
+        let s_to_split = selection_str_ghosts.clone();
+        let selections : Vec<&str> = s_to_split.split(" AND ").collect();
+        for sel in selections {
+            // TODO could support more operands?
+            let pair : Vec<&str> = sel.split("=").collect();
+            if pair.len() != 2 {
+                unimplemented!("Not a supported selection pattern: {}", s);
+            } else {
+                let col = pair[0].replace(" ", "");
+                let user_val = pair[1].replace(" ", "");
+                if user_cols.iter().any(|c| *c == col) {
+                    // check to see if there's a match of the userid with a ghostid 
+                    // if this is the case, we can save this mapping so
+                    // that we don't need to look up the ghost id later on
+                    let get_ghost_record_q = format!(
+                        "SELECT ghost_id FROM ghost_metadata WHERE user_id = {}", 
+                        user_val);
+                    let mut matching_ghost_ids = Vec::<String>::new();
+                    let rows = self.db.query_iter(get_ghost_record_q)?;
+                    for r in rows {
+                        let vals = r.unwrap().unwrap();
+                        matching_ghost_ids.push(format!("{}", vals[0].as_sql(true /*no backslash escape*/)));
+                    }
+                   
+                    // replace in the selection string
+                    let ghost_ids_set_str = self.vals_to_sql_set(&matching_ghost_ids);
+                    selection_str_ghosts = selection_str_ghosts
+                        .replace(" = ", "=") // get rid of whitespace just in case
+                        .replace(&format!("{}={}", col, user_val),
+                            &format!("{} IN {}", col, ghost_ids_set_str));
+
+                    // save the replacement mapping 
+                    substs.push(SelectSubst{
+                        user_col : col.to_string(), 
+                        user_val : user_val.to_string(),
+                        ghost_ids: matching_ghost_ids,
+                    });
+            
+                    // we don't really care if there is no matching gid because no entry will match in underlying
+                    // data table either
+                    // NOTE potential optimization---ignore this query because it won't
+                    // actually affect any data?
+                    // TODO this can race with concurrent queries... keep ghost-to-user mapping in memory and protect with locks?
                 }
-            }).collect();
-        for (col, user_val) in selection_pairs {
-            if user_cols.iter().any(|c| *c == col) {
-                // check to see if there's a match of the userid with a ghostid 
-                // if this is the case, we can save this mapping so
-                // that we don't need to look up the ghost id later on
-                let get_ghost_record_q = format!(
-                    "SELECT ghost_id FROM ghost_metadata WHERE user_id = {}", 
-                    user_val);
-                let mut matching_ghost_ids = Vec::<String>::new();
-                let rows = self.db.query_iter(get_ghost_record_q)?;
-                for r in rows {
-                    let vals = r.unwrap().unwrap();
-                    matching_ghost_ids.push(format!("{}", vals[0].as_sql(true /*no backslash escape*/)));
-                }
-                // if there is a matching ghost_id, replace the id in the query
-                substs.push(SelectSubst{
-                    user_col : col.to_string(), 
-                    user_val : user_val.to_string(),
-                    ghost_ids: matching_ghost_ids,
-                });
-                // we don't really care otherwise because no entry will match in underlying
-                // data table either
-                // NOTE potential optimization---ignore this query because it won't
-                // actually affect any data?
-                // TODO this can race with concurrent queries... keep ghost-to-user mapping in memory and protect with locks?
             }
         }
-        Ok(substs)
+        Ok((substs, format!("WHERE {};", selection_str_ghosts)))
     }
 }
 
@@ -500,16 +508,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                                         Some(uc) => user_cols = uc.clone(),
                                         None => (),
                                     }
-                                    let substs = self.substs_for_selection_expr(&user_cols, s)?;
-                                    let mut selection_str_ghosts = format!("{:?}", s);
-                                    for subst in substs {
-                                        let ghost_ids = self.vals_to_sql_set(subst.ghost_ids);
-                                        selection_str_ghosts = selection_str_ghosts
-                                            .replace(" = ", "=") // get rid of whitespace just in case
-                                            .replace(&format!("{}={}", subst.user_col, subst.user_val),
-                                                &format!("{} IN {}", subst.user_col, ghost_ids));
-                                    } 
-                                    selection_str_ghosts.push_str(&format!("WHERE {};", selection_str_ghosts));
+                                    let (substs, selection_str_ghosts) = self.substs_for_selection_expr(&user_cols, s)?;
                                     // next, if there are assignments to user IDs, we need to update the
                                     // corresponding ghost values in the ghost metadata table 
                                     for assn in assignments {
