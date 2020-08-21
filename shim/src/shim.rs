@@ -564,15 +564,25 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                             match selection {
                                 None => (),
                                 Some(ref s) => {
+                                    // update the selection str with userids replaced with
+                                    // relevant ghost ids
                                     let (_substs, selection_str_ghosts) = self.substs_for_selection_expr(&user_cols, s)?;
-                                    return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
+                                    let parts : Vec<&str> = data_table_query.split(" WHERE ").collect();
+                                    if parts.len() != 2 {
+                                        unimplemented!("Not a supported selection pattern: {}", s);
+                                    }
+                                    data_table_query = format!("{} WHERE {};", parts[0], selection_str_ghosts);
+                                    self.db.query_drop(data_table_query)?;
+
+                                    // actually perform query on MV
+                                    return answer_rows(results, self.db.query_iter(mv_query));
                                 }
                             }
                         }
                         // TODO support adding and modifying data tables (create table, etc.)
                         _ => {
-                            // return the result from the "materialized view"
-                            return answer_rows(results, self.db.query_iter(self.query_using_mv_tables(&query)))
+                            // return the result from the MV
+                            return answer_rows(results, self.db.query_iter(mv_query));
                         } 
                     }
                 }
