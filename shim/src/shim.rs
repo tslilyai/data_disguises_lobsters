@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::*;
 mod config;
 
-pub const SCHEMA : &'static str = include_str!("./schema.sql");
 const DIALECT : sqlparser::dialect::MySqlDialect = MySqlDialect{};
 const MV_SUFFIX : &'static str = "_mv"; 
 
@@ -86,10 +85,11 @@ pub struct Shim {
     table_names: Vec<String>,
     // NOTE: not *actually* static, but tied to our connection's lifetime.
     prepared: HashMap<u32, Prepared>,
+    schema: &'static str,
 }
 
 impl Shim {
-    pub fn new(db: mysql::Conn, cfg_json: &str) -> Self {
+    pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str) -> Self {
         let cfg = config::parse_config(cfg_json).unwrap();
         let mut table_names = Vec::<String>::new();
         table_names.push(cfg.user_table.name.clone());
@@ -97,7 +97,7 @@ impl Shim {
             table_names.push(dt.name.clone());
         }
         let prepared = HashMap::new();
-        Shim{db, cfg, table_names, prepared}
+        Shim{db, cfg, table_names, prepared, schema}
     }   
 
     /* 
@@ -339,7 +339,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
 
         /* Set up schema */
         let mut current_q = String::new();
-        for line in SCHEMA.lines() {
+        for line in self.schema.lines() {
             if line.starts_with("--") || line.is_empty() {
                 continue;
             }
@@ -363,7 +363,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         /* create materialized view for all data tables */
         let mut sql = String::new();
         let mut mv_query : String;
-        for line in SCHEMA.lines() {
+        for line in self.schema.lines() {
             if line.starts_with("--") || line.is_empty() {
                 continue;
             }

@@ -4,6 +4,7 @@ use mysql::prelude::*;
 use std::*;
 mod shim;
 
+const SCHEMA : &'static str = include_str!("./schema.sql");
 const CONFIG : &'static str = include_str!("./config.json");
 
 fn main() {
@@ -17,7 +18,7 @@ fn main() {
             db.query_drop("DROP DATABASE gdpr;").unwrap();
             db.query_drop("CREATE DATABASE gdpr;").unwrap();
             assert_eq!(db.ping(), true);
-            MysqlIntermediary::run_on_tcp(shim::Shim::new(db, CONFIG), s).unwrap();
+            MysqlIntermediary::run_on_tcp(shim::Shim::new(db, CONFIG, SCHEMA), s).unwrap();
         }
     });
 
