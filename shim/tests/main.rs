@@ -34,7 +34,15 @@ fn test(c: C) -> ()
     });
 
     let mut db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}/test", port)).unwrap();
-    db.query_drop("USE `test`;").unwrap();
+    //db.query_drop("USE `test`;").unwrap();
+    let insert_q_users = "INSERT INTO users VALUES ({i}, user{i}, {i});";
+    let insert_q_stories = "INSERT INTO stories VALUES ({i}, story{i});";
+    let insert_q_mods = "INSERT INTO moderations VALUES ({i}, {i}, {i});";
+    for i in 0..10 {
+        db.query_drop(format!(insert_q_users, i)).unwrap();
+        db.query_drop(format!(insert_q_stories, i)).unwrap();
+        db.query_drop(format!(insert_q_mods, i)).unwrap();
+    }
     c(&mut db);
     drop(db);
     jh.join().unwrap().unwrap();
