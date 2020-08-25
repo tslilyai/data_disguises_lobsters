@@ -95,16 +95,20 @@ impl Shim {
     fn query_to_mv_query(&self, query: &Query) -> Query {
         query.clone()
     }
+ 
+    fn expr_to_mv_expr(&self, expr: &Expr) -> Expr {
+        expr.clone()
+    }
 
-    fn issue_stmt_to_materialized_views(&mut self, stmt: &Statement) 
-        -> mysql::Result<mysql::QueryResult<mysql::Text>>
-    {
+    fn stmt_to_mv_stmt(&mut self, stmt: &Statement) -> Statement {
         let mv_stmt : Statement;
+        let mut mv_table_name = String::new();
+
         match stmt {
             // Note: mysql doesn't support "as_of"
             Statement::Select(SelectStatement{
-                    query, 
-                    ..
+                query, 
+                ..
             }) => {
                 let new_q = self.query_to_mv_query(&query);
                 mv_stmt = Statement::Select(SelectStatement{
@@ -117,29 +121,81 @@ impl Shim {
                 columns, 
                 source,
             }) => {
-                let mut mv_table_name = String::new();
                 let mut mv_source = source.clone();
+                // update table name 
                 for dt in &self.table_names {
                     if *dt == table_name.to_string() {
                         mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
-                        match source {
-                            InsertSource::Query(q) => {
-                                mv_source = InsertSource::Query(Box::new(self.query_to_mv_query(&q)));
-                            } 
-                            InsertSource::DefaultValues => (), // TODO might have to get rid of this
-                        }
+                        
                     }
+                }
+                // update sources
+                match source {
+                    InsertSource::Query(q) => {
+                        mv_source = InsertSource::Query(Box::new(self.query_to_mv_query(&q)));
+                    } 
+                    InsertSource::DefaultValues => (), // TODO might have to get rid of this
                 }
                 mv_stmt = Statement::Insert(InsertStatement{
                     table_name : ObjectName(vec![Ident::new(mv_table_name)]),
                     columns : columns.clone(),
-                    source : mv_source, // TODO
+                    source : mv_source, 
                 });
             }
-            /*Statement::Copy(stmt) => f.write_node(stmt),
-            Statement::Update(stmt) => f.write_node(stmt),
-            Statement::Delete(stmt) => f.write_node(stmt),
-            Statement::CreateDatabase(stmt) => f.write_node(stmt),
+            Statement::Update(UpdateStatement{
+                table_name,
+                assignments,
+                selection,
+            }) => {
+                let mut mv_assn = Vec::<Assignment>::new();
+                let mut mv_selection = selection.clone();
+                // update table name
+                for dt in &self.table_names {
+                    if *dt == table_name.to_string() {
+                        mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
+                    }
+                }
+                // update assignments
+                for a in assignments {
+                    mv_assn.push(Assignment{
+                        id : a.id.clone(),
+                        value: self.expr_to_mv_expr(&a.value),
+                    });
+                }
+                // update selection 
+                match selection {
+                    None => (),
+                    Some(s) => mv_selection = Some(self.expr_to_mv_expr(&s)),
+                }
+                mv_stmt = Statement::Update(UpdateStatement{
+                    table_name : ObjectName(vec![Ident::new(mv_table_name)]),
+                    assignments : mv_assn,
+                    selection : mv_selection,
+                });
+            }
+            Statement::Delete(DeleteStatement{
+                table_name,
+                selection,
+            }) => {
+                let mut mv_selection = selection.clone();
+                // update table name
+                for dt in &self.table_names {
+                    if *dt == table_name.to_string() {
+                        mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
+                    }
+                }
+                // update selection 
+                match selection {
+                    None => (),
+                    Some(s) => mv_selection = Some(self.expr_to_mv_expr(&s)),
+                }
+                mv_stmt = Statement::Delete(DeleteStatement{
+                    table_name : ObjectName(vec![Ident::new(mv_table_name)]),
+                    selection : mv_selection,
+                });
+
+            }
+            /*Statement::CreateDatabase(stmt) => f.write_node(stmt),
             Statement::CreateSchema(stmt) => f.write_node(stmt),
             Statement::CreateSource(stmt) => f.write_node(stmt),
             Statement::CreateSink(stmt) => f.write_node(stmt),
@@ -166,13 +222,14 @@ impl Shim {
             Statement::Rollback(stmt) => f.write_node(stmt),
             Statement::Tail(stmt) => f.write_node(stmt),
             Statement::Explain(stmt) => f.write_node(stmt),*/
+            /*Statement::Copy(stmt) => ()
+             * */
             _ => mv_stmt = stmt.clone(),
         }
-        self.db.query_iter(format!("{}", mv_stmt))
+        mv_stmt
     }
 
-    fn issue_stmt_to_data_tables(&mut self, stmt: &Statement) 
-        -> mysql::Result<mysql::QueryResult<mysql::Text>> 
+    fn stmt_to_datatable_stmt(&mut self, stmt: &Statement) -> Statement
     {
         match stmt {
             Statement::Insert {..} => {
@@ -205,17 +262,14 @@ impl Shim {
                     //}
                 //}
                 // 5. issue the MODIFIED query to the data table (err if error)
-                self.db.query_iter("")
-                //Ok(())
             }
             Statement::Update{..} => {
-                self.db.query_iter("")
             }
             Statement::Delete{..} => {
-                self.db.query_iter("")
             }
-            _ => self.db.query_iter(format!("{}", stmt)) 
+            _ => ()
         }
+        stmt.clone()
     }
 
     fn get_user_cols_of_table(&self, table_name: String) -> Option<&Vec<String>> {
@@ -422,8 +476,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             }
             Ok(stmts) => {
                 assert!(stmts.len()==1);
-                self.issue_stmt_to_data_tables(&stmts[0])?;
-                return answer_rows(results, self.issue_stmt_to_materialized_views(&stmts[0]));
+                let datatable_stmt = self.stmt_to_datatable_stmt(&stmts[0]);
+                let mv_stmt = self.stmt_to_mv_stmt(&stmts[0]);
+                self.db.query_drop(format!("{}",datatable_stmt))?; 
+                return answer_rows(results, self.db.query_iter(format!("{}", mv_stmt)));
             }
         }
     }
