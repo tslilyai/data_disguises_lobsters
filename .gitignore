@@ -4,3 +4,4 @@ log_*
 *.png
 *.bin
 *.o
+*.lock
