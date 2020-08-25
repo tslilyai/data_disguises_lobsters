@@ -23,12 +23,6 @@ struct Prepared {
     params: Vec<Column>,
 }
 
-struct SelectSubst {
-    user_col: String,
-    user_val: String,
-    ghost_ids: Vec<String>,
-}
-
 pub struct Shim { 
     db: mysql::Conn,
     prepared: HashMap<u32, Prepared>,
@@ -51,7 +45,7 @@ impl Shim {
         let cfg = config::parse_config(cfg_json).unwrap();
         let mut table_names = Vec::<String>::new();
         table_names.push(cfg.user_table.name.clone());
-        for dt in &cfg.data_tables{
+        for dt in &cfg.data_tables {
             table_names.push(dt.name.clone());
         }
         let prepared = HashMap::new();
@@ -97,14 +91,80 @@ impl Shim {
         }
         Ok(())
     }
-
-    fn issue_query_to_materialized_views(&mut self, stmt: Statement) 
-        -> mysql::Result<mysql::QueryResult<mysql::Text>>
-    {
-        return self.db.query_iter(format!("{}", stmt));
+    
+    fn query_to_materialized_view_query(&mut self, query: &Query) -> Query {
+        query.clone()
     }
 
-    fn issue_query_to_data_tables(&mut self, stmt: Statement) 
+    fn issue_stmt_to_materialized_views(&mut self, stmt: &Statement) 
+        -> mysql::Result<mysql::QueryResult<mysql::Text>>
+    {
+        let mv_stmt : Statement;
+        match stmt {
+            // Note: mysql doesn't support "as_of"
+            Statement::Select(SelectStatement{
+                    query, 
+                    ..
+            }) => {
+                let new_q = self.query_to_materialized_view_query(&query);
+                mv_stmt = Statement::Select(SelectStatement{
+                    query: Box::new(new_q), 
+                    as_of: None
+                });
+            }
+            Statement::Insert(InsertStatement{
+                table_name,
+                columns, 
+                source,
+            }) => {
+                let mut mv_table_name = String::new();
+                for dt in &self.table_names {
+                    if *dt == table_name.to_string() {
+                        mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
+                    }
+                }
+                mv_stmt = Statement::Insert(InsertStatement{
+                    table_name : ObjectName(vec![Ident::new(mv_table_name)]),
+                    columns : columns.clone(),
+                    source : source.clone(), // TODO
+                });
+            }
+            /*Statement::Copy(stmt) => f.write_node(stmt),
+            Statement::Update(stmt) => f.write_node(stmt),
+            Statement::Delete(stmt) => f.write_node(stmt),
+            Statement::CreateDatabase(stmt) => f.write_node(stmt),
+            Statement::CreateSchema(stmt) => f.write_node(stmt),
+            Statement::CreateSource(stmt) => f.write_node(stmt),
+            Statement::CreateSink(stmt) => f.write_node(stmt),
+            Statement::CreateView(stmt) => f.write_node(stmt),
+            Statement::CreateTable(stmt) => f.write_node(stmt),
+            Statement::CreateIndex(stmt) => f.write_node(stmt),
+            Statement::AlterObjectRename(stmt) => f.write_node(stmt),
+            Statement::DropDatabase(stmt) => f.write_node(stmt),
+            Statement::DropObjects(stmt) => f.write_node(stmt),
+            Statement::SetVariable(stmt) => f.write_node(stmt),
+            Statement::ShowDatabases(stmt) => f.write_node(stmt),
+            Statement::ShowObjects(stmt) => f.write_node(stmt),
+            Statement::ShowIndexes(stmt) => f.write_node(stmt),
+            Statement::ShowColumns(stmt) => f.write_node(stmt),
+            Statement::ShowCreateView(stmt) => f.write_node(stmt),
+            Statement::ShowCreateSource(stmt) => f.write_node(stmt),
+            Statement::ShowCreateTable(stmt) => f.write_node(stmt),
+            Statement::ShowCreateSink(stmt) => f.write_node(stmt),
+            Statement::ShowCreateIndex(stmt) => f.write_node(stmt),
+            Statement::ShowVariable(stmt) => f.write_node(stmt),
+            Statement::StartTransaction(stmt) => f.write_node(stmt),
+            Statement::SetTransaction(stmt) => f.write_node(stmt),
+            Statement::Commit(stmt) => f.write_node(stmt),
+            Statement::Rollback(stmt) => f.write_node(stmt),
+            Statement::Tail(stmt) => f.write_node(stmt),
+            Statement::Explain(stmt) => f.write_node(stmt),*/
+            _ => mv_stmt = stmt.clone(),
+        }
+        self.db.query_iter(format!("{}", mv_stmt))
+    }
+
+    fn issue_stmt_to_data_tables(&mut self, stmt: &Statement) 
         -> mysql::Result<mysql::QueryResult<mysql::Text>> 
     {
         match stmt {
@@ -355,8 +415,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             }
             Ok(stmts) => {
                 assert!(stmts.len()==1);
-                self.issue_query_to_data_tables(stmts[0].clone())?;
-                return answer_rows(results, self.issue_query_to_materialized_views(stmts[0].clone()));
+                self.issue_stmt_to_data_tables(&stmts[0])?;
+                return answer_rows(results, self.issue_stmt_to_materialized_views(&stmts[0]));
             }
         }
     }
