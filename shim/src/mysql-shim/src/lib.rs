@@ -92,7 +92,7 @@ impl Shim {
         Ok(())
     }
     
-    fn query_to_materialized_view_query(&mut self, query: &Query) -> Query {
+    fn query_to_mv_query(&self, query: &Query) -> Query {
         query.clone()
     }
 
@@ -106,7 +106,7 @@ impl Shim {
                     query, 
                     ..
             }) => {
-                let new_q = self.query_to_materialized_view_query(&query);
+                let new_q = self.query_to_mv_query(&query);
                 mv_stmt = Statement::Select(SelectStatement{
                     query: Box::new(new_q), 
                     as_of: None
@@ -118,15 +118,22 @@ impl Shim {
                 source,
             }) => {
                 let mut mv_table_name = String::new();
+                let mut mv_source = source.clone();
                 for dt in &self.table_names {
                     if *dt == table_name.to_string() {
                         mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
+                        match source {
+                            InsertSource::Query(q) => {
+                                mv_source = InsertSource::Query(Box::new(self.query_to_mv_query(&q)));
+                            } 
+                            InsertSource::DefaultValues => (), // TODO might have to get rid of this
+                        }
                     }
                 }
                 mv_stmt = Statement::Insert(InsertStatement{
                     table_name : ObjectName(vec![Ident::new(mv_table_name)]),
                     columns : columns.clone(),
-                    source : source.clone(), // TODO
+                    source : mv_source, // TODO
                 });
             }
             /*Statement::Copy(stmt) => f.write_node(stmt),
