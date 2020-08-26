@@ -105,7 +105,7 @@ impl Shim {
 
     fn stmt_to_mv_stmt(&mut self, stmt: &Statement) -> Statement {
         let mv_stmt : Statement;
-        let mut mv_table_name = String::new();
+        let mut mv_table_name : String;
 
         match stmt {
             // Note: mysql doesn't support "as_of"
@@ -283,11 +283,11 @@ impl Shim {
                                 self.table_names.push(to_item_name.to_string());
                                 self.table_names.retain(|x| *x != *dt);
                                 if self.cfg.user_table.name == name.to_string() {
-                                    mem::replace(&mut self.cfg.user_table.name, to_item_name.to_string());
+                                    self.cfg.user_table.name = to_item_name.to_string();
                                 } else {
                                     for tab in &mut self.cfg.data_tables {
-                                        if *tab.name == *dt {
-                                            mem::replace(&mut tab.name, to_item_name.to_string());
+                                        if tab.name == *dt {
+                                            tab.name = to_item_name.to_string();
                                         }
                                     }
                                 }
@@ -314,11 +314,11 @@ impl Shim {
                 match object_type {
                     ObjectType::Table => {
                         // update name(s)
-                        for mut name in &mut mv_names {
+                        for name in &mut mv_names {
                             for dt in &self.table_names {
                                 if *dt == name.to_string() {
-                                    let mut mv_name = ObjectName(vec![Ident::new(format!("{}{}", name, MV_SUFFIX))]);
-                                    mem::replace(&mut name, &mut mv_name);
+                                    let mv_name = ObjectName(vec![Ident::new(format!("{}{}", name, MV_SUFFIX))]);
+                                    *name = mv_name;
                                     break;
                                 }
                             }
@@ -597,9 +597,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         self.db.query_drop("DROP TABLE IF EXISTS ghosts;").unwrap();
         self.db.query_drop(create_ghost_table_q).unwrap();
         
-        /* create materialized view for all data tables */
+        /* issue schema statements */
         let mut sql = String::new();
-        let mut mv_query : String;
+        let mut mv_stmt : Statement;
+        let mut dt_stmt : Statement;
         for line in self.schema.lines() {
             if line.starts_with("--") || line.is_empty() {
                 continue;
@@ -616,45 +617,21 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let stmts = parse_statements(sql);
         match stmts {
             Err(e) => 
-                Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, b"select db failed")?),
+                Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?),
             Ok(stmts) => {
                 for stmt in stmts {
+                    // issue actual statement to datatables (potentially creating ghost ID 
+                    // entries as well)
+                    dt_stmt = self.stmt_to_datatable_stmt(&stmt);
+                    self.db.query_drop(dt_stmt.to_string())?;
+                    
+                    // issue statement to materialized views
+                    mv_stmt = self.stmt_to_mv_stmt(&stmt);
+                    self.db.query_drop(mv_stmt.to_string())?;
                 }
                 Ok(w.ok()?)
             }
         }
-         /*Statement::CreateTable {stmt} => {
-                    // construct query to create MV 
-                    let mut col_names = Vec::<String>::new();
-                    for col in columns {
-                        col_names.push(col.name.to_string());
-                    }
-                    if name.to_string() == self.cfg.user_table.name {
-                        mv_query = gen_create_mv_query(
-                            &self.cfg.user_table.name, 
-                            &vec![self.cfg.user_table.id_col.clone()], 
-                            &col_names);
-                    } else {
-                        let dtopt = self.cfg.data_tables.iter().find(|&dt| dt.name == name.to_string());
-                        match dtopt {
-                            Some(dt) => {
-                                mv_query = gen_create_mv_query(
-                                    &dt.name,
-                                    &dt.user_cols,
-                                    &col_names)
-                            },
-                            _ => continue,
-                        }                     
-                    }
-                    // execute query
-                    self.db.query_drop(mv_query).unwrap();
-                },
-                _ => continue, // we only handle create table stmts
-            }
-        }
-        println!("done with init!");
-        w.ok()?;
-        Ok(())*/
     }
 
     fn on_query(&mut self, query: &str, results: QueryResultWriter<W>) -> Result<(), Self::Error> {
@@ -668,7 +645,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 assert!(stmts.len()==1);
                 let datatable_stmt = self.stmt_to_datatable_stmt(&stmts[0]);
                 let mv_stmt = self.stmt_to_mv_stmt(&stmts[0]);
-                self.db.query_drop(format!("{}",datatable_stmt))?; 
+                self.db.query_drop(format!("{}", datatable_stmt))?; 
                 return answer_rows(results, self.db.query_iter(format!("{}", mv_stmt)));
             }
         }
