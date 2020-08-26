@@ -41,7 +41,7 @@ impl Drop for Shim {
 }
 
 impl Shim {
-    pub fn new(mut db: mysql::Conn, cfg_json: &str, schema: &'static str) -> Self {
+    pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str) -> Self {
         let cfg = config::parse_config(cfg_json).unwrap();
         let mut table_names = Vec::<String>::new();
         table_names.push(cfg.user_table.name.clone());
@@ -91,7 +91,10 @@ impl Shim {
         }
         Ok(())
     }
-    
+
+    /********************************************************
+     * Processing statements to use materialized views      
+     * ******************************************************/
     fn query_to_mv_query(&self, query: &Query) -> Query {
         query.clone()
     }
@@ -121,6 +124,7 @@ impl Shim {
                 columns, 
                 source,
             }) => {
+                mv_table_name= table_name.to_string();
                 let mut mv_source = source.clone();
                 // update table name 
                 for dt in &self.table_names {
@@ -147,6 +151,7 @@ impl Shim {
                 assignments,
                 selection,
             }) => {
+                mv_table_name= table_name.to_string();
                 let mut mv_assn = Vec::<Assignment>::new();
                 let mut mv_selection = selection.clone();
                 // update table name
@@ -177,6 +182,7 @@ impl Shim {
                 table_name,
                 selection,
             }) => {
+                mv_table_name= table_name.to_string();
                 let mut mv_selection = selection.clone();
                 // update table name
                 for dt in &self.table_names {
@@ -193,40 +199,224 @@ impl Shim {
                     table_name : ObjectName(vec![Ident::new(mv_table_name)]),
                     selection : mv_selection,
                 });
-
             }
-            /*Statement::CreateDatabase(stmt) => f.write_node(stmt),
-            Statement::CreateSchema(stmt) => f.write_node(stmt),
-            Statement::CreateSource(stmt) => f.write_node(stmt),
-            Statement::CreateSink(stmt) => f.write_node(stmt),
-            Statement::CreateView(stmt) => f.write_node(stmt),
-            Statement::CreateTable(stmt) => f.write_node(stmt),
-            Statement::CreateIndex(stmt) => f.write_node(stmt),
-            Statement::AlterObjectRename(stmt) => f.write_node(stmt),
-            Statement::DropDatabase(stmt) => f.write_node(stmt),
-            Statement::DropObjects(stmt) => f.write_node(stmt),
-            Statement::SetVariable(stmt) => f.write_node(stmt),
-            Statement::ShowDatabases(stmt) => f.write_node(stmt),
-            Statement::ShowObjects(stmt) => f.write_node(stmt),
-            Statement::ShowIndexes(stmt) => f.write_node(stmt),
-            Statement::ShowColumns(stmt) => f.write_node(stmt),
-            Statement::ShowCreateView(stmt) => f.write_node(stmt),
-            Statement::ShowCreateSource(stmt) => f.write_node(stmt),
-            Statement::ShowCreateTable(stmt) => f.write_node(stmt),
-            Statement::ShowCreateSink(stmt) => f.write_node(stmt),
-            Statement::ShowCreateIndex(stmt) => f.write_node(stmt),
-            Statement::ShowVariable(stmt) => f.write_node(stmt),
-            Statement::StartTransaction(stmt) => f.write_node(stmt),
-            Statement::SetTransaction(stmt) => f.write_node(stmt),
-            Statement::Commit(stmt) => f.write_node(stmt),
-            Statement::Rollback(stmt) => f.write_node(stmt),
-            Statement::Tail(stmt) => f.write_node(stmt),
-            Statement::Explain(stmt) => f.write_node(stmt),*/
-            /*Statement::Copy(stmt) => ()
+            Statement::CreateView(CreateViewStatement{
+                name,
+                columns,
+                with_options,
+                query,
+                if_exists,
+                temporary,
+                materialized,
+            }) => {
+                let mv_query = self.query_to_mv_query(&query);
+                mv_stmt = Statement::CreateView(CreateViewStatement{
+                    name: name.clone(),
+                    columns: columns.clone(),
+                    with_options: with_options.clone(),
+                    query : Box::new(mv_query),
+                    if_exists: if_exists.clone(),
+                    temporary: temporary.clone(),
+                    materialized: materialized.clone(),
+                });
+            }
+            Statement::CreateTable(CreateTableStatement{
+                name,
+                columns,
+                constraints,
+                with_options,
+                if_not_exists,
+            }) => {
+                mv_table_name= name.to_string();
+                // update table name
+                for dt in &self.table_names {
+                    if *dt == name.to_string() {
+                        mv_table_name = format!("{}{}", name, MV_SUFFIX);
+                    }
+                }
+                mv_stmt = Statement::CreateTable(CreateTableStatement{
+                    name: ObjectName(vec![Ident::new(mv_table_name)]),
+                    columns: columns.clone(),
+                    constraints: constraints.clone(),
+                    with_options: with_options.clone(),
+                    if_not_exists: if_not_exists.clone(),
+                });
+                // TODO might have to add auto_increment here 
+            }
+            Statement::CreateIndex(CreateIndexStatement{
+                name,
+                on_name,
+                key_parts,
+                if_not_exists,
+            }) => {
+                mv_table_name= on_name.to_string();
+                // update on name
+                for dt in &self.table_names {
+                    if *dt == on_name.to_string() {
+                        mv_table_name = format!("{}{}", on_name, MV_SUFFIX);
+                    }
+                }
+                mv_stmt = Statement::CreateIndex(CreateIndexStatement{
+                    name: name.clone(),
+                    on_name: ObjectName(vec![Ident::new(mv_table_name)]),
+                    key_parts: key_parts.clone(),
+                    if_not_exists: if_not_exists.clone(),
+                });
+            }
+            Statement::AlterObjectRename(AlterObjectRenameStatement{
+                object_type,
+                if_exists,
+                name,
+                to_item_name,
+            }) => {
+                let mut to_item_mv_name = to_item_name.to_string();
+                mv_table_name= name.to_string();
+                match object_type {
+                    ObjectType::Table => {
+                        // update name(s)
+                        for dt in &self.table_names.clone() {
+                            if *dt == name.to_string() {
+                                mv_table_name = format!("{}{}", name, MV_SUFFIX);
+                                to_item_mv_name = format!("{}{}", to_item_name, MV_SUFFIX);
+
+                                // change config to reflect new table name
+                                self.table_names.push(to_item_name.to_string());
+                                self.table_names.retain(|x| *x != *dt);
+                                if self.cfg.user_table.name == name.to_string() {
+                                    mem::replace(&mut self.cfg.user_table.name, to_item_name.to_string());
+                                } else {
+                                    for tab in &mut self.cfg.data_tables {
+                                        if *tab.name == *dt {
+                                            mem::replace(&mut tab.name, to_item_name.to_string());
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    _ => (),
+                }
+                mv_stmt = Statement::AlterObjectRename(AlterObjectRenameStatement{
+                    object_type: object_type.clone(),
+                    if_exists: *if_exists,
+                    name: ObjectName(vec![Ident::new(mv_table_name)]),
+                    to_item_name: Ident::new(to_item_mv_name),
+                });
+            }
+            Statement::DropObjects(DropObjectsStatement{
+                object_type,
+                if_exists,
+                names,
+                cascade,
+            }) => {
+                let mut mv_names = names.clone();
+                match object_type {
+                    ObjectType::Table => {
+                        // update name(s)
+                        for mut name in &mut mv_names {
+                            for dt in &self.table_names {
+                                if *dt == name.to_string() {
+                                    let mut mv_name = ObjectName(vec![Ident::new(format!("{}{}", name, MV_SUFFIX))]);
+                                    mem::replace(&mut name, &mut mv_name);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    _ => (),
+                }
+                mv_stmt = Statement::DropObjects(DropObjectsStatement{
+                    object_type: object_type.clone(),
+                    if_exists: *if_exists,
+                    names: mv_names,
+                    cascade: *cascade,
+                });
+            }
+            Statement::ShowObjects(ShowObjectsStatement{
+                object_type,
+                from,
+                extended,
+                full,
+                materialized,
+                filter,
+            }) => {
+                let mut mv_filter = filter.clone();
+                match object_type {
+                    ObjectType::Table => {
+                        if let Some(f) = filter {
+                            match f {
+                                ShowStatementFilter::Like(_s) => (),
+                                ShowStatementFilter::Where(expr) => {
+                                    mv_filter = Some(ShowStatementFilter::Where(self.expr_to_mv_expr(&expr)));
+                                }
+                            }
+                        }
+                    }
+                    _ => (),
+                }
+                mv_stmt = Statement::ShowObjects(ShowObjectsStatement{
+                    object_type: object_type.clone(),
+                    from: from.clone(),
+                    extended: *extended,
+                    full: *full,
+                    materialized: *materialized,
+                    filter: mv_filter,
+                })
+            }
+            // XXX TODO should indexes be created in both the 
+            // MV and the data table? (if data is only ever read from MV)
+            Statement::ShowIndexes(ShowIndexesStatement{
+                table_name,
+                extended,
+                filter,
+            }) => {
+                mv_table_name = table_name.to_string();
+                for dt in &self.table_names {
+                    if *dt == table_name.to_string() {
+                        mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
+                    }
+                }
+                let mut mv_filter = filter.clone();
+                if let Some(f) = filter {
+                    match f {
+                        ShowStatementFilter::Like(_s) => (),
+                        ShowStatementFilter::Where(expr) => {
+                            mv_filter = Some(ShowStatementFilter::Where(self.expr_to_mv_expr(&expr)));
+                        }
+                    }
+                }
+                mv_stmt = Statement::ShowIndexes(ShowIndexesStatement {
+                    table_name: ObjectName(vec![Ident::new(mv_table_name)]),
+                    extended: *extended,
+                    filter: mv_filter,
+                });
+            }
+            /* TODO Handle Statement::Explain(stmt) => f.write_node(stmt)
+             *
+             * Don't handle CreateSink, CreateSource, Copy,
+             *  ShowCreateSource, ShowCreateSink, Tail, Explain
+             * 
+             * Don't modify queries for CreateSchema, CreateDatabase, 
+             * ShowDatabases, ShowCreateTable, DropDatabase, Transactions,
+             * ShowColumns, SetVariable
+             *
+             * XXX: ShowVariable, ShowCreateView and ShowCreateIndex will return 
+             *  queries that used the materialized views, rather than the 
+             *  application-issued tables. This is probably not a big issue, 
+             *  since these queries are used to create the table again?
              * */
             _ => mv_stmt = stmt.clone(),
         }
         mv_stmt
+    }
+
+    fn query_to_datatable_query(&self, query: &Query) -> Query {
+        query.clone()
+    }
+ 
+    fn expr_to_datatable_expr(&self, expr: &Expr) -> Expr {
+        expr.clone()
     }
 
     fn stmt_to_datatable_stmt(&mut self, stmt: &Statement) -> Statement
@@ -236,7 +426,7 @@ impl Shim {
                 // we want to insert into both the MV and the data table
                 // and to insert a unique ghost_id in place of the user_id 
                 // 1. check if this table even has user_ids that we need to replace
-                let mut user_cols : Vec<String> = Vec::<String>::new();
+                let user_cols : Vec<String> = Vec::<String>::new();
                 /*match self.get_user_cols_of(table_name.to_string()) {
                     Some(uc) => user_cols = uc.clone(),
                     None => (),
