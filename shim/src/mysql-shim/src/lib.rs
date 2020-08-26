@@ -95,8 +95,80 @@ impl Shim {
     /********************************************************
      * Processing statements to use materialized views      
      * ******************************************************/
+    fn tablewithjoins_to_mv_tablewithjoins(&self, twj: &TableWithJoins) -> TableWithJoins {
+        twj.clone()
+    }
+
+    fn setexpr_to_mv_setexpr(&self, setexpr: &SetExpr) -> SetExpr {
+        match setexpr {
+            SetExpr::Select(s) => 
+                SetExpr::Select(Box::new(Select{
+                    distinct: s.distinct,
+                    projection: s.projection
+                        .iter()
+                        .map(|si| match si {
+                            SelectItem::Expr{
+                                expr,
+                                alias,
+                            } => SelectItem::Expr{
+                                expr: self.expr_to_mv_expr(&expr),
+                                alias: alias.clone(),
+                            },
+                            SelectItem::Wildcard => SelectItem::Wildcard
+                        })
+                        .collect(),
+                    from: s.from
+                        .iter()
+                        .map(|twj| self.tablewithjoins_to_mv_tablewithjoins(&twj))
+                        .collect(),
+                    selection: match &s.selection {
+                        Some(e) => Some(self.expr_to_mv_expr(&e)),
+                        None => None,
+                    },
+                    group_by: s.group_by
+                        .iter()
+                        .map(|e| self.expr_to_mv_expr(&e))
+                        .collect(),
+                    having: match &s.having {
+                        Some(e) => Some(self.expr_to_mv_expr(&e)),
+                        None => None,
+                    },
+                })),
+            SetExpr::Query(q) => SetExpr::Query(Box::new(self.query_to_mv_query(&q))),
+            SetExpr::SetOperation {
+                op,
+                all,
+                left,
+                right,
+            } => SetExpr::SetOperation{
+                    op: op.clone(),
+                    all: *all,
+                    left: Box::new(self.setexpr_to_mv_setexpr(&left)),
+                    right: Box::new(self.setexpr_to_mv_setexpr(&right)),
+                },
+                SetExpr::Values(Values(v)) => SetExpr::Values(
+                    Values(v
+                        .iter()
+                        .map(|exprs| exprs
+                             .iter()
+                             .map(|e| self.expr_to_mv_expr(&e))
+                             .collect())
+                        .collect())),
+        }
+    }
+
     fn query_to_mv_query(&self, query: &Query) -> Query {
-        query.clone()
+        let mut mv_query = query.clone();
+
+        let mut cte_mv_query : Query;
+        for cte in &mut mv_query.ctes {
+            cte_mv_query = self.query_to_mv_query(&cte.query);
+            cte.query = cte_mv_query;
+        }
+
+        mv_query.body = self.setexpr_to_mv_setexpr(&query.body);
+
+        mv_query
     }
  
     fn expr_to_mv_expr(&self, expr: &Expr) -> Expr {
