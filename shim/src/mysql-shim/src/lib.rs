@@ -95,8 +95,56 @@ impl Shim {
     /********************************************************
      * Processing statements to use materialized views      
      * ******************************************************/
+    fn tablefactor_to_mv_tablefactor(&self, tf: &TableFactor) -> TableFactor {
+        match tf {
+            TableFactor::Table {
+                name,
+                alias,
+            } => {
+                let mut mv_table_name = name.to_string();
+                // update table name 
+                for dt in &self.table_names {
+                    if *dt == name.to_string() {
+                        mv_table_name = format!("{}{}", name, MV_SUFFIX);
+                        break;
+                    }
+                }
+                TableFactor::Table{
+                    name: ObjectName(vec![Ident::new(mv_table_name)]),
+                    alias: alias.clone(),
+                }
+            }
+            TableFactor::Derived {
+                lateral,
+                subquery,
+                alias,
+            } => TableFactor::Derived {
+                    lateral: *lateral,
+                    subquery: Box::new(self.query_to_mv_query(&subquery)),
+                    alias: alias.clone(),
+                },
+            TableFactor::NestedJoin {
+                join,
+                alias,
+            } => TableFactor::NestedJoin{
+                    join: Box::new(self.tablewithjoins_to_mv_tablewithjoins(&join)),
+                    alias: alias.clone(),
+                },
+            _ => tf.clone(),
+        }
+    }
+
     fn tablewithjoins_to_mv_tablewithjoins(&self, twj: &TableWithJoins) -> TableWithJoins {
-        twj.clone()
+        TableWithJoins {
+            relation: self.tablefactor_to_mv_tablefactor(&twj.relation),
+            joins: twj.joins
+                .iter()
+                .map(|j| Join {
+                    relation: self.tablefactor_to_mv_tablefactor(&j.relation),
+                    join_operator: j.join_operator.clone(),
+                })
+                .collect(),
+        }
     }
 
     fn setexpr_to_mv_setexpr(&self, setexpr: &SetExpr) -> SetExpr {
