@@ -158,7 +158,8 @@ impl Shim {
     }
 
     fn query_to_mv_query(&self, query: &Query) -> Query {
-        let mut mv_query = query.clone();
+        //TODO inefficient to clone and then replace?
+        let mut mv_query = query.clone(); 
 
         let mut cte_mv_query : Query;
         for cte in &mut mv_query.ctes {
@@ -167,6 +168,27 @@ impl Shim {
         }
 
         mv_query.body = self.setexpr_to_mv_setexpr(&query.body);
+
+        let mut mv_oexpr : Expr;
+        for orderby in &mut mv_query.order_by {
+            mv_oexpr = self.expr_to_mv_expr(&orderby.expr);
+            orderby.expr = mv_oexpr;
+        }
+
+        if let Some(e) = &query.limit {
+            mv_query.limit = Some(self.expr_to_mv_expr(&e));
+        }
+
+        if let Some(e) = &query.offset {
+            mv_query.offset = Some(self.expr_to_mv_expr(&e));
+        }       
+
+        if let Some(f) = &mut mv_query.fetch {
+            if let Some(e) = &f.quantity {
+                let new_quantity = Some(self.expr_to_mv_expr(&e));
+                f.quantity = new_quantity;
+            }
+        }
 
         mv_query
     }
