@@ -3,6 +3,7 @@ name = "mysql-shim"
 version = "0.1.0"
 authors = ["Lily Tsai <tslilyai@mit.edu>"]
 edition = "2018"
+exclude = ["tests/testdata"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
@@ -12,3 +13,6 @@ sql-parser = { path = "../sql-parser" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 regex = "1"
+
+[dev-dependencies]
+datadriven = "0.1.0"

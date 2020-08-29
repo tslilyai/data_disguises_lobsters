@@ -244,7 +244,7 @@ impl Shim {
     fn expr_to_mv_expr(&self, expr: &Expr) -> Expr {
         expr.clone()
     }
-
+    
     fn stmt_to_mv_stmt(&mut self, stmt: &Statement) -> Statement {
         let mv_stmt : Statement;
         let mut mv_table_name : String;
@@ -369,6 +369,7 @@ impl Shim {
                 with_options,
                 if_not_exists,
             }) => {
+                println!("Found create table statement: {}", stmt.to_string());
                 mv_table_name= name.to_string();
                 // update table name
                 for dt in &self.table_names {
@@ -611,6 +612,12 @@ impl Shim {
              }
          }
          None
+    }
+
+    // TODO factor out conversions to make tests more organized #[cfg(test)]
+    pub fn stmt_to_mv_stmt_test(&mut self, stmt: &Statement) -> Statement {
+        println!("Calling mv stmt on: {}", stmt.to_string());
+        self.stmt_to_mv_stmt(stmt)
     }
 }
 
@@ -900,3 +907,4 @@ fn get_coltype(t: &mysql::consts::ColumnType) -> ColumnType {
         mysql::consts::ColumnType::MYSQL_TYPE_GEOMETRY => ColumnType::MYSQL_TYPE_GEOMETRY,
     }
 }
+
