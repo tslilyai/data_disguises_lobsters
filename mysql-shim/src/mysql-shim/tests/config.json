@@ -1,4 +1,4 @@
-{
+{ 
     "user_table" : {
         "name": "users",
         "id_col": "id"
@@ -22,5 +22,4 @@
         }
     ]
 }
-
 

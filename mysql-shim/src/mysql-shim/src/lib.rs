@@ -18,6 +18,21 @@ fn create_ghosts_query() -> String {
         GHOST_ID_START);
 }
 
+fn objname_to_string(obj: &ObjectName) -> String {
+    let mut s = obj.to_string();
+    s.retain(|c| !r#""'`"#.contains(c));
+    s
+}
+
+fn string_to_objname(s: &str) -> ObjectName {
+    let idents = s
+        .split(".")
+        .into_iter()
+        .map(|i| Ident::new(i))
+        .collect();
+    ObjectName(idents)
+}
+
 struct Prepared {
     stmt: mysql::Statement,
     params: Vec<Column>,
@@ -101,7 +116,7 @@ impl Shim {
                 name,
                 alias,
             } => {
-                let mut mv_table_name = name.to_string();
+                let mut mv_table_name = objname_to_string(&name);
                 // update table name 
                 for dt in &self.table_names {
                     if *dt == name.to_string() {
@@ -110,7 +125,7 @@ impl Shim {
                     }
                 }
                 TableFactor::Table{
-                    name: ObjectName(vec![Ident::new(mv_table_name)]),
+                    name: string_to_objname(&mv_table_name),
                     alias: alias.clone(),
                 }
             }
@@ -253,12 +268,12 @@ impl Shim {
             // Note: mysql doesn't support "as_of"
             Statement::Select(SelectStatement{
                 query, 
-                ..
+                as_of,
             }) => {
                 let new_q = self.query_to_mv_query(&query);
                 mv_stmt = Statement::Select(SelectStatement{
                     query: Box::new(new_q), 
-                    as_of: None
+                    as_of: as_of.clone(),
                 });
             }
             Statement::Insert(InsertStatement{
@@ -266,13 +281,13 @@ impl Shim {
                 columns, 
                 source,
             }) => {
-                mv_table_name= table_name.to_string();
+                mv_table_name = objname_to_string(&table_name);
                 let mut mv_source = source.clone();
                 // update table name 
                 for dt in &self.table_names {
-                    if *dt == table_name.to_string() {
+                    if *dt == mv_table_name {
                         mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
-                        
+                        break;    
                     }
                 }
                 // update sources
@@ -283,7 +298,7 @@ impl Shim {
                     InsertSource::DefaultValues => (), // TODO might have to get rid of this
                 }
                 mv_stmt = Statement::Insert(InsertStatement{
-                    table_name : ObjectName(vec![Ident::new(mv_table_name)]),
+                    table_name: string_to_objname(&mv_table_name),
                     columns : columns.clone(),
                     source : mv_source, 
                 });
@@ -293,13 +308,14 @@ impl Shim {
                 assignments,
                 selection,
             }) => {
-                mv_table_name= table_name.to_string();
+                mv_table_name = objname_to_string(&table_name);
                 let mut mv_assn = Vec::<Assignment>::new();
                 let mut mv_selection = selection.clone();
                 // update table name
                 for dt in &self.table_names {
-                    if *dt == table_name.to_string() {
+                    if *dt == mv_table_name {
                         mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
+                        break;
                     }
                 }
                 // update assignments
@@ -315,7 +331,7 @@ impl Shim {
                     Some(s) => mv_selection = Some(self.expr_to_mv_expr(&s)),
                 }
                 mv_stmt = Statement::Update(UpdateStatement{
-                    table_name : ObjectName(vec![Ident::new(mv_table_name)]),
+                    table_name: string_to_objname(&mv_table_name),
                     assignments : mv_assn,
                     selection : mv_selection,
                 });
@@ -324,12 +340,13 @@ impl Shim {
                 table_name,
                 selection,
             }) => {
-                mv_table_name= table_name.to_string();
+                mv_table_name = objname_to_string(&table_name);
                 let mut mv_selection = selection.clone();
                 // update table name
                 for dt in &self.table_names {
-                    if *dt == table_name.to_string() {
+                    if *dt == mv_table_name {
                         mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
+                        break;
                     }
                 }
                 // update selection 
@@ -338,7 +355,7 @@ impl Shim {
                     Some(s) => mv_selection = Some(self.expr_to_mv_expr(&s)),
                 }
                 mv_stmt = Statement::Delete(DeleteStatement{
-                    table_name : ObjectName(vec![Ident::new(mv_table_name)]),
+                    table_name: string_to_objname(&mv_table_name),
                     selection : mv_selection,
                 });
             }
@@ -369,16 +386,16 @@ impl Shim {
                 with_options,
                 if_not_exists,
             }) => {
-                println!("Found create table statement: {}", stmt.to_string());
-                mv_table_name= name.to_string();
+                mv_table_name = objname_to_string(&name);
                 // update table name
                 for dt in &self.table_names {
-                    if *dt == name.to_string() {
+                    if *dt == mv_table_name {
                         mv_table_name = format!("{}{}", name, MV_SUFFIX);
+                        break;
                     }
                 }
                 mv_stmt = Statement::CreateTable(CreateTableStatement{
-                    name: ObjectName(vec![Ident::new(mv_table_name)]),
+                    name: string_to_objname(&mv_table_name),
                     columns: columns.clone(),
                     constraints: constraints.clone(),
                     with_options: with_options.clone(),
@@ -392,16 +409,17 @@ impl Shim {
                 key_parts,
                 if_not_exists,
             }) => {
-                mv_table_name= on_name.to_string();
+                mv_table_name = objname_to_string(&on_name);
                 // update on name
                 for dt in &self.table_names {
-                    if *dt == on_name.to_string() {
+                    if *dt == mv_table_name {
                         mv_table_name = format!("{}{}", on_name, MV_SUFFIX);
+                        break;
                     }
                 }
                 mv_stmt = Statement::CreateIndex(CreateIndexStatement{
                     name: name.clone(),
-                    on_name: ObjectName(vec![Ident::new(mv_table_name)]),
+                    on_name: string_to_objname(&mv_table_name),
                     key_parts: key_parts.clone(),
                     if_not_exists: if_not_exists.clone(),
                 });
@@ -413,19 +431,16 @@ impl Shim {
                 to_item_name,
             }) => {
                 let mut to_item_mv_name = to_item_name.to_string();
-                mv_table_name= name.to_string();
+                mv_table_name= objname_to_string(&name);
                 match object_type {
                     ObjectType::Table => {
                         // update name(s)
                         for dt in &self.table_names.clone() {
-                            if *dt == name.to_string() {
-                                mv_table_name = format!("{}{}", name, MV_SUFFIX);
-                                to_item_mv_name = format!("{}{}", to_item_name, MV_SUFFIX);
-
+                            if *dt == mv_table_name {
                                 // change config to reflect new table name
                                 self.table_names.push(to_item_name.to_string());
                                 self.table_names.retain(|x| *x != *dt);
-                                if self.cfg.user_table.name == name.to_string() {
+                                if self.cfg.user_table.name == mv_table_name {
                                     self.cfg.user_table.name = to_item_name.to_string();
                                 } else {
                                     for tab in &mut self.cfg.data_tables {
@@ -434,8 +449,13 @@ impl Shim {
                                         }
                                     }
                                 }
+
+                                // update names
+                                mv_table_name = format!("{}{}", name, MV_SUFFIX);
+                                to_item_mv_name = format!("{}{}", to_item_name, MV_SUFFIX);
+
+                                break;
                             }
-                            break;
                         }
                     }
                     _ => (),
@@ -443,7 +463,7 @@ impl Shim {
                 mv_stmt = Statement::AlterObjectRename(AlterObjectRenameStatement{
                     object_type: object_type.clone(),
                     if_exists: *if_exists,
-                    name: ObjectName(vec![Ident::new(mv_table_name)]),
+                    name: string_to_objname(&mv_table_name),
                     to_item_name: Ident::new(to_item_mv_name),
                 });
             }
@@ -459,7 +479,7 @@ impl Shim {
                         // update name(s)
                         for name in &mut mv_names {
                             for dt in &self.table_names {
-                                if *dt == name.to_string() {
+                                if *dt == objname_to_string(&name) {
                                     let mv_name = ObjectName(vec![Ident::new(format!("{}{}", name, MV_SUFFIX))]);
                                     *name = mv_name;
                                     break;
@@ -514,10 +534,11 @@ impl Shim {
                 extended,
                 filter,
             }) => {
-                mv_table_name = table_name.to_string();
+                mv_table_name = objname_to_string(&table_name);
                 for dt in &self.table_names {
-                    if *dt == table_name.to_string() {
+                    if *dt == mv_table_name {
                         mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
+                        break;
                     }
                 }
                 let mut mv_filter = filter.clone();
@@ -530,7 +551,7 @@ impl Shim {
                     }
                 }
                 mv_stmt = Statement::ShowIndexes(ShowIndexesStatement {
-                    table_name: ObjectName(vec![Ident::new(mv_table_name)]),
+                    table_name: string_to_objname(&mv_table_name),
                     extended: *extended,
                     filter: mv_filter,
                 });
@@ -616,7 +637,6 @@ impl Shim {
 
     // TODO factor out conversions to make tests more organized #[cfg(test)]
     pub fn stmt_to_mv_stmt_test(&mut self, stmt: &Statement) -> Statement {
-        println!("Calling mv stmt on: {}", stmt.to_string());
         self.stmt_to_mv_stmt(stmt)
     }
 }
