@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::*;
 mod config;
 
-const MV_SUFFIX : &'static str = "_mv"; 
+const MV_SUFFIX : &'static str = "mv"; 
 const GHOST_ID_START : i64 = 1<<20;
 
 fn create_ghosts_query() -> String {
@@ -18,19 +18,14 @@ fn create_ghosts_query() -> String {
         GHOST_ID_START);
 }
 
-fn objname_to_string(obj: &ObjectName) -> String {
-    let mut s = obj.to_string();
-    s.retain(|c| !r#""'`"#.contains(c));
-    s
-}
-
 fn string_to_objname(s: &str) -> ObjectName {
     let idents = s
         .split(".")
         .into_iter()
         .map(|i| Ident::new(i))
         .collect();
-    ObjectName(idents)
+    let obj = ObjectName(idents);
+    obj
 }
 
 struct Prepared {
@@ -107,6 +102,53 @@ impl Shim {
         Ok(())
     }
 
+    fn objname_to_mv_string(&self, obj: &ObjectName) -> String {
+        // note that we assume that the name specified in the config
+        // is the minimum needed to identify the data table.
+        // if there are duplicates, the database/schema would also
+        // need to be present as well. however, we allow for overspecifying
+        // in the query (so the data table name in the config may be a 
+        // subset of the query name).
+
+        let mut objs_mv = obj.to_string();
+        for dt in &self.table_names {
+            let dt_split : Vec<&str> = dt.split(".").collect();
+          
+            let mut i = 0;
+            let mut j = 0;
+            while j < obj.0.len() {
+                if i < dt_split.len() {
+                    if dt_split[i] == obj.0[j].to_string() {
+                        i+=1;
+                    } else {
+                        // reset comparison from beginning of dt
+                        i = 0; 
+                    }
+                    j+=1;
+                } else {
+                    break;
+                }
+            }
+            if i == dt_split.len() {
+                // we found a match
+                objs_mv = String::new();
+                for (index, ident) in obj.0.iter().enumerate() {
+                    if index == j-1 {
+                        objs_mv.push_str(&format!("{}{}", ident, MV_SUFFIX));
+                    } else {
+                        objs_mv.push_str(&ident.to_string());
+                    }
+                    if index + 1 < obj.0.len() {
+                        objs_mv.push_str(".");
+                    }
+                } 
+                break;
+            }
+        } 
+        objs_mv
+    }
+
+
     /********************************************************
      * Processing statements to use materialized views      
      * ******************************************************/
@@ -116,14 +158,7 @@ impl Shim {
                 name,
                 alias,
             } => {
-                let mut mv_table_name = objname_to_string(&name);
-                // update table name 
-                for dt in &self.table_names {
-                    if *dt == name.to_string() {
-                        mv_table_name = format!("{}{}", name, MV_SUFFIX);
-                        break;
-                    }
-                }
+                let mv_table_name = self.objname_to_mv_string(&name);
                 TableFactor::Table{
                     name: string_to_objname(&mv_table_name),
                     alias: alias.clone(),
@@ -149,6 +184,22 @@ impl Shim {
         }
     }
 
+    fn joinoperator_to_mv_joinoperator(&self, jo: &JoinOperator) -> JoinOperator {
+        let jo_mv : JoinOperator;
+        match jo {
+            JoinOperator::Inner(JoinConstraint::On(e)) => 
+                jo_mv = JoinOperator::Inner(JoinConstraint::On(self.expr_to_mv_expr(e))),
+            JoinOperator::LeftOuter(JoinConstraint::On(e)) => 
+                jo_mv = JoinOperator::Inner(JoinConstraint::On(self.expr_to_mv_expr(e))),
+            JoinOperator::RightOuter(JoinConstraint::On(e)) => 
+                jo_mv = JoinOperator::Inner(JoinConstraint::On(self.expr_to_mv_expr(e))),
+            JoinOperator::FullOuter(JoinConstraint::On(e)) => 
+                jo_mv = JoinOperator::Inner(JoinConstraint::On(self.expr_to_mv_expr(e))),
+_ => jo_mv = jo.clone(),
+        }
+        jo_mv
+    }
+
     fn tablewithjoins_to_mv_tablewithjoins(&self, twj: &TableWithJoins) -> TableWithJoins {
         TableWithJoins {
             relation: self.tablefactor_to_mv_tablefactor(&twj.relation),
@@ -156,7 +207,7 @@ impl Shim {
                 .iter()
                 .map(|j| Join {
                     relation: self.tablefactor_to_mv_tablefactor(&j.relation),
-                    join_operator: j.join_operator.clone(),
+                    join_operator: self.joinoperator_to_mv_joinoperator(&j.join_operator),
                 })
                 .collect(),
         }
@@ -281,15 +332,8 @@ impl Shim {
                 columns, 
                 source,
             }) => {
-                mv_table_name = objname_to_string(&table_name);
+                mv_table_name = self.objname_to_mv_string(&table_name);
                 let mut mv_source = source.clone();
-                // update table name 
-                for dt in &self.table_names {
-                    if *dt == mv_table_name {
-                        mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
-                        break;    
-                    }
-                }
                 // update sources
                 match source {
                     InsertSource::Query(q) => {
@@ -308,16 +352,9 @@ impl Shim {
                 assignments,
                 selection,
             }) => {
-                mv_table_name = objname_to_string(&table_name);
+                mv_table_name = self.objname_to_mv_string(&table_name);
                 let mut mv_assn = Vec::<Assignment>::new();
                 let mut mv_selection = selection.clone();
-                // update table name
-                for dt in &self.table_names {
-                    if *dt == mv_table_name {
-                        mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
-                        break;
-                    }
-                }
                 // update assignments
                 for a in assignments {
                     mv_assn.push(Assignment{
@@ -340,15 +377,8 @@ impl Shim {
                 table_name,
                 selection,
             }) => {
-                mv_table_name = objname_to_string(&table_name);
+                mv_table_name = self.objname_to_mv_string(&table_name);
                 let mut mv_selection = selection.clone();
-                // update table name
-                for dt in &self.table_names {
-                    if *dt == mv_table_name {
-                        mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
-                        break;
-                    }
-                }
                 // update selection 
                 match selection {
                     None => (),
@@ -386,18 +416,31 @@ impl Shim {
                 with_options,
                 if_not_exists,
             }) => {
-                mv_table_name = objname_to_string(&name);
-                // update table name
-                for dt in &self.table_names {
-                    if *dt == mv_table_name {
-                        mv_table_name = format!("{}{}", name, MV_SUFFIX);
-                        break;
-                    }
-                }
+                mv_table_name = self.objname_to_mv_string(&name);
+                let mv_constraints = constraints
+                    .iter()
+                    .map(|c| match c {
+                        TableConstraint::ForeignKey {
+                            name,
+                            columns,
+                            foreign_table,
+                            referred_columns,
+                        } => {
+                            let mut foreign_table = self.objname_to_mv_string(foreign_table);
+                            TableConstraint::ForeignKey{
+                                name: name.clone(),
+                                columns: columns.clone(),
+                                foreign_table: string_to_objname(&foreign_table),
+                                referred_columns: referred_columns.clone(),
+                            }
+                        }
+                        _ => c.clone(),
+                    })
+                    .collect(); 
                 mv_stmt = Statement::CreateTable(CreateTableStatement{
                     name: string_to_objname(&mv_table_name),
                     columns: columns.clone(),
-                    constraints: constraints.clone(),
+                    constraints: mv_constraints,
                     with_options: with_options.clone(),
                     if_not_exists: if_not_exists.clone(),
                 });
@@ -409,14 +452,7 @@ impl Shim {
                 key_parts,
                 if_not_exists,
             }) => {
-                mv_table_name = objname_to_string(&on_name);
-                // update on name
-                for dt in &self.table_names {
-                    if *dt == mv_table_name {
-                        mv_table_name = format!("{}{}", on_name, MV_SUFFIX);
-                        break;
-                    }
-                }
+                mv_table_name = self.objname_to_mv_string(&on_name);
                 mv_stmt = Statement::CreateIndex(CreateIndexStatement{
                     name: name.clone(),
                     on_name: string_to_objname(&mv_table_name),
@@ -431,31 +467,24 @@ impl Shim {
                 to_item_name,
             }) => {
                 let mut to_item_mv_name = to_item_name.to_string();
-                mv_table_name= objname_to_string(&name);
+                mv_table_name= self.objname_to_mv_string(&name);
                 match object_type {
                     ObjectType::Table => {
                         // update name(s)
-                        for dt in &self.table_names.clone() {
-                            if *dt == mv_table_name {
-                                // change config to reflect new table name
-                                self.table_names.push(to_item_name.to_string());
-                                self.table_names.retain(|x| *x != *dt);
-                                if self.cfg.user_table.name == mv_table_name {
-                                    self.cfg.user_table.name = to_item_name.to_string();
-                                } else {
-                                    for tab in &mut self.cfg.data_tables {
-                                        if tab.name == *dt {
-                                            tab.name = to_item_name.to_string();
-                                        }
+                        if mv_table_name != name.to_string() {
+                            // change config to reflect new table name
+                            self.table_names.push(to_item_name.to_string());
+                            self.table_names.retain(|x| *x != *name.to_string());
+                            if self.cfg.user_table.name == name.to_string() {
+                                self.cfg.user_table.name = to_item_name.to_string();
+                            } else {
+                                for tab in &mut self.cfg.data_tables {
+                                    if tab.name == name.to_string() {
+                                        tab.name = to_item_name.to_string();
                                     }
                                 }
-
-                                // update names
-                                mv_table_name = format!("{}{}", name, MV_SUFFIX);
-                                to_item_mv_name = format!("{}{}", to_item_name, MV_SUFFIX);
-
-                                break;
                             }
+                            to_item_mv_name = format!("{}{}", to_item_name, MV_SUFFIX);
                         }
                     }
                     _ => (),
@@ -478,13 +507,8 @@ impl Shim {
                     ObjectType::Table => {
                         // update name(s)
                         for name in &mut mv_names {
-                            for dt in &self.table_names {
-                                if *dt == objname_to_string(&name) {
-                                    let mv_name = ObjectName(vec![Ident::new(format!("{}{}", name, MV_SUFFIX))]);
-                                    *name = mv_name;
-                                    break;
-                                }
-                            }
+                            let newname = self.objname_to_mv_string(&name);
+                            *name = string_to_objname(&newname);
                         }
                     }
                     _ => (),
@@ -504,23 +528,23 @@ impl Shim {
                 materialized,
                 filter,
             }) => {
+                let mut mv_from = from.clone();
+                if let Some(f) = from {
+                    mv_from = Some(string_to_objname(&self.objname_to_mv_string(&f)));
+                }
+
                 let mut mv_filter = filter.clone();
-                match object_type {
-                    ObjectType::Table => {
-                        if let Some(f) = filter {
-                            match f {
-                                ShowStatementFilter::Like(_s) => (),
-                                ShowStatementFilter::Where(expr) => {
-                                    mv_filter = Some(ShowStatementFilter::Where(self.expr_to_mv_expr(&expr)));
-                                }
-                            }
+                if let Some(f) = filter {
+                    match f {
+                        ShowStatementFilter::Like(_s) => (),
+                        ShowStatementFilter::Where(expr) => {
+                            mv_filter = Some(ShowStatementFilter::Where(self.expr_to_mv_expr(&expr)));
                         }
                     }
-                    _ => (),
                 }
                 mv_stmt = Statement::ShowObjects(ShowObjectsStatement{
                     object_type: object_type.clone(),
-                    from: from.clone(),
+                    from: mv_from,
                     extended: *extended,
                     full: *full,
                     materialized: *materialized,
@@ -534,13 +558,7 @@ impl Shim {
                 extended,
                 filter,
             }) => {
-                mv_table_name = objname_to_string(&table_name);
-                for dt in &self.table_names {
-                    if *dt == mv_table_name {
-                        mv_table_name = format!("{}{}", table_name, MV_SUFFIX);
-                        break;
-                    }
-                }
+                mv_table_name = self.objname_to_mv_string(&table_name);
                 let mut mv_filter = filter.clone();
                 if let Some(f) = filter {
                     match f {
@@ -570,7 +588,9 @@ impl Shim {
              *  application-issued tables. This is probably not a big issue, 
              *  since these queries are used to create the table again?
              * */
-            _ => mv_stmt = stmt.clone(),
+            _ => {
+                mv_stmt = stmt.clone();
+            }
         }
         mv_stmt
     }

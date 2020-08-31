@@ -5,20 +5,12 @@
     },
     "data_tables" : [
         {
-            "name": "comments",
+            "name": "tablefoo",
             "user_cols": ["user_id"]
         },
         {
-            "name": "stories",
+            "name": "tablefootwo",
             "user_cols": ["user_id"]
-        },
-        {
-            "name": "votes",
-            "user_cols": ["user_id"]
-        },
-        {
-            "name": "moderations",
-            "user_cols": ["user_id", "moderator_user_id"]
         }
     ]
 }

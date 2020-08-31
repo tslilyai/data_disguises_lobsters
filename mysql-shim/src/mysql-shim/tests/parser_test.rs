@@ -60,12 +60,12 @@ fn datadriven() {
                             if s.len() != 1 {
                                 "expected exactly one statement".to_string()
                             } else if test_case.args.get("roundtrip").is_some() {
-                                format!("{}\n", s.iter().next().unwrap().to_string())
+                                let stmt = s.iter().next().unwrap();
+                                let mv_stmt = shim.stmt_to_mv_stmt_test(stmt);
+                                format!("{}\n", mv_stmt.to_string())
                             } else {
                                 let stmt = s.iter().next().unwrap();
                                 let mv_stmt = shim.stmt_to_mv_stmt_test(stmt);
-                                // TODO(justin): it would be nice to have a middle-ground between this
-                                // all-on-one-line and {:#?}'s huge number of lines.
                                 format!("{}\n=>\n{:?}\n", stmt.to_string(), mv_stmt)
                             }
                         }
