@@ -1824,6 +1824,8 @@ impl Parser {
             ColumnOption::NotNull
         } else if self.parse_keyword("NULL") {
             ColumnOption::Null
+        } else if self.parse_keyword("AUTO_INCREMENT") {
+            ColumnOption::AutoIncrement
         } else if self.parse_keyword("DEFAULT") {
             ColumnOption::Default(self.parse_expr()?)
         } else if self.parse_keywords(vec!["PRIMARY", "KEY"]) {

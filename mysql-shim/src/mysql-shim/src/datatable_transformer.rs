@@ -2,6 +2,8 @@ use sql_parser::ast::*;
 use super::config;
 use super::helpers;
 
+static mut LATEST_GID: u64 = super::GHOST_ID_START;
+
 pub struct DataTableTransformer {
     cfg: config::Config,
 }
@@ -376,7 +378,6 @@ impl DataTableTransformer {
     pub fn stmt_to_datatable_stmt(&mut self, stmt: &Statement) -> Option<Statement> {
         let mut is_write = false;
         let mut dt_stmt = stmt.clone();
-        let dt_table_name : String;
 
         match stmt {
             Statement::Insert(InsertStatement{
@@ -386,15 +387,22 @@ impl DataTableTransformer {
             }) => {
                 is_write = true;
 
-                // note that if the table is the users table,
-                // we just want to insert like usual; we only care about
-                // adding ghost ids for data tables, but we don't add ghosts to
-                // the user table
+                /* note that if the table is the users table,
+                 * we just want to insert like usual; we only care about
+                 * adding ghost ids for data tables, but we don't add ghosts to
+                 * the user table
+                 */
 
-                // for all columns that are user columns,
-                // generate a new ghost_id and insert
+                // for all columns that are user columns, generate a new ghost_id and insert
+                // into ghosts table with appropriate user_id value
                 // those as the values instead for those columns.
-                self.get_user_cols_of_table_stmt(&table_name.0, columns);
+                let ucols = self.get_user_cols_of_table_stmt(&table_name.0, columns);
+                for uc in ucols {
+                    
+                }
+                // TODO need to issue multiple statements 
+                // to update values of user cols to ghost
+                // ids
 
                 let mut dt_source = source.clone();
                 // update sources

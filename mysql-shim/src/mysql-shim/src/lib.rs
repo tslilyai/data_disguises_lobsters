@@ -9,7 +9,7 @@ pub mod config;
 pub mod datatable_transformer;
 pub mod mv_transformer;
 
-const GHOST_ID_START : i64 = 1<<20;
+const GHOST_ID_START : u64 = 1<<20;
 
 fn create_ghosts_query() -> String {
     return format!(
@@ -240,6 +240,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 for stmt in stmts {
                     // issue actual statement to datatables if they are writes (potentially creating ghost ID 
                     // entries as well)
+                    // TODO wrap in txn
                     if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt) {
                         self.db.query_drop(dt_stmt.to_string())?;
                     }
@@ -262,6 +263,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             }
             Ok(stmts) => {
                 assert!(stmts.len()==1);
+                // TODO wrap in txn
                 if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmts[0]) {
                     self.db.query_drop(dt_stmt.to_string())?;
                 }

@@ -4,6 +4,7 @@ use super::config;
 use super::helpers;
 
 const MV_SUFFIX : &'static str = "mv"; 
+const MV_COL : &'static str = "mvidcol"; 
 
 pub struct MVTransformer {
     table_names: Vec<String>,
@@ -518,6 +519,7 @@ impl MVTransformer {
                 if_not_exists,
             }) => {
                 mv_table_name = self.objname_to_mv_string(&name);
+                //columns.push(ColumnDef"");
                 let mv_constraints = constraints
                     .iter()
                     .map(|c| match c {

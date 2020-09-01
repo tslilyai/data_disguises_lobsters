@@ -70,6 +70,11 @@ CREATE TABLE IF NOT EXISTS tablefoo (bar int)
 CREATE TABLE IF NOT EXISTS tablefoomv (bar int)
 
 parse-statement roundtrip
+CREATE TABLE IF NOT EXISTS tablefoo (bar int AUTO_INCREMENT)
+----
+CREATE TABLE IF NOT EXISTS tablefoomv (bar int AUTO_INCREMENT)
+
+parse-statement roundtrip
 CREATE TABLE tablefoo (id int, FOREIGN KEY (foo, bar) REFERENCES tablefootwo(foo, bar))
 ----
 CREATE TABLE tablefoomv (id int, FOREIGN KEY (foo, bar) REFERENCES tablefootwomv(foo, bar))

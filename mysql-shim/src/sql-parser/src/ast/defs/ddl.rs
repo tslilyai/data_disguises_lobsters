@@ -385,6 +385,8 @@ impl_display!(ColumnOptionDef);
 /// TABLE` statement.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ColumnOption {
+    /// `AUTO_INCREMENT`
+    AutoIncrement,
     /// `NULL`
     Null,
     /// `NOT NULL`
@@ -409,6 +411,7 @@ impl AstDisplay for ColumnOption {
     fn fmt(&self, f: &mut AstFormatter) {
         use ColumnOption::*;
         match self {
+            AutoIncrement => f.write_str("AUTO_INCREMENT"),
             Null => f.write_str("NULL"),
             NotNull => f.write_str("NOT NULL"),
             Default(expr) => {
