@@ -2,7 +2,6 @@ extern crate mysql;
 use msql_srv::*;
 use mysql::prelude::*;
 use sql_parser::parser::parse_statements;
-use sql_parser::ast::*;
 use std::collections::HashMap;
 use std::*;
 mod helpers;
@@ -220,8 +219,6 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         
         /* issue schema statements */
         let mut sql = String::new();
-        let mut mv_stmt : Statement;
-        let mut dt_stmt : Statement;
         for line in self.schema.lines() {
             if line.starts_with("--") || line.is_empty() {
                 continue;
@@ -241,13 +238,14 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?),
             Ok(stmts) => {
                 for stmt in stmts {
-                    // issue actual statement to datatables (potentially creating ghost ID 
+                    // issue actual statement to datatables if they are writes (potentially creating ghost ID 
                     // entries as well)
-                    dt_stmt = self.dt_trans.stmt_to_datatable_stmt(&stmt);
-                    self.db.query_drop(dt_stmt.to_string())?;
+                    if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt) {
+                        self.db.query_drop(dt_stmt.to_string())?;
+                    }
                     
                     // issue statement to materialized views
-                    mv_stmt = self.mv_trans.stmt_to_mv_stmt(&stmt);
+                    let mv_stmt = self.mv_trans.stmt_to_mv_stmt(&stmt);
                     self.db.query_drop(mv_stmt.to_string())?;
                 }
                 Ok(w.ok()?)
@@ -264,9 +262,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             }
             Ok(stmts) => {
                 assert!(stmts.len()==1);
-                let datatable_stmt = self.dt_trans.stmt_to_datatable_stmt(&stmts[0]);
+                if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmts[0]) {
+                    self.db.query_drop(dt_stmt.to_string())?;
+                }
                 let mv_stmt = self.mv_trans.stmt_to_mv_stmt(&stmts[0]);
-                self.db.query_drop(format!("{}", datatable_stmt))?; 
                 return answer_rows(results, self.db.query_iter(format!("{}", mv_stmt)));
             }
         }

@@ -39,27 +39,10 @@ impl MVTransformer {
         
         let mut objs_mv = obj.clone();
         for dt in &self.table_names {
-            let dt_split : Vec<&str> = dt.split(".").collect();
-          
-            let mut i = 0;
-            let mut j = 0;
-            while j < obj.len() {
-                if i < dt_split.len() {
-                    if dt_split[i] == obj[j].to_string() {
-                        i+=1;
-                    } else {
-                        // reset comparison from beginning of dt
-                        i = 0; 
-                    }
-                    j+=1;
-                } else {
-                    break;
-                }
-            }
-            if i == dt_split.len() {
+            if let Some((start, end)) = helpers::objname_subset_match_range(obj, dt) {
                 objs_mv.clear();
                 for (index, ident) in obj.iter().enumerate() {
-                    if index == j-1 && i == dt_split.len() {
+                    if index == end {
                         // we found a match
                         objs_mv.push(Ident::new(&format!("{}{}", ident, MV_SUFFIX)));
                     } else {
@@ -699,7 +682,7 @@ impl MVTransformer {
              * 
              * Don't modify queries for CreateSchema, CreateDatabase, 
              * ShowDatabases, ShowCreateTable, DropDatabase, Transactions,
-             * ShowColumns, SetVariable
+             * ShowColumns, SetVariable (mysql exprs in set var not supported yet)
              *
              * XXX: ShowVariable, ShowCreateView and ShowCreateIndex will return 
              *  queries that used the materialized views, rather than the 

@@ -1,97 +1,35 @@
 use sql_parser::ast::*;
-use std::*;
 use super::config;
 use super::helpers;
 
-const dt_SUFFIX : &'static str = "mv"; 
 pub struct DataTableTransformer {
-    table_names: Vec<String>,
     cfg: config::Config,
 }
 
 impl DataTableTransformer {
     pub fn new(cfg: config::Config) -> Self {
-        let mut table_names = Vec::<String>::new();
-        table_names.push(cfg.user_table.name.clone());
-        for dt in &cfg.data_tables {
-            table_names.push(dt.name.clone());
-        }
-        DataTableTransformer{table_names, cfg}
+        DataTableTransformer{cfg}
     }   
     
-    fn get_user_cols_of_table(&self, table_name: String) -> Option<&Vec<String>> {
-         for dt in &self.cfg.data_tables {
-             if table_name == dt.name {
-                 return Some(&dt.user_cols);
-             }
-         }
-         None
-    }
-   
-    fn objname_to_datatable_string(&self, obj: &ObjectName) -> String {
-        let obj_mv = ObjectName(self.idents_to_datatable_idents(&obj.0));
-        obj_mv.to_string()
-    }
-
-    fn objname_to_datatable_objname(&self, obj: &ObjectName) -> ObjectName {
-        ObjectName(self.idents_to_datatable_idents(&obj.0))
-    }
-    
-    fn idents_to_datatable_idents(&self, obj: &Vec<Ident>) -> Vec<Ident> {
-        // note that we assume that the name specified in the config
-        // is the minimum needed to identify the data table.
-        // if there are duplicates, the database/schema would also
-        // need to be present as well. however, we allow for overspecifying
-        // in the query (so the data table name in the config may be a 
-        // subset of the query name).
-        
-        let mut objs_mv = obj.clone();
-        for dt in &self.table_names {
-            let dt_split : Vec<&str> = dt.split(".").collect();
-          
-            let mut i = 0;
-            let mut j = 0;
-            while j < obj.len() {
-                if i < dt_split.len() {
-                    if dt_split[i] == obj[j].to_string() {
-                        i+=1;
-                    } else {
-                        // reset comparison from beginning of dt
-                        i = 0; 
-                    }
-                    j+=1;
-                } else {
-                    break;
-                }
-            }
-            if i == dt_split.len() {
-                objs_mv.clear();
-                for (index, ident) in obj.iter().enumerate() {
-                    if index == j-1 && i == dt_split.len() {
-                        // we found a match
-                        objs_mv.push(Ident::new(&format!("{}{}", ident, dt_SUFFIX)));
-                    } else {
-                        objs_mv.push(ident.clone());
-                    }
-                } 
+    fn get_user_cols_of_table_stmt(&self, table_name: &Vec<Ident>, cols: &Vec<Ident>) -> Vec<Ident> {
+        let mut users = cols.clone();
+        for dt in &self.cfg.data_tables {
+            if let Some(_p) = helpers::objname_subset_match_range(table_name, &dt.name) {
+                users.retain(|c| dt.user_cols.iter().any(|uc| c.to_string() == *uc));
                 break;
             }
         }
-        objs_mv
+        users
     }
-
-    /********************************************************
-     * Processing statements to use materialized views      
-     * ******************************************************/
+    
     fn tablefactor_to_datatable_tablefactor(&self, tf: &TableFactor) -> TableFactor {
         match tf {
             TableFactor::Table {
                 name,
                 alias,
             } => {
-                let dt_table_name = self.objname_to_datatable_string(&name);
                 TableFactor::Table{
-                    name: helpers::string_to_objname(&dt_table_name),
+                    name: name.clone(),
                     alias: alias.clone(),
                 }
             }
@@ -240,8 +178,6 @@ impl DataTableTransformer {
  
     fn expr_to_datatable_expr(&self, expr: &Expr) -> Expr {
         match expr {
-            Expr::Identifier(ids) => Expr::Identifier(self.idents_to_datatable_idents(&ids)),
-            Expr::QualifiedWildcard(ids) => Expr::QualifiedWildcard(self.idents_to_datatable_idents(&ids)),
             Expr::FieldAccess {
                 expr,
                 field,
@@ -317,7 +253,7 @@ impl DataTableTransformer {
                 collation,
             } => Expr::Collate{
                 expr: Box::new(self.expr_to_datatable_expr(&expr)),
-                collation: self.objname_to_datatable_objname(&collation),
+                collation: collation.clone(),
             },
             Expr::Nested(expr) => Expr::Nested(Box::new(self.expr_to_datatable_expr(&expr))),
             Expr::Row{
@@ -329,7 +265,7 @@ impl DataTableTransformer {
                     .collect(),
             },
             Expr::Function(f) => Expr::Function(Function{
-                name: self.objname_to_datatable_objname(&f.name),
+                name: f.name.clone(),
                 args: match &f.args {
                     FunctionArgs::Star => FunctionArgs::Star,
                     FunctionArgs::Args(exprs) => FunctionArgs::Args(exprs
@@ -437,28 +373,29 @@ impl DataTableTransformer {
         }
     }
     
-    pub fn stmt_to_datatable_stmt(&mut self, stmt: &Statement) -> Statement {
-        let dt_stmt : Statement;
+    pub fn stmt_to_datatable_stmt(&mut self, stmt: &Statement) -> Option<Statement> {
+        let mut is_write = false;
+        let mut dt_stmt = stmt.clone();
         let dt_table_name : String;
 
         match stmt {
-            // Note: mysql doesn't support "as_of"
-            Statement::Select(SelectStatement{
-                query, 
-                as_of,
-            }) => {
-                let new_q = self.query_to_datatable_query(&query);
-                dt_stmt = Statement::Select(SelectStatement{
-                    query: Box::new(new_q), 
-                    as_of: as_of.clone(),
-                });
-            }
             Statement::Insert(InsertStatement{
                 table_name,
                 columns, 
                 source,
             }) => {
-                dt_table_name = self.objname_to_datatable_string(&table_name);
+                is_write = true;
+
+                // note that if the table is the users table,
+                // we just want to insert like usual; we only care about
+                // adding ghost ids for data tables, but we don't add ghosts to
+                // the user table
+
+                // for all columns that are user columns,
+                // generate a new ghost_id and insert
+                // those as the values instead for those columns.
+                self.get_user_cols_of_table_stmt(&table_name.0, columns);
+
                 let mut dt_source = source.clone();
                 // update sources
                 match source {
@@ -468,7 +405,7 @@ impl DataTableTransformer {
                     InsertSource::DefaultValues => (), // TODO might have to get rid of this
                 }
                 dt_stmt = Statement::Insert(InsertStatement{
-                    table_name: helpers::string_to_objname(&dt_table_name),
+                    table_name: table_name.clone(),
                     columns : columns.clone(),
                     source : dt_source, 
                 });
@@ -478,7 +415,7 @@ impl DataTableTransformer {
                 assignments,
                 selection,
             }) => {
-                dt_table_name = self.objname_to_datatable_string(&table_name);
+                is_write = true;
                 let mut dt_assn = Vec::<Assignment>::new();
                 let mut dt_selection = selection.clone();
                 // update assignments
@@ -494,7 +431,7 @@ impl DataTableTransformer {
                     Some(s) => dt_selection = Some(self.expr_to_datatable_expr(&s)),
                 }
                 dt_stmt = Statement::Update(UpdateStatement{
-                    table_name: helpers::string_to_objname(&dt_table_name),
+                    table_name: table_name.clone(),
                     assignments : dt_assn,
                     selection : dt_selection,
                 });
@@ -503,7 +440,7 @@ impl DataTableTransformer {
                 table_name,
                 selection,
             }) => {
-                dt_table_name = self.objname_to_datatable_string(&table_name);
+                is_write = true;
                 let mut dt_selection = selection.clone();
                 // update selection 
                 match selection {
@@ -511,7 +448,7 @@ impl DataTableTransformer {
                     Some(s) => dt_selection = Some(self.expr_to_datatable_expr(&s)),
                 }
                 dt_stmt = Statement::Delete(DeleteStatement{
-                    table_name: helpers::string_to_objname(&dt_table_name),
+                    table_name: table_name.clone(),
                     selection : dt_selection,
                 });
             }
@@ -524,6 +461,7 @@ impl DataTableTransformer {
                 temporary,
                 materialized,
             }) => {
+                is_write = true;
                 let dt_query = self.query_to_datatable_query(&query);
                 dt_stmt = Statement::CreateView(CreateViewStatement{
                     name: name.clone(),
@@ -542,7 +480,7 @@ impl DataTableTransformer {
                 with_options,
                 if_not_exists,
             }) => {
-                dt_table_name = self.objname_to_datatable_string(&name);
+                is_write = true;
                 let dt_constraints = constraints
                     .iter()
                     .map(|c| match c {
@@ -552,11 +490,10 @@ impl DataTableTransformer {
                             foreign_table,
                             referred_columns,
                         } => {
-                            let mut foreign_table = self.objname_to_datatable_string(foreign_table);
                             TableConstraint::ForeignKey{
                                 name: name.clone(),
                                 columns: columns.clone(),
-                                foreign_table: helpers::string_to_objname(&foreign_table),
+                                foreign_table: foreign_table.clone(),
                                 referred_columns: referred_columns.clone(),
                             }
                         }
@@ -564,7 +501,7 @@ impl DataTableTransformer {
                     })
                     .collect(); 
                 dt_stmt = Statement::CreateTable(CreateTableStatement{
-                    name: helpers::string_to_objname(&dt_table_name),
+                    name: name.clone(),
                     columns: columns.clone(),
                     constraints: dt_constraints,
                     with_options: with_options.clone(),
@@ -578,10 +515,10 @@ impl DataTableTransformer {
                 key_parts,
                 if_not_exists,
             }) => {
-                dt_table_name = self.objname_to_datatable_string(&on_name);
+                is_write = true;
                 dt_stmt = Statement::CreateIndex(CreateIndexStatement{
                     name: name.clone(),
-                    on_name: helpers::string_to_objname(&dt_table_name),
+                    on_name: on_name.clone(),
                     key_parts: key_parts.clone(),
                     if_not_exists: if_not_exists.clone(),
                 });
@@ -592,34 +529,12 @@ impl DataTableTransformer {
                 name,
                 to_item_name,
             }) => {
-                let mut to_item_dt_name = to_item_name.to_string();
-                dt_table_name= self.objname_to_datatable_string(&name);
-                match object_type {
-                    ObjectType::Table => {
-                        // update name(s)
-                        if dt_table_name != name.to_string() {
-                            // change config to reflect new table name
-                            self.table_names.push(to_item_name.to_string());
-                            self.table_names.retain(|x| *x != *name.to_string());
-                            if self.cfg.user_table.name == name.to_string() {
-                                self.cfg.user_table.name = to_item_name.to_string();
-                            } else {
-                                for tab in &mut self.cfg.data_tables {
-                                    if tab.name == name.to_string() {
-                                        tab.name = to_item_name.to_string();
-                                    }
-                                }
-                            }
-                            to_item_dt_name = format!("{}{}", to_item_name, dt_SUFFIX);
-                        }
-                    }
-                    _ => (),
-                }
+                is_write = true;
                 dt_stmt = Statement::AlterObjectRename(AlterObjectRenameStatement{
                     object_type: object_type.clone(),
                     if_exists: *if_exists,
-                    name: helpers::string_to_objname(&dt_table_name),
-                    to_item_name: Ident::new(to_item_dt_name),
+                    name: name.clone(),
+                    to_item_name: to_item_name.clone(),
                 });
             }
             Statement::DropObjects(DropObjectsStatement{
@@ -628,76 +543,12 @@ impl DataTableTransformer {
                 names,
                 cascade,
             }) => {
-                let mut dt_names = names.clone();
-                match object_type {
-                    ObjectType::Table => {
-                        // update name(s)
-                        for name in &mut dt_names {
-                            let newname = self.objname_to_datatable_string(&name);
-                            *name = helpers::string_to_objname(&newname);
-                        }
-                    }
-                    _ => (),
-                }
+                is_write = true;
                 dt_stmt = Statement::DropObjects(DropObjectsStatement{
                     object_type: object_type.clone(),
                     if_exists: *if_exists,
-                    names: dt_names,
+                    names: names.clone(),
                     cascade: *cascade,
-                });
-            }
-            Statement::ShowObjects(ShowObjectsStatement{
-                object_type,
-                from,
-                extended,
-                full,
-                materialized,
-                filter,
-            }) => {
-                let mut dt_from = from.clone();
-                if let Some(f) = from {
-                    dt_from = Some(helpers::string_to_objname(&self.objname_to_datatable_string(&f)));
-                }
-
-                let mut dt_filter = filter.clone();
-                if let Some(f) = filter {
-                    match f {
-                        ShowStatementFilter::Like(_s) => (),
-                        ShowStatementFilter::Where(expr) => {
-                            dt_filter = Some(ShowStatementFilter::Where(self.expr_to_datatable_expr(&expr)));
-                        }
-                    }
-                }
-                dt_stmt = Statement::ShowObjects(ShowObjectsStatement{
-                    object_type: object_type.clone(),
-                    from: dt_from,
-                    extended: *extended,
-                    full: *full,
-                    materialized: *materialized,
-                    filter: dt_filter,
-                })
-            }
-            // XXX TODO should indexes be created in both the 
-            // MV and the data table? (if data is only ever read from MV)
-            Statement::ShowIndexes(ShowIndexesStatement{
-                table_name,
-                extended,
-                filter,
-            }) => {
-                dt_table_name = self.objname_to_datatable_string(&table_name);
-                let mut dt_filter = filter.clone();
-                if let Some(f) = filter {
-                    match f {
-                        ShowStatementFilter::Like(_s) => (),
-                        ShowStatementFilter::Where(expr) => {
-                            dt_filter = Some(ShowStatementFilter::Where(self.expr_to_datatable_expr(&expr)));
-                        }
-                    }
-                }
-                dt_stmt = Statement::ShowIndexes(ShowIndexesStatement {
-                    table_name: helpers::string_to_objname(&dt_table_name),
-                    extended: *extended,
-                    filter: dt_filter,
                 });
             }
             /* TODO Handle Statement::Explain(stmt) => f.write_node(stmt)
@@ -707,17 +558,19 @@ impl DataTableTransformer {
              * 
              * Don't modify queries for CreateSchema, CreateDatabase, 
              * ShowDatabases, ShowCreateTable, DropDatabase, Transactions,
-             * ShowColumns, SetVariable
+             * ShowColumns, SetVariable (mysql exprs in set var not supported yet)
              *
              * XXX: ShowVariable, ShowCreateView and ShowCreateIndex will return 
              *  queries that used the materialized views, rather than the 
              *  application-issued tables. This is probably not a big issue, 
              *  since these queries are used to create the table again?
              * */
-            _ => {
-                dt_stmt = stmt.clone();
-            }
+            _ => ()
         }
-        dt_stmt
+        if is_write {
+            return Some(dt_stmt);
+        } else {
+            return None;
+        }
     }
 }

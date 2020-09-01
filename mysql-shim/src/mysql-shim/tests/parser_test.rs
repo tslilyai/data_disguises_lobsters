@@ -60,14 +60,17 @@ fn datadriven() {
                         Ok(s) => {
                             if s.len() != 1 {
                                 "expected exactly one statement".to_string()
-                            } else if test_case.args.get("roundtrip").is_some() {
-                                let stmt = s.iter().next().unwrap();
-                                let mv_stmt = mv_trans.stmt_to_mv_stmt(stmt);
-                                format!("{}\n", mv_stmt.to_string())
                             } else {
                                 let stmt = s.iter().next().unwrap();
                                 let mv_stmt = mv_trans.stmt_to_mv_stmt(stmt);
-                                format!("{}\n=>\n{:?}\n", stmt.to_string(), mv_stmt)
+                                if let Some(dt_stmt) = dt_trans.stmt_to_datatable_stmt(&stmt) {
+                                    // TODO
+                                }
+                                if test_case.args.get("roundtrip").is_some() {
+                                    format!("{}\n", mv_stmt.to_string())
+                                } else {
+                                    format!("{}\n=>\n{:?}\n", stmt.to_string(), mv_stmt)
+                                }
                             }
                         }
                         Err(e) => format!("error:\n{}\n", e),
