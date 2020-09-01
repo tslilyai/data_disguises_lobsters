@@ -18,11 +18,19 @@ fn create_ghosts_query() -> String {
         GHOST_ID_START);
 }
 
+fn trim_quotes(s: &str) -> &str {
+    let mut s = s;
+    if s.ends_with('"') && s.starts_with('"') {
+        s = &s[1..s.len() - 1]
+    } 
+    s
+}
+
 fn string_to_objname(s: &str) -> ObjectName {
     let idents = s
         .split(".")
         .into_iter()
-        .map(|i| Ident::new(i))
+        .map(|i| Ident::new(trim_quotes(i)))
         .collect();
     let obj = ObjectName(idents);
     obj
@@ -103,22 +111,31 @@ impl Shim {
     }
 
     fn objname_to_mv_string(&self, obj: &ObjectName) -> String {
+        let obj_mv = ObjectName(self.idents_to_mv_idents(&obj.0));
+        obj_mv.to_string()
+    }
+
+    fn objname_to_mv_objname(&self, obj: &ObjectName) -> ObjectName {
+        ObjectName(self.idents_to_mv_idents(&obj.0))
+    }
+    
+    fn idents_to_mv_idents(&self, obj: &Vec<Ident>) -> Vec<Ident> {
         // note that we assume that the name specified in the config
         // is the minimum needed to identify the data table.
         // if there are duplicates, the database/schema would also
         // need to be present as well. however, we allow for overspecifying
         // in the query (so the data table name in the config may be a 
         // subset of the query name).
-
-        let mut objs_mv = obj.to_string();
+        
+        let mut objs_mv = obj.clone();
         for dt in &self.table_names {
             let dt_split : Vec<&str> = dt.split(".").collect();
           
             let mut i = 0;
             let mut j = 0;
-            while j < obj.0.len() {
+            while j < obj.len() {
                 if i < dt_split.len() {
-                    if dt_split[i] == obj.0[j].to_string() {
+                    if dt_split[i] == obj[j].to_string() {
                         i+=1;
                     } else {
                         // reset comparison from beginning of dt
@@ -130,24 +147,20 @@ impl Shim {
                 }
             }
             if i == dt_split.len() {
-                // we found a match
-                objs_mv = String::new();
-                for (index, ident) in obj.0.iter().enumerate() {
-                    if index == j-1 {
-                        objs_mv.push_str(&format!("{}{}", ident, MV_SUFFIX));
+                objs_mv.clear();
+                for (index, ident) in obj.iter().enumerate() {
+                    if index == j-1 && i == dt_split.len() {
+                        // we found a match
+                        objs_mv.push(Ident::new(&format!("{}{}", ident, MV_SUFFIX)));
                     } else {
-                        objs_mv.push_str(&ident.to_string());
-                    }
-                    if index + 1 < obj.0.len() {
-                        objs_mv.push_str(".");
+                        objs_mv.push(ident.clone());
                     }
                 } 
                 break;
             }
-        } 
+        }
         objs_mv
     }
-
 
     /********************************************************
      * Processing statements to use materialized views      
@@ -190,12 +203,12 @@ impl Shim {
             JoinOperator::Inner(JoinConstraint::On(e)) => 
                 jo_mv = JoinOperator::Inner(JoinConstraint::On(self.expr_to_mv_expr(e))),
             JoinOperator::LeftOuter(JoinConstraint::On(e)) => 
-                jo_mv = JoinOperator::Inner(JoinConstraint::On(self.expr_to_mv_expr(e))),
+                jo_mv = JoinOperator::LeftOuter(JoinConstraint::On(self.expr_to_mv_expr(e))),
             JoinOperator::RightOuter(JoinConstraint::On(e)) => 
-                jo_mv = JoinOperator::Inner(JoinConstraint::On(self.expr_to_mv_expr(e))),
+                jo_mv = JoinOperator::RightOuter(JoinConstraint::On(self.expr_to_mv_expr(e))),
             JoinOperator::FullOuter(JoinConstraint::On(e)) => 
-                jo_mv = JoinOperator::Inner(JoinConstraint::On(self.expr_to_mv_expr(e))),
-_ => jo_mv = jo.clone(),
+                jo_mv = JoinOperator::FullOuter(JoinConstraint::On(self.expr_to_mv_expr(e))),
+            _ => jo_mv = jo.clone(),
         }
         jo_mv
     }
@@ -308,12 +321,207 @@ _ => jo_mv = jo.clone(),
     }
  
     fn expr_to_mv_expr(&self, expr: &Expr) -> Expr {
-        expr.clone()
+        match expr {
+            Expr::Identifier(ids) => Expr::Identifier(self.idents_to_mv_idents(&ids)),
+            Expr::QualifiedWildcard(ids) => Expr::QualifiedWildcard(self.idents_to_mv_idents(&ids)),
+            Expr::FieldAccess {
+                expr,
+                field,
+            } => Expr::FieldAccess {
+                expr: Box::new(self.expr_to_mv_expr(&expr)),
+                field: field.clone(),
+            },
+            Expr::WildcardAccess(e) => Expr::WildcardAccess(Box::new(self.expr_to_mv_expr(&e))),
+            Expr::IsNull{
+                expr,
+                negated,
+            } => Expr::IsNull {
+                expr: Box::new(self.expr_to_mv_expr(&expr)),
+                negated: *negated,
+            },
+            Expr::InList {
+                expr,
+                list,
+                negated,
+            } => Expr::InList {
+                expr: Box::new(self.expr_to_mv_expr(&expr)),
+                list: list
+                    .iter()
+                    .map(|e| self.expr_to_mv_expr(&e))
+                    .collect(),
+                negated: *negated,
+            },
+            Expr::InSubquery {
+                expr,
+                subquery,
+                negated,
+            } => Expr::InSubquery {
+                expr: Box::new(self.expr_to_mv_expr(&expr)),
+                subquery: Box::new(self.query_to_mv_query(&subquery)),
+                negated: *negated,
+            },
+            Expr::Between {
+                expr,
+                negated,
+                low,
+                high,
+            } => Expr::Between {
+                expr: Box::new(self.expr_to_mv_expr(&expr)),
+                negated: *negated,
+                low: Box::new(self.expr_to_mv_expr(&low)),
+                high: Box::new(self.expr_to_mv_expr(&high)),
+            },
+            Expr::BinaryOp{
+                left,
+                op,
+                right
+            } => Expr::BinaryOp{
+                left: Box::new(self.expr_to_mv_expr(&left)),
+                op: op.clone(),
+                right: Box::new(self.expr_to_mv_expr(&right)),
+            },
+            Expr::UnaryOp{
+                op,
+                expr,
+            } => Expr::UnaryOp{
+                op: op.clone(),
+                expr: Box::new(self.expr_to_mv_expr(&expr)),
+            },
+            Expr::Cast{
+                expr,
+                data_type,
+            } => Expr::Cast{
+                expr: Box::new(self.expr_to_mv_expr(&expr)),
+                data_type: data_type.clone(),
+            },
+            Expr::Collate {
+                expr,
+                collation,
+            } => Expr::Collate{
+                expr: Box::new(self.expr_to_mv_expr(&expr)),
+                collation: self.objname_to_mv_objname(&collation),
+            },
+            Expr::Nested(expr) => Expr::Nested(Box::new(self.expr_to_mv_expr(&expr))),
+            Expr::Row{
+                exprs,
+            } => Expr::Row{
+                exprs: exprs
+                    .iter()
+                    .map(|e| self.expr_to_mv_expr(&e))
+                    .collect(),
+            },
+            Expr::Function(f) => Expr::Function(Function{
+                name: self.objname_to_mv_objname(&f.name),
+                args: match &f.args {
+                    FunctionArgs::Star => FunctionArgs::Star,
+                    FunctionArgs::Args(exprs) => FunctionArgs::Args(exprs
+                        .iter()
+                        .map(|e| self.expr_to_mv_expr(&e))
+                        .collect()),
+                },
+                filter: match &f.filter {
+                    Some(filt) => Some(Box::new(self.expr_to_mv_expr(&filt))),
+                    None => None,
+                },
+                over: match &f.over {
+                    Some(ws) => Some(WindowSpec{
+                        partition_by: ws.partition_by
+                            .iter()
+                            .map(|e| self.expr_to_mv_expr(&e))
+                            .collect(),
+                        order_by: ws.order_by
+                            .iter()
+                            .map(|obe| OrderByExpr {
+                                expr: self.expr_to_mv_expr(&obe.expr),
+                                asc: obe.asc.clone(),
+                            })
+                            .collect(),
+                        window_frame: ws.window_frame.clone(),
+                    }),
+                    None => None,
+                },
+                distinct: f.distinct,
+            }),
+            Expr::Case{
+                operand,
+                conditions,
+                results,
+                else_result,
+            } => Expr::Case{
+                operand: match operand {
+                    Some(e) => Some(Box::new(self.expr_to_mv_expr(&e))),
+                    None => None,
+                },
+                conditions: conditions
+                    .iter()
+                    .map(|e| self.expr_to_mv_expr(&e))
+                    .collect(),
+                results:results
+                    .iter()
+                    .map(|e| self.expr_to_mv_expr(&e))
+                    .collect(),
+                else_result: match else_result {
+                    Some(e) => Some(Box::new(self.expr_to_mv_expr(&e))),
+                    None => None,
+                },
+            },
+            Expr::Exists(q) => Expr::Exists(Box::new(self.query_to_mv_query(&q))),
+            Expr::Subquery(q) => Expr::Subquery(Box::new(self.query_to_mv_query(&q))),
+            Expr::Any {
+                left,
+                op,
+                right,
+            } => Expr::Any {
+                left: Box::new(self.expr_to_mv_expr(&left)),
+                op: op.clone(),
+                right: Box::new(self.query_to_mv_query(&right)),
+            },
+            Expr::All{
+                left,
+                op,
+                right,
+            } => Expr::All{
+                left: Box::new(self.expr_to_mv_expr(&left)),
+                op: op.clone(),
+                right: Box::new(self.query_to_mv_query(&right)),
+            },
+            Expr::List(exprs) => Expr::List(exprs
+                .iter()
+                .map(|e| self.expr_to_mv_expr(&e))
+                .collect()),
+            Expr::SubscriptIndex {
+                expr,
+                subscript,
+            } => Expr::SubscriptIndex{
+                expr: Box::new(self.expr_to_mv_expr(&expr)),
+                subscript: Box::new(self.expr_to_mv_expr(&subscript)),
+            },
+            Expr::SubscriptSlice{
+                expr,
+                positions,
+            } => Expr::SubscriptSlice{
+                expr: Box::new(self.expr_to_mv_expr(&expr)),
+                positions: positions
+                    .iter()
+                    .map(|pos| SubscriptPosition {
+                        start: match &pos.start {
+                            Some(e) => Some(self.expr_to_mv_expr(&e)),
+                            None => None,
+                        },
+                        end: match &pos.end {
+                            Some(e) => Some(self.expr_to_mv_expr(&e)),
+                                None => None,
+                            },
+                        })
+                    .collect(),
+            },
+            _ => expr.clone(),
+        }
     }
     
     fn stmt_to_mv_stmt(&mut self, stmt: &Statement) -> Statement {
         let mv_stmt : Statement;
-        let mut mv_table_name : String;
+        let mv_table_name : String;
 
         match stmt {
             // Note: mysql doesn't support "as_of"
