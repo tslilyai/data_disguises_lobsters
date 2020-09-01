@@ -4,7 +4,7 @@ use super::config;
 use super::helpers;
 
 const MV_SUFFIX : &'static str = "mv"; 
-const MV_COL : &'static str = "mvidcol"; 
+const MV_IDCOL : &'static str = "mvidcol"; 
 
 pub struct MVTransformer {
     table_names: Vec<String>,
@@ -40,7 +40,7 @@ impl MVTransformer {
         
         let mut objs_mv = obj.clone();
         for dt in &self.table_names {
-            if let Some((start, end)) = helpers::objname_subset_match_range(obj, dt) {
+            if let Some((_start, end)) = helpers::objname_subset_match_range(obj, dt) {
                 objs_mv.clear();
                 for (index, ident) in obj.iter().enumerate() {
                     if index == end {
@@ -519,7 +519,24 @@ impl MVTransformer {
                 if_not_exists,
             }) => {
                 mv_table_name = self.objname_to_mv_string(&name);
-                //columns.push(ColumnDef"");
+                let mut mv_columns = columns.clone();
+                // add an autoincrement column if none exists for the data table
+                for dt in &self.table_names {
+                    if let Some((_start, _end)) = helpers::objname_subset_match_range(&name.0, &dt) {
+                        if !columns.iter().any(|c| c.to_string().contains("AUTO_INCREMENT")) {
+                            mv_columns.push(ColumnDef {
+                                name: Ident::new(MV_IDCOL),
+                                data_type: DataType::Int,
+                                collation: None,
+                                options: vec![ColumnOptionDef{
+                                    name: None,
+                                    option: ColumnOption::AutoIncrement,
+                                }]
+                            });
+                        }
+                        break;
+                    }
+                }
                 let mv_constraints = constraints
                     .iter()
                     .map(|c| match c {
@@ -542,7 +559,7 @@ impl MVTransformer {
                     .collect(); 
                 mv_stmt = Statement::CreateTable(CreateTableStatement{
                     name: helpers::string_to_objname(&mv_table_name),
-                    columns: columns.clone(),
+                    columns: mv_columns,
                     constraints: mv_constraints,
                     with_options: with_options.clone(),
                     if_not_exists: if_not_exists.clone(),

@@ -35,11 +35,11 @@ CREATE TABLE db.tablefoo (
 ----
 CREATE TABLE db.tablefoo (customer_id int DEFAULT nextval(public.customer_customer_id_seq), store_id smallint NOT NULL, first_name character varying(45) NOT NULL, last_name character varying(45) NOT NULL, email character varying(50), address_id smallint NOT NULL, activebool boolean DEFAULT true NOT NULL, create_date date DEFAULT now()::text NOT NULL, last_update timestamp DEFAULT now() NOT NULL, last_update_tz timestamp with time zone, active int NOT NULL) WITH (fillfactor = 20, user_catalog_table = true, autovacuum_vacuum_threshold = 100)
 =>
-CreateTable(CreateTableStatement { name: ObjectName([Ident("db"), Ident("tablefoomv")]), columns: [ColumnDef { name: Ident("customer_id"), data_type: Int, collation: None, options: [ColumnOptionDef { name: None, option: Default(Function(Function { name: ObjectName([Ident("nextval")]), args: Args([Identifier([Ident("public"), Ident("customer_customer_id_seq")])]), filter: None, over: None, distinct: false })) }] }, ColumnDef { name: Ident("store_id"), data_type: SmallInt, collation: None, options: [ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("first_name"), data_type: Varchar(Some(45)), collation: None, options: [ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("last_name"), data_type: Varchar(Some(45)), collation: Some(ObjectName([Ident("es_ES")])), options: [ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("email"), data_type: Varchar(Some(50)), collation: None, options: [] }, ColumnDef { name: Ident("address_id"), data_type: SmallInt, collation: None, options: [ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("activebool"), data_type: Boolean, collation: None, options: [ColumnOptionDef { name: None, option: Default(Value(Boolean(true))) }, ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("create_date"), data_type: Date, collation: None, options: [ColumnOptionDef { name: None, option: Default(Cast { expr: Function(Function { name: ObjectName([Ident("now")]), args: Args([]), filter: None, over: None, distinct: false }), data_type: Text }) }, ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("last_update"), data_type: Timestamp, collation: None, options: [ColumnOptionDef { name: None, option: Default(Function(Function { name: ObjectName([Ident("now")]), args: Args([]), filter: None, over: None, distinct: false })) }, ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("last_update_tz"), data_type: TimestampTz, collation: None, options: [] }, ColumnDef { name: Ident("active"), data_type: Int, collation: None, options: [ColumnOptionDef { name: None, option: NotNull }] }], constraints: [], with_options: [SqlOption { name: Ident("fillfactor"), value: Number("20") }, SqlOption { name: Ident("user_catalog_table"), value: Boolean(true) }, SqlOption { name: Ident("autovacuum_vacuum_threshold"), value: Number("100") }], if_not_exists: false })
+CreateTable(CreateTableStatement { name: ObjectName([Ident("db"), Ident("tablefoomv")]), columns: [ColumnDef { name: Ident("customer_id"), data_type: Int, collation: None, options: [ColumnOptionDef { name: None, option: Default(Function(Function { name: ObjectName([Ident("nextval")]), args: Args([Identifier([Ident("public"), Ident("customer_customer_id_seq")])]), filter: None, over: None, distinct: false })) }] }, ColumnDef { name: Ident("store_id"), data_type: SmallInt, collation: None, options: [ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("first_name"), data_type: Varchar(Some(45)), collation: None, options: [ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("last_name"), data_type: Varchar(Some(45)), collation: Some(ObjectName([Ident("es_ES")])), options: [ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("email"), data_type: Varchar(Some(50)), collation: None, options: [] }, ColumnDef { name: Ident("address_id"), data_type: SmallInt, collation: None, options: [ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("activebool"), data_type: Boolean, collation: None, options: [ColumnOptionDef { name: None, option: Default(Value(Boolean(true))) }, ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("create_date"), data_type: Date, collation: None, options: [ColumnOptionDef { name: None, option: Default(Cast { expr: Function(Function { name: ObjectName([Ident("now")]), args: Args([]), filter: None, over: None, distinct: false }), data_type: Text }) }, ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("last_update"), data_type: Timestamp, collation: None, options: [ColumnOptionDef { name: None, option: Default(Function(Function { name: ObjectName([Ident("now")]), args: Args([]), filter: None, over: None, distinct: false })) }, ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("last_update_tz"), data_type: TimestampTz, collation: None, options: [] }, ColumnDef { name: Ident("active"), data_type: Int, collation: None, options: [ColumnOptionDef { name: None, option: NotNull }] }, ColumnDef { name: Ident("mvidcol"), data_type: Int, collation: None, options: [ColumnOptionDef { name: None, option: AutoIncrement }] }], constraints: [], with_options: [SqlOption { name: Ident("fillfactor"), value: Number("20") }, SqlOption { name: Ident("user_catalog_table"), value: Boolean(true) }, SqlOption { name: Ident("autovacuum_vacuum_threshold"), value: Number("100") }], if_not_exists: false })
 
 parse-statement roundtrip
 CREATE TABLE db.tablefoo(
-    customer_id int DEFAULT nextval('public.customer_customer_id_seq'::regclass) NOT NULL,
+    customer_id int DEFAULT nextval('public.customer_customer_id_seq'::regclass) NOT NULL AUTO_INCREMENT,
     store_id smallint NOT NULL,
     first_name character varying(45) NOT NULL,
     last_name character varying(45) NOT NULL,
@@ -52,22 +52,22 @@ CREATE TABLE db.tablefoo(
     active int
 )
 ----
-CREATE TABLE db.tablefoomv (customer_id int DEFAULT nextval('public.customer_customer_id_seq'::regclass) NOT NULL, store_id smallint NOT NULL, first_name character varying(45) NOT NULL, last_name character varying(45) NOT NULL, info text, address_id smallint NOT NULL, activebool boolean DEFAULT true NOT NULL, create_date date DEFAULT now()::date NOT NULL, create_date1 date DEFAULT 'now'::text::date NOT NULL, last_update timestamp DEFAULT now(), active int)
+CREATE TABLE db.tablefoomv (customer_id int DEFAULT nextval('public.customer_customer_id_seq'::regclass) NOT NULL AUTO_INCREMENT, store_id smallint NOT NULL, first_name character varying(45) NOT NULL, last_name character varying(45) NOT NULL, info text, address_id smallint NOT NULL, activebool boolean DEFAULT true NOT NULL, create_date date DEFAULT now()::date NOT NULL, create_date1 date DEFAULT 'now'::text::date NOT NULL, last_update timestamp DEFAULT now(), active int)
 
 parse-statement roundtrip
 CREATE TABLE db.tablefoo (
-  settings_id uuid PRIMARY KEY DEFAULT uuid_generate_v4() NOT NULL,
+  settings_id uuid PRIMARY KEY DEFAULT uuid_generate_v4() NOT NULL AUTO_INCREMENT,
   user_id uuid UNIQUE,
   value text,
   use_metric boolean DEFAULT true
 )
 ----
-CREATE TABLE db.tablefoomv (settings_id uuid PRIMARY KEY DEFAULT uuid_generate_v4() NOT NULL, user_id uuid UNIQUE, value text, use_metric boolean DEFAULT true)
+CREATE TABLE db.tablefoomv (settings_id uuid PRIMARY KEY DEFAULT uuid_generate_v4() NOT NULL AUTO_INCREMENT, user_id uuid UNIQUE, value text, use_metric boolean DEFAULT true)
 
 parse-statement roundtrip
 CREATE TABLE IF NOT EXISTS tablefoo (bar int)
 ----
-CREATE TABLE IF NOT EXISTS tablefoomv (bar int)
+CREATE TABLE IF NOT EXISTS tablefoomv (bar int, mvidcol int AUTO_INCREMENT)
 
 parse-statement roundtrip
 CREATE TABLE IF NOT EXISTS tablefoo (bar int AUTO_INCREMENT)
@@ -77,4 +77,4 @@ CREATE TABLE IF NOT EXISTS tablefoomv (bar int AUTO_INCREMENT)
 parse-statement roundtrip
 CREATE TABLE tablefoo (id int, FOREIGN KEY (foo, bar) REFERENCES tablefootwo(foo, bar))
 ----
-CREATE TABLE tablefoomv (id int, FOREIGN KEY (foo, bar) REFERENCES tablefootwomv(foo, bar))
+CREATE TABLE tablefoomv (id int, mvidcol int AUTO_INCREMENT, FOREIGN KEY (foo, bar) REFERENCES tablefootwomv(foo, bar))
