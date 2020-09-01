@@ -1,18 +1,18 @@
 use std::*;
 use serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserTable{
     pub name : String,
     pub id_col : String,
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DataTable{
     pub name : String,
     pub user_cols : Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
     pub user_table: UserTable,
     pub data_tables: Vec<DataTable>,
