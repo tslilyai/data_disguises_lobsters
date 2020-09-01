@@ -6,9 +6,9 @@ use sql_parser::ast::*;
 use std::collections::HashMap;
 use std::*;
 mod helpers;
-mod config;
-mod datatable_transformer;
-mod mv_transformer;
+pub mod config;
+pub mod datatable_transformer;
+pub mod mv_transformer;
 
 const GHOST_ID_START : i64 = 1<<20;
 
@@ -90,11 +90,6 @@ impl Shim {
             }
         }
         Ok(())
-    }
-
-    // TODO factor out conversions to make tests more organized #[cfg(test)]
-    pub fn stmt_to_mv_stmt_test(&mut self, stmt: &Statement) -> Statement {
-        self.mv_trans.stmt_to_mv_stmt(stmt)
     }
 }
 

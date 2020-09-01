@@ -47,8 +47,9 @@ fn datadriven() {
         }
     }*/
 
-    let db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
-    let mut shim = Shim::new(db, CONFIG, SCHEMA);
+    let cfg = config::parse_config(CONFIG).unwrap();
+    let mut mv_trans = mv_transformer::MVTransformer::new(cfg.clone());
+    let mut dt_trans = datatable_transformer::DataTableTransformer::new(cfg.clone());
 
     walk("tests/testdata", |f| {
         f.run(|test_case| -> String {
@@ -61,11 +62,11 @@ fn datadriven() {
                                 "expected exactly one statement".to_string()
                             } else if test_case.args.get("roundtrip").is_some() {
                                 let stmt = s.iter().next().unwrap();
-                                let mv_stmt = shim.stmt_to_mv_stmt_test(stmt);
+                                let mv_stmt = mv_trans.stmt_to_mv_stmt(stmt);
                                 format!("{}\n", mv_stmt.to_string())
                             } else {
                                 let stmt = s.iter().next().unwrap();
-                                let mv_stmt = shim.stmt_to_mv_stmt_test(stmt);
+                                let mv_stmt = mv_trans.stmt_to_mv_stmt(stmt);
                                 format!("{}\n=>\n{:?}\n", stmt.to_string(), mv_stmt)
                             }
                         }
