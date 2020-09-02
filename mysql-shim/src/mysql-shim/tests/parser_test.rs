@@ -48,11 +48,10 @@ fn datadriven() {
     }*/
 
     let cfg = config::parse_config(CONFIG).unwrap();
-    let mut mv_trans = mv_transformer::MVTransformer::new(cfg.clone());
-    let mut dt_trans = datatable_transformer::DataTableTransformer::new(cfg.clone());
-
     walk("tests/testdata", |f| {
         f.run(|test_case| -> String {
+            let mut mv_trans = mv_transformer::MVTransformer::new(cfg.clone());
+            let mut dt_trans = datatable_transformer::DataTableTransformer::new(cfg.clone());
             match test_case.directive.as_str() {
                 "parse-statement" => {
                     let sql = trim_one(&test_case.input).to_owned();
@@ -62,7 +61,7 @@ fn datadriven() {
                                 "expected exactly one statement".to_string()
                             } else {
                                 let stmt = s.iter().next().unwrap();
-                                let mv_stmt = mv_trans.stmt_to_mv_stmt(stmt);
+                                let (mv_stmt, write_query) = mv_trans.stmt_to_mv_stmt(stmt);
                                 if let Some(dt_stmt) = dt_trans.stmt_to_datatable_stmt(&stmt) {
                                     // TODO
                                 }

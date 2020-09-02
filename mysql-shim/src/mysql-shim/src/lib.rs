@@ -246,7 +246,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                     }
                     
                     // issue statement to materialized views
-                    let mv_stmt = self.mv_trans.stmt_to_mv_stmt(&stmt);
+                    let (mv_stmt, write_query) = self.mv_trans.stmt_to_mv_stmt(&stmt);
                     self.db.query_drop(mv_stmt.to_string())?;
                 }
                 Ok(w.ok()?)
@@ -267,7 +267,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmts[0]) {
                     self.db.query_drop(dt_stmt.to_string())?;
                 }
-                let mv_stmt = self.mv_trans.stmt_to_mv_stmt(&stmts[0]);
+                let (mv_stmt, write_query) = self.mv_trans.stmt_to_mv_stmt(&stmts[0]);
                 return answer_rows(results, self.db.query_iter(format!("{}", mv_stmt)));
             }
         }

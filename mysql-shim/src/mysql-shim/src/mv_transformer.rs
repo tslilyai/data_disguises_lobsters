@@ -30,6 +30,15 @@ impl MVTransformer {
         ObjectName(self.idents_to_mv_idents(&obj.0))
     }
     
+    fn objname_to_datatable(&self, obj: &ObjectName) -> Option<&config::DataTable> {
+        for dt in &self.cfg.data_tables {
+            if let Some((_start, end)) = helpers::objname_subset_match_range(&obj.0, &dt.name) {
+                return Some(dt);
+            }
+        }
+        return None;
+    }
+
     fn idents_to_mv_idents(&self, obj: &Vec<Ident>) -> Vec<Ident> {
         // note that we assume that the name specified in the config
         // is the minimum needed to identify the data table.
@@ -413,9 +422,10 @@ impl MVTransformer {
         }
     }
     
-    pub fn stmt_to_mv_stmt(&mut self, stmt: &Statement) -> Statement {
+    pub fn stmt_to_mv_stmt(&mut self, stmt: &Statement) -> (Statement, Option<String>) {
         let mv_stmt : Statement;
         let mv_table_name : String;
+        let mut write_query = None;
 
         match stmt {
             // Note: mysql doesn't support "as_of"
@@ -448,6 +458,12 @@ impl MVTransformer {
                     columns : columns.clone(),
                     source : mv_source, 
                 });
+                let datatable = self.objname_to_datatable(&table_name);
+                if let Some(dt) = datatable {
+                    write_query = Some(format!("SELECT * FROM {tab_name} WHERE {id_col} = (SELECT LAST_INSERT_ID() FROM {tab_name});", 
+                                               id_col = dt.id_col,
+                                               tab_name = table_name.to_string()));
+                }
             }
             Statement::Update(UpdateStatement{
                 table_name,
@@ -521,9 +537,21 @@ impl MVTransformer {
                 mv_table_name = self.objname_to_mv_string(&name);
                 let mut mv_columns = columns.clone();
                 // add an autoincrement column if none exists for the data table
-                for dt in &self.table_names {
-                    if let Some((_start, _end)) = helpers::objname_subset_match_range(&name.0, &dt) {
-                        if !columns.iter().any(|c| c.to_string().contains("AUTO_INCREMENT")) {
+                // note that we don't do this for the user table, since the user table
+                // should have unique UIDs
+                // save the autoincrement column as the ID of the data table
+                'dtloop: for dt in &mut self.cfg.data_tables {
+                    if let Some((_start, _end)) = helpers::objname_subset_match_range(&name.0, &dt.name) {
+                        'colloop: for c in columns {
+                            for o in &c.options {
+                                if o.option == ColumnOption::AutoIncrement {
+                                    dt.id_col = c.name.to_string();
+                                    break 'colloop;
+                                }
+                            }
+                        }
+                        println!("{}", dt.id_col);
+                        if dt.id_col.is_empty() {
                             mv_columns.push(ColumnDef {
                                 name: Ident::new(MV_IDCOL),
                                 data_type: DataType::Int,
@@ -533,8 +561,9 @@ impl MVTransformer {
                                     option: ColumnOption::AutoIncrement,
                                 }]
                             });
+                            dt.id_col = MV_IDCOL.to_string();
                         }
-                        break;
+                        break 'dtloop;
                     }
                 }
                 let mv_constraints = constraints
@@ -712,6 +741,6 @@ impl MVTransformer {
                 mv_stmt = stmt.clone();
             }
         }
-        mv_stmt
+        (mv_stmt, write_query)
     }
 }
