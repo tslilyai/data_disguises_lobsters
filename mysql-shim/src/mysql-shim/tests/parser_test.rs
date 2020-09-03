@@ -50,6 +50,7 @@ fn datadriven() {
     let cfg = config::parse_config(CONFIG).unwrap();
     walk("tests/testdata", |f| {
         f.run(|test_case| -> String {
+            let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
             let mut mv_trans = mv_transformer::MVTransformer::new(cfg.clone());
             let mut dt_trans = datatable_transformer::DataTableTransformer::new(cfg.clone());
             match test_case.directive.as_str() {
@@ -62,7 +63,7 @@ fn datadriven() {
                             } else {
                                 let stmt = s.iter().next().unwrap();
                                 let (mv_stmt, write_query) = mv_trans.stmt_to_mv_stmt(stmt);
-                                if let Some(dt_stmt) = dt_trans.stmt_to_datatable_stmt(&stmt) {
+                                if let Some(dt_stmt) = dt_trans.stmt_to_datatable_stmt(&stmt, &mut db) {
                                     // TODO
                                 }
                                 if test_case.args.get("roundtrip").is_some() {

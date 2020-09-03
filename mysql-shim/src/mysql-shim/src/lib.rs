@@ -241,7 +241,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                     // issue actual statement to datatables if they are writes (potentially creating ghost ID 
                     // entries as well)
                     // TODO wrap in txn
-                    if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt) {
+                    if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt, &mut self.db) {
                         self.db.query_drop(dt_stmt.to_string())?;
                     }
                     
@@ -264,7 +264,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             Ok(stmts) => {
                 assert!(stmts.len()==1);
                 // TODO wrap in txn
-                if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmts[0]) {
+                if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmts[0], &mut self.db) {
                     self.db.query_drop(dt_stmt.to_string())?;
                 }
                 let (mv_stmt, write_query) = self.mv_trans.stmt_to_mv_stmt(&stmts[0]);

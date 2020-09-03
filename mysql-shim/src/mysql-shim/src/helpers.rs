@@ -1,4 +1,5 @@
 use sql_parser::ast::*;
+use std::*;
 
 fn trim_quotes(s: &str) -> &str {
     let mut s = s;
@@ -40,4 +41,23 @@ pub fn objname_subset_match_range(obj: &Vec<Ident>, dt: &str) -> Option<(usize, 
         return Some((j-i, j-1));
     } 
     None
+}
+
+pub fn mysql_val_to_parser_val(val: &mysql::Value) -> Value {
+    match val {
+        mysql::Value::NULL => Value::Null,
+        mysql::Value::Bytes(bs) => {
+            let res = str::from_utf8(&bs);
+            match res {
+                Err(_) => Value::String(String::new()),
+                Ok(s) => Value::String(s.to_string()),
+            }
+        }
+        mysql::Value::Int(i) => Value::Number(format!("{}", i)),
+        mysql::Value::UInt(i) => Value::Number(format!("{}", i)),
+        mysql::Value::Float(f) => Value::Number(format!("{}", f)),
+        _ => unimplemented!("No sqlparser support for dates yet?")
+        /*mysql::Date(u16, u8, u8, u8, u8, u8, u32),
+        mysql::Time(bool, u32, u8, u8, u8, u32),8*/
+    }
 }

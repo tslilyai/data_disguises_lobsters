@@ -18,7 +18,10 @@ impl MVTransformer {
         for dt in &cfg.data_tables {
             table_names.push(dt.name.clone());
         }
-        MVTransformer{table_names, cfg}
+        MVTransformer{
+            table_names: table_names, 
+            cfg: cfg,
+        }
     }   
     
     fn objname_to_mv_string(&self, obj: &ObjectName) -> String {
@@ -32,7 +35,7 @@ impl MVTransformer {
     
     fn objname_to_datatable(&self, obj: &ObjectName) -> Option<&config::DataTable> {
         for dt in &self.cfg.data_tables {
-            if let Some((_start, end)) = helpers::objname_subset_match_range(&obj.0, &dt.name) {
+            if let Some(_p) = helpers::objname_subset_match_range(&obj.0, &dt.name) {
                 return Some(dt);
             }
         }
@@ -187,7 +190,7 @@ impl MVTransformer {
         }
     }
 
-    fn query_to_mv_query(&self, query: &Query) -> Query {
+    pub fn query_to_mv_query(&self, query: &Query) -> Query {
         //TODO inefficient to clone and then replace?
         let mut mv_query = query.clone(); 
 
@@ -535,37 +538,6 @@ impl MVTransformer {
                 if_not_exists,
             }) => {
                 mv_table_name = self.objname_to_mv_string(&name);
-                let mut mv_columns = columns.clone();
-                // add an autoincrement column if none exists for the data table
-                // note that we don't do this for the user table, since the user table
-                // should have unique UIDs
-                // save the autoincrement column as the ID of the data table
-                'dtloop: for dt in &mut self.cfg.data_tables {
-                    if let Some((_start, _end)) = helpers::objname_subset_match_range(&name.0, &dt.name) {
-                        'colloop: for c in columns {
-                            for o in &c.options {
-                                if o.option == ColumnOption::AutoIncrement {
-                                    dt.id_col = c.name.to_string();
-                                    break 'colloop;
-                                }
-                            }
-                        }
-                        println!("{}", dt.id_col);
-                        if dt.id_col.is_empty() {
-                            mv_columns.push(ColumnDef {
-                                name: Ident::new(MV_IDCOL),
-                                data_type: DataType::Int,
-                                collation: None,
-                                options: vec![ColumnOptionDef{
-                                    name: None,
-                                    option: ColumnOption::AutoIncrement,
-                                }]
-                            });
-                            dt.id_col = MV_IDCOL.to_string();
-                        }
-                        break 'dtloop;
-                    }
-                }
                 let mv_constraints = constraints
                     .iter()
                     .map(|c| match c {
@@ -588,7 +560,7 @@ impl MVTransformer {
                     .collect(); 
                 mv_stmt = Statement::CreateTable(CreateTableStatement{
                     name: helpers::string_to_objname(&mv_table_name),
-                    columns: mv_columns,
+                    columns: columns.clone(),
                     constraints: mv_constraints,
                     with_options: with_options.clone(),
                     if_not_exists: if_not_exists.clone(),
@@ -624,7 +596,8 @@ impl MVTransformer {
                             // change config to reflect new table name
                             self.table_names.push(to_item_name.to_string());
                             self.table_names.retain(|x| *x != *name.to_string());
-                            if self.cfg.user_table.name == name.to_string() {
+                            // TODO change config as table names are updated
+                            /*if self.cfg.user_table.name == name.to_string() {
                                 self.cfg.user_table.name = to_item_name.to_string();
                             } else {
                                 for tab in &mut self.cfg.data_tables {
@@ -632,7 +605,7 @@ impl MVTransformer {
                                         tab.name = to_item_name.to_string();
                                     }
                                 }
-                            }
+                            }*/
                             to_item_mv_name = format!("{}{}", to_item_name, MV_SUFFIX);
                         }
                     }

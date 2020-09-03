@@ -1,27 +1,32 @@
+use mysql::prelude::*;
 use sql_parser::ast::*;
 use super::config;
 use super::helpers;
+use super::mv_transformer;
 
 static mut LATEST_GID: u64 = super::GHOST_ID_START;
 
 pub struct DataTableTransformer {
     cfg: config::Config,
+    mv_trans: mv_transformer::MVTransformer,
 }
 
 impl DataTableTransformer {
     pub fn new(cfg: config::Config) -> Self {
-        DataTableTransformer{cfg}
+        // better way than simply replicating?
+        let mv_trans = mv_transformer::MVTransformer::new(cfg.clone());
+        DataTableTransformer{cfg, mv_trans}
     }   
     
-    fn get_user_cols_of_table_stmt(&self, table_name: &Vec<Ident>, cols: &Vec<Ident>) -> Vec<Ident> {
-        let mut users = cols.clone();
+    fn get_user_cols_of_table(&self, table_name: &Vec<Ident>) -> Vec<String> {
+        let mut res = vec![];
         for dt in &self.cfg.data_tables {
             if let Some(_p) = helpers::objname_subset_match_range(table_name, &dt.name) {
-                users.retain(|c| dt.user_cols.iter().any(|uc| c.to_string() == *uc));
+                res = dt.user_cols.clone();
                 break;
             }
         }
-        users
+        res
     }
     
     fn tablefactor_to_datatable_tablefactor(&self, tf: &TableFactor) -> TableFactor {
@@ -375,7 +380,7 @@ impl DataTableTransformer {
         }
     }
     
-    pub fn stmt_to_datatable_stmt(&mut self, stmt: &Statement) -> Option<Statement> {
+    pub fn stmt_to_datatable_stmt(&mut self, stmt: &Statement, db: &mut mysql::Conn) -> Option<Statement> {
         let mut is_write = false;
         let mut dt_stmt = stmt.clone();
 
@@ -396,19 +401,113 @@ impl DataTableTransformer {
                 // for all columns that are user columns, generate a new ghost_id and insert
                 // into ghosts table with appropriate user_id value
                 // those as the values instead for those columns.
-                let ucols = self.get_user_cols_of_table_stmt(&table_name.0, columns);
-                for uc in ucols {
-                    
-                }
-                // TODO need to issue multiple statements 
-                // to update values of user cols to ghost
-                // ids
+                let ucols = self.get_user_cols_of_table(&table_name.0);
 
                 let mut dt_source = source.clone();
                 // update sources
+                // if no user columns, change sources to use MV
+                // otherwise, we need to insert new ghost ids with the exprs/queries for usercol
+                // values as the usercol value for that ghost id
+                // and then set the GID as the value of the user col 
+                //
+                // simple solution: issue all queries for source until we get to Values,
+                // then return Values with GIDs swapped in
                 match source {
                     InsertSource::Query(q) => {
-                        dt_source = InsertSource::Query(Box::new(self.query_to_datatable_query(&q)));
+                        match &q.body {
+                            SetExpr::Values(Values(v)) => {
+                                let mut ucol_indices = vec![];
+                                for (i, c) in columns.into_iter().enumerate() {
+                                    if ucols.iter().any(|uc| *uc == c.to_string()) {
+                                        ucol_indices.push(i);
+                                    }
+                                }
+
+                                let mut parser_val_tuples = vec![];
+                                for row in v {
+                                    let mut parser_vals : Vec<Expr> = vec![];
+                                    for i in 0..row.len() {
+                                        let mut val = row[i].clone();
+                                        // add entry to ghosts table
+                                        if ucol_indices.contains(&i) {
+                                            // user ids are always ints
+                                            match val {
+                                                Expr::Value(Value::Number(uid)) => {
+                                                    let res = db.query_iter(&format!("INSERT INTO `ghosts` ({});", uid));
+                                                    match res {
+                                                        Err(_) => return None,
+                                                        Ok(res) => {
+                                                            // we want to insert the GID in place
+                                                            // of the UID
+                                                            val = Expr::Value(Value::Number(res.last_insert_id()?.to_string()));
+                                                        }
+                                                    }
+                                                }
+                                                _ => return None,
+                                            }
+                                        }
+                                        // add to vector of values for this row
+                                        parser_vals.push(val);
+                                    }
+                                    parser_val_tuples.push(parser_vals);
+                                }
+                                // add to vector of value vectors
+                                let mut new_q = q.clone();
+                                new_q.body = SetExpr::Values(Values(parser_val_tuples));
+                                dt_source = InsertSource::Query(new_q);
+                            }
+                            _ => {
+                                // issue q to MVs to get rows that will be set as values
+                                let mv_q = self.mv_trans.query_to_mv_query(q);
+                                let mut ucol_indices = vec![];
+                                let mut mysql_vals = vec![];
+                                let mut res = db.query_iter(&mv_q.to_string());
+
+                                match res {
+                                    Ok(ref mut rows) => {
+                                        // get indices of columns corresponding to user vals
+                                        for (i, col) in rows.columns().as_ref().into_iter().enumerate() {
+                                            if ucols.iter().any(|uc| *uc == col.name_str()) {
+                                                ucol_indices.push(i);
+                                            }
+                                        }
+                                        for row in rows {
+                                            mysql_vals.push(row.unwrap().clone());
+                                        }
+                                    }
+                                    _ => return None,
+                                }
+                                drop(res);
+
+                                let mut parser_val_tuples = vec![];
+                                for row in mysql_vals {
+                                    let mut parser_vals : Vec<Expr> = vec![];
+                                    for i in 0..row.len() {
+                                        let mut val = row[i].clone();
+                                        // add entry to ghosts table
+                                        if ucol_indices.contains(&i) {
+                                            // user ids are always ints
+                                            let res = db.query_iter(&format!("INSERT INTO `ghosts` ({});", row.get::<i64, _>(i)?));
+                                            match res {
+                                                Err(_) => return None,
+                                                Ok(res) => {
+                                                    // we want to insert the GID in place
+                                                    // of the UID
+                                                    val = mysql::Value::UInt(res.last_insert_id()?);
+                                                }
+                                            }
+                                        }
+                                        // add to vector of values for this row
+                                        parser_vals.push(Expr::Value(helpers::mysql_val_to_parser_val(&val)));
+                                    }
+                                    parser_val_tuples.push(parser_vals);
+                                }
+                                // add to vector of value vectors
+                                let mut new_q = q.clone();
+                                new_q.body = SetExpr::Values(Values(parser_val_tuples));
+                                dt_source = InsertSource::Query(new_q);
+                            }    
+                        }
                     } 
                     InsertSource::DefaultValues => (), // TODO might have to get rid of this
                 }
