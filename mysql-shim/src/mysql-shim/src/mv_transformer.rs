@@ -425,10 +425,10 @@ impl MVTransformer {
         }
     }
     
-    pub fn stmt_to_mv_stmt(&mut self, stmt: &Statement) -> (Statement, Option<String>) {
+    pub fn stmt_to_mv_stmt(&mut self, stmt: &Statement) -> (Statement, bool /*is_write*/) {
         let mv_stmt : Statement;
+        let mut is_write = false;
         let mv_table_name : String;
-        let mut write_query = None;
 
         match stmt {
             // Note: mysql doesn't support "as_of"
@@ -447,6 +447,7 @@ impl MVTransformer {
                 columns, 
                 source,
             }) => {
+                is_write = true;
                 mv_table_name = self.objname_to_mv_string(&table_name);
                 let mut mv_source = source.clone();
                 // update sources
@@ -461,18 +462,13 @@ impl MVTransformer {
                     columns : columns.clone(),
                     source : mv_source, 
                 });
-                let datatable = self.objname_to_datatable(&table_name);
-                if let Some(dt) = datatable {
-                    write_query = Some(format!("SELECT * FROM {tab_name} WHERE {id_col} = (SELECT LAST_INSERT_ID() FROM {tab_name});", 
-                                               id_col = dt.id_col,
-                                               tab_name = table_name.to_string()));
-                }
             }
             Statement::Update(UpdateStatement{
                 table_name,
                 assignments,
                 selection,
             }) => {
+                is_write = true;
                 mv_table_name = self.objname_to_mv_string(&table_name);
                 let mut mv_assn = Vec::<Assignment>::new();
                 let mut mv_selection = selection.clone();
@@ -498,6 +494,7 @@ impl MVTransformer {
                 table_name,
                 selection,
             }) => {
+                is_write = true;
                 mv_table_name = self.objname_to_mv_string(&table_name);
                 let mut mv_selection = selection.clone();
                 // update selection 
@@ -519,6 +516,7 @@ impl MVTransformer {
                 temporary,
                 materialized,
             }) => {
+                is_write = true;
                 let mv_query = self.query_to_mv_query(&query);
                 mv_stmt = Statement::CreateView(CreateViewStatement{
                     name: name.clone(),
@@ -537,6 +535,7 @@ impl MVTransformer {
                 with_options,
                 if_not_exists,
             }) => {
+                is_write = true;
                 mv_table_name = self.objname_to_mv_string(&name);
                 let mv_constraints = constraints
                     .iter()
@@ -573,6 +572,7 @@ impl MVTransformer {
                 key_parts,
                 if_not_exists,
             }) => {
+                is_write = true;
                 mv_table_name = self.objname_to_mv_string(&on_name);
                 mv_stmt = Statement::CreateIndex(CreateIndexStatement{
                     name: name.clone(),
@@ -587,6 +587,7 @@ impl MVTransformer {
                 name,
                 to_item_name,
             }) => {
+                is_write = true;
                 let mut to_item_mv_name = to_item_name.to_string();
                 mv_table_name= self.objname_to_mv_string(&name);
                 match object_type {
@@ -624,6 +625,7 @@ impl MVTransformer {
                 names,
                 cascade,
             }) => {
+                is_write = true;
                 let mut mv_names = names.clone();
                 match object_type {
                     ObjectType::Table => {
@@ -714,6 +716,6 @@ impl MVTransformer {
                 mv_stmt = stmt.clone();
             }
         }
-        (mv_stmt, write_query)
+        (mv_stmt, is_write)
     }
 }

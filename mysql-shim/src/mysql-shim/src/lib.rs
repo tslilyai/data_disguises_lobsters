@@ -238,15 +238,17 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?),
             Ok(stmts) => {
                 for stmt in stmts {
-                    // issue actual statement to datatables if they are writes (potentially creating ghost ID 
-                    // entries as well)
                     // TODO wrap in txn
-                    if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt, &mut self.db) {
-                        self.db.query_drop(dt_stmt.to_string())?;
+                    let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmt);
+                    if is_write {
+                        // issue actual statement to datatables if they are writes (potentially creating ghost ID 
+                        // entries as well)
+                        if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt, &mut self.db) {
+                            self.db.query_drop(dt_stmt.to_string())?;
+                        }
                     }
-                    
-                    // issue statement to materialized views
-                    let (mv_stmt, write_query) = self.mv_trans.stmt_to_mv_stmt(&stmt);
+                    // issue statement to materialized views AFTER
+                    // issuing to datatables (which may perform reads)
                     self.db.query_drop(mv_stmt.to_string())?;
                 }
                 Ok(w.ok()?)
@@ -264,10 +266,12 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             Ok(stmts) => {
                 assert!(stmts.len()==1);
                 // TODO wrap in txn
-                if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmts[0], &mut self.db) {
-                    self.db.query_drop(dt_stmt.to_string())?;
+                let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmts[0]);
+                if is_write {
+                    if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmts[0], &mut self.db) {
+                        self.db.query_drop(dt_stmt.to_string())?;
+                    }
                 }
-                let (mv_stmt, write_query) = self.mv_trans.stmt_to_mv_stmt(&stmts[0]);
                 return answer_rows(results, self.db.query_iter(format!("{}", mv_stmt)));
             }
         }
