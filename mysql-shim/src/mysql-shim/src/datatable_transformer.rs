@@ -413,7 +413,6 @@ impl DataTableTransformer {
     }
 
     pub fn stmt_to_datatable_stmt(&mut self, stmt: &Statement, db: &mut mysql::Conn) -> Option<Statement> {
-        let mut is_write = false;
         let mut dt_stmt = stmt.clone();
 
         match stmt {
@@ -422,7 +421,6 @@ impl DataTableTransformer {
                 columns, 
                 source,
             }) => {
-                is_write = true;
 
                 /* note that if the table is the users table,
                  * we just want to insert like usual; we only care about
@@ -457,7 +455,8 @@ impl DataTableTransformer {
                     InsertSource::Query(q) => {
                         match &q.body {
                             SetExpr::Values(Values(vals_vec)) => {
-                                // only need to modify values if we're dealing with a DT
+                                // NOTE: only need to modify values if we're dealing with a DT,
+                                // could perform check here rather than calling vals_vec
                                 if let Some(vv) = self.vals_vec_to_datatable_vals(&vals_vec, &ucol_indices, db) {
                                     let mut new_q = q.clone();
                                     new_q.body = SetExpr::Values(Values(vv));
@@ -510,7 +509,6 @@ impl DataTableTransformer {
                 assignments,
                 selection,
             }) => {
-                is_write = true;
                 let mut dt_assn = Vec::<Assignment>::new();
                 let mut dt_selection = selection.clone();
                 // update assignments
@@ -535,7 +533,6 @@ impl DataTableTransformer {
                 table_name,
                 selection,
             }) => {
-                is_write = true;
                 let mut dt_selection = selection.clone();
                 // update selection 
                 match selection {
@@ -556,7 +553,6 @@ impl DataTableTransformer {
                 temporary,
                 materialized,
             }) => {
-                is_write = true;
                 let dt_query = self.query_to_datatable_query(&query);
                 dt_stmt = Statement::CreateView(CreateViewStatement{
                     name: name.clone(),
@@ -575,7 +571,6 @@ impl DataTableTransformer {
                 with_options,
                 if_not_exists,
             }) => {
-                is_write = true;
                 let dt_constraints = constraints
                     .iter()
                     .map(|c| match c {
@@ -610,7 +605,6 @@ impl DataTableTransformer {
                 key_parts,
                 if_not_exists,
             }) => {
-                is_write = true;
                 dt_stmt = Statement::CreateIndex(CreateIndexStatement{
                     name: name.clone(),
                     on_name: on_name.clone(),
@@ -624,7 +618,6 @@ impl DataTableTransformer {
                 name,
                 to_item_name,
             }) => {
-                is_write = true;
                 dt_stmt = Statement::AlterObjectRename(AlterObjectRenameStatement{
                     object_type: object_type.clone(),
                     if_exists: *if_exists,
@@ -638,7 +631,6 @@ impl DataTableTransformer {
                 names,
                 cascade,
             }) => {
-                is_write = true;
                 dt_stmt = Statement::DropObjects(DropObjectsStatement{
                     object_type: object_type.clone(),
                     if_exists: *if_exists,
@@ -662,10 +654,6 @@ impl DataTableTransformer {
              * */
             _ => ()
         }
-        if is_write {
-            return Some(dt_stmt);
-        } else {
-            return None;
-        }
+        return Some(dt_stmt);
     }
 }
