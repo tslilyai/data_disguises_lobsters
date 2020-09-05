@@ -6,17 +6,16 @@ use super::mv_transformer;
 
 static mut LATEST_GID: u64 = super::GHOST_ID_START;
 
-pub struct DataTableTransformer<'a> {
+pub struct DataTableTransformer {
     cfg: config::Config,
     mv_trans: mv_transformer::MVTransformer,
-    db: &'a mut mysql::Conn,
 }
 
-impl<'a> DataTableTransformer<'a> {
-    pub fn new(cfg: config::Config, db: &'a mut mysql::Conn) -> Self {
+impl DataTableTransformer {
+    pub fn new(cfg: config::Config) -> Self {
         // better way than simply replicating?
         let mv_trans = mv_transformer::MVTransformer::new(cfg.clone());
-        DataTableTransformer{cfg, mv_trans, db}
+        DataTableTransformer{cfg, mv_trans}
     }   
     
     fn get_user_cols_of_datatable(&self, table_name: &Vec<Ident>) -> Vec<String> {
@@ -88,10 +87,10 @@ impl<'a> DataTableTransformer<'a> {
         }
     }*/
 
-    fn query_to_datatable_query(&self, query: &Query) -> Result<Query, mysql::Error> {
+    fn query_to_datatable_query(&mut self, query: &Query, db: &mut mysql::Conn) -> Result<Query, mysql::Error> {
         let mv_q = self.mv_trans.query_to_mv_query(query);
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
-        let mut res = self.db.query_iter(&mv_q.to_string())?;
+        let res = db.query_iter(&mv_q.to_string())?;
         for row in res {
             let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
             vals_vec.push(mysql_vals
@@ -109,42 +108,45 @@ impl<'a> DataTableTransformer<'a> {
         })
     }
  
-    fn expr_to_datatable_expr(&self, expr: &Expr) -> Result<Expr, mysql::Error> {
+    fn expr_to_datatable_expr(&mut self, expr: &Expr, db: &mut mysql::Conn) -> Result<Expr, mysql::Error> {
         let newExpr = match expr {
             Expr::FieldAccess {
                 expr,
                 field,
             } => Expr::FieldAccess {
-                expr: Box::new(self.expr_to_datatable_expr(&expr)?),
+                expr: Box::new(self.expr_to_datatable_expr(&expr, db)?),
                 field: field.clone(),
             },
-            Expr::WildcardAccess(e) => Expr::WildcardAccess(Box::new(self.expr_to_datatable_expr(&e)?)),
+            Expr::WildcardAccess(e) => Expr::WildcardAccess(Box::new(self.expr_to_datatable_expr(&e, db)?)),
             Expr::IsNull{
                 expr,
                 negated,
             } => Expr::IsNull {
-                expr: Box::new(self.expr_to_datatable_expr(&expr)?),
+                expr: Box::new(self.expr_to_datatable_expr(&expr, db)?),
                 negated: *negated,
             },
             Expr::InList {
                 expr,
                 list,
                 negated,
-            } => Expr::InList {
-                expr: Box::new(self.expr_to_datatable_expr(&expr)?),
-                list: list
-                    .iter()
-                    .map(|e| self.expr_to_datatable_expr(&e)?)
-                    .collect(),
-                negated: *negated,
-            },
+            } => {
+                let mut new_list = vec![];
+                for e in list {
+                    new_list.push(self.expr_to_datatable_expr(&e, db)?);
+                }
+                Expr::InList {
+                    expr: Box::new(self.expr_to_datatable_expr(&expr, db)?),
+                    list: new_list,
+                    negated: *negated,
+                }
+            }
             Expr::InSubquery {
                 expr,
                 subquery,
                 negated,
             } => Expr::InSubquery {
-                expr: Box::new(self.expr_to_datatable_expr(&expr)?),
-                subquery: Box::new(self.query_to_datatable_query(&subquery)?),
+                expr: Box::new(self.expr_to_datatable_expr(&expr, db)?),
+                subquery: Box::new(self.query_to_datatable_query(&subquery, db)?),
                 negated: *negated,
             },
             Expr::Between {
@@ -153,78 +155,88 @@ impl<'a> DataTableTransformer<'a> {
                 low,
                 high,
             } => Expr::Between {
-                expr: Box::new(self.expr_to_datatable_expr(&expr)?),
+                expr: Box::new(self.expr_to_datatable_expr(&expr, db)?),
                 negated: *negated,
-                low: Box::new(self.expr_to_datatable_expr(&low)?),
-                high: Box::new(self.expr_to_datatable_expr(&high)?),
+                low: Box::new(self.expr_to_datatable_expr(&low, db)?),
+                high: Box::new(self.expr_to_datatable_expr(&high, db)?),
             },
             Expr::BinaryOp{
                 left,
                 op,
                 right
             } => Expr::BinaryOp{
-                left: Box::new(self.expr_to_datatable_expr(&left)?),
+                left: Box::new(self.expr_to_datatable_expr(&left, db)?),
                 op: op.clone(),
-                right: Box::new(self.expr_to_datatable_expr(&right)?),
+                right: Box::new(self.expr_to_datatable_expr(&right, db)?),
             },
             Expr::UnaryOp{
                 op,
                 expr,
             } => Expr::UnaryOp{
                 op: op.clone(),
-                expr: Box::new(self.expr_to_datatable_expr(&expr)?),
+                expr: Box::new(self.expr_to_datatable_expr(&expr, db)?),
             },
             Expr::Cast{
                 expr,
                 data_type,
             } => Expr::Cast{
-                expr: Box::new(self.expr_to_datatable_expr(&expr)?),
+                expr: Box::new(self.expr_to_datatable_expr(&expr, db)?),
                 data_type: data_type.clone(),
             },
             Expr::Collate {
                 expr,
                 collation,
             } => Expr::Collate{
-                expr: Box::new(self.expr_to_datatable_expr(&expr)?),
+                expr: Box::new(self.expr_to_datatable_expr(&expr, db)?),
                 collation: collation.clone(),
             },
-            Expr::Nested(expr) => Expr::Nested(Box::new(self.expr_to_datatable_expr(&expr)?)),
+            Expr::Nested(expr) => Expr::Nested(Box::new(self.expr_to_datatable_expr(&expr, db)?)),
             Expr::Row{
                 exprs,
-            } => Expr::Row{
-                exprs: exprs
-                    .iter()
-                    .map(|e| self.expr_to_datatable_expr(&e)?)
-                    .collect(),
-            },
+            } => {
+                let mut new_exprs = vec![];
+                for e in exprs {
+                    new_exprs.push(self.expr_to_datatable_expr(&e, db)?);
+                }
+                Expr::Row{
+                    exprs: new_exprs,
+                }
+            }
             Expr::Function(f) => Expr::Function(Function{
                 name: f.name.clone(),
                 args: match &f.args {
                     FunctionArgs::Star => FunctionArgs::Star,
-                    FunctionArgs::Args(exprs) => FunctionArgs::Args(exprs
-                        .iter()
-                        .map(|e| self.expr_to_datatable_expr(&e)?)
-                        .collect()),
+                    FunctionArgs::Args(exprs) => {
+                        let mut new_exprs = vec![];
+                        for e in exprs {
+                            new_exprs.push(self.expr_to_datatable_expr(&e, db)?);
+                        }
+                        FunctionArgs::Args(new_exprs)
+                    }                
                 },
                 filter: match &f.filter {
-                    Some(filt) => Some(Box::new(self.expr_to_datatable_expr(&filt)?)),
+                    Some(filt) => Some(Box::new(self.expr_to_datatable_expr(&filt, db)?)),
                     None => None,
                 },
                 over: match &f.over {
-                    Some(ws) => Some(WindowSpec{
-                        partition_by: ws.partition_by
-                            .iter()
-                            .map(|e| self.expr_to_datatable_expr(&e)?)
-                            .collect(),
-                        order_by: ws.order_by
-                            .iter()
-                            .map(|obe| OrderByExpr {
-                                expr: self.expr_to_datatable_expr(&obe.expr)?,
+                    Some(ws) => {
+                        let mut new_pb = vec![];
+                        for e in &ws.partition_by {
+                            new_pb.push(self.expr_to_datatable_expr(&e, db)?);
+                        }
+                        let mut new_ob = vec![];
+                        for obe in &ws.order_by {
+                            new_ob.push(OrderByExpr {
+                                expr: self.expr_to_datatable_expr(&obe.expr, db)?,
                                 asc: obe.asc.clone(),
-                            })
-                            .collect(),
-                        window_frame: ws.window_frame.clone(),
-                    }),
+                            });
+                        }
+                        Some(WindowSpec{
+                            partition_by: new_pb,
+                            order_by: new_ob,
+                            window_frame: ws.window_frame.clone(),
+                        })
+                    }
                     None => None,
                 },
                 distinct: f.distinct,
@@ -234,80 +246,90 @@ impl<'a> DataTableTransformer<'a> {
                 conditions,
                 results,
                 else_result,
-            } => Expr::Case{
-                operand: match operand {
-                    Some(e) => Some(Box::new(self.expr_to_datatable_expr(&e)?)),
-                    None => None,
-                },
-                conditions: conditions
-                    .iter()
-                    .map(|e| self.expr_to_datatable_expr(&e)?)
-                    .collect(),
-                results:results
-                    .iter()
-                    .map(|e| self.expr_to_datatable_expr(&e)?)
-                    .collect(),
-                else_result: match else_result {
-                    Some(e) => Some(Box::new(self.expr_to_datatable_expr(&e)?)),
-                    None => None,
-                },
-            },
-            Expr::Exists(q) => Expr::Exists(Box::new(self.query_to_datatable_query(&q)?)),
-            Expr::Subquery(q) => Expr::Subquery(Box::new(self.query_to_datatable_query(&q)?)),
+            } => {
+                let mut new_cond = vec![];
+                for e in conditions {
+                    new_cond.push(self.expr_to_datatable_expr(&e, db)?);
+                }
+                let mut new_res= vec![];
+                for e in results {
+                    new_res.push(self.expr_to_datatable_expr(&e, db)?);
+                }
+                Expr::Case{
+                    operand: match operand {
+                        Some(e) => Some(Box::new(self.expr_to_datatable_expr(&e, db)?)),
+                        None => None,
+                    },
+                    conditions: new_cond ,
+                    results: new_res, 
+                    else_result: match else_result {
+                        Some(e) => Some(Box::new(self.expr_to_datatable_expr(&e, db)?)),
+                        None => None,
+                    },
+                }
+            }
+            Expr::Exists(q) => Expr::Exists(Box::new(self.query_to_datatable_query(&q, db)?)),
+            Expr::Subquery(q) => Expr::Subquery(Box::new(self.query_to_datatable_query(&q, db)?)),
             Expr::Any {
                 left,
                 op,
                 right,
             } => Expr::Any {
-                left: Box::new(self.expr_to_datatable_expr(&left)?),
+                left: Box::new(self.expr_to_datatable_expr(&left, db)?),
                 op: op.clone(),
-                right: Box::new(self.query_to_datatable_query(&right)?),
+                right: Box::new(self.query_to_datatable_query(&right, db)?),
             },
             Expr::All{
                 left,
                 op,
                 right,
             } => Expr::All{
-                left: Box::new(self.expr_to_datatable_expr(&left)?),
+                left: Box::new(self.expr_to_datatable_expr(&left, db)?),
                 op: op.clone(),
-                right: Box::new(self.query_to_datatable_query(&right)?),
+                right: Box::new(self.query_to_datatable_query(&right, db)?),
             },
-            Expr::List(exprs) => Expr::List(exprs
-                .iter()
-                .map(|e| self.expr_to_datatable_expr(&e)?)
-                .collect()),
+            Expr::List(exprs) => {
+                let mut new_exprs = vec![];
+                for e in exprs {
+                    new_exprs.push(self.expr_to_datatable_expr(&e, db)?);
+                }
+                Expr::List(new_exprs)
+            }
             Expr::SubscriptIndex {
                 expr,
                 subscript,
             } => Expr::SubscriptIndex{
-                expr: Box::new(self.expr_to_datatable_expr(&expr)?),
-                subscript: Box::new(self.expr_to_datatable_expr(&subscript)?),
+                expr: Box::new(self.expr_to_datatable_expr(&expr, db)?),
+                subscript: Box::new(self.expr_to_datatable_expr(&subscript, db)?),
             },
             Expr::SubscriptSlice{
                 expr,
                 positions,
-            } => Expr::SubscriptSlice{
-                expr: Box::new(self.expr_to_datatable_expr(&expr)?),
-                positions: positions
-                    .iter()
-                    .map(|pos| SubscriptPosition {
+            } => {
+                let mut new_pos = vec![];
+                for pos in positions {
+                    new_pos.push(SubscriptPosition {
                         start: match &pos.start {
-                            Some(e) => Some(self.expr_to_datatable_expr(&e)?),
+                            Some(e) => Some(self.expr_to_datatable_expr(&e, db)?),
                             None => None,
                         },
                         end: match &pos.end {
-                            Some(e) => Some(self.expr_to_datatable_expr(&e)?),
+                            Some(e) => Some(self.expr_to_datatable_expr(&e, db)?),
                             None => None,
-                        },
-                    })
-                    .collect(),
-            },
+                        },                
+                    });
+                }
+                Expr::SubscriptSlice{
+                    expr: Box::new(self.expr_to_datatable_expr(&expr, db)?),
+                    positions: new_pos,
+                }
+            }
             _ => expr.clone(),
         };
         Ok(newExpr)
     }
 
-    fn vals_vec_to_datatable_vals(&self, vals_vec: &Vec<Vec<Expr>>, ucol_indices: &Vec<usize>) 
+    fn vals_vec_to_datatable_vals(&mut self, vals_vec: &Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
         -> Option<Vec<Vec<Expr>>> 
     {
         if ucol_indices.is_empty() {
@@ -321,7 +343,7 @@ impl<'a> DataTableTransformer<'a> {
                 // add entry to ghosts table
                 if ucol_indices.contains(&i) {
                     // user ids are always ints
-                    let res = self.db.query_iter(&format!("INSERT INTO `ghosts` ({});", row[i]));
+                    let res = db.query_iter(&format!("INSERT INTO `ghosts` ({});", row[i]));
                     match res {
                         Err(_) => return None,
                         Ok(res) => {
@@ -339,7 +361,7 @@ impl<'a> DataTableTransformer<'a> {
         Some(parser_val_tuples)
     }
 
-    pub fn stmt_to_datatable_stmt(&mut self, stmt: &Statement) -> Result<Option<Statement>, mysql::Error> {
+    pub fn stmt_to_datatable_stmt(&mut self, stmt: &Statement, db: &mut mysql::Conn) -> Result<Option<Statement>, mysql::Error> {
         let mut dt_stmt = stmt.clone();
 
         match stmt {
@@ -384,7 +406,7 @@ impl<'a> DataTableTransformer<'a> {
                             SetExpr::Values(Values(vals_vec)) => {
                                 // NOTE: only need to modify values if we're dealing with a DT,
                                 // could perform check here rather than calling vals_vec
-                                if let Some(vv) = self.vals_vec_to_datatable_vals(&vals_vec, &ucol_indices) {
+                                if let Some(vv) = self.vals_vec_to_datatable_vals(&vals_vec, &ucol_indices, db) {
                                     let mut new_q = q.clone();
                                     new_q.body = SetExpr::Values(Values(vv));
                                     dt_source = InsertSource::Query(new_q);
@@ -398,7 +420,7 @@ impl<'a> DataTableTransformer<'a> {
                                 // to read from MV, rather than initially specified tables)
                                 let mv_q = self.mv_trans.query_to_mv_query(q);
                                 let mut vals_vec : Vec<Vec<Expr>>= vec![];
-                                let mut res = self.db.query_iter(&mv_q.to_string());
+                                let mut res = db.query_iter(&mv_q.to_string());
                                 match res {
                                     Ok(ref mut rows) => {
                                         for row in rows {
@@ -413,7 +435,7 @@ impl<'a> DataTableTransformer<'a> {
                                 }
                                 drop(res);
 
-                                if let Some(vv) = self.vals_vec_to_datatable_vals(&vals_vec, &ucol_indices) {
+                                if let Some(vv) = self.vals_vec_to_datatable_vals(&vals_vec, &ucol_indices, db) {
                                     let mut new_q = q.clone();
                                     new_q.body = SetExpr::Values(Values(vv));
                                     dt_source = InsertSource::Query(new_q);
@@ -443,13 +465,13 @@ impl<'a> DataTableTransformer<'a> {
                 for a in assignments {
                     dt_assn.push(Assignment{
                         id : a.id.clone(),
-                        value: self.expr_to_datatable_expr(&a.value)?,
+                        value: self.expr_to_datatable_expr(&a.value, db)?,
                     });
                 }
                 // update selection 
                 match selection {
                     None => (),
-                    Some(s) => dt_selection = Some(self.expr_to_datatable_expr(&s)?),
+                    Some(s) => dt_selection = Some(self.expr_to_datatable_expr(&s, db)?),
                 }
                 dt_stmt = Statement::Update(UpdateStatement{
                     table_name: table_name.clone(),
@@ -465,7 +487,7 @@ impl<'a> DataTableTransformer<'a> {
                 // update selection 
                 match selection {
                     None => (),
-                    Some(s) => dt_selection = Some(self.expr_to_datatable_expr(&s)?),
+                    Some(s) => dt_selection = Some(self.expr_to_datatable_expr(&s, db)?),
                 }
                 dt_stmt = Statement::Delete(DeleteStatement{
                     table_name: table_name.clone(),
@@ -481,7 +503,7 @@ impl<'a> DataTableTransformer<'a> {
                 temporary,
                 materialized,
             }) => {
-                let dt_query = self.query_to_datatable_query(&query)?;
+                let dt_query = self.query_to_datatable_query(&query, db)?;
                 dt_stmt = Statement::CreateView(CreateViewStatement{
                     name: name.clone(),
                     columns: columns.clone(),
