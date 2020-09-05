@@ -24,30 +24,30 @@ struct Prepared {
     params: Vec<Column>,
 }
 
-pub struct Shim { 
+pub struct Shim<'a> { 
     db: mysql::Conn,
     prepared: HashMap<u32, Prepared>,
     
     mv_trans: mv_transformer::MVTransformer,
-    dt_trans: datatable_transformer::DataTableTransformer,
+    dt_trans: datatable_transformer::DataTableTransformer<'a>,
 
     // NOTE: not *actually* static, but tied to our connection's lifetime.
-    schema: &'static str,
+    schema: &'a str,
 }
 
-impl Drop for Shim {
+impl Drop for Shim<'_> {
     fn drop(&mut self) {
         self.prepared.clear();
         // drop the connection (implicitly done).
     }
 }
 
-impl Shim {
+impl Shim<'_> {
     pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str) -> Self {
         let cfg = config::parse_config(cfg_json).unwrap();
         let prepared = HashMap::new();
         let mv_trans = mv_transformer::MVTransformer::new(cfg.clone());
-        let dt_trans = datatable_transformer::DataTableTransformer::new(cfg.clone());
+        let dt_trans = datatable_transformer::DataTableTransformer::new(cfg.clone(), &mut db);
         Shim{db, mv_trans, dt_trans, prepared, schema}
     }   
 
@@ -92,7 +92,7 @@ impl Shim {
     }
 }
 
-impl<W: io::Write> MysqlShim<W> for Shim {
+impl<W: io::Write> MysqlShim<W> for Shim<'_> {
     type Error = mysql::Error;
 
     fn on_prepare(&mut self, query: &str, info: StatementMetaWriter<W>) -> Result<(), Self::Error> {
@@ -243,7 +243,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                     if is_write {
                         // issue actual statement to datatables if they are writes (potentially creating ghost ID 
                         // entries as well)
-                        if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt, &mut self.db) {
+                        if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt)? {
                             self.db.query_drop(dt_stmt.to_string())?;
                         }
                     }
@@ -268,7 +268,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 // TODO wrap in txn
                 let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmts[0]);
                 if is_write {
-                    if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmts[0], &mut self.db) {
+                    if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmts[0])? {
                         self.db.query_drop(dt_stmt.to_string())?;
                     }
                 }
