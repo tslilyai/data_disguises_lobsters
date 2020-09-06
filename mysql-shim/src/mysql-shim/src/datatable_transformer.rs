@@ -18,6 +18,15 @@ impl DataTableTransformer {
         DataTableTransformer{cfg, mv_trans}
     }   
     
+    fn is_datatable(&self, table_name: ObjectName) -> bool {
+        for dt in &self.cfg.data_tables {
+            if let Some(_p) = helpers::objname_subset_match_range(&table_name.0, &dt.name) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     fn get_user_cols_of_datatable(&self, table_name: &Vec<Ident>) -> Vec<String> {
         let mut res = vec![];
         for dt in &self.cfg.data_tables {
@@ -87,6 +96,11 @@ impl DataTableTransformer {
         }
     }*/
 
+    /* 
+     * This issues the specified query to the MVs, and returns a VALUES query that
+     * represents the values retrieved by the query to the MVs.
+     * NOTE: queries are read-only operations (whereas statements may be writes)
+     */
     fn query_to_datatable_query(&mut self, query: &Query, db: &mut mysql::Conn) -> Result<Query, mysql::Error> {
         let mv_q = self.mv_trans.query_to_mv_query(query);
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
@@ -109,7 +123,7 @@ impl DataTableTransformer {
     }
  
     fn expr_to_datatable_expr(&mut self, expr: &Expr, db: &mut mysql::Conn) -> Result<Expr, mysql::Error> {
-        let newExpr = match expr {
+        let new_expr = match expr {
             Expr::FieldAccess {
                 expr,
                 field,
@@ -326,7 +340,7 @@ impl DataTableTransformer {
             }
             _ => expr.clone(),
         };
-        Ok(newExpr)
+        Ok(new_expr)
     }
 
     fn vals_vec_to_datatable_vals(&mut self, vals_vec: &Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
@@ -370,7 +384,6 @@ impl DataTableTransformer {
                 columns, 
                 source,
             }) => {
-
                 /* note that if the table is the users table,
                  * we just want to insert like usual; we only care about
                  * adding ghost ids for data tables, but we don't add ghosts to
@@ -458,20 +471,78 @@ impl DataTableTransformer {
                 assignments,
                 selection,
             }) => {
-                let mut dt_assn = Vec::<Assignment>::new();
                 let mut dt_selection = selection.clone();
+                let ucols = self.get_user_cols_of_datatable(&table_name.0);
+
+                let mut ucols_to_update = vec![];
+                let mut dt_assn = vec![];
+                for a in assignments {
+                    // if we have an assignment to a UID, we need to update the GID->UID mapping
+                    // instead of updating the actual data table record
+                    if ucols.iter().any(|uc| *uc == a.id.to_string()) {
+                        ucols_to_update.push(SelectItem::Expr{
+                            expr: Expr::Identifier(vec![a.id.clone()]),
+                            alias: None,
+                        });
+                    } else {
+                        // otherwise, we still want to perform the update
+                        // BUT we need to make sure that the updated value, if a 
+                        // expr with a query, reads from the MV rather than the datatables
+                        dt_assn.push(Assignment{
+                            id: a.id.clone(),
+                            value: self.expr_to_datatable_expr(&a.value, db)?,
+                        });
+                    }
+                }
+
+                // only update the GID->UID mapping with the new values if 
+                // there are UIDs being updated
+                // turn into select statement to get the 
+                // GIDs from the datatable (so we know which GID mapping to update)
+                if !ucols_to_update.is_empty() {
+                    let get_gids_stmt = Statement::Select(SelectStatement {
+                        query: Box::new(Query::select(Select{
+                            distinct: true,
+                            projection: ucols_to_update,
+                            from: vec![TableWithJoins{
+                                relation: TableFactor::Table{
+                                    name: table_name.clone(),
+                                    alias: None,
+                                    //with_hints: [],
+                                },
+                                joins: vec![],
+                            }],
+                            // TODO fix selection to not use UIDs
+                            selection: selection.clone(),
+                            group_by: vec![],
+                            having: None,
+                        })),
+                        as_of: None,
+                    });
+                    let res = db.query_iter(format!("{}", get_gids_stmt.to_string()))?;
+                }
+                
+ 
                 // update assignment values
+                // 1) get all assignment values in Expr::Values format
+                // 2) if assignment is to user_id, we need to update the GID->UID mapping
+                //      - get the current GID of this entry
                 // this may read from the MV table
                 for a in assignments {
+                    // update ghost 
+                    if ucols.iter().any(|uc| *uc == a.id.to_string()) {
+
+                    }
                     dt_assn.push(Assignment{
                         id : a.id.clone(),
                         value: self.expr_to_datatable_expr(&a.value, db)?,
                     });
                 }
                 // update selection 
-                match selection {
-                    None => (),
-                    Some(s) => dt_selection = Some(self.expr_to_datatable_expr(&s, db)?),
+                // potentially perform queries to the materialized
+                // views to get values of user ID columns
+                if let Some(s) = selection {
+                    dt_selection = Some(self.expr_to_datatable_expr(&s, db)?);
                 }
                 dt_stmt = Statement::Update(UpdateStatement{
                     table_name: table_name.clone(),
