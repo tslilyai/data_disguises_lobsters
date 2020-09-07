@@ -471,16 +471,16 @@ impl DataTableTransformer {
                 assignments,
                 selection,
             }) => {
-                let mut dt_selection = selection.clone();
                 let ucols = self.get_user_cols_of_datatable(&table_name.0);
-
-                let mut ucols_to_update = vec![];
+                let mut ucol_assigns = vec![];
+                let mut ucol_selectitems = vec![];
                 let mut dt_assn = vec![];
                 for a in assignments {
                     // if we have an assignment to a UID, we need to update the GID->UID mapping
                     // instead of updating the actual data table record
                     if ucols.iter().any(|uc| *uc == a.id.to_string()) {
-                        ucols_to_update.push(SelectItem::Expr{
+                        ucol_assigns.push(a.clone());
+                        ucol_selectitems .push(SelectItem::Expr{
                             expr: Expr::Identifier(vec![a.id.clone()]),
                             alias: None,
                         });
@@ -494,16 +494,21 @@ impl DataTableTransformer {
                         });
                     }
                 }
+              
+                let mut dt_selection = None;
+                if let Some(s) = selection {
+                    dt_selection = Some(self.expr_to_datatable_expr(&s, db)?);
+                    // TODO update selection to use matching set of GIDs in place of any UIDs that
+                    // might be used to perform the selection
+                } 
 
-                // only update the GID->UID mapping with the new values if 
-                // there are UIDs being updated
-                // turn into select statement to get the 
-                // GIDs from the datatable (so we know which GID mapping to update)
-                if !ucols_to_update.is_empty() {
+                // if usercols are being updated, query DT to get the relevant
+                // GIDs and update these GID->UID mappings in the ghosts table
+                if !ucol_assigns.is_empty() {
                     let get_gids_stmt = Statement::Select(SelectStatement {
                         query: Box::new(Query::select(Select{
                             distinct: true,
-                            projection: ucols_to_update,
+                            projection: ucol_selectitems,
                             from: vec![TableWithJoins{
                                 relation: TableFactor::Table{
                                     name: table_name.clone(),
@@ -512,37 +517,33 @@ impl DataTableTransformer {
                                 },
                                 joins: vec![],
                             }],
-                            // TODO fix selection to not use UIDs
-                            selection: selection.clone(),
+                            selection: dt_selection.clone(),
                             group_by: vec![],
                             having: None,
                         })),
                         as_of: None,
                     });
+                    // get the user_col GIDs from the datatable
                     let res = db.query_iter(format!("{}", get_gids_stmt.to_string()))?;
-                }
-                
- 
-                // update assignment values
-                // 1) get all assignment values in Expr::Values format
-                // 2) if assignment is to user_id, we need to update the GID->UID mapping
-                //      - get the current GID of this entry
-                // this may read from the MV table
-                for a in assignments {
-                    // update ghost 
-                    if ucols.iter().any(|uc| *uc == a.id.to_string()) {
-
+                    let mut ghost_update_stmts = vec![];
+                    for row in res {
+                        let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
+                        for (i, uc_val) in ucol_assigns.iter().enumerate() {
+                            let gid = helpers::mysql_val_to_parser_val(&mysql_vals[i]);
+                            ghost_update_stmts.push(UpdateStatement {
+                                table_name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
+                                assignments: vec![uc_val.clone()],
+                                selection: Some(Expr::BinaryOp{
+                                    left: Box::new(Expr::Identifier(vec![uc_val.id.clone()])),
+                                    op: BinaryOperator::Eq,
+                                    right: Box::new(Expr::Value(Value::Number(format!("{}", gid)))),
+                                }),
+                            });
+                        }
                     }
-                    dt_assn.push(Assignment{
-                        id : a.id.clone(),
-                        value: self.expr_to_datatable_expr(&a.value, db)?,
-                    });
-                }
-                // update selection 
-                // potentially perform queries to the materialized
-                // views to get values of user ID columns
-                if let Some(s) = selection {
-                    dt_selection = Some(self.expr_to_datatable_expr(&s, db)?);
+                    for gstmt in ghost_update_stmts {
+                        db.query_drop(format!("{}", gstmt.to_string()))?;
+                    }
                 }
                 dt_stmt = Statement::Update(UpdateStatement{
                     table_name: table_name.clone(),

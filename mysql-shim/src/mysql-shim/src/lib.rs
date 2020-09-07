@@ -10,13 +10,14 @@ pub mod datatable_transformer;
 pub mod mv_transformer;
 
 const GHOST_ID_START : u64 = 1<<20;
+const GHOST_TABLE_NAME : &'static str = "`ghosts`";
 
 fn create_ghosts_query() -> String {
     return format!(
-        r"CREATE TABLE IF NOT EXISTS `ghosts` (
+        r"CREATE TABLE IF NOT EXISTS {} (
             `ghost_id` int unsigned NOT NULL AUTO_INCREMENT = {},
             `user_id` int unsigned);", 
-        GHOST_ID_START);
+        GHOST_TABLE_NAME, GHOST_ID_START);
 }
 
 struct Prepared {
