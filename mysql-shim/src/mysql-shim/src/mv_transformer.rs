@@ -4,7 +4,6 @@ use super::config;
 use super::helpers;
 
 const MV_SUFFIX : &'static str = "mv"; 
-const MV_IDCOL : &'static str = "mvidcol"; 
 
 pub struct MVTransformer {
     table_names: Vec<String>,
