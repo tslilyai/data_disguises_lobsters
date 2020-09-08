@@ -73,11 +73,11 @@ impl DataTableTransformer {
     {
         *contains_ucol_id = false;
         let new_expr = match expr {
-            Expr::Identifier(ids) => {
+            Expr::Identifier(_ids) => {
                 *contains_ucol_id |= ucols_to_replace.iter().any(|uc| uc.contains(&expr.to_string()));
                 expr.clone()
             }
-            Expr::QualifiedWildcard(ids) => {
+            Expr::QualifiedWildcard(_ids) => {
                 *contains_ucol_id |= ucols_to_replace.iter().any(|uc| uc.contains(&expr.to_string()));
                 expr.clone()
             }
@@ -353,6 +353,117 @@ impl DataTableTransformer {
         Some(parser_val_tuples)
     }
 
+    fn selection_to_datatable_selection(&mut self, selection: &Option<Expr>, db: &mut mysql::Conn, 
+                                        table_name: &ObjectName, ucols: &Vec<String>) 
+        -> Result<Option<Expr>, mysql::Error>
+    {
+        let mut dt_selection = None;
+        let mut contains_ucol_id = false;
+        if let Some(s) = selection {
+            // check if the expr contains any conditions on user columns
+            dt_selection = Some(self.expr_to_datatable_expr(&s, db, &mut contains_ucol_id, &ucols)?);
+
+            // if a user column is being used as a selection criteria, first perform a 
+            // select of all UIDs of matching rows in the MVs
+            if contains_ucol_id {
+                // get the matching rows from the MVs 
+                let mv_select_stmt = Statement::Select(SelectStatement {
+                        query: Box::new(Query::select(Select{
+                        distinct: true,
+                        projection: vec![SelectItem::Wildcard],
+                        from: vec![TableWithJoins{
+                            relation: TableFactor::Table{
+                                name: self.mv_trans.objname_to_mv_objname(table_name),
+                                alias: None,
+                            },
+                            joins: vec![],
+                        }],
+                        selection: Some(s.clone()),
+                        group_by: vec![],
+                        having: None,
+                    })),
+                    as_of: None,
+                });
+                let res = db.query_iter(format!("{}", mv_select_stmt.to_string()))?;
+               
+                // expr to constrain to select a particular row
+                let mut or_row_constraint_expr = Expr::Value(Value::Boolean(false));
+                for row in res {
+                    let row = row.unwrap();
+                    let cols = row.columns_ref();
+
+                    let mut and_col_constraint_expr = Expr::Value(Value::Boolean(true));
+                    for i in 0..cols.len() {
+                        // if it's a user column, add restriction on GID
+                        let colname = cols[i].name_str().to_string();
+                        
+                        // Add condition on user column to be within relevant GIDs mapped
+                        // to by the UID value
+                        // However, only update with GIDs if UID value is NOT NULL
+                        if ucols.iter().any(|uc| uc.ends_with(&colname)) && row[i] != mysql::Value::NULL {
+                            // subquery: get all GIDs corresponding to this UID for this ucol
+                            let get_gids_query = Query::select(Select{
+                                distinct: true,
+                                projection: vec![SelectItem::Expr{
+                                    expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_ID_COL).0),
+                                    alias: None,
+                                }],
+                                from: vec![TableWithJoins{
+                                    relation: TableFactor::Table{
+                                        name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
+                                        alias: None,
+                                    },
+                                    joins: vec![],
+                                }],
+                                selection: Some(Expr::BinaryOp{
+                                    left: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
+                                    op: BinaryOperator::Eq,
+                                    right: Box::new(Expr::Value(helpers::mysql_val_to_parser_val(&row[i]))),
+                                }),
+                                group_by: vec![],
+                                having: None,
+                            });
+
+                            // add condition on user column to be within the relevant GIDs
+                            and_col_constraint_expr = Expr::BinaryOp {
+                                left: Box::new(and_col_constraint_expr),
+                                op: BinaryOperator::And,
+                                right: Box::new(Expr::InSubquery{
+                                    expr: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
+                                    subquery: Box::new(get_gids_query),
+                                    negated: false,
+                                }),
+                            };
+
+                        } else {
+
+                            // otherwise, we just want to constrain the row value to the
+                            // actual value returned
+                            and_col_constraint_expr = Expr::BinaryOp {
+                                left: Box::new(and_col_constraint_expr),
+                                op: BinaryOperator::And,
+                                right: Box::new(Expr::BinaryOp{
+                                    left: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
+                                    op: BinaryOperator::Eq,
+                                    right: Box::new(Expr::Value(helpers::mysql_val_to_parser_val(&row[i]))),
+                                }),             
+                            };
+                        }
+                    }
+
+                    // we allow the selection to match ANY returned row
+                    or_row_constraint_expr = Expr::BinaryOp {
+                        left: Box::new(or_row_constraint_expr),
+                        op: BinaryOperator::Or,
+                        right: Box::new(and_col_constraint_expr),
+                    };
+                }
+                dt_selection = Some(or_row_constraint_expr);
+            } 
+        } 
+        return Ok(dt_selection);
+    }
+
     pub fn stmt_to_datatable_stmt(&mut self, stmt: &Statement, db: &mut mysql::Conn) -> Result<Option<Statement>, mysql::Error> {
         let mut dt_stmt = stmt.clone();
 
@@ -459,11 +570,9 @@ impl DataTableTransformer {
                     // don't replace any UIDs when converting assignments to values
                     let new_val = self.expr_to_datatable_expr(&a.value, db, &mut contains_ucol_id, &vec![])?;
                     
-                    // we still want to perform the update
-                    // BUT we need to make sure that the updated value, if a 
+                    // we still want to perform the update BUT we need to make sure that the updated value, if a 
                     // expr with a query, reads from the MV rather than the datatables
-                    // we also want to update any usercol value to NULL if the UID is being set to
-                    // NULL. 
+                    // we also want to update any usercol value to NULL if the UID is being set to NULL. 
                     let is_ucol = ucols.iter().any(|uc| *uc == a.id.to_string());
                     if is_ucol || new_val == Expr::Value(Value::Null) {
                         dt_assn.push(Assignment{
@@ -484,106 +593,9 @@ impl DataTableTransformer {
                         });
                     }
                 }
-              
-                let mut dt_selection = None;
-                if let Some(s) = selection {
-                    // update selection to use VALUEs in place of any subqueries that
-                    // might be used to perform the selection
-                    let mut new_s = self.expr_to_datatable_expr(&s, db, &mut contains_ucol_id, &ucols)?;
 
-                    // if a user column is being used as a selection criteria, first perform a 
-                    // select of all UIDs of matching rows in the MVs
-                    if contains_ucol_id {
-                        let ucol_idents : Vec<Vec<Ident>> = ucols.iter()
-                            .map(|uc| uc.split(".")
-                                .map(|uc| Ident::new(uc))
-                                .collect())
-                            .collect();
-                                
-                        let ucol_selectitems = ucol_idents.iter()
-                            .map(|uc|
-                                SelectItem::Expr{
-                                    expr: Expr::Identifier(uc.to_vec()),
-                                    alias: None,
-                                }
-                            )
-                            .collect();
-                        let mv_select_stmt = Statement::Select(SelectStatement {
-                                query: Box::new(Query::select(Select{
-                                distinct: true,
-                                projection: ucol_selectitems,
-                                from: vec![TableWithJoins{
-                                    relation: TableFactor::Table{
-                                        name: self.mv_trans.objname_to_mv_objname(&table_name),
-                                        alias: None,
-                                    },
-                                    joins: vec![],
-                                }],
-                                selection: Some(s.clone()),
-                                group_by: vec![],
-                                having: None,
-                            })),
-                            as_of: None,
-                        });
-                        // get the user_col GIDs from the datatable
-                        let res = db.query_iter(format!("{}", mv_select_stmt.to_string()))?;
-                        let mut uids_for_ucols : Vec<Vec<Expr>> = ucols.iter()
-                            .map(|_| vec![])
-                            .collect();
-                        for row in res {
-                            let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
-                            for i in 0..ucols.len() {
-                                uids_for_ucols[i].push(Expr::Value(helpers::mysql_val_to_parser_val(&mysql_vals[i])));
-                            }
-                        }
-                        // get all GIDs corresponding to any of the UIDs for each ucol
-                        // and save an expression restricting this ucol to this set of GIDs
-                        // NOTE: we could do this even if there are no user columns being used 
-                        // in the select criteria... and this may add unnecessary extra checks 
-                        // if a particular user column isn't being used
-                        // However, it should still be correct...
-
-                        for (i, uc_vals) in uids_for_ucols.iter().enumerate() {
-                            // SELECT gid FROM ghosts WHERE gid IN [list of UIDs corresponding to
-                            // user column i]
-                            let get_gids_query = Query::select(Select{
-                                distinct: true,
-                                projection: vec![SelectItem::Expr{
-                                    expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_ID_COL).0),
-                                    alias: None,
-                                }],
-                                from: vec![TableWithJoins{
-                                    relation: TableFactor::Table{
-                                        name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
-                                        alias: None,
-                                    },
-                                    joins: vec![],
-                                }],
-                                selection: Some(Expr::InList {
-                                    expr: Box::new(Expr::Identifier(ucol_idents[i].clone())),
-                                    list: uc_vals.clone(),
-                                    negated: false,
-                                }),
-                                group_by: vec![],
-                                having: None,
-                            });
-
-                            // Add constraint to DT stmt: [all constraints except for those
-                            // corresopnding to UIDs] AND [user_col_i IN (SELECT gid...]
-                            new_s = Expr::BinaryOp{
-                                left: Box::new(new_s), 
-                                op: BinaryOperator::And, 
-                                right: Box::new(Expr::InSubquery{
-                                    expr: Box::new(Expr::Identifier(ucol_idents[i].clone())),
-                                    subquery: Box::new(get_gids_query),
-                                    negated: false,
-                                })
-                            };
-                        }
-                    }
-                    dt_selection = Some(new_s);
-                } 
-
+                let dt_selection = self.selection_to_datatable_selection(selection, db, &table_name, &ucols)?;
+             
                 // if usercols are being updated, query DT to get the relevant
                 // GIDs and update these GID->UID mappings in the ghosts table
                 if !ucol_assigns.is_empty() {
@@ -649,17 +661,43 @@ impl DataTableTransformer {
                 table_name,
                 selection,
             }) => {
-                let mut dt_selection = selection.clone();
                 let ucols = self.get_user_cols_of_datatable(&table_name);
+                let dt_selection = self.selection_to_datatable_selection(selection, db, &table_name, &ucols)?;
 
-                // update selection 
-                let mut contains_ucol_id = false;
-                if let Some(s) = selection {
-                    let new_s = self.expr_to_datatable_expr(&s, db, &mut contains_ucol_id, &ucols)?;
-                    dt_selection = Some(new_s);
+                let ucol_selectitems = ucols.iter()
+                    .map(|uc| SelectItem::Expr{
+                        expr: Expr::Identifier(helpers::string_to_idents(uc)),
+                        alias: None,
+                    })
+                    .collect();
+                
+                // delete from ghosts table if GIDs are removed
+                if !ucols.is_empty() {
+                    let ghosts_delete_statement = Statement::Delete(DeleteStatement{
+                        table_name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
+                        selection: Some(Expr::InSubquery{
+                            expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_ID_COL))),
+                            subquery: Box::new(Query::select(Select{
+                                distinct: true,
+                                // TODO does a InSubquery select that returns multiple columns still work?
+                                projection: ucol_selectitems,
+                                from: vec![TableWithJoins{
+                                    relation: TableFactor::Table{
+                                        name: table_name.clone(),
+                                        alias: None,
+                                    },
+                                    joins: vec![],
+                                }],
+                                selection: dt_selection.clone(),
+                                group_by: vec![],
+                                having: None,
+                            })),
+                            negated: false,
+                        }),
+                    });
+                    db.query_drop(&ghosts_delete_statement.to_string())?;
                 }
 
-                // TODO delete from ghosts table if GIDs are removed
                 dt_stmt = Statement::Delete(DeleteStatement{
                     table_name: table_name.clone(),
                     selection : dt_selection,

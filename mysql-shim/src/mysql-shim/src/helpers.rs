@@ -9,14 +9,16 @@ fn trim_quotes(s: &str) -> &str {
     s
 }
 
-pub fn string_to_objname(s: &str) -> ObjectName {
-    let idents = s
-        .split(".")
+pub fn string_to_idents(s: &str) -> Vec<Ident> {
+    s.split(".")
         .into_iter()
         .map(|i| Ident::new(trim_quotes(i)))
-        .collect();
-    let obj = ObjectName(idents);
-    obj
+        .collect()
+}
+
+pub fn string_to_objname(s: &str) -> ObjectName {
+    let idents = string_to_idents(s);
+    ObjectName(idents)
 }
 
 pub fn str_subset_of_idents(dt: &str, ids: &Vec<Ident>) -> Option<(usize, usize)> {
