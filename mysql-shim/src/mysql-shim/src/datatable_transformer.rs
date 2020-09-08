@@ -29,6 +29,11 @@ impl DataTableTransformer {
         res
     }
     
+    fn ucol_match(&self, expr: &Expr, table_name: &ObjectName, ucols: &Vec<String>) -> bool {
+        // TODO
+        false
+    }
+    
     /* 
      * This issues the specified query to the MVs, and returns a VALUES query that
      * represents the values retrieved by the query to the MVs.
@@ -96,32 +101,105 @@ impl DataTableTransformer {
                 for e in list {
                     new_list.push(self.expr_to_datatable_expr(&e, db, table_name, ucols_to_replace)?);
                 }
-                Expr::InList {
-                    expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
-                    list: new_list,
-                    negated: *negated,
+                // If expr is the tablename+usercol, then return subquery
+                // SELECT from ghosts WHERE user_id IN (list_of_values)
+                if self.ucol_match(&expr, table_name, ucols_to_replace) {
+                    Expr::InSubquery {
+                        expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
+                        subquery: Box::new(Query::select(Select {
+                            distinct: true,
+                            projection: vec![SelectItem::Expr{
+                                expr: Expr::Identifier(vec![Ident::new(super::GHOST_USER_COL)]),
+                                alias: None,
+                            }],
+                            from: vec![TableWithJoins{
+                                relation: TableFactor::Table{
+                                    name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
+                                    alias: None,
+                                },
+                                joins: vec![],
+                            }],
+                            selection: Some(Expr::InList {
+                                expr: Box::new(Expr::Identifier(vec![Ident::new(super::GHOST_USER_COL)])),
+                                list: new_list,
+                                negated: *negated,
+                            }),
+                            group_by: vec![],
+                            having: None,
+                        })),
+                        // we're comparing the GID against the GIDs that fit the initial
+                        // (potentially negated) query
+                        negated: false,
+                    }
+                } else {
+                    // otherwise just return table column IN __
+                    Expr::InList {
+                        expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
+                        list: new_list,
+                        negated: *negated,
+                    }
                 }
             }
             Expr::InSubquery {
                 expr,
                 subquery,
                 negated,
-            } => Expr::InSubquery {
-                expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
-                subquery: Box::new(self.query_to_datatable_query(&subquery, db)?),
-                negated: *negated,
-            },
+            } => {
+                // TODO if expr is the tablename+usercol, then
+                // turn into InSubquery where SELECT GIDs where UIDs are IN subquery
+                // GID values mapping to the UID values the subquery
+                let new_query = self.query_to_datatable_query(&subquery, db)?;
+                
+                // If expr is the tablename+usercol, then return subquery
+                // SELECT from ghosts WHERE user_id IN (list_of_values)
+                if self.ucol_match(&expr, table_name, ucols_to_replace) {
+                    Expr::InSubquery {
+                        expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
+                        subquery: Box::new(Query::select(Select {
+                            distinct: true,
+                            projection: vec![SelectItem::Expr{
+                                expr: Expr::Identifier(vec![Ident::new(super::GHOST_USER_COL)]),
+                                alias: None,
+                            }],
+                            from: vec![TableWithJoins{
+                                relation: TableFactor::Table{
+                                    name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
+                                    alias: None,
+                                },
+                                joins: vec![],
+                            }],
+                            selection: Some(Expr::InSubquery{
+                                expr: Box::new(Expr::Identifier(vec![Ident::new(super::GHOST_USER_COL)])),
+                                subquery: Box::new(new_query),
+                                negated: *negated,
+                            }),
+                            group_by: vec![],
+                            having: None,
+                        })),
+                        negated: false,
+                    }
+                } else {
+                    Expr::InSubquery {
+                        expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
+                        subquery: Box::new(new_query),
+                        negated: *negated,
+                    }                
+                }
+            }
             Expr::Between {
                 expr,
                 negated,
                 low,
                 high,
-            } => Expr::Between {
-                expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
-                negated: *negated,
-                low: Box::new(self.expr_to_datatable_expr(&low, db, table_name, ucols_to_replace)?),
-                high: Box::new(self.expr_to_datatable_expr(&high, db, table_name, ucols_to_replace)?),
-            },
+            } => {
+                // TODO turn into InSubquery where SELECT GIDs where UIDs are between low/high
+                Expr::Between {
+                    expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
+                    negated: *negated,
+                    low: Box::new(self.expr_to_datatable_expr(&low, db, table_name, ucols_to_replace)?),
+                    high: Box::new(self.expr_to_datatable_expr(&high, db, table_name, ucols_to_replace)?),
+                }
+            }
             Expr::BinaryOp{
                 left,
                 op,

@@ -10,7 +10,8 @@ pub mod datatable_transformer;
 pub mod mv_transformer;
 
 const GHOST_ID_START : u64 = 1<<20;
-const GHOST_TABLE_NAME : &'static str = "`ghosts`";
+const GHOST_TABLE_NAME : &'static str = "ghosts";
+const GHOST_USER_COL : &'static str = "user_id";
 
 fn create_ghosts_query() -> String {
     return format!(
