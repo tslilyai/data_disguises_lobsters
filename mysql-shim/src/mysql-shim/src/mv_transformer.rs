@@ -33,8 +33,9 @@ impl MVTransformer {
     }
     
     fn objname_to_datatable(&self, obj: &ObjectName) -> Option<&config::DataTable> {
+        let obj_str = obj.to_string();
         for dt in &self.cfg.data_tables {
-            if let Some(_p) = helpers::objname_subset_match_range(&obj.0, &dt.name) {
+            if obj_str.ends_with(&dt.name) {
                 return Some(dt);
             }
         }
@@ -51,10 +52,10 @@ impl MVTransformer {
         
         let mut objs_mv = obj.clone();
         for dt in &self.table_names {
-            if let Some((_start, end)) = helpers::objname_subset_match_range(obj, dt) {
+            if let Some((_start, end)) = helpers::str_subset_of_idents(dt, obj) {
                 objs_mv.clear();
                 for (index, ident) in obj.iter().enumerate() {
-                    if index == end {
+                    if index == end-1 {
                         // we found a match
                         objs_mv.push(Ident::new(&format!("{}{}", ident, MV_SUFFIX)));
                     } else {

@@ -19,14 +19,20 @@ pub fn string_to_objname(s: &str) -> ObjectName {
     obj
 }
 
-pub fn objname_subset_match_range(obj: &Vec<Ident>, dt: &str) -> Option<(usize, usize)> {
-    let dt_split : Vec<&str> = dt.split(".").collect();
-  
+pub fn str_subset_of_idents(dt: &str, ids: &Vec<Ident>) -> Option<(usize, usize)> {
+    let dt_split : Vec<Ident> = dt.split(".")
+        .map(|i| Ident::new(i))
+        .collect();
+    idents_subset_of_idents(&dt_split, ids)
+ }
+
+// end exclusive
+pub fn idents_subset_of_idents(id1: &Vec<Ident>, id2: &Vec<Ident>) -> Option<(usize, usize)> {
     let mut i = 0;
     let mut j = 0;
-    while j < obj.len() {
-        if i < dt_split.len() {
-            if dt_split[i] == obj[j].to_string() {
+    while j < id2.len() {
+        if i < id1.len() {
+            if id1[i] == id2[j] {
                 i+=1;
             } else {
                 // reset comparison from beginning of dt
@@ -37,8 +43,8 @@ pub fn objname_subset_match_range(obj: &Vec<Ident>, dt: &str) -> Option<(usize, 
             break;
         }
     }
-    if i == dt_split.len() {
-        return Some((j-i, j-1));
+    if i == id1.len() {
+        return Some((j-i, j));
     } 
     None
 }

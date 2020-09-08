@@ -18,18 +18,23 @@ impl DataTableTransformer {
         DataTableTransformer{cfg, mv_trans}
     }   
     
-    fn get_user_cols_of_datatable(&self, table_name: &Vec<Ident>) -> Vec<String> {
-        let mut res = vec![];
+    fn get_user_cols_of_datatable(&self, table_name: &ObjectName) -> Vec<String> {
+        let mut res : Vec<String> = vec![];
+        let table_str = table_name.to_string();
         for dt in &self.cfg.data_tables {
-            if let Some(_p) = helpers::objname_subset_match_range(table_name, &dt.name) {
-                res = dt.user_cols.clone();
+            if table_str.ends_with(&dt.name) {
+                for uc in &dt.user_cols {
+                    let mut new_table_str = table_str.clone();
+                    new_table_str.push_str(uc);
+                    res.push(new_table_str);
+                }
                 break;
             }
         }
         res
     }
     
-    fn ucol_match(&self, expr: &Expr, table_name: &ObjectName, ucols: &Vec<String>) -> bool {
+    fn ucol_match(&self, ids: &Vec<Ident>, table_name: &ObjectName, ucols: &Vec<String>) -> bool {
         // TODO
         false
     }
@@ -63,34 +68,40 @@ impl DataTableTransformer {
     /*
      * This changes any nested queries to the corresponding VALUE 
      * (read from the MVs), if any exist.
-     *
-     * If replace_uids is nonempty, exprs constraining UIDs are
-     * swapped for a constraining expr on their corresponding GIDs
-     * e.g.: WHERE user_col IN (1,2,3) 
-     *      => WHERE user_col IN (SELECT gid FROM ghosts WHERE user_id IN (1,2,3))
      */
-    fn expr_to_datatable_expr(&mut self, expr: &Expr, db: &mut mysql::Conn, table_name: &ObjectName, ucols_to_replace: &Vec<String>) 
+    fn expr_to_datatable_expr(&mut self, expr: &Expr, db: &mut mysql::Conn, 
+                              contains_ucol_id: &mut bool, ucols_to_replace: &Vec<String>) 
         -> Result<Expr, mysql::Error> 
     {
+        let mut contains_ucol_id = false;
         let new_expr = match expr {
+            Expr::Identifier(ids) => {
+                contains_ucol_id |= ucols_to_replace.iter().any(|uc| uc.contains(&expr.to_string()));
+                expr.clone()
+            }
+            Expr::QualifiedWildcard(ids) => {
+                contains_ucol_id |= ucols_to_replace.iter().any(|uc| uc.contains(&expr.to_string()));
+                expr.clone()
+            }
             Expr::FieldAccess {
                 expr,
                 field,
             } => {
-                let new_expr = self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?;
+                // XXX we might be returning TRUE for contains_ucol_id if only the expr matches,
+                // but not the field
                 Expr::FieldAccess {
-                    expr: Box::new(new_expr),
+                    expr: Box::new(self.expr_to_datatable_expr(&expr, db, &mut contains_ucol_id, ucols_to_replace)?),
                     field: field.clone(),
                 }
             }
             Expr::WildcardAccess(e) => {
-                Expr::WildcardAccess(Box::new(self.expr_to_datatable_expr(&e, db, table_name, ucols_to_replace)?))
+                Expr::WildcardAccess(Box::new(self.expr_to_datatable_expr(&e, db, &mut contains_ucol_id, ucols_to_replace)?))
             }
             Expr::IsNull{
                 expr,
                 negated,
             } => Expr::IsNull {
-                expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_datatable_expr(&expr, db, &mut contains_ucol_id, ucols_to_replace)?),
                 negated: *negated,
             },
             Expr::InList {
@@ -100,45 +111,12 @@ impl DataTableTransformer {
             } => {
                 let mut new_list = vec![];
                 for e in list {
-                    new_list.push(self.expr_to_datatable_expr(&e, db, table_name, ucols_to_replace)?);
+                    new_list.push(self.expr_to_datatable_expr(&e, db, &mut contains_ucol_id, ucols_to_replace)?);
                 }
-                // If expr is the tablename+usercol, then return subquery
-                // SELECT from ghosts WHERE user_id IN (list_of_values)
-                if self.ucol_match(&expr, table_name, ucols_to_replace) {
-                    Expr::InSubquery {
-                        expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
-                        subquery: Box::new(Query::select(Select {
-                            distinct: true,
-                            projection: vec![SelectItem::Expr{
-                                expr: Expr::Identifier(vec![Ident::new(super::GHOST_ID_COL)]),
-                                alias: None,
-                            }],
-                            from: vec![TableWithJoins{
-                                relation: TableFactor::Table{
-                                    name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
-                                    alias: None,
-                                },
-                                joins: vec![],
-                            }],
-                            selection: Some(Expr::InList {
-                                expr: Box::new(Expr::Identifier(vec![Ident::new(super::GHOST_USER_COL)])),
-                                list: new_list,
-                                negated: *negated,
-                            }),
-                            group_by: vec![],
-                            having: None,
-                        })),
-                        // we're comparing the GID against the GIDs that fit the initial
-                        // (potentially negated) query
-                        negated: false,
-                    }
-                } else {
-                    // otherwise just return table column IN __
-                    Expr::InList {
-                        expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
-                        list: new_list,
-                        negated: *negated,
-                    }
+                Expr::InList {
+                    expr: Box::new(self.expr_to_datatable_expr(&expr, db, &mut contains_ucol_id, ucols_to_replace)?),
+                    list: new_list,
+                    negated: *negated,
                 }
             }
             Expr::InSubquery {
@@ -147,42 +125,12 @@ impl DataTableTransformer {
                 negated,
             } => {
                 let new_query = self.query_to_datatable_query(&subquery, db)?;
-                
-                // If expr is the tablename+usercol, then return subquery
-                // SELECT from ghosts WHERE user_id IN (list_of_values)
-                if self.ucol_match(&expr, table_name, ucols_to_replace) {
-                    Expr::InSubquery {
-                        expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
-                        subquery: Box::new(Query::select(Select {
-                            distinct: true,
-                            projection: vec![SelectItem::Expr{
-                                expr: Expr::Identifier(vec![Ident::new(super::GHOST_ID_COL)]),
-                                alias: None,
-                            }],
-                            from: vec![TableWithJoins{
-                                relation: TableFactor::Table{
-                                    name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
-                                    alias: None,
-                                },
-                                joins: vec![],
-                            }],
-                            selection: Some(Expr::InSubquery{
-                                expr: Box::new(Expr::Identifier(vec![Ident::new(super::GHOST_USER_COL)])),
-                                subquery: Box::new(new_query),
-                                negated: *negated,
-                            }),
-                            group_by: vec![],
-                            having: None,
-                        })),
-                        negated: false,
-                    }
-                } else {
-                    Expr::InSubquery {
-                        expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
-                        subquery: Box::new(new_query),
-                        negated: *negated,
-                    }                
-                }
+                // otherwise just return table column IN subquery
+                Expr::InSubquery {
+                    expr: Box::new(self.expr_to_datatable_expr(&expr, db, &mut contains_ucol_id, ucols_to_replace)?),
+                    subquery: Box::new(new_query),
+                    negated: *negated,
+                }                
             }
             Expr::Between {
                 expr,
@@ -190,51 +138,56 @@ impl DataTableTransformer {
                 low,
                 high,
             } => {
-                // TODO turn into InSubquery where SELECT GIDs where UIDs are between low/high
+                let new_low = self.expr_to_datatable_expr(&low, db, &mut contains_ucol_id, ucols_to_replace)?;
+                let new_high = self.expr_to_datatable_expr(&high, db, &mut contains_ucol_id, ucols_to_replace)?;
                 Expr::Between {
-                    expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
+                    expr: Box::new(self.expr_to_datatable_expr(&expr, db, &mut contains_ucol_id, ucols_to_replace)?),
                     negated: *negated,
-                    low: Box::new(self.expr_to_datatable_expr(&low, db, table_name, ucols_to_replace)?),
-                    high: Box::new(self.expr_to_datatable_expr(&high, db, table_name, ucols_to_replace)?),
+                    low: Box::new(new_low),
+                    high: Box::new(new_high),
                 }
             }
             Expr::BinaryOp{
                 left,
                 op,
                 right
-            } => Expr::BinaryOp{
-                left: Box::new(self.expr_to_datatable_expr(&left, db, table_name, ucols_to_replace)?),
-                op: op.clone(),
-                right: Box::new(self.expr_to_datatable_expr(&right, db, table_name, ucols_to_replace)?),
-            },
+            } => {
+                let new_left = self.expr_to_datatable_expr(&left, db, &mut contains_ucol_id, ucols_to_replace)?;
+                let new_right = self.expr_to_datatable_expr(&right, db, &mut contains_ucol_id, ucols_to_replace)?;
+                Expr::BinaryOp{
+                    left: Box::new(new_left),
+                    op: op.clone(),
+                    right: Box::new(new_right),
+                }
+            }
             Expr::UnaryOp{
                 op,
                 expr,
             } => Expr::UnaryOp{
                 op: op.clone(),
-                expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_datatable_expr(&expr, db, &mut contains_ucol_id, ucols_to_replace)?),
             },
             Expr::Cast{
                 expr,
                 data_type,
             } => Expr::Cast{
-                expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_datatable_expr(&expr, db, &mut contains_ucol_id, ucols_to_replace)?),
                 data_type: data_type.clone(),
             },
             Expr::Collate {
                 expr,
                 collation,
             } => Expr::Collate{
-                expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_datatable_expr(&expr, db, &mut contains_ucol_id, ucols_to_replace)?),
                 collation: collation.clone(),
             },
-            Expr::Nested(expr) => Expr::Nested(Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?)),
+            Expr::Nested(expr) => Expr::Nested(Box::new(self.expr_to_datatable_expr(&expr, db, &mut contains_ucol_id, ucols_to_replace)?)),
             Expr::Row{
                 exprs,
             } => {
                 let mut new_exprs = vec![];
                 for e in exprs {
-                    new_exprs.push(self.expr_to_datatable_expr(&e, db, table_name, ucols_to_replace)?);
+                    new_exprs.push(self.expr_to_datatable_expr(&e, db, &mut contains_ucol_id, ucols_to_replace)?);
                 }
                 Expr::Row{
                     exprs: new_exprs,
@@ -247,25 +200,25 @@ impl DataTableTransformer {
                     FunctionArgs::Args(exprs) => {
                         let mut new_exprs = vec![];
                         for e in exprs {
-                            new_exprs.push(self.expr_to_datatable_expr(&e, db, table_name, ucols_to_replace)?);
+                            new_exprs.push(self.expr_to_datatable_expr(&e, db, &mut contains_ucol_id, ucols_to_replace)?);
                         }
                         FunctionArgs::Args(new_exprs)
                     }                
                 },
                 filter: match &f.filter {
-                    Some(filt) => Some(Box::new(self.expr_to_datatable_expr(&filt, db, table_name, ucols_to_replace)?)),
+                    Some(filt) => Some(Box::new(self.expr_to_datatable_expr(&filt, db, &mut contains_ucol_id, ucols_to_replace)?)),
                     None => None,
                 },
                 over: match &f.over {
                     Some(ws) => {
                         let mut new_pb = vec![];
                         for e in &ws.partition_by {
-                            new_pb.push(self.expr_to_datatable_expr(&e, db, table_name, ucols_to_replace)?);
+                            new_pb.push(self.expr_to_datatable_expr(&e, db, &mut contains_ucol_id, ucols_to_replace)?);
                         }
                         let mut new_ob = vec![];
                         for obe in &ws.order_by {
                             new_ob.push(OrderByExpr {
-                                expr: self.expr_to_datatable_expr(&obe.expr, db, table_name, ucols_to_replace)?,
+                                expr: self.expr_to_datatable_expr(&obe.expr, db, &mut contains_ucol_id, ucols_to_replace)?,
                                 asc: obe.asc.clone(),
                             });
                         }
@@ -287,21 +240,21 @@ impl DataTableTransformer {
             } => {
                 let mut new_cond = vec![];
                 for e in conditions {
-                    new_cond.push(self.expr_to_datatable_expr(&e, db, table_name, ucols_to_replace)?);
+                    new_cond.push(self.expr_to_datatable_expr(&e, db, &mut contains_ucol_id, ucols_to_replace)?);
                 }
                 let mut new_res= vec![];
                 for e in results {
-                    new_res.push(self.expr_to_datatable_expr(&e, db, table_name, ucols_to_replace)?);
+                    new_res.push(self.expr_to_datatable_expr(&e, db, &mut contains_ucol_id, ucols_to_replace)?);
                 }
                 Expr::Case{
                     operand: match operand {
-                        Some(e) => Some(Box::new(self.expr_to_datatable_expr(&e, db, table_name, ucols_to_replace)?)),
+                        Some(e) => Some(Box::new(self.expr_to_datatable_expr(&e, db, &mut contains_ucol_id, ucols_to_replace)?)),
                         None => None,
                     },
                     conditions: new_cond ,
                     results: new_res, 
                     else_result: match else_result {
-                        Some(e) => Some(Box::new(self.expr_to_datatable_expr(&e, db, table_name, ucols_to_replace)?)),
+                        Some(e) => Some(Box::new(self.expr_to_datatable_expr(&e, db, &mut contains_ucol_id, ucols_to_replace)?)),
                         None => None,
                     },
                 }
@@ -313,7 +266,7 @@ impl DataTableTransformer {
                 op,
                 right,
             } => Expr::Any {
-                left: Box::new(self.expr_to_datatable_expr(&left, db, table_name, ucols_to_replace)?),
+                left: Box::new(self.expr_to_datatable_expr(&left, db, &mut contains_ucol_id, ucols_to_replace)?),
                 op: op.clone(),
                 right: Box::new(self.query_to_datatable_query(&right, db)?),
             },
@@ -322,14 +275,14 @@ impl DataTableTransformer {
                 op,
                 right,
             } => Expr::All{
-                left: Box::new(self.expr_to_datatable_expr(&left, db, table_name, ucols_to_replace)?),
+                left: Box::new(self.expr_to_datatable_expr(&left, db, &mut contains_ucol_id, ucols_to_replace)?),
                 op: op.clone(),
                 right: Box::new(self.query_to_datatable_query(&right, db)?),
             },
             Expr::List(exprs) => {
                 let mut new_exprs = vec![];
                 for e in exprs {
-                    new_exprs.push(self.expr_to_datatable_expr(&e, db, table_name, ucols_to_replace)?);
+                    new_exprs.push(self.expr_to_datatable_expr(&e, db, &mut contains_ucol_id, ucols_to_replace)?);
                 }
                 Expr::List(new_exprs)
             }
@@ -337,8 +290,8 @@ impl DataTableTransformer {
                 expr,
                 subscript,
             } => Expr::SubscriptIndex{
-                expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
-                subscript: Box::new(self.expr_to_datatable_expr(&subscript, db, table_name, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_datatable_expr(&expr, db, &mut contains_ucol_id, ucols_to_replace)?),
+                subscript: Box::new(self.expr_to_datatable_expr(&subscript, db, &mut contains_ucol_id, ucols_to_replace)?),
             },
             Expr::SubscriptSlice{
                 expr,
@@ -348,17 +301,17 @@ impl DataTableTransformer {
                 for pos in positions {
                     new_pos.push(SubscriptPosition {
                         start: match &pos.start {
-                            Some(e) => Some(self.expr_to_datatable_expr(&e, db, table_name, ucols_to_replace)?),
+                            Some(e) => Some(self.expr_to_datatable_expr(&e, db, &mut contains_ucol_id, ucols_to_replace)?),
                             None => None,
                         },
                         end: match &pos.end {
-                            Some(e) => Some(self.expr_to_datatable_expr(&e, db, table_name, ucols_to_replace)?),
+                            Some(e) => Some(self.expr_to_datatable_expr(&e, db, &mut contains_ucol_id, ucols_to_replace)?),
                             None => None,
                         },                
                     });
                 }
                 Expr::SubscriptSlice{
-                    expr: Box::new(self.expr_to_datatable_expr(&expr, db, table_name, ucols_to_replace)?),
+                    expr: Box::new(self.expr_to_datatable_expr(&expr, db, &mut contains_ucol_id, ucols_to_replace)?),
                     positions: new_pos,
                 }
             }
@@ -422,12 +375,12 @@ impl DataTableTransformer {
                      those as the values instead for those columns.
                     This will be empty if the table is the user table, or not a datatable
                  */
-                let ucols = self.get_user_cols_of_datatable(&table_name.0);
+                let ucols = self.get_user_cols_of_datatable(&table_name);
                 let mut ucol_indices = vec![];
                 // get indices of columns corresponding to user vals
                 if !ucols.is_empty() {
                     for (i, c) in columns.into_iter().enumerate() {
-                        if ucols.iter().any(|uc| *uc == c.to_string()) {
+                        if ucols.iter().any(|uc| uc.ends_with(&c.to_string())) {
                             ucol_indices.push(i);
                         }
                     }
@@ -498,13 +451,15 @@ impl DataTableTransformer {
                 assignments,
                 selection,
             }) => {
-                let ucols = self.get_user_cols_of_datatable(&table_name.0);
+                let ucols = self.get_user_cols_of_datatable(&table_name);
+                let mut contains_ucol_id = false;
                 let mut ucol_assigns = vec![];
                 let mut ucol_selectitems = vec![];
                 let mut dt_assn = vec![];
+
                 for a in assignments {
                     // don't replace any UIDs when converting assignments to values
-                    let new_val = self.expr_to_datatable_expr(&a.value, db, &table_name, &vec![])?;
+                    let new_val = self.expr_to_datatable_expr(&a.value, db, &mut contains_ucol_id, &ucols)?;
                     
                     // we still want to perform the update
                     // BUT we need to make sure that the updated value, if a 
@@ -536,7 +491,7 @@ impl DataTableTransformer {
                 if let Some(s) = selection {
                     // update selection to use matching set of GIDs in place of any UIDs that
                     // might be used to perform the selection
-                    let new_s = self.expr_to_datatable_expr(&s, db, &table_name, &ucols)?;
+                    let new_s = self.expr_to_datatable_expr(&s, db, &mut contains_ucol_id, &ucols)?;
                     dt_selection = Some(new_s);
                 } 
 
@@ -606,11 +561,12 @@ impl DataTableTransformer {
                 selection,
             }) => {
                 let mut dt_selection = selection.clone();
-                let ucols = self.get_user_cols_of_datatable(&table_name.0);
+                let ucols = self.get_user_cols_of_datatable(&table_name);
 
                 // update selection 
+                let mut contains_ucol_id = false;
                 if let Some(s) = selection {
-                    let new_s = self.expr_to_datatable_expr(&s, db, &table_name, &ucols)?;
+                    let new_s = self.expr_to_datatable_expr(&s, db, &mut contains_ucol_id, &ucols)?;
                     dt_selection = Some(new_s);
                 }
 
