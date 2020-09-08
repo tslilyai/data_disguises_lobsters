@@ -63,10 +63,11 @@ impl DataTableTransformer {
     /*
      * This changes any nested queries to the corresponding VALUE 
      * (read from the MVs), if any exist.
-     * If no nested queries are present, the expr is kept unchanged.
      *
-     * If replace_uids is nonempty, the specified uids are swapped for their set of corresponding
-     * gids
+     * If replace_uids is nonempty, exprs constraining UIDs are
+     * swapped for a constraining expr on their corresponding GIDs
+     * e.g.: WHERE user_col IN (1,2,3) 
+     *      => WHERE user_col IN (SELECT gid FROM ghosts WHERE user_id IN (1,2,3))
      */
     fn expr_to_datatable_expr(&mut self, expr: &Expr, db: &mut mysql::Conn, table_name: &ObjectName, ucols_to_replace: &Vec<String>) 
         -> Result<Expr, mysql::Error> 
@@ -109,7 +110,7 @@ impl DataTableTransformer {
                         subquery: Box::new(Query::select(Select {
                             distinct: true,
                             projection: vec![SelectItem::Expr{
-                                expr: Expr::Identifier(vec![Ident::new(super::GHOST_USER_COL)]),
+                                expr: Expr::Identifier(vec![Ident::new(super::GHOST_ID_COL)]),
                                 alias: None,
                             }],
                             from: vec![TableWithJoins{
@@ -145,9 +146,6 @@ impl DataTableTransformer {
                 subquery,
                 negated,
             } => {
-                // TODO if expr is the tablename+usercol, then
-                // turn into InSubquery where SELECT GIDs where UIDs are IN subquery
-                // GID values mapping to the UID values the subquery
                 let new_query = self.query_to_datatable_query(&subquery, db)?;
                 
                 // If expr is the tablename+usercol, then return subquery
@@ -158,7 +156,7 @@ impl DataTableTransformer {
                         subquery: Box::new(Query::select(Select {
                             distinct: true,
                             projection: vec![SelectItem::Expr{
-                                expr: Expr::Identifier(vec![Ident::new(super::GHOST_USER_COL)]),
+                                expr: Expr::Identifier(vec![Ident::new(super::GHOST_ID_COL)]),
                                 alias: None,
                             }],
                             from: vec![TableWithJoins{

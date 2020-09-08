@@ -12,13 +12,14 @@ pub mod mv_transformer;
 const GHOST_ID_START : u64 = 1<<20;
 const GHOST_TABLE_NAME : &'static str = "ghosts";
 const GHOST_USER_COL : &'static str = "user_id";
+const GHOST_ID_COL: &'static str = "ghost_id";
 
 fn create_ghosts_query() -> String {
     return format!(
         r"CREATE TABLE IF NOT EXISTS {} (
-            `ghost_id` int unsigned NOT NULL AUTO_INCREMENT = {},
-            `user_id` int unsigned);", 
-        GHOST_TABLE_NAME, GHOST_ID_START);
+            `{}` int unsigned NOT NULL AUTO_INCREMENT = {},
+            `{}` int unsigned);", 
+        GHOST_TABLE_NAME, GHOST_ID_COL, GHOST_ID_START, GHOST_USER_COL);
 }
 
 struct Prepared {
