@@ -28,20 +28,10 @@ impl MVTransformer {
         obj_mv.to_string()
     }
 
-    fn objname_to_mv_objname(&self, obj: &ObjectName) -> ObjectName {
+    pub fn objname_to_mv_objname(&self, obj: &ObjectName) -> ObjectName {
         ObjectName(self.idents_to_mv_idents(&obj.0))
     }
     
-    fn objname_to_datatable(&self, obj: &ObjectName) -> Option<&config::DataTable> {
-        let obj_str = obj.to_string();
-        for dt in &self.cfg.data_tables {
-            if obj_str.ends_with(&dt.name) {
-                return Some(dt);
-            }
-        }
-        return None;
-    }
-
     fn idents_to_mv_idents(&self, obj: &Vec<Ident>) -> Vec<Ident> {
         // note that we assume that the name specified in the config
         // is the minimum needed to identify the data table.
