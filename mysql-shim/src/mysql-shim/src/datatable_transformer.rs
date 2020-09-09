@@ -670,16 +670,11 @@ impl DataTableTransformer {
                         alias: None,
                     })
                     .collect();
-                
-                // delete from ghosts table if GIDs are removed
-                if !ucols.is_empty() {
-                    let ghosts_delete_statement = Statement::Delete(DeleteStatement{
-                        table_name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
-                        selection: Some(Expr::InSubquery{
-                            expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_ID_COL))),
-                            subquery: Box::new(Query::select(Select{
+               
+                // get the list of GIDs to delete from the ghosts table 
+                let select_gids_stmt = Statement::Select(SelectStatement {
+                        query: Box::new(Query::select(Select{
                                 distinct: true,
-                                // TODO does a InSubquery select that returns multiple columns still work?
                                 projection: ucol_selectitems,
                                 from: vec![TableWithJoins{
                                     relation: TableFactor::Table{
@@ -691,7 +686,24 @@ impl DataTableTransformer {
                                 selection: dt_selection.clone(),
                                 group_by: vec![],
                                 having: None,
-                            })),
+                            })),        
+                        as_of: None,
+                });
+                let res = db.query_iter(format!("{}", select_gids_stmt.to_string()))?;
+                let mut gids_list : Vec<Expr>= vec![];
+                for row in res {
+                    for val in row.unwrap().unwrap() {
+                        gids_list.push(Expr::Value(helpers::mysql_val_to_parser_val(&val)));
+                    }
+                }
+
+                // delete from ghosts table if GIDs are removed
+                if !ucols.is_empty() {
+                    let ghosts_delete_statement = Statement::Delete(DeleteStatement{
+                        table_name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
+                        selection: Some(Expr::InList{
+                            expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_ID_COL))),
+                            list: gids_list,
                             negated: false,
                         }),
                     });
