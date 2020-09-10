@@ -747,6 +747,7 @@ impl DataTableTransformer {
                 }
 
                 // delete from ghosts table if GIDs are removed
+                // TODO we might want to keep this around if data is "restorable"
                 if !ucols.is_empty() {
                     let ghosts_delete_statement = Statement::Delete(DeleteStatement{
                         table_name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
@@ -784,94 +785,6 @@ impl DataTableTransformer {
                     materialized: materialized.clone(),
                 });
             }
-            Statement::CreateTable(CreateTableStatement{
-                name,
-                columns,
-                constraints,
-                with_options,
-                if_not_exists,
-            }) => {
-                let dt_constraints = constraints
-                    .iter()
-                    .map(|c| match c {
-                        TableConstraint::ForeignKey {
-                            name,
-                            columns,
-                            foreign_table,
-                            referred_columns,
-                        } => {
-                            TableConstraint::ForeignKey{
-                                name: name.clone(),
-                                columns: columns.clone(),
-                                foreign_table: foreign_table.clone(),
-                                referred_columns: referred_columns.clone(),
-                            }
-                        }
-                        _ => c.clone(),
-                    })
-                    .collect(); 
-                dt_stmt = Statement::CreateTable(CreateTableStatement{
-                    name: name.clone(),
-                    columns: columns.clone(),
-                    constraints: dt_constraints,
-                    with_options: with_options.clone(),
-                    if_not_exists: if_not_exists.clone(),
-                });
-                // TODO might have to add auto_increment here 
-            }
-            Statement::CreateIndex(CreateIndexStatement{
-                name,
-                on_name,
-                key_parts,
-                if_not_exists,
-            }) => {
-                dt_stmt = Statement::CreateIndex(CreateIndexStatement{
-                    name: name.clone(),
-                    on_name: on_name.clone(),
-                    key_parts: key_parts.clone(),
-                    if_not_exists: if_not_exists.clone(),
-                });
-            }
-            Statement::AlterObjectRename(AlterObjectRenameStatement{
-                object_type,
-                if_exists,
-                name,
-                to_item_name,
-            }) => {
-                dt_stmt = Statement::AlterObjectRename(AlterObjectRenameStatement{
-                    object_type: object_type.clone(),
-                    if_exists: *if_exists,
-                    name: name.clone(),
-                    to_item_name: to_item_name.clone(),
-                });
-            }
-            Statement::DropObjects(DropObjectsStatement{
-                object_type,
-                if_exists,
-                names,
-                cascade,
-            }) => {
-                dt_stmt = Statement::DropObjects(DropObjectsStatement{
-                    object_type: object_type.clone(),
-                    if_exists: *if_exists,
-                    names: names.clone(),
-                    cascade: *cascade,
-                });
-            }
-            /* TODO Handle Statement::Explain(stmt) => f.write_node(stmt)
-             *
-             * Don't handle CreateSink, CreateSource, Copy,
-             *  ShowCreateSource, ShowCreateSink, Tail, Explain
-             * 
-             * Don't modify queries for CreateSchema, CreateDatabase, 
-             * ShowDatabases, ShowCreateTable, DropDatabase, Transactions,
-             * ShowColumns, SetVariable (mysql exprs in set var not supported yet)
-             *
-             * XXX: ShowVariable, ShowCreateView and ShowCreateIndex will return 
-             *  queries that used the materialized views, rather than the 
-             *  application-issued tables. This is probably not a big issue, 
-             *  since these queries are used to create the table again?
-             * */
             _ => ()
         }
         return Ok(Some(dt_stmt));
