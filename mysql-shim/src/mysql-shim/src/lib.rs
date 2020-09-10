@@ -49,7 +49,7 @@ impl Shim {
     pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str) -> Self {
         let cfg = config::parse_config(cfg_json).unwrap();
         let prepared = HashMap::new();
-        let mv_trans = mv_transformer::MVTransformer::new(cfg.clone());
+        let mv_trans = mv_transformer::MVTransformer::new(&cfg);
         let dt_trans = datatable_transformer::DataTableTransformer::new(cfg.clone());
         Shim{db, mv_trans, dt_trans, prepared, schema}
     }   

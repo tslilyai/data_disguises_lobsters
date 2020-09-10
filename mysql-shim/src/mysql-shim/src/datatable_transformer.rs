@@ -15,7 +15,7 @@ pub struct DataTableTransformer {
 impl DataTableTransformer {
     pub fn new(cfg: config::Config) -> Self {
         // better way than simply replicating?
-        let mv_trans = mv_transformer::MVTransformer::new(cfg.clone());
+        let mv_trans = mv_transformer::MVTransformer::new(&cfg);
         DataTableTransformer{cfg, mv_trans}
     }   
     

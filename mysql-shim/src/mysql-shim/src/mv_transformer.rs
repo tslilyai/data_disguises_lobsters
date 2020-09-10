@@ -7,11 +7,10 @@ const MV_SUFFIX : &'static str = "mv";
 
 pub struct MVTransformer {
     table_names: Vec<String>,
-    cfg: config::Config,
 }
 
 impl MVTransformer {
-    pub fn new(cfg: config::Config) -> Self {
+    pub fn new(cfg: &config::Config) -> Self {
         let mut table_names = Vec::<String>::new();
         table_names.push(cfg.user_table.name.clone());
         for dt in &cfg.data_tables {
@@ -19,7 +18,6 @@ impl MVTransformer {
         }
         MVTransformer{
             table_names: table_names, 
-            cfg: cfg,
         }
     }   
     

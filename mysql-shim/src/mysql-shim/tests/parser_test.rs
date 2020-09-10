@@ -36,23 +36,11 @@ fn trim_one<'a>(s: &'a str) -> &'a str {
 }
 
 #[test]
-fn datadriven() {
-    /*struct Visitor<'a> {
-        seen_idents: Vec<&'a str>,
-    }
-
-    impl<'a> Visit<'a> for Visitor<'a> {
-        fn visit_ident(&mut self, ident: &'a Ident) {
-            self.seen_idents.push(ident.as_str());
-        }
-    }*/
-
+fn test_mvtrans_datadriven() {
     let cfg = config::parse_config(CONFIG).unwrap();
     walk("tests/testdata", |f| {
         f.run(|test_case| -> String {
-            let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
-            let mut mv_trans = mv_transformer::MVTransformer::new(cfg.clone());
-            let mut dt_trans = datatable_transformer::DataTableTransformer::new(cfg.clone(), &mut db);
+            let mut mv_trans = mv_transformer::MVTransformer::new(&cfg);
             match test_case.directive.as_str() {
                 "parse-statement" => {
                     let sql = trim_one(&test_case.input).to_owned();
@@ -62,10 +50,7 @@ fn datadriven() {
                                 "expected exactly one statement".to_string()
                             } else {
                                 let stmt = s.iter().next().unwrap();
-                                let (mv_stmt, write_query) = mv_trans.stmt_to_mv_stmt(stmt);
-                                if let Some(dt_stmt) = dt_trans.stmt_to_datatable_stmt(&stmt)? {
-                                    // TODO
-                                }
+                                let (mv_stmt, _write_query) = mv_trans.stmt_to_mv_stmt(stmt);
                                 if test_case.args.get("roundtrip").is_some() {
                                     format!("{}\n", mv_stmt.to_string())
                                 } else {
@@ -83,8 +68,6 @@ fn datadriven() {
                             if test_case.args.get("roundtrip").is_some() {
                                 format!("{}\n", s.to_string())
                             } else {
-                                // TODO(justin): it would be nice to have a middle-ground between this
-                                // all-on-one-line and {:#?}'s huge number of lines.
                                 format!("{:?}\n", s)
                             }
                         }
