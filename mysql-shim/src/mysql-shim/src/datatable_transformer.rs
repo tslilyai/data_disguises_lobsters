@@ -1,4 +1,5 @@
 use mysql::prelude::*;
+use std::collections::HashMap;
 use sql_parser::ast::*;
 use super::config;
 use super::helpers;
@@ -384,53 +385,101 @@ impl DataTableTransformer {
                     })),
                     as_of: None,
                 });
+
+                // collect row results from MV
+                let mut uids = vec![];
+                let mut rows : Vec<Vec<mysql::Value>> = vec![];
+                let mut cols = vec![];
                 let res = db.query_iter(format!("{}", mv_select_stmt.to_string()))?;
-               
-                // expr to constrain to select a particular row
-                let mut or_row_constraint_expr = Expr::Value(Value::Boolean(false));
                 for row in res {
                     let row = row.unwrap();
-                    let cols = row.columns_ref();
-
-                    let mut and_col_constraint_expr = Expr::Value(Value::Boolean(true));
+                    cols = row.columns_ref().to_vec();
+                    
+                    let mut row_vals = vec![];
                     for i in 0..cols.len() {
                         // if it's a user column, add restriction on GID
                         let colname = cols[i].name_str().to_string();
-                        
+ 
                         // Add condition on user column to be within relevant GIDs mapped
                         // to by the UID value
                         // However, only update with GIDs if UID value is NOT NULL
                         if ucols.iter().any(|uc| uc.ends_with(&colname)) && row[i] != mysql::Value::NULL {
-                            // subquery: get all GIDs corresponding to this UID for this ucol
-                            let get_gids_query = Query::select(Select{
-                                distinct: true,
-                                projection: vec![SelectItem::Expr{
-                                    expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_ID_COL).0),
-                                    alias: None,
-                                }],
-                                from: vec![TableWithJoins{
-                                    relation: TableFactor::Table{
-                                        name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
-                                        alias: None,
-                                    },
-                                    joins: vec![],
-                                }],
-                                selection: Some(Expr::BinaryOp{
-                                    left: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
-                                    op: BinaryOperator::Eq,
-                                    right: Box::new(Expr::Value(helpers::mysql_val_to_parser_val(&row[i]))),
-                                }),
-                                group_by: vec![],
-                                having: None,
-                            });
+                            uids.push(row[i].clone());
+                        }
+                        row_vals.push(row[i].clone());
+                    }
+                    rows.push(row_vals);
+                }
 
+                // get all the gid rows corresponding to uids
+                // TODO deal with potential GIDs in user_cols due to
+                // unsubscriptions/resubscriptions
+                let get_gids_stmt = Query::select(Select{
+                    distinct: true,
+                    projection: vec![
+                        SelectItem::Expr{
+                            expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_USER_COL).0),
+                            alias: None,
+                        },
+                        SelectItem::Expr{
+                            expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_ID_COL).0),
+                            alias: None,
+                        }
+                    ],
+                    from: vec![TableWithJoins{
+                        relation: TableFactor::Table{
+                            name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
+                            alias: None,
+                        },
+                        joins: vec![],
+                    }],
+                    selection: Some(Expr::InList{
+                        expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_USER_COL))),
+                        list: uids.iter().map(|uid| Expr::Value(helpers::mysql_val_to_parser_val(&uid))).collect(), 
+                        negated: false,
+                    }),
+                    group_by: vec![],
+                    having: None,
+                });
+
+                let mut uid_to_gids : HashMap<Value, Vec<Expr>> = HashMap::new();
+                let res = db.query_iter(format!("{}", get_gids_stmt.to_string()))?;
+                for row in res {
+                    let vals : Vec<Value> = row.unwrap().unwrap()
+                        .iter()
+                        .map(|v| helpers::mysql_val_to_parser_val(&v))
+                        .collect();
+                    match uid_to_gids.get_mut(&vals[0]) {
+                        Some(gids) => (*gids).push(Expr::Value(vals[1].clone())),
+                        None => {
+                            uid_to_gids.insert(vals[0].clone(), vec![Expr::Value(vals[1].clone())]);
+                        }
+                    }
+                }
+
+                // expr to constrain to select a particular row
+                let mut or_row_constraint_expr = Expr::Value(Value::Boolean(false));
+                for row in rows {
+                    let mut and_col_constraint_expr = Expr::Value(Value::Boolean(true));
+                    for i in 0..cols.len() {
+                        // if it's a user column, add restriction on GID
+                        let colname = cols[i].name_str().to_string();
+                        let parser_val = helpers::mysql_val_to_parser_val(&row[i]);
+ 
+                        // Add condition on user column to be within relevant GIDs mapped
+                        // to by the UID value
+                        // However, only update with GIDs if UID value is NOT NULL
+                        if ucols.iter().any(|uc| uc.ends_with(&colname)) && row[i] != mysql::Value::NULL {
                             // add condition on user column to be within the relevant GIDs
                             and_col_constraint_expr = Expr::BinaryOp {
                                 left: Box::new(and_col_constraint_expr),
                                 op: BinaryOperator::And,
-                                right: Box::new(Expr::InSubquery{
+                                right: Box::new(Expr::InList {
                                     expr: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
-                                    subquery: Box::new(get_gids_query),
+                                    list: match uid_to_gids.get(&parser_val) {
+                                        Some(gids) => gids.clone(),
+                                        None => vec![],
+                                    },
                                     negated: false,
                                 }),
                             };
@@ -445,7 +494,7 @@ impl DataTableTransformer {
                                 right: Box::new(Expr::BinaryOp{
                                     left: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
                                     op: BinaryOperator::Eq,
-                                    right: Box::new(Expr::Value(helpers::mysql_val_to_parser_val(&row[i]))),
+                                    right: Box::new(Expr::Value(parser_val)),
                                 }),             
                             };
                         }
