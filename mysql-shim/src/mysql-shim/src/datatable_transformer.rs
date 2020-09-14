@@ -4,8 +4,9 @@ use sql_parser::ast::*;
 use super::config;
 use super::helpers;
 use super::mv_transformer;
+use std::sync::atomic::{AtomicU64, Ordering};
 
-static mut LATEST_GID: u64 = super::GHOST_ID_START;
+static LATEST_GID : AtomicU64 = AtomicU64::new(super::GHOST_ID_START);
 
 pub struct DataTableTransformer {
     cfg: config::Config,
@@ -23,7 +24,7 @@ impl DataTableTransformer {
         let mut res : Vec<String> = vec![];
         let table_str = table_name.to_string();
         for dt in &self.cfg.data_tables {
-            if table_str.ends_with(&dt.name) {
+            if table_str.ends_with(&dt.name) || table_str == dt.name {
                 for uc in &dt.user_cols {
                     let mut new_table_str = table_str.clone();
                     new_table_str.push_str(uc);
@@ -65,8 +66,8 @@ impl DataTableTransformer {
      * This changes any nested queries to the corresponding VALUE 
      * (read from the MVs), if any exist.
      *
-     * TODO If ucols_to_replace is nonempty, any expr that is a constraint on that ucol
-     * is removed
+     * If ucols_to_replace is nonempty, the function sets whether 
+     * any of these cols are contained within the query 
      */
     fn expr_to_datatable_expr(&mut self, expr: &Expr, db: &mut mysql::Conn, 
                               contains_ucol_id: &mut bool, ucols_to_replace: &Vec<String>) 
@@ -335,13 +336,21 @@ impl DataTableTransformer {
                     // NULL check: don't add ghosts entry if new UID value is NULL
                     if val != Expr::Value(Value::Null) {
                         // user ids are always ints
-                        let res = db.query_iter(&format!("INSERT INTO `ghosts` ({});", row[i]));
+                        println!("Inserting into ghosts: {}", row[i]);
+                        let res = db.query_iter(&format!("INSERT INTO `ghosts` ({}) VALUES ({});", super::GHOST_USER_COL, row[i]));
                         match res {
-                            Err(_) => return None,
+                            Err(e) => {
+                                println!("{}", e);
+                                return None;
+                            }
                             Ok(res) => {
                                 // we want to insert the GID in place
                                 // of the UID
-                                val = Expr::Value(Value::Number(res.last_insert_id()?.to_string()));
+                                let gid = res.last_insert_id()?;
+                                val = Expr::Value(Value::Number(format!("{}", gid)));
+
+                                // update the last known GID
+                                LATEST_GID.fetch_max(gid, Ordering::SeqCst);
                             }
                         }
                     }
@@ -403,7 +412,7 @@ impl DataTableTransformer {
                         // Add condition on user column to be within relevant GIDs mapped
                         // to by the UID value
                         // However, only update with GIDs if UID value is NOT NULL
-                        if ucols.iter().any(|uc| uc.ends_with(&colname)) && row[i] != mysql::Value::NULL {
+                        if ucols.iter().any(|uc| *uc == colname) && row[i] != mysql::Value::NULL {
                             uids.push(row[i].clone());
                         }
                         row_vals.push(row[i].clone());
@@ -469,7 +478,7 @@ impl DataTableTransformer {
                         // Add condition on user column to be within relevant GIDs mapped
                         // to by the UID value
                         // However, only update with GIDs if UID value is NOT NULL
-                        if ucols.iter().any(|uc| uc.ends_with(&colname)) && row[i] != mysql::Value::NULL {
+                        if ucols.iter().any(|uc| *uc == colname) && row[i] != mysql::Value::NULL {
                             // add condition on user column to be within the relevant GIDs
                             and_col_constraint_expr = Expr::BinaryOp {
                                 left: Box::new(and_col_constraint_expr),
@@ -538,7 +547,10 @@ impl DataTableTransformer {
                 // get indices of columns corresponding to user vals
                 if !ucols.is_empty() {
                     for (i, c) in columns.into_iter().enumerate() {
-                        if ucols.iter().any(|uc| uc.ends_with(&c.to_string())) {
+                        // XXX this may overcount if a non-user column is a suffix of a user
+                        // column
+                        if ucols.iter().any(|uc| uc.ends_with(&c.to_string()) || *uc == c.to_string()) {
+                            println!("Inserting user column {}", c);
                             ucol_indices.push(i);
                         }
                     }
@@ -562,6 +574,7 @@ impl DataTableTransformer {
                                     new_q.body = SetExpr::Values(Values(vv));
                                     dt_source = InsertSource::Query(new_q);
                                 } else {
+                                    println!("Values: vals_vec_to_dt_vals failed");
                                     return Ok(None);
                                 }
                             }
@@ -591,6 +604,7 @@ impl DataTableTransformer {
                                     new_q.body = SetExpr::Values(Values(vv));
                                     dt_source = InsertSource::Query(new_q);
                                 } else {
+                                    println!("Other: vals_vec_to_dt_vals failed");
                                     return Ok(None);
                                 }
                             }    
@@ -598,6 +612,7 @@ impl DataTableTransformer {
                     } 
                     InsertSource::DefaultValues => (), // TODO might have to get rid of this
                 }
+                println!("Insert statement of tab {:?}, sources updated to {:?}", table_name, dt_source);
                 dt_stmt = Statement::Insert(InsertStatement{
                     table_name: table_name.clone(),
                     columns : columns.clone(),

@@ -1,7 +1,7 @@
 extern crate mysql;
 use msql_srv::*;
 use mysql::prelude::*;
-use sql_parser::parser::parse_statements;
+use sql_parser::parser::*;
 use std::collections::HashMap;
 use std::*;
 mod helpers;
@@ -15,11 +15,17 @@ const GHOST_USER_COL : &'static str = "user_id";
 const GHOST_ID_COL: &'static str = "ghost_id";
 
 fn create_ghosts_query() -> String {
-    return format!(
+    format!(
         r"CREATE TABLE IF NOT EXISTS {} (
-            `{}` int unsigned NOT NULL AUTO_INCREMENT = {},
+            `{}` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
             `{}` int unsigned);", 
-        GHOST_TABLE_NAME, GHOST_ID_COL, GHOST_ID_START, GHOST_USER_COL);
+        GHOST_TABLE_NAME, GHOST_ID_COL, GHOST_USER_COL)
+}
+
+fn set_initial_gid_query() -> String {
+    format!(
+        r"ALTER TABLE {} AUTO_INCREMENT={};",
+        GHOST_TABLE_NAME, GHOST_ID_START)
 }
 
 struct Prepared {
@@ -76,22 +82,55 @@ impl Shim {
      * Must be issued after select_db statement is issued.
      * */
     fn create_schema(&mut self) -> Result<(), mysql::Error> {
-        let mut current_q = String::new();
+        /* create ghost metadata table with boolean cols for each user id */
+        // XXX temp: create a new ghost metadata table
+        self.db.query_drop("DROP TABLE IF EXISTS ghosts;")?;
+        self.db.query_drop(create_ghosts_query())?;
+        self.db.query_drop(set_initial_gid_query())?;
+        println!("Ghosts table initialized");
+        
+        /* issue schema statements */
+        let mut sql = String::new();
         for line in self.schema.lines() {
             if line.starts_with("--") || line.is_empty() {
                 continue;
             }
-            if !current_q.is_empty() {
-                current_q.push_str(" ");
+            if !sql.is_empty() {
+                sql.push_str(" ");
             }
-            current_q.push_str(line);
-            if current_q.ends_with(';') {
-                self.db.query_drop(&current_q).unwrap();
-                println!("Query executed: {}", current_q);
-                current_q.clear();
+            sql.push_str(line);
+            if sql.ends_with(';') {
+                sql.push_str("\n");
             }
         }
-        Ok(())
+
+        // TODO deal with creation of indices within create table statements
+        let stmts = parse_statements(sql);
+        match stmts {
+            Err(e) => {
+                Err(mysql::Error::IoError(io::Error::new(
+                        io::ErrorKind::InvalidInput, e)))
+            }
+            Ok(stmts) => {
+                for stmt in stmts {
+                    // TODO wrap in txn
+                    let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmt);
+                    println!("on_init: mv_stmt {}", mv_stmt.to_string());
+                    if is_write {
+                        // issue actual statement to datatables if they are writes (potentially creating ghost ID 
+                        // entries as well)
+                        if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt, &mut self.db)? {
+                            println!("on_init: dt_stmt {}", dt_stmt.to_string());
+                            self.db.query_drop(dt_stmt.to_string())?;
+                        }
+                    }
+                    // issue statement to materialized views AFTER
+                    // issuing to datatables (which may perform reads)
+                    self.db.query_drop(mv_stmt.to_string())?;
+                }
+                Ok(())
+            }
+        }
     }
 }
 
@@ -205,56 +244,17 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     }
 
     fn on_init(&mut self, schema: &str, w: InitWriter<W>) -> Result<(), Self::Error> {
-        println!("On init called!");
         let res = self.db.select_db(schema);
         if !res {
             w.error(ErrorKind::ER_BAD_DB_ERROR, b"select db failed")?;
             return Ok(());
         }   
-        
-        self.create_schema().unwrap();
-
-        /* create ghost metadata table with boolean cols for each user id */
-        let create_ghost_table_q = create_ghosts_query();
-        // XXX temp: create a new ghost metadata table
-        self.db.query_drop("DROP TABLE IF EXISTS ghosts;").unwrap();
-        self.db.query_drop(create_ghost_table_q).unwrap();
-        
-        /* issue schema statements */
-        let mut sql = String::new();
-        for line in self.schema.lines() {
-            if line.starts_with("--") || line.is_empty() {
-                continue;
-            }
-            if !sql.is_empty() {
-                sql.push_str(" ");
-            }
-            sql.push_str(line);
-            if sql.ends_with(';') {
-                sql.push_str("\n");
-            }
-        }
-
-        let stmts = parse_statements(sql);
-        match stmts {
-            Err(e) => 
-                Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?),
-            Ok(stmts) => {
-                for stmt in stmts {
-                    // TODO wrap in txn
-                    let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmt);
-                    if is_write {
-                        // issue actual statement to datatables if they are writes (potentially creating ghost ID 
-                        // entries as well)
-                        if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt, &mut self.db)? {
-                            self.db.query_drop(dt_stmt.to_string())?;
-                        }
-                    }
-                    // issue statement to materialized views AFTER
-                    // issuing to datatables (which may perform reads)
-                    self.db.query_drop(mv_stmt.to_string())?;
-                }
-                Ok(w.ok()?)
+       
+        match self.create_schema() {
+            Ok(_) => Ok(w.ok()?),
+            Err(e) => {
+                println!("Error {}", e);
+                Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?)
             }
         }
     }
@@ -270,9 +270,14 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 assert!(stmts.len()==1);
                 // TODO wrap in txn
                 let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmts[0]);
+                println!("Executing on_query mv_stmt: {}, is_write={}", mv_stmt.to_string(), is_write);
                 if is_write {
                     if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmts[0], &mut self.db)? {
+                        println!("Executing on_query dt_stmt: {}", dt_stmt.to_string());
                         self.db.query_drop(dt_stmt.to_string())?;
+                    } else {
+                        results.error(ErrorKind::ER_PARSE_ERROR, format!("{:?}", "Could not parse dt stmt").as_bytes())?;
+                        return Ok(());
                     }
                 }
                 return answer_rows(results, self.db.query_iter(format!("{}", mv_stmt)));
@@ -301,54 +306,54 @@ fn answer_rows<W: io::Write>(
                 }
             })
             .collect();
-        let mut writer = results.start(&cols)?;
-        for row in rows {
-            let vals = row.unwrap();
-            for (c, col) in cols.iter().enumerate() {
-                match col.coltype {
-                    ColumnType::MYSQL_TYPE_DECIMAL => writer.write_col(vals.get::<f64, _>(c))?,
-                    ColumnType::MYSQL_TYPE_TINY => writer.write_col(vals.get::<i16, _>(c))?,
-                    ColumnType::MYSQL_TYPE_SHORT => writer.write_col(vals.get::<i16, _>(c))?,
-                    ColumnType::MYSQL_TYPE_LONG => writer.write_col(vals.get::<i32, _>(c))?,
-                    ColumnType::MYSQL_TYPE_FLOAT => writer.write_col(vals.get::<f32, _>(c))?,
-                    ColumnType::MYSQL_TYPE_DOUBLE => writer.write_col(vals.get::<f64, _>(c))?,
-                    ColumnType::MYSQL_TYPE_NULL => writer.write_col(vals.get::<i16, _>(c))?,
-                    ColumnType::MYSQL_TYPE_LONGLONG => writer.write_col(vals.get::<i64, _>(c))?,
-                    ColumnType::MYSQL_TYPE_INT24 => writer.write_col(vals.get::<i32, _>(c))?,
-                    ColumnType::MYSQL_TYPE_VARCHAR => writer.write_col(vals.get::<String, _>(c))?,
-                    ColumnType::MYSQL_TYPE_BIT => writer.write_col(vals.get::<i16, _>(c))?,
-                    ColumnType::MYSQL_TYPE_TINY_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
-                    ColumnType::MYSQL_TYPE_MEDIUM_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
-                    ColumnType::MYSQL_TYPE_LONG_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
-                    ColumnType::MYSQL_TYPE_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
-                    ColumnType::MYSQL_TYPE_VAR_STRING => writer.write_col(vals.get::<String, _>(c))?,
-                    ColumnType::MYSQL_TYPE_STRING => writer.write_col(vals.get::<String, _>(c))?,
-                    ColumnType::MYSQL_TYPE_GEOMETRY => writer.write_col(vals.get::<i16, _>(c))?,
-                    //ColumnType::MYSQL_TYPE_TIMESTAMP => writer.write_col(vals.get::<i16, _>(c))?,
-                    //ColumnType::MYSQL_TYPE_DATE => writer.write_col(vals.get::<i16, _>(c))?,
-                    //ColumnType::MYSQL_TYPE_TIME => writer.write_col(vals.get::<i16, _>(c))?,
-                    //ColumnType::MYSQL_TYPE_DATETIME => writer.write_col(vals.get::<i16, _>(c))?,
-                    //ColumnType::MYSQL_TYPE_YEAR => writer.write_col(vals.get::<i16, _>(c))?,
-                    //ColumnType::MYSQL_TYPE_NEWDATE => writer.write_col(vals.get::<i16, _>(c))?,
-                    //ColumnType::MYSQL_TYPE_TIMESTAMP2 => writer.write_col(vals.get::<i16, _>(c))?,
-                    //ColumnType::MYSQL_TYPE_DATETIME2 => writer.write_col(vals.get::<i16, _>(c))?,
-                    //ColumnType::MYSQL_TYPE_TIME2 => writer.write_col(vals.get::<i16, _>(c))?,
-                    //ColumnType::MYSQL_TYPE_JSON => writer.write_col(vals.get::<i16, _>(c))?,
-                    //ColumnType::MYSQL_TYPE_NEWDECIMAL => writer.write_col(vals.get::<i16, _>(c))?,
-                    //ColumnType::MYSQL_TYPE_ENUM => writer.write_col(vals.get::<i16, _>(c))?,
-                    //ColumnType::MYSQL_TYPE_SET => writer.write_col(vals.get::<i16, _>(c))?,
-                    ct => unimplemented!("Cannot translate row type {:?} into value", ct),
+            let mut writer = results.start(&cols)?;
+            for row in rows {
+                let vals = row.unwrap();
+                for (c, col) in cols.iter().enumerate() {
+                    match col.coltype {
+                        ColumnType::MYSQL_TYPE_DECIMAL => writer.write_col(vals.get::<f64, _>(c))?,
+                        ColumnType::MYSQL_TYPE_TINY => writer.write_col(vals.get::<i16, _>(c))?,
+                        ColumnType::MYSQL_TYPE_SHORT => writer.write_col(vals.get::<i16, _>(c))?,
+                        ColumnType::MYSQL_TYPE_LONG => writer.write_col(vals.get::<i32, _>(c))?,
+                        ColumnType::MYSQL_TYPE_FLOAT => writer.write_col(vals.get::<f32, _>(c))?,
+                        ColumnType::MYSQL_TYPE_DOUBLE => writer.write_col(vals.get::<f64, _>(c))?,
+                        ColumnType::MYSQL_TYPE_NULL => writer.write_col(vals.get::<i16, _>(c))?,
+                        ColumnType::MYSQL_TYPE_LONGLONG => writer.write_col(vals.get::<i64, _>(c))?,
+                        ColumnType::MYSQL_TYPE_INT24 => writer.write_col(vals.get::<i32, _>(c))?,
+                        ColumnType::MYSQL_TYPE_VARCHAR => writer.write_col(vals.get::<String, _>(c))?,
+                        ColumnType::MYSQL_TYPE_BIT => writer.write_col(vals.get::<i16, _>(c))?,
+                        ColumnType::MYSQL_TYPE_TINY_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
+                        ColumnType::MYSQL_TYPE_MEDIUM_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
+                        ColumnType::MYSQL_TYPE_LONG_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
+                        ColumnType::MYSQL_TYPE_BLOB => writer.write_col(vals.get::<Vec<u8>, _>(c))?,
+                        ColumnType::MYSQL_TYPE_VAR_STRING => writer.write_col(vals.get::<String, _>(c))?,
+                        ColumnType::MYSQL_TYPE_STRING => writer.write_col(vals.get::<String, _>(c))?,
+                        ColumnType::MYSQL_TYPE_GEOMETRY => writer.write_col(vals.get::<i16, _>(c))?,
+                        //ColumnType::MYSQL_TYPE_TIMESTAMP => writer.write_col(vals.get::<i16, _>(c))?,
+                        //ColumnType::MYSQL_TYPE_DATE => writer.write_col(vals.get::<i16, _>(c))?,
+                        //ColumnType::MYSQL_TYPE_TIME => writer.write_col(vals.get::<i16, _>(c))?,
+                        //ColumnType::MYSQL_TYPE_DATETIME => writer.write_col(vals.get::<i16, _>(c))?,
+                        //ColumnType::MYSQL_TYPE_YEAR => writer.write_col(vals.get::<i16, _>(c))?,
+                        //ColumnType::MYSQL_TYPE_NEWDATE => writer.write_col(vals.get::<i16, _>(c))?,
+                        //ColumnType::MYSQL_TYPE_TIMESTAMP2 => writer.write_col(vals.get::<i16, _>(c))?,
+                        //ColumnType::MYSQL_TYPE_DATETIME2 => writer.write_col(vals.get::<i16, _>(c))?,
+                        //ColumnType::MYSQL_TYPE_TIME2 => writer.write_col(vals.get::<i16, _>(c))?,
+                        //ColumnType::MYSQL_TYPE_JSON => writer.write_col(vals.get::<i16, _>(c))?,
+                        //ColumnType::MYSQL_TYPE_NEWDECIMAL => writer.write_col(vals.get::<i16, _>(c))?,
+                        //ColumnType::MYSQL_TYPE_ENUM => writer.write_col(vals.get::<i16, _>(c))?,
+                        //ColumnType::MYSQL_TYPE_SET => writer.write_col(vals.get::<i16, _>(c))?,
+                        ct => unimplemented!("Cannot translate row type {:?} into value", ct),
+                    }
                 }
+                writer.end_row()?;
             }
-            writer.end_row()?;
+            writer.finish()?;
         }
-        writer.finish()?;
+        Err(e) => {
+            results.error(ErrorKind::ER_BAD_SLAVE, format!("{:?}", e).as_bytes())?;
+        }
     }
-    Err(e) => {
-        results.error(ErrorKind::ER_BAD_SLAVE, format!("{:?}", e).as_bytes())?;
-    }
-}
-Ok(())
+    Ok(())
 }
 
 /// Convert a MySQL type to MySQL_svr type 

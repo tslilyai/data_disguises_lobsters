@@ -747,7 +747,7 @@ impl Tokenizer {
     }
 
     fn is_delimited_identifier_start(&self, ch: char) -> bool {
-        ch == '"'
+        ch == '"' || ch == '`'
     }
 
     fn is_identifier_part(&self, ch: char) -> bool {

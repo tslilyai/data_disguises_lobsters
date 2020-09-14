@@ -5,11 +5,11 @@
     },
     "data_tables" : [
         {
-            "name": "tablefoo",
-            "user_cols": ["user_id"]
+            "name": "moderations",
+            "user_cols": ["user_id, moderator_user_id"]
         },
         {
-            "name": "tablefootwo",
+            "name": "stories",
             "user_cols": ["user_id"]
         }
     ]
