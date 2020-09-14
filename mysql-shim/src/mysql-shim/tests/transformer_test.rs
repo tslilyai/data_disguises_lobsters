@@ -129,6 +129,11 @@ impl Tester {
         assert_eq!(db.ping(), true);
         assert_eq!(db.select_db("gdpr"), true);
 
+        /*
+         * NOTE: the column types are all right, but the mysql value returned is always Bytes,
+         * so it always parses as a String
+         */
+
         /* 
          * TEST 1: all tables successfully created 
          */
@@ -185,7 +190,7 @@ impl Tester {
          * TEST 3: insert into datatables works properly
          */
         let mut results = vec![];
-        db.query_drop(r"INSERT INTO moderations (moderator_user_id, story_id, user_id, action) VALUES ('0', '0', '1', 'bad story!');").unwrap();
+        db.query_drop(r"INSERT INTO moderations (moderator_user_id, story_id, user_id, action) VALUES (1, 0, 2, 'bad story!');").unwrap();
         let res = db.query_iter(r"SELECT * FROM moderations;").unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
@@ -198,7 +203,12 @@ impl Tester {
             results.push((id, mod_id, story_id, user_id, action));
         }
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0], ("'1'".to_string(), "'0'".to_string(), "'0'".to_string(), "'1'".to_string(), "'bad story!'".to_string()));
+        assert_eq!(results[0], 
+                   ("'1'".to_string(), 
+                    "'1'".to_string(), 
+                    "'0'".to_string(), 
+                    "'2'".to_string(), 
+                    "'bad story!'".to_string()));
 
         // two ghost entries added, beginning from GHOST_ID_START
         let mut results = vec![];
@@ -211,8 +221,44 @@ impl Tester {
             results.push((gid, uid));
         }
         assert_eq!(results.len(), 2);
-        assert_eq!(results[0], (format!("'{}'", GHOST_ID_START), "'0'".to_string()));
-        assert_eq!(results[1], (format!("'{}'", GHOST_ID_START+1), "'1'".to_string()));
+        assert_eq!(results[0], (format!("'{}'", GHOST_ID_START), "'1'".to_string()));
+        assert_eq!(results[1], (format!("'{}'", GHOST_ID_START+1), "'2'".to_string()));
+
+        /*
+         * TEST 4: complex insert into datatables works properly
+         */
+        let mut results = vec![];
+        db.query_drop(r"INSERT INTO moderations (moderator_user_id, story_id, user_id, action) VALUES ((SELECT id FROM users WHERE username='hello_2'), '0', '1', 'worst story!');").unwrap();
+        let res = db.query_iter(r"SELECT * FROM moderations;").unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 5);
+            let id = format!("{}", mysql_val_to_parser_val(&vals[0]));
+            let mod_id = format!("{}", mysql_val_to_parser_val(&vals[1]));
+            let story_id = format!("{}", mysql_val_to_parser_val(&vals[2]));
+            let user_id = format!("{}", mysql_val_to_parser_val(&vals[3]));
+            let action = format!("{}", mysql_val_to_parser_val(&vals[4]));
+            results.push((id, mod_id, story_id, user_id, action));
+        }
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0], ("'1'".to_string(), "'1'".to_string(), "'0'".to_string(), "'2'".to_string(), "'bad story!'".to_string()));
+        assert_eq!(results[1], ("'2'".to_string(), "'2'".to_string(), "'0'".to_string(), "'1'".to_string(), "'worst story!'".to_string()));
+
+        // two ghost entries added, beginning from GHOST_ID_START
+        let mut results = vec![];
+        let res = db.query_iter(r"SELECT * FROM ghosts;").unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 2);
+            let gid = format!("{}", mysql_val_to_parser_val(&vals[0]));
+            let uid = format!("{}", mysql_val_to_parser_val(&vals[1]));
+            results.push((gid, uid));
+        }
+        assert_eq!(results.len(), 4);
+        assert_eq!(results[0], (format!("'{}'", GHOST_ID_START), "'1'".to_string()));
+        assert_eq!(results[1], (format!("'{}'", GHOST_ID_START+1), "'2'".to_string()));
+        assert_eq!(results[2], (format!("'{}'", GHOST_ID_START+2), "'2'".to_string()));
+        assert_eq!(results[3], (format!("'{}'", GHOST_ID_START+3), "'1'".to_string()));
 
         // TEST 4: update users correctly changes ghost values
         

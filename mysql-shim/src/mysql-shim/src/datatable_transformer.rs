@@ -349,6 +349,7 @@ impl DataTableTransformer {
                                 let gid = res.last_insert_id()?;
                                 val = Expr::Value(Value::Number(format!("{}", gid)));
 
+
                                 // update the last known GID
                                 LATEST_GID.fetch_max(gid, Ordering::SeqCst);
                             }
@@ -565,10 +566,32 @@ impl DataTableTransformer {
                  * */
                 match source {
                     InsertSource::Query(q) => {
+                        let mut contains_ucol_id = false;
                         match &q.body {
-                            SetExpr::Values(Values(vals_vec)) => {
+                            SetExpr::Values(Values(expr_vals)) => {
                                 // NOTE: only need to modify values if we're dealing with a DT,
                                 // could perform check here rather than calling vals_vec
+                                let mut vals_vec : Vec<Vec<Expr>>= vec![];
+                                for row in expr_vals {
+                                    let mut vals_row : Vec<Expr>= vec![];
+                                    for val in row {
+                                        let query_val = match self.expr_to_datatable_expr(&val, db, &mut contains_ucol_id, &vec![])? {
+                                            Expr::Subquery(q) => {
+                                                match q.body {
+                                                    SetExpr::Values(Values(subq_exprs)) => {
+                                                        assert_eq!(subq_exprs.len(), 1);
+                                                        assert_eq!(subq_exprs[0].len(), 1);
+                                                        subq_exprs[0][0].clone()
+                                                    }
+                                                    _ => unimplemented!("query_to_data_query should only return a Value"),
+                                                }
+                                            }
+                                            _ => val.clone(),
+                                        };
+                                        vals_row.push(self.expr_to_datatable_expr(&query_val, db, &mut contains_ucol_id, &vec![])?);
+                                    }
+                                    vals_vec.push(vals_row);
+                                }
                                 if let Some(vv) = self.vals_vec_to_datatable_vals(&vals_vec, &ucol_indices, db) {
                                     let mut new_q = q.clone();
                                     new_q.body = SetExpr::Values(Values(vv));
@@ -595,7 +618,10 @@ impl DataTableTransformer {
                                                 .collect());
                                         }
                                     }
-                                    _ => return Ok(None),
+                                    Err(e) => {
+                                        println!("Error: {}", e);
+                                        return Ok(None);
+                                    }
                                 }
                                 drop(res);
 
@@ -609,10 +635,9 @@ impl DataTableTransformer {
                                 }
                             }    
                         }
-                    } 
+                    }
                     InsertSource::DefaultValues => (), // TODO might have to get rid of this
                 }
-                println!("Insert statement of tab {:?}, sources updated to {:?}", table_name, dt_source);
                 dt_stmt = Statement::Insert(InsertStatement{
                     table_name: table_name.clone(),
                     columns : columns.clone(),

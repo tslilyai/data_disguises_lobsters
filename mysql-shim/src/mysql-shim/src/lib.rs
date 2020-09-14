@@ -65,6 +65,8 @@ impl Shim {
      * refresh "materialized views"
      */
     pub fn unsubscribe() -> bool {
+        // TODO update the users MV to have an entry for the GID
+        // when the user unsubscribes
         false
     }
 
