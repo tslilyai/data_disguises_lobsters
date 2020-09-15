@@ -741,7 +741,10 @@ impl DataTableTransformer {
                                 // otherwise, update GID entry with new UID value
                                 ghost_update_stmts.push(Statement::Update(UpdateStatement {
                                     table_name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
-                                    assignments: vec![uc_val.clone()],
+                                    assignments: vec![Assignment{
+                                        id: Ident::new(super::GHOST_USER_COL),
+                                        value: uc_val.value.clone(),
+                                    }],
                                     selection: Some(Expr::BinaryOp{
                                         left: Box::new(Expr::Identifier(helpers::string_to_idents(super::GHOST_ID_COL))),
                                         op: BinaryOperator::Eq,
