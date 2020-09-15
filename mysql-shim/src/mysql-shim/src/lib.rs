@@ -89,7 +89,6 @@ impl Shim {
         self.db.query_drop("DROP TABLE IF EXISTS ghosts;")?;
         self.db.query_drop(create_ghosts_query())?;
         self.db.query_drop(set_initial_gid_query())?;
-        println!("Ghosts table initialized");
         
         /* issue schema statements */
         let mut sql = String::new();
@@ -255,7 +254,6 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         match self.create_schema() {
             Ok(_) => Ok(w.ok()?),
             Err(e) => {
-                println!("Error {}", e);
                 Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?)
             }
         }
@@ -272,10 +270,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 assert!(stmts.len()==1);
                 // TODO wrap in txn
                 let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmts[0]);
-                println!("Executing on_query mv_stmt: {}, is_write={}", mv_stmt.to_string(), is_write);
+                println!("on_query: mv_stmt {}, is_write={}", mv_stmt.to_string(), is_write);
                 if is_write {
                     if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmts[0], &mut self.db)? {
-                        println!("Executing on_query dt_stmt: {}", dt_stmt.to_string());
+                        println!("on_query:  dt_stmt {}", dt_stmt.to_string());
                         self.db.query_drop(dt_stmt.to_string())?;
                     } else {
                         results.error(ErrorKind::ER_PARSE_ERROR, format!("{:?}", "Could not parse dt stmt").as_bytes())?;
