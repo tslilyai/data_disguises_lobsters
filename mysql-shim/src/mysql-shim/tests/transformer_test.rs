@@ -260,8 +260,47 @@ impl Tester {
         assert_eq!(results[2], (format!("'{}'", GHOST_ID_START+2), "'2'".to_string()));
         assert_eq!(results[3], (format!("'{}'", GHOST_ID_START+3), "'1'".to_string()));
 
-        // TEST 4: update users correctly changes ghost values
-        
+        /* 
+         * TEST 5: update correctly changes ghost values to point to new UIDs
+         */
+        let mut results = vec![];
+        db.query_drop(r"UPDATE moderations SET moderator_user_id = NULL, story_id = 1 WHERE moderations.user_id=1;").unwrap();
+        let res = db.query_iter(r"SELECT * FROM moderations WHERE user_id =1;").unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 5);
+            let id = format!("{}", mysql_val_to_parser_val(&vals[0]));
+            let mod_id = format!("{}", mysql_val_to_parser_val(&vals[1]));
+            let story_id = format!("{}", mysql_val_to_parser_val(&vals[2]));
+            let user_id = format!("{}", mysql_val_to_parser_val(&vals[3]));
+            let action = format!("{}", mysql_val_to_parser_val(&vals[4]));
+            results.push((id, mod_id, story_id, user_id, action));
+        }
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0], ("'1'".to_string(), "'NULL'".to_string(), "'1'".to_string(), "'1'".to_string(), "'worst story!'".to_string()));
+
+        // latest ghost entry removed (user was set to NULL)
+        let mut results = vec![];
+        let res = db.query_iter(r"SELECT * FROM ghosts;").unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 2);
+            let gid = format!("{}", mysql_val_to_parser_val(&vals[0]));
+            let uid = format!("{}", mysql_val_to_parser_val(&vals[1]));
+            results.push((gid, uid));
+        }
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0], (format!("'{}'", GHOST_ID_START), "'1'".to_string()));
+        assert_eq!(results[1], (format!("'{}'", GHOST_ID_START+1), "'2'".to_string()));
+        assert_eq!(results[2], (format!("'{}'", GHOST_ID_START+2), "'2'".to_string()));
+
+        /* 
+         * TEST 5: deletions correctly remove ghost IDs
+         */
+       
+        /*
+         * TODO unsubscribe / resubscribe
+         */
         drop(db);
         jh.join().unwrap();
     }
