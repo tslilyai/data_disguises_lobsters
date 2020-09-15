@@ -19,18 +19,19 @@ impl DataTableTransformer {
         let mv_trans = mv_transformer::MVTransformer::new(&cfg);
         DataTableTransformer{cfg, mv_trans}
     }   
-    
+
     fn get_user_cols_of_datatable(&self, table_name: &ObjectName) -> Vec<String> {
         let mut res : Vec<String> = vec![];
         let table_str = table_name.to_string();
-        for dt in &self.cfg.data_tables {
+        'dtloop: for dt in &self.cfg.data_tables {
             if table_str.ends_with(&dt.name) || table_str == dt.name {
                 for uc in &dt.user_cols {
                     let mut new_table_str = table_str.clone();
+                    new_table_str.push_str(".");
                     new_table_str.push_str(uc);
                     res.push(new_table_str);
                 }
-                break;
+                break 'dtloop;
             }
         }
         res
@@ -73,13 +74,14 @@ impl DataTableTransformer {
                               contains_ucol_id: &mut bool, ucols_to_replace: &Vec<String>) 
         -> Result<Expr, mysql::Error> 
     {
-        *contains_ucol_id = false;
         let new_expr = match expr {
             Expr::Identifier(_ids) => {
                 *contains_ucol_id |= ucols_to_replace.iter().any(|uc| uc.contains(&expr.to_string()));
+                println!("ID: {}, {}, {:?}", expr, contains_ucol_id, ucols_to_replace);
                 expr.clone()
             }
             Expr::QualifiedWildcard(_ids) => {
+                println!("ID: {}, {}, {:?}", expr, contains_ucol_id, ucols_to_replace);
                 *contains_ucol_id |= ucols_to_replace.iter().any(|uc| uc.contains(&expr.to_string()));
                 expr.clone()
             }
@@ -374,6 +376,8 @@ impl DataTableTransformer {
             // check if the expr contains any conditions on user columns
             dt_selection = Some(self.expr_to_datatable_expr(&s, db, &mut contains_ucol_id, &ucols)?);
 
+            println!("DT selection 1: {:?}", dt_selection);
+
             // if a user column is being used as a selection criteria, first perform a 
             // select of all UIDs of matching rows in the MVs
             if contains_ucol_id {
@@ -389,12 +393,13 @@ impl DataTableTransformer {
                             },
                             joins: vec![],
                         }],
-                        selection: Some(s.clone()),
+                        selection: Some(self.mv_trans.expr_to_mv_expr(&s)),
                         group_by: vec![],
                         having: None,
                     })),
                     as_of: None,
                 });
+                println!("mv select stmt {}", mv_select_stmt);
 
                 // collect row results from MV
                 let mut uids = vec![];
@@ -413,11 +418,12 @@ impl DataTableTransformer {
                         // Add condition on user column to be within relevant GIDs mapped
                         // to by the UID value
                         // However, only update with GIDs if UID value is NOT NULL
-                        if ucols.iter().any(|uc| *uc == colname) && row[i] != mysql::Value::NULL {
+                        if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) && row[i] != mysql::Value::NULL {
                             uids.push(row[i].clone());
                         }
                         row_vals.push(row[i].clone());
                     }
+                    println!("DT selection 2: {:?}", row_vals);
                     rows.push(row_vals);
                 }
 
@@ -479,7 +485,7 @@ impl DataTableTransformer {
                         // Add condition on user column to be within relevant GIDs mapped
                         // to by the UID value
                         // However, only update with GIDs if UID value is NOT NULL
-                        if ucols.iter().any(|uc| *uc == colname) && row[i] != mysql::Value::NULL {
+                        if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) && row[i] != mysql::Value::NULL {
                             // add condition on user column to be within the relevant GIDs
                             and_col_constraint_expr = Expr::BinaryOp {
                                 left: Box::new(and_col_constraint_expr),
@@ -550,7 +556,7 @@ impl DataTableTransformer {
                     for (i, c) in columns.into_iter().enumerate() {
                         // XXX this may overcount if a non-user column is a suffix of a user
                         // column
-                        if ucols.iter().any(|uc| uc.ends_with(&c.to_string()) || *uc == c.to_string()) {
+                        if ucols.iter().any(|uc| helpers::str_ident_match(&c.to_string(), uc)) {
                             println!("Inserting user column {}", c);
                             ucol_indices.push(i);
                         }
@@ -656,25 +662,28 @@ impl DataTableTransformer {
                 let mut dt_assn = vec![];
 
                 for a in assignments {
-                    // don't replace any UIDs when converting assignments to values
-                    let new_val = self.expr_to_datatable_expr(&a.value, db, &mut contains_ucol_id, &vec![])?;
-                    
                     // we still want to perform the update BUT we need to make sure that the updated value, if a 
                     // expr with a query, reads from the MV rather than the datatables
-                    // we also want to update any usercol value to NULL if the UID is being set to NULL. 
-                    let is_ucol = ucols.iter().any(|uc| *uc == a.id.to_string());
-                    if is_ucol || new_val == Expr::Value(Value::Null) {
+
+                    let new_val = self.expr_to_datatable_expr(&a.value, db, &mut contains_ucol_id, &vec![])?;
+                                        
+                    // we won't replace any UIDs when converting assignments to values, but
+                    // we also want to update any usercol value to NULL if the UID is being set to NULL, so we put it
+                    // in dt_assn too (rather than only updating the GID)
+                    let is_ucol = ucols.iter().any(|uc| helpers::str_ident_match(&a.id.to_string(), uc));
+                    if !is_ucol || new_val == Expr::Value(Value::Null) {
                         dt_assn.push(Assignment{
                             id: a.id.clone(),
-                            value: new_val,
+                            value: new_val.clone(),
                         });
-                    } else if is_ucol {
-                        // if we have an assignment to a UID, we need to update the GID->UID mapping
-                        // instead of updating the actual data table record
-                        // note that we still include NULL entries so we know to delete this GID
+                    } 
+                    // if we have an assignment to a UID, we need to update the GID->UID mapping
+                    // instead of updating the actual data table record
+                    // note that we still include NULL entries so we know to delete this GID
+                    if is_ucol {
                         ucol_assigns.push(Assignment {
                             id: a.id.clone(),
-                            value: new_val,
+                            value: new_val.clone(),
                         });
                         ucol_selectitems_assn.push(SelectItem::Expr{
                             expr: Expr::Identifier(vec![a.id.clone()]),
@@ -685,9 +694,13 @@ impl DataTableTransformer {
 
                 let dt_selection = self.selection_to_datatable_selection(selection, db, &table_name, &ucols)?;
              
+                println!("Update: ucols {:?}", ucols);
+                println!("Update: assigning new ucol values {:?}", ucol_assigns);
                 // if usercols are being updated, query DT to get the relevant
                 // GIDs and update these GID->UID mappings in the ghosts table
                 if !ucol_assigns.is_empty() {
+                    // TODO datatable has ONLY GIDS
+                    // dt_selection not working
                     let get_gids_stmt = Statement::Select(SelectStatement {
                         query: Box::new(Query::select(Select{
                             distinct: true,
@@ -706,10 +719,12 @@ impl DataTableTransformer {
                         as_of: None,
                     });
                     // get the user_col GIDs from the datatable
+                    println!("Update: get usercol GIDs: {}", get_gids_stmt);
                     let res = db.query_iter(format!("{}", get_gids_stmt.to_string()))?;
                     let mut ghost_update_stmts = vec![];
                     for row in res {
                         let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
+                        println!("gids retrieved: {:?}", mysql_vals);
                         for (i, uc_val) in ucol_assigns.iter().enumerate() {
                             let gid = helpers::mysql_val_to_parser_val(&mysql_vals[i]);
                             // delete the GID entry if it is being set to NULL
@@ -737,6 +752,7 @@ impl DataTableTransformer {
                         }
                     }
                     for gstmt in ghost_update_stmts {
+                        println!("Update: executing ghost query: {}", gstmt);
                         db.query_drop(format!("{}", gstmt.to_string()))?;
                     }
                 }

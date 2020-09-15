@@ -214,7 +214,7 @@ impl MVTransformer {
         mv_query
     }
  
-    fn expr_to_mv_expr(&self, expr: &Expr) -> Expr {
+    pub fn expr_to_mv_expr(&self, expr: &Expr) -> Expr {
         match expr {
             Expr::Identifier(ids) => Expr::Identifier(self.idents_to_mv_idents(&ids)),
             Expr::QualifiedWildcard(ids) => Expr::QualifiedWildcard(self.idents_to_mv_idents(&ids)),

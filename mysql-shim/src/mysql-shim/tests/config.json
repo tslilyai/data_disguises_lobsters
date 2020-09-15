@@ -6,7 +6,7 @@
     "data_tables" : [
         {
             "name": "moderations",
-            "user_cols": ["user_id, moderator_user_id"]
+            "user_cols": ["user_id", "moderator_user_id"]
         },
         {
             "name": "stories",

@@ -277,7 +277,7 @@ impl Tester {
             results.push((id, mod_id, story_id, user_id, action));
         }
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0], ("'1'".to_string(), "'NULL'".to_string(), "'1'".to_string(), "'1'".to_string(), "'worst story!'".to_string()));
+        assert_eq!(results[0], ("'2'".to_string(), "NULL".to_string(), "'1'".to_string(), "'1'".to_string(), "'worst story!'".to_string()));
 
         // latest ghost entry removed (user was set to NULL)
         let mut results = vec![];

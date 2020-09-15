@@ -29,6 +29,31 @@ pub fn str_subset_of_idents(dt: &str, ids: &Vec<Ident>) -> Option<(usize, usize)
  }
 
 // end exclusive
+pub fn str_ident_match(shorts: &str, longs: &str) -> bool {
+    let mut i = 0;
+    let mut j = 0;
+    let shortvs : Vec<&str> = shorts.split(".").collect();
+    let longvs : Vec<&str> = longs.split(".").collect();
+    while j < longvs.len() {
+        if i < shortvs.len() {
+            if shortvs[i] == longvs[j] {
+                i+=1;
+            } else {
+                // reset comparison from beginning of dt
+                i = 0; 
+            }
+            j+=1;
+        } else {
+            break;
+        }
+    }
+    if i == shortvs.len() {
+        return true;
+    } 
+    false
+}
+
+// end exclusive
 pub fn idents_subset_of_idents(id1: &Vec<Ident>, id2: &Vec<Ident>) -> Option<(usize, usize)> {
     let mut i = 0;
     let mut j = 0;
