@@ -732,7 +732,7 @@ impl DataTableTransformer {
                                 ghost_update_stmts.push(Statement::Delete(DeleteStatement {
                                     table_name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
                                     selection: Some(Expr::BinaryOp{
-                                        left: Box::new(Expr::Identifier(vec![uc_val.id.clone()])),
+                                        left: Box::new(Expr::Identifier(helpers::string_to_idents(super::GHOST_ID_COL))),
                                         op: BinaryOperator::Eq,
                                         right: Box::new(Expr::Value(Value::Number(format!("{}", gid)))),
                                     }),
@@ -743,7 +743,7 @@ impl DataTableTransformer {
                                     table_name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
                                     assignments: vec![uc_val.clone()],
                                     selection: Some(Expr::BinaryOp{
-                                        left: Box::new(Expr::Identifier(vec![uc_val.id.clone()])),
+                                        left: Box::new(Expr::Identifier(helpers::string_to_idents(super::GHOST_ID_COL))),
                                         op: BinaryOperator::Eq,
                                         right: Box::new(Expr::Value(Value::Number(format!("{}", gid)))),
                                     }),

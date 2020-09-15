@@ -264,8 +264,8 @@ impl Tester {
          * TEST 5: update correctly changes ghost values to point to new UIDs
          */
         let mut results = vec![];
-        db.query_drop(r"UPDATE moderations SET moderator_user_id = NULL, story_id = 1 WHERE moderations.user_id=1;").unwrap();
-        let res = db.query_iter(r"SELECT * FROM moderations WHERE user_id =1;").unwrap();
+        db.query_drop(r"UPDATE moderations SET user_id = NULL, story_id = 1 WHERE moderations.user_id=1;").unwrap();
+        let res = db.query_iter(r"SELECT * FROM moderations WHERE moderator_user_id =2;").unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
             assert_eq!(vals.len(), 5);
@@ -277,7 +277,7 @@ impl Tester {
             results.push((id, mod_id, story_id, user_id, action));
         }
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0], ("'2'".to_string(), "NULL".to_string(), "'1'".to_string(), "'1'".to_string(), "'worst story!'".to_string()));
+        assert_eq!(results[0], ("'2'".to_string(), "'2'".to_string(), "'1'".to_string(), "NULL".to_string(), "'worst story!'".to_string()));
 
         // latest ghost entry removed (user was set to NULL)
         let mut results = vec![];
