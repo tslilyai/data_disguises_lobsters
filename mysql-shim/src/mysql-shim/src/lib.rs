@@ -66,6 +66,7 @@ impl Shim {
 
     /* 
      * Set all user_ids in the MV to ghost ids, insert ghost users into usersMV
+     * TODO actually delete entries? 
      */
     pub fn unsubscribe(&mut self, uid: u64) -> Result<(), mysql::Error> {
         // TODO wrap in txn
@@ -137,7 +138,8 @@ impl Shim {
             }
            
             let mut select_constraint = Expr::Value(ast::Value::Boolean(true));
-            // add constraint on non-user columns to be identical
+            // add constraint on non-user columns to be identical (performing a "JOIN" on the DT
+            // and the MV so the correct rows are joined together)
             // XXX could put a constraint selecting rows only with the UID in a ucol
             // but the assignment CASE should already handle this?
             for col in &dt.data_cols {
@@ -158,9 +160,7 @@ impl Shim {
             }
                 
             // UPDATE corresponding MV
-            // SET MV.usercols (uid) = dt.usercols (gid)
-            // update dtMV
-            // SET dtMV.usercols = dt.usercols
+            // SET MV.usercols = (MV.usercol = uid) ? dt.usercol : MV.usercol 
             // WHERE dtMV = dt ON [all other rows equivalent]
             let update_dt_stmt = Statement::Update(UpdateStatement{
                 table_name: dtobjname,
@@ -180,8 +180,101 @@ impl Shim {
      * refresh "materialized views"
      * TODO add back deleted content from shard
      */
-    pub fn resubscribe() -> bool {
-        false
+    pub fn resubscribe(&mut self, uid: u64) -> Result<(), mysql::Error> {
+        // TODO check auth token?
+        let uid_val = ast::Value::Number(uid.to_string());
+        
+        let get_gids_stmt_from_ghosts = Query::select(Select{
+            distinct: true,
+            projection: vec![
+                SelectItem::Expr{
+                    expr: Expr::Identifier(helpers::string_to_objname(&GHOST_ID_COL).0),
+                    alias: None,
+                }
+            ],
+            from: vec![TableWithJoins{
+                relation: TableFactor::Table{
+                    name: helpers::string_to_objname(&GHOST_TABLE_NAME),
+                    alias: None,
+                },
+                joins: vec![],
+            }],
+            selection: Some(Expr::BinaryOp{
+                left: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_USER_COL))),
+                op: BinaryOperator::Eq, 
+                right: Box::new(Expr::Value(uid_val.clone())),
+            }),
+            group_by: vec![],
+            having: None,
+        });
+        let res = self.db.query_iter(format!("{}", get_gids_stmt_from_ghosts))?;
+        let mut gids = vec![];
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            gids.push(Expr::Value(helpers::mysql_val_to_parser_val(&vals[0])));
+        }
+
+        for dt in &self.cfg.data_tables {
+            let dtobjname = helpers::string_to_objname(&dt.name);
+            let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
+
+            let mut assignments = vec![];
+            for uc in ucols {
+                let uc_dt_ids = helpers::string_to_idents(&uc);
+                let uc_mv_ids = self.mv_trans.idents_to_mv_idents(&uc_dt_ids);
+                assignments.push(Assignment{
+                    // this is kind of messy... TODO systematize ident/objname/string conversions
+                    id: Ident::new(&ObjectName(uc_mv_ids.clone()).to_string()),
+                    // assign to new value if matches uid, otherwise keep the same
+                    value: Expr::Case{
+                        operand: None, 
+                        // check usercol_mv IN gids
+                        conditions: vec![Expr::InList{
+                            expr: Box::new(Expr::Identifier(uc_mv_ids.clone())),
+                            list: gids.clone(),
+                            negated: false,
+                        }],
+                        // then assign UID value
+                        results: vec![Expr::Identifier(uc_dt_ids)],
+                        // otherwise keep as the current value in the MV
+                        else_result: Some(Box::new(Expr::Identifier(uc_mv_ids.clone()))),
+                    },
+                });
+            }
+           
+            let mut select_constraint = Expr::Value(ast::Value::Boolean(true));
+            // add constraint on non-user columns to be identical (performing a "JOIN" on the DT
+            // and the MV so the correct rows are joined together)
+            // XXX could put a constraint selecting rows only with the GIDs in a ucol
+            // but the assignment CASE should already handle this?
+            for col in &dt.data_cols {
+                let mut fullname = dt.name.clone();
+                fullname.push_str(&col);
+                let dt_ids = helpers::string_to_idents(&fullname);
+                let mv_ids = self.mv_trans.idents_to_mv_idents(&dt_ids);
+
+                select_constraint = Expr::BinaryOp {
+                    left: Box::new(select_constraint),
+                    op: BinaryOperator::And,
+                    right: Box::new(Expr::BinaryOp{
+                        left: Box::new(Expr::Identifier(mv_ids)),
+                        op: BinaryOperator::Eq,
+                        right: Box::new(Expr::Identifier(dt_ids)),
+                    }),             
+                };
+            }
+                
+            // UPDATE corresponding MV
+            // SET MV.usercols = (MV.usercol = dt.usercol) ? uid : MV.usercol
+            // WHERE dtMV = dt ON [all other rows equivalent]
+            let update_dt_stmt = Statement::Update(UpdateStatement{
+                table_name: dtobjname,
+                assignments: assignments,
+                selection: Some(select_constraint),
+            });
+            self.db.query_drop(format!("{}", update_dt_stmt))?;
+        }    
+        Ok(())
     }
 
     /* 
