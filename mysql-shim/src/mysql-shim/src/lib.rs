@@ -3,6 +3,7 @@ use msql_srv::*;
 use mysql::prelude::*;
 use sql_parser::parser::*;
 use std::collections::HashMap;
+use sql_parser::ast::*;
 use std::*;
 mod helpers;
 pub mod config;
@@ -64,10 +65,20 @@ impl Shim {
      * Set all user_ids in the ghosts table to NULL
      * refresh "materialized views"
      */
-    pub fn unsubscribe() -> bool {
+    pub fn unsubscribe(&mut self, uid: u64) -> Result<(), mysql::Error> {
         // TODO update the users MV to have an entry for the GID
         // when the user unsubscribes
-        false
+        let uid_val = sql_parser::ast::Value::Number(uid.to_string());
+        let uid_to_gids = self.dt_trans.get_uid2gids_for_uids(vec![Expr::Value(uid_val.clone())], &mut self.db)?;
+        match uid_to_gids.get(&uid_val) {
+            Some(gids) => {
+                // change all entries with this UID to use the correct GID in the MV
+                //
+                return Ok(());
+            }
+            None => Ok(()),
+        }
+        // TODO return some type of auth token?
     }
 
     /* 
@@ -123,6 +134,8 @@ impl Shim {
                         if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt, &mut self.db)? {
                             println!("on_init: dt_stmt {}", dt_stmt.to_string());
                             self.db.query_drop(dt_stmt.to_string())?;
+                        } else {
+                            // TODO abort
                         }
                     }
                     // issue statement to materialized views AFTER

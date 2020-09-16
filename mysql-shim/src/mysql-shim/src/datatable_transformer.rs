@@ -5,6 +5,7 @@ use super::config;
 use super::helpers;
 use super::mv_transformer;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::*;
 
 static LATEST_GID : AtomicU64 = AtomicU64::new(super::GHOST_ID_START);
 
@@ -19,6 +20,78 @@ impl DataTableTransformer {
         let mv_trans = mv_transformer::MVTransformer::new(&cfg);
         DataTableTransformer{cfg, mv_trans}
     }   
+
+    pub fn insert_gid_for_uid(&self, uid: &Expr, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
+        // user ids are always ints
+        let res = db.query_iter(&format!("INSERT INTO {} ({}) VALUES ({});", 
+                                         super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid))?;
+        // we want to insert the GID in place
+        // of the UID
+        let gid = res.last_insert_id().ok_or_else(|| 
+            mysql::Error::IoError(io::Error::new(
+                io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
+        drop(res);
+        // insert an entry into the MV users table
+        // this requires that the ID col in the MV users table not be
+        // autoincrement, and that default values can be used for other
+        // columns
+        db.query_drop(&format!("INSERT INTO {} ({}) VALUES ({});", 
+                         self.cfg.user_table.name,
+                         self.cfg.user_table.id_col,
+                         gid))?;
+
+        // update the last known GID
+        LATEST_GID.fetch_max(gid, Ordering::SeqCst);
+        Ok(gid)
+    }
+
+    pub fn get_uid2gids_for_uids(&self, uids_to_match: Vec<Expr>, db: &mut mysql::Conn)
+        -> Result<HashMap<Value, Vec<Expr>>, mysql::Error> 
+    {
+        let get_gids_stmt_from_ghosts = Query::select(Select{
+            distinct: true,
+            projection: vec![
+                SelectItem::Expr{
+                    expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_USER_COL).0),
+                    alias: None,
+                },
+                SelectItem::Expr{
+                    expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_ID_COL).0),
+                    alias: None,
+                }
+            ],
+            from: vec![TableWithJoins{
+                relation: TableFactor::Table{
+                    name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
+                    alias: None,
+                },
+                joins: vec![],
+            }],
+            selection: Some(Expr::InList{
+                expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_USER_COL))),
+                list: uids_to_match,
+                negated: false,
+            }),
+            group_by: vec![],
+            having: None,
+        });
+
+        let mut uid_to_gids : HashMap<Value, Vec<Expr>> = HashMap::new();
+        let res = db.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
+        for row in res {
+            let vals : Vec<Value> = row.unwrap().unwrap()
+                .iter()
+                .map(|v| helpers::mysql_val_to_parser_val(&v))
+                .collect();
+            match uid_to_gids.get_mut(&vals[0]) {
+                Some(gids) => (*gids).push(Expr::Value(vals[1].clone())),
+                None => {
+                    uid_to_gids.insert(vals[0].clone(), vec![Expr::Value(vals[1].clone())]);
+                }
+            }
+        }
+        Ok(uid_to_gids)
+    }
 
     fn get_user_cols_of_datatable(&self, table_name: &ObjectName) -> Vec<String> {
         let mut res : Vec<String> = vec![];
@@ -321,10 +394,10 @@ impl DataTableTransformer {
     }
 
     fn vals_vec_to_datatable_vals(&mut self, vals_vec: &Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
-        -> Option<Vec<Vec<Expr>>> 
+        -> Result<Option<Vec<Vec<Expr>>>, mysql::Error>
     {
         if ucol_indices.is_empty() {
-            return Some(vals_vec.to_vec());
+            return Ok(Some(vals_vec.to_vec()));
         }         
         let mut parser_val_tuples = vec![];
         for row in vals_vec {
@@ -335,23 +408,8 @@ impl DataTableTransformer {
                 if ucol_indices.contains(&i) {
                     // NULL check: don't add ghosts entry if new UID value is NULL
                     if val != Expr::Value(Value::Null) {
-                        // user ids are always ints
-                        let res = db.query_iter(&format!("INSERT INTO `ghosts` ({}) VALUES ({});", super::GHOST_USER_COL, row[i]));
-                        match res {
-                            Err(_e) => {
-                                return None;
-                            }
-                            Ok(res) => {
-                                // we want to insert the GID in place
-                                // of the UID
-                                let gid = res.last_insert_id()?;
-                                val = Expr::Value(Value::Number(format!("{}", gid)));
-
-
-                                // update the last known GID
-                                LATEST_GID.fetch_max(gid, Ordering::SeqCst);
-                            }
-                        }
+                        let gid = self.insert_gid_for_uid(&row[i], db)?;
+                        val = Expr::Value(Value::Number(format!("{}", gid)));
                     }
                 }
                 // add to vector of values for this row
@@ -359,7 +417,7 @@ impl DataTableTransformer {
             }
             parser_val_tuples.push(parser_vals);
         }
-        Some(parser_val_tuples)
+        Ok(Some(parser_val_tuples))
     }
 
     fn selection_to_datatable_selection(&mut self, selection: &Option<Expr>, db: &mut mysql::Conn, 
@@ -422,48 +480,11 @@ impl DataTableTransformer {
                 // get all the gid rows corresponding to uids
                 // TODO deal with potential GIDs in user_cols due to
                 // unsubscriptions/resubscriptions
-                let get_gids_stmt = Query::select(Select{
-                    distinct: true,
-                    projection: vec![
-                        SelectItem::Expr{
-                            expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_USER_COL).0),
-                            alias: None,
-                        },
-                        SelectItem::Expr{
-                            expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_ID_COL).0),
-                            alias: None,
-                        }
-                    ],
-                    from: vec![TableWithJoins{
-                        relation: TableFactor::Table{
-                            name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
-                            alias: None,
-                        },
-                        joins: vec![],
-                    }],
-                    selection: Some(Expr::InList{
-                        expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_USER_COL))),
-                        list: uids.iter().map(|uid| Expr::Value(helpers::mysql_val_to_parser_val(&uid))).collect(), 
-                        negated: false,
-                    }),
-                    group_by: vec![],
-                    having: None,
-                });
-
-                let mut uid_to_gids : HashMap<Value, Vec<Expr>> = HashMap::new();
-                let res = db.query_iter(format!("{}", get_gids_stmt.to_string()))?;
-                for row in res {
-                    let vals : Vec<Value> = row.unwrap().unwrap()
-                        .iter()
-                        .map(|v| helpers::mysql_val_to_parser_val(&v))
-                        .collect();
-                    match uid_to_gids.get_mut(&vals[0]) {
-                        Some(gids) => (*gids).push(Expr::Value(vals[1].clone())),
-                        None => {
-                            uid_to_gids.insert(vals[0].clone(), vec![Expr::Value(vals[1].clone())]);
-                        }
-                    }
-                }
+                let uid_to_gids = self.get_uid2gids_for_uids(
+                    uids.iter()
+                        .map(|uid| Expr::Value(helpers::mysql_val_to_parser_val(&uid)))
+                        .collect(), 
+                    db)?;
 
                 // expr to constrain to select a particular row
                 let mut or_row_constraint_expr = Expr::Value(Value::Boolean(false));
@@ -589,7 +610,7 @@ impl DataTableTransformer {
                                     }
                                     vals_vec.push(vals_row);
                                 }
-                                if let Some(vv) = self.vals_vec_to_datatable_vals(&vals_vec, &ucol_indices, db) {
+                                if let Some(vv) = self.vals_vec_to_datatable_vals(&vals_vec, &ucol_indices, db)? {
                                     let mut new_q = q.clone();
                                     new_q.body = SetExpr::Values(Values(vv));
                                     dt_source = InsertSource::Query(new_q);
@@ -614,13 +635,13 @@ impl DataTableTransformer {
                                                 .collect());
                                         }
                                     }
-                                    Err(e) => {
+                                    Err(_e) => {
                                         return Ok(None);
                                     }
                                 }
                                 drop(res);
 
-                                if let Some(vv) = self.vals_vec_to_datatable_vals(&vals_vec, &ucol_indices, db) {
+                                if let Some(vv) = self.vals_vec_to_datatable_vals(&vals_vec, &ucol_indices, db)? {
                                     let mut new_q = q.clone();
                                     new_q.body = SetExpr::Values(Values(vv));
                                     dt_source = InsertSource::Query(new_q);
@@ -687,7 +708,7 @@ impl DataTableTransformer {
                 if !ucol_assigns.is_empty() {
                     // TODO datatable has ONLY GIDS
                     // dt_selection not working
-                    let get_gids_stmt = Statement::Select(SelectStatement {
+                    let get_gids_stmt_from_dt = Statement::Select(SelectStatement {
                         query: Box::new(Query::select(Select{
                             distinct: true,
                             projection: ucol_selectitems_assn,
@@ -705,7 +726,7 @@ impl DataTableTransformer {
                         as_of: None,
                     });
                     // get the user_col GIDs from the datatable
-                    let res = db.query_iter(format!("{}", get_gids_stmt.to_string()))?;
+                    let res = db.query_iter(format!("{}", get_gids_stmt_from_dt.to_string()))?;
                     let mut ghost_update_stmts = vec![];
                     for row in res {
                         let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
