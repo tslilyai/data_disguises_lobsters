@@ -15,6 +15,7 @@ const GHOST_ID_START : u64 = 1<<20;
 const GHOST_TABLE_NAME : &'static str = "ghosts";
 const GHOST_USER_COL : &'static str = "user_id";
 const GHOST_ID_COL: &'static str = "ghost_id";
+const MV_SUFFIX : &'static str = "mv"; 
 
 fn create_ghosts_query() -> String {
     format!(
@@ -94,7 +95,7 @@ impl Shim {
             group_by: vec![],
             having: None,
         });
-        let res = self.db.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
+        /*let res = self.db.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
         let mut gids = vec![];
         for row in res {
             let vals : Vec<Expr> = row.unwrap().unwrap()
@@ -102,25 +103,92 @@ impl Shim {
                 .map(|v| Expr::Value(helpers::mysql_val_to_parser_val(&v)))
                 .collect();
             gids.push(vals);
-        }
+        }*/
  
-        // update the users MV to have an entry all the users' GIDs
+        /* 
+         * 1. update the users MV to have an entry for all the users' GIDs
+         */
         let insert_gids_as_users_stmt = Statement::Insert(InsertStatement{
             table_name: self.mv_trans.objname_to_mv_objname(&helpers::string_to_objname(&self.cfg.user_table.name)),
             columns: vec![Ident::new(&self.cfg.user_table.id_col)],
-            source: InsertSource::Query(Box::new(Query {
+            source: InsertSource::Query(Box::new(get_gids_stmt_from_ghosts)),
+            /*source: InsertSource::Query(Box::new(Query {
                 ctes: vec![],
                 body: SetExpr::Values(Values(gids)),
                 order_by: vec![],
                 limit: None,
                 offset: None,
                 fetch: None,
-            })),
+            })),*/
         });
         self.db.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
         
-        // change all entries with this UID to use the correct GID in the MV
-        // do this by querying for all DT entries with usercols IN [list of GIDs]
+        /* 
+         * 2. Change all entries with this UID to use the correct GID in the MV
+         */
+        for dt in &self.cfg.data_tables {
+            let dtobjname = helpers::string_to_objname(&dt.name);
+            let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
+
+            let mut assignments = vec![];
+            for uc in ucols {
+                let uc_dt_ids = helpers::string_to_idents(&uc);
+                let uc_mv_ids = self.mv_trans.idents_to_mv_idents(&uc_dt_ids);
+                assignments.push(Assignment{
+                    // this is kind of messy... TODO systematize ident/objname/string conversions
+                    id: Ident::new(&ObjectName(uc_mv_ids.clone()).to_string()),
+                    // assign to new value if matches uid, otherwise keep the same
+                    value: Expr::Case{
+                        operand: None, 
+                        // check usercol_mv = UID
+                        conditions: vec![Expr::BinaryOp{
+                            left: Box::new(Expr::Identifier(uc_mv_ids.clone())),
+                            op: BinaryOperator::Eq,
+                            right: Box::new(Expr::Value(uid_val.clone())),
+                        }],
+                        // then assign to ghost ucol value
+                        results: vec![Expr::Identifier(uc_dt_ids)],
+                        // otherwise keep as the uid in the MV
+                        else_result: Some(Box::new(Expr::Identifier(uc_mv_ids.clone()))),
+                    },
+                });
+            }
+           
+            // first constraint: MVcol matches UID
+            // XXX could put a constraint selecting rows only with the UID in a ucol
+            // but the assignment CASE should already handle this?
+            let mut select_constraint = Expr::Value(ast::Value::Boolean(true));
+            for col in &dt.data_cols {
+                select_constraint = Expr::BinaryOp {
+                    left: Box::new(select_constraint),
+                    op: BinaryOperator::And,
+                    right: Box::new(Expr::BinaryOp{
+                        left: Box::new(Expr::Identifier(vec![Ident::new(helpers::dtname_to_mvname_string(&dt.name)), Ident::new(col)])),
+                        op: BinaryOperator::Eq,
+                        right: Box::new(Expr::Identifier(vec![Ident::new(&dt.name), Ident::new(col)])),
+                    }),             
+                };
+            }
+             
+            let update_dt_stmt = Statement::Update(UpdateStatement{
+                table_name: dtobjname,
+                assignments: assignments,
+                selection: Some(select_constraint),
+            });
+                
+            // UPDATE corresponding MV
+            // SET MV.usercols (uid) = dt.usercols (gid)
+            // update dtMV
+            // SET dtMV.usercols = dt.usercols
+            // FROM dtMV left join dt ON // all other rows equivalent
+            // WHERE dtMV.usercols = UID
+            // select all rows of DT where usercol in [list of GIDs]
+
+            // update matching col with row values 
+        }
+        
+        // Query for all DT entries with usercols IN [list of GIDs]
+       
         // update each corresponding row in the MV with the respective GID
         
         // TODO return some type of auth token?
@@ -311,11 +379,27 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         }   
        
         match self.create_schema() {
-            Ok(_) => Ok(w.ok()?),
+            Ok(_) => (),
             Err(e) => {
-                Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?)
+                return Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?);
             }
         }
+
+        // initialize columns of DT
+        for dt in &mut self.cfg.data_tables {
+            let res = self.db.query_iter(format!("SHOW COLUMNS FROM {dt_name}", dt_name=dt.name))?;
+            for row in res {
+                let vals = row.unwrap().unwrap();
+                if vals.len() < 1 {
+                    return Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &"No columns in table".as_bytes())?)
+                }
+                let colname = helpers::mysql_val_to_parser_val(&vals[0]).to_string(); 
+                if !dt.user_cols.iter().any(|uc| *uc == colname) {
+                    dt.data_cols.push(colname);
+                }
+            }
+        }
+        Ok(w.ok()?)
     }
 
     fn on_query(&mut self, query: &str, results: QueryResultWriter<W>) -> Result<(), Self::Error> {

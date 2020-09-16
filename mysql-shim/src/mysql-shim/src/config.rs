@@ -10,7 +10,7 @@ pub struct UserTable{
 pub struct DataTable{
     pub name : String,
     pub user_cols : Vec<String>,
-    pub id_col: String,
+    pub data_cols : Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -40,7 +40,7 @@ pub fn parse_config(contents: &str) -> io::Result<Config> {
             .map(|jdt| DataTable{
                 name: jdt.name.clone(),
                 user_cols: jdt.user_cols.clone(),
-                id_col: String::new(),
+                data_cols: vec![],
             })
         .collect(),
     };

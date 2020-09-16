@@ -83,23 +83,6 @@ impl DataTableTransformer {
         }
         Ok(uid_to_gids)
     }
-
-    fn get_user_cols_of_datatable(&self, table_name: &ObjectName) -> Vec<String> {
-        let mut res : Vec<String> = vec![];
-        let table_str = table_name.to_string();
-        'dtloop: for dt in &self.cfg.data_tables {
-            if table_str.ends_with(&dt.name) || table_str == dt.name {
-                for uc in &dt.user_cols {
-                    let mut new_table_str = table_str.clone();
-                    new_table_str.push_str(".");
-                    new_table_str.push_str(uc);
-                    res.push(new_table_str);
-                }
-                break 'dtloop;
-            }
-        }
-        res
-    }
     
     /* 
      * This issues the specified query to the MVs, and returns a VALUES query that
@@ -553,7 +536,7 @@ impl DataTableTransformer {
                      those as the values instead for those columns.
                     This will be empty if the table is the user table, or not a datatable
                  */
-                let ucols = self.get_user_cols_of_datatable(&table_name);
+                let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &table_name);
                 let mut ucol_indices = vec![];
                 // get indices of columns corresponding to user vals
                 if !ucols.is_empty() {
@@ -655,7 +638,7 @@ impl DataTableTransformer {
                 assignments,
                 selection,
             }) => {
-                let ucols = self.get_user_cols_of_datatable(&table_name);
+                let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &table_name);
                 let mut contains_ucol_id = false;
                 let mut ucol_assigns = vec![];
                 let mut ucol_selectitems_assn = vec![];
@@ -764,7 +747,7 @@ impl DataTableTransformer {
                 table_name,
                 selection,
             }) => {
-                let ucols = self.get_user_cols_of_datatable(&table_name);
+                let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &table_name);
                 let dt_selection = self.selection_to_datatable_selection(selection, db, &table_name, &ucols)?;
 
                 let ucol_selectitems = ucols.iter()

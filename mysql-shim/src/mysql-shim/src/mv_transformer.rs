@@ -3,8 +3,6 @@ use std::*;
 use super::config;
 use super::helpers;
 
-const MV_SUFFIX : &'static str = "mv"; 
-
 pub struct MVTransformer {
     table_names: Vec<String>,
 }
@@ -29,8 +27,8 @@ impl MVTransformer {
     pub fn objname_to_mv_objname(&self, obj: &ObjectName) -> ObjectName {
         ObjectName(self.idents_to_mv_idents(&obj.0))
     }
-    
-    fn idents_to_mv_idents(&self, obj: &Vec<Ident>) -> Vec<Ident> {
+ 
+    pub fn idents_to_mv_idents(&self, obj: &Vec<Ident>) -> Vec<Ident> {
         // note that we assume that the name specified in the config
         // is the minimum needed to identify the data table.
         // if there are duplicates, the database/schema would also
@@ -45,7 +43,7 @@ impl MVTransformer {
                 for (index, ident) in obj.iter().enumerate() {
                     if index == end-1 {
                         // we found a match
-                        objs_mv.push(Ident::new(&format!("{}{}", ident, MV_SUFFIX)));
+                        objs_mv.push(Ident::new(&format!("{}{}", ident, super::MV_SUFFIX)));
                     } else {
                         objs_mv.push(ident.clone());
                     }
@@ -595,7 +593,7 @@ impl MVTransformer {
                                     }
                                 }
                             }*/
-                            to_item_mv_name = format!("{}{}", to_item_name, MV_SUFFIX);
+                            to_item_mv_name = format!("{}{}", to_item_name, super::MV_SUFFIX);
                         }
                     }
                     _ => (),

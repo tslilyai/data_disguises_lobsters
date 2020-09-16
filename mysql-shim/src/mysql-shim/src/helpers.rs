@@ -1,5 +1,6 @@
 use sql_parser::ast::*;
 use std::*;
+use super::config;
 
 fn trim_quotes(s: &str) -> &str {
     let mut s = s;
@@ -7,6 +8,29 @@ fn trim_quotes(s: &str) -> &str {
         s = &s[1..s.len() - 1]
     } 
     s
+}
+
+pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName) -> Vec<String> {
+    let mut res : Vec<String> = vec![];
+    let table_str = table_name.to_string();
+    'dtloop: for dt in &cfg.data_tables {
+        if table_str.ends_with(&dt.name) || table_str == dt.name {
+            for uc in &dt.user_cols {
+                let mut new_table_str = table_str.clone();
+                new_table_str.push_str(".");
+                new_table_str.push_str(uc);
+                res.push(new_table_str);
+            }
+            break 'dtloop;
+        }
+    }
+    res
+}
+ 
+pub fn dtname_to_mvname_string(dtname: &String) -> String {
+    let mut mvname = dtname.clone();
+    mvname.push_str(super::MV_SUFFIX);
+    mvname
 }
 
 pub fn string_to_idents(s: &str) -> Vec<Ident> {
