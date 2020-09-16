@@ -95,15 +95,6 @@ impl Shim {
             group_by: vec![],
             having: None,
         });
-        /*let res = self.db.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
-        let mut gids = vec![];
-        for row in res {
-            let vals : Vec<Expr> = row.unwrap().unwrap()
-                .iter()
-                .map(|v| Expr::Value(helpers::mysql_val_to_parser_val(&v)))
-                .collect();
-            gids.push(vals);
-        }*/
  
         /* 
          * 1. update the users MV to have an entry for all the users' GIDs
@@ -112,14 +103,6 @@ impl Shim {
             table_name: self.mv_trans.objname_to_mv_objname(&helpers::string_to_objname(&self.cfg.user_table.name)),
             columns: vec![Ident::new(&self.cfg.user_table.id_col)],
             source: InsertSource::Query(Box::new(get_gids_stmt_from_ghosts)),
-            /*source: InsertSource::Query(Box::new(Query {
-                ctes: vec![],
-                body: SetExpr::Values(Values(gids)),
-                order_by: vec![],
-                limit: None,
-                offset: None,
-                fetch: None,
-            })),*/
         });
         self.db.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
         
@@ -154,42 +137,40 @@ impl Shim {
                 });
             }
            
-            // first constraint: MVcol matches UID
+            let mut select_constraint = Expr::Value(ast::Value::Boolean(true));
+            // add constraint on non-user columns to be identical
             // XXX could put a constraint selecting rows only with the UID in a ucol
             // but the assignment CASE should already handle this?
-            let mut select_constraint = Expr::Value(ast::Value::Boolean(true));
             for col in &dt.data_cols {
+                let mut fullname = dt.name.clone();
+                fullname.push_str(&col);
+                let dt_ids = helpers::string_to_idents(&fullname);
+                let mv_ids = self.mv_trans.idents_to_mv_idents(&dt_ids);
+
                 select_constraint = Expr::BinaryOp {
                     left: Box::new(select_constraint),
                     op: BinaryOperator::And,
                     right: Box::new(Expr::BinaryOp{
-                        left: Box::new(Expr::Identifier(vec![Ident::new(helpers::dtname_to_mvname_string(&dt.name)), Ident::new(col)])),
+                        left: Box::new(Expr::Identifier(mv_ids)),
                         op: BinaryOperator::Eq,
-                        right: Box::new(Expr::Identifier(vec![Ident::new(&dt.name), Ident::new(col)])),
+                        right: Box::new(Expr::Identifier(dt_ids)),
                     }),             
                 };
             }
-             
-            let update_dt_stmt = Statement::Update(UpdateStatement{
-                table_name: dtobjname,
-                assignments: assignments,
-                selection: Some(select_constraint),
-            });
                 
             // UPDATE corresponding MV
             // SET MV.usercols (uid) = dt.usercols (gid)
             // update dtMV
             // SET dtMV.usercols = dt.usercols
-            // FROM dtMV left join dt ON // all other rows equivalent
-            // WHERE dtMV.usercols = UID
-            // select all rows of DT where usercol in [list of GIDs]
+            // WHERE dtMV = dt ON [all other rows equivalent]
+            let update_dt_stmt = Statement::Update(UpdateStatement{
+                table_name: dtobjname,
+                assignments: assignments,
+                selection: Some(select_constraint),
+            });
 
-            // update matching col with row values 
+            self.db.query_drop(format!("{}", update_dt_stmt))?;
         }
-        
-        // Query for all DT entries with usercols IN [list of GIDs]
-       
-        // update each corresponding row in the MV with the respective GID
         
         // TODO return some type of auth token?
         Ok(())
