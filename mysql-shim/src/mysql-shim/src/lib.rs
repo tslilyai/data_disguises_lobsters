@@ -65,8 +65,7 @@ impl Shim {
     }   
 
     /* 
-     * Set all user_ids in the ghosts table to NULL
-     * refresh "materialized views"
+     * Set all user_ids in the MV to ghost ids, insert ghost users into usersMV
      */
     pub fn unsubscribe(&mut self, uid: u64) -> Result<(), mysql::Error> {
         // TODO wrap in txn
