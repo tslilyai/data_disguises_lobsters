@@ -3,6 +3,7 @@ use msql_srv::*;
 use mysql::prelude::*;
 use sql_parser::parser::*;
 use std::collections::HashMap;
+use sql_parser::*;
 use sql_parser::ast::*;
 use std::*;
 mod helpers;
@@ -35,6 +36,7 @@ struct Prepared {
 }
 
 pub struct Shim { 
+    cfg: config::Config,
     db: mysql::Conn,
     prepared: HashMap<u32, Prepared>,
     
@@ -58,7 +60,7 @@ impl Shim {
         let prepared = HashMap::new();
         let mv_trans = mv_transformer::MVTransformer::new(&cfg);
         let dt_trans = datatable_transformer::DataTableTransformer::new(cfg.clone());
-        Shim{db, mv_trans, dt_trans, prepared, schema}
+        Shim{cfg, db, mv_trans, dt_trans, prepared, schema}
     }   
 
     /* 
@@ -66,19 +68,63 @@ impl Shim {
      * refresh "materialized views"
      */
     pub fn unsubscribe(&mut self, uid: u64) -> Result<(), mysql::Error> {
-        // TODO update the users MV to have an entry for the GID
-        // when the user unsubscribes
-        let uid_val = sql_parser::ast::Value::Number(uid.to_string());
-        let uid_to_gids = self.dt_trans.get_uid2gids_for_uids(vec![Expr::Value(uid_val.clone())], &mut self.db)?;
-        match uid_to_gids.get(&uid_val) {
-            Some(gids) => {
-                // change all entries with this UID to use the correct GID in the MV
-                //
-                return Ok(());
-            }
-            None => Ok(()),
+        // TODO wrap in txn
+        let uid_val = ast::Value::Number(uid.to_string());
+        
+        let get_gids_stmt_from_ghosts = Query::select(Select{
+            distinct: true,
+            projection: vec![
+                SelectItem::Expr{
+                    expr: Expr::Identifier(helpers::string_to_objname(&GHOST_ID_COL).0),
+                    alias: None,
+                }
+            ],
+            from: vec![TableWithJoins{
+                relation: TableFactor::Table{
+                    name: helpers::string_to_objname(&GHOST_TABLE_NAME),
+                    alias: None,
+                },
+                joins: vec![],
+            }],
+            selection: Some(Expr::BinaryOp{
+                left: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_USER_COL))),
+                op: BinaryOperator::Eq, 
+                right: Box::new(Expr::Value(uid_val.clone())),
+            }),
+            group_by: vec![],
+            having: None,
+        });
+        let res = self.db.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
+        let mut gids = vec![];
+        for row in res {
+            let vals : Vec<Expr> = row.unwrap().unwrap()
+                .iter()
+                .map(|v| Expr::Value(helpers::mysql_val_to_parser_val(&v)))
+                .collect();
+            gids.push(vals);
         }
+ 
+        // update the users MV to have an entry all the users' GIDs
+        let insert_gids_as_users_stmt = Statement::Insert(InsertStatement{
+            table_name: self.mv_trans.objname_to_mv_objname(&helpers::string_to_objname(&self.cfg.user_table.name)),
+            columns: vec![Ident::new(&self.cfg.user_table.id_col)],
+            source: InsertSource::Query(Box::new(Query {
+                ctes: vec![],
+                body: SetExpr::Values(Values(gids)),
+                order_by: vec![],
+                limit: None,
+                offset: None,
+                fetch: None,
+            })),
+        });
+        self.db.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
+        
+        // change all entries with this UID to use the correct GID in the MV
+        // do this by querying for all DT entries with usercols IN [list of GIDs]
+        // update each corresponding row in the MV with the respective GID
+        
         // TODO return some type of auth token?
+        Ok(())
     }
 
     /* 

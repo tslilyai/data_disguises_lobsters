@@ -21,7 +21,7 @@ impl DataTableTransformer {
         DataTableTransformer{cfg, mv_trans}
     }   
 
-    pub fn insert_gid_for_uid(&self, uid: &Expr, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
+    fn insert_gid_for_uid(&self, uid: &Expr, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
         // user ids are always ints
         let res = db.query_iter(&format!("INSERT INTO {} ({}) VALUES ({});", 
                                          super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid))?;
@@ -30,16 +30,7 @@ impl DataTableTransformer {
         let gid = res.last_insert_id().ok_or_else(|| 
             mysql::Error::IoError(io::Error::new(
                 io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
-        drop(res);
-        // insert an entry into the MV users table
-        // this requires that the ID col in the MV users table not be
-        // autoincrement, and that default values can be used for other
-        // columns
-        db.query_drop(&format!("INSERT INTO {} ({}) VALUES ({});", 
-                         self.cfg.user_table.name,
-                         self.cfg.user_table.id_col,
-                         gid))?;
-
+        
         // update the last known GID
         LATEST_GID.fetch_max(gid, Ordering::SeqCst);
         Ok(gid)
