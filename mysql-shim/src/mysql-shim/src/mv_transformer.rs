@@ -1,9 +1,11 @@
+use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::*;
 use super::config;
 use super::helpers;
 
 pub struct MVTransformer {
+    user_table_name: String,
     table_names: Vec<String>,
 }
 
@@ -15,6 +17,7 @@ impl MVTransformer {
             table_names.push(dt.name.clone());
         }
         MVTransformer{
+            user_table_name : cfg.user_table.name.clone(),
             table_names: table_names, 
         }
     }   
@@ -411,7 +414,7 @@ impl MVTransformer {
         }
     }
     
-    pub fn stmt_to_mv_stmt(&mut self, stmt: &Statement) -> (Statement, bool /*is_write*/) {
+    pub fn stmt_to_mv_stmt(&mut self, stmt: &Statement, db: &mut mysql::Conn) -> Result<(Statement, bool /*is_write*/), mysql::Error> {
         let mv_stmt : Statement;
         let mut is_write = false;
         let mv_table_name : String;
@@ -523,7 +526,7 @@ impl MVTransformer {
             }) => {
                 is_write = true;
                 mv_table_name = self.objname_to_mv_string(&name);
-                let mv_constraints = constraints
+                let mv_constraints : Vec<TableConstraint> = constraints
                     .iter()
                     .map(|c| match c {
                         TableConstraint::ForeignKey {
@@ -543,6 +546,33 @@ impl MVTransformer {
                         _ => c.clone(),
                     })
                     .collect(); 
+
+                // if we're creating the user table, also create the ghost users table
+                // with the same columns
+                if name.to_string() == self.user_table_name {
+                    let name = helpers::string_to_objname(&super::GHOST_USERS_MV);
+                    
+                    let drop_stmt = Statement::DropObjects(DropObjectsStatement{
+                        object_type: ObjectType::Table,
+                        if_exists: true,
+                        names: vec![name.clone()],
+                        cascade: true,
+                    });
+                    println!("{}", drop_stmt);
+
+                    db.query_drop(format!("{}", drop_stmt.to_string()))?;
+                    
+                    let create_stmt = Statement::CreateTable(CreateTableStatement{
+                        name: name.clone(),
+                        columns: columns.clone(),
+                        constraints: mv_constraints.clone(),
+                        with_options: with_options.clone(),
+                        if_not_exists: if_not_exists.clone(),
+                    });
+                    println!("{}", create_stmt);
+                    db.query_drop(format!("{}", create_stmt.to_string()))?;
+                }
+
                 mv_stmt = Statement::CreateTable(CreateTableStatement{
                     name: helpers::string_to_objname(&mv_table_name),
                     columns: columns.clone(),
@@ -550,7 +580,6 @@ impl MVTransformer {
                     with_options: with_options.clone(),
                     if_not_exists: if_not_exists.clone(),
                 });
-                // TODO might have to add auto_increment here 
             }
             Statement::CreateIndex(CreateIndexStatement{
                 name,
@@ -661,8 +690,6 @@ impl MVTransformer {
                     filter: mv_filter,
                 })
             }
-            // XXX TODO should indexes be created in both the 
-            // MV and the data table? (if data is only ever read from MV)
             Statement::ShowIndexes(ShowIndexesStatement{
                 table_name,
                 extended,
@@ -702,6 +729,6 @@ impl MVTransformer {
                 mv_stmt = stmt.clone();
             }
         }
-        (mv_stmt, is_write)
+        Ok((mv_stmt, is_write))
     }
 }

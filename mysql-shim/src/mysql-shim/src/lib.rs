@@ -16,6 +16,7 @@ const GHOST_TABLE_NAME : &'static str = "ghosts";
 const GHOST_USER_COL : &'static str = "user_id";
 const GHOST_ID_COL: &'static str = "ghost_id";
 const MV_SUFFIX : &'static str = "mv"; 
+const GHOST_USERS_MV : &'static str = "ghostusersmv"; 
 
 fn create_ghosts_query() -> String {
     format!(
@@ -100,7 +101,7 @@ impl Shim {
          * 1. update the users MV to have an entry for all the users' GIDs
          */
         let insert_gids_as_users_stmt = Statement::Insert(InsertStatement{
-            table_name: self.mv_trans.objname_to_mv_objname(&helpers::string_to_objname(&self.cfg.user_table.name)),
+            table_name: helpers::string_to_objname(GHOST_USERS_MV),
             columns: vec![Ident::new(&self.cfg.user_table.id_col)],
             source: InsertSource::Query(Box::new(get_gids_stmt_from_ghosts)),
         });
@@ -214,6 +215,22 @@ impl Shim {
             gids.push(Expr::Value(helpers::mysql_val_to_parser_val(&vals[0])));
         }
 
+        /*
+         * 1. drop all GIDs from GHOST_USER_MV
+         */
+        let delete_gids_as_users_stmt = Statement::Delete(DeleteStatement {
+            table_name: helpers::string_to_objname(GHOST_USERS_MV),
+            selection: Some(Expr::InList{
+                expr: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
+                list: gids.clone(),
+                negated: false, 
+            }),
+        });
+        self.db.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
+        
+        /* 
+         * 2. update assignments in MV to use UID again
+         */
         for dt in &self.cfg.data_tables {
             let dtobjname = helpers::string_to_objname(&dt.name);
             let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
@@ -313,7 +330,7 @@ impl Shim {
             Ok(stmts) => {
                 for stmt in stmts {
                     // TODO wrap in txn
-                    let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmt);
+                    let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmt, &mut self.db)?;
                     println!("on_init: mv_stmt {}", mv_stmt.to_string());
                     if is_write {
                         // issue actual statement to datatables if they are writes (potentially creating ghost ID 
@@ -485,7 +502,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             Ok(stmts) => {
                 assert!(stmts.len()==1);
                 // TODO wrap in txn
-                let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmts[0]);
+                let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmts[0], &mut self.db)?;
                 println!("on_query: mv_stmt {}, is_write={}", mv_stmt.to_string(), is_write);
                 if is_write {
                     if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmts[0], &mut self.db)? {

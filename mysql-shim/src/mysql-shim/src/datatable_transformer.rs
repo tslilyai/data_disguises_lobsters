@@ -718,6 +718,7 @@ impl DataTableTransformer {
                                 }));
                             } else {
                                 // otherwise, update GID entry with new UID value
+                                // XXX what if the value IS a GID??? should we just remove this GID?
                                 ghost_update_stmts.push(Statement::Update(UpdateStatement {
                                     table_name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
                                     assignments: vec![Assignment{

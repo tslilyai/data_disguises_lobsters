@@ -61,6 +61,7 @@ fn trim_one<'a>(s: &'a str) -> &'a str {
 #[test]
 fn test_mvtrans_datadriven() {
     let cfg = config::parse_config(include_str!("./config_mvtrans_test.json")).unwrap();
+    let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
     walk("tests/testdata", |f| {
         f.run(|test_case| -> String {
             let mut mv_trans = mv_transformer::MVTransformer::new(&cfg);
@@ -73,7 +74,7 @@ fn test_mvtrans_datadriven() {
                                 "expected exactly one statement".to_string()
                             } else {
                                 let stmt = s.iter().next().unwrap();
-                                let (mv_stmt, _write_query) = mv_trans.stmt_to_mv_stmt(stmt);
+                                let (mv_stmt, _write_query) = mv_trans.stmt_to_mv_stmt(stmt, &mut db).unwrap();
                                 if test_case.args.get("roundtrip").is_some() {
                                     format!("{}\n", mv_stmt.to_string())
                                 } else {
@@ -146,7 +147,7 @@ impl Tester {
             results.push(trimmed);
         }
         let tables = vec![
-            "ghosts",
+            "ghosts", "ghostusersmv",
             "stories", "storiesmv",
             "users", "usersmv",
             "moderations", "moderationsmv",
