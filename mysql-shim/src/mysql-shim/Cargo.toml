@@ -8,7 +8,7 @@ exclude = ["tests/testdata"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 mysql = "*"
-msql-srv = "0.9.1"
+msql-srv = { path = "../msql-srv" }
 sql-parser = { path = "../sql-parser" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }

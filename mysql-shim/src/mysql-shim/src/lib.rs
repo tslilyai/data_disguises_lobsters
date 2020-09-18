@@ -66,10 +66,71 @@ impl Shim {
     }   
 
     /* 
+     * Given schema in sql, issue queries to set up database.
+     * Must be issued after select_db statement is issued.
+     * */
+    fn create_schema(&mut self) -> Result<(), mysql::Error> {
+        /* create ghost metadata table with boolean cols for each user id */
+        // XXX temp: create a new ghost metadata table
+        self.db.query_drop("DROP TABLE IF EXISTS ghosts;")?;
+        self.db.query_drop(create_ghosts_query())?;
+        self.db.query_drop(set_initial_gid_query())?;
+        
+        /* issue schema statements */
+        let mut sql = String::new();
+        for line in self.schema.lines() {
+            if line.starts_with("--") || line.is_empty() {
+                continue;
+            }
+            if !sql.is_empty() {
+                sql.push_str(" ");
+            }
+            sql.push_str(line);
+            if sql.ends_with(';') {
+                sql.push_str("\n");
+            }
+        }
+
+        // TODO deal with creation of indices within create table statements
+        let stmts = parse_statements(sql);
+        match stmts {
+            Err(e) => {
+                Err(mysql::Error::IoError(io::Error::new(
+                        io::ErrorKind::InvalidInput, e)))
+            }
+            Ok(stmts) => {
+                for stmt in stmts {
+                    // TODO wrap in txn
+                    let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmt, &mut self.db)?;
+                    println!("on_init: mv_stmt {}", mv_stmt.to_string());
+                    if is_write {
+                        // issue actual statement to datatables if they are writes (potentially creating ghost ID 
+                        // entries as well)
+                        if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt, &mut self.db)? {
+                            println!("on_init: dt_stmt {}", dt_stmt.to_string());
+                            self.db.query_drop(dt_stmt.to_string())?;
+                        } else {
+                            // TODO abort
+                        }
+                    }
+                    // issue statement to materialized views AFTER
+                    // issuing to datatables (which may perform reads)
+                    self.db.query_drop(mv_stmt.to_string())?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+impl<W: io::Write> MysqlShim<W> for Shim {
+    type Error = mysql::Error;
+
+    /* 
      * Set all user_ids in the MV to ghost ids, insert ghost users into usersMV
      * TODO actually delete entries? 
      */
-    pub fn unsubscribe(&mut self, uid: u64) -> Result<(), mysql::Error> {
+    fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
         // TODO wrap in txn
         let uid_val = ast::Value::Number(uid.to_string());
         
@@ -107,8 +168,21 @@ impl Shim {
         });
         self.db.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
         
+        /*
+         * 2. delete UID from users MV
+         */
+       let delete_uid_from_users = Statement::Delete(DeleteStatement {
+            table_name: helpers::string_to_objname(&self.cfg.user_table.name),
+            selection: Some(Expr::BinaryOp{
+                left: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(uid_val.clone())), 
+            }),
+        });
+        self.db.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
+ 
         /* 
-         * 2. Change all entries with this UID to use the correct GID in the MV
+         * 3. Change all entries with this UID to use the correct GID in the MV
          */
         for dt in &self.cfg.data_tables {
             let dtobjname = helpers::string_to_objname(&dt.name);
@@ -173,7 +247,7 @@ impl Shim {
         }
         
         // TODO return some type of auth token?
-        Ok(())
+        Ok(w.ok()?)
     }
 
     /* 
@@ -181,7 +255,7 @@ impl Shim {
      * refresh "materialized views"
      * TODO add back deleted content from shard
      */
-    pub fn resubscribe(&mut self, uid: u64) -> Result<(), mysql::Error> {
+    fn on_resubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
         // TODO check auth token?
         let uid_val = ast::Value::Number(uid.to_string());
         
@@ -291,69 +365,8 @@ impl Shim {
             });
             self.db.query_drop(format!("{}", update_dt_stmt))?;
         }    
-        Ok(())
+        Ok(w.ok()?)
     }
-
-    /* 
-     * Given schema in sql, issue queries to set up database.
-     * Must be issued after select_db statement is issued.
-     * */
-    fn create_schema(&mut self) -> Result<(), mysql::Error> {
-        /* create ghost metadata table with boolean cols for each user id */
-        // XXX temp: create a new ghost metadata table
-        self.db.query_drop("DROP TABLE IF EXISTS ghosts;")?;
-        self.db.query_drop(create_ghosts_query())?;
-        self.db.query_drop(set_initial_gid_query())?;
-        
-        /* issue schema statements */
-        let mut sql = String::new();
-        for line in self.schema.lines() {
-            if line.starts_with("--") || line.is_empty() {
-                continue;
-            }
-            if !sql.is_empty() {
-                sql.push_str(" ");
-            }
-            sql.push_str(line);
-            if sql.ends_with(';') {
-                sql.push_str("\n");
-            }
-        }
-
-        // TODO deal with creation of indices within create table statements
-        let stmts = parse_statements(sql);
-        match stmts {
-            Err(e) => {
-                Err(mysql::Error::IoError(io::Error::new(
-                        io::ErrorKind::InvalidInput, e)))
-            }
-            Ok(stmts) => {
-                for stmt in stmts {
-                    // TODO wrap in txn
-                    let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmt, &mut self.db)?;
-                    println!("on_init: mv_stmt {}", mv_stmt.to_string());
-                    if is_write {
-                        // issue actual statement to datatables if they are writes (potentially creating ghost ID 
-                        // entries as well)
-                        if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt, &mut self.db)? {
-                            println!("on_init: dt_stmt {}", dt_stmt.to_string());
-                            self.db.query_drop(dt_stmt.to_string())?;
-                        } else {
-                            // TODO abort
-                        }
-                    }
-                    // issue statement to materialized views AFTER
-                    // issuing to datatables (which may perform reads)
-                    self.db.query_drop(mv_stmt.to_string())?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
-impl<W: io::Write> MysqlShim<W> for Shim {
-    type Error = mysql::Error;
 
     fn on_prepare(&mut self, query: &str, info: StatementMetaWriter<W>) -> Result<(), Self::Error> {
         // TODO save prepared stmts modified for MVs and ghosts table
