@@ -67,9 +67,65 @@ impl MVTransformer {
                 alias,
             } => {
                 let mv_table_name = self.objname_to_mv_string(&name);
-                TableFactor::Table{
-                    name: helpers::string_to_objname(&mv_table_name),
-                    alias: alias.clone(),
+                
+                // if the user table, make this a nested join with the ghostsusersmv table
+                if name.to_string() == self.user_table_name {
+                    TableFactor::Derived {
+                        lateral: false,
+                        subquery: Box::new(Query{
+                            // SELECT * from USERS UNION SELECT * from GHOST_MV_USERS 
+                            ctes: vec![],
+                            body: SetExpr::SetOperation {
+                                op: SetOperator::Union,
+                                all: false,
+                                left: Box::new(SetExpr::Select(Box::new(Select{
+                                    distinct: false,
+                                    projection: vec![SelectItem::Wildcard],
+                                    from: vec![TableWithJoins {
+                                            relation: TableFactor::Table{
+                                                name: helpers::string_to_objname(&mv_table_name),
+                                                alias: None,
+                                            },
+                                            joins: vec![],
+                                        }],
+                                        selection: None,
+                                        group_by: vec![],
+                                        having: None,
+                                }))),
+                                right: Box::new(SetExpr::Select(Box::new(Select{
+                                    distinct: false,
+                                    projection: vec![SelectItem::Wildcard],
+                                    from: vec![TableWithJoins {
+                                            relation: TableFactor::Table{
+                                                name: helpers::string_to_objname(super::GHOST_USERS_MV),
+                                                alias: None,
+                                            },
+                                            joins: vec![],
+                                        }],
+                                        selection: None,
+                                        group_by: vec![],
+                                        having: None,
+                                }))),
+                            },
+                            order_by: vec![],
+                            limit: None,
+                            offset: None,
+                            fetch: None,
+                        }),
+                        alias: match alias {
+                            Some(a) => Some(a.clone()),
+                            None => Some(TableAlias{
+                                name: Ident::new(mv_table_name),
+                                columns: vec![],
+                                strict: false,
+                            }),
+                        },
+                    }
+                } else {
+                    TableFactor::Table{
+                        name: helpers::string_to_objname(&mv_table_name),
+                        alias: alias.clone(),
+                    }
                 }
             }
             TableFactor::Derived {
@@ -180,6 +236,7 @@ impl MVTransformer {
     }
 
     pub fn query_to_mv_query(&self, query: &Query) -> Query {
+        // TODO MODIFY users queries to also query ghostusers
         //TODO inefficient to clone and then replace?
         let mut mv_query = query.clone(); 
 
@@ -550,7 +607,7 @@ impl MVTransformer {
                 // if we're creating the user table, also create the ghost users table
                 // with the same columns
                 if name.to_string() == self.user_table_name {
-                    let name = helpers::string_to_objname(&super::GHOST_USERS_MV);
+                    let name = helpers::string_to_objname(super::GHOST_USERS_MV);
                     
                     let drop_stmt = Statement::DropObjects(DropObjectsStatement{
                         object_type: ObjectType::Table,
@@ -724,6 +781,8 @@ impl MVTransformer {
              *  queries that used the materialized views, rather than the 
              *  application-issued tables. This is probably not a big issue, 
              *  since these queries are used to create the table again?
+             *
+             * XXX: SHOW * from users will not return any ghost users in ghostusersMV
              * */
             _ => {
                 mv_stmt = stmt.clone();
