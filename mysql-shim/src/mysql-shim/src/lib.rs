@@ -131,6 +131,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO actually delete entries? 
      */
     fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
+        println!("Unsubscribe {} called!", uid);
+
         // TODO wrap in txn
         let uid_val = ast::Value::Number(uid.to_string());
         
@@ -167,12 +169,22 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             source: InsertSource::Query(Box::new(get_gids_stmt_from_ghosts)),
         });
         self.db.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
+        println!("Unsubscribe {}", insert_gids_as_users_stmt);
         
         /*
          * 2. delete UID from users MV
          */
-       let delete_uid_from_users = Statement::Delete(DeleteStatement {
-            table_name: helpers::string_to_objname(&self.cfg.user_table.name),
+        let usertab_objname = helpers::string_to_objname(&self.cfg.user_table.name);
+        let delete_uid_from_users = Statement::Delete(DeleteStatement {
+            table_name: usertab_objname.clone(),
+            selection: Some(Expr::BinaryOp{
+                left: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(uid_val.clone())), 
+            }),
+        });
+        let delete_uid_from_usersmv = Statement::Delete(DeleteStatement {
+            table_name: self.mv_trans.objname_to_mv_objname(&usertab_objname),
             selection: Some(Expr::BinaryOp{
                 left: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
                 op: BinaryOperator::Eq,
@@ -180,6 +192,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             }),
         });
         self.db.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
+        self.db.query_drop(format!("{}", delete_uid_from_usersmv.to_string()))?;
+        println!("Unsubscribe {}", delete_uid_from_users);
+        println!("Unsubscribe {}", delete_uid_from_usersmv);
  
         /* 
          * 3. Change all entries with this UID to use the correct GID in the MV
@@ -188,28 +203,28 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             let dtobjname = helpers::string_to_objname(&dt.name);
             let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
 
-            let mut assignments = vec![];
+            let mut assignments : Vec<String> = vec![];
             for uc in ucols {
                 let uc_dt_ids = helpers::string_to_idents(&uc);
                 let uc_mv_ids = self.mv_trans.idents_to_mv_idents(&uc_dt_ids);
-                assignments.push(Assignment{
-                    // this is kind of messy... TODO systematize ident/objname/string conversions
-                    id: Ident::new(&ObjectName(uc_mv_ids.clone()).to_string()),
-                    // assign to new value if matches uid, otherwise keep the same
-                    value: Expr::Case{
-                        operand: None, 
-                        // check usercol_mv = UID
-                        conditions: vec![Expr::BinaryOp{
-                            left: Box::new(Expr::Identifier(uc_mv_ids.clone())),
-                            op: BinaryOperator::Eq,
-                            right: Box::new(Expr::Value(uid_val.clone())),
-                        }],
-                        // then assign to ghost ucol value
-                        results: vec![Expr::Identifier(uc_dt_ids)],
-                        // otherwise keep as the uid in the MV
-                        else_result: Some(Box::new(Expr::Identifier(uc_mv_ids.clone()))),
-                    },
-                });
+                let mut astr = String::new();
+                astr.push_str(&format!(
+                        "{} = {}", 
+                        ObjectName(uc_mv_ids.clone()),
+                        Expr::Case{
+                            operand: None, 
+                            // check usercol_mv = UID
+                            conditions: vec![Expr::BinaryOp{
+                                left: Box::new(Expr::Identifier(uc_mv_ids.clone())),
+                                op: BinaryOperator::Eq,
+                                right: Box::new(Expr::Value(uid_val.clone())),
+                            }],
+                            // then assign to ghost ucol value
+                            results: vec![Expr::Identifier(uc_dt_ids)],
+                            // otherwise keep as the uid in the MV
+                            else_result: Some(Box::new(Expr::Identifier(uc_mv_ids.clone()))),
+                        }));
+                assignments.push(astr);
             }
            
             let mut select_constraint = Expr::Value(ast::Value::Boolean(true));
@@ -219,6 +234,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             // but the assignment CASE should already handle this?
             for col in &dt.data_cols {
                 let mut fullname = dt.name.clone();
+                fullname.push_str(".");
                 fullname.push_str(&col);
                 let dt_ids = helpers::string_to_idents(&fullname);
                 let mv_ids = self.mv_trans.idents_to_mv_idents(&dt_ids);
@@ -237,12 +253,21 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             // UPDATE corresponding MV
             // SET MV.usercols = (MV.usercol = uid) ? dt.usercol : MV.usercol 
             // WHERE dtMV = dt ON [all other rows equivalent]
-            let update_dt_stmt = Statement::Update(UpdateStatement{
-                table_name: dtobjname,
-                assignments: assignments,
-                selection: Some(select_constraint),
-            });
-
+            let mut astr = String::new();
+            astr.push_str(&assignments[0]);
+            for i in 1..assignments.len() {
+                astr.push_str(", ");
+                astr.push_str(&assignments[i]);
+            }
+                
+            let update_dt_stmt = format!("UPDATE {}, {} SET {} WHERE {};", 
+                self.mv_trans.objname_to_mv_objname(&dtobjname).to_string(),
+                dtobjname.to_string(),
+                astr,
+                select_constraint.to_string(),
+            );
+                
+            println!("Unsubscribe {}", update_dt_stmt);
             self.db.query_drop(format!("{}", update_dt_stmt))?;
         }
         
@@ -308,29 +333,29 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         for dt in &self.cfg.data_tables {
             let dtobjname = helpers::string_to_objname(&dt.name);
             let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
-
-            let mut assignments = vec![];
+            
+            let mut assignments : Vec<String> = vec![];
             for uc in ucols {
                 let uc_dt_ids = helpers::string_to_idents(&uc);
                 let uc_mv_ids = self.mv_trans.idents_to_mv_idents(&uc_dt_ids);
-                assignments.push(Assignment{
-                    // this is kind of messy... TODO systematize ident/objname/string conversions
-                    id: Ident::new(&ObjectName(uc_mv_ids.clone()).to_string()),
-                    // assign to new value if matches uid, otherwise keep the same
-                    value: Expr::Case{
-                        operand: None, 
-                        // check usercol_mv IN gids
-                        conditions: vec![Expr::InList{
-                            expr: Box::new(Expr::Identifier(uc_mv_ids.clone())),
-                            list: gids.clone(),
-                            negated: false,
-                        }],
-                        // then assign UID value
-                        results: vec![Expr::Identifier(uc_dt_ids)],
-                        // otherwise keep as the current value in the MV
-                        else_result: Some(Box::new(Expr::Identifier(uc_mv_ids.clone()))),
-                    },
-                });
+                let mut astr = String::new();
+                astr.push_str(&format!(
+                        "{} = {}", 
+                        ObjectName(uc_mv_ids.clone()),
+                        Expr::Case{
+                            operand: None, 
+                            // check usercol_mv IN gids
+                            conditions: vec![Expr::InList{
+                                expr: Box::new(Expr::Identifier(uc_mv_ids.clone())),
+                                list: gids.clone(),
+                                negated: false,
+                            }],
+                            // then assign UID value
+                            results: vec![Expr::Identifier(uc_dt_ids)],
+                            // otherwise keep as the current value in the MV
+                            else_result: Some(Box::new(Expr::Identifier(uc_mv_ids.clone()))),
+                        }));
+                assignments.push(astr);
             }
            
             let mut select_constraint = Expr::Value(ast::Value::Boolean(true));
@@ -340,6 +365,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             // but the assignment CASE should already handle this?
             for col in &dt.data_cols {
                 let mut fullname = dt.name.clone();
+                fullname.push_str(".");
                 fullname.push_str(&col);
                 let dt_ids = helpers::string_to_idents(&fullname);
                 let mv_ids = self.mv_trans.idents_to_mv_idents(&dt_ids);
@@ -358,11 +384,18 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             // UPDATE corresponding MV
             // SET MV.usercols = (MV.usercol = dt.usercol) ? uid : MV.usercol
             // WHERE dtMV = dt ON [all other rows equivalent]
-            let update_dt_stmt = Statement::Update(UpdateStatement{
-                table_name: dtobjname,
-                assignments: assignments,
-                selection: Some(select_constraint),
-            });
+            let mut astr = String::new();
+            astr.push_str(&assignments[0]);
+            for i in 1..assignments.len() {
+                astr.push_str(", ");
+                astr.push_str(&assignments[i]);
+            }
+            let update_dt_stmt = format!("UPDATE {}, {} SET {} WHERE {};", 
+                self.mv_trans.objname_to_mv_objname(&dtobjname).to_string(),
+                dtobjname.to_string(),
+                astr,
+                select_constraint.to_string(),
+            );
             self.db.query_drop(format!("{}", update_dt_stmt))?;
         }    
         Ok(w.ok()?)
@@ -497,7 +530,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                     return Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &"No columns in table".as_bytes())?)
                 }
                 let colname = helpers::mysql_val_to_parser_val(&vals[0]).to_string(); 
-                if !dt.user_cols.iter().any(|uc| *uc == colname) {
+                if !dt.user_cols.iter().any(|uc| *uc == helpers::trim_quotes(&colname)) {
                     dt.data_cols.push(colname);
                 }
             }

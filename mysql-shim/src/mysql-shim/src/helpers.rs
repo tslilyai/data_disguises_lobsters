@@ -2,9 +2,12 @@ use sql_parser::ast::*;
 use std::*;
 use super::config;
 
-fn trim_quotes(s: &str) -> &str {
+pub fn trim_quotes(s: &str) -> &str {
     let mut s = s;
     if s.ends_with('"') && s.starts_with('"') {
+        s = &s[1..s.len() - 1]
+    } 
+    if s.ends_with("'") && s.starts_with("'") {
         s = &s[1..s.len() - 1]
     } 
     s

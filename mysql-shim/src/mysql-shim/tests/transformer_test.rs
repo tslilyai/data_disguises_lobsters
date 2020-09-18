@@ -371,24 +371,30 @@ fn test_unsubscribe() {
         results.push((id, mod_id, story_id, user_id, action));
     }
     assert_eq!(results.len(), 2);
-    assert_eq!(results[0], ("'1'".to_string(), format!("'{}'", GHOST_ID_START), 
-                            "'0'".to_string(), "'2'".to_string(), "'bad story!'".to_string()));
-    assert_eq!(results[1], ("'2'".to_string(), "'2'".to_string(), "'0'".to_string(), format!("'{}'", GHOST_ID_START+1), "'worst story!'".to_string()));
+    assert_eq!(results[0], ("'1'".to_string(), 
+                            format!("'{}'", GHOST_ID_START), 
+                            "'0'".to_string(), 
+                            "'2'".to_string(), 
+                            "'bad story!'".to_string()));
+    assert_eq!(results[1], ("'2'".to_string(), 
+                            "'2'".to_string(), 
+                            "'0'".to_string(), 
+                            format!("'{}'", GHOST_ID_START+3), 
+                            "'worst story!'".to_string()));
 
-    // latest ghost entry removed (user was set to NULL)
+    // ghosts added to ghostusersmv
     let mut results = vec![];
-    let res = db.query_iter(r"SELECT * FROM ghosts;").unwrap();
+    let res = db.query_iter(r"SELECT id FROM users;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 2);
-        let gid = format!("{}", mysql_val_to_parser_val(&vals[0]));
-        let uid = format!("{}", mysql_val_to_parser_val(&vals[1]));
-        results.push((gid, uid));
+        assert_eq!(vals.len(), 1);
+        let uid = format!("{}", mysql_val_to_parser_val(&vals[0]));
+        results.push(uid);
     }
     assert_eq!(results.len(), 3);
-    assert_eq!(results[0], (format!("'{}'", GHOST_ID_START), "'1'".to_string()));
-    assert_eq!(results[1], (format!("'{}'", GHOST_ID_START+1), "'2'".to_string()));
-    assert_eq!(results[2], (format!("'{}'", GHOST_ID_START+2), "'3'".to_string()));
+    assert_eq!(results[0], format!("'{}'", 2));
+    assert_eq!(results[1], format!("'{}'", GHOST_ID_START));
+    assert_eq!(results[2], format!("'{}'", GHOST_ID_START+3));
     
     drop(db);
     jh.join().unwrap();
