@@ -114,6 +114,24 @@ impl Postgres {
 impl<W: io::Write> MysqlShim<W> for Postgres {
     type Error = postgres::Error;
 
+    fn on_unsubscribe(
+        &mut self,
+        _id: u64,
+        w: SubscribeWriter<W>
+        ) -> Result<(), Self::Error> 
+    {
+        Ok(w.ok()?)
+    }
+    
+    fn on_resubscribe(
+        &mut self,
+        _id: u64,
+        w: SubscribeWriter<W>
+    ) -> Result<(), Self::Error>
+    {
+        Ok(w.ok()?)
+    }
+
     fn on_prepare(&mut self, query: &str, info: StatementMetaWriter<W>) -> Result<(), Self::Error> {
         match self.connection.prepare(query) {
             Ok(stmt) => {

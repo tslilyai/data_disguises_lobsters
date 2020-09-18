@@ -335,7 +335,7 @@ fn test_unsubscribe() {
     db.query_drop("DROP DATABASE IF EXISTS gdpr_unsub_test;").unwrap();
     db.query_drop("CREATE DATABASE gdpr_unsub_test;").unwrap();
     assert_eq!(db.ping(), true);
-    let mut shim = Shim::new(db, CONFIG, SCHEMA);
+    let shim = Shim::new(db, CONFIG, SCHEMA);
  
     let jh = thread::spawn(move || {
         let (s, _) = listener.accept().unwrap();
@@ -357,7 +357,7 @@ fn test_unsubscribe() {
      *  Test 1: Unsubscribe of user 1 adds two ghost entries to user table, anonymizes both
      *  moderation entries
      */
-    db.query_drop(format!("UNSUBSCRIBE UID {};", 1).unwrap();
+    db.query_drop(format!("UNSUBSCRIBE UID {};", 1)).unwrap();
     let mut results = vec![];
     let res = db.query_iter(r"SELECT * FROM moderations;").unwrap();
     for row in res {

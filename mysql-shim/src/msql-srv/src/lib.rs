@@ -25,6 +25,25 @@
 //! impl<W: io::Write> MysqlShim<W> for Backend {
 //!     type Error = io::Error;
 //!
+//!    fn on_unsubscribe(
+//!        &mut self,
+//!        _id: u64,
+//!        w: SubscribeWriter<W>
+//!        ) -> Result<(), Self::Error> 
+//!    {
+//!        Ok(w.ok()?)
+//!    }
+//!    
+//!    fn on_resubscribe(
+//!        &mut self,
+//!        _id: u64,
+//!        w: SubscribeWriter<W>
+//!    ) -> Result<(), Self::Error>
+//!    {
+//!        Ok(w.ok()?)
+//!    }
+//!
+//!
 //!     fn on_prepare(&mut self, _: &str, info: StatementMetaWriter<W>) -> io::Result<()> {
 //!         info.reply(42, &[], &[])
 //!     }

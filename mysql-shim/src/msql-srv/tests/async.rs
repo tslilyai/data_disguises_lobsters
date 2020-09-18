@@ -14,7 +14,7 @@ use std::thread;
 
 use msql_srv::{
     Column, ErrorKind, MysqlIntermediary, MysqlShim, ParamParser, QueryResultWriter,
-    StatementMetaWriter,
+    StatementMetaWriter, SubscribeWriter,
 };
 
 struct TestingShim<Q, P, E> {
@@ -32,6 +32,24 @@ where
     E: FnMut(u32, Vec<msql_srv::ParamValue>, QueryResultWriter<net::TcpStream>) -> io::Result<()>,
 {
     type Error = io::Error;
+   
+    fn on_unsubscribe(
+        &mut self,
+        _id: u64,
+        w: SubscribeWriter<net::TcpStream>,
+        ) -> Result<(), Self::Error> 
+    {
+        Ok(w.ok()?)
+    }
+    
+    fn on_resubscribe(
+        &mut self,
+        _id: u64,
+        w: SubscribeWriter<net::TcpStream>,
+    ) -> Result<(), Self::Error>
+    {
+        Ok(w.ok()?)
+    }
 
     fn on_prepare(
         &mut self,
