@@ -101,10 +101,10 @@ impl Shim {
             Ok(stmts) => {
                 for stmt in stmts {
                     // TODO wrap in txn
-                    let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmt, &mut self.db)?;
+                    let (mv_stmt, is_dt_write) = self.mv_trans.stmt_to_mv_stmt(&stmt, &mut self.db)?;
                     println!("on_init: mv_stmt {}", mv_stmt.to_string());
-                    if is_write {
-                        // issue actual statement to datatables if they are writes (potentially creating ghost ID 
+                    if is_dt_write {
+                        // issue actual statement to datatables if they are writes to datatables (potentially creating ghost ID 
                         // entries as well)
                         if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt, &mut self.db)? {
                             println!("on_init: dt_stmt {}", dt_stmt.to_string());
@@ -183,18 +183,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 right: Box::new(Expr::Value(uid_val.clone())), 
             }),
         });
-        let delete_uid_from_usersmv = Statement::Delete(DeleteStatement {
-            table_name: self.mv_trans.objname_to_mv_objname(&usertab_objname),
-            selection: Some(Expr::BinaryOp{
-                left: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
-                op: BinaryOperator::Eq,
-                right: Box::new(Expr::Value(uid_val.clone())), 
-            }),
-        });
         self.db.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
-        self.db.query_drop(format!("{}", delete_uid_from_usersmv.to_string()))?;
         println!("Unsubscribe {}", delete_uid_from_users);
-        println!("Unsubscribe {}", delete_uid_from_usersmv);
  
         /* 
          * 3. Change all entries with this UID to use the correct GID in the MV
@@ -281,6 +271,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO add back deleted content from shard
      */
     fn on_resubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
+        println!("Resubscribe {}!", uid);
         // TODO check auth token?
         let uid_val = ast::Value::Number(uid.to_string());
         
@@ -325,10 +316,30 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 negated: false, 
             }),
         });
+        println!("Resubscribe {}", delete_gids_as_users_stmt);
         self.db.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
-        
+
+        /*
+         * 2. Add user to users
+         * TODO should also add back all of the user data????
+         */
+       let insert_uid_as_user_stmt = Statement::Insert(InsertStatement{
+            table_name: helpers::string_to_objname(&self.cfg.user_table.name),
+            columns: vec![Ident::new(&self.cfg.user_table.id_col)],
+            source: InsertSource::Query(Box::new(Query{
+                ctes: vec![],
+                body: SetExpr::Values(Values(vec![vec![Expr::Value(uid_val.clone())]])),
+                order_by: vec![],
+                limit: None,
+                offset: None,
+                fetch: None,
+            })),
+        });
+        println!("Resubscribe: {}", insert_uid_as_user_stmt.to_string());
+        self.db.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
+ 
         /* 
-         * 2. update assignments in MV to use UID again
+         * 3. update assignments in MV to use UID again
          */
         for dt in &self.cfg.data_tables {
             let dtobjname = helpers::string_to_objname(&dt.name);
@@ -351,7 +362,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                                 negated: false,
                             }],
                             // then assign UID value
-                            results: vec![Expr::Identifier(uc_dt_ids)],
+                            results: vec![Expr::Value(uid_val.clone())],
                             // otherwise keep as the current value in the MV
                             else_result: Some(Box::new(Expr::Identifier(uc_mv_ids.clone()))),
                         }));
@@ -396,6 +407,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 astr,
                 select_constraint.to_string(),
             );
+            println!("Resubscribe: {}", update_dt_stmt);
             self.db.query_drop(format!("{}", update_dt_stmt))?;
         }    
         Ok(w.ok()?)

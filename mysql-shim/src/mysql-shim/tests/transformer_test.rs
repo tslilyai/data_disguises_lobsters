@@ -144,7 +144,7 @@ fn test_database_normal_execution() {
     let tables = vec![
         "ghosts", "ghostusersmv",
         "stories", "storiesmv",
-        "users", "usersmv",
+        "users", 
         "moderations", "moderationsmv",
     ];
     assert_eq!(results.len(), tables.len());
@@ -382,7 +382,7 @@ fn test_unsubscribe() {
                             format!("'{}'", GHOST_ID_START+3), 
                             "'worst story!'".to_string()));
 
-    // ghosts added to ghostusersmv
+    // users modified appropriately: ghosts added to ghostusersmv
     let mut results = vec![];
     let res = db.query_iter(r"SELECT id FROM users;").unwrap();
     for row in res {
@@ -395,7 +395,49 @@ fn test_unsubscribe() {
     assert_eq!(results[0], format!("'{}'", 2));
     assert_eq!(results[1], format!("'{}'", GHOST_ID_START));
     assert_eq!(results[2], format!("'{}'", GHOST_ID_START+3));
-    
+  
+    /* 
+     *  Test 2: Resubscribe of user 1 adds uid to user table, removes gids from user table, 
+     *  unanonymizesboth moderation entries
+     */
+    db.query_drop(format!("RESUBSCRIBE UID {};", 1)).unwrap();
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT * FROM moderations;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 5);
+        let id = format!("{}", mysql_val_to_parser_val(&vals[0]));
+        let mod_id = format!("{}", mysql_val_to_parser_val(&vals[1]));
+        let story_id = format!("{}", mysql_val_to_parser_val(&vals[2]));
+        let user_id = format!("{}", mysql_val_to_parser_val(&vals[3]));
+        let action = format!("{}", mysql_val_to_parser_val(&vals[4]));
+        results.push((id, mod_id, story_id, user_id, action));
+    }
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0], ("'1'".to_string(), 
+                            format!("'{}'", 1), 
+                            "'0'".to_string(), 
+                            "'2'".to_string(), 
+                            "'bad story!'".to_string()));
+    assert_eq!(results[1], ("'2'".to_string(), 
+                            "'2'".to_string(), 
+                            "'0'".to_string(), 
+                            format!("'{}'", 1), 
+                            "'worst story!'".to_string()));
+
+    // ghosts added to ghostusersmv
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT id FROM users;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        let uid = format!("{}", mysql_val_to_parser_val(&vals[0]));
+        results.push(uid);
+    }
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0], format!("'{}'", 1));
+    assert_eq!(results[1], format!("'{}'", 2));
+ 
     drop(db);
     jh.join().unwrap();
 }

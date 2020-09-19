@@ -12,7 +12,6 @@ pub struct MVTransformer {
 impl MVTransformer {
     pub fn new(cfg: &config::Config) -> Self {
         let mut table_names = Vec::<String>::new();
-        table_names.push(cfg.user_table.name.clone());
         for dt in &cfg.data_tables {
             table_names.push(dt.name.clone());
         }
@@ -473,7 +472,7 @@ impl MVTransformer {
     
     pub fn stmt_to_mv_stmt(&mut self, stmt: &Statement, db: &mut mysql::Conn) -> Result<(Statement, bool /*is_write*/), mysql::Error> {
         let mv_stmt : Statement;
-        let mut is_write = false;
+        let mut is_dt_write = false;
         let mv_table_name : String;
 
         match stmt {
@@ -493,8 +492,8 @@ impl MVTransformer {
                 columns, 
                 source,
             }) => {
-                is_write = true;
                 mv_table_name = self.objname_to_mv_string(&table_name);
+                is_dt_write = mv_table_name != table_name.to_string();
                 let mut mv_source = source.clone();
                 // update sources
                 match source {
@@ -514,8 +513,8 @@ impl MVTransformer {
                 assignments,
                 selection,
             }) => {
-                is_write = true;
                 mv_table_name = self.objname_to_mv_string(&table_name);
+                is_dt_write = mv_table_name != table_name.to_string();
                 let mut mv_assn = Vec::<Assignment>::new();
                 let mut mv_selection = selection.clone();
                 // update assignments
@@ -540,8 +539,8 @@ impl MVTransformer {
                 table_name,
                 selection,
             }) => {
-                is_write = true;
                 mv_table_name = self.objname_to_mv_string(&table_name);
+                is_dt_write = mv_table_name != table_name.to_string();
                 let mut mv_selection = selection.clone();
                 // update selection 
                 match selection {
@@ -562,7 +561,6 @@ impl MVTransformer {
                 temporary,
                 materialized,
             }) => {
-                is_write = true;
                 let mv_query = self.query_to_mv_query(&query);
                 mv_stmt = Statement::CreateView(CreateViewStatement{
                     name: name.clone(),
@@ -581,8 +579,8 @@ impl MVTransformer {
                 with_options,
                 if_not_exists,
             }) => {
-                is_write = true;
                 mv_table_name = self.objname_to_mv_string(&name);
+                is_dt_write = mv_table_name != name.to_string();
                 let mv_constraints : Vec<TableConstraint> = constraints
                     .iter()
                     .map(|c| match c {
@@ -644,8 +642,8 @@ impl MVTransformer {
                 key_parts,
                 if_not_exists,
             }) => {
-                is_write = true;
                 mv_table_name = self.objname_to_mv_string(&on_name);
+                is_dt_write = mv_table_name != on_name.to_string();
                 mv_stmt = Statement::CreateIndex(CreateIndexStatement{
                     name: name.clone(),
                     on_name: helpers::string_to_objname(&mv_table_name),
@@ -659,9 +657,9 @@ impl MVTransformer {
                 name,
                 to_item_name,
             }) => {
-                is_write = true;
                 let mut to_item_mv_name = to_item_name.to_string();
                 mv_table_name= self.objname_to_mv_string(&name);
+                is_dt_write = mv_table_name != name.to_string();
                 match object_type {
                     ObjectType::Table => {
                         // update name(s)
@@ -697,13 +695,13 @@ impl MVTransformer {
                 names,
                 cascade,
             }) => {
-                is_write = true;
                 let mut mv_names = names.clone();
                 match object_type {
                     ObjectType::Table => {
                         // update name(s)
                         for name in &mut mv_names {
                             let newname = self.objname_to_mv_string(&name);
+                            is_dt_write |= newname != name.to_string();
                             *name = helpers::string_to_objname(&newname);
                         }
                     }
@@ -788,6 +786,6 @@ impl MVTransformer {
                 mv_stmt = stmt.clone();
             }
         }
-        Ok((mv_stmt, is_write))
+        Ok((mv_stmt, is_dt_write))
     }
 }
