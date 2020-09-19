@@ -269,6 +269,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * Set all user_ids in the ghosts table to specified user 
      * refresh "materialized views"
      * TODO add back deleted content from shard
+     * TODO check that user doesn't already exist
      */
     fn on_resubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
         println!("Resubscribe {}!", uid);
