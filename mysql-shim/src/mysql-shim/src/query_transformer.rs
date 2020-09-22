@@ -9,34 +9,49 @@ use std::*;
 
 static LATEST_GID : AtomicU64 = AtomicU64::new(super::GHOST_ID_START);
 
-pub struct DataTableTransformer {
+pub struct QueryTransformer {
     cfg: config::Config,
     mv_trans: mv_transformer::MVTransformer,
 }
 
-impl DataTableTransformer {
+impl QueryTransformer {
     pub fn new(cfg: config::Config) -> Self {
         // better way than simply replicating?
         let mv_trans = mv_transformer::MVTransformer::new(&cfg);
-        DataTableTransformer{cfg, mv_trans}
+        QueryTransformer{cfg, mv_trans}
     }   
 
-    fn insert_gid_for_uid(&self, uid: &Expr, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
-        // user ids are always ints
-        let res = db.query_iter(&format!("INSERT INTO {} ({}) VALUES ({});", 
-                                         super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid))?;
-        // we want to insert the GID in place
-        // of the UID
-        let gid = res.last_insert_id().ok_or_else(|| 
-            mysql::Error::IoError(io::Error::new(
-                io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
-        
-        // update the last known GID
-        LATEST_GID.fetch_max(gid, Ordering::SeqCst);
-        Ok(gid)
+    /* 
+     * WRAPPERS AROUND MV FUNCTIONS INVOKED BY SUPER 
+     */
+    pub fn objname_to_mv_string(&self, obj: &ObjectName) -> String {
+        self.mv_trans.objname_to_mv_string(obj)
     }
 
-    pub fn get_uid2gids_for_uids(&self, uids_to_match: Vec<Expr>, db: &mut mysql::Conn)
+    pub fn objname_to_mv_objname(&self, obj: &ObjectName) -> ObjectName {
+        self.mv_trans.objname_to_mv_objname(obj)
+    }
+ 
+    pub fn idents_to_mv_idents(&self, obj: &Vec<Ident>) -> Vec<Ident> {
+        self.mv_trans.idents_to_mv_idents(obj)
+    }
+
+    pub fn query_to_mv_query(&self, query: &Query) -> Query {
+        self.mv_trans.query_to_mv_query(query)
+    }
+ 
+    pub fn expr_to_mv_expr(&self, expr: &Expr) -> Expr {
+        self.mv_trans.expr_to_mv_expr(expr)
+    }
+     
+    pub fn stmt_to_mv_stmt(&mut self, stmt: &Statement, db: &mut mysql::Conn) -> Result<(Statement, bool /*is_write*/), mysql::Error> {
+        self.mv_trans.stmt_to_mv_stmt(stmt, db)
+    }
+      
+    /*
+     * DATATABLE QUERY TRANSFORMER FUNCTIONS
+     */
+    fn get_uid2gids_for_uids(&self, uids_to_match: Vec<Expr>, db: &mut mysql::Conn)
         -> Result<HashMap<Value, Vec<Expr>>, mysql::Error> 
     {
         let get_gids_stmt_from_ghosts = Query::select(Select{
@@ -82,6 +97,21 @@ impl DataTableTransformer {
             }
         }
         Ok(uid_to_gids)
+    }
+
+    fn insert_gid_for_uid(&self, uid: &Expr, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
+        // user ids are always ints
+        let res = db.query_iter(&format!("INSERT INTO {} ({}) VALUES ({});", 
+                                         super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid))?;
+        // we want to insert the GID in place
+        // of the UID
+        let gid = res.last_insert_id().ok_or_else(|| 
+            mysql::Error::IoError(io::Error::new(
+                io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
+        
+        // update the last known GID
+        LATEST_GID.fetch_max(gid, Ordering::SeqCst);
+        Ok(gid)
     }
     
     /* 
@@ -398,11 +428,11 @@ impl DataTableTransformer {
                                         table_name: &ObjectName, ucols: &Vec<String>) 
         -> Result<Option<Expr>, mysql::Error>
     {
-        let mut dt_selection = None;
+        let mut qt_selection = None;
         let mut contains_ucol_id = false;
         if let Some(s) = selection {
             // check if the expr contains any conditions on user columns
-            dt_selection = Some(self.expr_to_datatable_expr(&s, db, &mut contains_ucol_id, &ucols)?);
+            qt_selection = Some(self.expr_to_datatable_expr(&s, db, &mut contains_ucol_id, &ucols)?);
 
             // if a user column is being used as a selection criteria, first perform a 
             // select of all UIDs of matching rows in the MVs
@@ -510,14 +540,14 @@ impl DataTableTransformer {
                         right: Box::new(and_col_constraint_expr),
                     };
                 }
-                dt_selection = Some(or_row_constraint_expr);
+                qt_selection = Some(or_row_constraint_expr);
             } 
         } 
-        return Ok(dt_selection);
+        return Ok(qt_selection);
     }
 
     pub fn stmt_to_datatable_stmt(&mut self, stmt: &Statement, db: &mut mysql::Conn) -> Result<Option<Statement>, mysql::Error> {
-        let mut dt_stmt = stmt.clone();
+        let mut qt_stmt = stmt.clone();
 
         match stmt {
             Statement::Insert(InsertStatement{
@@ -550,7 +580,7 @@ impl DataTableTransformer {
                 }
 
                 // update sources
-                let mut dt_source = source.clone();
+                let mut qt_source = source.clone();
                 /* if no user columns, change sources to use MV
                  * otherwise, we need to insert new GID->UID mappings 
                  * with the values of the usercol value as the UID
@@ -587,7 +617,7 @@ impl DataTableTransformer {
                                 if let Some(vv) = self.vals_vec_to_datatable_vals(&vals_vec, &ucol_indices, db)? {
                                     let mut new_q = q.clone();
                                     new_q.body = SetExpr::Values(Values(vv));
-                                    dt_source = InsertSource::Query(new_q);
+                                    qt_source = InsertSource::Query(new_q);
                                 } else {
                                     return Ok(None);
                                 }
@@ -618,7 +648,7 @@ impl DataTableTransformer {
                                 if let Some(vv) = self.vals_vec_to_datatable_vals(&vals_vec, &ucol_indices, db)? {
                                     let mut new_q = q.clone();
                                     new_q.body = SetExpr::Values(Values(vv));
-                                    dt_source = InsertSource::Query(new_q);
+                                    qt_source = InsertSource::Query(new_q);
                                 } else {
                                     return Ok(None);
                                 }
@@ -627,10 +657,10 @@ impl DataTableTransformer {
                     }
                     InsertSource::DefaultValues => (), // TODO might have to get rid of this
                 }
-                dt_stmt = Statement::Insert(InsertStatement{
+                qt_stmt = Statement::Insert(InsertStatement{
                     table_name: table_name.clone(),
                     columns : columns.clone(),
-                    source : dt_source, 
+                    source : qt_source, 
                 });
             }
             Statement::Update(UpdateStatement{
@@ -642,7 +672,7 @@ impl DataTableTransformer {
                 let mut contains_ucol_id = false;
                 let mut ucol_assigns = vec![];
                 let mut ucol_selectitems_assn = vec![];
-                let mut dt_assn = vec![];
+                let mut qt_assn = vec![];
 
                 for a in assignments {
                     // we still want to perform the update BUT we need to make sure that the updated value, if a 
@@ -652,10 +682,10 @@ impl DataTableTransformer {
                                         
                     // we won't replace any UIDs when converting assignments to values, but
                     // we also want to update any usercol value to NULL if the UID is being set to NULL, so we put it
-                    // in dt_assn too (rather than only updating the GID)
+                    // in qt_assn too (rather than only updating the GID)
                     let is_ucol = ucols.iter().any(|uc| helpers::str_ident_match(&a.id.to_string(), uc));
                     if !is_ucol || new_val == Expr::Value(Value::Null) {
-                        dt_assn.push(Assignment{
+                        qt_assn.push(Assignment{
                             id: a.id.clone(),
                             value: new_val.clone(),
                         });
@@ -675,13 +705,11 @@ impl DataTableTransformer {
                     }
                 }
 
-                let dt_selection = self.selection_to_datatable_selection(selection, db, &table_name, &ucols)?;
+                let qt_selection = self.selection_to_datatable_selection(selection, db, &table_name, &ucols)?;
              
                 // if usercols are being updated, query DT to get the relevant
                 // GIDs and update these GID->UID mappings in the ghosts table
                 if !ucol_assigns.is_empty() {
-                    // TODO datatable has ONLY GIDS
-                    // dt_selection not working
                     let get_gids_stmt_from_dt = Statement::Select(SelectStatement {
                         query: Box::new(Query::select(Select{
                             distinct: true,
@@ -693,7 +721,7 @@ impl DataTableTransformer {
                                 },
                                 joins: vec![],
                             }],
-                            selection: dt_selection.clone(),
+                            selection: qt_selection.clone(),
                             group_by: vec![],
                             having: None,
                         })),
@@ -738,10 +766,10 @@ impl DataTableTransformer {
                         db.query_drop(format!("{}", gstmt.to_string()))?;
                     }
                 }
-                dt_stmt = Statement::Update(UpdateStatement{
+                qt_stmt = Statement::Update(UpdateStatement{
                     table_name: table_name.clone(),
-                    assignments : dt_assn,
-                    selection : dt_selection,
+                    assignments : qt_assn,
+                    selection : qt_selection,
                 });
             }
             Statement::Delete(DeleteStatement{
@@ -749,7 +777,7 @@ impl DataTableTransformer {
                 selection,
             }) => {
                 let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &table_name);
-                let dt_selection = self.selection_to_datatable_selection(selection, db, &table_name, &ucols)?;
+                let qt_selection = self.selection_to_datatable_selection(selection, db, &table_name, &ucols)?;
 
                 let ucol_selectitems = ucols.iter()
                     .map(|uc| SelectItem::Expr{
@@ -770,7 +798,7 @@ impl DataTableTransformer {
                                     },
                                     joins: vec![],
                                 }],
-                                selection: dt_selection.clone(),
+                                selection: qt_selection.clone(),
                                 group_by: vec![],
                                 having: None,
                             })),        
@@ -798,9 +826,9 @@ impl DataTableTransformer {
                     db.query_drop(&ghosts_delete_statement.to_string())?;
                 }
 
-                dt_stmt = Statement::Delete(DeleteStatement{
+                qt_stmt = Statement::Delete(DeleteStatement{
                     table_name: table_name.clone(),
-                    selection : dt_selection,
+                    selection : qt_selection,
                 });
             }
             Statement::CreateView(CreateViewStatement{
@@ -812,12 +840,12 @@ impl DataTableTransformer {
                 temporary,
                 materialized,
             }) => {
-                let dt_query = self.query_to_datatable_query(&query, db)?;
-                dt_stmt = Statement::CreateView(CreateViewStatement{
+                let qt_query = self.query_to_datatable_query(&query, db)?;
+                qt_stmt = Statement::CreateView(CreateViewStatement{
                     name: name.clone(),
                     columns: columns.clone(),
                     with_options: with_options.clone(),
-                    query : Box::new(dt_query),
+                    query : Box::new(qt_query),
                     if_exists: if_exists.clone(),
                     temporary: temporary.clone(),
                     materialized: materialized.clone(),
@@ -825,6 +853,6 @@ impl DataTableTransformer {
             }
             _ => ()
         }
-        return Ok(Some(dt_stmt));
+        return Ok(Some(qt_stmt));
     }
 }

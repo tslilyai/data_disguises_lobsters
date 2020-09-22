@@ -1,11 +1,10 @@
-use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::*;
 use super::config;
 use super::helpers;
 
 pub struct MVTransformer {
-    user_table_name: String,
+    user_table: config::UserTable,
     table_names: Vec<String>,
 }
 
@@ -15,13 +14,15 @@ impl MVTransformer {
         for dt in &cfg.data_tables {
             table_names.push(dt.name.clone());
         }
+        table_names.push(cfg.user_table.name.clone());
+
         MVTransformer{
-            user_table_name : cfg.user_table.name.clone(),
+            user_table: cfg.user_table.clone(),
             table_names: table_names, 
         }
     }   
     
-    fn objname_to_mv_string(&self, obj: &ObjectName) -> String {
+    pub fn objname_to_mv_string(&self, obj: &ObjectName) -> String {
         let obj_mv = ObjectName(self.idents_to_mv_idents(&obj.0));
         obj_mv.to_string()
     }
@@ -66,65 +67,9 @@ impl MVTransformer {
                 alias,
             } => {
                 let mv_table_name = self.objname_to_mv_string(&name);
-                
-                // if the user table, make this a nested join with the ghostsusersmv table
-                if name.to_string() == self.user_table_name {
-                    TableFactor::Derived {
-                        lateral: false,
-                        subquery: Box::new(Query{
-                            // SELECT * from USERS UNION SELECT * from GHOST_MV_USERS 
-                            ctes: vec![],
-                            body: SetExpr::SetOperation {
-                                op: SetOperator::Union,
-                                all: false,
-                                left: Box::new(SetExpr::Select(Box::new(Select{
-                                    distinct: false,
-                                    projection: vec![SelectItem::Wildcard],
-                                    from: vec![TableWithJoins {
-                                            relation: TableFactor::Table{
-                                                name: helpers::string_to_objname(&mv_table_name),
-                                                alias: None,
-                                            },
-                                            joins: vec![],
-                                        }],
-                                        selection: None,
-                                        group_by: vec![],
-                                        having: None,
-                                }))),
-                                right: Box::new(SetExpr::Select(Box::new(Select{
-                                    distinct: false,
-                                    projection: vec![SelectItem::Wildcard],
-                                    from: vec![TableWithJoins {
-                                            relation: TableFactor::Table{
-                                                name: helpers::string_to_objname(super::GHOST_USERS_MV),
-                                                alias: None,
-                                            },
-                                            joins: vec![],
-                                        }],
-                                        selection: None,
-                                        group_by: vec![],
-                                        having: None,
-                                }))),
-                            },
-                            order_by: vec![],
-                            limit: None,
-                            offset: None,
-                            fetch: None,
-                        }),
-                        alias: match alias {
-                            Some(a) => Some(a.clone()),
-                            None => Some(TableAlias{
-                                name: Ident::new(mv_table_name),
-                                columns: vec![],
-                                strict: false,
-                            }),
-                        },
-                    }
-                } else {
-                    TableFactor::Table{
-                        name: helpers::string_to_objname(&mv_table_name),
-                        alias: alias.clone(),
-                    }
+                TableFactor::Table{
+                    name: helpers::string_to_objname(&mv_table_name),
+                    alias: alias.clone(),
                 }
             }
             TableFactor::Derived {
@@ -235,8 +180,6 @@ impl MVTransformer {
     }
 
     pub fn query_to_mv_query(&self, query: &Query) -> Query {
-        // TODO MODIFY users queries to also query ghostusers
-        //TODO inefficient to clone and then replace?
         let mut mv_query = query.clone(); 
 
         let mut cte_mv_query : Query;
@@ -602,35 +545,27 @@ impl MVTransformer {
                     })
                     .collect(); 
 
-                // if we're creating the user table, also create the ghost users table
-                // with the same columns
-                if name.to_string() == self.user_table_name {
-                    let name = helpers::string_to_objname(super::GHOST_USERS_MV);
-                    
-                    let drop_stmt = Statement::DropObjects(DropObjectsStatement{
-                        object_type: ObjectType::Table,
-                        if_exists: true,
-                        names: vec![name.clone()],
-                        cascade: true,
-                    });
-                    println!("{}", drop_stmt);
+                let mut mv_cols = columns.clone();
+                // if we're creating the user table, remove any autoinc column
+                if name.to_string() == self.user_table.name {
+                    for col in &mut mv_cols{
+                        if col.name.to_string() != self.user_table.id_col {
+                            continue;
+                        }
 
-                    db.query_drop(format!("{}", drop_stmt.to_string()))?;
-                    
-                    let create_stmt = Statement::CreateTable(CreateTableStatement{
-                        name: name.clone(),
-                        columns: columns.clone(),
-                        constraints: mv_constraints.clone(),
-                        with_options: with_options.clone(),
-                        if_not_exists: if_not_exists.clone(),
-                    });
-                    println!("{}", create_stmt);
-                    db.query_drop(format!("{}", create_stmt.to_string()))?;
+                        // if this is the user id column and it is autoincremented,
+                        // remove autoincrement in materialized view
+                        // TODO add test to make sure autoincrement removed
+                        if col.options.iter().any(|cod| cod.option == ColumnOption::AutoIncrement) {
+                            self.user_table.is_autoinc = true;
+                            col.options.retain(|x| x.option != ColumnOption::AutoIncrement);
+                        }
+                        break;
+                    }
                 }
-
                 mv_stmt = Statement::CreateTable(CreateTableStatement{
                     name: helpers::string_to_objname(&mv_table_name),
-                    columns: columns.clone(),
+                    columns: mv_cols,
                     constraints: mv_constraints,
                     with_options: with_options.clone(),
                     if_not_exists: if_not_exists.clone(),

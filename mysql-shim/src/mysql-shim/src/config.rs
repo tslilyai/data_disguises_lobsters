@@ -5,6 +5,7 @@ use serde::{Serialize, Deserialize};
 pub struct UserTable{
     pub name : String,
     pub id_col : String,
+    pub is_autoinc: bool,
 }
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct DataTable{

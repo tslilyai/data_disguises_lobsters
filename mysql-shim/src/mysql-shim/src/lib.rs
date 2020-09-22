@@ -8,7 +8,7 @@ use sql_parser::ast::*;
 use std::*;
 mod helpers;
 pub mod config;
-pub mod datatable_transformer;
+pub mod query_transformer;
 pub mod mv_transformer;
 
 const GHOST_ID_START : u64 = 1<<20;
@@ -16,7 +16,6 @@ const GHOST_TABLE_NAME : &'static str = "ghosts";
 const GHOST_USER_COL : &'static str = "user_id";
 const GHOST_ID_COL: &'static str = "ghost_id";
 const MV_SUFFIX : &'static str = "mv"; 
-const GHOST_USERS_MV : &'static str = "ghostusersmv"; 
 
 fn create_ghosts_query() -> String {
     format!(
@@ -41,9 +40,8 @@ pub struct Shim {
     cfg: config::Config,
     db: mysql::Conn,
     prepared: HashMap<u32, Prepared>,
-    
-    mv_trans: mv_transformer::MVTransformer,
-    dt_trans: datatable_transformer::DataTableTransformer,
+
+    qtrans: query_transformer::QueryTransformer,
 
     // NOTE: not *actually* static, but tied to our connection's lifetime.
     schema: &'static str,
@@ -60,9 +58,8 @@ impl Shim {
     pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str) -> Self {
         let cfg = config::parse_config(cfg_json).unwrap();
         let prepared = HashMap::new();
-        let mv_trans = mv_transformer::MVTransformer::new(&cfg);
-        let dt_trans = datatable_transformer::DataTableTransformer::new(cfg.clone());
-        Shim{cfg, db, mv_trans, dt_trans, prepared, schema}
+        let qtrans = query_transformer::QueryTransformer::new(cfg.clone());
+        Shim{cfg, db, qtrans, prepared, schema}
     }   
 
     /* 
@@ -101,12 +98,12 @@ impl Shim {
             Ok(stmts) => {
                 for stmt in stmts {
                     // TODO wrap in txn
-                    let (mv_stmt, is_dt_write) = self.mv_trans.stmt_to_mv_stmt(&stmt, &mut self.db)?;
+                    let (mv_stmt, is_dt_write) = self.qtrans.stmt_to_mv_stmt(&stmt, &mut self.db)?;
                     println!("on_init: mv_stmt {}", mv_stmt.to_string());
                     if is_dt_write {
                         // issue actual statement to datatables if they are writes to datatables (potentially creating ghost ID 
                         // entries as well)
-                        if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmt, &mut self.db)? {
+                        if let Some(dt_stmt) = self.qtrans.stmt_to_datatable_stmt(&stmt, &mut self.db)? {
                             println!("on_init: dt_stmt {}", dt_stmt.to_string());
                             self.db.query_drop(dt_stmt.to_string())?;
                         } else {
@@ -164,7 +161,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
          * 1. update the users MV to have an entry for all the users' GIDs
          */
         let insert_gids_as_users_stmt = Statement::Insert(InsertStatement{
-            table_name: helpers::string_to_objname(GHOST_USERS_MV),
+            table_name: self.qtrans.objname_to_mv_objname(&helpers::string_to_objname(&self.cfg.user_table.name)),
             columns: vec![Ident::new(&self.cfg.user_table.id_col)],
             source: InsertSource::Query(Box::new(get_gids_stmt_from_ghosts)),
         });
@@ -196,7 +193,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             let mut assignments : Vec<String> = vec![];
             for uc in ucols {
                 let uc_dt_ids = helpers::string_to_idents(&uc);
-                let uc_mv_ids = self.mv_trans.idents_to_mv_idents(&uc_dt_ids);
+                let uc_mv_ids = self.qtrans.idents_to_mv_idents(&uc_dt_ids);
                 let mut astr = String::new();
                 astr.push_str(&format!(
                         "{} = {}", 
@@ -227,7 +224,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 fullname.push_str(".");
                 fullname.push_str(&col);
                 let dt_ids = helpers::string_to_idents(&fullname);
-                let mv_ids = self.mv_trans.idents_to_mv_idents(&dt_ids);
+                let mv_ids = self.qtrans.idents_to_mv_idents(&dt_ids);
 
                 select_constraint = Expr::BinaryOp {
                     left: Box::new(select_constraint),
@@ -251,7 +248,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             }
                 
             let update_dt_stmt = format!("UPDATE {}, {} SET {} WHERE {};", 
-                self.mv_trans.objname_to_mv_objname(&dtobjname).to_string(),
+                self.qtrans.objname_to_mv_objname(&dtobjname).to_string(),
                 dtobjname.to_string(),
                 astr,
                 select_constraint.to_string(),
@@ -307,10 +304,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         }
 
         /*
-         * 1. drop all GIDs from GHOST_USER_MV
+         * 1. drop all GIDs from users table 
          */
         let delete_gids_as_users_stmt = Statement::Delete(DeleteStatement {
-            table_name: helpers::string_to_objname(GHOST_USERS_MV),
+            table_name: self.qtrans.objname_to_mv_objname(&helpers::string_to_objname(&self.cfg.user_table.name)),
             selection: Some(Expr::InList{
                 expr: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
                 list: gids.clone(),
@@ -349,7 +346,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             let mut assignments : Vec<String> = vec![];
             for uc in ucols {
                 let uc_dt_ids = helpers::string_to_idents(&uc);
-                let uc_mv_ids = self.mv_trans.idents_to_mv_idents(&uc_dt_ids);
+                let uc_mv_ids = self.qtrans.idents_to_mv_idents(&uc_dt_ids);
                 let mut astr = String::new();
                 astr.push_str(&format!(
                         "{} = {}", 
@@ -380,7 +377,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 fullname.push_str(".");
                 fullname.push_str(&col);
                 let dt_ids = helpers::string_to_idents(&fullname);
-                let mv_ids = self.mv_trans.idents_to_mv_idents(&dt_ids);
+                let mv_ids = self.qtrans.idents_to_mv_idents(&dt_ids);
 
                 select_constraint = Expr::BinaryOp {
                     left: Box::new(select_constraint),
@@ -403,7 +400,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 astr.push_str(&assignments[i]);
             }
             let update_dt_stmt = format!("UPDATE {}, {} SET {} WHERE {};", 
-                self.mv_trans.objname_to_mv_objname(&dtobjname).to_string(),
+                self.qtrans.objname_to_mv_objname(&dtobjname).to_string(),
                 dtobjname.to_string(),
                 astr,
                 select_constraint.to_string(),
@@ -561,10 +558,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             Ok(stmts) => {
                 assert!(stmts.len()==1);
                 // TODO wrap in txn
-                let (mv_stmt, is_write) = self.mv_trans.stmt_to_mv_stmt(&stmts[0], &mut self.db)?;
+                let (mv_stmt, is_write) = self.qtrans.stmt_to_mv_stmt(&stmts[0], &mut self.db)?;
                 println!("on_query: mv_stmt {}, is_write={}", mv_stmt.to_string(), is_write);
                 if is_write {
-                    if let Some(dt_stmt) = self.dt_trans.stmt_to_datatable_stmt(&stmts[0], &mut self.db)? {
+                    if let Some(dt_stmt) = self.qtrans.stmt_to_datatable_stmt(&stmts[0], &mut self.db)? {
                         println!("on_query:  dt_stmt {}", dt_stmt.to_string());
                         self.db.query_drop(dt_stmt.to_string())?;
                     } else {
