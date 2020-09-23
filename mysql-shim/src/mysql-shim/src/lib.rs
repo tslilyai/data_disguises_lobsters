@@ -9,7 +9,7 @@ use std::*;
 mod helpers;
 pub mod config;
 pub mod query_transformer;
-pub mod mv_transformer;
+//pub mod mv_transformer;
 
 const GHOST_ID_START : u64 = 1<<20;
 const GHOST_TABLE_NAME : &'static str = "ghosts";
@@ -98,21 +98,7 @@ impl Shim {
             Ok(stmts) => {
                 for stmt in stmts {
                     // TODO wrap in txn
-                    let (mv_stmt, is_dt_write) = self.qtrans.stmt_to_mv_stmt(&stmt, &mut self.db)?;
-                    println!("on_init: mv_stmt {}", mv_stmt.to_string());
-                    if is_dt_write {
-                        // issue actual statement to datatables if they are writes to datatables (potentially creating ghost ID 
-                        // entries as well)
-                        if let Some(dt_stmt) = self.qtrans.stmt_to_datatable_stmt(&stmt, &mut self.db)? {
-                            println!("on_init: dt_stmt {}", dt_stmt.to_string());
-                            self.db.query_drop(dt_stmt.to_string())?;
-                        } else {
-                            // TODO abort
-                        }
-                    }
-                    // issue statement to materialized views AFTER
-                    // issuing to datatables (which may perform reads)
-                    self.db.query_drop(mv_stmt.to_string())?;
+                    self.qtrans.issue_stmt(&stmt, &mut self.db)?;
                 }
                 Ok(())
             }
@@ -530,6 +516,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 return Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?);
             }
         }
+        // update autoinc value (if exists)
+        if self.qtrans.cfg.user_table.is_autoinc {
+            //TODO self.db.query_iter("")
+        }
 
         // initialize columns of DT
         for dt in &mut self.cfg.data_tables {
@@ -558,18 +548,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             Ok(stmts) => {
                 assert!(stmts.len()==1);
                 // TODO wrap in txn
-                let (mv_stmt, is_write) = self.qtrans.stmt_to_mv_stmt(&stmts[0], &mut self.db)?;
-                println!("on_query: mv_stmt {}, is_write={}", mv_stmt.to_string(), is_write);
-                if is_write {
-                    if let Some(dt_stmt) = self.qtrans.stmt_to_datatable_stmt(&stmts[0], &mut self.db)? {
-                        println!("on_query:  dt_stmt {}", dt_stmt.to_string());
-                        self.db.query_drop(dt_stmt.to_string())?;
-                    } else {
-                        results.error(ErrorKind::ER_PARSE_ERROR, format!("{:?}", "Could not parse dt stmt").as_bytes())?;
-                        return Ok(());
-                    }
-                }
-                return answer_rows(results, self.db.query_iter(format!("{}", mv_stmt)));
+                let res = self.qtrans.issue_stmt(&stmts[0], &mut self.db);
+                return answer_rows(results, res);
             }
         }
     }
@@ -577,8 +557,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
 
 fn answer_rows<W: io::Write>(
     results: QueryResultWriter<W>,
-    rows: mysql::Result<mysql::QueryResult<mysql::Text>>,
-) -> Result<(), mysql::Error> 
+    rows: mysql::Result<mysql::QueryResult<mysql::Text>>) 
+    -> Result<(), mysql::Error> 
 {
     match rows {
         Ok(rows) => {
