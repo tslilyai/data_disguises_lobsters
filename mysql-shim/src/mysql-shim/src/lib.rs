@@ -98,7 +98,8 @@ impl Shim {
             Ok(stmts) => {
                 for stmt in stmts {
                     // TODO wrap in txn
-                    self.qtrans.issue_stmt(&stmt, &mut self.db)?;
+                    let mv_stmt = self.qtrans.get_mv_stmt(&stmt, &mut self.db)?;
+                    // TODO issue
                 }
                 Ok(())
             }
@@ -548,8 +549,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             Ok(stmts) => {
                 assert!(stmts.len()==1);
                 // TODO wrap in txn
-                let res = self.qtrans.issue_stmt(&stmts[0], &mut self.db);
-                return answer_rows(results, res);
+                let mv_stmt = self.qtrans.get_mv_stmt(&stmts[0], &mut self.db)?;
+                return answer_rows(results, self.db.query_iter(mv_stmt.to_string()));
             }
         }
     }

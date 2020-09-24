@@ -752,7 +752,8 @@ impl QueryTransformer {
         }
     }
 
-    pub fn issue_stmt(&mut self, stmt: &Statement, db: &mut mysql::Conn) -> Result<mysql::QueryResult<mysql::Text>, mysql::Error> {
+    pub fn get_mv_stmt(&mut self, stmt: &Statement, db: &mut mysql::Conn) -> mysql::Result<Statement> {
+        let mv_stmt : Statement;
         let mut is_dt_write = false;
         let mv_table_name : String;
 
@@ -766,10 +767,10 @@ impl QueryTransformer {
                 as_of,
             }) => {
                 let new_q = self.query_to_mv_query(&query);
-                db.query_iter(Statement::Select(SelectStatement{
+                mv_stmt = Statement::Select(SelectStatement{
                     query: Box::new(new_q), 
                     as_of: as_of.clone(),
-                }).to_string())
+                })
             }
             Statement::Insert(InsertStatement{
                 table_name,
@@ -787,7 +788,7 @@ impl QueryTransformer {
                         InsertSource::Query(q) => {
                             vals_vec = self.insert_source_query_to_vals_vec(&q, db)?;
                             let mut new_q = q.clone();
-                            new_q.body = SetExpr::Values(Values(vals_vec));
+                            new_q.body = SetExpr::Values(Values(vals_vec.clone()));
                             new_source = InsertSource::Query(new_q);
                         }
                         InsertSource::DefaultValues => (),
@@ -806,13 +807,18 @@ impl QueryTransformer {
                             // as the id col values 
                         }
                     }
-                    // TODO issue to datatable with vals_vec
+                    // issue to datatable with vals_vec
+                    self.issue_insert_datatable_stmt(&vals_vec, InsertStatement{
+                        table_name: table_name.clone(), 
+                        columns: columns.clone(), 
+                        source: source.clone(),
+                    }, db)?;
                 }
-                db.query_iter(Statement::Insert(InsertStatement{
+                mv_stmt = Statement::Insert(InsertStatement{
                     table_name: helpers::string_to_objname(&mv_table_name),
                     columns : columns.clone(),
                     source : new_source, 
-                }).to_string())
+                });
             }
             Statement::Update(UpdateStatement{
                 table_name,
@@ -821,6 +827,15 @@ impl QueryTransformer {
             }) => {
                 mv_table_name = self.objname_to_mv_string(&table_name);
                 is_dt_write = mv_table_name != table_name.to_string();
+
+                if is_dt_write {
+                    self.issue_update_datatable_stmt(UpdateStatement{
+                        table_name: table_name.clone(), 
+                        assignments: assignments.clone(), 
+                        selection: selection.clone()
+                    }, db)?;
+                }
+
                 let mut mv_assn = Vec::<Assignment>::new();
                 let mut mv_selection = selection.clone();
                 // update assignments
@@ -835,14 +850,12 @@ impl QueryTransformer {
                     None => (),
                     Some(s) => mv_selection = Some(self.expr_to_mv_expr(&s)),
                 }
-
-                // TODO issue if is_dt_write to datatable
                 
-                db.query_iter(Statement::Update(UpdateStatement{
+                mv_stmt = Statement::Update(UpdateStatement{
                     table_name: helpers::string_to_objname(&mv_table_name),
                     assignments : mv_assn,
                     selection : mv_selection,
-                }).to_string())
+                });
             }
             Statement::Delete(DeleteStatement{
                 table_name,
@@ -850,6 +863,14 @@ impl QueryTransformer {
             }) => {
                 mv_table_name = self.objname_to_mv_string(&table_name);
                 is_dt_write = mv_table_name != table_name.to_string();
+
+                if is_dt_write {
+                    self.issue_delete_datatable_stmt(DeleteStatement{
+                        table_name: table_name.clone(), 
+                        selection: selection.clone(),
+                    }, db)?;
+                }
+
                 let mut mv_selection = selection.clone();
                 // update selection 
                 match selection {
@@ -857,12 +878,10 @@ impl QueryTransformer {
                     Some(s) => mv_selection = Some(self.expr_to_mv_expr(&s)),
                 }
                
-                // TODO issue if is_dt_write to datatable
-                
-                db.query_iter(Statement::Delete(DeleteStatement{
+                mv_stmt = Statement::Delete(DeleteStatement{
                     table_name: helpers::string_to_objname(&mv_table_name),
                     selection : mv_selection,
-                }).to_string())
+                });
             }
             Statement::CreateView(CreateViewStatement{
                 name,
@@ -874,7 +893,7 @@ impl QueryTransformer {
                 materialized,
             }) => {
                 let mv_query = self.query_to_mv_query(&query);
-                db.query_iter(Statement::CreateView(CreateViewStatement{
+                mv_stmt = Statement::CreateView(CreateViewStatement{
                     name: name.clone(),
                     columns: columns.clone(),
                     with_options: with_options.clone(),
@@ -882,7 +901,7 @@ impl QueryTransformer {
                     if_exists: if_exists.clone(),
                     temporary: temporary.clone(),
                     materialized: materialized.clone(),
-                }).to_string())
+                });
             }
             Statement::CreateTable(CreateTableStatement{
                 name,
@@ -893,6 +912,13 @@ impl QueryTransformer {
             }) => {
                 mv_table_name = self.objname_to_mv_string(&name);
                 is_dt_write = mv_table_name != name.to_string();
+
+                if is_dt_write {
+                    // create the original table as well if we're going to
+                    // create a MV for this table
+                    db.query_drop(stmt.to_string())?;
+                }
+
                 let mv_constraints : Vec<TableConstraint> = constraints
                     .iter()
                     .map(|c| match c {
@@ -933,15 +959,13 @@ impl QueryTransformer {
                     }
                 }
                 
-                // TODO issue to DT
-                
-                db.query_iter(Statement::CreateTable(CreateTableStatement{
+                mv_stmt = Statement::CreateTable(CreateTableStatement{
                     name: helpers::string_to_objname(&mv_table_name),
                     columns: mv_cols,
                     constraints: mv_constraints,
                     with_options: with_options.clone(),
                     if_not_exists: if_not_exists.clone(),
-                }).to_string())
+                });
             }
             Statement::CreateIndex(CreateIndexStatement{
                 name,
@@ -951,13 +975,19 @@ impl QueryTransformer {
             }) => {
                 mv_table_name = self.objname_to_mv_string(&on_name);
                 is_dt_write = mv_table_name != on_name.to_string();
-                // TODO issue to DT
-                db.query_iter(Statement::CreateIndex(CreateIndexStatement{
+
+                if is_dt_write {
+                    // create the original index as well if we're going to
+                    // create a MV index 
+                    db.query_drop(stmt.to_string())?;
+                }
+
+                mv_stmt = Statement::CreateIndex(CreateIndexStatement{
                     name: name.clone(),
                     on_name: helpers::string_to_objname(&mv_table_name),
                     key_parts: key_parts.clone(),
                     if_not_exists: if_not_exists.clone(),
-                }).to_string())
+                });
             }
             Statement::AlterObjectRename(AlterObjectRenameStatement{
                 object_type,
@@ -968,7 +998,13 @@ impl QueryTransformer {
                 let mut to_item_mv_name = to_item_name.to_string();
                 mv_table_name= self.objname_to_mv_string(&name);
                 is_dt_write = mv_table_name != name.to_string();
-                // TODO issue to DT
+
+                if is_dt_write {
+                    // alter the original table as well if we're going to
+                    // alter a MV table
+                    db.query_drop(stmt.to_string())?;
+                }
+                
                 match object_type {
                     ObjectType::Table => {
                         // update name(s)
@@ -991,12 +1027,12 @@ impl QueryTransformer {
                     }
                     _ => (),
                 }
-                db.query_iter(Statement::AlterObjectRename(AlterObjectRenameStatement{
+                mv_stmt = Statement::AlterObjectRename(AlterObjectRenameStatement{
                     object_type: object_type.clone(),
                     if_exists: *if_exists,
                     name: helpers::string_to_objname(&mv_table_name),
                     to_item_name: Ident::new(to_item_mv_name),
-                }).to_string())
+                });
             }
             Statement::DropObjects(DropObjectsStatement{
                 object_type,
@@ -1017,12 +1053,12 @@ impl QueryTransformer {
                     }
                     _ => (),
                 }
-                db.query_iter(Statement::DropObjects(DropObjectsStatement{
+                mv_stmt = Statement::DropObjects(DropObjectsStatement{
                     object_type: object_type.clone(),
                     if_exists: *if_exists,
                     names: mv_names,
                     cascade: *cascade,
-                }).to_string())
+                });
             }
             Statement::ShowObjects(ShowObjectsStatement{
                 object_type,
@@ -1046,14 +1082,14 @@ impl QueryTransformer {
                         }
                     }
                 }
-                db.query_iter(Statement::ShowObjects(ShowObjectsStatement{
+                mv_stmt = Statement::ShowObjects(ShowObjectsStatement{
                     object_type: object_type.clone(),
                     from: mv_from,
                     extended: *extended,
                     full: *full,
                     materialized: *materialized,
                     filter: mv_filter,
-                }).to_string())
+                });
             }
             Statement::ShowIndexes(ShowIndexesStatement{
                 table_name,
@@ -1070,11 +1106,11 @@ impl QueryTransformer {
                         }
                     }
                 }
-                db.query_iter(Statement::ShowIndexes(ShowIndexesStatement {
+                mv_stmt = Statement::ShowIndexes(ShowIndexesStatement {
                     table_name: helpers::string_to_objname(&mv_table_name),
                     extended: *extended,
                     filter: mv_filter,
-                }).to_string())
+                });
             }
             /* TODO Handle Statement::Explain(stmt) => f.write_node(stmt)
              *
@@ -1096,9 +1132,10 @@ impl QueryTransformer {
              * XXX: SHOW * from users will not return any ghost users in ghostusersMV
              * */
             _ => {
-                db.query_iter(stmt.to_string())
+                mv_stmt = stmt.clone()
             }
         }
+        Ok(mv_stmt)
     }
       
     /*
@@ -1169,10 +1206,10 @@ impl QueryTransformer {
    
 
     fn vals_vec_to_datatable_vals(&mut self, vals_vec: &Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
-        -> Result<Option<Vec<Vec<Expr>>>, mysql::Error>
+        -> Result<Vec<Vec<Expr>>, mysql::Error>
     {
         if ucol_indices.is_empty() {
-            return Ok(Some(vals_vec.to_vec()));
+            return Ok(vals_vec.to_vec());
         }         
         let mut parser_val_tuples = vec![];
         for row in vals_vec {
@@ -1192,7 +1229,7 @@ impl QueryTransformer {
             }
             parser_val_tuples.push(parser_vals);
         }
-        Ok(Some(parser_val_tuples))
+        Ok(parser_val_tuples)
     }
 
     fn selection_to_datatable_selection(&mut self, selection: &Option<Expr>, db: &mut mysql::Conn, 
@@ -1316,258 +1353,226 @@ impl QueryTransformer {
         } 
         return Ok(qt_selection);
     }
+    
+    fn issue_insert_datatable_stmt(&mut self, vals_vec: &Vec<Vec<Expr>>, stmt: InsertStatement, db: &mut mysql::Conn) 
+        -> Result<(), mysql::Error> 
+    {
+        /* note that if the table is the users table,
+         * we just want to insert like usual; we only care about
+         * adding ghost ids for data tables, but we don't add ghosts to
+         * the user table
+         */
 
-    pub fn stmt_to_datatable_stmt(&mut self, stmt: &Statement, db: &mut mysql::Conn) -> Result<Option<Statement>, mysql::Error> {
-        let mut qt_stmt = stmt.clone();
-
-        match stmt {
-            Statement::Insert(InsertStatement{
-                table_name,
-                columns, 
-                source,
-            }) => {
-                /* note that if the table is the users table,
-                 * we just want to insert like usual; we only care about
-                 * adding ghost ids for data tables, but we don't add ghosts to
-                 * the user table
-                 */
-
-                /* For all columns that are user columns, generate a new ghost_id and insert
-                     into ghosts table with appropriate user_id value
-                     those as the values instead for those columns.
-                    This will be empty if the table is the user table, or not a datatable
-                 */
-                let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &table_name);
-                let mut ucol_indices = vec![];
-                // get indices of columns corresponding to user vals
-                if !ucols.is_empty() {
-                    for (i, c) in columns.into_iter().enumerate() {
-                        // XXX this may overcount if a non-user column is a suffix of a user
-                        // column
-                        if ucols.iter().any(|uc| helpers::str_ident_match(&c.to_string(), uc)) {
-                            ucol_indices.push(i);
-                        }
-                    }
+        /* For all columns that are user columns, generate a new ghost_id and insert
+             into ghosts table with appropriate user_id value
+             those as the values instead for those columns.
+            This will be empty if the table is the user table, or not a datatable
+         */
+        let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &stmt.table_name);
+        let mut ucol_indices = vec![];
+        // get indices of columns corresponding to user vals
+        if !ucols.is_empty() {
+            for (i, c) in (&stmt.columns).into_iter().enumerate() {
+                // XXX this may overcount if a non-user column is a suffix of a user
+                // column
+                if ucols.iter().any(|uc| helpers::str_ident_match(&c.to_string(), uc)) {
+                    ucol_indices.push(i);
                 }
-
-                // update sources
-                let mut qt_source = source.clone();
-                /* if no user columns, change sources to use MV
-                 * otherwise, we need to insert new GID->UID mappings 
-                 * with the values of the usercol value as the UID
-                 * and then set the GID as the new source value of the usercol 
-                 * */
-                let mut vals_vec = vec![];
-                match source {
-                    InsertSource::Query(q) => {
-                        vals_vec = self.insert_source_query_to_vals_vec(&q, db)?;
-                        if let Some(vv) = self.vals_vec_to_datatable_vals(&vals_vec, &ucol_indices, db)? {
-                            let mut new_q = q.clone();
-                            new_q.body = SetExpr::Values(Values(vv));
-                            qt_source = InsertSource::Query(new_q);
-                        } else {
-                            return Ok(None);
-                        }
-                    }
-                    InsertSource::DefaultValues => (),
-                }
-                
-                qt_stmt = Statement::Insert(InsertStatement{
-                    table_name: table_name.clone(),
-                    columns : columns.clone(),
-                    source : qt_source, 
-                });
             }
-            Statement::Update(UpdateStatement{
-                table_name,
-                assignments,
-                selection,
-            }) => {
-                let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &table_name);
-                let mut contains_ucol_id = false;
-                let mut ucol_assigns = vec![];
-                let mut ucol_selectitems_assn = vec![];
-                let mut qt_assn = vec![];
-
-                for a in assignments {
-                    // we still want to perform the update BUT we need to make sure that the updated value, if a 
-                    // expr with a query, reads from the MV rather than the datatables
-
-                    let new_val = self.expr_to_value_expr(&a.value, db, &mut contains_ucol_id, &vec![])?;
-                                        
-                    // we won't replace any UIDs when converting assignments to values, but
-                    // we also want to update any usercol value to NULL if the UID is being set to NULL, so we put it
-                    // in qt_assn too (rather than only updating the GID)
-                    let is_ucol = ucols.iter().any(|uc| helpers::str_ident_match(&a.id.to_string(), uc));
-                    if !is_ucol || new_val == Expr::Value(Value::Null) {
-                        qt_assn.push(Assignment{
-                            id: a.id.clone(),
-                            value: new_val.clone(),
-                        });
-                    } 
-                    // if we have an assignment to a UID, we need to update the GID->UID mapping
-                    // instead of updating the actual data table record
-                    // note that we still include NULL entries so we know to delete this GID
-                    if is_ucol {
-                        ucol_assigns.push(Assignment {
-                            id: a.id.clone(),
-                            value: new_val.clone(),
-                        });
-                        ucol_selectitems_assn.push(SelectItem::Expr{
-                            expr: Expr::Identifier(vec![a.id.clone()]),
-                            alias: None,
-                        });
-                    }
-                }
-
-                let qt_selection = self.selection_to_datatable_selection(selection, db, &table_name, &ucols)?;
-             
-                // if usercols are being updated, query DT to get the relevant
-                // GIDs and update these GID->UID mappings in the ghosts table
-                if !ucol_assigns.is_empty() {
-                    let get_gids_stmt_from_dt = Statement::Select(SelectStatement {
-                        query: Box::new(Query::select(Select{
-                            distinct: true,
-                            projection: ucol_selectitems_assn,
-                            from: vec![TableWithJoins{
-                                relation: TableFactor::Table{
-                                    name: table_name.clone(),
-                                    alias: None,
-                                },
-                                joins: vec![],
-                            }],
-                            selection: qt_selection.clone(),
-                            group_by: vec![],
-                            having: None,
-                        })),
-                        as_of: None,
-                    });
-                    // get the user_col GIDs from the datatable
-                    let res = db.query_iter(format!("{}", get_gids_stmt_from_dt.to_string()))?;
-                    let mut ghost_update_stmts = vec![];
-                    for row in res {
-                        let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
-                        for (i, uc_val) in ucol_assigns.iter().enumerate() {
-                            let gid = helpers::mysql_val_to_parser_val(&mysql_vals[i]);
-                            // delete the GID entry if it is being set to NULL
-                            if uc_val.value == Expr::Value(Value::Null) {
-                                ghost_update_stmts.push(Statement::Delete(DeleteStatement {
-                                    table_name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
-                                    selection: Some(Expr::BinaryOp{
-                                        left: Box::new(Expr::Identifier(helpers::string_to_idents(super::GHOST_ID_COL))),
-                                        op: BinaryOperator::Eq,
-                                        right: Box::new(Expr::Value(Value::Number(format!("{}", gid)))),
-                                    }),
-                                }));
-                            } else {
-                                // otherwise, update GID entry with new UID value
-                                // XXX what if the value IS a GID??? should we just remove this GID?
-                                ghost_update_stmts.push(Statement::Update(UpdateStatement {
-                                    table_name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
-                                    assignments: vec![Assignment{
-                                        id: Ident::new(super::GHOST_USER_COL),
-                                        value: uc_val.value.clone(),
-                                    }],
-                                    selection: Some(Expr::BinaryOp{
-                                        left: Box::new(Expr::Identifier(helpers::string_to_idents(super::GHOST_ID_COL))),
-                                        op: BinaryOperator::Eq,
-                                        right: Box::new(Expr::Value(Value::Number(format!("{}", gid)))),
-                                    }),
-                                }));
-                            }
-                        }
-                    }
-                    for gstmt in ghost_update_stmts {
-                        db.query_drop(format!("{}", gstmt.to_string()))?;
-                    }
-                }
-                qt_stmt = Statement::Update(UpdateStatement{
-                    table_name: table_name.clone(),
-                    assignments : qt_assn,
-                    selection : qt_selection,
-                });
-            }
-            Statement::Delete(DeleteStatement{
-                table_name,
-                selection,
-            }) => {
-                let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &table_name);
-                let qt_selection = self.selection_to_datatable_selection(selection, db, &table_name, &ucols)?;
-
-                let ucol_selectitems = ucols.iter()
-                    .map(|uc| SelectItem::Expr{
-                        expr: Expr::Identifier(helpers::string_to_idents(uc)),
-                        alias: None,
-                    })
-                    .collect();
-               
-                // get the list of GIDs to delete from the ghosts table 
-                let select_gids_stmt = Statement::Select(SelectStatement {
-                        query: Box::new(Query::select(Select{
-                                distinct: true,
-                                projection: ucol_selectitems,
-                                from: vec![TableWithJoins{
-                                    relation: TableFactor::Table{
-                                        name: table_name.clone(),
-                                        alias: None,
-                                    },
-                                    joins: vec![],
-                                }],
-                                selection: qt_selection.clone(),
-                                group_by: vec![],
-                                having: None,
-                            })),        
-                        as_of: None,
-                });
-                let res = db.query_iter(format!("{}", select_gids_stmt.to_string()))?;
-                let mut gids_list : Vec<Expr>= vec![];
-                for row in res {
-                    for val in row.unwrap().unwrap() {
-                        gids_list.push(Expr::Value(helpers::mysql_val_to_parser_val(&val)));
-                    }
-                }
-
-                // delete from ghosts table if GIDs are removed
-                // TODO we might want to keep this around if data is "restorable"
-                if !ucols.is_empty() {
-                    let ghosts_delete_statement = Statement::Delete(DeleteStatement{
-                        table_name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
-                        selection: Some(Expr::InList{
-                            expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_ID_COL))),
-                            list: gids_list,
-                            negated: false,
-                        }),
-                    });
-                    db.query_drop(&ghosts_delete_statement.to_string())?;
-                }
-
-                qt_stmt = Statement::Delete(DeleteStatement{
-                    table_name: table_name.clone(),
-                    selection : qt_selection,
-                });
-            }
-            Statement::CreateView(CreateViewStatement{
-                name,
-                columns,
-                with_options,
-                query,
-                if_exists,
-                temporary,
-                materialized,
-            }) => {
-                let qt_query = self.query_to_value_query(&query, db)?;
-                qt_stmt = Statement::CreateView(CreateViewStatement{
-                    name: name.clone(),
-                    columns: columns.clone(),
-                    with_options: with_options.clone(),
-                    query : Box::new(qt_query),
-                    if_exists: if_exists.clone(),
-                    temporary: temporary.clone(),
-                    materialized: materialized.clone(),
-                });
-            }
-            _ => ()
         }
-        return Ok(Some(qt_stmt));
+
+        // update sources
+        let mut qt_source = stmt.source.clone();
+        /* if no user columns, change sources to use MV
+         * otherwise, we need to insert new GID->UID mappings 
+         * with the values of the usercol value as the UID
+         * and then set the GID as the new source value of the usercol 
+         * */
+        match stmt.source {
+            InsertSource::Query(q) => {
+                let vv = self.vals_vec_to_datatable_vals(vals_vec, &ucol_indices, db)?;
+                let mut new_q = q.clone();
+                new_q.body = SetExpr::Values(Values(vv));
+                qt_source = InsertSource::Query(new_q);
+            }
+            InsertSource::DefaultValues => (),
+        }
+        
+        db.query_drop(Statement::Insert(InsertStatement{
+            table_name: stmt.table_name.clone(),
+            columns : stmt.columns.clone(),
+            source : qt_source, 
+        }).to_string())?;
+
+        Ok(())
+    }
+    
+    fn issue_update_datatable_stmt(&mut self, stmt: UpdateStatement, db: &mut mysql::Conn)
+        -> Result<(), mysql::Error> 
+    {
+        let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &stmt.table_name);
+        let mut contains_ucol_id = false;
+        let mut ucol_assigns = vec![];
+        let mut ucol_selectitems_assn = vec![];
+        let mut qt_assn = vec![];
+
+        for a in &stmt.assignments {
+            // we still want to perform the update BUT we need to make sure that the updated value, if a 
+            // expr with a query, reads from the MV rather than the datatables
+
+            let new_val = self.expr_to_value_expr(&a.value, db, &mut contains_ucol_id, &vec![])?;
+                                
+            // we won't replace any UIDs when converting assignments to values, but
+            // we also want to update any usercol value to NULL if the UID is being set to NULL, so we put it
+            // in qt_assn too (rather than only updating the GID)
+            let is_ucol = ucols.iter().any(|uc| helpers::str_ident_match(&a.id.to_string(), uc));
+            if !is_ucol || new_val == Expr::Value(Value::Null) {
+                qt_assn.push(Assignment{
+                    id: a.id.clone(),
+                    value: new_val.clone(),
+                });
+            } 
+            // if we have an assignment to a UID, we need to update the GID->UID mapping
+            // instead of updating the actual data table record
+            // note that we still include NULL entries so we know to delete this GID
+            if is_ucol {
+                ucol_assigns.push(Assignment {
+                    id: a.id.clone(),
+                    value: new_val.clone(),
+                });
+                ucol_selectitems_assn.push(SelectItem::Expr{
+                    expr: Expr::Identifier(vec![a.id.clone()]),
+                    alias: None,
+                });
+            }
+        }
+
+        let qt_selection = self.selection_to_datatable_selection(&stmt.selection, db, &stmt.table_name, &ucols)?;
+     
+        // if usercols are being updated, query DT to get the relevant
+        // GIDs and update these GID->UID mappings in the ghosts table
+        if !ucol_assigns.is_empty() {
+            let get_gids_stmt_from_dt = Statement::Select(SelectStatement {
+                query: Box::new(Query::select(Select{
+                    distinct: true,
+                    projection: ucol_selectitems_assn,
+                    from: vec![TableWithJoins{
+                        relation: TableFactor::Table{
+                            name: stmt.table_name.clone(),
+                            alias: None,
+                        },
+                        joins: vec![],
+                    }],
+                    selection: qt_selection.clone(),
+                    group_by: vec![],
+                    having: None,
+                })),
+                as_of: None,
+            });
+            // get the user_col GIDs from the datatable
+            let res = db.query_iter(format!("{}", get_gids_stmt_from_dt.to_string()))?;
+            let mut ghost_update_stmts = vec![];
+            for row in res {
+                let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
+                for (i, uc_val) in ucol_assigns.iter().enumerate() {
+                    let gid = helpers::mysql_val_to_parser_val(&mysql_vals[i]);
+                    // delete the GID entry if it is being set to NULL
+                    if uc_val.value == Expr::Value(Value::Null) {
+                        ghost_update_stmts.push(Statement::Delete(DeleteStatement {
+                            table_name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
+                            selection: Some(Expr::BinaryOp{
+                                left: Box::new(Expr::Identifier(helpers::string_to_idents(super::GHOST_ID_COL))),
+                                op: BinaryOperator::Eq,
+                                right: Box::new(Expr::Value(Value::Number(format!("{}", gid)))),
+                            }),
+                        }));
+                    } else {
+                        // otherwise, update GID entry with new UID value
+                        // XXX what if the value IS a GID??? should we just remove this GID?
+                        ghost_update_stmts.push(Statement::Update(UpdateStatement {
+                            table_name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
+                            assignments: vec![Assignment{
+                                id: Ident::new(super::GHOST_USER_COL),
+                                value: uc_val.value.clone(),
+                            }],
+                            selection: Some(Expr::BinaryOp{
+                                left: Box::new(Expr::Identifier(helpers::string_to_idents(super::GHOST_ID_COL))),
+                                op: BinaryOperator::Eq,
+                                right: Box::new(Expr::Value(Value::Number(format!("{}", gid)))),
+                            }),
+                        }));
+                    }
+                }
+            }
+            for gstmt in ghost_update_stmts {
+                db.query_drop(format!("{}", gstmt.to_string()))?;
+            }
+        }
+        db.query_drop(Statement::Update(UpdateStatement{
+            table_name: stmt.table_name.clone(),
+            assignments : qt_assn,
+            selection : qt_selection,
+        }).to_string())?;
+        Ok(())
+    }
+    
+    fn issue_delete_datatable_stmt(&mut self, stmt: DeleteStatement, db: &mut mysql::Conn)
+        -> Result<(), mysql::Error> 
+    {        
+        let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &stmt.table_name);
+        let qt_selection = self.selection_to_datatable_selection(&stmt.selection, db, &stmt.table_name, &ucols)?;
+
+        let ucol_selectitems = ucols.iter()
+            .map(|uc| SelectItem::Expr{
+                expr: Expr::Identifier(helpers::string_to_idents(uc)),
+                alias: None,
+            })
+            .collect();
+       
+        // get the list of GIDs to delete from the ghosts table 
+        let select_gids_stmt = Statement::Select(SelectStatement {
+                query: Box::new(Query::select(Select{
+                        distinct: true,
+                        projection: ucol_selectitems,
+                        from: vec![TableWithJoins{
+                            relation: TableFactor::Table{
+                                name: stmt.table_name.clone(),
+                                alias: None,
+                            },
+                            joins: vec![],
+                        }],
+                        selection: qt_selection.clone(),
+                        group_by: vec![],
+                        having: None,
+                    })),        
+                as_of: None,
+        });
+        let res = db.query_iter(format!("{}", select_gids_stmt.to_string()))?;
+        let mut gids_list : Vec<Expr>= vec![];
+        for row in res {
+            for val in row.unwrap().unwrap() {
+                gids_list.push(Expr::Value(helpers::mysql_val_to_parser_val(&val)));
+            }
+        }
+
+        // delete from ghosts table if GIDs are removed
+        // TODO we might want to keep this around if data is "restorable"
+        if !ucols.is_empty() {
+            let ghosts_delete_statement = Statement::Delete(DeleteStatement{
+                table_name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
+                selection: Some(Expr::InList{
+                    expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_ID_COL))),
+                    list: gids_list,
+                    negated: false,
+                }),
+            });
+            db.query_drop(&ghosts_delete_statement.to_string())?;
+        }
+
+        db.query_drop(Statement::Delete(DeleteStatement{
+            table_name: stmt.table_name.clone(),
+            selection : qt_selection,
+        }).to_string())?;
+        Ok(())
     }
 }
