@@ -829,7 +829,6 @@ impl QueryTransformer {
                         }
                     }
 
-                    //
                     // issue to datatable with vals_vec
                     self.issue_insert_datatable_stmt(&vals_vec, InsertStatement{
                         table_name: table_name.clone(), 
@@ -852,11 +851,38 @@ impl QueryTransformer {
                 is_dt_write = mv_table_name != table_name.to_string();
 
                 if is_dt_write {
-                    self.issue_update_datatable_stmt(UpdateStatement{
-                        table_name: table_name.clone(), 
-                        assignments: assignments.clone(), 
-                        selection: selection.clone()
-                    }, db)?;
+                    let mut assign_vals = vec![];
+                    let mut contains_ucol_id = false;
+                    for a in assignments {
+                        assign_vals.push(self.expr_to_value_expr(&a.value, db, &mut contains_ucol_id, &vec![])?);
+                    }
+                    
+                    // if the user table has an autoincrement column, we should 
+                    // (1) see if the table is actually updating a value for that column and
+                    // (2) update the latest_uid appropriately 
+                    if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
+                        for i in 0..assignments.len() {
+                            if assignments[i].id.to_string() == self.cfg.user_table.id_col {
+                                match &assign_vals[i] {
+                                    Expr::Value(Value::Number(n)) => {
+                                        let n = n.parse::<usize>().map_err(|e| mysql::Error::IoError(io::Error::new(
+                                                        io::ErrorKind::Other, format!("{}", e))))?;
+                                        LATEST_UID.fetch_max(n, Ordering::SeqCst);
+                                    }
+                                    _ => (),
+                                }
+                            }
+                        }
+                    }
+                    
+                    self.issue_update_datatable_stmt(
+                        &assign_vals,
+                        UpdateStatement{
+                            table_name: table_name.clone(), 
+                            assignments: assignments.clone(), 
+                            selection: selection.clone()
+                        }, 
+                        db)?;
                 }
 
                 let mut mv_assn = Vec::<Assignment>::new();
@@ -873,7 +899,8 @@ impl QueryTransformer {
                     None => (),
                     Some(s) => mv_selection = Some(self.expr_to_mv_expr(&s)),
                 }
-                
+               
+                // TODO deal with update assignments to user col in user table
                 mv_stmt = Statement::Update(UpdateStatement{
                     table_name: helpers::string_to_objname(&mv_table_name),
                     assignments : mv_assn,
@@ -1436,7 +1463,7 @@ impl QueryTransformer {
         Ok(())
     }
     
-    fn issue_update_datatable_stmt(&mut self, stmt: UpdateStatement, db: &mut mysql::Conn)
+    fn issue_update_datatable_stmt(&mut self, assign_vals: &Vec<Expr>, stmt: UpdateStatement, db: &mut mysql::Conn)
         -> Result<(), mysql::Error> 
     {
         let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &stmt.table_name);
@@ -1445,20 +1472,18 @@ impl QueryTransformer {
         let mut ucol_selectitems_assn = vec![];
         let mut qt_assn = vec![];
 
-        for a in &stmt.assignments {
+        for (i, a) in stmt.assignments.iter().enumerate() {
             // we still want to perform the update BUT we need to make sure that the updated value, if a 
             // expr with a query, reads from the MV rather than the datatables
-
-            let new_val = self.expr_to_value_expr(&a.value, db, &mut contains_ucol_id, &vec![])?;
                                 
             // we won't replace any UIDs when converting assignments to values, but
             // we also want to update any usercol value to NULL if the UID is being set to NULL, so we put it
             // in qt_assn too (rather than only updating the GID)
             let is_ucol = ucols.iter().any(|uc| helpers::str_ident_match(&a.id.to_string(), uc));
-            if !is_ucol || new_val == Expr::Value(Value::Null) {
+            if !is_ucol || assign_vals[i] == Expr::Value(Value::Null) {
                 qt_assn.push(Assignment{
                     id: a.id.clone(),
-                    value: new_val.clone(),
+                    value: assign_vals[i].clone(),
                 });
             } 
             // if we have an assignment to a UID, we need to update the GID->UID mapping
@@ -1467,7 +1492,7 @@ impl QueryTransformer {
             if is_ucol {
                 ucol_assigns.push(Assignment {
                     id: a.id.clone(),
-                    value: new_val.clone(),
+                    value: assign_vals[i].clone(),
                 });
                 ucol_selectitems_assn.push(SelectItem::Expr{
                     expr: Expr::Identifier(vec![a.id.clone()]),
