@@ -1,17 +1,9 @@
+use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::*;
 use super::config;
-
-pub fn trim_quotes(s: &str) -> &str {
-    let mut s = s;
-    if s.ends_with('"') && s.starts_with('"') {
-        s = &s[1..s.len() - 1]
-    } 
-    if s.ends_with("'") && s.starts_with("'") {
-        s = &s[1..s.len() - 1]
-    } 
-    s
-}
+use std::collections::HashMap;
+use std::sync::atomic::Ordering;
 
 pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName) -> Vec<String> {
     let mut res : Vec<String> = vec![];
@@ -29,11 +21,85 @@ pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName)
     }
     res
 }
- 
+
+pub fn get_uid2gids_for_uids(uids_to_match: Vec<Expr>, db: &mut mysql::Conn)
+        -> Result<HashMap<Value, Vec<Expr>>, mysql::Error> 
+{
+    let get_gids_stmt_from_ghosts = Query::select(Select{
+        distinct: true,
+        projection: vec![
+            SelectItem::Expr{
+                expr: Expr::Identifier(string_to_objname(&super::GHOST_USER_COL).0),
+                alias: None,
+            },
+            SelectItem::Expr{
+                expr: Expr::Identifier(string_to_objname(&super::GHOST_ID_COL).0),
+                alias: None,
+            }
+        ],
+        from: vec![TableWithJoins{
+            relation: TableFactor::Table{
+                name: string_to_objname(&super::GHOST_TABLE_NAME),
+                alias: None,
+            },
+            joins: vec![],
+        }],
+        selection: Some(Expr::InList{
+            expr: Box::new(Expr::Identifier(string_to_idents(&super::GHOST_USER_COL))),
+            list: uids_to_match,
+            negated: false,
+        }),
+        group_by: vec![],
+        having: None,
+    });
+
+    let mut uid_to_gids : HashMap<Value, Vec<Expr>> = HashMap::new();
+    let res = db.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
+    for row in res {
+        let vals : Vec<Value> = row.unwrap().unwrap()
+            .iter()
+            .map(|v| mysql_val_to_parser_val(&v))
+            .collect();
+        match uid_to_gids.get_mut(&vals[0]) {
+            Some(gids) => (*gids).push(Expr::Value(vals[1].clone())),
+            None => {
+                uid_to_gids.insert(vals[0].clone(), vec![Expr::Value(vals[1].clone())]);
+            }
+        }
+    }
+    Ok(uid_to_gids)
+}
+
+pub fn insert_gid_for_uid(uid: &Expr, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
+    // user ids are always ints
+    let res = db.query_iter(&format!("INSERT INTO {} ({}) VALUES ({});", 
+                                     super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid))?;
+    // we want to insert the GID in place
+    // of the UID
+    let gid = res.last_insert_id().ok_or_else(|| 
+        mysql::Error::IoError(io::Error::new(
+            io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
+    
+    // update the last known GID
+    super::LATEST_GID.fetch_max(gid, Ordering::SeqCst);
+    Ok(gid)
+}
+
 pub fn dtname_to_mvname_string(dtname: &String) -> String {
     let mut mvname = dtname.clone();
     mvname.push_str(super::MV_SUFFIX);
     mvname
+}
+
+pub fn trim_quotes(s: &str) -> &str {
+    let mut s = s;
+    if s.ends_with('"') && s.starts_with('"') {
+        s = &s[1..s.len() - 1]
+    } 
+    if s.ends_with("'") && s.starts_with("'") {
+        s = &s[1..s.len() - 1]
+    } 
+    s
 }
 
 pub fn string_to_idents(s: &str) -> Vec<Ident> {

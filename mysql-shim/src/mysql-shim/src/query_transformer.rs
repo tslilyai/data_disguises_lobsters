@@ -1,13 +1,9 @@
 use mysql::prelude::*;
-use std::collections::HashMap;
 use sql_parser::ast::*;
 use super::config;
 use super::helpers;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::Ordering;
 use std::*;
-
-static LATEST_GID : AtomicU64 = AtomicU64::new(super::GHOST_ID_START);
-static LATEST_UID : AtomicUsize = AtomicUsize::new(1);
 
 pub struct QueryTransformer {
     table_names: Vec<String>,
@@ -28,9 +24,9 @@ impl QueryTransformer {
         }
     }   
 
-    /* 
-     * MV Functions
-     */
+    /**************************************** 
+     **** Converts Queries/Exprs to Values **
+     ****************************************/
     
     /* 
      * This issues the specified query to the MVs, and returns a VALUES query that
@@ -806,7 +802,7 @@ impl QueryTransformer {
                         if let Some(i) = index {
                             // get the values of the uid col being inserted and update as
                             // appropriate
-                            let mut max = LATEST_UID.load(Ordering::SeqCst);
+                            let mut max = super::LATEST_UID.load(Ordering::SeqCst);
                             for vv in &vals_vec {
                                 match &vv[i] {
                                     Expr::Value(Value::Number(n)) => {
@@ -817,10 +813,10 @@ impl QueryTransformer {
                                     _ => (),
                                 }
                             }
-                            LATEST_UID.fetch_max(max, Ordering::SeqCst);
+                            super::LATEST_UID.fetch_max(max, Ordering::SeqCst);
                         } else {
                             // put latest_uid + N as the id col values 
-                            let cur_uid = LATEST_UID.fetch_add(vals_vec.len(), Ordering::SeqCst);
+                            let cur_uid = super::LATEST_UID.fetch_add(vals_vec.len(), Ordering::SeqCst);
                             for i in 0..vals_vec.len() {
                                 vals_vec[i].push(Expr::Value(Value::Number(format!("{}", cur_uid + i))));
                             }
@@ -867,7 +863,7 @@ impl QueryTransformer {
                                     Expr::Value(Value::Number(n)) => {
                                         let n = n.parse::<usize>().map_err(|e| mysql::Error::IoError(io::Error::new(
                                                         io::ErrorKind::Other, format!("{}", e))))?;
-                                        LATEST_UID.fetch_max(n, Ordering::SeqCst);
+                                        super::LATEST_UID.fetch_max(n, Ordering::SeqCst);
                                     }
                                     _ => (),
                                 }
@@ -900,7 +896,6 @@ impl QueryTransformer {
                     Some(s) => mv_selection = Some(self.expr_to_mv_expr(&s)),
                 }
                
-                // TODO deal with update assignments to user col in user table
                 mv_stmt = Statement::Update(UpdateStatement{
                     table_name: helpers::string_to_objname(&mv_table_name),
                     assignments : mv_assn,
@@ -1197,70 +1192,7 @@ impl QueryTransformer {
     /*
      * DATATABLE QUERY TRANSFORMER FUNCTIONS
      */
-    fn get_uid2gids_for_uids(&self, uids_to_match: Vec<Expr>, db: &mut mysql::Conn)
-        -> Result<HashMap<Value, Vec<Expr>>, mysql::Error> 
-    {
-        let get_gids_stmt_from_ghosts = Query::select(Select{
-            distinct: true,
-            projection: vec![
-                SelectItem::Expr{
-                    expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_USER_COL).0),
-                    alias: None,
-                },
-                SelectItem::Expr{
-                    expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_ID_COL).0),
-                    alias: None,
-                }
-            ],
-            from: vec![TableWithJoins{
-                relation: TableFactor::Table{
-                    name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
-                    alias: None,
-                },
-                joins: vec![],
-            }],
-            selection: Some(Expr::InList{
-                expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_USER_COL))),
-                list: uids_to_match,
-                negated: false,
-            }),
-            group_by: vec![],
-            having: None,
-        });
-
-        let mut uid_to_gids : HashMap<Value, Vec<Expr>> = HashMap::new();
-        let res = db.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
-        for row in res {
-            let vals : Vec<Value> = row.unwrap().unwrap()
-                .iter()
-                .map(|v| helpers::mysql_val_to_parser_val(&v))
-                .collect();
-            match uid_to_gids.get_mut(&vals[0]) {
-                Some(gids) => (*gids).push(Expr::Value(vals[1].clone())),
-                None => {
-                    uid_to_gids.insert(vals[0].clone(), vec![Expr::Value(vals[1].clone())]);
-                }
-            }
-        }
-        Ok(uid_to_gids)
-    }
-
-    fn insert_gid_for_uid(&self, uid: &Expr, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
-        // user ids are always ints
-        let res = db.query_iter(&format!("INSERT INTO {} ({}) VALUES ({});", 
-                                         super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid))?;
-        // we want to insert the GID in place
-        // of the UID
-        let gid = res.last_insert_id().ok_or_else(|| 
-            mysql::Error::IoError(io::Error::new(
-                io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
-        
-        // update the last known GID
-        LATEST_GID.fetch_max(gid, Ordering::SeqCst);
-        Ok(gid)
-    }
    
-
     fn vals_vec_to_datatable_vals(&mut self, vals_vec: &Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
         -> Result<Vec<Vec<Expr>>, mysql::Error>
     {
@@ -1276,7 +1208,7 @@ impl QueryTransformer {
                 if ucol_indices.contains(&i) {
                     // NULL check: don't add ghosts entry if new UID value is NULL
                     if val != Expr::Value(Value::Null) {
-                        let gid = self.insert_gid_for_uid(&row[i], db)?;
+                        let gid = helpers::insert_gid_for_uid(&row[i], db)?;
                         val = Expr::Value(Value::Number(format!("{}", gid)));
                     }
                 }
@@ -1348,7 +1280,7 @@ impl QueryTransformer {
                 // get all the gid rows corresponding to uids
                 // TODO deal with potential GIDs in user_cols due to
                 // unsubscriptions/resubscriptions
-                let uid_to_gids = self.get_uid2gids_for_uids(
+                let uid_to_gids = helpers::get_uid2gids_for_uids(
                     uids.iter()
                         .map(|uid| Expr::Value(helpers::mysql_val_to_parser_val(&uid)))
                         .collect(), 
