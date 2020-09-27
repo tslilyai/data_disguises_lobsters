@@ -7,8 +7,9 @@ use sql_parser::*;
 use sql_parser::ast::*;
 use std::*;
 use std::sync::atomic::{AtomicU64, AtomicUsize};
+use log::{info, warn, debug};
 mod helpers;
-mod query_transformer;
+pub mod query_transformer;
 pub mod config;
 
 const GHOST_ID_START : u64 = 1<<20;
@@ -61,7 +62,7 @@ impl Shim {
     pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str) -> Self {
         let cfg = config::parse_config(cfg_json).unwrap();
         let prepared = HashMap::new();
-        let qtrans = query_transformer::QueryTransformer::new(cfg.clone());
+        let qtrans = query_transformer::QueryTransformer::new(&cfg);
         Shim{cfg, db, qtrans, prepared, schema}
     }   
 
@@ -70,6 +71,7 @@ impl Shim {
      * Must be issued after select_db statement is issued.
      * */
     fn create_schema(&mut self) -> Result<(), mysql::Error> {
+        debug!("Create schema called");
         /* create ghost metadata table with boolean cols for each user id */
         // XXX temp: create a new ghost metadata table
         self.db.query_drop("DROP TABLE IF EXISTS ghosts;")?;
@@ -102,7 +104,8 @@ impl Shim {
                 for stmt in stmts {
                     // TODO wrap in txn
                     let mv_stmt = self.qtrans.get_mv_stmt(&stmt, &mut self.db)?;
-                    // TODO issue
+                    debug!("Create schema: issuing {}", mv_stmt);
+                    self.db.query_drop(mv_stmt.to_string())?;
                 }
                 Ok(())
             }
@@ -118,7 +121,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO actually delete entries? 
      */
     fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
-        println!("Unsubscribe {} called!", uid);
+        debug!("Unsubscribe {} called!", uid);
 
         // TODO wrap in txn
         let uid_val = ast::Value::Number(uid.to_string());
@@ -156,7 +159,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             source: InsertSource::Query(Box::new(get_gids_stmt_from_ghosts)),
         });
         self.db.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
-        println!("Unsubscribe {}", insert_gids_as_users_stmt);
+        debug!("Unsubscribe {}", insert_gids_as_users_stmt);
         
         /*
          * 2. delete UID from users MV
@@ -171,7 +174,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             }),
         });
         self.db.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
-        println!("Unsubscribe {}", delete_uid_from_users);
+        debug!("Unsubscribe {}", delete_uid_from_users);
  
         /* 
          * 3. Change all entries with this UID to use the correct GID in the MV
@@ -244,7 +247,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 select_constraint.to_string(),
             );
                 
-            println!("Unsubscribe {}", update_dt_stmt);
+            debug!("Unsubscribe {}", update_dt_stmt);
             self.db.query_drop(format!("{}", update_dt_stmt))?;
         }
         
@@ -259,7 +262,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO check that user doesn't already exist
      */
     fn on_resubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
-        println!("Resubscribe {}!", uid);
+        debug!("Resubscribe {}!", uid);
         // TODO check auth token?
         let uid_val = ast::Value::Number(uid.to_string());
         
@@ -304,7 +307,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 negated: false, 
             }),
         });
-        println!("Resubscribe {}", delete_gids_as_users_stmt);
+        debug!("Resubscribe {}", delete_gids_as_users_stmt);
         self.db.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
 
         /*
@@ -323,7 +326,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 fetch: None,
             })),
         });
-        println!("Resubscribe: {}", insert_uid_as_user_stmt.to_string());
+        debug!("Resubscribe: {}", insert_uid_as_user_stmt.to_string());
         self.db.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
  
         /* 
@@ -395,7 +398,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 astr,
                 select_constraint.to_string(),
             );
-            println!("Resubscribe: {}", update_dt_stmt);
+            debug!("Resubscribe: {}", update_dt_stmt);
             self.db.query_drop(format!("{}", update_dt_stmt))?;
         }    
         Ok(w.ok()?)
@@ -500,7 +503,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             None => return,
             Some(prepped) => {
                 if let Err(e) = self.db.close(prepped.stmt.clone()){
-                    eprintln!("{}", e);
+                    warn!("{}", e);
                 };
                 self.prepared.remove(&id); 
             }
@@ -508,6 +511,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     }
 
     fn on_init(&mut self, schema: &str, w: InitWriter<W>) -> Result<(), Self::Error> {
+        debug!("on_init {} called", schema);
         let res = self.db.select_db(schema);
         if !res {
             w.error(ErrorKind::ER_BAD_DB_ERROR, b"select db failed")?;
@@ -553,6 +557,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 assert!(stmts.len()==1);
                 // TODO wrap in txn
                 let mv_stmt = self.qtrans.get_mv_stmt(&stmts[0], &mut self.db)?;
+                debug!("on_query: issuing {}", mv_stmt);
                 return answer_rows(results, self.db.query_iter(mv_stmt.to_string()));
             }
         }

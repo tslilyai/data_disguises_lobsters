@@ -4,6 +4,26 @@ use std::*;
 use super::config;
 use std::collections::HashMap;
 use std::sync::atomic::Ordering;
+use log::{debug};
+
+pub fn mysql_val_to_parser_val(val: &mysql::Value) -> Value {
+    match val {
+        mysql::Value::NULL => Value::Null,
+        mysql::Value::Bytes(bs) => {
+            let res = str::from_utf8(&bs);
+            match res {
+                Err(_) => Value::String(String::new()),
+                Ok(s) => Value::String(s.to_string()),
+            }
+        }
+        mysql::Value::Int(i) => Value::Number(format!("{}", i)),
+        mysql::Value::UInt(i) => Value::Number(format!("{}", i)),
+        mysql::Value::Float(f) => Value::Number(format!("{}", f)),
+        _ => unimplemented!("No sqlparser support for dates yet?")
+        /*mysql::Date(u16, u8, u8, u8, u8, u8, u32),
+        mysql::Time(bool, u32, u8, u8, u8, u32),8*/
+    }
+}
 
 pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName) -> Vec<String> {
     let mut res : Vec<String> = vec![];
@@ -71,11 +91,14 @@ pub fn get_uid2gids_for_uids(uids_to_match: Vec<Expr>, db: &mut mysql::Conn)
 }
 
 pub fn insert_gid_for_uid(uid: &Expr, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
+
     // user ids are always ints
-    let res = db.query_iter(&format!("INSERT INTO {} ({}) VALUES ({});", 
-                                     super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid))?;
-    // we want to insert the GID in place
-    // of the UID
+    let insert_query = &format!("INSERT INTO {} ({}) VALUES ({});", 
+                        super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid);
+    debug!("Inserting uid {} into ghosts: {}", uid, insert_query);
+    let res = db.query_iter(insert_query)?;
+    
+    // we want to insert the GID in place of the UID
     let gid = res.last_insert_id().ok_or_else(|| 
         mysql::Error::IoError(io::Error::new(
             io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
@@ -85,12 +108,9 @@ pub fn insert_gid_for_uid(uid: &Expr, db: &mut mysql::Conn) -> Result<u64, mysql
     Ok(gid)
 }
 
-pub fn dtname_to_mvname_string(dtname: &String) -> String {
-    let mut mvname = dtname.clone();
-    mvname.push_str(super::MV_SUFFIX);
-    mvname
-}
-
+/***************************
+ * IDENT STUFF
+ ***************************/
 pub fn trim_quotes(s: &str) -> &str {
     let mut s = s;
     if s.ends_with('"') && s.starts_with('"') {
@@ -169,21 +189,4 @@ pub fn idents_subset_of_idents(id1: &Vec<Ident>, id2: &Vec<Ident>) -> Option<(us
     None
 }
 
-pub fn mysql_val_to_parser_val(val: &mysql::Value) -> Value {
-    match val {
-        mysql::Value::NULL => Value::Null,
-        mysql::Value::Bytes(bs) => {
-            let res = str::from_utf8(&bs);
-            match res {
-                Err(_) => Value::String(String::new()),
-                Ok(s) => Value::String(s.to_string()),
-            }
-        }
-        mysql::Value::Int(i) => Value::Number(format!("{}", i)),
-        mysql::Value::UInt(i) => Value::Number(format!("{}", i)),
-        mysql::Value::Float(f) => Value::Number(format!("{}", f)),
-        _ => unimplemented!("No sqlparser support for dates yet?")
-        /*mysql::Date(u16, u8, u8, u8, u8, u8, u32),
-        mysql::Time(bool, u32, u8, u8, u8, u32),8*/
-    }
-}
+

@@ -1,6 +1,7 @@
 use std::*;
 use serde::{Serialize, Deserialize};
 
+
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct UserTable{
     pub name : String,
@@ -15,6 +16,12 @@ pub struct DataTable{
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct JsonUserTable{
+    pub name : String,
+    pub id_col : String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct JsonDataTable{
     pub name : String,
     pub user_cols : Vec<String>,
@@ -22,7 +29,7 @@ pub struct JsonDataTable{
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct JsonConfig {
-    pub user_table: UserTable,
+    pub user_table: JsonUserTable,
     pub data_tables: Vec<JsonDataTable>,
 }
 
@@ -35,7 +42,11 @@ pub struct Config {
 pub fn parse_config(contents: &str) -> io::Result<Config> {
     let jcfg: JsonConfig = serde_json::from_str(contents)?;
     let cfg = Config {
-        user_table: jcfg.user_table,
+        user_table: UserTable{
+            name: jcfg.user_table.name,
+            id_col: jcfg.user_table.id_col,
+            is_autoinc: false,
+        },
         data_tables: jcfg.data_tables
             .iter()
             .map(|jdt| DataTable{

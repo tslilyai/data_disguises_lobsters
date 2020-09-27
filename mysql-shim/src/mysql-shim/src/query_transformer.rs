@@ -4,6 +4,7 @@ use super::config;
 use super::helpers;
 use std::sync::atomic::Ordering;
 use std::*;
+use log::{debug};
 
 pub struct QueryTransformer {
     table_names: Vec<String>,
@@ -11,7 +12,7 @@ pub struct QueryTransformer {
 }
 
 impl QueryTransformer {
-    pub fn new(cfg: config::Config) -> Self {
+    pub fn new(cfg: &config::Config) -> Self {
         let mut table_names = Vec::<String>::new();
         for dt in &cfg.data_tables {
             table_names.push(dt.name.clone());
@@ -749,6 +750,7 @@ impl QueryTransformer {
     }
 
     pub fn get_mv_stmt(&mut self, stmt: &Statement, db: &mut mysql::Conn) -> mysql::Result<Statement> {
+        debug!("Getting mv stmt for {}", stmt);
         let mv_stmt : Statement;
         let mut is_dt_write = false;
         let mv_table_name : String;
@@ -774,6 +776,8 @@ impl QueryTransformer {
                 is_dt_write = mv_table_name != table_name.to_string();
                 let mut new_source = source.clone();
                 let mut mv_cols = columns.clone();
+                let mut new_q = None;
+                debug!("is_dt_write: {} = {} ({} =? {})", stmt, is_dt_write, mv_table_name, table_name);
                 
                 // update sources if is a datatable
                 if is_dt_write {
@@ -781,43 +785,52 @@ impl QueryTransformer {
                     match source {
                         InsertSource::Query(q) => {
                             vals_vec = self.insert_source_query_to_vals_vec(&q, db)?;
-                            let mut new_q = q.clone();
-                            new_q.body = SetExpr::Values(Values(vals_vec.clone()));
-                            new_source = InsertSource::Query(new_q);
+                            new_q = Some(q.clone());
                         }
                         InsertSource::DefaultValues => (),
                     }
+
+                    // issue to datatable with vals_vec BEFORE we modify vals_vec to include the
+                    // user_id column
+                    self.issue_insert_datatable_stmt(&vals_vec, InsertStatement{
+                        table_name: table_name.clone(), 
+                        columns: columns.clone(), 
+                        source: source.clone(),
+                    }, db)?;
                                        
                     // if the user table has an autoincrement column, we should 
                     // (1) see if the table is actually inserting a value for that column and
                     // (2) update the latest_uid appropriately and insert the value for that column
+                    debug!("is_user_table_write: {} =? {}, autoinc {}", 
+                           self.cfg.user_table.name, table_name, self.cfg.user_table.is_autoinc);
                     if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
-                        let mut index : Option<usize> = None;
+                        let mut found = false;
                         for (i, col) in columns.iter().enumerate() {
                             if col.to_string() == self.cfg.user_table.id_col {
-                                index = Some(i);
+                                // get the values of the uid col being inserted and update as
+                                // appropriate
+                                let mut max = super::LATEST_UID.load(Ordering::SeqCst);
+                                for vv in &vals_vec {
+                                    match &vv[i] {
+                                        Expr::Value(Value::Number(n)) => {
+                                            let n = n.parse::<usize>().map_err(|e| mysql::Error::IoError(io::Error::new(
+                                                            io::ErrorKind::Other, format!("{}", e))))?;
+                                            max = cmp::max(max, n);
+                                        }
+                                        _ => (),
+                                    }
+                                }
+                                debug!("setting LATEST_UID to max value {}", max);
+                                super::LATEST_UID.fetch_max(max, Ordering::SeqCst);
+                                found = true;
                                 break;
                             }
                         }
-                        if let Some(i) = index {
-                            // get the values of the uid col being inserted and update as
-                            // appropriate
-                            let mut max = super::LATEST_UID.load(Ordering::SeqCst);
-                            for vv in &vals_vec {
-                                match &vv[i] {
-                                    Expr::Value(Value::Number(n)) => {
-                                        let n = n.parse::<usize>().map_err(|e| mysql::Error::IoError(io::Error::new(
-                                                        io::ErrorKind::Other, format!("{}", e))))?;
-                                        max = cmp::max(max, n);
-                                    }
-                                    _ => (),
-                                }
-                            }
-                            super::LATEST_UID.fetch_max(max, Ordering::SeqCst);
-                        } else {
+                        if !found {
                             // put latest_uid + N as the id col values 
                             let cur_uid = super::LATEST_UID.fetch_add(vals_vec.len(), Ordering::SeqCst);
                             for i in 0..vals_vec.len() {
+                                debug!("adding id_col value {}", cur_uid + i);
                                 vals_vec[i].push(Expr::Value(Value::Number(format!("{}", cur_uid + i))));
                             }
                             // add id column to update
@@ -825,13 +838,13 @@ impl QueryTransformer {
                         }
                     }
 
-                    // issue to datatable with vals_vec
-                    self.issue_insert_datatable_stmt(&vals_vec, InsertStatement{
-                        table_name: table_name.clone(), 
-                        columns: columns.clone(), 
-                        source: source.clone(),
-                    }, db)?;
+                    // update source with new vals_vec
+                    if let Some(mut nq) = new_q {
+                        nq.body = SetExpr::Values(Values(vals_vec.clone()));
+                        new_source = InsertSource::Query(nq);
+                    }
                 }
+                
                 mv_stmt = Statement::Insert(InsertStatement{
                     table_name: helpers::string_to_objname(&mv_table_name),
                     columns : mv_cols,
@@ -959,6 +972,7 @@ impl QueryTransformer {
                 is_dt_write = mv_table_name != name.to_string();
 
                 if is_dt_write {
+                    debug!("Issuing dt stmt: {}", stmt);
                     // create the original table as well if we're going to
                     // create a MV for this table
                     db.query_drop(stmt.to_string())?;
@@ -1192,7 +1206,6 @@ impl QueryTransformer {
     /*
      * DATATABLE QUERY TRANSFORMER FUNCTIONS
      */
-   
     fn vals_vec_to_datatable_vals(&mut self, vals_vec: &Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
         -> Result<Vec<Vec<Expr>>, mysql::Error>
     {
@@ -1368,6 +1381,7 @@ impl QueryTransformer {
                 }
             }
         }
+        debug!("ucols {:?}, ucol_indices {:?}", ucols, ucol_indices);
 
         // update sources
         let mut qt_source = stmt.source.clone();
@@ -1379,18 +1393,22 @@ impl QueryTransformer {
         match stmt.source {
             InsertSource::Query(q) => {
                 let vv = self.vals_vec_to_datatable_vals(vals_vec, &ucol_indices, db)?;
+                debug!("new vals_vec with ghosts for ucols {:?}: {:?} (old {:?})", ucols, vv, vals_vec);
                 let mut new_q = q.clone();
                 new_q.body = SetExpr::Values(Values(vv));
                 qt_source = InsertSource::Query(new_q);
             }
             InsertSource::DefaultValues => (),
         }
-        
-        db.query_drop(Statement::Insert(InsertStatement{
+       
+        let dt_stmt = Statement::Insert(InsertStatement{
             table_name: stmt.table_name.clone(),
             columns : stmt.columns.clone(),
             source : qt_source, 
-        }).to_string())?;
+        });
+ 
+        debug!("Issuing dt stmt {}", dt_stmt);
+        db.query_drop(dt_stmt.to_string())?;
 
         Ok(())
     }
@@ -1399,7 +1417,6 @@ impl QueryTransformer {
         -> Result<(), mysql::Error> 
     {
         let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &stmt.table_name);
-        let mut contains_ucol_id = false;
         let mut ucol_assigns = vec![];
         let mut ucol_selectitems_assn = vec![];
         let mut qt_assn = vec![];
