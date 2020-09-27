@@ -403,7 +403,7 @@ fn test_unsubscribe() {
                             format!("'{}'", GHOST_ID_START+3), 
                             "'worst story!'".to_string()));
 
-    // users modified appropriately: ghosts added to ghostusersmv
+    // users modified appropriately: ghosts added to users 
     let mut results = vec![];
     let res = db.query_iter(r"SELECT id FROM users;").unwrap();
     for row in res {
