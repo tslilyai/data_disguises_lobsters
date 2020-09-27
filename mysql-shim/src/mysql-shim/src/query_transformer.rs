@@ -801,6 +801,8 @@ impl QueryTransformer {
                     // if the user table has an autoincrement column, we should 
                     // (1) see if the table is actually inserting a value for that column and
                     // (2) update the latest_uid appropriately and insert the value for that column
+                    
+                    // TODO ensure latest_uid never goes above GID_START
                     debug!("is_user_table_write: {} =? {}, autoinc {}", 
                            self.cfg.user_table.name, table_name, self.cfg.user_table.is_autoinc);
                     if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
@@ -1009,7 +1011,6 @@ impl QueryTransformer {
 
                         // if this is the user id column and it is autoincremented,
                         // remove autoincrement in materialized view
-                        // TODO add test to make sure autoincrement removed
                         if col.options.iter().any(|cod| cod.option == ColumnOption::AutoIncrement) {
                             self.cfg.user_table.is_autoinc = true;
                             col.options.retain(|x| x.option != ColumnOption::AutoIncrement);

@@ -348,13 +348,13 @@ fn test_database_normal_execution() {
 }
 
 #[test]
-fn test_unsubscribe() {
+fn test_users() {
     init_logger();
     let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
-    db.query_drop("DROP DATABASE IF EXISTS gdpr_unsub_test;").unwrap();
-    db.query_drop("CREATE DATABASE gdpr_unsub_test;").unwrap();
+    db.query_drop("DROP DATABASE IF EXISTS gdpr_users_test;").unwrap();
+    db.query_drop("CREATE DATABASE gdpr_users_test;").unwrap();
     assert_eq!(db.ping(), true);
     let shim = Shim::new(db, CONFIG, SCHEMA);
  
@@ -365,7 +365,7 @@ fn test_unsubscribe() {
     
     let mut db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
     assert_eq!(db.ping(), true);
-    assert_eq!(db.select_db("gdpr_unsub_test"), true);
+    assert_eq!(db.select_db("gdpr_users_test"), true);
 
     /* 
      * Update with 2 users and 2 moderation entries (same as other tests)
@@ -419,7 +419,7 @@ fn test_unsubscribe() {
   
     /* 
      *  Test 2: Resubscribe of user 1 adds uid to user table, removes gids from user table, 
-     *  unanonymizesboth moderation entries
+     *  unanonymizes both moderation entries
      */
     db.query_drop(format!("RESUBSCRIBE UID {};", 1)).unwrap();
     let mut results = vec![];
@@ -446,7 +446,7 @@ fn test_unsubscribe() {
                             format!("'{}'", 1), 
                             "'worst story!'".to_string()));
 
-    // ghosts added to ghostusersmv
+    // users are restored in usersmv 
     let mut results = vec![];
     let res = db.query_iter(r"SELECT id FROM users;").unwrap();
     for row in res {
@@ -458,6 +458,26 @@ fn test_unsubscribe() {
     assert_eq!(results.len(), 2);
     assert_eq!(results[0], format!("'{}'", 1));
     assert_eq!(results[1], format!("'{}'", 2));
+
+    /*
+     * Test 3: Updating userID value updates autoinc appropriately
+     */
+    db.query_drop("UPDATE users SET id=10 WHERE id=1;").unwrap();
+    db.query_drop("INSERT INTO users (username) VALUES ('hello_3');").unwrap();
+
+    // ghosts added to ghostusersmv
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT id FROM users ORDER BY ASC;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        let uid = format!("{}", mysql_val_to_parser_val(&vals[0]));
+        results.push(uid);
+    }
+    assert_eq!(results.len(), 3);
+    assert_eq!(results[0], format!("'{}'", 2));
+    assert_eq!(results[1], format!("'{}'", 10));
+    assert_eq!(results[2], format!("'{}'", 11));
  
     drop(db);
     jh.join().unwrap();
