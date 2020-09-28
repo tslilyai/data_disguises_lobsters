@@ -1,0 +1,13 @@
+[package]
+name = "decor-applications"
+authors = ["Lily Tsai<tslilyai@mit.edu>"]
+edition = '2020'
+publish = false
+
+[dependencies]
+mysql_shim = { path = "../mysql-shim", package = "mysql-shim" }
+
+[[bin]]
+name = "lobsters"
+path = "lobsters/main.rs"
+doc = false
