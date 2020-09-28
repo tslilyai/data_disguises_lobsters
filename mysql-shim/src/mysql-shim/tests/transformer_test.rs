@@ -164,7 +164,7 @@ fn test_normal_execution() {
     let tables = vec![
         "ghosts", 
         "stories", "storiesmv",
-        "users", "usersmv",
+        "users", 
         "moderations", "moderationsmv",
     ];
     assert_eq!(results.len(), tables.len());
@@ -446,7 +446,7 @@ fn test_users() {
                             format!("'{}'", 1), 
                             "'worst story!'".to_string()));
 
-    // users are restored in usersmv 
+    // users are restored in users
     let mut results = vec![];
     let res = db.query_iter(r"SELECT id FROM users;").unwrap();
     for row in res {
@@ -465,7 +465,7 @@ fn test_users() {
     db.query_drop("UPDATE users SET id=10 WHERE id=1;").unwrap();
     db.query_drop("INSERT INTO users (username) VALUES ('hello_3');").unwrap();
 
-    // ghosts added to ghostusersmv
+    // ghosts added to users
     let mut results = vec![];
     let res = db.query_iter(r"SELECT id FROM users ORDER BY id ASC;").unwrap();
     for row in res {

@@ -160,19 +160,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         debug!("Unsubscribe {}", insert_gids_as_users_stmt);
         
         /*
-         * 2. delete UID from users MV and users
+         * 2. delete UID from users MV and users (only one table, so delete from either)
          */
-        let mv_delete_uid_from_users = Statement::Delete(DeleteStatement {
-            table_name: mv_table_name,
-            selection: Some(Expr::BinaryOp{
-                left: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
-                op: BinaryOperator::Eq,
-                right: Box::new(Expr::Value(uid_val.clone())), 
-            }),
-        });
-        self.db.query_drop(format!("{}", mv_delete_uid_from_users.to_string()))?;
-        debug!("Unsubscribe {}", mv_delete_uid_from_users);
-        
         let delete_uid_from_users = Statement::Delete(DeleteStatement {
             table_name: user_table_name,
             selection: Some(Expr::BinaryOp{
@@ -321,24 +310,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         self.db.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
 
         /*
-         * 2. Add user to users and usersmv
+         * 2. Add user to users and usersmv (only one table)
          * TODO should also add back all of the user data????
          */
-       let mv_insert_uid_as_user_stmt = Statement::Insert(InsertStatement{
-            table_name: mv_table_name.clone(),
-            columns: vec![Ident::new(&self.cfg.user_table.id_col)],
-            source: InsertSource::Query(Box::new(Query{
-                ctes: vec![],
-                body: SetExpr::Values(Values(vec![vec![Expr::Value(uid_val.clone())]])),
-                order_by: vec![],
-                limit: None,
-                offset: None,
-                fetch: None,
-            })),
-        });
-        debug!("Resubscribe: {}", mv_insert_uid_as_user_stmt.to_string());
-        self.db.query_drop(format!("{}", mv_insert_uid_as_user_stmt.to_string()))?;
-
         let insert_uid_as_user_stmt = Statement::Insert(InsertStatement{
             table_name: user_table_name,
             columns: vec![Ident::new(&self.cfg.user_table.id_col)],

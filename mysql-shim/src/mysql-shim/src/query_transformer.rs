@@ -9,6 +9,7 @@ use std::sync::atomic::{AtomicU64, AtomicUsize};
 
 pub struct QueryTransformer {
     table_names: Vec<String>,
+    user_table: String,
     latest_gid: AtomicU64,
     latest_uid: AtomicUsize,
 
@@ -21,11 +22,11 @@ impl QueryTransformer {
         for dt in &cfg.data_tables {
             table_names.push(dt.name.clone());
         }
-        table_names.push(cfg.user_table.name.clone());
         
         QueryTransformer{
             cfg: cfg.clone(),
             table_names: table_names, 
+            user_table: cfg.user_table.name.clone(),
             latest_gid: AtomicU64::new(super::GHOST_ID_START),
             latest_uid: AtomicUsize::new(0),
         }
@@ -786,8 +787,8 @@ impl QueryTransformer {
                 debug!("is_dt_write: {} = {} ({} =? {})", stmt, is_dt_write, mv_table_name, table_name);
                 
                 // update sources if is a datatable
-                if is_dt_write {
-                    let mut vals_vec = vec![];
+                let mut vals_vec = vec![];
+                if is_dt_write || table_name.to_string() == self.cfg.user_table.name {
                     match source {
                         InsertSource::Query(q) => {
                             vals_vec = self.insert_source_query_to_vals_vec(&q, db)?;
@@ -795,57 +796,57 @@ impl QueryTransformer {
                         }
                         InsertSource::DefaultValues => (),
                     }
+                }
 
-                    // issue to datatable with vals_vec BEFORE we modify vals_vec to include the
-                    // user_id column
+                // issue to datatable with vals_vec BEFORE we modify vals_vec to include the
+                // user_id column
+                if is_dt_write {
                     self.issue_insert_datatable_stmt(&vals_vec, InsertStatement{
                         table_name: table_name.clone(), 
                         columns: columns.clone(), 
                         source: source.clone(),
                     }, db)?;
+                }
                                        
-                    // if the user table has an autoincrement column, we should 
-                    // (1) see if the table is actually inserting a value for that column and
-                    // (2) update the self.latest_uid appropriately and insert the value for that column
-                    
-                    // TODO ensure self.latest_uid never goes above GID_START
-                    debug!("is_user_table_write: {} =? {}, autoinc {}", 
-                           self.cfg.user_table.name, table_name, self.cfg.user_table.is_autoinc);
-                    if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
-                        let mut found = false;
-                        for (i, col) in columns.iter().enumerate() {
-                            if col.to_string() == self.cfg.user_table.id_col {
-                                // get the values of the uid col being inserted and update as
-                                // appropriate
-                                let mut max = self.latest_uid.load(Ordering::SeqCst);
-                                for vv in &vals_vec {
-                                    match &vv[i] {
-                                        Expr::Value(Value::Number(n)) => {
-                                            let n = n.parse::<usize>().map_err(|e| mysql::Error::IoError(io::Error::new(
-                                                            io::ErrorKind::Other, format!("{}", e))))?;
-                                            max = cmp::max(max, n);
-                                        }
-                                        _ => (),
+                // if the user table has an autoincrement column, we should 
+                // (1) see if the table is actually inserting a value for that column and
+                // (2) update the self.latest_uid appropriately and insert the value for that column
+                // TODO ensure self.latest_uid never goes above GID_START
+                debug!("is_user_table_write: {} =? {}, autoinc {}", 
+                       self.cfg.user_table.name, table_name, self.cfg.user_table.is_autoinc);
+                if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
+                    let mut found = false;
+                    for (i, col) in columns.iter().enumerate() {
+                        if col.to_string() == self.cfg.user_table.id_col {
+                            // get the values of the uid col being inserted and update as
+                            // appropriate
+                            let mut max = self.latest_uid.load(Ordering::SeqCst);
+                            for vv in &vals_vec {
+                                match &vv[i] {
+                                    Expr::Value(Value::Number(n)) => {
+                                        let n = n.parse::<usize>().map_err(|e| mysql::Error::IoError(io::Error::new(
+                                                        io::ErrorKind::Other, format!("{}", e))))?;
+                                        max = cmp::max(max, n);
                                     }
+                                    _ => (),
                                 }
-                                debug!("setting self.latest_uid to max value {}", max);
-                                self.latest_uid.fetch_max(max, Ordering::SeqCst);
-                                found = true;
-                                break;
                             }
-                        }
-                        if !found {
-                            // put self.latest_uid + N as the id col values 
-                            let cur_uid = self.latest_uid.fetch_add(vals_vec.len(), Ordering::SeqCst);
-                            for i in 0..vals_vec.len() {
-                                debug!("adding id_col value {}", cur_uid + i + 1);
-                                vals_vec[i].push(Expr::Value(Value::Number(format!("{}", cur_uid + i + 1))));
-                            }
-                            // add id column to update
-                            mv_cols.push(Ident::new(self.cfg.user_table.id_col.clone()));
+                            debug!("setting self.latest_uid to max value {}", max);
+                            self.latest_uid.fetch_max(max, Ordering::SeqCst);
+                            found = true;
+                            break;
                         }
                     }
-
+                    if !found {
+                        // put self.latest_uid + N as the id col values 
+                        let cur_uid = self.latest_uid.fetch_add(vals_vec.len(), Ordering::SeqCst);
+                        for i in 0..vals_vec.len() {
+                            debug!("adding id_col value {}", cur_uid + i + 1);
+                            vals_vec[i].push(Expr::Value(Value::Number(format!("{}", cur_uid + i + 1))));
+                        }
+                        // add id column to update
+                        mv_cols.push(Ident::new(self.cfg.user_table.id_col.clone()));
+                    }
                     // update source with new vals_vec
                     if let Some(mut nq) = new_q {
                         nq.body = SetExpr::Values(Values(vals_vec.clone()));
@@ -867,31 +868,15 @@ impl QueryTransformer {
                 mv_table_name = self.objname_to_mv_string(&table_name);
                 is_dt_write = mv_table_name != table_name.to_string();
 
-                if is_dt_write {
-                    let mut assign_vals = vec![];
+                let mut assign_vals = vec![];
+                if is_dt_write || table_name.to_string() == self.cfg.user_table.name {
                     let mut contains_ucol_id = false;
                     for a in assignments {
                         assign_vals.push(self.expr_to_value_expr(&a.value, db, &mut contains_ucol_id, &vec![])?);
                     }
+                }
                     
-                    // if the user table has an autoincrement column, we should 
-                    // (1) see if the table is actually updating a value for that column and
-                    // (2) update the self.latest_uid appropriately 
-                    if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
-                        for i in 0..assignments.len() {
-                            if assignments[i].id.to_string() == self.cfg.user_table.id_col {
-                                match &assign_vals[i] {
-                                    Expr::Value(Value::Number(n)) => {
-                                        let n = n.parse::<usize>().map_err(|e| mysql::Error::IoError(io::Error::new(
-                                                        io::ErrorKind::Other, format!("{}", e))))?;
-                                        self.latest_uid.fetch_max(n, Ordering::SeqCst);
-                                    }
-                                    _ => (),
-                                }
-                            }
-                        }
-                    }
-                    
+                if is_dt_write {
                     self.issue_update_datatable_stmt(
                         &assign_vals,
                         UpdateStatement{
@@ -900,6 +885,24 @@ impl QueryTransformer {
                             selection: selection.clone()
                         }, 
                         db)?;
+                }
+ 
+                // if the user table has an autoincrement column, we should 
+                // (1) see if the table is actually updating a value for that column and
+                // (2) update the self.latest_uid appropriately 
+                if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
+                    for i in 0..assignments.len() {
+                        if assignments[i].id.to_string() == self.cfg.user_table.id_col {
+                            match &assign_vals[i] {
+                                Expr::Value(Value::Number(n)) => {
+                                    let n = n.parse::<usize>().map_err(|e| mysql::Error::IoError(io::Error::new(
+                                                    io::ErrorKind::Other, format!("{}", e))))?;
+                                    self.latest_uid.fetch_max(n, Ordering::SeqCst);
+                                }
+                                _ => (),
+                            }
+                        }
+                    }
                 }
 
                 let mut mv_assn = Vec::<Assignment>::new();
