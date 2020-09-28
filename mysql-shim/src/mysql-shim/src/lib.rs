@@ -6,8 +6,7 @@ use std::collections::HashMap;
 use sql_parser::*;
 use sql_parser::ast::*;
 use std::*;
-use std::sync::atomic::{AtomicU64, AtomicUsize};
-use log::{info, warn, debug};
+use log::{warn, debug};
 mod helpers;
 pub mod query_transformer;
 pub mod config;
@@ -17,9 +16,6 @@ const GHOST_TABLE_NAME : &'static str = "ghosts";
 const GHOST_USER_COL : &'static str = "user_id";
 const GHOST_ID_COL: &'static str = "ghost_id";
 const MV_SUFFIX : &'static str = "mv"; 
-
-static LATEST_GID : AtomicU64 = AtomicU64::new(GHOST_ID_START);
-static LATEST_UID : AtomicUsize = AtomicUsize::new(1);
 
 fn create_ghosts_query() -> String {
     format!(

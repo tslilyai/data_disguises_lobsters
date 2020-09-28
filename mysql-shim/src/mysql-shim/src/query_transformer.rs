@@ -5,9 +5,13 @@ use super::helpers;
 use std::sync::atomic::Ordering;
 use std::*;
 use log::{debug};
+use std::sync::atomic::{AtomicU64, AtomicUsize};
 
 pub struct QueryTransformer {
     table_names: Vec<String>,
+    latest_gid: AtomicU64,
+    latest_uid: AtomicUsize,
+
     pub cfg: config::Config,
 }
 
@@ -18,10 +22,12 @@ impl QueryTransformer {
             table_names.push(dt.name.clone());
         }
         table_names.push(cfg.user_table.name.clone());
-
+        
         QueryTransformer{
             cfg: cfg.clone(),
             table_names: table_names, 
+            latest_gid: AtomicU64::new(super::GHOST_ID_START),
+            latest_uid: AtomicUsize::new(0),
         }
     }   
 
@@ -800,9 +806,9 @@ impl QueryTransformer {
                                        
                     // if the user table has an autoincrement column, we should 
                     // (1) see if the table is actually inserting a value for that column and
-                    // (2) update the latest_uid appropriately and insert the value for that column
+                    // (2) update the self.latest_uid appropriately and insert the value for that column
                     
-                    // TODO ensure latest_uid never goes above GID_START
+                    // TODO ensure self.latest_uid never goes above GID_START
                     debug!("is_user_table_write: {} =? {}, autoinc {}", 
                            self.cfg.user_table.name, table_name, self.cfg.user_table.is_autoinc);
                     if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
@@ -811,7 +817,7 @@ impl QueryTransformer {
                             if col.to_string() == self.cfg.user_table.id_col {
                                 // get the values of the uid col being inserted and update as
                                 // appropriate
-                                let mut max = super::LATEST_UID.load(Ordering::SeqCst);
+                                let mut max = self.latest_uid.load(Ordering::SeqCst);
                                 for vv in &vals_vec {
                                     match &vv[i] {
                                         Expr::Value(Value::Number(n)) => {
@@ -822,18 +828,18 @@ impl QueryTransformer {
                                         _ => (),
                                     }
                                 }
-                                debug!("setting LATEST_UID to max value {}", max);
-                                super::LATEST_UID.fetch_max(max, Ordering::SeqCst);
+                                debug!("setting self.latest_uid to max value {}", max);
+                                self.latest_uid.fetch_max(max, Ordering::SeqCst);
                                 found = true;
                                 break;
                             }
                         }
                         if !found {
-                            // put latest_uid + N as the id col values 
-                            let cur_uid = super::LATEST_UID.fetch_add(vals_vec.len(), Ordering::SeqCst);
+                            // put self.latest_uid + N as the id col values 
+                            let cur_uid = self.latest_uid.fetch_add(vals_vec.len(), Ordering::SeqCst);
                             for i in 0..vals_vec.len() {
-                                debug!("adding id_col value {}", cur_uid + i);
-                                vals_vec[i].push(Expr::Value(Value::Number(format!("{}", cur_uid + i))));
+                                debug!("adding id_col value {}", cur_uid + i + 1);
+                                vals_vec[i].push(Expr::Value(Value::Number(format!("{}", cur_uid + i + 1))));
                             }
                             // add id column to update
                             mv_cols.push(Ident::new(self.cfg.user_table.id_col.clone()));
@@ -870,7 +876,7 @@ impl QueryTransformer {
                     
                     // if the user table has an autoincrement column, we should 
                     // (1) see if the table is actually updating a value for that column and
-                    // (2) update the latest_uid appropriately 
+                    // (2) update the self.latest_uid appropriately 
                     if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
                         for i in 0..assignments.len() {
                             if assignments[i].id.to_string() == self.cfg.user_table.id_col {
@@ -878,7 +884,7 @@ impl QueryTransformer {
                                     Expr::Value(Value::Number(n)) => {
                                         let n = n.parse::<usize>().map_err(|e| mysql::Error::IoError(io::Error::new(
                                                         io::ErrorKind::Other, format!("{}", e))))?;
-                                        super::LATEST_UID.fetch_max(n, Ordering::SeqCst);
+                                        self.latest_uid.fetch_max(n, Ordering::SeqCst);
                                     }
                                     _ => (),
                                 }
@@ -1207,6 +1213,24 @@ impl QueryTransformer {
     /*
      * DATATABLE QUERY TRANSFORMER FUNCTIONS
      */
+    fn insert_gid_for_uid(&mut self, uid: &Expr, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
+
+        // user ids are always ints
+        let insert_query = &format!("INSERT INTO {} ({}) VALUES ({});", 
+                            super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid);
+        debug!("Inserting uid {} into ghosts: {}", uid, insert_query);
+        let res = db.query_iter(insert_query)?;
+        
+        // we want to insert the GID in place of the UID
+        let gid = res.last_insert_id().ok_or_else(|| 
+            mysql::Error::IoError(io::Error::new(
+                io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
+        
+        // update the last known GID
+        self.latest_gid.fetch_max(gid, Ordering::SeqCst);
+        Ok(gid)
+    }
+
     fn vals_vec_to_datatable_vals(&mut self, vals_vec: &Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
         -> Result<Vec<Vec<Expr>>, mysql::Error>
     {
@@ -1222,7 +1246,7 @@ impl QueryTransformer {
                 if ucol_indices.contains(&i) {
                     // NULL check: don't add ghosts entry if new UID value is NULL
                     if val != Expr::Value(Value::Null) {
-                        let gid = helpers::insert_gid_for_uid(&row[i], db)?;
+                        let gid = self.insert_gid_for_uid(&row[i], db)?;
                         val = Expr::Value(Value::Number(format!("{}", gid)));
                     }
                 }

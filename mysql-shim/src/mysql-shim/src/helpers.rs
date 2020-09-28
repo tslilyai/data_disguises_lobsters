@@ -90,24 +90,6 @@ pub fn get_uid2gids_for_uids(uids_to_match: Vec<Expr>, db: &mut mysql::Conn)
     Ok(uid_to_gids)
 }
 
-pub fn insert_gid_for_uid(uid: &Expr, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
-
-    // user ids are always ints
-    let insert_query = &format!("INSERT INTO {} ({}) VALUES ({});", 
-                        super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid);
-    debug!("Inserting uid {} into ghosts: {}", uid, insert_query);
-    let res = db.query_iter(insert_query)?;
-    
-    // we want to insert the GID in place of the UID
-    let gid = res.last_insert_id().ok_or_else(|| 
-        mysql::Error::IoError(io::Error::new(
-            io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
-    
-    // update the last known GID
-    super::LATEST_GID.fetch_max(gid, Ordering::SeqCst);
-    Ok(gid)
-}
-
 /***************************
  * IDENT STUFF
  ***************************/

@@ -126,7 +126,7 @@ fn init_logger() {
 }
 
 #[test]
-fn test_database_normal_execution() {
+fn test_normal_execution() {
     init_logger();
     let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
@@ -467,7 +467,7 @@ fn test_users() {
 
     // ghosts added to ghostusersmv
     let mut results = vec![];
-    let res = db.query_iter(r"SELECT id FROM users ORDER BY ASC;").unwrap();
+    let res = db.query_iter(r"SELECT id FROM users ORDER BY id ASC;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 1);
