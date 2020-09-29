@@ -6,6 +6,10 @@ publish = false
 
 [dependencies]
 mysql_shim = { path = "../mysql-shim", package = "mysql-shim" }
+mysql = "*"
+mysql_common = "0.22"
+log = "0.4"
+env_logger = "0.7.1"
 
 [[bin]]
 name = "lobsters"

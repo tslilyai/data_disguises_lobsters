@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use sql_parser::*;
 use sql_parser::ast::*;
 use std::*;
+use std::net::*;
 use log::{warn, debug};
 mod helpers;
 pub mod query_transformer;
@@ -61,6 +62,10 @@ impl Shim {
         let qtrans = query_transformer::QueryTransformer::new(&cfg);
         Shim{cfg, db, qtrans, prepared, schema}
     }   
+   
+    pub fn run_on_tcp(db: mysql::Conn, cfg_json: &str, schema: &'static str, s: net::TcpStream) -> Result<(), mysql::Error> {
+        MysqlIntermediary::run_on_tcp(Shim::new(db, cfg_json, schema), s)
+    }
 
     /* 
      * Given schema in sql, issue queries to set up database.

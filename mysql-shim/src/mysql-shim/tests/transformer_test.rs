@@ -137,7 +137,7 @@ fn test_normal_execution() {
             db.query_drop("DROP DATABASE IF EXISTS gdpr_normal;").unwrap();
             db.query_drop("CREATE DATABASE gdpr_normal;").unwrap();
             assert_eq!(db.ping(), true);
-            MysqlIntermediary::run_on_tcp(mysql_shim::Shim::new(db, CONFIG, SCHEMA), s).unwrap();
+            mysql_shim::Shim::run_on_tcp(db, CONFIG, SCHEMA, s).unwrap();
         }
     });
 
@@ -356,11 +356,10 @@ fn test_users() {
     db.query_drop("DROP DATABASE IF EXISTS gdpr_users_test;").unwrap();
     db.query_drop("CREATE DATABASE gdpr_users_test;").unwrap();
     assert_eq!(db.ping(), true);
-    let shim = Shim::new(db, CONFIG, SCHEMA);
  
     let jh = thread::spawn(move || {
         let (s, _) = listener.accept().unwrap();
-        MysqlIntermediary::run_on_tcp(shim, s).unwrap();
+        mysql_shim::Shim::run_on_tcp(db, CONFIG, SCHEMA, s).unwrap();
     });
     
     let mut db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
