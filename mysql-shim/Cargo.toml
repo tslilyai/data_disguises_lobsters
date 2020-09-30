@@ -2,7 +2,7 @@
 members = [
     "src/ore",
     "src/repr",
-    "src/mysql-shim",
+    "src/decor",
     "src/sql-parser",
     "src/msql-srv",
 ]

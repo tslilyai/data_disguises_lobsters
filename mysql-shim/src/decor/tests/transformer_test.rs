@@ -26,7 +26,7 @@ use datadriven::walk;
 use std::*;
 use sql_parser::parser;
 use msql_srv::*;
-use mysql_shim::*;
+use decor::*;
 
 const SCHEMA : &'static str = include_str!("./schema.sql");
 const CONFIG : &'static str = include_str!("./config.json");
@@ -137,7 +137,7 @@ fn test_normal_execution() {
             db.query_drop("DROP DATABASE IF EXISTS gdpr_normal;").unwrap();
             db.query_drop("CREATE DATABASE gdpr_normal;").unwrap();
             assert_eq!(db.ping(), true);
-            mysql_shim::Shim::run_on_tcp(db, CONFIG, SCHEMA, s).unwrap();
+            decor::Shim::run_on_tcp(db, CONFIG, SCHEMA, s).unwrap();
         }
     });
 
@@ -359,7 +359,7 @@ fn test_users() {
  
     let jh = thread::spawn(move || {
         let (s, _) = listener.accept().unwrap();
-        mysql_shim::Shim::run_on_tcp(db, CONFIG, SCHEMA, s).unwrap();
+        decor::Shim::run_on_tcp(db, CONFIG, SCHEMA, s).unwrap();
     });
     
     let mut db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
