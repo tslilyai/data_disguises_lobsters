@@ -5,4 +5,5 @@ members = [
     "src/decor",
     "src/sql-parser",
     "src/msql-srv",
+    "applications",
 ]

@@ -6,7 +6,6 @@ use std::collections::HashMap;
 use sql_parser::*;
 use sql_parser::ast::*;
 use std::*;
-use std::net::*;
 use log::{warn, debug};
 mod helpers;
 pub mod query_transformer;
@@ -45,7 +44,7 @@ pub struct Shim {
     qtrans: query_transformer::QueryTransformer,
 
     // NOTE: not *actually* static, but tied to our connection's lifetime.
-    schema: &'static str,
+    schema: String,
 }
 
 impl Drop for Shim {
@@ -60,6 +59,7 @@ impl Shim {
         let cfg = config::parse_config(cfg_json).unwrap();
         let prepared = HashMap::new();
         let qtrans = query_transformer::QueryTransformer::new(&cfg);
+        let schema = helpers::process_schema(schema);
         Shim{cfg, db, qtrans, prepared, schema}
     }   
    
@@ -73,6 +73,7 @@ impl Shim {
      * */
     fn create_schema(&mut self) -> Result<(), mysql::Error> {
         debug!("Create schema called");
+
         /* create ghost metadata table with boolean cols for each user id */
         // XXX temp: create a new ghost metadata table
         self.db.query_drop("DROP TABLE IF EXISTS ghosts;")?;

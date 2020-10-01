@@ -9,7 +9,6 @@ use std::sync::atomic::{AtomicU64, AtomicUsize};
 
 pub struct QueryTransformer {
     table_names: Vec<String>,
-    user_table: String,
     latest_gid: AtomicU64,
     latest_uid: AtomicUsize,
 
@@ -26,7 +25,6 @@ impl QueryTransformer {
         QueryTransformer{
             cfg: cfg.clone(),
             table_names: table_names, 
-            user_table: cfg.user_table.name.clone(),
             latest_gid: AtomicU64::new(super::GHOST_ID_START),
             latest_uid: AtomicUsize::new(0),
         }

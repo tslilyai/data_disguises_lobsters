@@ -23,43 +23,21 @@ extern crate log;
 
 use mysql::prelude::*;
 use std::*;
-use sql_parser::parser;
-use msql_srv::*;
-use mysql_shim::*;
+use decor;
 
-const SCHEMA : &'static str = include_str!("./schema.sql");
+const SCHEMA : &'static str = include_str!("./schema_lobsters.sql");
 const CONFIG : &'static str = include_str!("./config.json");
-
-fn mysql_val_to_parser_val(val: &mysql::Value) -> sql_parser::ast::Value {
-    match val {
-        mysql::Value::NULL => sql_parser::ast::Value::Null,
-        mysql::Value::Bytes(bs) => {
-            let res = str::from_utf8(&bs);
-            match res {
-                Err(_) => sql_parser::ast::Value::String(String::new()),
-                Ok(s) => sql_parser::ast::Value::String(s.to_string()),
-            }
-        }
-        mysql::Value::Int(i) => sql_parser::ast::Value::Number(format!("{}", i)),
-        mysql::Value::UInt(i) => sql_parser::ast::Value::Number(format!("{}", i)),
-        mysql::Value::Float(f) => sql_parser::ast::Value::Number(format!("{}", f)),
-        _ => unimplemented!("No sqlparser support for dates yet?")
-        /*mysql::Date(u16, u8, u8, u8, u8, u8, u32),
-        mysql::Time(bool, u32, u8, u8, u8, u32),8*/
-    }
-}
 
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::max())
+        .filter_level(log::LevelFilter::Warn)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
         .try_init();
 }
 
-#[test]
 fn main() {
     init_logger();
     let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -68,16 +46,18 @@ fn main() {
     let jh = thread::spawn(move || {
         if let Ok((s, _)) = listener.accept() {
             let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
-            db.query_drop("DROP DATABASE IF EXISTS gdpr_normal;").unwrap();
-            db.query_drop("CREATE DATABASE gdpr_normal;").unwrap();
+            db.query_drop("DROP DATABASE IF EXISTS decor_lobsters;").unwrap();
+            db.query_drop("CREATE DATABASE decor_lobsters;").unwrap();
             assert_eq!(db.ping(), true);
-            mysql_shim::Shim::run_on_tcp(db, CONFIG, SCHEMA), s).unwrap();
+            decor::Shim::run_on_tcp(db, CONFIG, SCHEMA, s).unwrap();
         }
     });
 
     let mut db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
     assert_eq!(db.ping(), true);
-    assert_eq!(db.select_db("gdpr_normal"), true);
+    assert_eq!(db.select_db("decor_lobsters"), true);
+
+
 
     drop(db);
     jh.join().unwrap();

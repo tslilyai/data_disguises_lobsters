@@ -3,8 +3,24 @@ use sql_parser::ast::*;
 use std::*;
 use super::config;
 use std::collections::HashMap;
-use std::sync::atomic::Ordering;
-use log::{debug};
+
+pub fn process_schema(schema: &str) -> String {
+    // get rid of unsupported types
+    let mut new = schema.replace(r"int unsigned", "int");
+    
+    // get rid of ENGINE/etc. commands after query
+    let mut end_index = new.len();
+    if let Some(i) = new.find("ENGINE") {
+        end_index = i; 
+    } else if let Some(i) = new.find("engine") {
+        end_index = i;
+    }
+    new.truncate(end_index);
+    if !new.ends_with(';') {
+        new.push_str(";");
+    }
+    new
+}
 
 pub fn mysql_val_to_parser_val(val: &mysql::Value) -> Value {
     match val {
