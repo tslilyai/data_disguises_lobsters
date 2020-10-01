@@ -526,6 +526,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         match self.create_schema() {
             Ok(_) => (),
             Err(e) => {
+                debug!("Create schema failed: {}", e);
                 return Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?);
             }
         }

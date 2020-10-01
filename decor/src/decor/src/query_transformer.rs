@@ -974,6 +974,7 @@ impl QueryTransformer {
                 name,
                 columns,
                 constraints,
+                indexes,
                 with_options,
                 if_not_exists,
             }) => {
@@ -1030,6 +1031,7 @@ impl QueryTransformer {
                     name: helpers::string_to_objname(&mv_table_name),
                     columns: mv_cols,
                     constraints: mv_constraints,
+                    indexes: indexes.clone(),
                     with_options: with_options.clone(),
                     if_not_exists: if_not_exists.clone(),
                 });

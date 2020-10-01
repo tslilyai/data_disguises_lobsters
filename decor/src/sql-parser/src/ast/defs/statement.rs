@@ -21,6 +21,7 @@
 use crate::ast::display::{self, AstDisplay, AstFormatter};
 use crate::ast::{
     ColumnDef, Connector, Envelope, Expr, Format, Ident, ObjectName, Query, TableConstraint, Value,
+    IndexDef,
 };
 
 /// A top-level statement (SELECT, INSERT, CREATE, etc.)
@@ -425,6 +426,7 @@ pub struct CreateTableStatement {
     /// Optional schema
     pub columns: Vec<ColumnDef>,
     pub constraints: Vec<TableConstraint>,
+    pub indexes: Vec<IndexDef>,
     pub with_options: Vec<SqlOption>,
     pub if_not_exists: bool,
 }
@@ -441,6 +443,10 @@ impl AstDisplay for CreateTableStatement {
         if !self.constraints.is_empty() {
             f.write_str(", ");
             f.write_node(&display::comma_separated(&self.constraints));
+        }
+        if !self.indexes.is_empty() {
+            f.write_str(", ");
+            f.write_node(&display::comma_separated(&self.indexes));
         }
         f.write_str(")");
 

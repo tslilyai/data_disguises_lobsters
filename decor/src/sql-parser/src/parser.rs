@@ -1746,28 +1746,51 @@ impl Parser {
         let if_not_exists = self.parse_if_not_exists()?;
         let table_name = self.parse_object_name()?;
         // parse optional column list (schema)
-        let (columns, constraints) = self.parse_columns()?;
+        let (columns, constraints, indexes) = self.parse_columns()?;
         let with_options = self.parse_with_options()?;
 
         Ok(Statement::CreateTable(CreateTableStatement {
             name: table_name,
             columns,
             constraints,
+            indexes,
             with_options,
             if_not_exists,
         }))
     }
 
-    fn parse_columns(&mut self) -> Result<(Vec<ColumnDef>, Vec<TableConstraint>), ParserError> {
+    fn parse_optional_table_index(&mut self) -> Result<Option<IndexDef>, ParserError> {
+        let mut index_type = None;
+        if self.parse_keyword("FULLTEXT") {
+            index_type = Some(IndexType::Fulltext);
+        } else if self.parse_keyword("UNIQUE") {
+            index_type = Some(IndexType::Unique);
+        } 
+        if self.parse_keyword("INDEX") {
+            let name = self.parse_identifier()?;
+            let key_parts = self.parse_parenthesized_column_list(Mandatory)?;
+            return Ok(Some(IndexDef{
+                name: name,
+                index_type: index_type,
+                key_parts: key_parts,
+            }));
+        }
+        Ok(None)
+    }
+
+    fn parse_columns(&mut self) -> Result<(Vec<ColumnDef>, Vec<TableConstraint>, Vec<IndexDef>), ParserError> {
         let mut columns = vec![];
         let mut constraints = vec![];
+        let mut indexes = vec![];
         if !self.consume_token(&Token::LParen) || self.consume_token(&Token::RParen) {
-            return Ok((columns, constraints));
+            return Ok((columns, constraints, indexes));
         }
 
         loop {
             if let Some(constraint) = self.parse_optional_table_constraint()? {
                 constraints.push(constraint);
+            } else if let Some(index) = self.parse_optional_table_index()? {
+                indexes.push(index);
             } else if let Some(Token::Word(column_name)) = self.peek_token() {
                 self.next_token();
                 let data_type = self.parse_data_type()?;
@@ -1810,7 +1833,7 @@ impl Parser {
             }
         }
 
-        Ok((columns, constraints))
+        Ok((columns, constraints, indexes))
     }
 
     fn parse_column_option_def(&mut self) -> Result<ColumnOptionDef, ParserError> {

@@ -222,6 +222,7 @@ define_keywords!(
     FREE,
     FROM,
     FULL,
+    FULLTEXT,
     FUNCTION,
     FUSION,
     GET,

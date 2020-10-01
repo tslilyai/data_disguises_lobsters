@@ -329,6 +329,43 @@ impl AstDisplay for TableConstraint {
 }
 impl_display!(TableConstraint);
 
+/// SQL index definition
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IndexDef {
+    pub name: Ident,
+    pub index_type: Option<IndexType>,
+    pub key_parts: Vec<Ident>,
+}
+
+impl AstDisplay for IndexDef{
+    fn fmt(&self, f: &mut AstFormatter) {
+        if let Some(typ) = &self.index_type {
+            f.write_node(typ);
+            f.write_str(" ");
+        }
+        f.write_node(&self.name);
+        f.write_str(" (");
+        f.write_node(&display::comma_separated(&self.key_parts));
+    }
+}
+impl_display!(IndexDef);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum IndexType {
+    Fulltext,
+    Unique,
+}
+impl AstDisplay for IndexType{
+    fn fmt(&self, f: &mut AstFormatter) {
+        use IndexType::*;
+        match self {
+            Fulltext => f.write_str("FULLTEXT"),
+            Unique => f.write_str("UNIQUE"),
+        }
+    }
+}
+impl_display!(IndexType);
+
 /// SQL column definition
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnDef {
