@@ -1787,10 +1787,10 @@ impl Parser {
         }
 
         loop {
-            if let Some(constraint) = self.parse_optional_table_constraint()? {
-                constraints.push(constraint);
-            } else if let Some(index) = self.parse_optional_table_index()? {
+            if let Some(index) = self.parse_optional_table_index()? {
                 indexes.push(index);
+            } else if let Some(constraint) = self.parse_optional_table_constraint()? {
+                constraints.push(constraint);
             } else if let Some(Token::Word(column_name)) = self.peek_token() {
                 self.next_token();
                 let data_type = self.parse_data_type()?;
@@ -2122,6 +2122,7 @@ impl Parser {
                 }
                 "FLOAT8" => DataType::Double,
                 "SMALLINT" => DataType::SmallInt,
+                "TINYINT" => DataType::TinyInt(self.parse_optional_precision()?),
                 "INT" | "INTEGER" | "INT4" => DataType::Int,
                 "INT8" | "BIGINT" => DataType::BigInt,
                 "VARCHAR" => DataType::Varchar(self.parse_optional_precision()?),
@@ -2134,6 +2135,7 @@ impl Parser {
                 }
                 "UUID" => DataType::Uuid,
                 "DATE" => DataType::Date,
+                "DATETIME" => DataType::DateTime,
                 "TIMESTAMP" => {
                     if self.parse_keyword("WITH") {
                         self.expect_keywords(&["TIME", "ZONE"])?;
@@ -2159,7 +2161,7 @@ impl Parser {
                 }
                 "INTERVAL" => DataType::Interval,
                 "REGCLASS" => DataType::Regclass,
-                "TEXT" | "STRING" => DataType::Text,
+                "TINYTEXT" | "MEDIUMTEXT" | "TEXT" | "STRING" => DataType::Text,
                 "BYTEA" => DataType::Bytea,
                 "NUMERIC" | "DECIMAL" | "DEC" => {
                     let (precision, scale) = self.parse_optional_precision_scale()?;

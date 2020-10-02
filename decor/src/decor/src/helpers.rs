@@ -8,10 +8,6 @@ pub fn process_schema(schema: &str) -> String {
     // get rid of unsupported types
     let mut new = schema.replace(r"int unsigned", "int");
 
-    // indexes
-    // PRIMARY KEY , UNIQUE, INDEX, and FULLTEXT
-    //INDEX `confidence_idx`  (`confidence`),
-    
     // get rid of ENGINE/etc. commands after query
     let mut end_index = new.len();
     if let Some(i) = new.find("ENGINE") {

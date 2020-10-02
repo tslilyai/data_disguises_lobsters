@@ -343,9 +343,11 @@ impl AstDisplay for IndexDef{
             f.write_node(typ);
             f.write_str(" ");
         }
+        f.write_str("INDEX ");
         f.write_node(&self.name);
         f.write_str(" (");
         f.write_node(&display::comma_separated(&self.key_parts));
+        f.write_str(")");
     }
 }
 impl_display!(IndexDef);

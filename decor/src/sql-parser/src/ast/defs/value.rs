@@ -194,6 +194,8 @@ pub enum DataType {
     Decimal(Option<u64>, Option<u64>),
     /// Floating point with optional precision e.g. FLOAT(8)
     Float(Option<u64>),
+    /// Tiny integer
+    TinyInt(Option<u64>),
     /// Small integer
     SmallInt,
     /// Integer
@@ -208,6 +210,8 @@ pub enum DataType {
     Boolean,
     /// Date
     Date,
+    /// DateTime
+    DateTime,
     /// Time without time zone
     Time,
     /// Time with time zone
@@ -222,6 +226,8 @@ pub enum DataType {
     Regclass,
     /// Text
     Text,
+    /// TinyText 
+    TinyText,
     /// Bytea
     Bytea,
     /// List
@@ -270,6 +276,7 @@ impl AstDisplay for DataType {
                 }
             }
             DataType::Float(size) => format_type_with_optional_length(f, "float", size),
+            DataType::TinyInt(size) => format_type_with_optional_length(f, "tinyint", size),
             DataType::SmallInt => f.write_str("smallint"),
             DataType::Int => f.write_str("int"),
             DataType::BigInt => f.write_str("bigint"),
@@ -277,6 +284,7 @@ impl AstDisplay for DataType {
             DataType::Double => f.write_str("double precision"),
             DataType::Boolean => f.write_str("boolean"),
             DataType::Date => f.write_str("date"),
+            DataType::DateTime => f.write_str("datetime"),
             DataType::Time => f.write_str("time"),
             DataType::TimeTz => f.write_str("time with time zone"),
             DataType::Timestamp => f.write_str("timestamp"),
@@ -284,6 +292,7 @@ impl AstDisplay for DataType {
             DataType::Interval => f.write_str("interval"),
             DataType::Regclass => f.write_str("regclass"),
             DataType::Text => f.write_str("text"),
+            DataType::TinyText => f.write_str("tinytext"),
             DataType::Bytea => f.write_str("bytea"),
             DataType::List(ty) => {
                 f.write_node(&ty);

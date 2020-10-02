@@ -57,8 +57,6 @@ fn main() {
     assert_eq!(db.ping(), true);
     assert_eq!(db.select_db("decor_lobsters"), true);
 
-
-
     drop(db);
     jh.join().unwrap();
 }
