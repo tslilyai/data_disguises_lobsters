@@ -123,7 +123,7 @@ pub fn trim_quotes(s: &str) -> &str {
 pub fn string_to_idents(s: &str) -> Vec<Ident> {
     s.split(".")
         .into_iter()
-        .map(|i| Ident::new(i))
+        .map(|i| Ident::new(trim_quotes(i)))
         .collect()
 }
 
