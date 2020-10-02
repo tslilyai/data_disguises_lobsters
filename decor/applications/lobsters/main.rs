@@ -27,6 +27,7 @@ use decor;
 
 const SCHEMA : &'static str = include_str!("./schema_lobsters.sql");
 const CONFIG : &'static str = include_str!("./config.json");
+const NUM_USERS: usize = 100;
 
 fn init_logger() {
     let _ = env_logger::builder()
@@ -36,6 +37,17 @@ fn init_logger() {
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
         .try_init();
+}
+
+fn init_database(db: &mut mysql::Conn) {
+    let mut user_ids = String::new();
+    for user in 0..NUM_USERS {
+        if user != 0 {
+            user_ids.push_str(",");
+        }
+        user_ids.push_str(&format!("user{}", user));
+    }
+    db.query_drop(&format!("INSERT INTO users (username) VALUES ({})", user_ids)).unwrap();
 }
 
 fn main() {
@@ -56,6 +68,7 @@ fn main() {
     let mut db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
     assert_eq!(db.ping(), true);
     assert_eq!(db.select_db("decor_lobsters"), true);
+    init_database(&db);
 
     drop(db);
     jh.join().unwrap();
