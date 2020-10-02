@@ -81,7 +81,7 @@ impl AstDisplay for Ident {
         if self.can_be_printed_bare() && !f.stable() {
             f.write_str(&self.0);
         } else {
-            f.write_str("\"");
+            f.write_str("`");
             for ch in self.0.chars() {
                 // Double up on double-quotes.
                 if ch == '"' {
@@ -89,7 +89,7 @@ impl AstDisplay for Ident {
                 }
                 f.write_str(ch);
             }
-            f.write_str("\"");
+            f.write_str("`");
         }
     }
 }

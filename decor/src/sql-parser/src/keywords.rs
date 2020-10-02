@@ -553,6 +553,8 @@ lazy_static! {
         for k in RESERVED_FOR_EXPRESSIONS {
             kw.insert((*k).to_string());
         }
+        // XXX hack...
+        kw.insert("KEY".to_string());
         kw
     };
 }

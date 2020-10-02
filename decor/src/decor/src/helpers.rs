@@ -4,9 +4,9 @@ use std::*;
 use super::config;
 use std::collections::HashMap;
 
-pub fn process_schema(schema: &str) -> String {
+pub fn process_schema_stmt(stmt: &str) -> String {
     // get rid of unsupported types
-    let mut new = schema.replace(r"int unsigned", "int");
+    let mut new = stmt.replace(r"int unsigned", "int");
 
     // get rid of ENGINE/etc. commands after query
     let mut end_index = new.len();
@@ -123,7 +123,7 @@ pub fn trim_quotes(s: &str) -> &str {
 pub fn string_to_idents(s: &str) -> Vec<Ident> {
     s.split(".")
         .into_iter()
-        .map(|i| Ident::new(trim_quotes(i)))
+        .map(|i| Ident::new(i))
         .collect()
 }
 

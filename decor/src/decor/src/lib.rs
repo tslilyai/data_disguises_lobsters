@@ -59,7 +59,7 @@ impl Shim {
         let cfg = config::parse_config(cfg_json).unwrap();
         let prepared = HashMap::new();
         let qtrans = query_transformer::QueryTransformer::new(&cfg);
-        let schema = helpers::process_schema(schema);
+        let schema = schema.to_string();
         Shim{cfg, db, qtrans, prepared, schema}
     }   
    
@@ -82,20 +82,23 @@ impl Shim {
         
         /* issue schema statements */
         let mut sql = String::new();
+        let mut stmt = String::new();
         for line in self.schema.lines() {
             if line.starts_with("--") || line.is_empty() {
                 continue;
             }
             if !sql.is_empty() {
                 sql.push_str(" ");
+                stmt.push_str(" ");
             }
-            sql.push_str(line);
-            if sql.ends_with(';') {
+            stmt.push_str(line);
+            if stmt.ends_with(';') {
+                sql.push_str(&helpers::process_schema_stmt(&stmt));
                 sql.push_str("\n");
+                stmt = String::new();
             }
         }
 
-        // TODO deal with creation of indices within create table statements
         let stmts = parse_statements(sql);
         match stmts {
             Err(e) => {
@@ -106,7 +109,7 @@ impl Shim {
                 for stmt in stmts {
                     // TODO wrap in txn
                     let mv_stmt = self.qtrans.get_mv_stmt(&stmt, &mut self.db)?;
-                    debug!("Create schema: issuing {}", mv_stmt);
+                    debug!("Create schema: issuing {} as {}", stmt, mv_stmt);
                     self.db.query_drop(mv_stmt.to_string())?;
                 }
                 Ok(())
@@ -524,7 +527,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         }   
        
         match self.create_schema() {
-            Ok(_) => (),
+            Ok(_) => debug!("Create schema ok"),
             Err(e) => {
                 debug!("Create schema failed: {}", e);
                 return Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?);
@@ -537,6 +540,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
 
         // initialize columns of DT
         for dt in &mut self.cfg.data_tables {
+            debug!("Initializing columns of table: {}", dt.name);
             let res = self.db.query_iter(format!("SHOW COLUMNS FROM {dt_name}", dt_name=dt.name))?;
             for row in res {
                 let vals = row.unwrap().unwrap();
