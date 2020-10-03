@@ -27,7 +27,9 @@ use decor;
 
 const SCHEMA : &'static str = include_str!("./schema_lobsters.sql");
 const CONFIG : &'static str = include_str!("./config.json");
-const NUM_USERS: usize = 100;
+const NUM_USERS: usize = 10;
+const NUM_STORIES : usize = 10;
+const NUM_COMMENTS: usize = 10;
 
 fn init_logger() {
     let _ = env_logger::builder()
@@ -45,9 +47,27 @@ fn init_database(db: &mut mysql::Conn) {
         if user != 0 {
             user_ids.push_str(",");
         }
-        user_ids.push_str(&format!("user{}", user));
+        user_ids.push_str(&format!("('user{}')", user));
     }
-    db.query_drop(&format!("INSERT INTO users (username) VALUES ({})", user_ids)).unwrap();
+    db.query_drop(&format!("INSERT INTO users (username) VALUES {};", user_ids)).unwrap();
+    
+    let mut story_vals = String::new();
+    for i in 0..NUM_STORIES {
+        if i != 0 {
+            story_vals.push_str(",");
+        }
+        story_vals.push_str(&format!("({}, {}, 'story{}')", i, i, i));
+    }
+    db.query_drop(&format!("INSERT INTO stories (user_id, short_id, title) VALUES {};", story_vals)).unwrap();
+
+    let mut comment_vals = String::new();
+    for i in 0..NUM_COMMENTS {
+        if i != 0 {
+            comment_vals.push_str(",");
+        }
+        comment_vals.push_str(&format!("({}, {}, '{}:{}', 'comment{}', {})", i, i % NUM_STORIES, "2004-05-23T14:25:", i, i, i));
+    }
+    db.query_drop(&format!("INSERT INTO comments (user_id, story_id, created_at, comment, short_id) VALUES {};", comment_vals)).unwrap();
 }
 
 fn main() {
@@ -68,7 +88,7 @@ fn main() {
     let mut db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
     assert_eq!(db.ping(), true);
     assert_eq!(db.select_db("decor_lobsters"), true);
-    init_database(&db);
+    init_database(&mut db);
 
     drop(db);
     jh.join().unwrap();

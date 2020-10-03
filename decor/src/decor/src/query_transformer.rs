@@ -325,7 +325,7 @@ impl QueryTransformer {
                 // NOTE: only need to modify values if we're dealing with a DT,
                 // could perform check here rather than calling vals_vec
                 for row in expr_vals {
-                    let mut vals_row : Vec<Expr>= vec![];
+                    let mut vals_row : Vec<Expr> = vec![];
                     for val in row {
                         let query_val = match self.expr_to_value_expr(&val, db, &mut contains_ucol_id, &vec![])? {
                             Expr::Subquery(q) => {
@@ -1217,7 +1217,6 @@ impl QueryTransformer {
      * DATATABLE QUERY TRANSFORMER FUNCTIONS
      */
     fn insert_gid_for_uid(&mut self, uid: &Expr, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
-
         // user ids are always ints
         let insert_query = &format!("INSERT INTO {} ({}) VALUES ({});", 
                             super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid);
