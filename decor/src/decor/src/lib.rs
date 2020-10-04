@@ -73,12 +73,13 @@ impl Shim {
      * */
     fn create_schema(&mut self) -> Result<(), mysql::Error> {
         debug!("Create schema called");
+        let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
 
         /* create ghost metadata table with boolean cols for each user id */
         // XXX temp: create a new ghost metadata table
-        self.db.query_drop("DROP TABLE IF EXISTS ghosts;")?;
-        self.db.query_drop(create_ghosts_query())?;
-        self.db.query_drop(set_initial_gid_query())?;
+        txn.query_drop("DROP TABLE IF EXISTS ghosts;")?;
+        txn.query_drop(create_ghosts_query())?;
+        txn.query_drop(set_initial_gid_query())?;
         
         /* issue schema statements */
         let mut sql = String::new();
@@ -107,11 +108,11 @@ impl Shim {
             }
             Ok(stmts) => {
                 for stmt in stmts {
-                    // TODO wrap in txn
-                    let mv_stmt = self.qtrans.get_mv_stmt(&stmt, &mut self.db)?;
+                    let mv_stmt = self.qtrans.get_mv_stmt(&stmt, &mut txn)?;
                     debug!("Create schema: issuing {} as {}", stmt, mv_stmt);
-                    self.db.query_drop(mv_stmt.to_string())?;
+                    txn.query_drop(mv_stmt.to_string())?;
                 }
+                txn.commit()?;
                 Ok(())
             }
         }
@@ -128,7 +129,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
         debug!("Unsubscribe {} called!", uid);
 
-        // TODO wrap in txn
+        let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
         
         let get_gids_stmt_from_ghosts = Query::select(Select{
@@ -165,7 +166,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             columns: vec![Ident::new(&self.cfg.user_table.id_col)],
             source: InsertSource::Query(Box::new(get_gids_stmt_from_ghosts)),
         });
-        self.db.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
+        txn.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
         debug!("Unsubscribe {}", insert_gids_as_users_stmt);
         
         /*
@@ -179,7 +180,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 right: Box::new(Expr::Value(uid_val.clone())), 
             }),
         });
-        self.db.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
+        txn.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
         debug!("Unsubscribe {}", delete_uid_from_users);
  
         /* 
@@ -254,10 +255,11 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             );
                 
             debug!("Unsubscribe {}", update_dt_stmt);
-            self.db.query_drop(format!("{}", update_dt_stmt))?;
+            txn.query_drop(format!("{}", update_dt_stmt))?;
         }
         
         // TODO return some type of auth token?
+        txn.commit();
         Ok(w.ok()?)
     }
 
@@ -268,8 +270,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO check that user doesn't already exist
      */
     fn on_resubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
-        debug!("Resubscribe {}!", uid);
         // TODO check auth token?
+        debug!("Resubscribe {}!", uid);
+        let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
         
         let get_gids_stmt_from_ghosts = Query::select(Select{
@@ -295,7 +298,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             group_by: vec![],
             having: None,
         });
-        let res = self.db.query_iter(format!("{}", get_gids_stmt_from_ghosts))?;
+        let res = txn.query_iter(format!("{}", get_gids_stmt_from_ghosts))?;
         let mut gids = vec![];
         for row in res {
             let vals = row.unwrap().unwrap();
@@ -316,7 +319,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             }),
         });
         debug!("Resubscribe {}", delete_gids_as_users_stmt);
-        self.db.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
+        txn.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
 
         /*
          * 2. Add user to users and usersmv (only one table)
@@ -335,7 +338,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             })),
         });
         debug!("Resubscribe: {}", insert_uid_as_user_stmt.to_string());
-        self.db.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
+        txn.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
  
         /* 
          * 3. update assignments in MV to use UID again
@@ -407,8 +410,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 select_constraint.to_string(),
             );
             debug!("Resubscribe: {}", update_dt_stmt);
-            self.db.query_drop(format!("{}", update_dt_stmt))?;
+            txn.query_drop(format!("{}", update_dt_stmt))?;
         }    
+        txn.commit();
         Ok(w.ok()?)
     }
 
@@ -566,9 +570,18 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             Ok(stmts) => {
                 assert!(stmts.len()==1);
                 // TODO wrap in txn
-                let mv_stmt = self.qtrans.get_mv_stmt(&stmts[0], &mut self.db)?;
-                debug!("on_query: issuing {}", mv_stmt);
-                return answer_rows(results, self.db.query_iter(mv_stmt.to_string()));
+               
+                let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
+                let mv_stmt = self.qtrans.get_mv_stmt(&stmts[0], &mut txn)?;
+                debug!("Create schema: issuing {} as {}", stmts[0], mv_stmt);
+                let res = answer_rows(results, txn.query_iter(mv_stmt.to_string()));
+                match res {
+                    Err(e) => return Err(e),
+                    Ok(()) => {
+                        txn.commit()?;
+                        return Ok(());
+                    }
+                }
             }
         }
     }

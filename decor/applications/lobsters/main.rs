@@ -34,7 +34,7 @@ const NUM_COMMENTS: usize = 10;
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Debug)
+        .filter_level(log::LevelFilter::Warn)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -42,6 +42,7 @@ fn init_logger() {
 }
 
 fn init_database(db: &mut mysql::Conn) {
+    // users
     let mut user_ids = String::new();
     for user in 0..NUM_USERS {
         if user != 0 {
@@ -49,25 +50,40 @@ fn init_database(db: &mut mysql::Conn) {
         }
         user_ids.push_str(&format!("('user{}')", user));
     }
-    db.query_drop(&format!("INSERT INTO users (username) VALUES {};", user_ids)).unwrap();
+    db.query_drop(&format!(
+            "INSERT INTO users (username) VALUES {};", 
+            user_ids)).unwrap();
     
+    // stories
     let mut story_vals = String::new();
     for i in 0..NUM_STORIES {
         if i != 0 {
             story_vals.push_str(",");
         }
-        story_vals.push_str(&format!("({}, {}, 'story{}')", i, i, i));
+        story_vals.push_str(&format!("({}, {}, 'story{}')", i % NUM_USERS, i, i));
     }
-    db.query_drop(&format!("INSERT INTO stories (user_id, short_id, title) VALUES {};", story_vals)).unwrap();
+    db.query_drop(&format!(
+            "INSERT INTO stories (user_id, short_id, title) VALUES {};", 
+            story_vals)).unwrap();
 
+    // comments
     let mut comment_vals = String::new();
     for i in 0..NUM_COMMENTS {
         if i != 0 {
             comment_vals.push_str(",");
         }
-        comment_vals.push_str(&format!("({}, {}, '{}:{}', 'comment{}', {})", i, i % NUM_STORIES, "2004-05-23T14:25:", i, i, i));
+        comment_vals.push_str(&format!(
+                "({}, {}, '{}:{}', 'comment{}', {})", 
+                i % NUM_USERS, i % NUM_STORIES, "2004-05-23T14:25:", i, i, i));
     }
-    db.query_drop(&format!("INSERT INTO comments (user_id, story_id, created_at, comment, short_id) VALUES {};", comment_vals)).unwrap();
+    db.query_drop(&format!(
+            "INSERT INTO comments (user_id, story_id, created_at, comment, short_id) VALUES {};",
+            comment_vals)).unwrap();
+}
+
+fn test_reads(db: &mut mysql::Conn) {
+    // select comments and stories at random to read
+    let rows = db.query_iter(&format!("SELECT * from stories where user_id = {}", "TODO")).unwrap();
 }
 
 fn main() {
@@ -89,6 +105,7 @@ fn main() {
     assert_eq!(db.ping(), true);
     assert_eq!(db.select_db("decor_lobsters"), true);
     init_database(&mut db);
+    test_reads(&mut db);
 
     drop(db);
     jh.join().unwrap();

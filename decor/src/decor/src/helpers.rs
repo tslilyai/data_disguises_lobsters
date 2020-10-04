@@ -58,7 +58,7 @@ pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName)
     res
 }
 
-pub fn get_uid2gids_for_uids(uids_to_match: Vec<Expr>, db: &mut mysql::Conn)
+pub fn get_uid2gids_for_uids(uids_to_match: Vec<Expr>, txn: &mut mysql::Transaction)
         -> Result<HashMap<Value, Vec<Expr>>, mysql::Error> 
 {
     let get_gids_stmt_from_ghosts = Query::select(Select{
@@ -90,7 +90,7 @@ pub fn get_uid2gids_for_uids(uids_to_match: Vec<Expr>, db: &mut mysql::Conn)
     });
 
     let mut uid_to_gids : HashMap<Value, Vec<Expr>> = HashMap::new();
-    let res = db.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
+    let res = txn.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
     for row in res {
         let vals : Vec<Value> = row.unwrap().unwrap()
             .iter()
