@@ -20,16 +20,34 @@
 
 extern crate mysql;
 extern crate log;
+extern crate rand;
 
 use mysql::prelude::*;
+use rand::prelude::*;
+use std::sync::{Arc, Barrier};
 use std::*;
+use log::{warn, debug};
 use decor;
 
 const SCHEMA : &'static str = include_str!("./schema_lobsters.sql");
 const CONFIG : &'static str = include_str!("./config.json");
 const NUM_USERS: usize = 10;
-const NUM_STORIES : usize = 10;
-const NUM_COMMENTS: usize = 10;
+const NUM_STORIES : usize = 100;
+const NUM_COMMENTS: usize = 1000;
+const NUM_THREADS : usize = 1;
+const NUM_READ_QUERIES: usize = 200;
+
+#[derive(Debug, Clone, PartialEq)]
+enum TestType {
+    TestDecor, 
+    TestShimParse, 
+    TestShim, 
+    TestNoShim, 
+}
+const TEST_TYPE : TestType = TestType::TestDecor;
+//const TEST_TYPE : TestType = TestType::TestShimParse;
+//const TEST_TYPE : TestType = TestType::TestShim;
+//const TEST_TYPE : TestType = TestType::TestNoShim;
 
 fn init_logger() {
     let _ = env_logger::builder()
@@ -48,10 +66,10 @@ fn init_database(db: &mut mysql::Conn) {
         if user != 0 {
             user_ids.push_str(",");
         }
-        user_ids.push_str(&format!("('user{}')", user));
+        user_ids.push_str(&format!("({}, 'user{}')", user+1, user));
     }
     db.query_drop(&format!(
-            "INSERT INTO users (username) VALUES {};", 
+            "INSERT INTO users (id, username) VALUES {};", 
             user_ids)).unwrap();
     
     // stories
@@ -73,40 +91,139 @@ fn init_database(db: &mut mysql::Conn) {
             comment_vals.push_str(",");
         }
         comment_vals.push_str(&format!(
-                "({}, {}, '{}:{}', 'comment{}', {})", 
-                i % NUM_USERS, i % NUM_STORIES, "2004-05-23T14:25:", i, i, i));
+                "({}, {}, '{}', 'comment{}', {})", 
+                i % NUM_USERS, i % NUM_STORIES, "2004-05-23T14:25:00", i, i));
     }
     db.query_drop(&format!(
             "INSERT INTO comments (user_id, story_id, created_at, comment, short_id) VALUES {};",
             comment_vals)).unwrap();
 }
 
-fn test_reads(db: &mut mysql::Conn) {
+fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    let mut txn = db.start_transaction(mysql::TxOpts::default())?;
+    
+    /* issue schema statements */
+    let mut sql = String::new();
+    let mut stmt = String::new();
+    for line in SCHEMA.lines() {
+        if line.starts_with("--") || line.is_empty() {
+            continue;
+        }
+        if !sql.is_empty() {
+            sql.push_str(" ");
+            stmt.push_str(" ");
+        }
+        stmt.push_str(line);
+        if stmt.ends_with(';') {
+            txn.query_drop(stmt.to_string())?;
+            stmt = String::new();
+        }
+    }
+    txn.commit()?;
+    Ok(())
+}
+
+fn test_reads(db: &mut mysql::Conn, n: usize) {
     // select comments and stories at random to read
-    let rows = db.query_iter(&format!("SELECT * from stories where user_id = {}", "TODO")).unwrap();
+    for _ in 0..n {
+        let story = thread_rng().gen_range(0, NUM_STORIES);
+        let rows = db.query_iter(&format!("SELECT story_id from stories \
+            LEFT JOIN comments ON comments.story_id = stories.id \
+            where stories.id = {}", story)).unwrap();
+    }
 }
 
 fn main() {
     init_logger();
     let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
-
-    let jh = thread::spawn(move || {
-        if let Ok((s, _)) = listener.accept() {
-            let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
+    let mut jh = None;
+    let mut db : mysql::Conn;
+       
+    match TEST_TYPE {
+        TestType::TestDecor => {
+            jh = Some(thread::spawn(move || {
+                if let Ok((s, _)) = listener.accept() {
+                    let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
+                    db.query_drop("DROP DATABASE IF EXISTS decor_lobsters;").unwrap();
+                    db.query_drop("CREATE DATABASE decor_lobsters;").unwrap();
+                    assert_eq!(db.ping(), true);
+                    decor::Shim::run_on_tcp(
+                        db, CONFIG, SCHEMA, 
+                        decor::TestParams{translate:true, parse:true}, s).unwrap();
+                }
+            }));
+            db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
+            assert_eq!(db.ping(), true);
+            assert_eq!(db.select_db("decor_lobsters"), true);
+        }
+        TestType::TestShimParse => {
+            jh = Some(thread::spawn(move || {
+                if let Ok((s, _)) = listener.accept() {
+                    let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
+                    db.query_drop("DROP DATABASE IF EXISTS decor_lobsters;").unwrap();
+                    db.query_drop("CREATE DATABASE decor_lobsters;").unwrap();
+                    assert_eq!(db.ping(), true);
+                    decor::Shim::run_on_tcp(
+                        db, CONFIG, SCHEMA, 
+                        decor::TestParams{translate:false, parse:true}, s).unwrap();
+                }
+            }));
+            db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
+            assert_eq!(db.ping(), true);
+            assert_eq!(db.select_db("decor_lobsters"), true);
+        }
+        TestType::TestShim => {
+            jh = Some(thread::spawn(move || {
+                if let Ok((s, _)) = listener.accept() {
+                    let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
+                    db.query_drop("DROP DATABASE IF EXISTS decor_lobsters;").unwrap();
+                    db.query_drop("CREATE DATABASE decor_lobsters;").unwrap();
+                    assert_eq!(db.ping(), true);
+                    decor::Shim::run_on_tcp(
+                        db, CONFIG, SCHEMA, 
+                        decor::TestParams{translate:false, parse:false}, s).unwrap();
+                }
+            }));
+            db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
+            assert_eq!(db.ping(), true);
+            assert_eq!(db.select_db("decor_lobsters"), true);
+        }
+        TestType::TestNoShim => {
+            db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
             db.query_drop("DROP DATABASE IF EXISTS decor_lobsters;").unwrap();
             db.query_drop("CREATE DATABASE decor_lobsters;").unwrap();
             assert_eq!(db.ping(), true);
-            decor::Shim::run_on_tcp(db, CONFIG, SCHEMA, s).unwrap();
+            assert_eq!(db.select_db("decor_lobsters"), true);
+            create_schema(&mut db).unwrap();
         }
-    });
-
-    let mut db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
-    assert_eq!(db.ping(), true);
-    assert_eq!(db.select_db("decor_lobsters"), true);
+    }
     init_database(&mut db);
-    test_reads(&mut db);
 
-    drop(db);
-    jh.join().unwrap();
+    let mut test_threads = vec![];
+    let barrier = Arc::new(Barrier::new(2));//NUM_THREADS + 1));
+    //for _ in 0..NUM_THREADS {
+    let c = barrier.clone();
+    test_threads.push(thread::spawn(move || {
+        c.wait();
+        test_reads(&mut db, NUM_READ_QUERIES / NUM_THREADS);
+        drop(db);
+    }));
+    //}
+
+    // main thread starts timing at same time as other threads
+    let c = barrier.clone();
+    c.wait();
+    let start = std::time::SystemTime::now();
+    for t in test_threads {
+        t.join().unwrap();
+    }
+    let duration = start.elapsed().unwrap();
+    println!("{:?}: {:.2}RO/ms", TEST_TYPE, NUM_READ_QUERIES as f64/duration.as_millis() as f64 * 1000f64);
+
+    if TEST_TYPE != TestType::TestNoShim {
+        if let Some(t) = jh {
+            t.join().unwrap();
+        }
+    }
 }

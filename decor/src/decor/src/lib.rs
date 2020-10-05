@@ -17,6 +17,11 @@ const GHOST_USER_COL : &'static str = "user_id";
 const GHOST_ID_COL: &'static str = "ghost_id";
 const MV_SUFFIX : &'static str = "mv"; 
 
+pub struct TestParams {
+    pub translate: bool,
+    pub parse: bool,
+}
+
 fn create_ghosts_query() -> String {
     format!(
         r"CREATE TABLE IF NOT EXISTS {} (
@@ -45,6 +50,8 @@ pub struct Shim {
 
     // NOTE: not *actually* static, but tied to our connection's lifetime.
     schema: String,
+
+    test_params: TestParams,
 }
 
 impl Drop for Shim {
@@ -55,16 +62,23 @@ impl Drop for Shim {
 }
 
 impl Shim {
-    pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str) -> Self {
+    pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str, test_params: TestParams) -> Self {
         let cfg = config::parse_config(cfg_json).unwrap();
         let prepared = HashMap::new();
         let qtrans = query_transformer::QueryTransformer::new(&cfg);
         let schema = schema.to_string();
-        Shim{cfg, db, qtrans, prepared, schema}
+        Shim{cfg, db, qtrans, prepared, schema, test_params}
     }   
    
-    pub fn run_on_tcp(db: mysql::Conn, cfg_json: &str, schema: &'static str, s: net::TcpStream) -> Result<(), mysql::Error> {
-        MysqlIntermediary::run_on_tcp(Shim::new(db, cfg_json, schema), s)
+    pub fn run_on_tcp(
+        db: mysql::Conn, 
+        cfg_json: &str, 
+        schema: &'static str, 
+        test_params: TestParams, 
+        s: net::TcpStream) 
+        -> Result<(), mysql::Error> 
+    {
+        MysqlIntermediary::run_on_tcp(Shim::new(db, cfg_json, schema, test_params), s)
     }
 
     /* 
@@ -259,7 +273,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         }
         
         // TODO return some type of auth token?
-        txn.commit();
+        txn.commit()?;
         Ok(w.ok()?)
     }
 
@@ -412,7 +426,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             debug!("Resubscribe: {}", update_dt_stmt);
             txn.query_drop(format!("{}", update_dt_stmt))?;
         }    
-        txn.commit();
+        txn.commit()?;
         Ok(w.ok()?)
     }
 
@@ -561,6 +575,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     }
 
     fn on_query(&mut self, query: &str, results: QueryResultWriter<W>) -> Result<(), Self::Error> {
+        if !self.test_params.parse {
+            return answer_rows(results, self.db.query_iter(query));
+        }
+
         let stmts_res = parse_statements(query.to_string());
         match stmts_res {
             Err(e) => {
@@ -569,8 +587,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             }
             Ok(stmts) => {
                 assert!(stmts.len()==1);
-                // TODO wrap in txn
-               
+                if !self.test_params.translate {
+                    return answer_rows(results, self.db.query_iter(stmts[0].to_string()));
+                }
+
                 let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
                 let mv_stmt = self.qtrans.get_mv_stmt(&stmts[0], &mut txn)?;
                 debug!("Create schema: issuing {} as {}", stmts[0], mv_stmt);
