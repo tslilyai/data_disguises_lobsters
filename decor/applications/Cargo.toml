@@ -12,6 +12,7 @@ mysql_common = "0.22"
 log = "0.4"
 env_logger = "0.7.1"
 rand = "0.6.5"
+structopt = { version = "0.3", default-features=false }
 
 [[bin]]
 name = "lobsters"

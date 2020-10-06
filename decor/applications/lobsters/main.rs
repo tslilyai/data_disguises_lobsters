@@ -26,16 +26,12 @@ use mysql::prelude::*;
 use rand::prelude::*;
 use std::sync::{Arc, Barrier};
 use std::*;
-use log::{warn, debug};
+use structopt::StructOpt;
+//use log::{warn, debug};
 use decor;
 
 const SCHEMA : &'static str = include_str!("./schema_lobsters.sql");
 const CONFIG : &'static str = include_str!("./config.json");
-const NUM_USERS: usize = 10;
-const NUM_STORIES : usize = 100;
-const NUM_COMMENTS: usize = 1000;
-const NUM_THREADS : usize = 1;
-const NUM_READ_QUERIES: usize = 200;
 
 #[derive(Debug, Clone, PartialEq)]
 enum TestType {
@@ -44,10 +40,34 @@ enum TestType {
     TestShim, 
     TestNoShim, 
 }
-const TEST_TYPE : TestType = TestType::TestDecor;
-//const TEST_TYPE : TestType = TestType::TestShimParse;
-//const TEST_TYPE : TestType = TestType::TestShim;
-//const TEST_TYPE : TestType = TestType::TestNoShim;
+impl std::str::FromStr for TestType {
+    type Err = std::io::Error;
+    fn from_str(test: &str) -> Result<Self, Self::Err> {
+        match test{
+            "decor" => Ok(TestType::TestDecor),
+            "shim_parse" => Ok(TestType::TestShimParse),
+            "shim_only" => Ok(TestType::TestShim),
+            "no_shim" => Ok(TestType::TestNoShim),
+            _ => Err(io::Error::new(io::ErrorKind::InvalidInput, test)),
+        }
+    }
+}
+
+#[derive(StructOpt)]
+struct Cli {
+    #[structopt(long="test", default_value="no_shim")]
+    test: TestType,
+    #[structopt(long="num_users", default_value="10")]
+    num_users: usize,
+    #[structopt(long="num_stories", default_value="10")]
+    num_stories: usize,
+    #[structopt(long="num_comments", default_value="100")]
+    num_comments: usize,
+    #[structopt(long="num_threads", default_value = "1")]
+    num_threads: usize,
+    #[structopt(long="num_queries", default_value = "100")]
+    num_queries: usize,
+}
 
 fn init_logger() {
     let _ = env_logger::builder()
@@ -59,10 +79,10 @@ fn init_logger() {
         .try_init();
 }
 
-fn init_database(db: &mut mysql::Conn) {
+fn init_database(db: &mut mysql::Conn, nusers: usize, nstories: usize, ncomments: usize) {
     // users
     let mut user_ids = String::new();
-    for user in 0..NUM_USERS {
+    for user in 0..nusers {
         if user != 0 {
             user_ids.push_str(",");
         }
@@ -74,11 +94,11 @@ fn init_database(db: &mut mysql::Conn) {
     
     // stories
     let mut story_vals = String::new();
-    for i in 0..NUM_STORIES {
+    for i in 0..nstories {
         if i != 0 {
             story_vals.push_str(",");
         }
-        story_vals.push_str(&format!("({}, {}, 'story{}')", i % NUM_USERS, i, i));
+        story_vals.push_str(&format!("({}, {}, 'story{}')", i % nusers , i, i));
     }
     db.query_drop(&format!(
             "INSERT INTO stories (user_id, short_id, title) VALUES {};", 
@@ -86,13 +106,13 @@ fn init_database(db: &mut mysql::Conn) {
 
     // comments
     let mut comment_vals = String::new();
-    for i in 0..NUM_COMMENTS {
+    for i in 0..ncomments {
         if i != 0 {
             comment_vals.push_str(",");
         }
         comment_vals.push_str(&format!(
                 "({}, {}, '{}', 'comment{}', {})", 
-                i % NUM_USERS, i % NUM_STORIES, "2004-05-23T14:25:00", i, i));
+                i % nusers, i % nstories, "2004-05-23T14:25:00", i, i));
     }
     db.query_drop(&format!(
             "INSERT INTO comments (user_id, story_id, created_at, comment, short_id) VALUES {};",
@@ -123,11 +143,11 @@ fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     Ok(())
 }
 
-fn test_reads(db: &mut mysql::Conn, n: usize) {
+fn test_reads(db: &mut mysql::Conn, nqueries: usize, nstories: usize) {
     // select comments and stories at random to read
-    for _ in 0..n {
-        let story = thread_rng().gen_range(0, NUM_STORIES);
-        let rows = db.query_iter(&format!("SELECT story_id from stories \
+    for _ in 0..nqueries {
+        let story = thread_rng().gen_range(0, nstories);
+        db.query_iter(&format!("SELECT story_id from stories \
             LEFT JOIN comments ON comments.story_id = stories.id \
             where stories.id = {}", story)).unwrap();
     }
@@ -135,12 +155,20 @@ fn test_reads(db: &mut mysql::Conn, n: usize) {
 
 fn main() {
     init_logger();
+    let args = Cli::from_args();
+    let test = args.test;
+    let ncomments = args.num_comments;
+    let nqueries = args.num_queries;
+    let nstories = args.num_stories;
+    let nusers = args.num_users;
+    let nthreads = args.num_threads;
+
     let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     let mut jh = None;
     let mut db : mysql::Conn;
        
-    match TEST_TYPE {
+    match test {
         TestType::TestDecor => {
             jh = Some(thread::spawn(move || {
                 if let Ok((s, _)) = listener.accept() {
@@ -198,7 +226,7 @@ fn main() {
             create_schema(&mut db).unwrap();
         }
     }
-    init_database(&mut db);
+    init_database(&mut db, nusers, nstories, ncomments);
 
     let mut test_threads = vec![];
     let barrier = Arc::new(Barrier::new(2));//NUM_THREADS + 1));
@@ -206,7 +234,7 @@ fn main() {
     let c = barrier.clone();
     test_threads.push(thread::spawn(move || {
         c.wait();
-        test_reads(&mut db, NUM_READ_QUERIES / NUM_THREADS);
+        test_reads(&mut db, nqueries/ nthreads, nstories);
         drop(db);
     }));
     //}
@@ -219,9 +247,9 @@ fn main() {
         t.join().unwrap();
     }
     let duration = start.elapsed().unwrap();
-    println!("{:?}: {:.2}RO/ms", TEST_TYPE, NUM_READ_QUERIES as f64/duration.as_millis() as f64 * 1000f64);
+    println!("{:?}: {:.2}RO/ms", test, nqueries as f64/duration.as_millis() as f64 * 1000f64);
 
-    if TEST_TYPE != TestType::TestNoShim {
+    if test != TestType::TestNoShim {
         if let Some(t) = jh {
             t.join().unwrap();
         }

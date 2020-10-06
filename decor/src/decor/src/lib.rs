@@ -38,7 +38,7 @@ fn set_initial_gid_query() -> String {
 
 struct Prepared {
     stmt: mysql::Statement,
-    params: Vec<Column>,
+    //params: Vec<Column>,
 }
 
 pub struct Shim { 
@@ -430,7 +430,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         Ok(w.ok()?)
     }
 
-    fn on_prepare(&mut self, query: &str, info: StatementMetaWriter<W>) -> Result<(), Self::Error> {
+    fn on_prepare(&mut self, _query: &str, _info: StatementMetaWriter<W>) -> Result<(), Self::Error> {
         // TODO save prepared stmts modified for MVs and ghosts table
         /*match self.db.prep(self.query_using_mv_tables(query)) {
             Ok(stmt) => {
@@ -475,11 +475,11 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     
     fn on_execute(
         &mut self,
-        id: u32,
-        ps: ParamParser,
-        results: QueryResultWriter<W>,
+        _id: u32,
+        _ps: ParamParser,
+        _results: QueryResultWriter<W>,
     ) -> Result<(), Self::Error> {
-        match self.prepared.get(&id) {
+        /*match self.prepared.get(&id) {
             None => return Ok(results.error(ErrorKind::ER_NO, b"no such prepared statement")?),
             Some(prepped) => {
                 // parse params
@@ -518,10 +518,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 );
 
                 // TODO get response
-                return Ok(());
                 //answer_rows(results, self.db.query_iter(self.query_using_mv_tables("")))
             }
-        }
+        }*/
+        return Ok(());
     }
     
     fn on_close(&mut self, id: u32) {
