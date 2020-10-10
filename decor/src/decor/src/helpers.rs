@@ -3,6 +3,7 @@ use sql_parser::ast::*;
 use std::*;
 use super::config;
 use std::collections::HashMap;
+use log::debug;
 
 pub fn process_schema_stmt(stmt: &str) -> String {
     // get rid of unsupported types
@@ -61,6 +62,11 @@ pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName)
 pub fn get_uid2gids_for_uids(uids_to_match: Vec<Expr>, txn: &mut mysql::Transaction)
         -> Result<HashMap<Value, Vec<Expr>>, mysql::Error> 
 {
+    let mut uid_to_gids : HashMap<Value, Vec<Expr>> = HashMap::new();
+    if uids_to_match.is_empty() {
+        return Ok(uid_to_gids);
+    }
+
     let get_gids_stmt_from_ghosts = Query::select(Select{
         distinct: true,
         projection: vec![
@@ -89,7 +95,7 @@ pub fn get_uid2gids_for_uids(uids_to_match: Vec<Expr>, txn: &mut mysql::Transact
         having: None,
     });
 
-    let mut uid_to_gids : HashMap<Value, Vec<Expr>> = HashMap::new();
+    debug!("helpers get_uid2gids: {}", get_gids_stmt_from_ghosts);
     let res = txn.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
     for row in res {
         let vals : Vec<Value> = row.unwrap().unwrap()

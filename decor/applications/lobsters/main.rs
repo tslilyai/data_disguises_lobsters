@@ -24,14 +24,17 @@ extern crate rand;
 
 use mysql::prelude::*;
 use rand::prelude::*;
-use std::sync::{Arc, Barrier};
 use std::*;
+use std::thread;
 use structopt::StructOpt;
+//use std::sync::{Arc, Barrier};
 //use log::{warn, debug};
+
 use decor;
 
 const SCHEMA : &'static str = include_str!("./schema_lobsters.sql");
 const CONFIG : &'static str = include_str!("./config.json");
+const DBNAME : &'static str = &"decor_lobsters";
 
 #[derive(Debug, Clone, PartialEq)]
 enum TestType {
@@ -57,16 +60,16 @@ impl std::str::FromStr for TestType {
 struct Cli {
     #[structopt(long="test", default_value="no_shim")]
     test: TestType,
-    #[structopt(long="num_users", default_value="10")]
-    num_users: usize,
-    #[structopt(long="num_stories", default_value="10")]
-    num_stories: usize,
-    #[structopt(long="num_comments", default_value="100")]
-    num_comments: usize,
-    #[structopt(long="num_threads", default_value = "1")]
-    num_threads: usize,
-    #[structopt(long="num_queries", default_value = "100")]
-    num_queries: usize,
+    #[structopt(long="nusers", default_value="10")]
+    nusers: usize,
+    #[structopt(long="nstories", default_value="10")]
+    nstories: usize,
+    #[structopt(long="ncomments", default_value="100")]
+    ncomments: usize,
+    #[structopt(long="nthreads", default_value = "1")]
+    nthreads: usize,
+    #[structopt(long="nqueries", default_value = "100")]
+    nqueries: usize,
 }
 
 fn init_logger() {
@@ -150,108 +153,147 @@ fn test_reads(db: &mut mysql::Conn, nqueries: usize, nstories: usize) {
         db.query_iter(&format!("SELECT story_id from stories \
             LEFT JOIN comments ON comments.story_id = stories.id \
             where stories.id = {}", story)).unwrap();
+        /*let mut rows = vec![];
+        for row in res {
+            let row = row.unwrap();
+            let mut row_vals = vec![];
+            for i in 0..row.len() {
+                row_vals.push(row[i].clone());
+            }
+            rows.push(row_vals);
+        }*/
+        //println!("story {}: {:?}", story, rows);
     }
+}
+
+fn test_insert(db: &mut mysql::Conn, nqueries: usize, nstories: usize, nusers: usize, ncomments: usize) {
+    // select comments and stories at random to read
+    for i in 0..nqueries {
+        let user = thread_rng().gen_range(0, nusers);
+        let story = thread_rng().gen_range(0, nstories);
+        let time = "2004-05-23T14:25:00";
+        db.query_drop(&format!("INSERT INTO comments \
+            (user_id, story_id, created_at, comment, short_id) \
+            VALUES ({}, {}, '{}', 'newcomment', {});",
+            user, story, time, ncomments+i)).unwrap();
+    }
+}
+
+fn test_update(db: &mut mysql::Conn, nqueries: usize, ncomments: usize, nusers: usize, nstories: usize) {
+    // select comments and stories at random to read
+    for _ in 0..nqueries {
+        let comment = thread_rng().gen_range(0, ncomments);
+        let user = comment % nusers;
+        let story = comment % nstories;
+        db.query_drop(&format!("UPDATE comments \
+            SET comment = 'newercomment' \
+            WHERE story_id = {} AND user_id = {};",
+            story, user)).unwrap();
+    }
+}
+
+fn init_db(test : TestType, nusers: usize, nstories: usize, ncomments: usize) 
+    -> (mysql::Conn, Option<thread::JoinHandle<()>>) 
+{
+    let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let mut jh = None;
+    let url : String;
+    let mut db : mysql::Conn;
+      
+    let mut translate = false;
+    let mut parse = false;
+    match test {
+        TestType::TestDecor => {
+            translate = true;
+            parse = true;
+        }
+        TestType::TestShimParse => {
+            translate = false;
+            parse = true;
+        }
+        TestType::TestShim => {
+            translate = false;
+            parse = false;
+        }
+        _ => (),
+    }
+    
+    if test == TestType::TestNoShim {
+        url = String::from("mysql://tslilyai:pass@127.0.0.1");
+        db = mysql::Conn::new(&url).unwrap();
+        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", DBNAME)).unwrap();
+        db.query_drop(&format!("CREATE DATABASE {};", DBNAME)).unwrap();
+        assert_eq!(db.ping(), true);
+        assert_eq!(db.select_db(&format!("{}", DBNAME)), true);
+        // TODO this is done automatically in all the other tests
+        // when select_db is called (probably not the right interface for DeCor)
+        create_schema(&mut db).unwrap();
+        init_database(&mut db, nusers, nstories, ncomments);
+    } else {
+        jh = Some(thread::spawn(move || {
+            if let Ok((s, _)) = listener.accept() {
+                let mut db = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
+                db.query_drop(&format!("DROP DATABASE IF EXISTS {};", DBNAME)).unwrap();
+                db.query_drop(&format!("CREATE DATABASE {};", DBNAME)).unwrap();
+                assert_eq!(db.ping(), true);
+                decor::Shim::run_on_tcp(
+                    db, CONFIG, SCHEMA, 
+                    decor::TestParams{translate:translate, parse:parse}, s).unwrap();
+            }
+        }));
+        url = format!("mysql://127.0.0.1:{}", port);
+        db = mysql::Conn::new(&url).unwrap();
+        assert_eq!(db.ping(), true);
+        assert_eq!(db.select_db(&format!("{}", DBNAME)), true);
+        init_database(&mut db, nusers, nstories, ncomments);
+    }
+    (db, jh)
 }
 
 fn main() {
     init_logger();
     let args = Cli::from_args();
     let test = args.test;
-    let ncomments = args.num_comments;
-    let nqueries = args.num_queries;
-    let nstories = args.num_stories;
-    let nusers = args.num_users;
-    let nthreads = args.num_threads;
+    let ncomments = args.ncomments;
+    let nqueries = args.nqueries;
+    let nstories = args.nstories;
+    let nusers = args.nusers;
+    let nthreads = args.nthreads;
 
-    let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
-    let mut jh = None;
-    let mut db : mysql::Conn;
-       
-    match test {
-        TestType::TestDecor => {
-            jh = Some(thread::spawn(move || {
-                if let Ok((s, _)) = listener.accept() {
-                    let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
-                    db.query_drop("DROP DATABASE IF EXISTS decor_lobsters;").unwrap();
-                    db.query_drop("CREATE DATABASE decor_lobsters;").unwrap();
-                    assert_eq!(db.ping(), true);
-                    decor::Shim::run_on_tcp(
-                        db, CONFIG, SCHEMA, 
-                        decor::TestParams{translate:true, parse:true}, s).unwrap();
-                }
-            }));
-            db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
-            assert_eq!(db.ping(), true);
-            assert_eq!(db.select_db("decor_lobsters"), true);
-        }
-        TestType::TestShimParse => {
-            jh = Some(thread::spawn(move || {
-                if let Ok((s, _)) = listener.accept() {
-                    let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
-                    db.query_drop("DROP DATABASE IF EXISTS decor_lobsters;").unwrap();
-                    db.query_drop("CREATE DATABASE decor_lobsters;").unwrap();
-                    assert_eq!(db.ping(), true);
-                    decor::Shim::run_on_tcp(
-                        db, CONFIG, SCHEMA, 
-                        decor::TestParams{translate:false, parse:true}, s).unwrap();
-                }
-            }));
-            db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
-            assert_eq!(db.ping(), true);
-            assert_eq!(db.select_db("decor_lobsters"), true);
-        }
-        TestType::TestShim => {
-            jh = Some(thread::spawn(move || {
-                if let Ok((s, _)) = listener.accept() {
-                    let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
-                    db.query_drop("DROP DATABASE IF EXISTS decor_lobsters;").unwrap();
-                    db.query_drop("CREATE DATABASE decor_lobsters;").unwrap();
-                    assert_eq!(db.ping(), true);
-                    decor::Shim::run_on_tcp(
-                        db, CONFIG, SCHEMA, 
-                        decor::TestParams{translate:false, parse:false}, s).unwrap();
-                }
-            }));
-            db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
-            assert_eq!(db.ping(), true);
-            assert_eq!(db.select_db("decor_lobsters"), true);
-        }
-        TestType::TestNoShim => {
-            db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
-            db.query_drop("DROP DATABASE IF EXISTS decor_lobsters;").unwrap();
-            db.query_drop("CREATE DATABASE decor_lobsters;").unwrap();
-            assert_eq!(db.ping(), true);
-            assert_eq!(db.select_db("decor_lobsters"), true);
-            create_schema(&mut db).unwrap();
-        }
-    }
-    init_database(&mut db, nusers, nstories, ncomments);
-
-    let mut test_threads = vec![];
-    let barrier = Arc::new(Barrier::new(2));//NUM_THREADS + 1));
-    //for _ in 0..NUM_THREADS {
-    let c = barrier.clone();
-    test_threads.push(thread::spawn(move || {
-        c.wait();
-        test_reads(&mut db, nqueries/ nthreads, nstories);
-        drop(db);
-    }));
-    //}
-
-    // main thread starts timing at same time as other threads
-    let c = barrier.clone();
-    c.wait();
+    // TEST Update Queries (should read from ghosts)
+    let (mut db, jh) = init_db(test.clone(), nusers, nstories, ncomments);
     let start = std::time::SystemTime::now();
-    for t in test_threads {
+    test_update(&mut db, nqueries/ nthreads, ncomments, nusers, nstories);
+    let upduration = start.elapsed().unwrap();
+    drop(db);
+    if let Some(t) = jh {
         t.join().unwrap();
     }
-    let duration = start.elapsed().unwrap();
-    println!("{:?}: {:.2}RO/ms", test, nqueries as f64/duration.as_millis() as f64 * 1000f64);
-
-    if test != TestType::TestNoShim {
-        if let Some(t) = jh {
-            t.join().unwrap();
-        }
+      
+    // TEST Insert Queries (should just double queries to insert)
+    let (mut db, jh) = init_db(test.clone(), nusers, nstories, ncomments);
+    let start = std::time::SystemTime::now();
+    test_insert(&mut db, nqueries/ nthreads, nstories, nusers, ncomments);
+    let insduration = start.elapsed().unwrap();
+    drop(db);
+    if let Some(t) = jh {
+        t.join().unwrap();
     }
+
+    // TEST RO Queries
+    let (mut db, jh) = init_db(test.clone(), nusers, nstories, ncomments);
+    let start = std::time::SystemTime::now();
+    test_reads(&mut db, nqueries/ nthreads, nstories);
+    let roduration = start.elapsed().unwrap();
+    drop(db);
+    if let Some(t) = jh {
+        t.join().unwrap();
+    }
+ 
+    println!("{:?}\t{:.2}\t{:.2}\t{:.2}",
+             test, 
+             nqueries as f64/roduration.as_millis() as f64 * 1000f64,
+             nqueries as f64/insduration.as_millis() as f64 * 1000f64,
+             nqueries as f64/upduration.as_millis() as f64 * 1000f64);
 }

@@ -5,8 +5,9 @@ use sql_parser::parser::*;
 use std::collections::HashMap;
 use sql_parser::*;
 use sql_parser::ast::*;
+use std::io::{self, BufReader, BufWriter};
 use std::*;
-use log::{warn, debug};
+use log::debug;
 mod helpers;
 pub mod query_transformer;
 pub mod config;
@@ -56,19 +57,26 @@ pub struct Shim {
 
 impl Drop for Shim {
     fn drop(&mut self) {
+        println!("SHIM: {} queries", self.qtrans.stats.nqueries);
         self.prepared.clear();
         // drop the connection (implicitly done).
     }
 }
 
 impl Shim {
-    pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str, test_params: TestParams) -> Self {
+    pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str, test_params: TestParams) 
+        -> Self 
+    {
         let cfg = config::parse_config(cfg_json).unwrap();
         let prepared = HashMap::new();
         let qtrans = query_transformer::QueryTransformer::new(&cfg);
         let schema = schema.to_string();
         Shim{cfg, db, qtrans, prepared, schema, test_params}
     }   
+
+    pub fn get_num_queries(&self) -> usize {
+        self.qtrans.stats.nqueries
+    }
    
     pub fn run_on_tcp(
         db: mysql::Conn, 
@@ -78,7 +86,9 @@ impl Shim {
         s: net::TcpStream) 
         -> Result<(), mysql::Error> 
     {
-        MysqlIntermediary::run_on_tcp(Shim::new(db, cfg_json, schema, test_params), s)
+        let rs = s.try_clone().unwrap();
+        MysqlIntermediary::run_on(Shim::new(db, cfg_json, schema, test_params), 
+                                    BufReader::new(rs), BufWriter::new(s))
     }
 
     /* 
@@ -86,7 +96,6 @@ impl Shim {
      * Must be issued after select_db statement is issued.
      * */
     fn create_schema(&mut self) -> Result<(), mysql::Error> {
-        debug!("Create schema called");
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
 
         /* create ghost metadata table with boolean cols for each user id */
@@ -94,6 +103,8 @@ impl Shim {
         txn.query_drop("DROP TABLE IF EXISTS ghosts;")?;
         txn.query_drop(create_ghosts_query())?;
         txn.query_drop(set_initial_gid_query())?;
+        debug!("drop/create/alter ghosts table");
+        self.qtrans.stats.nqueries+=3;
         
         /* issue schema statements */
         let mut sql = String::new();
@@ -123,8 +134,9 @@ impl Shim {
             Ok(stmts) => {
                 for stmt in stmts {
                     let mv_stmt = self.qtrans.get_mv_stmt(&stmt, &mut txn)?;
-                    debug!("Create schema: issuing {} as {}", stmt, mv_stmt);
+                    debug!("{}", mv_stmt);
                     txn.query_drop(mv_stmt.to_string())?;
+                    self.qtrans.stats.nqueries+=1;
                 }
                 txn.commit()?;
                 Ok(())
@@ -141,8 +153,6 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO actually delete entries? 
      */
     fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
-        debug!("Unsubscribe {} called!", uid);
-
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
         
@@ -180,8 +190,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             columns: vec![Ident::new(&self.cfg.user_table.id_col)],
             source: InsertSource::Query(Box::new(get_gids_stmt_from_ghosts)),
         });
+        debug!("{}", insert_gids_as_users_stmt);
         txn.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
-        debug!("Unsubscribe {}", insert_gids_as_users_stmt);
+        self.qtrans.stats.nqueries+=1;
         
         /*
          * 2. delete UID from users MV and users (only one table, so delete from either)
@@ -194,8 +205,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 right: Box::new(Expr::Value(uid_val.clone())), 
             }),
         });
+        debug!("{}", delete_uid_from_users);
         txn.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
-        debug!("Unsubscribe {}", delete_uid_from_users);
+        self.qtrans.stats.nqueries+=1;
  
         /* 
          * 3. Change all entries with this UID to use the correct GID in the MV
@@ -268,8 +280,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 select_constraint.to_string(),
             );
                 
-            debug!("Unsubscribe {}", update_dt_stmt);
+            debug!("{}", update_dt_stmt);
             txn.query_drop(format!("{}", update_dt_stmt))?;
+            self.qtrans.stats.nqueries+=1;
         }
         
         // TODO return some type of auth token?
@@ -285,7 +298,6 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      */
     fn on_resubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
         // TODO check auth token?
-        debug!("Resubscribe {}!", uid);
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
         
@@ -312,7 +324,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             group_by: vec![],
             having: None,
         });
+        debug!("{}", get_gids_stmt_from_ghosts);
         let res = txn.query_iter(format!("{}", get_gids_stmt_from_ghosts))?;
+        self.qtrans.stats.nqueries+=1;
         let mut gids = vec![];
         for row in res {
             let vals = row.unwrap().unwrap();
@@ -332,8 +346,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 negated: false, 
             }),
         });
-        debug!("Resubscribe {}", delete_gids_as_users_stmt);
+        debug!("{}", delete_gids_as_users_stmt);
         txn.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
+        self.qtrans.stats.nqueries+=1;
 
         /*
          * 2. Add user to users and usersmv (only one table)
@@ -351,8 +366,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 fetch: None,
             })),
         });
-        debug!("Resubscribe: {}", insert_uid_as_user_stmt.to_string());
+        debug!("{}", insert_uid_as_user_stmt.to_string());
         txn.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
+        self.qtrans.stats.nqueries+=1;
  
         /* 
          * 3. update assignments in MV to use UID again
@@ -423,8 +439,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 astr,
                 select_constraint.to_string(),
             );
-            debug!("Resubscribe: {}", update_dt_stmt);
+            debug!("{}", update_dt_stmt);
             txn.query_drop(format!("{}", update_dt_stmt))?;
+            self.qtrans.stats.nqueries+=1;
         }    
         txn.commit()?;
         Ok(w.ok()?)
@@ -529,7 +546,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             None => return,
             Some(prepped) => {
                 if let Err(e) = self.db.close(prepped.stmt.clone()){
-                    warn!("{}", e);
+                    debug!("{}", e);
                 };
                 self.prepared.remove(&id); 
             }
@@ -537,7 +554,6 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     }
 
     fn on_init(&mut self, schema: &str, w: InitWriter<W>) -> Result<(), Self::Error> {
-        debug!("on_init {} called", schema);
         let res = self.db.select_db(schema);
         if !res {
             w.error(ErrorKind::ER_BAD_DB_ERROR, b"select db failed")?;
@@ -545,9 +561,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         }   
        
         match self.create_schema() {
-            Ok(_) => debug!("Create schema ok"),
+            Ok(_) => (),
             Err(e) => {
-                debug!("Create schema failed: {}", e);
                 return Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?);
             }
         }
@@ -560,6 +575,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         for dt in &mut self.cfg.data_tables {
             debug!("Initializing columns of table: {}", dt.name);
             let res = self.db.query_iter(format!("SHOW COLUMNS FROM {dt_name}", dt_name=dt.name))?;
+            self.qtrans.stats.nqueries+=1;
             for row in res {
                 let vals = row.unwrap().unwrap();
                 if vals.len() < 1 {
@@ -576,6 +592,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
 
     fn on_query(&mut self, query: &str, results: QueryResultWriter<W>) -> Result<(), Self::Error> {
         if !self.test_params.parse {
+            self.qtrans.stats.nqueries+=1;
+            debug!("{}", query);
             return answer_rows(results, self.db.query_iter(query));
         }
 
@@ -588,12 +606,15 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             Ok(stmts) => {
                 assert!(stmts.len()==1);
                 if !self.test_params.translate {
+                    self.qtrans.stats.nqueries+=1;
+                    debug!("{}", stmts[0]);
                     return answer_rows(results, self.db.query_iter(stmts[0].to_string()));
                 }
 
                 let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
                 let mv_stmt = self.qtrans.get_mv_stmt(&stmts[0], &mut txn)?;
-                debug!("Create schema: issuing {} as {}", stmts[0], mv_stmt);
+                self.qtrans.stats.nqueries+=1;
+                debug!("{}", mv_stmt);
                 let res = answer_rows(results, txn.query_iter(mv_stmt.to_string()));
                 match res {
                     Err(e) => return Err(e),

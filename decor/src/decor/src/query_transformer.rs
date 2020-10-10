@@ -4,8 +4,12 @@ use super::config;
 use super::helpers;
 use std::sync::atomic::Ordering;
 use std::*;
-use log::{debug};
+use log::debug;
 use std::sync::atomic::{AtomicU64, AtomicUsize};
+
+pub struct QTStats {
+    pub nqueries : usize,
+}
 
 pub struct QueryTransformer {
     table_names: Vec<String>,
@@ -13,6 +17,8 @@ pub struct QueryTransformer {
     latest_uid: AtomicUsize,
 
     pub cfg: config::Config,
+
+    pub stats: QTStats,
 }
 
 impl QueryTransformer {
@@ -27,6 +33,7 @@ impl QueryTransformer {
             table_names: table_names, 
             latest_gid: AtomicU64::new(super::GHOST_ID_START),
             latest_uid: AtomicUsize::new(0),
+            stats: QTStats{nqueries:0},
         }
     }   
 
@@ -42,7 +49,10 @@ impl QueryTransformer {
     fn query_to_value_query(&mut self, query: &Query, txn: &mut mysql::Transaction) -> Result<Query, mysql::Error> {
         let mv_q = self.query_to_mv_query(query);
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
+        debug!("query_to_value_query: {}", mv_q);
         let res = txn.query_iter(&mv_q.to_string())?;
+        self.stats.nqueries+=1;
+
         for row in res {
             let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
             vals_vec.push(mysql_vals
@@ -350,7 +360,9 @@ impl QueryTransformer {
                 // regardless of whether this is a DT or not (because query needs
                 // to read from MV, rather than initially specified tables)
                 let mv_q = self.query_to_mv_query(q);
+                debug!("insert_source_q_to_vals_vec: {}", mv_q);
                 let rows = txn.query_iter(&mv_q.to_string())?;
+                self.stats.nqueries+=1;
                 for row in rows {
                     let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
                     vals_vec.push(mysql_vals
@@ -755,7 +767,6 @@ impl QueryTransformer {
     }
 
     pub fn get_mv_stmt(&mut self, stmt: &Statement, txn: &mut mysql::Transaction) -> mysql::Result<Statement> {
-        debug!("Getting mv stmt for {}", stmt);
         let mv_stmt : Statement;
         let mut is_dt_write = false;
         let mv_table_name : String;
@@ -782,7 +793,6 @@ impl QueryTransformer {
                 let mut new_source = source.clone();
                 let mut mv_cols = columns.clone();
                 let mut new_q = None;
-                debug!("is_dt_write: {} = {} ({} =? {})", stmt, is_dt_write, mv_table_name, table_name);
                 
                 // update sources if is a datatable
                 let mut vals_vec = vec![];
@@ -810,8 +820,6 @@ impl QueryTransformer {
                 // (1) see if the table is actually inserting a value for that column and
                 // (2) update the self.latest_uid appropriately and insert the value for that column
                 // TODO ensure self.latest_uid never goes above GID_START
-                debug!("is_user_table_write: {} =? {}, autoinc {}", 
-                       self.cfg.user_table.name, table_name, self.cfg.user_table.is_autoinc);
                 if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
                     let mut found = false;
                     for (i, col) in columns.iter().enumerate() {
@@ -829,7 +837,6 @@ impl QueryTransformer {
                                     _ => (),
                                 }
                             }
-                            debug!("setting self.latest_uid to max value {}", max);
                             self.latest_uid.fetch_max(max, Ordering::SeqCst);
                             found = true;
                             break;
@@ -839,7 +846,6 @@ impl QueryTransformer {
                         // put self.latest_uid + N as the id col values 
                         let cur_uid = self.latest_uid.fetch_add(vals_vec.len(), Ordering::SeqCst);
                         for i in 0..vals_vec.len() {
-                            debug!("adding id_col value {}", cur_uid + i + 1);
                             vals_vec[i].push(Expr::Value(Value::Number(format!("{}", cur_uid + i + 1))));
                         }
                         // add id column to update
@@ -982,10 +988,11 @@ impl QueryTransformer {
                 is_dt_write = mv_table_name != name.to_string();
 
                 if is_dt_write {
-                    debug!("Issuing dt stmt: {}", stmt);
                     // create the original table as well if we're going to
                     // create a MV for this table
+                    debug!("get_mv: {}", stmt);
                     txn.query_drop(stmt.to_string())?;
+                    self.stats.nqueries+=1;
                 }
 
                 let mv_constraints : Vec<TableConstraint> = constraints
@@ -1048,7 +1055,9 @@ impl QueryTransformer {
                 if is_dt_write {
                     // create the original index as well if we're going to
                     // create a MV index 
+                    debug!("get_mv: {}", stmt);
                     txn.query_drop(stmt.to_string())?;
+                    self.stats.nqueries+=1;
                 }
 
                 mv_stmt = Statement::CreateIndex(CreateIndexStatement{
@@ -1071,7 +1080,9 @@ impl QueryTransformer {
                 if is_dt_write {
                     // alter the original table as well if we're going to
                     // alter a MV table
+                    debug!("get_mv: {}", stmt);
                     txn.query_drop(stmt.to_string())?;
+                    self.stats.nqueries+=1;
                 }
                 
                 match object_type {
@@ -1120,7 +1131,9 @@ impl QueryTransformer {
                             if is_dt_write {
                                 // alter the original table as well if we're going to
                                 // alter a MV table
+                                debug!("get_mv: {}", stmt);
                                 txn.query_drop(stmt.to_string())?;
+                                self.stats.nqueries+=1;
                             }
 
                             *name = helpers::string_to_objname(&newname);
@@ -1220,8 +1233,9 @@ impl QueryTransformer {
         // user ids are always ints
         let insert_query = &format!("INSERT INTO {} ({}) VALUES ({});", 
                             super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid);
-        debug!("Inserting uid {} into ghosts: {}", uid, insert_query);
+        debug!("insert_gid_for_uid: {}", insert_query);
         let res = txn.query_iter(insert_query)?;
+        self.stats.nqueries+=1;
         
         // we want to insert the GID in place of the UID
         let gid = res.last_insert_id().ok_or_else(|| 
@@ -1296,7 +1310,9 @@ impl QueryTransformer {
                 let mut uids = vec![];
                 let mut rows : Vec<Vec<mysql::Value>> = vec![];
                 let mut cols = vec![];
+                debug!("selection_to_dt_selection: {}", mv_select_stmt);
                 let res = txn.query_iter(format!("{}", mv_select_stmt.to_string()))?;
+                self.stats.nqueries+=1;
                 for row in res {
                     let row = row.unwrap();
                     cols = row.columns_ref().to_vec();
@@ -1338,7 +1354,9 @@ impl QueryTransformer {
                         // Add condition on user column to be within relevant GIDs mapped
                         // to by the UID value
                         // However, only update with GIDs if UID value is NOT NULL
-                        if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) && row[i] != mysql::Value::NULL {
+                        if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) 
+                            && row[i] != mysql::Value::NULL 
+                        {
                             // add condition on user column to be within the relevant GIDs
                             and_col_constraint_expr = Expr::BinaryOp {
                                 left: Box::new(and_col_constraint_expr),
@@ -1408,7 +1426,6 @@ impl QueryTransformer {
                 }
             }
         }
-        debug!("ucols {:?}, ucol_indices {:?}", ucols, ucol_indices);
 
         // update sources
         let mut qt_source = stmt.source.clone();
@@ -1420,7 +1437,6 @@ impl QueryTransformer {
         match stmt.source {
             InsertSource::Query(q) => {
                 let vv = self.vals_vec_to_datatable_vals(vals_vec, &ucol_indices, txn)?;
-                debug!("new vals_vec with ghosts for ucols {:?}: {:?} (old {:?})", ucols, vv, vals_vec);
                 let mut new_q = q.clone();
                 new_q.body = SetExpr::Values(Values(vv));
                 qt_source = InsertSource::Query(new_q);
@@ -1434,8 +1450,9 @@ impl QueryTransformer {
             source : qt_source, 
         });
  
-        debug!("Issuing dt stmt {}", dt_stmt);
+        debug!("issue_insert_dt_stmt: {}", dt_stmt);
         txn.query_drop(dt_stmt.to_string())?;
+        self.stats.nqueries+=1;
 
         Ok(())
     }
@@ -1500,7 +1517,10 @@ impl QueryTransformer {
                 as_of: None,
             });
             // get the user_col GIDs from the datatable
+            debug!("issue_update_datatable_stmt: {}", get_gids_stmt_from_dt);
             let res = txn.query_iter(format!("{}", get_gids_stmt_from_dt.to_string()))?;
+            self.stats.nqueries+=1;
+
             let mut ghost_update_stmts = vec![];
             for row in res {
                 let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
@@ -1535,14 +1555,19 @@ impl QueryTransformer {
                 }
             }
             for gstmt in ghost_update_stmts {
+                debug!("issue_update_dt_stmt: {}", gstmt);
                 txn.query_drop(format!("{}", gstmt.to_string()))?;
+                self.stats.nqueries+=1;
             }
         }
-        txn.query_drop(Statement::Update(UpdateStatement{
+        let update_stmt = Statement::Update(UpdateStatement{
             table_name: stmt.table_name.clone(),
             assignments : qt_assn,
             selection : qt_selection,
-        }).to_string())?;
+        });
+        debug!("issue_update_dt_stmt: {}", update_stmt);
+        txn.query_drop(update_stmt.to_string())?;
+        self.stats.nqueries+=1;
         Ok(())
     }
     
@@ -1577,7 +1602,10 @@ impl QueryTransformer {
                     })),        
                 as_of: None,
         });
+        debug!("issue_delete_dt_stmt: {}", select_gids_stmt);
         let res = txn.query_iter(format!("{}", select_gids_stmt.to_string()))?;
+        self.stats.nqueries+=1;
+
         let mut gids_list : Vec<Expr>= vec![];
         for row in res {
             for val in row.unwrap().unwrap() {
@@ -1596,13 +1624,18 @@ impl QueryTransformer {
                     negated: false,
                 }),
             });
+            debug!("issue_delete_dt_stmt: {}", ghosts_delete_statement);
             txn.query_drop(&ghosts_delete_statement.to_string())?;
+            self.stats.nqueries+=1;
         }
 
-        txn.query_drop(Statement::Delete(DeleteStatement{
+        let delete_stmt = Statement::Delete(DeleteStatement{
             table_name: stmt.table_name.clone(),
             selection : qt_selection,
-        }).to_string())?;
+        });
+        debug!("issue_delete_dt_stmt: {}", delete_stmt);
+        txn.query_drop(delete_stmt.to_string())?;
+        self.stats.nqueries+=1;
         Ok(())
     }
 }

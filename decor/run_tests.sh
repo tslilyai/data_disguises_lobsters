@@ -2,10 +2,16 @@
 
 #set -x
 
-#tests=( "decor" "shim_parse" "shim_only" "no_shim" )
-tests=( "shim_only" )
+trials=3
+tests=( "decor" "shim_parse" "shim_only" "no_shim" )
+#tests=( "shim_only" )
+
+cargo build --release
 
 for test in "${tests[@]}"
 do
-    ./target/debug/lobsters --test=$test --num_users=10 --num_stories=100 --num_comments=1000 --num_threads=1 --num_queries=300 #2> /dev/null
+    for i in `seq $trials`
+    do
+        ./target/release/lobsters --test=$test --nusers=10 --nstories=100 --ncomments=1000 --nthreads=1 --nqueries=2000 #2> /dev/null
+    done
 done
