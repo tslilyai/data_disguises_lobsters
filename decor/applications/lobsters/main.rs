@@ -75,7 +75,7 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -169,8 +169,8 @@ fn test_reads(db: &mut mysql::Conn, nqueries: usize, nstories: usize) {
 fn test_insert(db: &mut mysql::Conn, nqueries: usize, nstories: usize, nusers: usize, ncomments: usize) {
     // select comments and stories at random to read
     for i in 0..nqueries {
-        let user = thread_rng().gen_range(0, nusers);
-        let story = thread_rng().gen_range(0, nstories);
+        let user = (ncomments+i) % nusers;
+        let story = (ncomments+i) % nstories;
         let time = "2004-05-23T14:25:00";
         db.query_drop(&format!("INSERT INTO comments \
             (user_id, story_id, created_at, comment, short_id) \
@@ -179,12 +179,11 @@ fn test_insert(db: &mut mysql::Conn, nqueries: usize, nstories: usize, nusers: u
     }
 }
 
-fn test_update(db: &mut mysql::Conn, nqueries: usize, ncomments: usize, nusers: usize, nstories: usize) {
+fn test_update(db: &mut mysql::Conn, nqueries: usize, nusers: usize, nstories: usize) {
     // select comments and stories at random to read
-    for _ in 0..nqueries {
-        let comment = thread_rng().gen_range(0, ncomments);
-        let user = comment % nusers;
-        let story = comment % nstories;
+    for i in 0..nqueries {
+        let user = i % nusers;
+        let story = i % nstories;
         db.query_drop(&format!("UPDATE comments \
             SET comment = 'newercomment' \
             WHERE story_id = {} AND user_id = {};",
@@ -261,16 +260,16 @@ fn main() {
     let nusers = args.nusers;
     let nthreads = args.nthreads;
 
-    // TEST Update Queries (should read from ghosts)
+    // TEST RO Queries
     let (mut db, jh) = init_db(test.clone(), nusers, nstories, ncomments);
     let start = std::time::SystemTime::now();
-    test_update(&mut db, nqueries/ nthreads, ncomments, nusers, nstories);
-    let upduration = start.elapsed().unwrap();
+    test_reads(&mut db, nqueries/ nthreads, nstories);
+    let roduration = start.elapsed().unwrap();
     drop(db);
     if let Some(t) = jh {
         t.join().unwrap();
     }
-      
+    
     // TEST Insert Queries (should just double queries to insert)
     let (mut db, jh) = init_db(test.clone(), nusers, nstories, ncomments);
     let start = std::time::SystemTime::now();
@@ -281,16 +280,15 @@ fn main() {
         t.join().unwrap();
     }
 
-    // TEST RO Queries
+    // TEST Update Queries (should read from ghosts)
     let (mut db, jh) = init_db(test.clone(), nusers, nstories, ncomments);
     let start = std::time::SystemTime::now();
-    test_reads(&mut db, nqueries/ nthreads, nstories);
-    let roduration = start.elapsed().unwrap();
+    test_update(&mut db, nqueries/ nthreads, nusers, nstories);
+    let upduration = start.elapsed().unwrap();
     drop(db);
     if let Some(t) = jh {
         t.join().unwrap();
-    }
- 
+    } 
     println!("{:?}\t{:.2}\t{:.2}\t{:.2}",
              test, 
              nqueries as f64/roduration.as_millis() as f64 * 1000f64,

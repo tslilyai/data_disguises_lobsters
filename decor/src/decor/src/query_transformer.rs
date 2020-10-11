@@ -4,8 +4,9 @@ use super::config;
 use super::helpers;
 use std::sync::atomic::Ordering;
 use std::*;
-use log::debug;
+use log::warn;
 use std::sync::atomic::{AtomicU64, AtomicUsize};
+use std::collections::HashMap;
 
 pub struct QTStats {
     pub nqueries : usize,
@@ -40,7 +41,61 @@ impl QueryTransformer {
     /**************************************** 
      **** Converts Queries/Exprs to Values **
      ****************************************/
-    
+   
+    pub fn get_uid2gids_for_uids(&mut self, uids_to_match: Vec<Expr>, txn: &mut mysql::Transaction)
+        -> Result<HashMap<Value, Vec<Expr>>, mysql::Error> 
+    {
+        let mut uid_to_gids : HashMap<Value, Vec<Expr>> = HashMap::new();
+        if uids_to_match.is_empty() {
+            return Ok(uid_to_gids);
+        }
+
+        let get_gids_stmt_from_ghosts = Query::select(Select{
+            distinct: true,
+            projection: vec![
+                SelectItem::Expr{
+                    expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_USER_COL).0),
+                    alias: None,
+                },
+                SelectItem::Expr{
+                    expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_ID_COL).0),
+                    alias: None,
+                }
+            ],
+            from: vec![TableWithJoins{
+                relation: TableFactor::Table{
+                    name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
+                    alias: None,
+                },
+                joins: vec![],
+            }],
+            selection: Some(Expr::InList{
+                expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_USER_COL))),
+                list: uids_to_match,
+                negated: false,
+            }),
+            group_by: vec![],
+            having: None,
+        });
+
+        warn!("get_uid2gids: {}", get_gids_stmt_from_ghosts);
+        let res = txn.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
+        self.stats.nqueries+=1;
+        for row in res {
+            let vals : Vec<Value> = row.unwrap().unwrap()
+                .iter()
+                .map(|v| helpers::mysql_val_to_parser_val(&v))
+                .collect();
+            match uid_to_gids.get_mut(&vals[0]) {
+                Some(gids) => (*gids).push(Expr::Value(vals[1].clone())),
+                None => {
+                    uid_to_gids.insert(vals[0].clone(), vec![Expr::Value(vals[1].clone())]);
+                }
+            }
+        }
+        Ok(uid_to_gids)
+    } 
+
     /* 
      * This issues the specified query to the MVs, and returns a VALUES query that
      * represents the values retrieved by the query to the MVs.
@@ -49,7 +104,7 @@ impl QueryTransformer {
     fn query_to_value_query(&mut self, query: &Query, txn: &mut mysql::Transaction) -> Result<Query, mysql::Error> {
         let mv_q = self.query_to_mv_query(query);
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
-        debug!("query_to_value_query: {}", mv_q);
+        warn!("query_to_value_query: {}", mv_q);
         let res = txn.query_iter(&mv_q.to_string())?;
         self.stats.nqueries+=1;
 
@@ -360,7 +415,7 @@ impl QueryTransformer {
                 // regardless of whether this is a DT or not (because query needs
                 // to read from MV, rather than initially specified tables)
                 let mv_q = self.query_to_mv_query(q);
-                debug!("insert_source_q_to_vals_vec: {}", mv_q);
+                warn!("insert_source_q_to_vals_vec: {}", mv_q);
                 let rows = txn.query_iter(&mv_q.to_string())?;
                 self.stats.nqueries+=1;
                 for row in rows {
@@ -990,7 +1045,7 @@ impl QueryTransformer {
                 if is_dt_write {
                     // create the original table as well if we're going to
                     // create a MV for this table
-                    debug!("get_mv: {}", stmt);
+                    warn!("get_mv: {}", stmt);
                     txn.query_drop(stmt.to_string())?;
                     self.stats.nqueries+=1;
                 }
@@ -1055,7 +1110,7 @@ impl QueryTransformer {
                 if is_dt_write {
                     // create the original index as well if we're going to
                     // create a MV index 
-                    debug!("get_mv: {}", stmt);
+                    warn!("get_mv: {}", stmt);
                     txn.query_drop(stmt.to_string())?;
                     self.stats.nqueries+=1;
                 }
@@ -1080,7 +1135,7 @@ impl QueryTransformer {
                 if is_dt_write {
                     // alter the original table as well if we're going to
                     // alter a MV table
-                    debug!("get_mv: {}", stmt);
+                    warn!("get_mv: {}", stmt);
                     txn.query_drop(stmt.to_string())?;
                     self.stats.nqueries+=1;
                 }
@@ -1131,7 +1186,7 @@ impl QueryTransformer {
                             if is_dt_write {
                                 // alter the original table as well if we're going to
                                 // alter a MV table
-                                debug!("get_mv: {}", stmt);
+                                warn!("get_mv: {}", stmt);
                                 txn.query_drop(stmt.to_string())?;
                                 self.stats.nqueries+=1;
                             }
@@ -1233,7 +1288,7 @@ impl QueryTransformer {
         // user ids are always ints
         let insert_query = &format!("INSERT INTO {} ({}) VALUES ({});", 
                             super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid);
-        debug!("insert_gid_for_uid: {}", insert_query);
+        warn!("insert_gid_for_uid: {}", insert_query);
         let res = txn.query_iter(insert_query)?;
         self.stats.nqueries+=1;
         
@@ -1274,8 +1329,7 @@ impl QueryTransformer {
         Ok(parser_val_tuples)
     }
 
-    fn selection_to_datatable_selection(&mut self, selection: &Option<Expr>, txn: &mut mysql::Transaction, 
-                                        table_name: &ObjectName, ucols: &Vec<String>) 
+    fn selection_to_datatable_selection(&mut self, selection: &Option<Expr>, txn: &mut mysql::Transaction, table_name: &ObjectName, ucols: &Vec<String>) 
         -> Result<Option<Expr>, mysql::Error>
     {
         let mut qt_selection = None;
@@ -1310,7 +1364,7 @@ impl QueryTransformer {
                 let mut uids = vec![];
                 let mut rows : Vec<Vec<mysql::Value>> = vec![];
                 let mut cols = vec![];
-                debug!("selection_to_dt_selection: {}", mv_select_stmt);
+                warn!("selection_to_dt_selection: {}", mv_select_stmt);
                 let res = txn.query_iter(format!("{}", mv_select_stmt.to_string()))?;
                 self.stats.nqueries+=1;
                 for row in res {
@@ -1336,7 +1390,7 @@ impl QueryTransformer {
                 // get all the gid rows corresponding to uids
                 // TODO deal with potential GIDs in user_cols due to
                 // unsubscriptions/resubscriptions
-                let uid_to_gids = helpers::get_uid2gids_for_uids(
+                let uid_to_gids = self.get_uid2gids_for_uids(
                     uids.iter()
                         .map(|uid| Expr::Value(helpers::mysql_val_to_parser_val(&uid)))
                         .collect(), 
@@ -1450,7 +1504,7 @@ impl QueryTransformer {
             source : qt_source, 
         });
  
-        debug!("issue_insert_dt_stmt: {}", dt_stmt);
+        warn!("issue_insert_dt_stmt: {}", dt_stmt);
         txn.query_drop(dt_stmt.to_string())?;
         self.stats.nqueries+=1;
 
@@ -1494,7 +1548,8 @@ impl QueryTransformer {
             }
         }
 
-        let qt_selection = self.selection_to_datatable_selection(&stmt.selection, txn, &stmt.table_name, &ucols)?;
+        let qt_selection = self.selection_to_datatable_selection(
+            &stmt.selection, txn, &stmt.table_name, &ucols)?;
      
         // if usercols are being updated, query DT to get the relevant
         // GIDs and update these GID->UID mappings in the ghosts table
@@ -1517,7 +1572,7 @@ impl QueryTransformer {
                 as_of: None,
             });
             // get the user_col GIDs from the datatable
-            debug!("issue_update_datatable_stmt: {}", get_gids_stmt_from_dt);
+            warn!("issue_update_datatable_stmt: {}", get_gids_stmt_from_dt);
             let res = txn.query_iter(format!("{}", get_gids_stmt_from_dt.to_string()))?;
             self.stats.nqueries+=1;
 
@@ -1531,7 +1586,8 @@ impl QueryTransformer {
                         ghost_update_stmts.push(Statement::Delete(DeleteStatement {
                             table_name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
                             selection: Some(Expr::BinaryOp{
-                                left: Box::new(Expr::Identifier(helpers::string_to_idents(super::GHOST_ID_COL))),
+                                left: Box::new(Expr::Identifier(
+                                              helpers::string_to_idents(super::GHOST_ID_COL))),
                                 op: BinaryOperator::Eq,
                                 right: Box::new(Expr::Value(Value::Number(format!("{}", gid)))),
                             }),
@@ -1546,7 +1602,8 @@ impl QueryTransformer {
                                 value: uc_val.value.clone(),
                             }],
                             selection: Some(Expr::BinaryOp{
-                                left: Box::new(Expr::Identifier(helpers::string_to_idents(super::GHOST_ID_COL))),
+                                left: Box::new(Expr::Identifier(
+                                              helpers::string_to_idents(super::GHOST_ID_COL))),
                                 op: BinaryOperator::Eq,
                                 right: Box::new(Expr::Value(Value::Number(format!("{}", gid)))),
                             }),
@@ -1555,7 +1612,7 @@ impl QueryTransformer {
                 }
             }
             for gstmt in ghost_update_stmts {
-                debug!("issue_update_dt_stmt: {}", gstmt);
+                warn!("issue_update_dt_stmt: {}", gstmt);
                 txn.query_drop(format!("{}", gstmt.to_string()))?;
                 self.stats.nqueries+=1;
             }
@@ -1565,7 +1622,7 @@ impl QueryTransformer {
             assignments : qt_assn,
             selection : qt_selection,
         });
-        debug!("issue_update_dt_stmt: {}", update_stmt);
+        warn!("issue_update_dt_stmt: {}", update_stmt);
         txn.query_drop(update_stmt.to_string())?;
         self.stats.nqueries+=1;
         Ok(())
@@ -1602,7 +1659,7 @@ impl QueryTransformer {
                     })),        
                 as_of: None,
         });
-        debug!("issue_delete_dt_stmt: {}", select_gids_stmt);
+        warn!("issue_delete_dt_stmt: {}", select_gids_stmt);
         let res = txn.query_iter(format!("{}", select_gids_stmt.to_string()))?;
         self.stats.nqueries+=1;
 
@@ -1624,7 +1681,7 @@ impl QueryTransformer {
                     negated: false,
                 }),
             });
-            debug!("issue_delete_dt_stmt: {}", ghosts_delete_statement);
+            warn!("issue_delete_dt_stmt: {}", ghosts_delete_statement);
             txn.query_drop(&ghosts_delete_statement.to_string())?;
             self.stats.nqueries+=1;
         }
@@ -1633,7 +1690,7 @@ impl QueryTransformer {
             table_name: stmt.table_name.clone(),
             selection : qt_selection,
         });
-        debug!("issue_delete_dt_stmt: {}", delete_stmt);
+        warn!("issue_delete_dt_stmt: {}", delete_stmt);
         txn.query_drop(delete_stmt.to_string())?;
         self.stats.nqueries+=1;
         Ok(())

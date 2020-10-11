@@ -7,7 +7,7 @@ use sql_parser::*;
 use sql_parser::ast::*;
 use std::io::{self, BufReader, BufWriter};
 use std::*;
-use log::debug;
+use log::warn;
 mod helpers;
 pub mod query_transformer;
 pub mod config;
@@ -103,7 +103,7 @@ impl Shim {
         txn.query_drop("DROP TABLE IF EXISTS ghosts;")?;
         txn.query_drop(create_ghosts_query())?;
         txn.query_drop(set_initial_gid_query())?;
-        debug!("drop/create/alter ghosts table");
+        warn!("drop/create/alter ghosts table");
         self.qtrans.stats.nqueries+=3;
         
         /* issue schema statements */
@@ -134,7 +134,7 @@ impl Shim {
             Ok(stmts) => {
                 for stmt in stmts {
                     let mv_stmt = self.qtrans.get_mv_stmt(&stmt, &mut txn)?;
-                    debug!("{}", mv_stmt);
+                    warn!("mv_stmt: {}", mv_stmt);
                     txn.query_drop(mv_stmt.to_string())?;
                     self.qtrans.stats.nqueries+=1;
                 }
@@ -190,7 +190,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             columns: vec![Ident::new(&self.cfg.user_table.id_col)],
             source: InsertSource::Query(Box::new(get_gids_stmt_from_ghosts)),
         });
-        debug!("{}", insert_gids_as_users_stmt);
+        warn!("unsub: {}", insert_gids_as_users_stmt);
         txn.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
         self.qtrans.stats.nqueries+=1;
         
@@ -205,7 +205,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 right: Box::new(Expr::Value(uid_val.clone())), 
             }),
         });
-        debug!("{}", delete_uid_from_users);
+        warn!("unsub: {}", delete_uid_from_users);
         txn.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
         self.qtrans.stats.nqueries+=1;
  
@@ -280,7 +280,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 select_constraint.to_string(),
             );
                 
-            debug!("{}", update_dt_stmt);
+            warn!("unsub: {}", update_dt_stmt);
             txn.query_drop(format!("{}", update_dt_stmt))?;
             self.qtrans.stats.nqueries+=1;
         }
@@ -324,7 +324,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             group_by: vec![],
             having: None,
         });
-        debug!("{}", get_gids_stmt_from_ghosts);
+        warn!("resub: {}", get_gids_stmt_from_ghosts);
         let res = txn.query_iter(format!("{}", get_gids_stmt_from_ghosts))?;
         self.qtrans.stats.nqueries+=1;
         let mut gids = vec![];
@@ -346,7 +346,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 negated: false, 
             }),
         });
-        debug!("{}", delete_gids_as_users_stmt);
+        warn!("resub: {}", delete_gids_as_users_stmt);
         txn.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
         self.qtrans.stats.nqueries+=1;
 
@@ -366,7 +366,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 fetch: None,
             })),
         });
-        debug!("{}", insert_uid_as_user_stmt.to_string());
+        warn!("resub: {}", insert_uid_as_user_stmt.to_string());
         txn.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
         self.qtrans.stats.nqueries+=1;
  
@@ -439,7 +439,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 astr,
                 select_constraint.to_string(),
             );
-            debug!("{}", update_dt_stmt);
+            warn!("resub: {}", update_dt_stmt);
             txn.query_drop(format!("{}", update_dt_stmt))?;
             self.qtrans.stats.nqueries+=1;
         }    
@@ -546,7 +546,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             None => return,
             Some(prepped) => {
                 if let Err(e) = self.db.close(prepped.stmt.clone()){
-                    debug!("{}", e);
+                    warn!("close error {}", e);
                 };
                 self.prepared.remove(&id); 
             }
@@ -573,7 +573,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
 
         // initialize columns of DT
         for dt in &mut self.cfg.data_tables {
-            debug!("Initializing columns of table: {}", dt.name);
+            warn!("Initializing columns of table: {}", dt.name);
             let res = self.db.query_iter(format!("SHOW COLUMNS FROM {dt_name}", dt_name=dt.name))?;
             self.qtrans.stats.nqueries+=1;
             for row in res {
@@ -593,7 +593,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     fn on_query(&mut self, query: &str, results: QueryResultWriter<W>) -> Result<(), Self::Error> {
         if !self.test_params.parse {
             self.qtrans.stats.nqueries+=1;
-            debug!("{}", query);
+            warn!("on_query: {}", query);
             return answer_rows(results, self.db.query_iter(query));
         }
 
@@ -607,14 +607,14 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 assert!(stmts.len()==1);
                 if !self.test_params.translate {
                     self.qtrans.stats.nqueries+=1;
-                    debug!("{}", stmts[0]);
+                    warn!("on_query: {}", stmts[0]);
                     return answer_rows(results, self.db.query_iter(stmts[0].to_string()));
                 }
 
                 let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
                 let mv_stmt = self.qtrans.get_mv_stmt(&stmts[0], &mut txn)?;
                 self.qtrans.stats.nqueries+=1;
-                debug!("{}", mv_stmt);
+                warn!("on_query: {}", mv_stmt);
                 let res = answer_rows(results, txn.query_iter(mv_stmt.to_string()));
                 match res {
                     Err(e) => return Err(e),

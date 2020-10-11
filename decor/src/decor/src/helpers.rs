@@ -1,9 +1,6 @@
-use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::*;
 use super::config;
-use std::collections::HashMap;
-use log::debug;
 
 pub fn process_schema_stmt(stmt: &str) -> String {
     // get rid of unsupported types
@@ -59,58 +56,6 @@ pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName)
     res
 }
 
-pub fn get_uid2gids_for_uids(uids_to_match: Vec<Expr>, txn: &mut mysql::Transaction)
-        -> Result<HashMap<Value, Vec<Expr>>, mysql::Error> 
-{
-    let mut uid_to_gids : HashMap<Value, Vec<Expr>> = HashMap::new();
-    if uids_to_match.is_empty() {
-        return Ok(uid_to_gids);
-    }
-
-    let get_gids_stmt_from_ghosts = Query::select(Select{
-        distinct: true,
-        projection: vec![
-            SelectItem::Expr{
-                expr: Expr::Identifier(string_to_objname(&super::GHOST_USER_COL).0),
-                alias: None,
-            },
-            SelectItem::Expr{
-                expr: Expr::Identifier(string_to_objname(&super::GHOST_ID_COL).0),
-                alias: None,
-            }
-        ],
-        from: vec![TableWithJoins{
-            relation: TableFactor::Table{
-                name: string_to_objname(&super::GHOST_TABLE_NAME),
-                alias: None,
-            },
-            joins: vec![],
-        }],
-        selection: Some(Expr::InList{
-            expr: Box::new(Expr::Identifier(string_to_idents(&super::GHOST_USER_COL))),
-            list: uids_to_match,
-            negated: false,
-        }),
-        group_by: vec![],
-        having: None,
-    });
-
-    debug!("helpers get_uid2gids: {}", get_gids_stmt_from_ghosts);
-    let res = txn.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
-    for row in res {
-        let vals : Vec<Value> = row.unwrap().unwrap()
-            .iter()
-            .map(|v| mysql_val_to_parser_val(&v))
-            .collect();
-        match uid_to_gids.get_mut(&vals[0]) {
-            Some(gids) => (*gids).push(Expr::Value(vals[1].clone())),
-            None => {
-                uid_to_gids.insert(vals[0].clone(), vec![Expr::Value(vals[1].clone())]);
-            }
-        }
-    }
-    Ok(uid_to_gids)
-}
 
 /***************************
  * IDENT STUFF
