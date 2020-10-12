@@ -9,9 +9,9 @@
 
 //! Test utilities.
 
-use std::sync::Once;
+//use std::sync::Once;
 
-use tracing_subscriber::{EnvFilter, FmtSubscriber};
+/*use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 static LOG_INIT: Once = Once::new();
 
@@ -27,4 +27,4 @@ pub fn init_logging() {
             .unwrap();
         FmtSubscriber::builder().with_env_filter(filter).init();
     });
-}
+}*/
