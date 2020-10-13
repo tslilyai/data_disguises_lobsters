@@ -3,7 +3,7 @@
 #set -x
 
 trials=3
-tests=( "no_shim" "shim_only" "decor" "shim_parse" )
+tests=( "no_shim" "shim_only" "shim_parse" "decor" )
 #tests=( "shim_only" )
 
 cargo build --release

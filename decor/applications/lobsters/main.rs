@@ -21,13 +21,16 @@
 extern crate mysql;
 extern crate log;
 extern crate rand;
+extern crate hwloc;
+extern crate libc;
 
 use mysql::prelude::*;
 use rand::prelude::*;
 use std::*;
 use std::thread;
 use structopt::StructOpt;
-//use std::sync::{Arc, Barrier};
+use hwloc::{Topology, ObjectType, CPUBIND_THREAD, CPUBIND_PROCESS, CpuSet};
+use std::sync::{Arc, Mutex};
 //use log::{warn, debug};
 
 use decor::*;
@@ -192,7 +195,7 @@ fn test_update(db: &mut mysql::Conn, nqueries: usize, nusers: usize, nstories: u
     }
 }
 
-fn init_db(test : TestType, nusers: usize, nstories: usize, ncomments: usize) 
+fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, nusers: usize, nstories: usize, ncomments: usize) 
     -> (mysql::Conn, Option<thread::JoinHandle<()>>) 
 {
     let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -232,6 +235,14 @@ fn init_db(test : TestType, nusers: usize, nstories: usize, ncomments: usize)
         init_database(&mut db, nusers, nstories, ncomments);
     } else {
         jh = Some(thread::spawn(move || {
+            // bind thread to core 1
+            let tid = unsafe { libc::pthread_self() };
+            let mut locked_topo = topo.lock().unwrap();
+            let mut bind_to = cpuset_for_core(&mut *locked_topo, 2);
+            bind_to.singlify();
+            locked_topo.set_cpubind_for_thread(tid, bind_to, CPUBIND_THREAD).unwrap();
+            drop(locked_topo);
+
             if let Ok((s, _)) = listener.accept() {
                 let mut db = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
                 db.query_drop(&format!("DROP DATABASE IF EXISTS {};", DBNAME)).unwrap();
@@ -251,6 +262,14 @@ fn init_db(test : TestType, nusers: usize, nstories: usize, ncomments: usize)
     (db, jh)
 }
 
+fn cpuset_for_core(topology: &mut Topology, idx: usize) -> CpuSet {
+    let cores = (*topology).objects_with_type(&ObjectType::Core).unwrap();
+    match cores.get(idx) {
+        Some(val) => val.allowed_cpuset().unwrap(),
+        None => panic!("No Core found with id {}", idx)
+    }
+}
+
 fn main() {
     init_logger();
     let args = Cli::from_args();
@@ -261,8 +280,20 @@ fn main() {
     let nusers = args.nusers;
     let nthreads = args.nthreads;
 
+    // bind each thread to a particular cpu to avoid non-local memory accesses
+    let topo = Arc::new(Mutex::new(Topology::new()));
+    let mut locked_topo = topo.lock().unwrap();
+    assert!(locked_topo.support().cpu().set_current_process() && 
+        locked_topo.support().cpu().set_current_thread());
+
+    let pid = unsafe { libc::getpid() };
+    let mut cpuset = cpuset_for_core(&mut *locked_topo, 1);
+    cpuset.singlify();
+    locked_topo.set_cpubind_for_process(pid, cpuset, CPUBIND_PROCESS).unwrap();
+    drop(locked_topo);
+
     // TEST RO Queries
-    let (mut db, jh) = init_db(test.clone(), nusers, nstories, ncomments);
+    let (mut db, jh) = init_db(topo.clone(), test.clone(), nusers, nstories, ncomments);
     let start = std::time::SystemTime::now();
     test_reads(&mut db, nqueries/ nthreads, nstories);
     let roduration = start.elapsed().unwrap();
@@ -272,7 +303,7 @@ fn main() {
     }
     
     // TEST Insert Queries (should just double queries to insert)
-    let (mut db, jh) = init_db(test.clone(), nusers, nstories, ncomments);
+    let (mut db, jh) = init_db(topo.clone(), test.clone(), nusers, nstories, ncomments);
     let start = std::time::SystemTime::now();
     test_insert(&mut db, nqueries/ nthreads, nstories, nusers, ncomments);
     let insduration = start.elapsed().unwrap();
@@ -282,7 +313,7 @@ fn main() {
     }
 
     // TEST Update Queries (should read from ghosts)
-    let (mut db, jh) = init_db(test.clone(), nusers, nstories, ncomments);
+    let (mut db, jh) = init_db(topo.clone(), test.clone(), nusers, nstories, ncomments);
     let start = std::time::SystemTime::now();
     test_update(&mut db, nqueries/ nthreads, nusers, nstories);
     let upduration = start.elapsed().unwrap();
