@@ -14,6 +14,7 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
         new = new.replace(r" text,", " varchar(255),");
         new = new.replace(r"FULLTEXT", "");
         new = new.replace(r"fulltext", "");
+        new = new.replace(r"InnoDB", "MEMORY");
     }
 
     // get rid of DEFAULT/etc. commands after query

@@ -8,7 +8,7 @@ use sql_parser::ast::*;
 use std::io::{self, BufReader, BufWriter};
 use std::*;
 use log::{debug, warn};
-mod helpers;
+pub mod helpers;
 pub mod query_transformer;
 pub mod config;
 

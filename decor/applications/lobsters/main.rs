@@ -30,7 +30,7 @@ use structopt::StructOpt;
 //use std::sync::{Arc, Barrier};
 //use log::{warn, debug};
 
-use decor;
+use decor::*;
 
 const SCHEMA : &'static str = include_str!("./schema_lobsters.sql");
 const CONFIG : &'static str = include_str!("./config.json");
@@ -75,7 +75,7 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -138,7 +138,8 @@ fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         }
         stmt.push_str(line);
         if stmt.ends_with(';') {
-            txn.query_drop(stmt.to_string())?;
+            let new_stmt = helpers::process_schema_stmt(&stmt, true); 
+            txn.query_drop(new_stmt.to_string())?;
             stmt = String::new();
         }
     }
