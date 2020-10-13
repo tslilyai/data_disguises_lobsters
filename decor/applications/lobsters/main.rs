@@ -238,10 +238,14 @@ fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, nusers: usize, nstories:
             // bind thread to core 1
             let tid = unsafe { libc::pthread_self() };
             let mut locked_topo = topo.lock().unwrap();
-            let mut bind_to = cpuset_for_core(&mut *locked_topo, 2);
-            bind_to.singlify();
-            locked_topo.set_cpubind_for_thread(tid, bind_to, CPUBIND_THREAD).unwrap();
-            drop(locked_topo);
+            let mut cpuset = cpuset_for_core(&mut *locked_topo, 2);
+            cpuset.singlify();
+           // locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
+           // drop(locked_topo);
+            unsafe {
+                libc::sched_setaffinity(tid as libc::pid_t, mem::size_of::<CpuSet>() as libc::size_t, 
+                                    mem::transmute(&cpuset));
+            }
 
             if let Ok((s, _)) = listener.accept() {
                 let mut db = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
@@ -285,12 +289,15 @@ fn main() {
     let mut locked_topo = topo.lock().unwrap();
     assert!(locked_topo.support().cpu().set_current_process() && 
         locked_topo.support().cpu().set_current_thread());
-
     let pid = unsafe { libc::getpid() };
     let mut cpuset = cpuset_for_core(&mut *locked_topo, 1);
     cpuset.singlify();
-    locked_topo.set_cpubind_for_process(pid, cpuset, CPUBIND_PROCESS).unwrap();
-    drop(locked_topo);
+    //locked_topo.set_cpubind_for_process(pid, cpuset, CPUBIND_PROCESS).unwrap();
+    //drop(locked_topo);*/
+    unsafe {
+        libc::sched_setaffinity(pid as libc::pid_t, mem::size_of::<CpuSet>() as libc::size_t, 
+                                mem::transmute(&cpuset));
+    }
 
     // TEST RO Queries
     let (mut db, jh) = init_db(topo.clone(), test.clone(), nusers, nstories, ncomments);
