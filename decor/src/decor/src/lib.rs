@@ -7,7 +7,7 @@ use sql_parser::*;
 use sql_parser::ast::*;
 use std::io::{self, BufReader, BufWriter};
 use std::*;
-use log::warn;
+use log::{debug, warn};
 mod helpers;
 pub mod query_transformer;
 pub mod config;
@@ -18,17 +18,23 @@ const GHOST_USER_COL : &'static str = "user_id";
 const GHOST_ID_COL: &'static str = "ghost_id";
 const MV_SUFFIX : &'static str = "mv"; 
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
     pub translate: bool,
     pub parse: bool,
+    pub in_memory: bool,
 }
 
-fn create_ghosts_query() -> String {
-    format!(
+fn create_ghosts_query(in_memory: bool) -> String {
+    let mut q = format!(
         r"CREATE TABLE IF NOT EXISTS {} (
             `{}` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            `{}` int unsigned);", 
-        GHOST_TABLE_NAME, GHOST_ID_COL, GHOST_USER_COL)
+            `{}` int unsigned)", 
+        GHOST_TABLE_NAME, GHOST_ID_COL, GHOST_USER_COL);
+    if in_memory {
+        q.push_str(" ENGINE = MEMORY");
+    }
+    q
 }
 
 fn set_initial_gid_query() -> String {
@@ -69,7 +75,7 @@ impl Shim {
     {
         let cfg = config::parse_config(cfg_json).unwrap();
         let prepared = HashMap::new();
-        let qtrans = query_transformer::QueryTransformer::new(&cfg);
+        let qtrans = query_transformer::QueryTransformer::new(&cfg, &test_params);
         let schema = schema.to_string();
         Shim{cfg, db, qtrans, prepared, schema, test_params}
     }   
@@ -101,7 +107,7 @@ impl Shim {
         /* create ghost metadata table with boolean cols for each user id */
         // XXX temp: create a new ghost metadata table
         txn.query_drop("DROP TABLE IF EXISTS ghosts;")?;
-        txn.query_drop(create_ghosts_query())?;
+        txn.query_drop(create_ghosts_query(self.test_params.in_memory))?;
         txn.query_drop(set_initial_gid_query())?;
         warn!("drop/create/alter ghosts table");
         self.qtrans.stats.nqueries+=3;
@@ -119,7 +125,7 @@ impl Shim {
             }
             stmt.push_str(line);
             if stmt.ends_with(';') {
-                sql.push_str(&helpers::process_schema_stmt(&stmt));
+                sql.push_str(&helpers::process_schema_stmt(&stmt, self.test_params.in_memory));
                 sql.push_str("\n");
                 stmt = String::new();
             }
@@ -133,6 +139,7 @@ impl Shim {
             }
             Ok(stmts) => {
                 for stmt in stmts {
+                    warn!("stmt: {}", stmt);
                     let mv_stmt = self.qtrans.get_mv_stmt(&stmt, &mut txn)?;
                     warn!("mv_stmt: {}", mv_stmt);
                     txn.query_drop(mv_stmt.to_string())?;
@@ -563,6 +570,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         match self.create_schema() {
             Ok(_) => (),
             Err(e) => {
+                debug!("Create schema failed with error {}", e);
                 return Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?);
             }
         }

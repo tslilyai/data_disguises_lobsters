@@ -1,22 +1,33 @@
 use sql_parser::ast::*;
 use std::*;
 use super::config;
+use log::debug;
 
-pub fn process_schema_stmt(stmt: &str) -> String {
+pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
     // get rid of unsupported types
+    debug!("helpers:{}", stmt);
     let mut new = stmt.replace(r"int unsigned", "int");
+    if in_memory {
+        new = new.replace(r"mediumtext", "varchar(255)");
+        new = new.replace(r"tinytext", "varchar(255)");
+        new = new.replace(r" text ", " varchar(255) ");
+        new = new.replace(r" text,", " varchar(255),");
+        new = new.replace(r"FULLTEXT", "");
+        new = new.replace(r"fulltext", "");
+    }
 
-    // get rid of ENGINE/etc. commands after query
+    // get rid of DEFAULT/etc. commands after query
     let mut end_index = new.len();
-    if let Some(i) = new.find("ENGINE") {
+    if let Some(i) = new.find("DEFAULT CHARSET") {
         end_index = i; 
-    } else if let Some(i) = new.find("engine") {
+    } else if let Some(i) = new.find("default charset") {
         end_index = i;
     }
     new.truncate(end_index);
     if !new.ends_with(';') {
         new.push_str(";");
     }
+    debug!("helpers new:{}", new);
     new
 }
 

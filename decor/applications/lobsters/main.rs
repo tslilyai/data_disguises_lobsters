@@ -75,7 +75,7 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Error)
+        .filter_level(log::LevelFilter::Warn)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -238,7 +238,7 @@ fn init_db(test : TestType, nusers: usize, nstories: usize, ncomments: usize)
                 assert_eq!(db.ping(), true);
                 decor::Shim::run_on_tcp(
                     db, CONFIG, SCHEMA, 
-                    decor::TestParams{translate:translate, parse:parse}, s).unwrap();
+                    decor::TestParams{translate:translate, parse:parse, in_memory: true}, s).unwrap();
             }
         }));
         url = format!("mysql://127.0.0.1:{}", port);

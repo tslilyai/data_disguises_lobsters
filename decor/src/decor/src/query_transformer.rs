@@ -18,12 +18,13 @@ pub struct QueryTransformer {
     latest_uid: AtomicUsize,
 
     pub cfg: config::Config,
+    params: super::TestParams,
 
     pub stats: QTStats,
 }
 
 impl QueryTransformer {
-    pub fn new(cfg: &config::Config) -> Self {
+    pub fn new(cfg: &config::Config, params: &super::TestParams) -> Self {
         let mut table_names = Vec::<String>::new();
         for dt in &cfg.data_tables {
             table_names.push(dt.name.clone());
@@ -31,6 +32,7 @@ impl QueryTransformer {
         
         QueryTransformer{
             cfg: cfg.clone(),
+            params: params.clone(),
             table_names: table_names, 
             latest_gid: AtomicU64::new(super::GHOST_ID_START),
             latest_uid: AtomicUsize::new(0),
@@ -1038,15 +1040,30 @@ impl QueryTransformer {
                 indexes,
                 with_options,
                 if_not_exists,
+                engine,
             }) => {
                 mv_table_name = self.objname_to_mv_string(&name);
                 is_dt_write = mv_table_name != name.to_string();
+                let mut new_engine = engine.clone();
+                if self.params.in_memory {
+                    new_engine = Some(Engine::Memory);
+                }
 
                 if is_dt_write {
                     // create the original table as well if we're going to
                     // create a MV for this table
-                    warn!("get_mv: {}", stmt);
-                    txn.query_drop(stmt.to_string())?;
+                    let dtstmt = CreateTableStatement {
+                        name: name.clone(),
+                        columns: columns.clone(),
+                        constraints: constraints.clone(),
+                        indexes: indexes.clone(),
+                        with_options: with_options.clone(),
+                        if_not_exists: *if_not_exists,
+                        engine: new_engine.clone(),
+                    };
+
+                    warn!("get_mv dtstmt: {}", dtstmt);
+                    txn.query_drop(dtstmt.to_string())?;
                     self.stats.nqueries+=1;
                 }
 
@@ -1095,7 +1112,8 @@ impl QueryTransformer {
                     constraints: mv_constraints,
                     indexes: indexes.clone(),
                     with_options: with_options.clone(),
-                    if_not_exists: if_not_exists.clone(),
+                    if_not_exists: *if_not_exists,
+                    engine: new_engine,
                 });
             }
             Statement::CreateIndex(CreateIndexStatement{

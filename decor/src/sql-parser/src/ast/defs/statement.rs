@@ -21,7 +21,7 @@
 use crate::ast::display::{self, AstDisplay, AstFormatter};
 use crate::ast::{
     ColumnDef, Connector, Envelope, Expr, Format, Ident, ObjectName, Query, TableConstraint, Value,
-    IndexDef,
+    IndexDef, Engine,
 };
 
 /// A top-level statement (SELECT, INSERT, CREATE, etc.)
@@ -429,6 +429,7 @@ pub struct CreateTableStatement {
     pub indexes: Vec<IndexDef>,
     pub with_options: Vec<SqlOption>,
     pub if_not_exists: bool,
+    pub engine: Option<Engine>,
 }
 
 impl AstDisplay for CreateTableStatement {
@@ -454,6 +455,11 @@ impl AstDisplay for CreateTableStatement {
             f.write_str(" WITH (");
             f.write_node(&display::comma_separated(&self.with_options));
             f.write_str(")");
+        }
+
+        if let Some(e) = &self.engine {
+            f.write_str(" ENGINE=");
+            f.write_node(e);
         }
     }
 }

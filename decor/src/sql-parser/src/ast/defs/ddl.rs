@@ -368,6 +368,27 @@ impl AstDisplay for IndexType{
 }
 impl_display!(IndexType);
 
+/// SQL engine definition
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Engine {
+    Memory,
+    InnoDB,
+    TempTable,
+}
+
+impl AstDisplay for Engine{
+    fn fmt(&self, f: &mut AstFormatter) {
+        use Engine::*;
+        match self {
+            Memory => f.write_str("MEMORY"),
+            InnoDB => f.write_str("InnoDB"),
+            TempTable => f.write_str("TempTable"),
+        }
+    }
+}
+impl_display!(Engine);
+
+
 /// SQL column definition
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ColumnDef {

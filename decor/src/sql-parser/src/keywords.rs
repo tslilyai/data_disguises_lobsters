@@ -190,6 +190,7 @@ define_keywords!(
     END,
     END_FRAME,
     END_PARTITION,
+    ENGINE,
     ENVELOPE,
     EPOCH,
     EQUALS,

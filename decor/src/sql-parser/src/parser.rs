@@ -1748,6 +1748,7 @@ impl Parser {
         // parse optional column list (schema)
         let (columns, constraints, indexes) = self.parse_columns()?;
         let with_options = self.parse_with_options()?;
+        let engine = self.parse_engine()?;
 
         Ok(Statement::CreateTable(CreateTableStatement {
             name: table_name,
@@ -1756,6 +1757,7 @@ impl Parser {
             indexes,
             with_options,
             if_not_exists,
+            engine,
         }))
     }
 
@@ -1936,6 +1938,37 @@ impl Parser {
         } else {
             Ok(vec![])
         }
+    }
+
+    fn parse_engine(&mut self) -> Result<Option<Engine>, ParserError> {
+        debug!("parse_engine: {:?}", self.peek_token());
+        if self.parse_keyword("ENGINE") {
+            self.expect_token(&Token::Eq)?;
+            if let Some(Token::Word(w)) = self.next_token() {
+                let engine = match w.to_string().to_uppercase().as_str() {
+                    "MEMORY" => Some(Engine::Memory),
+                    "INNODB" => Some(Engine::InnoDB),
+                    "TEMPTABLE" => Some(Engine::TempTable),
+                    _ => None,
+                };
+                if engine == None {
+                    return self.expected(
+                            self.peek_prev_range(),
+                            "Memory or InnoDB engine",
+                            self.peek_token(),
+                    );
+                } else {
+                   return Ok(engine);
+                }
+            } else {
+                return self.expected(
+                        self.peek_prev_range(),
+                        "Memory or InnoDB engine",
+                        self.peek_token(),
+                );
+            }
+        } 
+        Ok(None)
     }
 
     fn parse_sql_option(&mut self) -> Result<SqlOption, ParserError> {
