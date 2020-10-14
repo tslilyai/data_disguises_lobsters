@@ -240,7 +240,7 @@ fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, nusers: usize, nstories:
             let mut locked_topo = topo.lock().unwrap();
             let mut cpuset = cpuset_for_core(&mut *locked_topo, 2);
             cpuset.singlify();
-            //locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
+            locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
             drop(locked_topo);
             /*unsafe {
                 libc::sched_setaffinity(tid as libc::pid_t, mem::size_of::<CpuSet>() as libc::size_t, 
@@ -292,7 +292,7 @@ fn main() {
     let pid = unsafe { libc::getpid() };
     let mut cpuset = cpuset_for_core(&mut *locked_topo, 1);
     cpuset.singlify();
-    //locked_topo.set_cpubind_for_process(pid, cpuset, CPUBIND_PROCESS).unwrap();
+    locked_topo.set_cpubind_for_process(pid, cpuset, CPUBIND_PROCESS).unwrap();
     drop(locked_topo);
     /*unsafe {
         libc::sched_setaffinity(pid as libc::pid_t, mem::size_of::<CpuSet>() as libc::size_t, 
