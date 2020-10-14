@@ -1,11 +1,14 @@
-#!/bin/sh
+#!/bin/bash
 
-name=$1
-testname=$2
+set +x
 
-cargo build --release
+tests=( "no_shim" "shim_only" "shim_parse" "decor" )
 
-sudo perf record -F 99 -g -a ../target/release/lobsters --test=$testname --ncomments=1000 --nqueries=1000
-sudo perf script | ./stackcollapse-perf.pl > out.perf-folded
-sudo ./flamegraph.pl out.perf-folded > $name.svg
+cargo build
 
+for test in "${tests[@]}"
+do
+    sudo perf record -F 99 -g -a ../target/debug/lobsters --test=$test --nusers=10 --nstories=100 --ncomments=1000 --nthreads=1 --nqueries=3000 #2> /dev/null
+    sudo perf script | ./stackcollapse-perf.pl > out.perf-folded
+    sudo ./flamegraph.pl out.perf-folded > jerry-$test.svg
+done
