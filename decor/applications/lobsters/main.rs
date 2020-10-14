@@ -240,7 +240,7 @@ fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, nusers: usize, nstories:
             let mut locked_topo = topo.lock().unwrap();
             let mut cpuset = cpuset_for_core(&mut *locked_topo, 2);
             cpuset.singlify();
-            locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
+            //locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
             drop(locked_topo);
             /*unsafe {
                 libc::sched_setaffinity(tid as libc::pid_t, mem::size_of::<CpuSet>() as libc::size_t, 
@@ -292,7 +292,7 @@ fn main() {
     let pid = unsafe { libc::getpid() };
     let mut cpuset = cpuset_for_core(&mut *locked_topo, 1);
     cpuset.singlify();
-    locked_topo.set_cpubind_for_process(pid, cpuset, CPUBIND_PROCESS).unwrap();
+    //locked_topo.set_cpubind_for_process(pid, cpuset, CPUBIND_PROCESS).unwrap();
     drop(locked_topo);
     /*unsafe {
         libc::sched_setaffinity(pid as libc::pid_t, mem::size_of::<CpuSet>() as libc::size_t, 
@@ -300,17 +300,17 @@ fn main() {
     }*/
 
     // TEST RO Queries
-    /*let (mut db, jh) = init_db(topo.clone(), test.clone(), nusers, nstories, ncomments);
+    let (mut db, jh) = init_db(topo.clone(), test.clone(), nusers, nstories, ncomments);
     let start = std::time::SystemTime::now();
     test_reads(&mut db, nqueries/ nthreads, nstories);
     let roduration = start.elapsed().unwrap();
     drop(db);
     if let Some(t) = jh {
         t.join().unwrap();
-    }*/
+    }
     
     // TEST Insert Queries (should just double queries to insert)
-    let (mut db, jh) = init_db(topo.clone(), test.clone(), nusers, nstories, ncomments);
+    /*let (mut db, jh) = init_db(topo.clone(), test.clone(), nusers, nstories, ncomments);
     let start = std::time::SystemTime::now();
     test_insert(&mut db, nqueries/ nthreads, nstories, nusers, ncomments);
     let insduration = start.elapsed().unwrap();
@@ -327,11 +327,12 @@ fn main() {
     drop(db);
     if let Some(t) = jh {
         t.join().unwrap();
-    } 
+    } */
     println!("{:?}\t{:.2}\t{:.2}\t{:.2}",
              test, 
-             //nqueries as f64/roduration.as_millis() as f64 * 1000f64,
-             nqueries as f64/insduration.as_millis() as f64 * 1000f64,
-             nqueries as f64/insduration.as_millis() as f64 * 1000f64,
-             nqueries as f64/upduration.as_millis() as f64 * 1000f64);
+             nqueries as f64/roduration.as_millis() as f64 * 1000f64,
+             nqueries as f64/roduration.as_millis() as f64 * 1000f64,
+             nqueries as f64/roduration.as_millis() as f64 * 1000f64);
+             //nqueries as f64/insduration.as_millis() as f64 * 1000f64,
+             //nqueries as f64/upduration.as_millis() as f64 * 1000f64);
 }
