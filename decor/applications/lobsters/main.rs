@@ -73,6 +73,8 @@ struct Cli {
     nthreads: usize,
     #[structopt(long="nqueries", default_value = "100")]
     nqueries: usize,
+    #[structopt(long="testop", default_value = "select")]
+    testop: String,
 }
 
 fn init_logger() {
@@ -283,6 +285,7 @@ fn main() {
     let nstories = args.nstories;
     let nusers = args.nusers;
     let nthreads = args.nthreads;
+    let testop = args.testop;
 
     // bind each thread to a particular cpu to avoid non-local memory accesses
     let topo = Arc::new(Mutex::new(Topology::new()));
@@ -298,39 +301,33 @@ fn main() {
         libc::sched_setaffinity(pid as libc::pid_t, mem::size_of::<CpuSet>() as libc::size_t, 
                                 mem::transmute(&cpuset));
     }*/
-
-    // TEST RO Queries
+            
     let (mut db, jh) = init_db(topo.clone(), test.clone(), nusers, nstories, ncomments);
-    let start = std::time::SystemTime::now();
-    test_reads(&mut db, nqueries/ nthreads, nstories);
-    let roduration = start.elapsed().unwrap();
-    drop(db);
-    if let Some(t) = jh {
-        t.join().unwrap();
+    let duration : std::time::Duration;
+    match testop.as_str() {
+        "select" => {
+            // TEST RO Queries
+            let start = std::time::SystemTime::now();
+            test_reads(&mut db, nqueries/ nthreads, nstories);
+            duration = start.elapsed().unwrap();
+        }
+        "insert" => {
+            // TEST Insert Queries (should just double queries to insert)
+            let start = std::time::SystemTime::now();
+            test_insert(&mut db, nqueries/ nthreads, nstories, nusers, ncomments);
+            duration = start.elapsed().unwrap();
+        }
+        "update" => {
+            // TEST Update Queries (should read from ghosts)
+            let start = std::time::SystemTime::now();
+            test_update(&mut db, nqueries/ nthreads, nusers, nstories);
+            duration = start.elapsed().unwrap();
+        }
+        _ => panic!("Expected either select, insert, or update operations"),
     }
-    
-    // TEST Insert Queries (should just double queries to insert)
-    let (mut db, jh) = init_db(topo.clone(), test.clone(), nusers, nstories, ncomments);
-    let start = std::time::SystemTime::now();
-    test_insert(&mut db, nqueries/ nthreads, nstories, nusers, ncomments);
-    let insduration = start.elapsed().unwrap();
-    drop(db);
-    if let Some(t) = jh {
-        t.join().unwrap();
-    }
-
-    // TEST Update Queries (should read from ghosts)
-    let (mut db, jh) = init_db(topo.clone(), test.clone(), nusers, nstories, ncomments);
-    let start = std::time::SystemTime::now();
-    test_update(&mut db, nqueries/ nthreads, nusers, nstories);
-    let upduration = start.elapsed().unwrap();
     drop(db);
     if let Some(t) = jh {
         t.join().unwrap();
     } 
-    println!("{:?}\t{:.2}\t{:.2}\t{:.2}",
-             test, 
-             nqueries as f64/roduration.as_millis() as f64 * 1000f64,
-             nqueries as f64/insduration.as_millis() as f64 * 1000f64,
-             nqueries as f64/upduration.as_millis() as f64 * 1000f64);
+    println!("{:.2}", nqueries as f64/duration.as_millis() as f64 * 1000f64);
 }
