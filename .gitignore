@@ -5,6 +5,13 @@ log_*
 *.bin
 *.o
 *.lock
+*.blg
+*.dvi
+*.aux
+*.out
+*.fls
+*.fdb_latexmk
+*.bbl
 target
 miri-target
 .mtrlz.log
