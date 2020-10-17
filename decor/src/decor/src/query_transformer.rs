@@ -13,7 +13,7 @@ pub struct QTStats {
 }
 
 pub struct QueryTransformer {
-    pub uid2gids_cache: HashMap<u64, Vec<u64>>,
+    pub uid2gids: HashMap<u64, Vec<u64>>,
 
     table_names: Vec<String>,
     latest_gid: AtomicU64,
@@ -38,7 +38,7 @@ impl QueryTransformer {
             latest_gid: AtomicU64::new(super::GHOST_ID_START),
             latest_uid: AtomicUsize::new(0),
             stats: QTStats{nqueries:0},
-            uid2gids_cache: HashMap::new(),
+            uid2gids: HashMap::new(),
         }
     }   
 
@@ -46,61 +46,58 @@ impl QueryTransformer {
      **** Converts Queries/Exprs to Values **
      ****************************************/
    
-    pub fn get_uid2gids_for_uids(&mut self, uids_to_match: Vec<u64>, txn: &mut mysql::Transaction)
-        -> Result<HashMap<u64, Vec<u64>>, mysql::Error> 
+    pub fn cache_uid2gids_for_uids(&mut self, uids_to_match: Vec<u64>, txn: &mut mysql::Transaction) -> Result<(), mysql::Error>
     {
-        let mut uid_to_gids : HashMap<u64, Vec<u64>> = HashMap::new();
         if uids_to_match.is_empty() {
-            return Ok(uid_to_gids);
+            return Ok(());
         }
 
-        let get_gids_stmt_from_ghosts = Query::select(Select{
-            distinct: true,
-            projection: vec![
-                SelectItem::Expr{
-                    expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_USER_COL).0),
-                    alias: None,
-                },
-                SelectItem::Expr{
-                    expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_ID_COL).0),
-                    alias: None,
-                }
-            ],
-            from: vec![TableWithJoins{
-                relation: TableFactor::Table{
-                    name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
-                    alias: None,
-                },
-                joins: vec![],
-            }],
-            selection: Some(Expr::InList{
-                expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_USER_COL))),
-                list: uids_to_match
-                    .iter()
-                    .map(|uid| Expr::Value(Value::Number(uid.to_string())))
-                    .collect(),
-                negated: false,
-            }),
-            group_by: vec![],
-            having: None,
-        });
+        for uid in &uids_to_match {
+            if self.uid2gids.get_mut(&uid) == None {
+                let get_gids_of_uid_stmt = Query::select(Select{
+                    distinct: true,
+                    projection: vec![
+                        SelectItem::Expr{
+                            expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_USER_COL).0),
+                            alias: None,
+                        },
+                        SelectItem::Expr{
+                            expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_ID_COL).0),
+                            alias: None,
+                        }
+                    ],
+                    from: vec![TableWithJoins{
+                        relation: TableFactor::Table{
+                            name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
+                            alias: None,
+                        },
+                        joins: vec![],
+                    }],
+                    selection: Some(Expr::InList{
+                        expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_USER_COL))),
+                        list: uids_to_match
+                            .iter()
+                            .map(|uid| Expr::Value(Value::Number(uid.to_string())))
+                            .collect(),
+                        negated: false,
+                    }),
+                    group_by: vec![],
+                    having: None,
+                });
 
-        warn!("get_uid2gids: {}", get_gids_stmt_from_ghosts);
-        let res = txn.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
-        self.stats.nqueries+=1;
-        for row in res {
-            let mut vals = vec![];
-            for v in row.unwrap().unwrap() {
-                vals.push(helpers::mysql_val_to_u64(&v)?);
-            }
-            match uid_to_gids.get_mut(&vals[0]) {
-                Some(gids) => (*gids).push(vals[1]),
-                None => {
-                    uid_to_gids.insert(vals[0], vec![vals[1]]);
+                warn!("get_uid2gids: {}", get_gids_of_uid_stmt);
+                let res = txn.query_iter(format!("{}", get_gids_of_uid_stmt.to_string()))?;
+                self.stats.nqueries+=1;
+                for row in res {
+                    let mut vals = vec![];
+                    for v in row.unwrap().unwrap() {
+                        vals.push(helpers::mysql_val_to_u64(&v)?);
+                    }
+                    self.uid2gids.insert(vals[0], vec![vals[1]]);
                 }
             }
         }
-        Ok(uid_to_gids)
+        Ok(())
     } 
 
     /* 
@@ -1323,10 +1320,10 @@ impl QueryTransformer {
       
         // insert into cache
         let uid64 = helpers::parser_expr_to_u64(uid)?;
-        match self.uid2gids_cache.get_mut(&uid64) {
+        match self.uid2gids.get_mut(&uid64) {
             Some(gids) => (*gids).push(gid),
             None => {
-                self.uid2gids_cache.insert(uid64, vec![gid]);
+                self.uid2gids.insert(uid64, vec![gid]);
             }
         }
         
@@ -1425,7 +1422,7 @@ impl QueryTransformer {
                 // get all the gid rows corresponding to uids
                 // TODO deal with potential GIDs in user_cols due to
                 // unsubscriptions/resubscriptions
-                let uid_to_gids = self.get_uid2gids_for_uids(uids, txn)?;
+                self.cache_uid2gids_for_uids(uids, txn)?;
 
                 // expr to constrain to select a particular row
                 let mut or_row_constraint_expr = Expr::Value(Value::Boolean(false));
@@ -1447,7 +1444,7 @@ impl QueryTransformer {
                                 op: BinaryOperator::And,
                                 right: Box::new(Expr::InList {
                                     expr: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
-                                    list: match uid_to_gids.get(&uid) {
+                                    list: match self.uid2gids.get(&uid) {
                                         Some(gids) => gids.iter()
                                             .map(|g| Expr::Value(Value::Number(g.to_string())))
                                             .collect(),
