@@ -163,7 +163,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
         
-        let get_gids_stmt_from_ghosts = Query::select(Select{
+        let get_gids_of_uid_stmt = Query::select(Select{
             distinct: true,
             projection: vec![
                 SelectItem::Expr{
@@ -195,7 +195,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let insert_gids_as_users_stmt = Statement::Insert(InsertStatement{
             table_name: mv_table_name.clone(),
             columns: vec![Ident::new(&self.cfg.user_table.id_col)],
-            source: InsertSource::Query(Box::new(get_gids_stmt_from_ghosts)),
+            source: InsertSource::Query(Box::new(get_gids_of_uid_stmt)),
         });
         warn!("unsub: {}", insert_gids_as_users_stmt);
         txn.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
@@ -308,7 +308,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
         
-        let get_gids_stmt_from_ghosts = Query::select(Select{
+        let get_gids_of_uid_stmt = Query::select(Select{
             distinct: true,
             projection: vec![
                 SelectItem::Expr{
@@ -331,8 +331,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             group_by: vec![],
             having: None,
         });
-        warn!("resub: {}", get_gids_stmt_from_ghosts);
-        let res = txn.query_iter(format!("{}", get_gids_stmt_from_ghosts))?;
+        warn!("resub: {}", get_gids_of_uid_stmt);
+        let res = txn.query_iter(format!("{}", get_gids_of_uid_stmt))?;
         self.qtrans.stats.nqueries+=1;
         let mut gids = vec![];
         for row in res {

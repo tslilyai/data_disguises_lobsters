@@ -2,6 +2,7 @@ use sql_parser::ast::*;
 use std::*;
 use super::config;
 use log::debug;
+use std::str::FromStr;
 
 pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
     // get rid of unsupported types
@@ -30,6 +31,27 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
     }
     debug!("helpers new:{}", new);
     new
+}
+
+pub fn mysql_val_to_u64(val: &mysql::Value) -> Result<u64, mysql::Error> {
+    match val {
+        mysql::Value::Bytes(bs) => {
+            let res = str::from_utf8(&bs).unwrap();
+            Ok(u64::from_str(res).unwrap())
+        }
+        mysql::Value::Int(i) => Ok(u64::from_str(&i.to_string()).unwrap()), // TODO fix?
+        mysql::Value::UInt(i) => Ok(*i),
+        _ => Err(mysql::Error::IoError(io::Error::new(
+                io::ErrorKind::Other, format!("value {:?} is not an int", val)))),
+    }
+}
+
+pub fn parser_expr_to_u64(val: &Expr) -> Result<u64, mysql::Error> {
+    match val {
+        Expr::Value(Value::Number(i)) => Ok(u64::from_str(i).unwrap()),
+        _ => Err(mysql::Error::IoError(io::Error::new(
+                io::ErrorKind::Other, format!("expr {} is not an int", val)))),
+    }
 }
 
 pub fn mysql_val_to_parser_val(val: &mysql::Value) -> Value {

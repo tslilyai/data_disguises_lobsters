@@ -13,13 +13,14 @@ pub struct QTStats {
 }
 
 pub struct QueryTransformer {
+    pub uid2gids_cache: HashMap<u64, Vec<u64>>,
+
     table_names: Vec<String>,
     latest_gid: AtomicU64,
     latest_uid: AtomicUsize,
 
     pub cfg: config::Config,
-    params: super::TestParams,
-
+    pub params: super::TestParams,
     pub stats: QTStats,
 }
 
@@ -37,6 +38,7 @@ impl QueryTransformer {
             latest_gid: AtomicU64::new(super::GHOST_ID_START),
             latest_uid: AtomicUsize::new(0),
             stats: QTStats{nqueries:0},
+            uid2gids_cache: HashMap::new(),
         }
     }   
 
@@ -44,10 +46,10 @@ impl QueryTransformer {
      **** Converts Queries/Exprs to Values **
      ****************************************/
    
-    pub fn get_uid2gids_for_uids(&mut self, uids_to_match: Vec<Expr>, txn: &mut mysql::Transaction)
-        -> Result<HashMap<Value, Vec<Expr>>, mysql::Error> 
+    pub fn get_uid2gids_for_uids(&mut self, uids_to_match: Vec<u64>, txn: &mut mysql::Transaction)
+        -> Result<HashMap<u64, Vec<u64>>, mysql::Error> 
     {
-        let mut uid_to_gids : HashMap<Value, Vec<Expr>> = HashMap::new();
+        let mut uid_to_gids : HashMap<u64, Vec<u64>> = HashMap::new();
         if uids_to_match.is_empty() {
             return Ok(uid_to_gids);
         }
@@ -73,7 +75,10 @@ impl QueryTransformer {
             }],
             selection: Some(Expr::InList{
                 expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_USER_COL))),
-                list: uids_to_match,
+                list: uids_to_match
+                    .iter()
+                    .map(|uid| Expr::Value(Value::Number(uid.to_string())))
+                    .collect(),
                 negated: false,
             }),
             group_by: vec![],
@@ -84,14 +89,14 @@ impl QueryTransformer {
         let res = txn.query_iter(format!("{}", get_gids_stmt_from_ghosts.to_string()))?;
         self.stats.nqueries+=1;
         for row in res {
-            let vals : Vec<Value> = row.unwrap().unwrap()
-                .iter()
-                .map(|v| helpers::mysql_val_to_parser_val(&v))
-                .collect();
+            let mut vals = vec![];
+            for v in row.unwrap().unwrap() {
+                vals.push(helpers::mysql_val_to_u64(&v)?);
+            }
             match uid_to_gids.get_mut(&vals[0]) {
-                Some(gids) => (*gids).push(Expr::Value(vals[1].clone())),
+                Some(gids) => (*gids).push(vals[1]),
                 None => {
-                    uid_to_gids.insert(vals[0].clone(), vec![Expr::Value(vals[1].clone())]);
+                    uid_to_gids.insert(vals[0], vec![vals[1]]);
                 }
             }
         }
@@ -1303,6 +1308,7 @@ impl QueryTransformer {
      * DATATABLE QUERY TRANSFORMER FUNCTIONS
      */
     fn insert_gid_for_uid(&mut self, uid: &Expr, txn: &mut mysql::Transaction) -> Result<u64, mysql::Error> {
+
         // user ids are always ints
         let insert_query = &format!("INSERT INTO {} ({}) VALUES ({});", 
                             super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid);
@@ -1314,6 +1320,15 @@ impl QueryTransformer {
         let gid = res.last_insert_id().ok_or_else(|| 
             mysql::Error::IoError(io::Error::new(
                 io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
+      
+        // insert into cache
+        let uid64 = helpers::parser_expr_to_u64(uid)?;
+        match self.uid2gids_cache.get_mut(&uid64) {
+            Some(gids) => (*gids).push(gid),
+            None => {
+                self.uid2gids_cache.insert(uid64, vec![gid]);
+            }
+        }
         
         // update the last known GID
         self.latest_gid.fetch_max(gid, Ordering::SeqCst);
@@ -1397,8 +1412,10 @@ impl QueryTransformer {
                         // Add condition on user column to be within relevant GIDs mapped
                         // to by the UID value
                         // However, only update with GIDs if UID value is NOT NULL
-                        if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) && row[i] != mysql::Value::NULL {
-                            uids.push(row[i].clone());
+                        if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) 
+                            && row[i] != mysql::Value::NULL 
+                        {
+                            uids.push(helpers::mysql_val_to_u64(&row[i])?);
                         }
                         row_vals.push(row[i].clone());
                     }
@@ -1408,11 +1425,7 @@ impl QueryTransformer {
                 // get all the gid rows corresponding to uids
                 // TODO deal with potential GIDs in user_cols due to
                 // unsubscriptions/resubscriptions
-                let uid_to_gids = self.get_uid2gids_for_uids(
-                    uids.iter()
-                        .map(|uid| Expr::Value(helpers::mysql_val_to_parser_val(&uid)))
-                        .collect(), 
-                    txn)?;
+                let uid_to_gids = self.get_uid2gids_for_uids(uids, txn)?;
 
                 // expr to constrain to select a particular row
                 let mut or_row_constraint_expr = Expr::Value(Value::Boolean(false));
@@ -1421,22 +1434,23 @@ impl QueryTransformer {
                     for i in 0..cols.len() {
                         // if it's a user column, add restriction on GID
                         let colname = cols[i].name_str().to_string();
-                        let parser_val = helpers::mysql_val_to_parser_val(&row[i]);
- 
                         // Add condition on user column to be within relevant GIDs mapped
                         // to by the UID value
                         // However, only update with GIDs if UID value is NOT NULL
                         if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) 
                             && row[i] != mysql::Value::NULL 
                         {
+                            let uid = helpers::mysql_val_to_u64(&row[i])?;
                             // add condition on user column to be within the relevant GIDs
                             and_col_constraint_expr = Expr::BinaryOp {
                                 left: Box::new(and_col_constraint_expr),
                                 op: BinaryOperator::And,
                                 right: Box::new(Expr::InList {
                                     expr: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
-                                    list: match uid_to_gids.get(&parser_val) {
-                                        Some(gids) => gids.clone(),
+                                    list: match uid_to_gids.get(&uid) {
+                                        Some(gids) => gids.iter()
+                                            .map(|g| Expr::Value(Value::Number(g.to_string())))
+                                            .collect(),
                                         None => vec![],
                                     },
                                     negated: false,
@@ -1453,7 +1467,7 @@ impl QueryTransformer {
                                 right: Box::new(Expr::BinaryOp{
                                     left: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
                                     op: BinaryOperator::Eq,
-                                    right: Box::new(Expr::Value(parser_val)),
+                                    right: Box::new(Expr::Value(helpers::mysql_val_to_parser_val(&row[i]))),
                                 }),             
                             };
                         }
