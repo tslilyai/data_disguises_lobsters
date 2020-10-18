@@ -137,7 +137,9 @@ fn test_normal_execution() {
             db.query_drop("DROP DATABASE IF EXISTS gdpr_normal;").unwrap();
             db.query_drop("CREATE DATABASE gdpr_normal;").unwrap();
             assert_eq!(db.ping(), true);
-            decor::Shim::run_on_tcp(db, CONFIG, SCHEMA, s).unwrap();
+            decor::Shim::run_on_tcp(db, CONFIG, SCHEMA,
+                    decor::TestParams{translate:true, parse:true, in_memory: true}, 
+                    s).unwrap();
         }
     });
 
@@ -359,7 +361,9 @@ fn test_users() {
  
     let jh = thread::spawn(move || {
         let (s, _) = listener.accept().unwrap();
-        decor::Shim::run_on_tcp(db, CONFIG, SCHEMA, s).unwrap();
+        decor::Shim::run_on_tcp(db, CONFIG, SCHEMA,
+                    decor::TestParams{translate:true, parse:true, in_memory: true}, 
+                    s).unwrap();
     });
     
     let mut db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
@@ -447,7 +451,7 @@ fn test_users() {
 
     // users are restored in users
     let mut results = vec![];
-    let res = db.query_iter(r"SELECT id FROM users;").unwrap();
+    let res = db.query_iter(r"SELECT id FROM users ORDER BY id ASC;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 1);

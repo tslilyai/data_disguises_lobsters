@@ -162,30 +162,20 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
-        
-        let get_gids_of_uid_stmt = Query::select(Select{
-            distinct: true,
-            projection: vec![
-                SelectItem::Expr{
-                    expr: Expr::Identifier(helpers::string_to_objname(&GHOST_ID_COL).0),
-                    alias: None,
-                }
-            ],
-            from: vec![TableWithJoins{
-                relation: TableFactor::Table{
-                    name: helpers::string_to_objname(&GHOST_TABLE_NAME),
-                    alias: None,
-                },
-                joins: vec![],
-            }],
-            selection: Some(Expr::BinaryOp{
-                left: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_USER_COL))),
-                op: BinaryOperator::Eq, 
-                right: Box::new(Expr::Value(uid_val.clone())),
-            }),
-            group_by: vec![],
-            having: None,
-        });
+                    
+        let mut vals_vec : Vec<Vec<Expr>>= vec![];
+        let gids = self.qtrans.get_gids_for(uid, &mut txn)?;
+        for gid in gids {
+            vals_vec.push(vec![Expr::Value(ast::Value::Number(gid.to_string()))]);
+        }
+        let gid_source_q = Query {
+            ctes: vec![],
+            body: SetExpr::Values(Values(vals_vec)),
+            order_by: vec![],
+            limit: None,
+            offset: None,
+            fetch: None,
+        };
         let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
         let mv_table_name = self.qtrans.objname_to_mv_objname(&user_table_name);
  
@@ -195,7 +185,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let insert_gids_as_users_stmt = Statement::Insert(InsertStatement{
             table_name: mv_table_name.clone(),
             columns: vec![Ident::new(&self.cfg.user_table.id_col)],
-            source: InsertSource::Query(Box::new(get_gids_of_uid_stmt)),
+            source: InsertSource::Query(Box::new(gid_source_q)),
         });
         warn!("unsub: {}", insert_gids_as_users_stmt);
         txn.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
@@ -308,36 +298,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
         
-        let get_gids_of_uid_stmt = Query::select(Select{
-            distinct: true,
-            projection: vec![
-                SelectItem::Expr{
-                    expr: Expr::Identifier(helpers::string_to_objname(&GHOST_ID_COL).0),
-                    alias: None,
-                }
-            ],
-            from: vec![TableWithJoins{
-                relation: TableFactor::Table{
-                    name: helpers::string_to_objname(&GHOST_TABLE_NAME),
-                    alias: None,
-                },
-                joins: vec![],
-            }],
-            selection: Some(Expr::BinaryOp{
-                left: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_USER_COL))),
-                op: BinaryOperator::Eq, 
-                right: Box::new(Expr::Value(uid_val.clone())),
-            }),
-            group_by: vec![],
-            having: None,
-        });
-        warn!("resub: {}", get_gids_of_uid_stmt);
-        let res = txn.query_iter(format!("{}", get_gids_of_uid_stmt))?;
-        self.qtrans.stats.nqueries+=1;
-        let mut gids = vec![];
-        for row in res {
-            let vals = row.unwrap().unwrap();
-            gids.push(Expr::Value(helpers::mysql_val_to_parser_val(&vals[0])));
+        let gids = self.qtrans.get_gids_for(uid, &mut txn)?;
+        let mut gid_exprs : Vec<Expr>= vec![];
+        for gid in gids {
+            gid_exprs.push(Expr::Value(ast::Value::Number(gid.to_string())));
         }
         let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
         let mv_table_name = self.qtrans.objname_to_mv_objname(&user_table_name);
@@ -349,7 +313,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             table_name: mv_table_name.clone(),
             selection: Some(Expr::InList{
                 expr: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
-                list: gids.clone(),
+                list: gid_exprs.clone(),
                 negated: false, 
             }),
         });
@@ -397,7 +361,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                             // check usercol_mv IN gids
                             conditions: vec![Expr::InList{
                                 expr: Box::new(Expr::Identifier(uc_mv_ids.clone())),
-                                list: gids.clone(),
+                                list: gid_exprs.clone(),
                                 negated: false,
                             }],
                             // then assign UID value

@@ -13,6 +13,7 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
         new = new.replace(r"tinytext", "varchar(255)");
         new = new.replace(r" text ", " varchar(255) ");
         new = new.replace(r" text,", " varchar(255),");
+        new = new.replace(r" text)", " varchar(255))");
         new = new.replace(r"FULLTEXT", "");
         new = new.replace(r"fulltext", "");
         new = new.replace(r"InnoDB", "MEMORY");
@@ -49,8 +50,16 @@ pub fn mysql_val_to_u64(val: &mysql::Value) -> Result<u64, mysql::Error> {
 pub fn parser_expr_to_u64(val: &Expr) -> Result<u64, mysql::Error> {
     match val {
         Expr::Value(Value::Number(i)) => Ok(u64::from_str(i).unwrap()),
+        Expr::Value(Value::String(i)) => {
+            match u64::from_str(i) {
+                Ok(v) => Ok(v),
+                Err(_e) => 
+                    Err(mysql::Error::IoError(io::Error::new(
+                        io::ErrorKind::Other, format!("expr {:?} is not an int", val)))),
+            }
+        }
         _ => Err(mysql::Error::IoError(io::Error::new(
-                io::ErrorKind::Other, format!("expr {} is not an int", val)))),
+                io::ErrorKind::Other, format!("expr {:?} is not an int", val)))),
     }
 }
 

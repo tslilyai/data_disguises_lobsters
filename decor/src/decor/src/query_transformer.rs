@@ -47,65 +47,77 @@ impl QueryTransformer {
     /**************************************** 
      **** Converts Queries/Exprs to Values **
      ****************************************/
+    fn insert_gid_into_caches(&mut self, uid:u64, gid:u64) {
+        match self.uid2gids.get_mut(&uid) {
+            Some(gids) => (*gids).push(gid),
+            None => {
+                self.uid2gids.insert(uid, vec![gid]);
+            }
+        }
+        self.gid2uid.insert(gid, uid);
+    }
+
+    pub fn get_gids_for(&mut self, uid:u64, txn:&mut mysql::Transaction) -> Result<Vec<u64>, mysql::Error> {
+        match self.uid2gids.get_mut(&uid) {
+            Some(gids) => Ok(gids.to_vec()),
+            None => {
+                self.cache_uid2gids_for_uid(uid, txn)?;
+                let gids = self.uid2gids.get(&uid).ok_or(
+                    mysql::Error::IoError(io::Error::new(
+                        io::ErrorKind::Other, "get_gids: uid not present in cache?")))?;
+                Ok(gids.to_vec())
+            }
+        }
+    }
 
     /* 
      * Add uid->gid mapping to cache if mapping not yet present
      * by querying the ghosts mapping table
      */
-    pub fn cache_uid2gids_for_uids(&mut self, uids_to_match: &Vec<u64>, txn: &mut mysql::Transaction) -> Result<(), mysql::Error>
+    pub fn cache_uid2gids_for_uid(&mut self, uid: u64, txn:&mut mysql::Transaction) -> Result<(), mysql::Error>
     {
-        if uids_to_match.is_empty() {
-            return Ok(());
-        }
-
-        for uid in uids_to_match {
-            if self.uid2gids.get_mut(&uid) == None {
-                let get_gids_of_uid_stmt = Query::select(Select{
-                    distinct: true,
-                    projection: vec![
-                        SelectItem::Expr{
-                            expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_USER_COL).0),
-                            alias: None,
-                        },
-                        SelectItem::Expr{
-                            expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_ID_COL).0),
-                            alias: None,
-                        }
-                    ],
-                    from: vec![TableWithJoins{
-                        relation: TableFactor::Table{
-                            name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
-                            alias: None,
-                        },
-                        joins: vec![],
-                    }],
-                    selection: Some(Expr::InList{
-                        expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_USER_COL))),
-                        list: uids_to_match
-                            .iter()
-                            .map(|uid| Expr::Value(Value::Number(uid.to_string())))
-                            .collect(),
-                        negated: false,
-                    }),
-                    group_by: vec![],
-                    having: None,
-                });
-
-                warn!("get_uid2gids: {}", get_gids_of_uid_stmt);
-                let res = txn.query_iter(format!("{}", get_gids_of_uid_stmt.to_string()))?;
-                self.stats.nqueries+=1;
-                for row in res {
-                    let mut vals = vec![];
-                    for v in row.unwrap().unwrap() {
-                        vals.push(helpers::mysql_val_to_u64(&v)?);
+        if self.uid2gids.get_mut(&uid) == None {
+            let get_gids_of_uid_stmt = Query::select(Select{
+                distinct: true,
+                projection: vec![
+                    SelectItem::Expr{
+                        expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_USER_COL).0),
+                        alias: None,
+                    },
+                    SelectItem::Expr{
+                        expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_ID_COL).0),
+                        alias: None,
                     }
-                    self.uid2gids.insert(vals[0], vec![vals[1]]);
-                    self.gid2uid.insert(vals[1], vals[0]);
+                ],
+                from: vec![TableWithJoins{
+                    relation: TableFactor::Table{
+                        name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
+                        alias: None,
+                    },
+                    joins: vec![],
+                }],
+                selection: Some(Expr::BinaryOp{
+                    left: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_USER_COL))),
+                    op: BinaryOperator::Eq, 
+                    right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
+                }),
+                group_by: vec![],
+                having: None,
+            });
+
+            warn!("cache_uid2gids: {}", get_gids_of_uid_stmt);
+            let res = txn.query_iter(format!("{}", get_gids_of_uid_stmt.to_string()))?;
+            self.stats.nqueries+=1;
+            for row in res {
+                let mut vals = vec![];
+                for v in row.unwrap().unwrap() {
+                    vals.push(helpers::mysql_val_to_u64(&v)?);
                 }
+                self.insert_gid_into_caches(vals[0], vals[1]);
             }
         }
         Ok(())
-    } 
+    }
 
     /* 
      * This issues the specified query to the MVs, and returns a VALUES query that
@@ -1326,13 +1338,7 @@ impl QueryTransformer {
                 io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
       
         // insert into cache
-        match self.uid2gids.get_mut(&uid) {
-            Some(gids) => (*gids).push(gid),
-            None => {
-                self.uid2gids.insert(uid, vec![gid]);
-            }
-        }
-        self.gid2uid.insert(gid, uid);
+        self.insert_gid_into_caches(uid, gid);
 
         // update the last known GID
         self.latest_gid.fetch_max(gid, Ordering::SeqCst);
@@ -1429,7 +1435,9 @@ impl QueryTransformer {
                 // get all the gid rows corresponding to uids
                 // TODO deal with potential GIDs in user_cols due to
                 // unsubscriptions/resubscriptions
-                self.cache_uid2gids_for_uids(&uids, txn)?;
+                for uid in uids {
+                    self.cache_uid2gids_for_uid(uid, txn)?;
+                }
 
                 // expr to constrain to select a particular row
                 let mut or_row_constraint_expr = Expr::Value(Value::Boolean(false));
@@ -1561,15 +1569,7 @@ impl QueryTransformer {
 
             // update if there is a new mapping
             if let Some(newuid) = uid {
-                self.gid2uid.insert(*gid, *newuid);
-                match self.uid2gids.get_mut(newuid) {
-                    Some(gids) => {
-                        (*gids).push(*gid);
-                    }
-                    None => {
-                        self.uid2gids.insert(*newuid, vec![*gid]);
-                    }
-                }
+                self.insert_gid_into_caches(*newuid, *gid);
             }
         }
         Ok(())
