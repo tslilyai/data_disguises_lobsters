@@ -14,6 +14,7 @@ pub struct QTStats {
 
 pub struct QueryTransformer {
     pub uid2gids: HashMap<u64, Vec<u64>>,
+    pub gid2uid: HashMap<u64, u64>,
 
     table_names: Vec<String>,
     latest_gid: AtomicU64,
@@ -39,20 +40,25 @@ impl QueryTransformer {
             latest_uid: AtomicUsize::new(0),
             stats: QTStats{nqueries:0},
             uid2gids: HashMap::new(),
+            gid2uid: HashMap::new(),
         }
     }   
 
     /**************************************** 
      **** Converts Queries/Exprs to Values **
      ****************************************/
-   
-    pub fn cache_uid2gids_for_uids(&mut self, uids_to_match: Vec<u64>, txn: &mut mysql::Transaction) -> Result<(), mysql::Error>
+
+    /* 
+     * Add uid->gid mapping to cache if mapping not yet present
+     * by querying the ghosts mapping table
+     */
+    pub fn cache_uid2gids_for_uids(&mut self, uids_to_match: &Vec<u64>, txn: &mut mysql::Transaction) -> Result<(), mysql::Error>
     {
         if uids_to_match.is_empty() {
             return Ok(());
         }
 
-        for uid in &uids_to_match {
+        for uid in uids_to_match {
             if self.uid2gids.get_mut(&uid) == None {
                 let get_gids_of_uid_stmt = Query::select(Select{
                     distinct: true,
@@ -94,6 +100,7 @@ impl QueryTransformer {
                         vals.push(helpers::mysql_val_to_u64(&v)?);
                     }
                     self.uid2gids.insert(vals[0], vec![vals[1]]);
+                    self.gid2uid.insert(vals[1], vals[0]);
                 }
             }
         }
@@ -108,6 +115,7 @@ impl QueryTransformer {
     fn query_to_value_query(&mut self, query: &Query, txn: &mut mysql::Transaction) -> Result<Query, mysql::Error> {
         let mv_q = self.query_to_mv_query(query);
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
+        
         warn!("query_to_value_query: {}", mv_q);
         let res = txn.query_iter(&mv_q.to_string())?;
         self.stats.nqueries+=1;
@@ -386,7 +394,7 @@ impl QueryTransformer {
         Ok(new_expr)
     }
 
-    fn insert_source_query_to_vals_vec(&mut self, q: &Query, txn: &mut mysql::Transaction) -> Result<Vec<Vec<Expr>>, mysql::Error> {
+    fn insert_source_query_to_values(&mut self, q: &Query, txn: &mut mysql::Transaction) -> Result<Vec<Vec<Expr>>, mysql::Error> {
         let mut contains_ucol_id = false;
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
         match &q.body {
@@ -419,7 +427,7 @@ impl QueryTransformer {
                 // regardless of whether this is a DT or not (because query needs
                 // to read from MV, rather than initially specified tables)
                 let mv_q = self.query_to_mv_query(q);
-                warn!("insert_source_q_to_vals_vec: {}", mv_q);
+                warn!("insert_source_q_to_values: {}", mv_q);
                 let rows = txn.query_iter(&mv_q.to_string())?;
                 self.stats.nqueries+=1;
                 for row in rows {
@@ -854,11 +862,11 @@ impl QueryTransformer {
                 let mut new_q = None;
                 
                 // update sources if is a datatable
-                let mut vals_vec = vec![];
+                let mut values = vec![];
                 if is_dt_write || table_name.to_string() == self.cfg.user_table.name {
                     match source {
                         InsertSource::Query(q) => {
-                            vals_vec = self.insert_source_query_to_vals_vec(&q, txn)?;
+                            values = self.insert_source_query_to_values(&q, txn)?;
                             new_q = Some(q.clone());
                         }
                         InsertSource::DefaultValues => (),
@@ -868,7 +876,7 @@ impl QueryTransformer {
                 // issue to datatable with vals_vec BEFORE we modify vals_vec to include the
                 // user_id column
                 if is_dt_write {
-                    self.issue_insert_datatable_stmt(&vals_vec, InsertStatement{
+                    self.issue_insert_datatable_stmt(&mut values.clone(), InsertStatement{
                         table_name: table_name.clone(), 
                         columns: columns.clone(), 
                         source: source.clone(),
@@ -876,9 +884,8 @@ impl QueryTransformer {
                 }
                                        
                 // if the user table has an autoincrement column, we should 
-                // (1) see if the table is actually inserting a value for that column and
+                // (1) see if the table is actually inserting a value for that column (found) 
                 // (2) update the self.latest_uid appropriately and insert the value for that column
-                // TODO ensure self.latest_uid never goes above GID_START
                 if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
                     let mut found = false;
                     for (i, col) in columns.iter().enumerate() {
@@ -886,7 +893,7 @@ impl QueryTransformer {
                             // get the values of the uid col being inserted and update as
                             // appropriate
                             let mut max = self.latest_uid.load(Ordering::SeqCst);
-                            for vv in &vals_vec {
+                            for vv in &values{
                                 match &vv[i] {
                                     Expr::Value(Value::Number(n)) => {
                                         let n = n.parse::<usize>().map_err(|e| mysql::Error::IoError(io::Error::new(
@@ -896,6 +903,7 @@ impl QueryTransformer {
                                     _ => (),
                                 }
                             }
+                            // TODO ensure self.latest_uid never goes above GID_START
                             self.latest_uid.fetch_max(max, Ordering::SeqCst);
                             found = true;
                             break;
@@ -903,16 +911,16 @@ impl QueryTransformer {
                     }
                     if !found {
                         // put self.latest_uid + N as the id col values 
-                        let cur_uid = self.latest_uid.fetch_add(vals_vec.len(), Ordering::SeqCst);
-                        for i in 0..vals_vec.len() {
-                            vals_vec[i].push(Expr::Value(Value::Number(format!("{}", cur_uid + i + 1))));
+                        let cur_uid = self.latest_uid.fetch_add(values.len(), Ordering::SeqCst);
+                        for i in 0..values.len() {
+                            values[i].push(Expr::Value(Value::Number(format!("{}", cur_uid + i + 1))));
                         }
                         // add id column to update
                         mv_cols.push(Ident::new(self.cfg.user_table.id_col.clone()));
                     }
                     // update source with new vals_vec
                     if let Some(mut nq) = new_q {
-                        nq.body = SetExpr::Values(Values(vals_vec.clone()));
+                        nq.body = SetExpr::Values(Values(values.clone()));
                         new_source = InsertSource::Query(nq);
                     }
                 }
@@ -1064,7 +1072,7 @@ impl QueryTransformer {
                         engine: new_engine.clone(),
                     };
 
-                    warn!("get_mv dtstmt: {}", dtstmt);
+                    warn!("get_mv stmt: {}", dtstmt);
                     txn.query_drop(dtstmt.to_string())?;
                     self.stats.nqueries+=1;
                 }
@@ -1304,8 +1312,7 @@ impl QueryTransformer {
     /*
      * DATATABLE QUERY TRANSFORMER FUNCTIONS
      */
-    fn insert_gid_for_uid(&mut self, uid: &Expr, txn: &mut mysql::Transaction) -> Result<u64, mysql::Error> {
-
+    fn insert_gid_for_uid(&mut self, uid: u64, txn: &mut mysql::Transaction) -> Result<u64, mysql::Error> {
         // user ids are always ints
         let insert_query = &format!("INSERT INTO {} ({}) VALUES ({});", 
                             super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid);
@@ -1319,47 +1326,47 @@ impl QueryTransformer {
                 io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
       
         // insert into cache
-        let uid64 = helpers::parser_expr_to_u64(uid)?;
-        match self.uid2gids.get_mut(&uid64) {
+        match self.uid2gids.get_mut(&uid) {
             Some(gids) => (*gids).push(gid),
             None => {
-                self.uid2gids.insert(uid64, vec![gid]);
+                self.uid2gids.insert(uid, vec![gid]);
             }
         }
-        
+        self.gid2uid.insert(gid, uid);
+
         // update the last known GID
         self.latest_gid.fetch_max(gid, Ordering::SeqCst);
         Ok(gid)
     }
 
-    fn vals_vec_to_datatable_vals(&mut self, vals_vec: &Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, txn: &mut mysql::Transaction) 
-        -> Result<Vec<Vec<Expr>>, mysql::Error>
+    fn insert_uid2gids_for_values(&mut self, values: &mut Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, txn: &mut mysql::Transaction) 
+        -> Result<(), mysql::Error>
     {
         if ucol_indices.is_empty() {
-            return Ok(vals_vec.to_vec());
+            return Ok(());
         }         
-        let mut parser_val_tuples = vec![];
-        for row in vals_vec {
-            let mut parser_vals : Vec<Expr> = vec![];
-            for i in 0..row.len() {
-                let mut val = row[i].clone();
+        for row in 0..values.len() {
+            for col in 0..values[row].len() {
                 // add entry to ghosts table
-                if ucol_indices.contains(&i) {
+                if ucol_indices.contains(&col) {
                     // NULL check: don't add ghosts entry if new UID value is NULL
-                    if val != Expr::Value(Value::Null) {
-                        let gid = self.insert_gid_for_uid(&row[i], txn)?;
-                        val = Expr::Value(Value::Number(format!("{}", gid)));
+                    if values[row][col] != Expr::Value(Value::Null) {
+                        let uid = helpers::parser_expr_to_u64(&values[row][col])?;
+                        let gid = self.insert_gid_for_uid(uid, txn)?;
+                        values[row][col] = Expr::Value(Value::Number(gid.to_string()));
                     }
                 }
-                // add to vector of values for this row
-                parser_vals.push(val);
             }
-            parser_val_tuples.push(parser_vals);
         }
-        Ok(parser_val_tuples)
+        Ok(())
     }
 
-    fn selection_to_datatable_selection(&mut self, selection: &Option<Expr>, txn: &mut mysql::Transaction, table_name: &ObjectName, ucols: &Vec<String>) 
+    fn selection_to_datatable_selection(
+        &mut self, 
+        selection: &Option<Expr>, 
+        txn: &mut mysql::Transaction, 
+        table_name: &ObjectName, 
+        ucols: &Vec<String>) 
         -> Result<Option<Expr>, mysql::Error>
     {
         let mut qt_selection = None;
@@ -1422,7 +1429,7 @@ impl QueryTransformer {
                 // get all the gid rows corresponding to uids
                 // TODO deal with potential GIDs in user_cols due to
                 // unsubscriptions/resubscriptions
-                self.cache_uid2gids_for_uids(uids, txn)?;
+                self.cache_uid2gids_for_uids(&uids, txn)?;
 
                 // expr to constrain to select a particular row
                 let mut or_row_constraint_expr = Expr::Value(Value::Boolean(false));
@@ -1483,7 +1490,7 @@ impl QueryTransformer {
         return Ok(qt_selection);
     }
     
-    fn issue_insert_datatable_stmt(&mut self, vals_vec: &Vec<Vec<Expr>>, stmt: InsertStatement, txn: &mut mysql::Transaction) 
+    fn issue_insert_datatable_stmt(&mut self, values: &mut Vec<Vec<Expr>>, stmt: InsertStatement, txn: &mut mysql::Transaction) 
         -> Result<(), mysql::Error> 
     {
         /* note that if the table is the users table,
@@ -1519,9 +1526,9 @@ impl QueryTransformer {
          * */
         match stmt.source {
             InsertSource::Query(q) => {
-                let vv = self.vals_vec_to_datatable_vals(vals_vec, &ucol_indices, txn)?;
+                self.insert_uid2gids_for_values(values, &ucol_indices, txn)?;
                 let mut new_q = q.clone();
-                new_q.body = SetExpr::Values(Values(vv));
+                new_q.body = SetExpr::Values(Values(values.to_vec()));
                 qt_source = InsertSource::Query(new_q);
             }
             InsertSource::DefaultValues => (),
@@ -1537,6 +1544,34 @@ impl QueryTransformer {
         txn.query_drop(dt_stmt.to_string())?;
         self.stats.nqueries+=1;
 
+        Ok(())
+    }
+    
+    fn update_uid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>)
+        -> Result<(), mysql::Error> 
+    {
+        for (uid, gid) in pairs {
+            // delete current mapping
+            if let Some(olduid) = self.gid2uid.get(gid) {
+                if let Some(gids) = self.uid2gids.get_mut(&olduid) {
+                    gids.retain(|x| *x != *gid);
+                }
+                self.gid2uid.remove(gid);
+            }
+
+            // update if there is a new mapping
+            if let Some(newuid) = uid {
+                self.gid2uid.insert(*gid, *newuid);
+                match self.uid2gids.get_mut(newuid) {
+                    Some(gids) => {
+                        (*gids).push(*gid);
+                    }
+                    None => {
+                        self.uid2gids.insert(*newuid, vec![*gid]);
+                    }
+                }
+            }
+        }
         Ok(())
     }
     
@@ -1606,6 +1641,7 @@ impl QueryTransformer {
             self.stats.nqueries+=1;
 
             let mut ghost_update_stmts = vec![];
+            let mut ghost_update_pairs = vec![];
             for row in res {
                 let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
                 for (i, uc_val) in ucol_assigns.iter().enumerate() {
@@ -1618,9 +1654,10 @@ impl QueryTransformer {
                                 left: Box::new(Expr::Identifier(
                                               helpers::string_to_idents(super::GHOST_ID_COL))),
                                 op: BinaryOperator::Eq,
-                                right: Box::new(Expr::Value(Value::Number(format!("{}", gid)))),
+                                right: Box::new(Expr::Value(gid)),
                             }),
                         }));
+                        ghost_update_pairs.push((None, helpers::mysql_val_to_u64(&mysql_vals[i])?));
                     } else {
                         // otherwise, update GID entry with new UID value
                         // XXX what if the value IS a GID??? should we just remove this GID?
@@ -1634,9 +1671,12 @@ impl QueryTransformer {
                                 left: Box::new(Expr::Identifier(
                                               helpers::string_to_idents(super::GHOST_ID_COL))),
                                 op: BinaryOperator::Eq,
-                                right: Box::new(Expr::Value(Value::Number(format!("{}", gid)))),
+                                right: Box::new(Expr::Value(gid)),
                             }),
                         }));
+                        ghost_update_pairs.push(
+                            (Some(helpers::parser_expr_to_u64(&uc_val.value)?), 
+                             helpers::mysql_val_to_u64(&mysql_vals[i])?));
                     }
                 }
             }
@@ -1645,6 +1685,7 @@ impl QueryTransformer {
                 txn.query_drop(format!("{}", gstmt.to_string()))?;
                 self.stats.nqueries+=1;
             }
+            self.update_uid2gids_with(&ghost_update_pairs)?;
         }
         let update_stmt = Statement::Update(UpdateStatement{
             table_name: stmt.table_name.clone(),
@@ -1693,9 +1734,11 @@ impl QueryTransformer {
         self.stats.nqueries+=1;
 
         let mut gids_list : Vec<Expr>= vec![];
+        let mut ghost_update_pairs: Vec<(Option<u64>, u64)>= vec![];
         for row in res {
             for val in row.unwrap().unwrap() {
                 gids_list.push(Expr::Value(helpers::mysql_val_to_parser_val(&val)));
+                ghost_update_pairs.push((None, helpers::mysql_val_to_u64(&val)?));
             }
         }
 
@@ -1714,6 +1757,7 @@ impl QueryTransformer {
             txn.query_drop(&ghosts_delete_statement.to_string())?;
             self.stats.nqueries+=1;
         }
+        self.update_uid2gids_with(&ghost_update_pairs)?;
 
         let delete_stmt = Statement::Delete(DeleteStatement{
             table_name: stmt.table_name.clone(),
