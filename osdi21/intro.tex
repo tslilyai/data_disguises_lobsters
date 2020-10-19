@@ -10,46 +10,63 @@ requirements pressure companies to properly delete and anonymize users' data whe
 For example, the GDPR requires that any user data remaining after a user unsubscribes is
 \emph{decorrelated}, i.e., cannot be (directly or indirectly) used to identify the user~\cite{gdpr}.  
 
-Furthermore, keeping identifying and personal data when no longer strictly necessary increases
-companies' liability: the GDPR and other laws mandate that companies retain only user data that is
-relevant and necessary for their applications' purposes. To increase users' control over their data
-and decrease the amount of incriminating data stored in the application at any one point, users
-should be able to freely unsubscribe from the service to enter a privacy-preserving mode, and later
-resubscribe when they wish to use the service. \lyt{(this seems unconvincing, should come up with better
-motivation?)}
+In this paper, we propose \sys, a new approach to managing user identities in web applications.
+\sys~meets the decorrelation requirements in the GDPR, and goes beyond: with \sys, it is possible
+for users to switch between a privacy-preserving unsubscribed mode and an identity-revealing
+subscribed mode at any time. This facilitates important new web service paradigms, such as users
+granting a time-limited "lease" of data to a service instead of having a permanent service account.
+
+%Furthermore, keeping identifying and personal data when no longer strictly necessary increases
+%companies' liability: the GDPR and other laws mandate that companies retain only user data that is
+%relevant and necessary for their applications' purposes. To increase users' control over their data
+%and decrease the amount of incriminating data stored in the application at any one point, users
+%should be able to freely unsubscribe from the service to enter a privacy-preserving mode, and later
+%resubscribe when they wish to use the service. 
 
 \subsection{Goals} 
 \sys's goal is to provide the following properties while preserving an application's 
 semantics: 
-\begin{itemize} 
-    \item Decorrelation: Decorrelation ideally guarantees that it is impossible to distinguish
+\begin{description} 
+    \item[Decorrelation.] Decorrelation ideally guarantees that it is impossible to distinguish
         between two records formerly associated with the same unsubscribed user and two records from
         different unsubscribed users.  
     %\item Deletion Correctness: Deletion of user records should correctly conform to application
         %semantics: for example, post deletion could remove the post and its underlying comments, or
     %simply anonymize the post and keep all content accessible.  
-    \item Resubscription: Users should be able to easily switch between a privacy-preserving unsubscribed mode 
+    \item[Resubscription.] Users should be able to easily switch between a privacy-preserving unsubscribed mode 
        and an identity-revealing subscribed mode, without permanently losing their application data.  
-\end{itemize}
+\end{description}
 
 \sys~must implement these properties while ensuring (1) performance comparable to today’s
 widely-used databases, and (2) easy adoption (decorrelation should be
-automated and not require modifications to application schemas or semantics).
+automated without needing to modify application schemas or semantics).
 
 \subsection{Decorrelation Guarantees} 
-
 We address applications in which application data consists of \emph{data records} and computations
 (such as aggregations) that may be performed over these data records. Data records are considered
 sensitive, private data records when they contain \emph{user identifiers}; for example, a row in a
 table containing a column of user IDs would be a user's private data record. Data records containing
 multiple, potentially different, user IDs are considered shared data records private to the
-identified users.
+identified users. We refer to data records belonging to unsubscribed users as \emph{remnants}.
 
 Perfect decorrelation is achieved when queries to the application reveal no information allowing an
-observer to determine if two user data records with different user IDs belong to the same user who
-has since unsubscribed (are \emph{linked}), or belong to two different users. Observers gain no
-information that allows them to distinguish the two scenarios~\lyt{Not sure how to define
-``distinguish'' formally---equally probable? Perhaps noninterference can be cited here)}.
+observer to determine if two distinct user data records belong to the same user who has since
+unsubscribed (are \emph{linked}), or belong to two different (real or unsubscribed) users. Observers
+gain no information that allows them to distinguish the two scenarios. 
+
+More formally, given user data records and a subset of $R$ of these records that are remnants, we
+divide the $R$ remnants among some number $N$ of unsubscribed users.  Perfect decorrelation
+guarantees that any division of the $R$ remnants among $N$ users is equally likely: each remnant is
+equally likely to be linked with any other remnant. 
+
+~\lyt{I toyed with saying that $P(N = R) = P(N \le R)$: the probability that every distinct remnant
+belongs to a distinct user equals the probability that any user owns multiple remnants, but this
+seemed unnecessarily complex when I believe that the above statement captures decorrelation.} 
+
+~\lyt{Note: whether $N$ is known or not also plays into the probability analysis}
+
+~\lyt{Note: this is the definition in which ghosts can be distinct from real users, so we're not
+trying to pretend that remnants cannot be identified}
 
 In practical settings, however, perfect decorrelation is likely impossible: for example, a reposted
 screenshot may leak user IDs. Furthermore, an observer who can see application queries over time, or
@@ -62,50 +79,56 @@ state.~\lyt{Note: UIDs can also include things like email addrs, phone number, e
 
 \paragraph{Global Placeholder.}
 A common strawman solution to decorrelation is to replace all unsubscribed user IDs with one global
-placeholder ID. 
+placeholder ID. This means that all remnants can be identified by one distinct UID, which we call
+$GP$.
 
-This results in the following privacy guarantees~\lyt{how to formalize? probability stuff...}
+A global placeholder can provide either complete privacy or no privacy at all. We first begin by
+assuming an observer has complete information about how many users are in the system ($N$).
 \begin{itemize}
-    \item Extremely Unprivate: If only one user ever unsubscribes, all remnants can be linked back
-        to that user's identity.
-    \item Extremely private: If all users unsubscribe, two remnants are equally as likely to belong
-        to two individual users as they are to belong to one single user (assuming the number of
-        users is unknown and follows some distribution... \lyt{I need to think about this a bit
-        more, but I think the intuition is clear}).
+    \item If $N=1$ and only one user has unsubscribed, all remnants can be linked back to that user's
+        identity: any data record with UID equal to $GP$ belongs to that user.
+    \item If all users unsubscribe, two remnants are equally as likely to belong
+        to any two of the $N$ individual users as they are to belong to one single user. 
 \end{itemize}
 The amount of linkable information~\lyt{(need to define this)}, and the resulting deviance from
-perfect decorrelation, decreases as more users unsubscribe.~\lyt{not sure by how much though}.
+perfect decorrelation, decreases as more users unsubscribe.
+Let us assume that an observer knows $N$ and $R$, and the number of data records per user is
+uniformly distributed. Let $r = \frac{R}{N}$ be the number of remnants per unsubscribed user. 
+Then an observer has probability $p_{\text{exact}}$ of guessing the correct combination of
+records per users, where  
+$$p_{\text{exact}} = \frac{(r!)^N}{R!}$$
+An observer has probability $p_{\text{user}}$ of guessing the correct combination for one user where 
+$$p_{\text{user}} = \frac{r!(R-r)!}{R!}$$
+\lyt{TODO---non-uniform distributions, not knowing $N$, not knowing $R$?}
 
-Furthermore, a global placeholder makes resubscription challenging: users can no identify which
+Using a global placeholder, however, makes resubscription challenging: users can no identify which
 unsubscribed data records belong to them if all user-specific data has been erased from the
 system. 
 
 \paragraph{Data-Record Ghost IDs.}
-To support stronger decorrelation guarantees while support resubscription, \sys~generates a unique
-ghost user for each data remnant. These ghosts, unlike a global placeholder, are
-indistinguishable from a real user in the system, ensuring that queries cannot correlate two ghosts
-with a single real (albeit unsubscribed) user. 
-\sys~relies on coarse-grained schema annotations to
-establish which associations to decorrelate, and builds a dataflow computation resulting in
-materialized views that answer application queries. Use of dataflow automatically propagates the
-correct updates to materialized views.
-
-However, some linkable information is still leaked. For example, ghost users may be randomly
-generated in a pattern identifiable by an observer (e.g.,\ if all ghosts have usernames which are
-random numbers, or arbitrary animals, but a real user may have more human-friendly usernames).
-
-\lyt{How to tie in differential privacy? Where there is some privacy budget that is lost on each
-query...? Maybe an observer needs to know the distribution of usernames in order to determine that
-there is a pattern that is machine-generated?}
-
-\lyt{Or maybe there is some notion of noninterference we could use here? How do \sys's responses to
-queries deviate from what an ideally decorrelated system would produce?}
-
+To support \lyt{the same?}\sout{stronger} decorrelation guarantees while supporting resubscription,
+\sys~generates a unique ghost user for each data remnant. 
 Unlike a global placeholder, \sys~allows users to reactivate their account and undo
 the decorrelation: user IDs can be linked back to a set of unique ghost IDs. 
 This gives users the ability to freely unsubscribe to protect their privacy
 without worrying about losing their accounts. \sys~resubscribes users by transparently propagating
 updates to materialized views to expose real user identifiers in place of ghost identifiers. 
 
+\sys~relies on coarse-grained schema annotations to establish which associations to decorrelate, and
+builds a dataflow computation resulting in materialized views that answer application queries. Use
+of dataflow automatically propagates the correct updates to materialized views.
 
+\sout{These ghosts, unlike a global placeholder,
+are indistinguishable from a real user in the system, ensuring that queries cannot correlate two
+ghosts with a single real (albeit unsubscribed) user.
+However, some linkable information is still leaked. For example, ghost users may be randomly
+generated in a pattern identifiable by an observer (e.g.,\ if all ghosts have usernames which are
+random numbers, or arbitrary animals, but a real user may have more human-friendly usernames).}
 
+\lyt{Not sure how to incorporate DP or some notion of noninterference here (how do \sys's responses to
+queries deviate from what an ideally decorrelated system would produce?)
+DP seems to deal with the change in probability of some event X, rather than the initial probability
+to begin with.
+Perhaps DP would be more applicable if we were looking at the database over time? And if we had some
+notion of noise. Without adding noise, the output would change dramatically when a user unsubscribes
+and UIDs are replaced by GIDs, which reveals complete linkability information.}

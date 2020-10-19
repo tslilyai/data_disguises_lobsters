@@ -13,8 +13,9 @@ pub struct QTStats {
 }
 
 pub struct QueryTransformer {
-    pub uid2gids: HashMap<u64, Vec<u64>>,
-    pub gid2uid: HashMap<u64, u64>,
+    uid2gids: HashMap<u64, Vec<u64>>,
+    gid2uid: HashMap<u64, u64>,
+    //q2: HashMap<u64, u64>,
 
     table_names: Vec<String>,
     latest_gid: AtomicU64,
