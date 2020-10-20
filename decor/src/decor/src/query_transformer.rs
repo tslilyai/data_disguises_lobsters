@@ -4,7 +4,7 @@ use super::config;
 use super::helpers;
 use std::sync::atomic::Ordering;
 use std::*;
-use log::warn;
+use log::{debug,warn};
 use std::sync::atomic::{AtomicU64, AtomicUsize};
 use std::collections::HashMap;
 
@@ -457,6 +457,7 @@ impl QueryTransformer {
         -> Result<Option<Expr>, mysql::Error> 
     {
         // if it's just an identifier, we can return if it's not a ucol
+        debug!("\tFastpath expr: looking at {}", e);
         if helpers::expr_is_col(&e) && !helpers::expr_is_ucol(&e, ucols_to_replace) {
             return Ok(Some(e.clone()));
         }

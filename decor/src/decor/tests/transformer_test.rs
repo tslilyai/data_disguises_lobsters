@@ -25,8 +25,6 @@ use mysql::prelude::*;
 use datadriven::walk;
 use std::*;
 use sql_parser::parser;
-use msql_srv::*;
-use decor::*;
 
 const SCHEMA : &'static str = include_str!("./schema.sql");
 const CONFIG : &'static str = include_str!("./config.json");
