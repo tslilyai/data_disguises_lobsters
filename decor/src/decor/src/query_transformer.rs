@@ -149,46 +149,54 @@ impl QueryTransformer {
             fetch: None,
         })
     }
+    
+    fn query_to_value_rows(&mut self, query: &Query, txn: &mut mysql::Transaction) -> Result<Vec<Expr>, mysql::Error> {
+        let mv_q = self.query_to_mv_query(query);
+        let mut rows: Vec<Expr>= vec![];
+        
+        warn!("query_to_nested_vals: {}", mv_q);
+        let res = txn.query_iter(&mv_q.to_string())?;
+        self.stats.nqueries+=1;
+
+        for row in res {
+            let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
+            rows.push(Expr::Row{
+                exprs: mysql_vals
+                    .iter()
+                    .map(|val| Expr::Value(helpers::mysql_val_to_parser_val(&val)))
+                    .collect()
+            });
+        }
+        Ok(rows)
+    }
+
+    fn get_uid_exprs_between(&mut self, low: &Expr, high: &Expr, txn: &mut mysql::Transaction) -> Result<Vec<Expr>, mysql::Error> {
+        Ok(vec![])
+    }
+
+    fn get_gids_for_uids(&mut self, list: &Vec<Expr>, txn: &mut mysql::Transaction) -> Result<Vec<Expr>, mysql::Error> {
+        Ok(vec![])
+    }
 
     /*
      * This changes any nested queries to the corresponding VALUE 
      * (read from the MVs), if any exist.
      *
-     * If ucols_to_replace is nonempty, the function sets whether 
-     * any of these cols are contained within the query 
+     * Replace any accounts of ``WHERE ucol = uid`` or ``ucol IN `[uids]`` with the corresponding GIDs
+     * NOTE: we assume that all LHS exprs evaluate down to some identifier (or wildcard)
      */
-    fn expr_to_value_expr(&mut self, expr: &Expr, txn: &mut mysql::Transaction, 
-                              contains_ucol_id: &mut bool, ucols_to_replace: &Vec<String>) 
+    fn expr_to_value_expr(&mut self, 
+                          expr: &Expr, 
+                          txn: &mut mysql::Transaction, 
+                          ucols_to_replace: &Vec<String>) 
         -> Result<Expr, mysql::Error> 
     {
         let new_expr = match expr {
-            Expr::Identifier(_ids) => {
-                *contains_ucol_id |= ucols_to_replace.iter().any(|uc| uc.contains(&expr.to_string()));
-                expr.clone()
-            }
-            Expr::QualifiedWildcard(_ids) => {
-                *contains_ucol_id |= ucols_to_replace.iter().any(|uc| uc.contains(&expr.to_string()));
-                expr.clone()
-            }
-            Expr::FieldAccess {
-                expr,
-                field,
-            } => {
-                // XXX we might be returning TRUE for contains_ucol_id if only the expr matches,
-                // but not the field
-                Expr::FieldAccess {
-                    expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
-                    field: field.clone(),
-                }
-            }
-            Expr::WildcardAccess(e) => {
-                Expr::WildcardAccess(Box::new(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?))
-            }
             Expr::IsNull{
                 expr,
                 negated,
             } => Expr::IsNull {
-                expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
                 negated: *negated,
             },
             Expr::InList {
@@ -198,10 +206,14 @@ impl QueryTransformer {
             } => {
                 let mut new_list = vec![];
                 for e in list {
-                    new_list.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
+                    new_list.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
                 }
+                let lhs = self.expr_to_value_expr(&expr, txn, ucols_to_replace)?;
+                if helpers::expr_matches_ucol(&lhs, ucols_to_replace) {
+                    new_list = self.get_gids_for_uids(&list, txn)?;
+                } 
                 Expr::InList {
-                    expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
+                    expr: Box::new(lhs),
                     list: new_list,
                     negated: *negated,
                 }
@@ -211,11 +223,14 @@ impl QueryTransformer {
                 subquery,
                 negated,
             } => {
-                let new_query = self.query_to_value_query(&subquery, txn)?;
-                // otherwise just return table column IN subquery
-                Expr::InSubquery {
-                    expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
-                    subquery: Box::new(new_query),
+                let mut list = self.query_to_value_rows(&subquery, txn)?;
+                let lhs = self.expr_to_value_expr(&expr, txn, ucols_to_replace)?;
+                if helpers::expr_matches_ucol(&lhs, ucols_to_replace) {
+                    list = self.get_gids_for_uids(&list, txn)?;
+                }
+                Expr::InList {
+                    expr: Box::new(lhs),
+                    list:list,
                     negated: *negated,
                 }                
             }
@@ -225,26 +240,54 @@ impl QueryTransformer {
                 low,
                 high,
             } => {
-                let new_low = self.expr_to_value_expr(&low, txn, contains_ucol_id, ucols_to_replace)?;
-                let new_high = self.expr_to_value_expr(&high, txn, contains_ucol_id, ucols_to_replace)?;
-                Expr::Between {
-                    expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
-                    negated: *negated,
-                    low: Box::new(new_low),
-                    high: Box::new(new_high),
+                let colname = self.expr_to_value_expr(&expr, txn, ucols_to_replace)?;
+
+                // change to be a constraint on GIDs if the column is the uid column
+                if helpers::expr_matches_ucol(&colname, ucols_to_replace) {
+                    // TODO update list by getting all UIDs that fit query and changing them to GIDs
+                    let mut list = self.get_uid_exprs_between(&low, &high, txn)?;
+                    list = self.get_gids_for_uids(&list, txn)?;
+                    // TODO update list to be GIDs
+                    Expr::InList {
+                        expr: Box::new(colname),
+                        list: list,
+                        negated: *negated,
+                    }
+                } else {
+                    // otherwise, just return the modified between stmt
+                    Expr::Between {
+                        expr: Box::new(colname),
+                        negated: *negated,
+                        low: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
+                        high: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
+                    }
                 }
             }
-            Expr::BinaryOp{
+            Expr::BinaryOp {
                 left,
                 op,
                 right
             } => {
-                let new_left = self.expr_to_value_expr(&left, txn, contains_ucol_id, ucols_to_replace)?;
-                let new_right = self.expr_to_value_expr(&right, txn, contains_ucol_id, ucols_to_replace)?;
-                Expr::BinaryOp{
-                    left: Box::new(new_left),
-                    op: op.clone(),
-                    right: Box::new(new_right),
+                let leftcol = self.expr_to_value_expr(&left, txn, ucols_to_replace)?;
+                let rightcol = self.expr_to_value_expr(&left, txn, ucols_to_replace)?;
+
+                // change to be a constraint on GIDs if the column is the uid column
+                if helpers::expr_matches_ucol(&leftcol, ucols_to_replace) 
+                    || helpers::expr_matches_ucol(&rightcol, ucols_to_replace) {
+                    let mut list = self.get_uid_exprs_binop(&leftcol, &rightcol, op, txn)?;
+                    list = self.get_gids_for_uids(&list, txn)?;
+                    // TODO update list to be GIDs
+                    Expr::InList {
+                        expr: Box::new(colname),
+                        list: list,
+                        negated: *negated,
+                    }
+                } else {
+                    Expr::BinaryOp{
+                        left: Box::new(leftcol),
+                        op: op.clone(),
+                        right: Box::new(rightcol),
+                    }
                 }
             }
             Expr::UnaryOp{
@@ -252,29 +295,30 @@ impl QueryTransformer {
                 expr,
             } => Expr::UnaryOp{
                 op: op.clone(),
-                expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
             },
             Expr::Cast{
                 expr,
                 data_type,
             } => Expr::Cast{
-                expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
                 data_type: data_type.clone(),
             },
             Expr::Collate {
                 expr,
                 collation,
             } => Expr::Collate{
-                expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
                 collation: collation.clone(),
             },
-            Expr::Nested(expr) => Expr::Nested(Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?)),
+            Expr::Nested(expr) => Expr::Nested(Box::new(
+                    self.expr_to_value_expr(&expr, txn, ucols_to_replace)?)),
             Expr::Row{
                 exprs,
             } => {
                 let mut new_exprs = vec![];
                 for e in exprs {
-                    new_exprs.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
+                    new_exprs.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
                 }
                 Expr::Row{
                     exprs: new_exprs,
@@ -287,25 +331,25 @@ impl QueryTransformer {
                     FunctionArgs::Args(exprs) => {
                         let mut new_exprs = vec![];
                         for e in exprs {
-                            new_exprs.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
+                            new_exprs.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
                         }
                         FunctionArgs::Args(new_exprs)
                     }                
                 },
                 filter: match &f.filter {
-                    Some(filt) => Some(Box::new(self.expr_to_value_expr(&filt, txn, contains_ucol_id, ucols_to_replace)?)),
+                    Some(filt) => Some(Box::new(self.expr_to_value_expr(&filt, txn, ucols_to_replace)?)),
                     None => None,
                 },
                 over: match &f.over {
                     Some(ws) => {
                         let mut new_pb = vec![];
                         for e in &ws.partition_by {
-                            new_pb.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
+                            new_pb.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
                         }
                         let mut new_ob = vec![];
                         for obe in &ws.order_by {
                             new_ob.push(OrderByExpr {
-                                expr: self.expr_to_value_expr(&obe.expr, txn, contains_ucol_id, ucols_to_replace)?,
+                                expr: self.expr_to_value_expr(&obe.expr, txn, ucols_to_replace)?,
                                 asc: obe.asc.clone(),
                             });
                         }
@@ -327,33 +371,39 @@ impl QueryTransformer {
             } => {
                 let mut new_cond = vec![];
                 for e in conditions {
-                    new_cond.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
+                    new_cond.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
                 }
                 let mut new_res= vec![];
                 for e in results {
-                    new_res.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
+                    new_res.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
                 }
                 Expr::Case{
                     operand: match operand {
-                        Some(e) => Some(Box::new(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?)),
+                        Some(e) => Some(Box::new(self.expr_to_value_expr(&e, txn, ucols_to_replace)?)),
                         None => None,
                     },
                     conditions: new_cond ,
                     results: new_res, 
                     else_result: match else_result {
-                        Some(e) => Some(Box::new(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?)),
+                        Some(e) => Some(Box::new(self.expr_to_value_expr(&e, txn, ucols_to_replace)?)),
                         None => None,
                     },
                 }
             }
-            Expr::Exists(q) => Expr::Exists(Box::new(self.query_to_value_query(&q, txn)?)),
+            Expr::Exists(q) => {
+                match self.query_to_value_rows(&q, txn)?.len() {
+                    0 => Expr::Value(Value::Boolean(false)),
+                    _ => Expr::Value(Value::Boolean(true)),
+                }
+            }
             Expr::Subquery(q) => Expr::Subquery(Box::new(self.query_to_value_query(&q, txn)?)),
             Expr::Any {
                 left,
                 op,
                 right,
             } => Expr::Any {
-                left: Box::new(self.expr_to_value_expr(&left, txn, contains_ucol_id, ucols_to_replace)?),
+                // TODO 
+                left: Box::new(self.expr_to_value_expr(&left, txn, ucols_to_replace)?),
                 op: op.clone(),
                 right: Box::new(self.query_to_value_query(&right, txn)?),
             },
@@ -362,14 +412,15 @@ impl QueryTransformer {
                 op,
                 right,
             } => Expr::All{
-                left: Box::new(self.expr_to_value_expr(&left, txn, contains_ucol_id, ucols_to_replace)?),
+                // TODO 
+                left: Box::new(self.expr_to_value_expr(&left, txn, ucols_to_replace)?),
                 op: op.clone(),
                 right: Box::new(self.query_to_value_query(&right, txn)?),
             },
             Expr::List(exprs) => {
                 let mut new_exprs = vec![];
                 for e in exprs {
-                    new_exprs.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
+                    new_exprs.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
                 }
                 Expr::List(new_exprs)
             }
@@ -377,8 +428,8 @@ impl QueryTransformer {
                 expr,
                 subscript,
             } => Expr::SubscriptIndex{
-                expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
-                subscript: Box::new(self.expr_to_value_expr(&subscript, txn, contains_ucol_id, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
+                subscript: Box::new(self.expr_to_value_expr(&subscript, txn, ucols_to_replace)?),
             },
             Expr::SubscriptSlice{
                 expr,
@@ -388,27 +439,30 @@ impl QueryTransformer {
                 for pos in positions {
                     new_pos.push(SubscriptPosition {
                         start: match &pos.start {
-                            Some(e) => Some(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?),
+                            Some(e) => Some(self.expr_to_value_expr(&e, txn, ucols_to_replace)?),
                             None => None,
                         },
                         end: match &pos.end {
-                            Some(e) => Some(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?),
+                            Some(e) => Some(self.expr_to_value_expr(&e, txn, ucols_to_replace)?),
                             None => None,
                         },                
                     });
                 }
                 Expr::SubscriptSlice{
-                    expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
+                    expr: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
                     positions: new_pos,
                 }
             }
+            // XXX don't support field access or wildcard access with arbitrary expressions for
+            // right now
+            Expr::FieldAccess{expr:_, field:_} | Expr::WildcardAccess(_) => 
+                unimplemented!("Arbitrary exprs in identifiers not supported"),
             _ => expr.clone(),
         };
         Ok(new_expr)
     }
 
     fn insert_source_query_to_values(&mut self, q: &Query, txn: &mut mysql::Transaction) -> Result<Vec<Vec<Expr>>, mysql::Error> {
-        let mut contains_ucol_id = false;
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
         match &q.body {
             SetExpr::Values(Values(expr_vals)) => {
@@ -417,20 +471,20 @@ impl QueryTransformer {
                 for row in expr_vals {
                     let mut vals_row : Vec<Expr> = vec![];
                     for val in row {
-                        let query_val = match self.expr_to_value_expr(&val, txn, &mut contains_ucol_id, &vec![])? {
+                        let value_expr = self.expr_to_value_expr(&val, txn, &vec![])?;
+                        match value_expr {
                             Expr::Subquery(q) => {
                                 match q.body {
                                     SetExpr::Values(Values(subq_exprs)) => {
                                         assert_eq!(subq_exprs.len(), 1);
                                         assert_eq!(subq_exprs[0].len(), 1);
-                                        subq_exprs[0][0].clone()
+                                        vals_row.push(subq_exprs[0][0].clone());
                                     }
                                     _ => unimplemented!("query_to_data_query should only return a Value"),
                                 }
                             }
-                            _ => val.clone(),
-                        };
-                        vals_row.push(self.expr_to_value_expr(&query_val, txn, &mut contains_ucol_id, &vec![])?);
+                            _ => vals_row.push(value_expr),
+                        }
                     }
                     vals_vec.push(vals_row);
                 }
@@ -954,9 +1008,8 @@ impl QueryTransformer {
 
                 let mut assign_vals = vec![];
                 if is_dt_write || table_name.to_string() == self.cfg.user_table.name {
-                    let mut contains_ucol_id = false;
                     for a in assignments {
-                        assign_vals.push(self.expr_to_value_expr(&a.value, txn, &mut contains_ucol_id, &vec![])?);
+                        assign_vals.push(self.expr_to_value_expr(&a.value, txn, &vec![])?);
                     }
                 }
                     
@@ -1377,14 +1430,14 @@ impl QueryTransformer {
         -> Result<Option<Expr>, mysql::Error>
     {
         let mut qt_selection = None;
-        let mut contains_ucol_id = false;
         if let Some(s) = selection {
-            // check if the expr contains any conditions on user columns
-            qt_selection = Some(self.expr_to_value_expr(&s, txn, &mut contains_ucol_id, &ucols)?);
+            // eliminated nested subqueries (turn into values) and try to replace constraining values 
+            // for ucols with corresponding values for ghosts
+            qt_selection = Some(self.expr_to_value_expr(&s, txn, &ucols)?);
 
             // if a user column is being used as a selection criteria, first perform a 
             // select of all UIDs of matching rows in the MVs
-            if contains_ucol_id {
+            if !false { /* TODO */
                 // get the matching rows from the MVs 
                 let mv_select_stmt = Statement::Select(SelectStatement {
                         query: Box::new(Query::select(Select{
@@ -1585,7 +1638,7 @@ impl QueryTransformer {
         let mut qt_assn = vec![];
 
         for (i, a) in stmt.assignments.iter().enumerate() {
-            // we still want to perform the update BUT we need to make sure that the updated value, if a 
+            // we still want to perform the update BUT we need to make sure that the updated value, if an
             // expr with a query, reads from the MV rather than the datatables
                                 
             // we won't replace any UIDs when converting assignments to values, but
@@ -1641,6 +1694,7 @@ impl QueryTransformer {
             let res = txn.query_iter(format!("{}", get_gids_stmt_from_dt.to_string()))?;
             self.stats.nqueries+=1;
 
+            // update mappings in tables and in cache
             let mut ghost_update_stmts = vec![];
             let mut ghost_update_pairs = vec![];
             for row in res {
