@@ -13,30 +13,24 @@ pub struct QTStats {
 }
 
 pub struct QueryTransformer {
+    pub cfg: config::Config,
+
+    // caches
     uid2gids: HashMap<u64, Vec<u64>>,
     gid2uid: HashMap<u64, u64>,
-    //q2: HashMap<u64, u64>,
-
-    table_names: Vec<String>,
     latest_gid: AtomicU64,
     latest_uid: AtomicUsize,
 
-    pub cfg: config::Config,
-    pub params: super::TestParams,
+    // for tests
+    params: super::TestParams,
     pub stats: QTStats,
 }
 
 impl QueryTransformer {
     pub fn new(cfg: &config::Config, params: &super::TestParams) -> Self {
-        let mut table_names = Vec::<String>::new();
-        for dt in &cfg.data_tables {
-            table_names.push(dt.name.clone());
-        }
-        
         QueryTransformer{
             cfg: cfg.clone(),
             params: params.clone(),
-            table_names: table_names, 
             latest_gid: AtomicU64::new(super::GHOST_ID_START),
             latest_uid: AtomicUsize::new(0),
             stats: QTStats{nqueries:0},
@@ -58,26 +52,46 @@ impl QueryTransformer {
         self.gid2uid.insert(gid, uid);
     }
 
-    pub fn get_gids_for(&mut self, uid:u64, txn:&mut mysql::Transaction) -> Result<Vec<u64>, mysql::Error> {
-        match self.uid2gids.get_mut(&uid) {
-            Some(gids) => Ok(gids.to_vec()),
-            None => {
-                self.cache_uid2gids_for_uid(uid, txn)?;
-                let gids = self.uid2gids.get(&uid).ok_or(
+    pub fn get_gids_for(&mut self, uids: &Vec<u64>, txn:&mut mysql::Transaction) -> 
+        Result<Vec<(u64, Vec<u64>)>, mysql::Error> {
+        self.cache_uid2gids_for_uids(uids, txn)?;
+        let mut gid_vecs = vec![];
+        for uid in uids {
+            let gids = self.uid2gids.get(&uid).ok_or(
                     mysql::Error::IoError(io::Error::new(
                         io::ErrorKind::Other, "get_gids: uid not present in cache?")))?;
-                Ok(gids.to_vec())
-            }
+            gid_vecs.push((*uid, gids.to_vec()));
         }
+        Ok(gid_vecs)
     }
 
     /* 
      * Add uid->gid mapping to cache if mapping not yet present
      * by querying the ghosts mapping table
      */
-    pub fn cache_uid2gids_for_uid(&mut self, uid: u64, txn:&mut mysql::Transaction) -> Result<(), mysql::Error>
+    pub fn cache_uid2gids_for_uids(&mut self, uids: &Vec<u64>, txn:&mut mysql::Transaction) -> Result<(), mysql::Error>
     {
-        if self.uid2gids.get_mut(&uid) == None {
+        let mut uncached_uids = vec![];
+        for uid in uids {
+            if self.uid2gids.get(&uid) == None {
+                uncached_uids.push(uids[0])
+            }
+        }
+        let selection : Expr;
+        if uids.len() == 1 {
+            selection = Expr::BinaryOp{
+                left: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_USER_COL))),
+                op: BinaryOperator::Eq, 
+                right: Box::new(Expr::Value(Value::Number(uids[0].to_string()))),
+            };
+        } else {
+            selection =  Expr::InList{
+                expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_USER_COL))),
+                list: uncached_uids.iter().map(|u| Expr::Value(Value::Number(u.to_string()))).collect(),
+                negated: false, 
+            };
+        }
+        if uncached_uids.len() > 0 {
             let get_gids_of_uid_stmt = Query::select(Select{
                 distinct: true,
                 projection: vec![
@@ -97,11 +111,7 @@ impl QueryTransformer {
                     },
                     joins: vec![],
                 }],
-                selection: Some(Expr::BinaryOp{
-                    left: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_USER_COL))),
-                    op: BinaryOperator::Eq, 
-                    right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
-                }),
+                selection: Some(selection),
                 group_by: vec![],
                 having: None,
             });
@@ -149,54 +159,74 @@ impl QueryTransformer {
             fetch: None,
         })
     }
-    
-    fn query_to_value_rows(&mut self, query: &Query, txn: &mut mysql::Transaction) -> Result<Vec<Expr>, mysql::Error> {
+
+    /* 
+     * This issues the specified query to the MVs, and returns a VALUES row 
+     */
+    fn query_to_value_rows(&mut self, query: &Query, is_single_column: bool, txn: &mut mysql::Transaction) -> Result<Vec<Expr>, mysql::Error> {
         let mv_q = self.query_to_mv_query(query);
-        let mut rows: Vec<Expr>= vec![];
+        let mut vals_vec : Vec<Expr>= vec![];
         
-        warn!("query_to_nested_vals: {}", mv_q);
+        warn!("query_to_value_rows: {}", mv_q);
         let res = txn.query_iter(&mv_q.to_string())?;
         self.stats.nqueries+=1;
 
         for row in res {
             let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
-            rows.push(Expr::Row{
-                exprs: mysql_vals
+            if is_single_column {
+                if mysql_vals.len() != 1 {
+                    return Err(mysql::Error::IoError(io::Error::new(io::ErrorKind::Other, format!("Query should only select one column"))));
+                }
+                vals_vec.push(Expr::Value(helpers::mysql_val_to_parser_val(&mysql_vals[0])));
+            } else {
+                vals_vec.push(Expr::Row{exprs:
+                    mysql_vals
                     .iter()
-                    .map(|val| Expr::Value(helpers::mysql_val_to_parser_val(&val)))
+                    .map(|v| Expr::Value(helpers::mysql_val_to_parser_val(v)))
                     .collect()
-            });
+                });
+            }
         }
-        Ok(rows)
-    }
-
-    fn get_uid_exprs_between(&mut self, low: &Expr, high: &Expr, txn: &mut mysql::Transaction) -> Result<Vec<Expr>, mysql::Error> {
-        Ok(vec![])
-    }
-
-    fn get_gids_for_uids(&mut self, list: &Vec<Expr>, txn: &mut mysql::Transaction) -> Result<Vec<Expr>, mysql::Error> {
-        Ok(vec![])
+        Ok(vals_vec)
     }
 
     /*
      * This changes any nested queries to the corresponding VALUE 
      * (read from the MVs), if any exist.
-     *
-     * Replace any accounts of ``WHERE ucol = uid`` or ``ucol IN `[uids]`` with the corresponding GIDs
-     * NOTE: we assume that all LHS exprs evaluate down to some identifier (or wildcard)
      */
-    fn expr_to_value_expr(&mut self, 
-                          expr: &Expr, 
-                          txn: &mut mysql::Transaction, 
-                          ucols_to_replace: &Vec<String>) 
+    fn expr_to_value_expr(&mut self, expr: &Expr, txn: &mut mysql::Transaction, 
+                              contains_ucol_id: &mut bool, 
+                              ucols_to_replace: &Vec<String>) 
         -> Result<Expr, mysql::Error> 
     {
         let new_expr = match expr {
+            Expr::Identifier(_ids) => {
+                *contains_ucol_id |= ucols_to_replace.iter().any(|uc| uc.contains(&expr.to_string()));
+                expr.clone()
+            }
+            Expr::QualifiedWildcard(_ids) => {
+                *contains_ucol_id |= ucols_to_replace.iter().any(|uc| uc.contains(&expr.to_string()));
+                expr.clone()
+            }
+            Expr::FieldAccess {
+                expr,
+                field,
+            } => {
+                // XXX we might be returning TRUE for contains_ucol_id if only the expr matches,
+                // but not the field
+                Expr::FieldAccess {
+                    expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
+                    field: field.clone(),
+                }
+            }
+            Expr::WildcardAccess(e) => {
+                Expr::WildcardAccess(Box::new(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?))
+            }
             Expr::IsNull{
                 expr,
                 negated,
             } => Expr::IsNull {
-                expr: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
                 negated: *negated,
             },
             Expr::InList {
@@ -206,14 +236,10 @@ impl QueryTransformer {
             } => {
                 let mut new_list = vec![];
                 for e in list {
-                    new_list.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
+                    new_list.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
                 }
-                let lhs = self.expr_to_value_expr(&expr, txn, ucols_to_replace)?;
-                if helpers::expr_matches_ucol(&lhs, ucols_to_replace) {
-                    new_list = self.get_gids_for_uids(&list, txn)?;
-                } 
                 Expr::InList {
-                    expr: Box::new(lhs),
+                    expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
                     list: new_list,
                     negated: *negated,
                 }
@@ -223,14 +249,11 @@ impl QueryTransformer {
                 subquery,
                 negated,
             } => {
-                let mut list = self.query_to_value_rows(&subquery, txn)?;
-                let lhs = self.expr_to_value_expr(&expr, txn, ucols_to_replace)?;
-                if helpers::expr_matches_ucol(&lhs, ucols_to_replace) {
-                    list = self.get_gids_for_uids(&list, txn)?;
-                }
-                Expr::InList {
-                    expr: Box::new(lhs),
-                    list:list,
+                let new_query = self.query_to_value_query(&subquery, txn)?;
+                // otherwise just return table column IN subquery
+                Expr::InSubquery {
+                    expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
+                    subquery: Box::new(new_query),
                     negated: *negated,
                 }                
             }
@@ -240,54 +263,26 @@ impl QueryTransformer {
                 low,
                 high,
             } => {
-                let colname = self.expr_to_value_expr(&expr, txn, ucols_to_replace)?;
-
-                // change to be a constraint on GIDs if the column is the uid column
-                if helpers::expr_matches_ucol(&colname, ucols_to_replace) {
-                    // TODO update list by getting all UIDs that fit query and changing them to GIDs
-                    let mut list = self.get_uid_exprs_between(&low, &high, txn)?;
-                    list = self.get_gids_for_uids(&list, txn)?;
-                    // TODO update list to be GIDs
-                    Expr::InList {
-                        expr: Box::new(colname),
-                        list: list,
-                        negated: *negated,
-                    }
-                } else {
-                    // otherwise, just return the modified between stmt
-                    Expr::Between {
-                        expr: Box::new(colname),
-                        negated: *negated,
-                        low: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
-                        high: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
-                    }
+                let new_low = self.expr_to_value_expr(&low, txn, contains_ucol_id, ucols_to_replace)?;
+                let new_high = self.expr_to_value_expr(&high, txn, contains_ucol_id, ucols_to_replace)?;
+                Expr::Between {
+                    expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
+                    negated: *negated,
+                    low: Box::new(new_low),
+                    high: Box::new(new_high),
                 }
             }
-            Expr::BinaryOp {
+            Expr::BinaryOp{
                 left,
                 op,
                 right
             } => {
-                let leftcol = self.expr_to_value_expr(&left, txn, ucols_to_replace)?;
-                let rightcol = self.expr_to_value_expr(&left, txn, ucols_to_replace)?;
-
-                // change to be a constraint on GIDs if the column is the uid column
-                if helpers::expr_matches_ucol(&leftcol, ucols_to_replace) 
-                    || helpers::expr_matches_ucol(&rightcol, ucols_to_replace) {
-                    let mut list = self.get_uid_exprs_binop(&leftcol, &rightcol, op, txn)?;
-                    list = self.get_gids_for_uids(&list, txn)?;
-                    // TODO update list to be GIDs
-                    Expr::InList {
-                        expr: Box::new(colname),
-                        list: list,
-                        negated: *negated,
-                    }
-                } else {
-                    Expr::BinaryOp{
-                        left: Box::new(leftcol),
-                        op: op.clone(),
-                        right: Box::new(rightcol),
-                    }
+                let new_left = self.expr_to_value_expr(&left, txn, contains_ucol_id, ucols_to_replace)?;
+                let new_right = self.expr_to_value_expr(&right, txn, contains_ucol_id, ucols_to_replace)?;
+                Expr::BinaryOp{
+                    left: Box::new(new_left),
+                    op: op.clone(),
+                    right: Box::new(new_right),
                 }
             }
             Expr::UnaryOp{
@@ -295,30 +290,30 @@ impl QueryTransformer {
                 expr,
             } => Expr::UnaryOp{
                 op: op.clone(),
-                expr: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
             },
             Expr::Cast{
                 expr,
                 data_type,
             } => Expr::Cast{
-                expr: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
                 data_type: data_type.clone(),
             },
             Expr::Collate {
                 expr,
                 collation,
             } => Expr::Collate{
-                expr: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
                 collation: collation.clone(),
             },
             Expr::Nested(expr) => Expr::Nested(Box::new(
-                    self.expr_to_value_expr(&expr, txn, ucols_to_replace)?)),
+                    self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?)),
             Expr::Row{
                 exprs,
             } => {
                 let mut new_exprs = vec![];
                 for e in exprs {
-                    new_exprs.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
+                    new_exprs.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
                 }
                 Expr::Row{
                     exprs: new_exprs,
@@ -331,25 +326,25 @@ impl QueryTransformer {
                     FunctionArgs::Args(exprs) => {
                         let mut new_exprs = vec![];
                         for e in exprs {
-                            new_exprs.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
+                            new_exprs.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
                         }
                         FunctionArgs::Args(new_exprs)
                     }                
                 },
                 filter: match &f.filter {
-                    Some(filt) => Some(Box::new(self.expr_to_value_expr(&filt, txn, ucols_to_replace)?)),
+                    Some(filt) => Some(Box::new(self.expr_to_value_expr(&filt, txn, contains_ucol_id, ucols_to_replace)?)),
                     None => None,
                 },
                 over: match &f.over {
                     Some(ws) => {
                         let mut new_pb = vec![];
                         for e in &ws.partition_by {
-                            new_pb.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
+                            new_pb.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
                         }
                         let mut new_ob = vec![];
                         for obe in &ws.order_by {
                             new_ob.push(OrderByExpr {
-                                expr: self.expr_to_value_expr(&obe.expr, txn, ucols_to_replace)?,
+                                expr: self.expr_to_value_expr(&obe.expr, txn, contains_ucol_id, ucols_to_replace)?,
                                 asc: obe.asc.clone(),
                             });
                         }
@@ -371,39 +366,33 @@ impl QueryTransformer {
             } => {
                 let mut new_cond = vec![];
                 for e in conditions {
-                    new_cond.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
+                    new_cond.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
                 }
                 let mut new_res= vec![];
                 for e in results {
-                    new_res.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
+                    new_res.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
                 }
                 Expr::Case{
                     operand: match operand {
-                        Some(e) => Some(Box::new(self.expr_to_value_expr(&e, txn, ucols_to_replace)?)),
+                        Some(e) => Some(Box::new(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?)),
                         None => None,
                     },
                     conditions: new_cond ,
                     results: new_res, 
                     else_result: match else_result {
-                        Some(e) => Some(Box::new(self.expr_to_value_expr(&e, txn, ucols_to_replace)?)),
+                        Some(e) => Some(Box::new(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?)),
                         None => None,
                     },
                 }
             }
-            Expr::Exists(q) => {
-                match self.query_to_value_rows(&q, txn)?.len() {
-                    0 => Expr::Value(Value::Boolean(false)),
-                    _ => Expr::Value(Value::Boolean(true)),
-                }
-            }
+            Expr::Exists(q) => Expr::Exists(Box::new(self.query_to_value_query(&q, txn)?)),
             Expr::Subquery(q) => Expr::Subquery(Box::new(self.query_to_value_query(&q, txn)?)),
             Expr::Any {
                 left,
                 op,
                 right,
             } => Expr::Any {
-                // TODO 
-                left: Box::new(self.expr_to_value_expr(&left, txn, ucols_to_replace)?),
+                left: Box::new(self.expr_to_value_expr(&left, txn, contains_ucol_id, ucols_to_replace)?),
                 op: op.clone(),
                 right: Box::new(self.query_to_value_query(&right, txn)?),
             },
@@ -412,15 +401,14 @@ impl QueryTransformer {
                 op,
                 right,
             } => Expr::All{
-                // TODO 
-                left: Box::new(self.expr_to_value_expr(&left, txn, ucols_to_replace)?),
+                left: Box::new(self.expr_to_value_expr(&left, txn, contains_ucol_id, ucols_to_replace)?),
                 op: op.clone(),
                 right: Box::new(self.query_to_value_query(&right, txn)?),
             },
             Expr::List(exprs) => {
                 let mut new_exprs = vec![];
                 for e in exprs {
-                    new_exprs.push(self.expr_to_value_expr(&e, txn, ucols_to_replace)?);
+                    new_exprs.push(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?);
                 }
                 Expr::List(new_exprs)
             }
@@ -428,8 +416,8 @@ impl QueryTransformer {
                 expr,
                 subscript,
             } => Expr::SubscriptIndex{
-                expr: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
-                subscript: Box::new(self.expr_to_value_expr(&subscript, txn, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
+                subscript: Box::new(self.expr_to_value_expr(&subscript, txn, contains_ucol_id, ucols_to_replace)?),
             },
             Expr::SubscriptSlice{
                 expr,
@@ -439,30 +427,358 @@ impl QueryTransformer {
                 for pos in positions {
                     new_pos.push(SubscriptPosition {
                         start: match &pos.start {
-                            Some(e) => Some(self.expr_to_value_expr(&e, txn, ucols_to_replace)?),
+                            Some(e) => Some(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?),
                             None => None,
                         },
                         end: match &pos.end {
-                            Some(e) => Some(self.expr_to_value_expr(&e, txn, ucols_to_replace)?),
+                            Some(e) => Some(self.expr_to_value_expr(&e, txn, contains_ucol_id, ucols_to_replace)?),
                             None => None,
                         },                
                     });
                 }
                 Expr::SubscriptSlice{
-                    expr: Box::new(self.expr_to_value_expr(&expr, txn, ucols_to_replace)?),
+                    expr: Box::new(self.expr_to_value_expr(&expr, txn, contains_ucol_id, ucols_to_replace)?),
                     positions: new_pos,
                 }
             }
-            // XXX don't support field access or wildcard access with arbitrary expressions for
-            // right now
-            Expr::FieldAccess{expr:_, field:_} | Expr::WildcardAccess(_) => 
-                unimplemented!("Arbitrary exprs in identifiers not supported"),
             _ => expr.clone(),
         };
         Ok(new_expr)
     }
 
+    /*
+     * Try and convert to expr that uses GIDs instead of UIDs If expression matches the subset of
+     * expressions accepted, returns Some(expr) else returns None 
+     *
+     * Note that expressions where we can guarantee that the constraint is on a non-user column are
+     * also acceptable; nested or more complex expressions, however, are not.
+     */
+    fn fastpath_expr_to_gid_expr(&mut self, e: &Expr, txn: &mut mysql::Transaction, ucols_to_replace: &Vec<String>) 
+        -> Result<Option<Expr>, mysql::Error> 
+    {
+        // if it's just an identifier, we can return if it's not a ucol
+        if helpers::expr_is_col(&e) && !helpers::expr_is_ucol(&e, ucols_to_replace) {
+            return Ok(Some(e.clone()));
+        }
+        let mut new_expr = None;
+        match e {
+            // values are always ok!
+            Expr::Value(_) => {new_expr = Some(e.clone());}
+            
+            // these are ok as long as the expr is a column
+            Expr::Cast{expr, ..} | Expr::Collate{expr, ..} | Expr::IsNull{expr,..} => {
+                if helpers::expr_is_col(&expr) {
+                    new_expr = Some(e.clone());
+                } 
+            }
+            
+            // col [NOT] IN (values list)
+            Expr::InList {
+                expr,
+                list,
+                negated,
+            } => {
+                if helpers::expr_is_col(&expr) {
+                    if helpers::expr_is_ucol(&expr, ucols_to_replace) {
+                        // get all uids in the list
+                        let mut uid_vals = vec![];
+                        for e in list {
+                            // values must be u64 for ucols
+                            match helpers::parser_expr_to_u64(&e) {
+                                Ok(v) => uid_vals.push(v),
+                                Err(_) => return Ok(None),
+                            }
+                        }
+
+                        // now change the uids to gids
+                        let mut gid_exprs = vec![];
+                        for (_uid, gids) in self.get_gids_for(&uid_vals, txn)? {
+                            for g in gids {
+                                gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
+                            }
+                        }
+                        new_expr = Some(Expr::InList {
+                            expr: expr.clone(),
+                            list: gid_exprs,
+                            negated: *negated,
+                        });
+                    } else {
+                       new_expr = Some(e.clone());
+                    }
+                }
+            }
+            
+            // col IN subquery 
+            Expr::InSubquery {
+                expr,
+                subquery,
+                negated,
+            } => {
+                if helpers::expr_is_col(expr) {
+                    let vals_vec = self.query_to_value_rows(&subquery, true, txn)?;
+                    if helpers::expr_is_ucol(expr, ucols_to_replace) {
+                        // get all uids in the list
+                        let mut uid_vals = vec![];
+                        for e in vals_vec {
+                            // values must be u64 for ucols
+                            match helpers::parser_expr_to_u64(&e) {
+                                Ok(v) => uid_vals.push(v),
+                                Err(_) => return Ok(None),
+                            }
+                        }
+
+                        // now change the uids to gids
+                        let mut gid_exprs = vec![];
+                        for (_uid, gids) in self.get_gids_for(&uid_vals, txn)? {
+                            for g in gids {
+                                gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
+                            }
+                        }
+                        new_expr = Some(Expr::InList {
+                            expr: expr.clone(),
+                            list: gid_exprs,
+                            negated: *negated,
+                        });
+                    } else {
+                        new_expr = Some(Expr::InList {
+                            expr: expr.clone(),
+                            list: vals_vec,
+                            negated: *negated,
+                        });
+                    }
+                }
+            }
+            
+            // col BETWEEN numval1 numval2
+            Expr::Between {
+                expr,
+                negated,
+                low,
+                high,
+            } => {
+                if helpers::expr_is_col(&expr) {
+                    let lowu64 : u64;
+                    let highu64 : u64;
+                    match helpers::parser_expr_to_u64(&low) {
+                        Ok(v) => {lowu64 = v;}
+                        Err(_) => {return Ok(None);}
+                    }
+                    match helpers::parser_expr_to_u64(&high) {
+                        Ok(v) => {highu64 = v;}
+                        Err(_) => {return Ok(None);}
+                    }
+                    if helpers::expr_is_ucol(&expr, ucols_to_replace) {
+                        // change the uids in the range to gids
+                        let uid_vals : Vec<u64> = ops::RangeInclusive::new(lowu64, highu64).collect();
+                        let mut gid_exprs = vec![];
+                        for (_uid, gids) in self.get_gids_for(&uid_vals, txn)? {
+                            for g in gids {
+                                gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
+                            }
+                        }
+                        new_expr = Some(Expr::InList {
+                            expr: expr.clone(),
+                            list: gid_exprs,
+                            negated: *negated,
+                        });
+                    } else {
+                        new_expr = Some(e.clone());
+                    }
+                } 
+            }
+            Expr::BinaryOp{
+                left,
+                op,
+                right
+            } => {
+                match op {
+                    BinaryOperator::Eq | BinaryOperator::NotEq | BinaryOperator::Lt | BinaryOperator::LtEq => {
+                        if helpers::expr_is_col(&left) {
+                            // ucol OP u64 val
+                            if helpers::expr_is_ucol(&left, ucols_to_replace) {
+                                if let Ok(v) = helpers::parser_expr_to_u64(&right) {
+                                    let uid_vals : Vec<u64> = match op {
+                                        BinaryOperator::Lt => (0..v).collect(),
+                                        BinaryOperator::LtEq => ops::RangeInclusive::new(0, v).collect(),
+                                        _ => vec![v],
+                                    };
+                                    let mut gid_exprs = vec![];
+                                    for (_uid, gids) in self.get_gids_for(&uid_vals, txn)? {
+                                        for g in gids {
+                                            gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
+                                        }
+                                    }
+                                    new_expr = Some(Expr::InList{
+                                        expr: left.clone(),
+                                        list: gid_exprs, 
+                                        negated: (*op == BinaryOperator::NotEq),
+                                    });
+                                }
+                            // col OP val or non-ucol column
+                            } else if !helpers::expr_is_ucol(&right, ucols_to_replace) 
+                                && (helpers::expr_is_col(&right) 
+                                    || helpers::expr_is_value(&right)) 
+                            {
+                                new_expr = Some(e.clone());
+                            }
+                        }
+                    }
+                    // col > / >= col or val 
+                    //  XXX ucols not supported because potentially unbounded
+                    BinaryOperator::Gt | BinaryOperator::GtEq => {
+                        if !helpers::expr_is_ucol(&left, ucols_to_replace) 
+                            && !helpers::expr_is_ucol(&right, ucols_to_replace) 
+                            && (helpers::expr_is_col(&left) || helpers::expr_is_value(&left)) 
+                            && (helpers::expr_is_col(&right) || helpers::expr_is_value(&right)) 
+                        {
+                                new_expr = Some(e.clone());
+                        } 
+                    }
+                    _ => {
+                        // all other ops are ops on nested (non-primitive) exprs
+                        // NOTE: just column names won't pass fastpath because then there may be
+                        // constraints supported like "ucol * col", which would lead to inaccurate results
+                        // when ucol contains GIDs
+                        let newleft = self.fastpath_expr_to_gid_expr(&left, txn, ucols_to_replace)?;
+                        let newright = self.fastpath_expr_to_gid_expr(&right, txn, ucols_to_replace)?;
+                        if newleft.is_some() && newright.is_some() {
+                            new_expr = Some(Expr::BinaryOp{
+                                left: Box::new(newleft.unwrap()),
+                                op: op.clone(),
+                                right: Box::new(newright.unwrap()),
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // +/-/not (valid fastpath expr)
+            Expr::UnaryOp{
+                op,
+                expr,
+            } => {
+                if let Some(expr) = self.fastpath_expr_to_gid_expr(&expr, txn, ucols_to_replace)? {
+                    new_expr = Some(Expr::UnaryOp{
+                        op : op.clone(),
+                        expr: Box::new(expr),
+                    });
+                }
+            },
+
+            // nested (valid fastpath expr)
+            Expr::Nested(expr) => {
+                if let Some(expr) = self.fastpath_expr_to_gid_expr(&expr, txn, ucols_to_replace)? {
+                    new_expr = Some(Expr::Nested(Box::new(expr)));
+                } 
+            },
+            
+            // Row or List(valid fastpath exprs)
+            Expr::Row{ exprs } | Expr::List(exprs) => {
+                let mut new_exprs = vec![];
+                for e in exprs {
+                    if let Some(newe) = self.fastpath_expr_to_gid_expr(&e, txn, ucols_to_replace)? {
+                        new_exprs.push(newe);
+                    } else {
+                        return Ok(None);
+                    }
+                }
+                if let Expr::Row{..} = e {
+                    new_expr = Some(Expr::Row{exprs: new_exprs});
+                } else {
+                    new_expr = Some(Expr::List(new_exprs));
+                }
+            }
+
+            // query contains more than one value
+            Expr::Exists(q) => {
+                let vals = self.query_to_value_rows(&q, false, txn)?;
+                if vals.len() > 0 {
+                    new_expr = Some(Expr::Value(Value::Boolean(true)));
+                } else {
+                    new_expr = Some(Expr::Value(Value::Boolean(false)));
+                }
+            }
+            
+            Expr::Case {
+                operand,
+                conditions,
+                results,
+                else_result,
+            } => {
+                let new_op = match operand {
+                    Some(e) => self.fastpath_expr_to_gid_expr(&e, txn, ucols_to_replace)?,
+                    None => None,
+                };
+
+                let mut new_cond = vec![];
+                for e in conditions {
+                    if let Some(newe) = self.fastpath_expr_to_gid_expr(&e, txn, ucols_to_replace)? {
+                        new_cond.push(newe);
+                    }
+                }
+                let mut new_res= vec![];
+                for e in results {
+                    if let Some(newe) = self.fastpath_expr_to_gid_expr(&e, txn, ucols_to_replace)? {
+                        new_res.push(newe);
+                    }
+                }
+                let new_end_res = match else_result {
+                    Some(e) => self.fastpath_expr_to_gid_expr(&e, txn, ucols_to_replace)?,
+                    None => None,
+                };
+
+                new_expr = Some(Expr::Case{
+                    operand: match new_op {
+                        Some(e) => Some(Box::new(e)),
+                        None => None,
+                    },
+                    conditions: new_cond ,
+                    results: new_res, 
+                    else_result: match new_end_res {
+                        Some(e) => Some(Box::new(e)),
+                        None => None,
+                    },
+                });
+            }
+            
+            Expr::Subquery(q) => {
+                new_expr = Some(Expr::Subquery(Box::new(self.query_to_value_query(&q, txn)?)));
+            }
+            
+            Expr::Any {
+                left,
+                op,
+                right,
+            } => {
+                if let Some(newleft) = self.fastpath_expr_to_gid_expr(&left, txn, ucols_to_replace)? {
+                    new_expr = Some(Expr::Any{
+                        left: Box::new(newleft),
+                        op: op.clone(),
+                        right: Box::new(self.query_to_value_query(&right, txn)?),
+                    });
+                }
+            }
+            
+            Expr::All{
+                left,
+                op,
+                right,
+            } => {
+                if let Some(newleft) = self.fastpath_expr_to_gid_expr(&left, txn, ucols_to_replace)? {
+                    new_expr = Some(Expr::Any{
+                        left: Box::new(newleft),
+                        op: op.clone(),
+                        right: Box::new(self.query_to_value_query(&right, txn)?),
+                    });
+                }
+            }
+            _ => (),
+        }
+        Ok(new_expr)
+    }
+
     fn insert_source_query_to_values(&mut self, q: &Query, txn: &mut mysql::Transaction) -> Result<Vec<Vec<Expr>>, mysql::Error> {
+        let mut contains_ucol_id = false;
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
         match &q.body {
             SetExpr::Values(Values(expr_vals)) => {
@@ -471,7 +787,7 @@ impl QueryTransformer {
                 for row in expr_vals {
                     let mut vals_row : Vec<Expr> = vec![];
                     for val in row {
-                        let value_expr = self.expr_to_value_expr(&val, txn, &vec![])?;
+                        let value_expr = self.expr_to_value_expr(&val, txn, &mut contains_ucol_id, &vec![])?;
                         match value_expr {
                             Expr::Subquery(q) => {
                                 match q.body {
@@ -530,8 +846,8 @@ impl QueryTransformer {
         // subset of the query name).
         
         let mut objs_mv = obj.clone();
-        for dt in &self.table_names {
-            if let Some((_start, end)) = helpers::str_subset_of_idents(dt, obj) {
+        for dt in &self.cfg.data_tables {
+            if let Some((_start, end)) = helpers::str_subset_of_idents(&dt.name, obj) {
                 objs_mv.clear();
                 for (index, ident) in obj.iter().enumerate() {
                     if index == end-1 {
@@ -1008,8 +1324,9 @@ impl QueryTransformer {
 
                 let mut assign_vals = vec![];
                 if is_dt_write || table_name.to_string() == self.cfg.user_table.name {
+                    let mut contains_ucol_id = false;
                     for a in assignments {
-                        assign_vals.push(self.expr_to_value_expr(&a.value, txn, &vec![])?);
+                        assign_vals.push(self.expr_to_value_expr(&a.value, txn, &mut contains_ucol_id, &vec![])?);
                     }
                 }
                     
@@ -1239,8 +1556,6 @@ impl QueryTransformer {
                         // update name(s)
                         if mv_table_name != name.to_string() {
                             // change config to reflect new table name
-                            self.table_names.push(to_item_name.to_string());
-                            self.table_names.retain(|x| *x != *name.to_string());
                             // TODO change config as table names are updated
                             /*if self.cfg.user_table.name == name.to_string() {
                                 self.cfg.user_table.name = to_item_name.to_string();
@@ -1429,125 +1744,128 @@ impl QueryTransformer {
         ucols: &Vec<String>) 
         -> Result<Option<Expr>, mysql::Error>
     {
+        let mut contains_ucol_id = false;
         let mut qt_selection = None;
         if let Some(s) = selection {
-            // eliminated nested subqueries (turn into values) and try to replace constraining values 
-            // for ucols with corresponding values for ghosts
-            qt_selection = Some(self.expr_to_value_expr(&s, txn, &ucols)?);
+            // check if the expr can be fast-pathed
+            if let Some(fastpath_expr) = self.fastpath_expr_to_gid_expr(&s, txn, &ucols)? {
+                qt_selection = Some(fastpath_expr);
+            } else {
+                // check if the expr contains any conditions on user columns
+                qt_selection = Some(self.expr_to_value_expr(&s, txn, &mut contains_ucol_id, &ucols)?);
 
-            // if a user column is being used as a selection criteria, first perform a 
-            // select of all UIDs of matching rows in the MVs
-            if !false { /* TODO */
-                // get the matching rows from the MVs 
-                let mv_select_stmt = Statement::Select(SelectStatement {
-                        query: Box::new(Query::select(Select{
-                        distinct: true,
-                        projection: vec![SelectItem::Wildcard],
-                        from: vec![TableWithJoins{
-                            relation: TableFactor::Table{
-                                name: self.objname_to_mv_objname(table_name),
-                                alias: None,
-                            },
-                            joins: vec![],
-                        }],
-                        selection: Some(self.expr_to_mv_expr(&s)),
-                        group_by: vec![],
-                        having: None,
-                    })),
-                    as_of: None,
-                });
+                // if a user column is being used as a selection criteria, first perform a 
+                // select of all UIDs of matching rows in the MVs
+                if contains_ucol_id {
+                    // get the matching rows from the MVs 
+                    let mv_select_stmt = Statement::Select(SelectStatement {
+                            query: Box::new(Query::select(Select{
+                            distinct: true,
+                            projection: vec![SelectItem::Wildcard],
+                            from: vec![TableWithJoins{
+                                relation: TableFactor::Table{
+                                    name: self.objname_to_mv_objname(table_name),
+                                    alias: None,
+                                },
+                                joins: vec![],
+                            }],
+                            selection: Some(self.expr_to_mv_expr(&s)),
+                            group_by: vec![],
+                            having: None,
+                        })),
+                        as_of: None,
+                    });
 
-                // collect row results from MV
-                let mut uids = vec![];
-                let mut rows : Vec<Vec<mysql::Value>> = vec![];
-                let mut cols = vec![];
-                warn!("selection_to_dt_selection: {}", mv_select_stmt);
-                let res = txn.query_iter(format!("{}", mv_select_stmt.to_string()))?;
-                self.stats.nqueries+=1;
-                for row in res {
-                    let row = row.unwrap();
-                    cols = row.columns_ref().to_vec();
-                    
-                    let mut row_vals = vec![];
-                    for i in 0..cols.len() {
-                        // if it's a user column, add restriction on GID
-                        let colname = cols[i].name_str().to_string();
- 
-                        // Add condition on user column to be within relevant GIDs mapped
-                        // to by the UID value
-                        // However, only update with GIDs if UID value is NOT NULL
-                        if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) 
-                            && row[i] != mysql::Value::NULL 
-                        {
-                            uids.push(helpers::mysql_val_to_u64(&row[i])?);
+                    // collect row results from MV
+                    let mut uids = vec![];
+                    let mut rows : Vec<Vec<mysql::Value>> = vec![];
+                    let mut cols = vec![];
+                    warn!("selection_to_dt_selection: {}", mv_select_stmt);
+                    let res = txn.query_iter(format!("{}", mv_select_stmt.to_string()))?;
+                    self.stats.nqueries+=1;
+                    for row in res {
+                        let row = row.unwrap();
+                        cols = row.columns_ref().to_vec();
+                        
+                        let mut row_vals = vec![];
+                        for i in 0..cols.len() {
+                            // if it's a user column, add restriction on GID
+                            let colname = cols[i].name_str().to_string();
+     
+                            // Add condition on user column to be within relevant GIDs mapped
+                            // to by the UID value
+                            // However, only update with GIDs if UID value is NOT NULL
+                            if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) 
+                                && row[i] != mysql::Value::NULL 
+                            {
+                                uids.push(helpers::mysql_val_to_u64(&row[i])?);
+                            }
+                            row_vals.push(row[i].clone());
                         }
-                        row_vals.push(row[i].clone());
-                    }
-                    rows.push(row_vals);
-                }
-
-                // get all the gid rows corresponding to uids
-                // TODO deal with potential GIDs in user_cols due to
-                // unsubscriptions/resubscriptions
-                for uid in uids {
-                    self.cache_uid2gids_for_uid(uid, txn)?;
-                }
-
-                // expr to constrain to select a particular row
-                let mut or_row_constraint_expr = Expr::Value(Value::Boolean(false));
-                for row in rows {
-                    let mut and_col_constraint_expr = Expr::Value(Value::Boolean(true));
-                    for i in 0..cols.len() {
-                        // if it's a user column, add restriction on GID
-                        let colname = cols[i].name_str().to_string();
-                        // Add condition on user column to be within relevant GIDs mapped
-                        // to by the UID value
-                        // However, only update with GIDs if UID value is NOT NULL
-                        if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) 
-                            && row[i] != mysql::Value::NULL 
-                        {
-                            let uid = helpers::mysql_val_to_u64(&row[i])?;
-                            // add condition on user column to be within the relevant GIDs
-                            and_col_constraint_expr = Expr::BinaryOp {
-                                left: Box::new(and_col_constraint_expr),
-                                op: BinaryOperator::And,
-                                right: Box::new(Expr::InList {
-                                    expr: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
-                                    list: match self.uid2gids.get(&uid) {
-                                        Some(gids) => gids.iter()
-                                            .map(|g| Expr::Value(Value::Number(g.to_string())))
-                                            .collect(),
-                                        None => vec![],
-                                    },
-                                    negated: false,
-                                }),
-                            };
-
-                        } else {
-
-                            // otherwise, we just want to constrain the row value to the
-                            // actual value returned
-                            and_col_constraint_expr = Expr::BinaryOp {
-                                left: Box::new(and_col_constraint_expr),
-                                op: BinaryOperator::And,
-                                right: Box::new(Expr::BinaryOp{
-                                    left: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
-                                    op: BinaryOperator::Eq,
-                                    right: Box::new(Expr::Value(helpers::mysql_val_to_parser_val(&row[i]))),
-                                }),             
-                            };
-                        }
+                        rows.push(row_vals);
                     }
 
-                    // we allow the selection to match ANY returned row
-                    or_row_constraint_expr = Expr::BinaryOp {
-                        left: Box::new(or_row_constraint_expr),
-                        op: BinaryOperator::Or,
-                        right: Box::new(and_col_constraint_expr),
-                    };
-                }
-                qt_selection = Some(or_row_constraint_expr);
-            } 
+                    // get all the gid rows corresponding to uids
+                    // TODO deal with potential GIDs in user_cols due to
+                    // unsubscriptions/resubscriptions
+                    self.cache_uid2gids_for_uids(&uids, txn)?;
+
+                    // expr to constrain to select a particular row
+                    let mut or_row_constraint_expr = Expr::Value(Value::Boolean(false));
+                    for row in rows {
+                        let mut and_col_constraint_expr = Expr::Value(Value::Boolean(true));
+                        for i in 0..cols.len() {
+                            // if it's a user column, add restriction on GID
+                            let colname = cols[i].name_str().to_string();
+                            // Add condition on user column to be within relevant GIDs mapped
+                            // to by the UID value
+                            // However, only update with GIDs if UID value is NOT NULL
+                            if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) 
+                                && row[i] != mysql::Value::NULL 
+                            {
+                                let uid = helpers::mysql_val_to_u64(&row[i])?;
+                                // add condition on user column to be within the relevant GIDs
+                                and_col_constraint_expr = Expr::BinaryOp {
+                                    left: Box::new(and_col_constraint_expr),
+                                    op: BinaryOperator::And,
+                                    right: Box::new(Expr::InList {
+                                        expr: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
+                                        list: match self.uid2gids.get(&uid) {
+                                            Some(gids) => gids.iter()
+                                                .map(|g| Expr::Value(Value::Number(g.to_string())))
+                                                .collect(),
+                                            None => vec![],
+                                        },
+                                        negated: false,
+                                    }),
+                                };
+
+                            } else {
+
+                                // otherwise, we just want to constrain the row value to the
+                                // actual value returned
+                                and_col_constraint_expr = Expr::BinaryOp {
+                                    left: Box::new(and_col_constraint_expr),
+                                    op: BinaryOperator::And,
+                                    right: Box::new(Expr::BinaryOp{
+                                        left: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
+                                        op: BinaryOperator::Eq,
+                                        right: Box::new(Expr::Value(helpers::mysql_val_to_parser_val(&row[i]))),
+                                    }),             
+                                };
+                            }
+                        }
+
+                        // we allow the selection to match ANY returned row
+                        or_row_constraint_expr = Expr::BinaryOp {
+                            left: Box::new(or_row_constraint_expr),
+                            op: BinaryOperator::Or,
+                            right: Box::new(and_col_constraint_expr),
+                        };
+                    }
+                    qt_selection = Some(or_row_constraint_expr);
+                } 
+            }
         } 
         return Ok(qt_selection);
     }
@@ -1638,7 +1956,7 @@ impl QueryTransformer {
         let mut qt_assn = vec![];
 
         for (i, a) in stmt.assignments.iter().enumerate() {
-            // we still want to perform the update BUT we need to make sure that the updated value, if an
+            // we still want to perform the update BUT we need to make sure that the updated value, if a 
             // expr with a query, reads from the MV rather than the datatables
                                 
             // we won't replace any UIDs when converting assignments to values, but
@@ -1694,7 +2012,6 @@ impl QueryTransformer {
             let res = txn.query_iter(format!("{}", get_gids_stmt_from_dt.to_string()))?;
             self.stats.nqueries+=1;
 
-            // update mappings in tables and in cache
             let mut ghost_update_stmts = vec![];
             let mut ghost_update_pairs = vec![];
             for row in res {

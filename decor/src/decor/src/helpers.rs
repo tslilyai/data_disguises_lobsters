@@ -103,13 +103,27 @@ pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName)
 /***************************
  * IDENT STUFF
  ***************************/
-pub fn expr_matches_ucol(expr:&Expr, ucols : &Vec<String>) -> bool {
+pub fn expr_is_ucol(expr:&Expr, ucols : &Vec<String>) -> bool {
     match expr {
         Expr::Identifier(_) => 
             ucols.iter().any(|uc| uc.ends_with(&expr.to_string())),
         Expr::QualifiedWildcard(ids) => 
             ucols.iter().any(|uc| uc.contains(&(Expr::Identifier(ids.to_vec())).to_string())),
         // currently don't handle nested expressions inside LHS of expr (be conservative!)
+        _ => false,
+    } 
+}
+
+pub fn expr_is_col(expr:&Expr) -> bool {
+    match expr {
+        Expr::Identifier(_) | Expr::QualifiedWildcard(_) => true,
+        _ => false,
+    } 
+}
+
+pub fn expr_is_value(expr:&Expr) -> bool {
+    match expr {
+        Expr::Value(_) => true,
         _ => false,
     } 
 }

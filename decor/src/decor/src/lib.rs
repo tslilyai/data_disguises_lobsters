@@ -164,8 +164,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let uid_val = ast::Value::Number(uid.to_string());
                     
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
-        let gids = self.qtrans.get_gids_for(uid, &mut txn)?;
-        for gid in gids {
+        let uid2gids = self.qtrans.get_gids_for(&vec![uid], &mut txn)?;
+        for gid in &uid2gids[0].1 {
             vals_vec.push(vec![Expr::Value(ast::Value::Number(gid.to_string()))]);
         }
         let gid_source_q = Query {
@@ -298,9 +298,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
         
-        let gids = self.qtrans.get_gids_for(uid, &mut txn)?;
+        let uid2gids = self.qtrans.get_gids_for(&vec![uid], &mut txn)?;
         let mut gid_exprs : Vec<Expr>= vec![];
-        for gid in gids {
+        for gid in &uid2gids[0].1 {
             gid_exprs.push(Expr::Value(ast::Value::Number(gid.to_string())));
         }
         let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
