@@ -14,7 +14,7 @@ In this paper, we propose \sys, a new approach to managing user identities in we
 \sys~meets the decorrelation requirements in the GDPR, and goes beyond: with \sys, it is possible
 for users to switch between a privacy-preserving unsubscribed mode and an identity-revealing
 subscribed mode at any time. This facilitates important new web service paradigms, such as users
-granting a time-limited "lease" of data to a service instead of having a permanent service account.
+granting a time-limited ``lease'' of data to a service instead of having a permanent service account.
 
 %Furthermore, keeping identifying and personal data when no longer strictly necessary increases
 %companies' liability: the GDPR and other laws mandate that companies retain only user data that is
@@ -27,7 +27,7 @@ granting a time-limited "lease" of data to a service instead of having a permane
 \sys's goal is to provide the following properties while preserving an application's 
 semantics: 
 \begin{description} 
-    \item[Decorrelation.] Decorrelation ideally guarantees that it is impossible to distinguish
+    \item[Decorrelation.] Informally, ideal decorrelation guarantees that it is impossible to distinguish
         between two records formerly associated with the same unsubscribed user and two records from
         different unsubscribed users.  
     %\item Deletion Correctness: Deletion of user records should correctly conform to application
@@ -41,94 +41,175 @@ semantics:
 widely-used databases, and (2) easy adoption (decorrelation should be
 automated without needing to modify application schemas or semantics).
 
-\subsection{Decorrelation Guarantees} 
+\subsection{Threat Model.}
 We address applications in which application data consists of \emph{data records} and computations
 (such as aggregations) that may be performed over these data records. Data records are considered
-sensitive, private data records when they contain \emph{user identifiers}; for example, a row in a
-table containing a column of user IDs would be a user's private data record. Data records containing
-multiple, potentially different, user IDs are considered shared data records private to the
-identified users. We refer to data records belonging to unsubscribed users as \emph{remnants}.
+sensitive, private data records when they contain \emph{user identifiers (UIDs)}. For example, the
+user table ID field, usernames, or phone numbers would all be UIDs, and a table row with any of
+these as columns would is a private data record. 
 
-Perfect decorrelation is achieved when queries to the application reveal no information allowing an
-observer to determine if two distinct user data records belong to the same user who has since
-unsubscribed (are \emph{linked}), or belong to two different (real or unsubscribed) users. Observers
-gain no information that allows them to distinguish the two scenarios. 
+We assume that all user data records contain a user table ID field, a
+numerical user key $uid_{\text{key}}$ that is unique to each user, and which ties all data records
+to a particular user.
+Data records containing multiple $uid_{\text{key}}$s are
+considered shared data records private to the identified users. 
 
-More formally, given user data records and a subset of $R$ of these records that are remnants, we
-divide the $R$ remnants among some number $N$ of unsubscribed users.  Perfect decorrelation
-guarantees that any division of the $R$ remnants among $N$ users is equally likely: each remnant is
-equally likely to be linked with any other remnant. 
+We refer to data records belonging
+to unsubscribed users as \emph{remnants}.
 
-~\lyt{I toyed with saying that $P(N = R) = P(N \le R)$: the probability that every distinct remnant
-belongs to a distinct user equals the probability that any user owns multiple remnants, but this
-seemed unnecessarily complex when I believe that the above statement captures decorrelation.} 
+We make the following assumptions of an attacker whose goal is to break decorrelation and reveal
+identifying information about data remnants:
 
-~\lyt{Note: whether $N$ is known or not also plays into the probability analysis}
-
-~\lyt{Note: this is the definition in which ghosts can be distinct from real users, so we're not
-trying to pretend that remnants cannot be identified}
-
-In practical settings, however, perfect decorrelation is likely impossible: for example, a reposted
-screenshot may leak user IDs. Furthermore, an observer who can see application queries over time, or
-search web archives, can detect when a user unsubscribes and refer to prior snapshots in which user
-data records may have had the same user ID.  Given these limitations, we seek to achieve the maximum
-decorrelation guarantees possible while assuming that the content of user data does not itself leak
-identifying information, and that observers cannot access past application database
-state.~\lyt{Note: UIDs can also include things like email addrs, phone number, etc; so the notion of
-``identifiers'' might be more broad than stated here}.
-
-\paragraph{Global Placeholder.}
-A common strawman solution to decorrelation is to replace all unsubscribed user IDs with one global
-placeholder ID. This means that all remnants can be identified by one distinct UID, which we call
-$GP$.
-
-A global placeholder can provide either complete privacy or no privacy at all. We first begin by
-assuming an observer has complete information about how many users are in the system ($N$).
 \begin{itemize}
-    \item If $N=1$ and only one user has unsubscribed, all remnants can be linked back to that user's
-        identity: any data record with UID equal to $GP$ belongs to that user.
-    \item If all users unsubscribe, two remnants are equally as likely to belong
-        to any two of the $N$ individual users as they are to belong to one single user. 
-\end{itemize}
-The amount of linkable information~\lyt{(need to define this)}, and the resulting deviance from
-perfect decorrelation, decreases as more users unsubscribe.
-Let us assume that an observer knows $N$ and $R$, and the number of data records per user is
-uniformly distributed. Let $r = \frac{R}{N}$ be the number of remnants per unsubscribed user. 
-Then an observer has probability $p_{\text{exact}}$ of guessing the correct combination of
-records per users, where  
-$$p_{\text{exact}} = \frac{(r!)^N}{R!}$$
-An observer has probability $p_{\text{user}}$ of guessing the correct combination for one user where 
-$$p_{\text{user}} = \frac{r!(R-r)!}{R!}$$
-\lyt{TODO---non-uniform distributions, not knowing $N$, not knowing $R$?}
+    \item An attacker can perform only those queries allowed by the application API: an
+attacker can access the application only via its public interface. 
+\lyt{Alternatively, an attacker could perform arbitrary queries on some public subset of the
+application schema (e.g., all tables other than the mapping table, or all tables marked with some
+compliance policy); arbitrary queries over the
+entirety of the table are out of scope, unless ``private'' tables are removed and stored by
+unsubscribing users.}
 
-Using a global placeholder, however, makes resubscription challenging: users can no identify which
-unsubscribed data records belong to them if all user-specific data has been erased from the
+\item An attacker cannot perform application queries to the past or search web archives:
+information from prior application snapshots may reveal 
+exactly how data records were decorrelated from unsubscribed users. 
+
+\item An attacker cannot gain identifying information from arbitrary user-generated content (for
+    example, a reposted screenshot, or text in user posts or comments).  Decorrelation seeks to
+        remove identifying information from only application metadata (e.g., date of postings,
+        database ID columns), or controllable user identifiers (e.g., a birthday or email address)
+        \lyt{There needs to be a clearer definition of what is ``arbitrary'' and what is
+        ``controllable''}
+\end{itemize}
+
+\subsection{Decorrelation Guarantees} 
+\paragraph{Decorrelation Techniques.}
+A common strawman decorrelation technique replaces all unsubscribed users' $uid_\text{key}$s with
+one \emph{global placeholder}, essentially collapsing all unsubscribed users' data into one pool.
+This means that all remnants can be identified by one distinct ghost (i.e., one $gid_\text{key}$). 
+Other UIDs in data records (such as emails, phone numbers) are also replaced by global
+placeholders (such as a default email address).
+Using a global placeholder, however, makes resubscription challenging: users can no identify which unsubscribed data records belong to them if all user-specific data has been erased from the
 system. 
 
-\paragraph{Data-Record Ghost IDs.}
-To support \lyt{the same?}\sout{stronger} decorrelation guarantees while supporting resubscription,
-\sys~generates a unique ghost user for each data remnant. 
-Unlike a global placeholder, \sys~allows users to reactivate their account and undo
-the decorrelation: user IDs can be linked back to a set of unique ghost IDs. 
-This gives users the ability to freely unsubscribe to protect their privacy
-without worrying about losing their accounts. \sys~resubscribes users by transparently propagating
-updates to materialized views to expose real user identifiers in place of ghost identifiers. 
+An alternative technique used by \sys~generates a unique \emph{ghost user} for each data remnant,
+essentially splitting unsubscribed users' data into individual pieces, and replacing one
+$uid_\text{key}$ with one $gid_\text{key}$ per data record owned by the user. Ghost users each have
+distinct GIDs in place of all UIDs for the user's data records (e.g., a randomly generated email
+address per ghost).  Unlike a global placeholder, \sys~allows users to reactivate their account and
+undo the decorrelation: $uid_\text{key}$s can be linked back to a set of unique $gid_\text{key}$s.
+This gives users the ability to freely unsubscribe to protect their privacy without worrying about
+losing their accounts.  \lyt{Ghosts also make schema changes / changing the location of data records
+easier to support.} 
 
-\sys~relies on coarse-grained schema annotations to establish which associations to decorrelate, and
-builds a dataflow computation resulting in materialized views that answer application queries. Use
-of dataflow automatically propagates the correct updates to materialized views.
+We next describe how these two techniques can lead to different decorrelation guarantees.
 
-\sout{These ghosts, unlike a global placeholder,
-are indistinguishable from a real user in the system, ensuring that queries cannot correlate two
-ghosts with a single real (albeit unsubscribed) user.
-However, some linkable information is still leaked. For example, ghost users may be randomly
-generated in a pattern identifiable by an observer (e.g.,\ if all ghosts have usernames which are
-random numbers, or arbitrary animals, but a real user may have more human-friendly usernames).}
+\paragraph{Measuring Decorrelation.} 
+We say that the system achieves \textbf{$\{\alpha,Q\}$-decorrelation} when the probability that an attacker
+can tell that any two distinct remnants belong to any one user is less than $\alpha$, given
+information derivable from performing any $Q$ queries.
+Defining this probability requires calculating two others: \begin{enumerate}
+    \item[$p_{\text{remnant}}$]: 
+        The probability that the attacker can determine that any data record is a remnant
+    \item[$p_{\text{linked}}$]:
+        The probability that any two remnants belong to the same individual
+\end{enumerate}
 
-\lyt{Not sure how to incorporate DP or some notion of noninterference here (how do \sys's responses to
-queries deviate from what an ideally decorrelated system would produce?)
-DP seems to deal with the change in probability of some event X, rather than the initial probability
-to begin with.
-Perhaps DP would be more applicable if we were looking at the database over time? And if we had some
-notion of noise. Without adding noise, the output would change dramatically when a user unsubscribes
-and UIDs are replaced by GIDs, which reveals complete linkability information.}
+\paragraph{Calculating $p_{\text{remnant}}$.}
+The probability that an attacker can determine that a data record is a remnant depends on the
+database decorrelation technique and specific application semantics.
+
+At one extreme, an application may expose only aggregate information over data records via its
+queries, which prevents an attacker to locate individual data remnants or data records at all. 
+
+More realistically, however, the application may allow some queries to access the UIDs either
+directly or indirectly. Then if decorrelation utilizes a global placeholder, an attacker can
+determine with 100\% certainty which records are remnants: any record with a UID equal to the global
+placeholder is clearly a remnant. However, if decorrelation instead relies on ghost users, an
+attacker cannot guarantee that any revealed identifier is a ghost instead of a real (subscribed)
+user. Instead, the attacker must calculate the probability that an identifier belongs to a ghost
+using external knowledge about identifiers (e.g., GIDs may be randomly generated in a identifiable
+pattern). 
+
+An attacker can also use other application-specific metadata and user content to calculate the
+probability that a record is a remnant, which would be necessary in the case in which queries cannot
+access UIDs directly or indirectly. Similar to how an attacker could use external knowledge
+about identifiers, an attacker could use knowledge about ghost profiles or ghosted records to
+distinguish them from real users.  For example, decorrelation may generate ghost profile usernames
+that are random numbers or arbitrary animals, while real users may have more human-friendly
+usernames.
+
+\paragraph{Decreasing $p_{\text{remnant}}$.}
+Because an attacker may use the distribution of data records in the system to pinpoint outliers and
+anomalies that may be remnants, remnants may be less easily spotted if more users unsubscribe and
+the system contains more remnants. 
+
+Given the possibility for application-specific data to leak information even when identifiers are
+hidden and when ghost users are used in place of a global placeholder, the decorrelation should
+ensure that information exposed by remnants cannot distinguish remnants from real data records.
+Creating remnants from data records should not follow a clear pattern (such as assigning global
+values for usernames).  This is highly specific to the application: it may be difficult to
+convincingly create user profiles for applications like Facebook and eCommerce sites, but easy in
+applications such as Reddit where many users use pseudonyms and have simple usage patterns.
+
+\paragraph{Calculating $p_{\text{linked}}$.}
+The probability that two remnants belong to the same individual can be determined by how much
+identifying information attacker queries can reveal.
+For example, if an attacker query reveals that multiple
+(likely) remnants are comments on classical music, these remnants are more likely to be
+correlated with the same individual than two remnants commenting on unrelated topics. If the
+attacker additionally queries for the time of post of these comments, and sees that both these posts
+were posted during daytime in California, the probability that they belong to the same individual
+increases (since the number of people who live in California and like classical music is less than
+the number of people who simply like classical music).
+
+\paragraph{Decreasing $p_{\text{linked}}$.}
+As with $p_{\text{remnant}}$, increasing the number of unsubscribed users and resulting
+number of remnants decreases the probability that any two remnants can be linked to any one
+user. For example, if there are two records that are likely to be remnants and both are upvotes on topics related to
+classical music, the probability that these remnants belong to the same unsubscribed user is high; but if
+there are thousands of likely remnants and all are upvotes on topics related to classical music, it
+is less likely that an attacker can tell that any two of these remnants belong to any one
+unsubscribed user.~\lyt{I'm a bit unconvinced of this argument, but I feel like there is some
+intuition here}.
+
+Decreasing $p_\text{linked}$ requires minimizing the amount of identifying information leaked
+through queries. However, there is a fundamental tradeoff between preserving useful information for
+the application and obfuscating remnant data. 
+
+At one extreme, if decorrelation does not modify UIDs at all (or does so in a predictable manner)
+and queries may return UIDs, then an attacker may learn the location of posts, time of posts, and
+potentially even usernames, leading to a high probability that the user can be identified. Note,
+that this leads to a low $p_\text{remnant}$ (since the remnant would look unmodified from any
+other subscribed user record), but also a high $p_\text{linked}$.
+
+At the other extreme, if decorrelation modifies the remnant completely by generating random and
+potentially meaningless values for all remnant UIDs, then an attacker gains little identifying
+information from the remnant. However, this may increase $p_\text{remnant}$ significantly.
+Alternatively, decorrelation could simply to remove remnants completely. In either case, decorrelation limits the usefulness of remnant data to the application. 
+
+Practically, in order to both preserve the usefulness of remnants to the application and provide
+decorrelation, \sys~will need to balance destroying remnant information with revealing identifying
+information to the attacker when creating ghosts during unsubscription. 
+
+\paragraph{Converting UIDs to GIDs.}
+\sys~generates random $gid_{\text{key}}$s for every unique data record belonging to one
+$uid_{\text{key}}$, and ensure that the $uid_{\text{key}}$ are randomly generated in the schema so
+that $gid_\text{key}$s are $uid_\text{key}$s are indistinguishable.
+
+For all other UIDs, \sys's decorrelation does the following to generate corresponding GIDs:
+\begin{itemize}
+    \item Numerical Values and Dates/Times: adds a random amount equal to the
+        \lyt{reversible?} hash of the UID time and $gid_\text{key}$ of the data record.
+    \item Phone number: randomly selects a real area code and randomly generates a 7-digit number
+    \item Email: randomly selects a real area code and randomly generates an amount to add to the 7-digit number, where the RNG is seeded with the $gid_\text{key}$
+    \item Username: generates a random but human-readable string (consisting of the
+        concatenation of English words), using a hash of the original username and
+        $gid_\text{key}$ to select words in the username.
+\end{itemize}
+The application programmer can add GID-generating functions for other application-specific UIDs
+via providing these functions as schema annotations; the programmer can also add functions to override \sys's defaults.
+These annotation should generate GIDs in a manner that minimizes both $p_\text{remnant}$ and $p_\text{linked}$.
+
+\lyt{TODO: Think about how this noising can be reversed upon resubscription? If the
+$gid_\text{key}$s are exposed, this might mean that an attacker could reverse the decorrelation as
+well... Perhaps the original $uid_\text{key}$ needs to come into play.}

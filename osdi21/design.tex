@@ -1,4 +1,10 @@
 %-------------------------------------------------------------------------------
 \section{Design}
 %-------------------------------------------------------------------------------
+\sys~relies on coarse-grained schema annotations to establish which associations to decorrelate, and
+builds a dataflow computation resulting in materialized views that answer application queries. Use
+of dataflow automatically propagates the correct updates to materialized views.
 
+\sys~resubscribes
+users by transparently propagating updates to materialized views to expose real user identifiers in
+place of ghost identifiers.
