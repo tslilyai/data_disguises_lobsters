@@ -8,9 +8,10 @@ use sql_parser::ast::*;
 use std::io::{self, BufReader, BufWriter};
 use std::*;
 use log::{debug, warn};
-pub mod helpers;
-pub mod query_transformer;
 pub mod config;
+pub mod helpers;
+pub mod qtcache;
+pub mod query_transformer;
 
 const GHOST_ID_START : u64 = 1<<20;
 const GHOST_TABLE_NAME : &'static str = "ghosts";
@@ -23,6 +24,10 @@ pub struct TestParams {
     pub translate: bool,
     pub parse: bool,
     pub in_memory: bool,
+}
+
+pub struct QTStats {
+    pub nqueries : usize,
 }
 
 fn create_ghosts_query(in_memory: bool) -> String {
@@ -163,11 +168,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
                     
-        let mut vals_vec : Vec<Vec<Expr>>= vec![];
-        let uid2gids = self.qtrans.get_gids_for(&vec![uid], &mut txn)?;
-        for gid in &uid2gids[0].1 {
-            vals_vec.push(vec![Expr::Value(ast::Value::Number(gid.to_string()))]);
-        }
+        let vals_vec : Vec<Vec<Expr>> = self.qtrans.cache.get_gids_for_uid(uid, &mut txn)?
+            .iter()
+            .map(|g| vec![Expr::Value(ast::Value::Number(g.to_string()))])
+            .collect();
         let gid_source_q = Query {
             ctes: vec![],
             body: SetExpr::Values(Values(vals_vec)),
@@ -298,11 +302,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
         
-        let uid2gids = self.qtrans.get_gids_for(&vec![uid], &mut txn)?;
-        let mut gid_exprs : Vec<Expr>= vec![];
-        for gid in &uid2gids[0].1 {
-            gid_exprs.push(Expr::Value(ast::Value::Number(gid.to_string())));
-        }
+        let gid_exprs : Vec<Expr> = self.qtrans.cache.get_gids_for_uid(uid, &mut txn)?
+            .iter()
+            .map(|g| Expr::Value(ast::Value::Number(g.to_string())))
+            .collect();
         let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
         let mv_table_name = self.qtrans.objname_to_mv_objname(&user_table_name);
 
