@@ -205,5 +205,3 @@ pub fn idents_subset_of_idents(id1: &Vec<Ident>, id2: &Vec<Ident>) -> Option<(us
     } 
     None
 }
-
-

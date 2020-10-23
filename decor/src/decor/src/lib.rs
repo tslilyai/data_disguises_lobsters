@@ -1,7 +1,6 @@
 extern crate mysql;
 use msql_srv::*;
 use mysql::prelude::*;
-use sql_parser::parser::*;
 use std::collections::HashMap;
 use sql_parser::*;
 use sql_parser::ast::*;
@@ -12,6 +11,7 @@ pub mod config;
 pub mod helpers;
 pub mod qtcache;
 pub mod query_transformer;
+pub mod sqlparser_cache;
 
 const GHOST_ID_START : u64 = 1<<20;
 const GHOST_TABLE_NAME : &'static str = "ghosts";
@@ -59,6 +59,7 @@ pub struct Shim {
     prepared: HashMap<u32, Prepared>,
 
     qtrans: query_transformer::QueryTransformer,
+    sqlcache: sqlparser_cache::ParserCache,
 
     // NOTE: not *actually* static, but tied to our connection's lifetime.
     schema: String,
@@ -81,8 +82,9 @@ impl Shim {
         let cfg = config::parse_config(cfg_json).unwrap();
         let prepared = HashMap::new();
         let qtrans = query_transformer::QueryTransformer::new(&cfg, &test_params);
+        let sqlcache = sqlparser_cache::ParserCache::new();
         let schema = schema.to_string();
-        Shim{cfg, db, qtrans, prepared, schema, test_params}
+        Shim{cfg, db, qtrans, sqlcache, prepared, schema, test_params}
     }   
 
     pub fn get_num_queries(&self) -> usize {
@@ -130,30 +132,19 @@ impl Shim {
             }
             stmt.push_str(line);
             if stmt.ends_with(';') {
-                sql.push_str(&helpers::process_schema_stmt(&stmt, self.test_params.in_memory));
-                sql.push_str("\n");
+                stmt = helpers::process_schema_stmt(&stmt, self.test_params.in_memory);
+                
+                let stmt_ast = self.sqlcache.get_single_parsed_stmt(&stmt)?;
+                warn!("stmt: {}", stmt_ast);
+                let mv_stmt = self.qtrans.get_mv_stmt(&stmt_ast, &mut txn)?;
+                warn!("mv_stmt: {}", mv_stmt);
+                txn.query_drop(mv_stmt.to_string())?;
+                self.qtrans.stats.nqueries+=1;
+                
                 stmt = String::new();
             }
         }
-
-        let stmts = parse_statements(sql);
-        match stmts {
-            Err(e) => {
-                Err(mysql::Error::IoError(io::Error::new(
-                        io::ErrorKind::InvalidInput, e)))
-            }
-            Ok(stmts) => {
-                for stmt in stmts {
-                    warn!("stmt: {}", stmt);
-                    let mv_stmt = self.qtrans.get_mv_stmt(&stmt, &mut txn)?;
-                    warn!("mv_stmt: {}", mv_stmt);
-                    txn.query_drop(mv_stmt.to_string())?;
-                    self.qtrans.stats.nqueries+=1;
-                }
-                txn.commit()?;
-                Ok(())
-            }
-        }
+        Ok(())
     }
 }
 
@@ -572,32 +563,23 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             return answer_rows(results, self.db.query_iter(query));
         }
 
-        let stmts_res = parse_statements(query.to_string());
-        match stmts_res {
-            Err(e) => {
-                results.error(ErrorKind::ER_PARSE_ERROR, format!("{:?}", e).as_bytes())?;
-                return Ok(());
-            }
-            Ok(stmts) => {
-                assert!(stmts.len()==1);
-                if !self.test_params.translate {
-                    self.qtrans.stats.nqueries+=1;
-                    warn!("on_query: {}", stmts[0]);
-                    return answer_rows(results, self.db.query_iter(stmts[0].to_string()));
-                }
+        let stmt_ast = self.sqlcache.get_single_parsed_stmt(&query.to_string())?;
+        if !self.test_params.translate {
+            self.qtrans.stats.nqueries+=1;
+            warn!("on_query: {}", stmt_ast);
+            return answer_rows(results, self.db.query_iter(stmt_ast.to_string()));
+        }
 
-                let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
-                let mv_stmt = self.qtrans.get_mv_stmt(&stmts[0], &mut txn)?;
-                self.qtrans.stats.nqueries+=1;
-                warn!("on_query: {}", mv_stmt);
-                let res = answer_rows(results, txn.query_iter(mv_stmt.to_string()));
-                match res {
-                    Err(e) => return Err(e),
-                    Ok(()) => {
-                        txn.commit()?;
-                        return Ok(());
-                    }
-                }
+        let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
+        let mv_stmt = self.qtrans.get_mv_stmt(&stmt_ast, &mut txn)?;
+        self.qtrans.stats.nqueries+=1;
+        warn!("on_query: {}", mv_stmt);
+        let res = answer_rows(results, txn.query_iter(mv_stmt.to_string()));
+        match res {
+            Err(e) => return Err(e),
+            Ok(()) => {
+                txn.commit()?;
+                return Ok(());
             }
         }
     }

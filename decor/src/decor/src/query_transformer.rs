@@ -678,7 +678,12 @@ impl QueryTransformer {
         Ok(new_expr)
     }
 
-    fn insert_source_query_to_values(&mut self, q: &Query, txn: &mut mysql::Transaction) -> Result<Vec<Vec<Expr>>, mysql::Error> {
+    /* 
+     * Convert all expressions to insert to primitive values
+     */
+    fn insert_source_query_to_values(&mut self, q: &Query, txn: &mut mysql::Transaction) 
+        -> Result<Vec<Vec<Expr>>, mysql::Error> 
+    {
         let mut contains_ucol_id = false;
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
         match &q.body {
