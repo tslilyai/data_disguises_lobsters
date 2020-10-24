@@ -106,12 +106,11 @@ easier to support.}
 We next describe how these two techniques can lead to different decorrelation guarantees.
 
 \paragraph{Measuring Decorrelation.} 
-We say that the system achieves \textbf{$\{\alpha,Q\}$-decorrelation} when the probability that an attacker
-can tell that any two distinct remnants belong to any one user is less than $\alpha$, given
-information derivable from performing any $Q$ queries.
-\lyt{TODO: is \plinked{} and measuring decorrelation calcuating the probability that two remnants
-are \emph{correctly} linked to one user? An attacker who will mistakenly correlate two remnants with
-some user actually faces more challenges}
+We say that the system achieves \textbf{$(Q, \epsilon)$-decorrelation} when the probability that an
+attacker can correctly determine that any two distinct remnants belong to any one user is less than
+$\epsilon$, given information derivable from performing any $Q$ queries.  \lyt{Note that the
+\emph{correctly} is probably essential here: An attacker who will mistakenly correlate two remnants
+with some user actually faces more challenges}
 
 Defining this probability requires calculating two others: \begin{enumerate}
     \item[\premnant{}]: 
@@ -120,7 +119,7 @@ Defining this probability requires calculating two others: \begin{enumerate}
         The probability that any two remnants belong to the same individual
 \end{enumerate}
 
-\lyt{TODO look up $t-\epsilon$ crypto guarantee related work: asymptotic security}
+%\lyt{(could also use some notion of asymptotic security here?)}
 
 \paragraph{Calculating \premnant{}.}
 The probability that an attacker can determine that a data record is a remnant depends on the
@@ -157,8 +156,6 @@ Creating remnants from data records should not follow a clear pattern (such as a
 values for usernames).  This is highly specific to the application: it may be difficult to
 convincingly create user profiles for applications like Facebook and eCommerce sites, but easy in
 applications such as Reddit where many users use pseudonyms and have simple usage patterns.
-
-\lyt{ML/GANs seem potentially relevant here in generating fake users}
 
 \paragraph{Calculating \plinked{}.}
 The probability that two remnants belong to the same individual can be determined by how much
@@ -202,8 +199,10 @@ decorrelation, \sys{} will need to balance destroying remnant information with r
 information to the attacker when creating ghosts during unsubscription. 
 
 \paragraph{Converting UIDs to GIDs, and adding noise to IIDs.}
+\lyt{ML/GANs seem potentially relevant here in generating fake users}
+
 \sys{} generates random \gidkey{}s for every unique data record belonging to one
-\uidkey{}, and ensure that the \uidkey{} are randomly generated in the schema so
+\uidkey{}, and ensure that \uidkey{}s are randomly generated in the schema so
 that \gidkey{}s are \uidkey{}s are indistinguishable.
 
 For all other UIDs, \sys's decorrelation does the following to generate corresponding GIDs:
@@ -221,6 +220,7 @@ adds noise accordingly:
 \begin{itemize}
 \item Numerical Values and Dates/Times: adds a random amount equal to the
         \lyt{reversible?} hash of the UID time and \gidkey{} of the data record.
+    \item 
         \lyt{TODO add more here}
 \end{itemize}
 
@@ -236,34 +236,102 @@ original \uidkey{} needs to come into play.}
 
 \subsection{A Simple Web Application}
 To provide a concrete example of how \sys{} performs decorrelation, and how \plinked{} and
-\premnant{} may be calculated, we look to a simple version of a typical social media 
+\premnant{} may be calculated to determine $Q$ and $\epsilon$, we look to a simple version of a typical social media 
 application.
+In this application, there are users, stories posted by users, and votes on stories with the schema
+shown in Figure~\ref{fig:app}.
+The application allows for story feed queries (selecting all of a story's content) and user profile
+queries (selecting all of a users' content), shown in Figure~\ref{fig:appqs}.
 
-In this application, there are users, posts, and comments with the following schema:
+\begin{figure*}
+    \centering
+\begin{minipage}[t]{0.3\textwidth}
+Users Table:
 \begin{itemize}
-    \item Users Table:
+    \item $^*$ID (\uidkey{}): u64
+    \item $^*$Username: varchar(255) 
+    \item $^*$Email: varchar(255) 
+    \item $^*$Phone: varchar(255)
+\end{itemize}
+\end{minipage}
+\begin{minipage}[t]{0.3\textwidth}
+Stories Table:
 \begin{itemize}
-    \item $^*$ID (\uidkey{})
-    \item $^*$Username
-    \item $^*$Email 
-    \item $^*$Phone Number 
+    \item ID: u64
+    \item $^*$UserID (\uidkey{}): u64
+    \item Content: text 
+    \item $^{**}$Category: u64
+    \item $^{**}$Timestamp: datetime
+    \item $^{**}$Location: decimal(18,12)
 \end{itemize}
-    \item Stories Table:
+\end{minipage}
+\begin{minipage}[t]{0.3\textwidth}
+Votes Table:
 \begin{itemize}
-    \item ID 
-    \item $^*$User ID (\uidkey{})
-    \item Content 
-    \item $^**$Category 
-    \item $^**$Timestamp 
-    \item $^**$Location 
+    \item ID: u64
+    \item $^*$UserID (\uidkey{}): u64
+    \item $^{**}$StoryID: u64
+    \item $^{**}$Timestamp: datetime
 \end{itemize}
-\item Votes Table:
-\begin{itemize}
-    \item ID 
-    \item $^*$User ID 
-    \item $^**$Story ID 
-    \item $^**$Timestamp 
-\end{itemize}
-\end{itemize}
-$^*$ indicates a UID column and $^{**}$ indicates an IID column that can leak identifying information either directly or indirectly.
-Arbitrary user-generated content is out of scope.
+\end{minipage}
+\caption{$^*$ indicates a UID column and $^{**}$ indicates an IID column that can leak identifying information either directly or indirectly.
+Arbitrary user-generated content is out of scope.}
+\label{fig:app}
+\hrulefill
+\end{figure*}
+
+\begin{figure*}
+    \centering
+\begin{minipage}[t]{0.45\textwidth}
+    \centering
+    Select story content:
+\begin{verbatim}
+SELECT users.username, 
+    stories.content, stories.category, 
+    stories.timestamp, stories.location, 
+    COUNT(DISTINCT votes.id) as `count`
+FROM stories 
+    JOIN votes on stories.id = votes.storyid
+    JOIN users on stories.userid = users.id
+WHERE stories.id = ?
+ORDER BY count;
+\end{verbatim}
+\end{minipage}
+\begin{minipage}[t]{0.45\textwidth}
+    \centering
+    Select user content:
+\begin{verbatim}
+SELECT users.username, users.email, 
+    users.phone, stories.content, 
+    stories.category, 
+    stories.timestamp, 
+    stories.location, 
+    votes.storyid, votes.timestamp 
+FROM users 
+    JOIN stories ON stories.userid = users.id 
+    JOIN votes ON votes.userid = users.id
+WHERE users.id=?;
+\end{verbatim}
+\end{minipage}
+    \caption{Queries supported by the application}
+\label{fig:appqs}
+\end{figure*}
+If \sys{} performs zero modifications to data records when a user unsubscribes, \premnant{} = 0 and
+\plinked{} = 1 after even a single user profile query. Queries reveal all stories and votes that belong to a particular user. In other
+words, \sys{} achieves $(Q \geq 1, 1)$-decorrelation.
+
+Now suppose \sys{} uses a global placeholder strategy.  \sys{} zeroes u64 datatypes and datetimes,
+and replaces varchar values by 'deleted').  If \sys{} modifies all UIDs but does not modify IIDs,
+then \premnant{} = 1 after even a single user profile or story query.  An attacker needs to perform
+at least two queries to identify two distinct remnant stories or votes (now associated with users with
+the same zeroed or 'deleted' UIDs). 
+\plinked{} is a conditional probability: given the current distribution of users' content, what is
+the likelihood that two stories or votes belong to the same user?
+%If 2 story remnants have the same location, then \plinked{} is at least the chance of choosing the
+%correct user out of the total number of users residing in that location.
+%\plinked{} of two story remnants is calculated by estimating the total number of
+%people who could have posted a story at the spe
+%potentially taking into account the distribution of real users in the application.
+\lyt{TODO---not exactly sure how to precisely define this, even with a toy example}
+Thus, \sys{} achieves $(Q \geq 2$, \plinked{})-decorrelation when modifying only UIDs with a global
+placeholder strategy.
