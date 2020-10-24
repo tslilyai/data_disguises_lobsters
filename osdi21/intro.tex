@@ -11,7 +11,7 @@ For example, the GDPR requires that any user data remaining after a user unsubsc
 \emph{decorrelated}, i.e., cannot be (directly or indirectly) used to identify the user~\cite{gdpr}.  
 
 In this paper, we propose \sys, a new approach to managing user identities in web applications.
-\sys~meets the decorrelation requirements in the GDPR, and goes beyond: with \sys, it is possible
+\sys{} meets the decorrelation requirements in the GDPR, and goes beyond: with \sys, it is possible
 for users to switch between a privacy-preserving unsubscribed mode and an identity-revealing
 subscribed mode at any time. This facilitates important new web service paradigms, such as users
 granting a time-limited ``lease'' of data to a service instead of having a permanent service account.
@@ -37,7 +37,7 @@ semantics:
        and an identity-revealing subscribed mode, without permanently losing their application data.  
 \end{description}
 
-\sys~must implement these properties while ensuring (1) performance comparable to today’s
+\sys{} must implement these properties while ensuring (1) performance comparable to today’s
 widely-used databases, and (2) easy adoption (decorrelation should be
 automated without needing to modify application schemas or semantics).
 
@@ -45,13 +45,15 @@ automated without needing to modify application schemas or semantics).
 We address applications in which application data consists of \emph{data records} and computations
 (such as aggregations) that may be performed over these data records. Data records are considered
 sensitive, private data records when they contain \emph{user identifiers (UIDs)}. For example, the
-user table ID field, usernames, or phone numbers would all be UIDs, and a table row with any of
-these as columns would is a private data record. 
+user table ID field, usernames, or phone numbers are all UIDs, and a table row with any of
+these as columns is a private data record. Data records may also contain \emph{indirect 
+identifiers (IIDs)}, which include application metadata such as the time of posting or category of
+post.
 
 We assume that all user data records contain a user table ID field, a
-numerical user key $uid_{\text{key}}$ that is unique to each user, and which ties all data records
+numerical user key \uidkey{} that is unique to each user, and which ties all data records
 to a particular user.
-Data records containing multiple $uid_{\text{key}}$s are
+Data records containing multiple \uidkey{}s are
 considered shared data records private to the identified users. 
 
 We refer to data records belonging
@@ -75,28 +77,28 @@ exactly how data records were decorrelated from unsubscribed users.
 
 \item An attacker cannot gain identifying information from arbitrary user-generated content (for
     example, a reposted screenshot, or text in user posts or comments).  Decorrelation seeks to
-        remove identifying information from only application metadata (e.g., date of postings,
-        database ID columns), or controllable user identifiers (e.g., a birthday or email address)
+        remove identifying information from only IIDs (e.g., date of postings,
+        database ID columns), or controllable UIDs (e.g., a birthday or email address)
         \lyt{There needs to be a clearer definition of what is ``arbitrary'' and what is
         ``controllable''}
 \end{itemize}
 
 \subsection{Decorrelation Guarantees} 
 \paragraph{Decorrelation Techniques.}
-A common strawman decorrelation technique replaces all unsubscribed users' $uid_\text{key}$s with
+A common strawman decorrelation technique replaces all unsubscribed users' \uidkey{}s with
 one \emph{global placeholder} user, essentially collapsing all unsubscribed users' data into one pool.
-This means that all remnants can be identified by one distinct $gid_\text{key}$.
+This means that all remnants can be identified by one distinct \gidkey{}.
 Other UIDs in data records (such as emails, phone numbers) are also replaced by global placeholders
 (such as a default email address) that are assigned to this global user.
 Using a global placeholder, however, makes resubscription challenging: users can no identify which unsubscribed data records belong to them if all user-specific data has been erased from the
 system. 
 
-An alternative technique used by \sys~generates a unique \emph{ghost user} for each data remnant,
+An alternative technique used by \sys{} generates a unique \emph{ghost user} for each data remnant,
 essentially splitting unsubscribed users' data into individual pieces, and replacing one
-$uid_\text{key}$ with many $gid_\text{key}$s, one per data record owned by the user. Ghost users each have
+\uidkey{} with many \gidkey{}s, one per data record owned by the user. Ghost users each have
 distinct GIDs in place of UIDs (e.g., a randomly generated email
-address per ghost).  Unlike a global placeholder, \sys~allows users to reactivate their account and
-undo the decorrelation: $uid_\text{key}$s can be linked back to a set of unique $gid_\text{key}$s.
+address per ghost).  Unlike a global placeholder, \sys{} allows users to reactivate their account and
+undo the decorrelation: \uidkey{}s can be linked back to a set of unique \gidkey{}s.
 This gives users the ability to freely unsubscribe to protect their privacy without worrying about
 losing their accounts.  \lyt{Ghosts also make schema changes / changing the location of data records
 easier to support.} 
@@ -107,14 +109,20 @@ We next describe how these two techniques can lead to different decorrelation gu
 We say that the system achieves \textbf{$\{\alpha,Q\}$-decorrelation} when the probability that an attacker
 can tell that any two distinct remnants belong to any one user is less than $\alpha$, given
 information derivable from performing any $Q$ queries.
+\lyt{TODO: is \plinked{} and measuring decorrelation calcuating the probability that two remnants
+are \emph{correctly} linked to one user? An attacker who will mistakenly correlate two remnants with
+some user actually faces more challenges}
+
 Defining this probability requires calculating two others: \begin{enumerate}
-    \item[$p_{\text{remnant}}$]: 
+    \item[\premnant{}]: 
         The probability that the attacker can determine that any data record is a remnant
-    \item[$p_{\text{linked}}$]:
+    \item[\plinked{}]:
         The probability that any two remnants belong to the same individual
 \end{enumerate}
 
-\paragraph{Calculating $p_{\text{remnant}}$.}
+\lyt{TODO look up $t-\epsilon$ crypto guarantee related work: asymptotic security}
+
+\paragraph{Calculating \premnant{}.}
 The probability that an attacker can determine that a data record is a remnant depends on the
 database decorrelation technique and specific application semantics.
 
@@ -130,15 +138,14 @@ user. Instead, the attacker must calculate the probability that an identifier be
 using external knowledge about identifiers (e.g., GIDs may be randomly generated in a identifiable
 pattern). 
 
-An attacker can also use other application-specific metadata and user content to calculate the
+An attacker can also use IIDs and knowledge of the distribution of real user profiles to calculate the
 probability that a record is a remnant, which would be necessary in the case in which queries cannot
-access UIDs directly or indirectly. Similar to how an attacker could use external knowledge
-about identifiers, an attacker could use knowledge about ghost profiles or ghosted records to
-distinguish them from real users.  For example, decorrelation may generate ghost profile usernames
-that are random numbers or arbitrary animals, while real users may have more human-friendly
-usernames.
+access UIDs directly or indirectly. Similar to how an attacker could use external knowledge about
+identifiers, an attacker could use knowledge about ghost profiles or ghosted records to distinguish
+them from real users.  For example, decorrelation may generate ghost profile usernames that are
+random numbers or arbitrary animals, while real users may have more human-friendly usernames.
 
-\paragraph{Decreasing $p_{\text{remnant}}$.}
+\paragraph{Decreasing \premnant{}.}
 Because an attacker may use the distribution of data records in the system to pinpoint outliers and
 anomalies that may be remnants, remnants may be less easily spotted if more users unsubscribe and
 the system contains more remnants. 
@@ -151,9 +158,11 @@ values for usernames).  This is highly specific to the application: it may be di
 convincingly create user profiles for applications like Facebook and eCommerce sites, but easy in
 applications such as Reddit where many users use pseudonyms and have simple usage patterns.
 
-\paragraph{Calculating $p_{\text{linked}}$.}
+\lyt{ML/GANs seem potentially relevant here in generating fake users}
+
+\paragraph{Calculating \plinked{}.}
 The probability that two remnants belong to the same individual can be determined by how much
-identifying information attacker queries can reveal.
+identifying information (from UIDs and IIDs) that attacker queries can reveal.
 For example, if an attacker query reveals that multiple
 (likely) remnants are comments on classical music, these remnants are more likely to be
 correlated with the same individual than two remnants commenting on unrelated topics. If the
@@ -162,8 +171,8 @@ were posted during daytime in California, the probability that they belong to th
 increases (since the number of people who live in California and like classical music is less than
 the number of people who simply like classical music).
 
-\paragraph{Decreasing $p_{\text{linked}}$.}
-As with $p_{\text{remnant}}$, increasing the number of unsubscribed users and resulting
+\paragraph{Decreasing \plinked{}.}
+As with \premnant{}, increasing the number of unsubscribed users and resulting
 number of remnants decreases the probability that any two remnants can be linked to any one
 user. For example, if there are two records that are likely to be remnants and both are upvotes on topics related to
 classical music, the probability that these remnants belong to the same unsubscribed user is high; but if
@@ -172,44 +181,89 @@ is less likely that an attacker can tell that any two of these remnants belong t
 unsubscribed user.~\lyt{I'm a bit unconvinced of this argument, but I feel like there is some
 intuition here}.
 
-Decreasing $p_\text{linked}$ requires minimizing the amount of identifying information leaked
+Decreasing \plinked{} requires minimizing the amount of identifying information leaked
 through queries. However, there is a fundamental tradeoff between preserving useful information for
 the application and obfuscating remnant data. 
 
 At one extreme, if decorrelation does not modify UIDs at all (or does so in a predictable manner)
-and queries may return UIDs, then an attacker may learn the location of posts, time of posts, and
-potentially even usernames, leading to a high probability that the user can be identified. Note,
-that this leads to a low $p_\text{remnant}$ (since the remnant would look unmodified from any
-other subscribed user record), but also a high $p_\text{linked}$.
+and queries may return UIDs, then an attacker can learn usernames or email addresses that will
+identify the user. Similarly, if IIDs are not properly modified, attackers may learn
+the location of posts, time of posts, and potentially even usernames, leading to a high probability
+that the user can be identified.  Note that this leads to a low \premnant{} (since the
+remnant would look unmodified from any other subscribed user record), but also a high \plinked{}.
 
 At the other extreme, if decorrelation modifies the remnant completely by generating random and
-potentially meaningless values for all remnant UIDs, then an attacker gains little identifying
-information from the remnant. However, this may increase $p_\text{remnant}$ significantly.
+potentially meaningless values for all remnant UIDs and IIDs, then an attacker gains little identifying
+information from the remnant. However, this may increase \premnant{} significantly.
 Alternatively, decorrelation could simply to remove remnants completely. In either case, decorrelation limits the usefulness of remnant data to the application. 
 
 Practically, in order to both preserve the usefulness of remnants to the application and provide
-decorrelation, \sys~will need to balance destroying remnant information with revealing identifying
+decorrelation, \sys{} will need to balance destroying remnant information with revealing identifying
 information to the attacker when creating ghosts during unsubscription. 
 
-\paragraph{Converting UIDs to GIDs.}
-\sys~generates random $gid_{\text{key}}$s for every unique data record belonging to one
-$uid_{\text{key}}$, and ensure that the $uid_{\text{key}}$ are randomly generated in the schema so
-that $gid_\text{key}$s are $uid_\text{key}$s are indistinguishable.
+\paragraph{Converting UIDs to GIDs, and adding noise to IIDs.}
+\sys{} generates random \gidkey{}s for every unique data record belonging to one
+\uidkey{}, and ensure that the \uidkey{} are randomly generated in the schema so
+that \gidkey{}s are \uidkey{}s are indistinguishable.
 
 For all other UIDs, \sys's decorrelation does the following to generate corresponding GIDs:
 \begin{itemize}
-    \item Numerical Values and Dates/Times: adds a random amount equal to the
-        \lyt{reversible?} hash of the UID time and $gid_\text{key}$ of the data record.
     \item Phone number: randomly selects a real area code and randomly generates a 7-digit number
-    \item Email: randomly selects a real area code and randomly generates an amount to add to the 7-digit number, where the RNG is seeded with the $gid_\text{key}$
+        \lyt{take into account distribution of phone numbers in the system}
+    \item Email: randomly selects a real area code and randomly generates an amount to add to the 7-digit number, where the RNG is seeded with the \gidkey{}
     \item Username: generates a random but human-readable string (consisting of the
         concatenation of English words), using a hash of the original username and
-        $gid_\text{key}$ to select words in the username.
+        \gidkey{} to select words in the username.
 \end{itemize}
-The application programmer can add GID-generating functions for other application-specific UIDs
-via providing these functions as schema annotations; the programmer can also add functions to override \sys's defaults.
-These annotation should generate GIDs in a manner that minimizes both $p_\text{remnant}$ and $p_\text{linked}$.
 
-\lyt{TODO: Think about how this noising can be reversed upon resubscription? If the
-$gid_\text{key}$s are exposed, this might mean that an attacker could reverse the decorrelation as
-well... Perhaps the original $uid_\text{key}$ needs to come into play.}
+In order to add noise to IIDs, \sys{} looks at the type of each IID column and
+adds noise accordingly:
+\begin{itemize}
+\item Numerical Values and Dates/Times: adds a random amount equal to the
+        \lyt{reversible?} hash of the UID time and \gidkey{} of the data record.
+        \lyt{TODO add more here}
+\end{itemize}
+
+The application programmer can add GID-generating functions for other application-specific UID or
+IID columns via schema annotations; the programmer can also add functions to override \sys's
+defaults.  These annotation should generate GIDs in a manner that minimizes both \premnant{} and
+\plinked{}.
+
+\lyt{TODO: Think about how this noising can be reversed upon resubscription / use something like
+trapdoor permuatations? If the \gidkey{}s are
+exposed, this might mean that an attacker could reverse the decorrelation as well... Perhaps the
+original \uidkey{} needs to come into play.}
+
+\subsection{A Simple Web Application}
+To provide a concrete example of how \sys{} performs decorrelation, and how \plinked{} and
+\premnant{} may be calculated, we look to a simple version of a typical social media 
+application.
+
+In this application, there are users, posts, and comments with the following schema:
+\begin{itemize}
+    \item Users Table:
+\begin{itemize}
+    \item $^*$ID (\uidkey{})
+    \item $^*$Username
+    \item $^*$Email 
+    \item $^*$Phone Number 
+\end{itemize}
+    \item Stories Table:
+\begin{itemize}
+    \item ID 
+    \item $^*$User ID (\uidkey{})
+    \item Content 
+    \item $^**$Category 
+    \item $^**$Timestamp 
+    \item $^**$Location 
+\end{itemize}
+\item Votes Table:
+\begin{itemize}
+    \item ID 
+    \item $^*$User ID 
+    \item $^**$Story ID 
+    \item $^**$Timestamp 
+\end{itemize}
+\end{itemize}
+$^*$ indicates a UID column and $^{**}$ indicates an IID column that can leak identifying information either directly or indirectly.
+Arbitrary user-generated content is out of scope.
