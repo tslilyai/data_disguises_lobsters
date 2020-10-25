@@ -116,7 +116,7 @@ Defining this probability requires calculating two others: \begin{enumerate}
     \item[\premnant{}]: 
         The probability that the attacker can determine that any data record is a remnant
     \item[\plinked{}]:
-        The probability that any two remnants belong to the same individual
+        The probability that the attacker can determine that any two remnants belong to the same individual
 \end{enumerate}
 
 %\lyt{(could also use some notion of asymptotic security here?)}
@@ -185,7 +185,7 @@ the application and obfuscating remnant data.
 At one extreme, if decorrelation does not modify UIDs at all (or does so in a predictable manner)
 and queries may return UIDs, then an attacker can learn usernames or email addresses that will
 identify the user. Similarly, if IIDs are not properly modified, attackers may learn
-the location of posts, time of posts, and potentially even usernames, leading to a high probability
+information such as the location of posts or time of posts, leading to a high probability
 that the user can be identified.  Note that this leads to a low \premnant{} (since the
 remnant would look unmodified from any other subscribed user record), but also a high \plinked{}.
 
