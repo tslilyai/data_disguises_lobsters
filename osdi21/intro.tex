@@ -301,16 +301,16 @@ ORDER BY count;
     \centering
     Select user content:
 \begin{verbatim}
-SELECT users.username, users.email, 
-    users.phone, stories.content, 
-    stories.category, 
-    stories.timestamp, 
-    stories.location, 
-    votes.storyid, votes.timestamp 
-FROM users 
-    JOIN stories ON stories.userid = users.id 
-    JOIN votes ON votes.userid = users.id
-WHERE users.id=?;
+    SELECT users.username, users.email, 
+        users.phone, stories.content, 
+        stories.category, 
+        stories.timestamp, 
+        stories.location, 
+        votes.storyid, votes.timestamp 
+    FROM users 
+        JOIN stories ON stories.userid = users.id 
+        JOIN votes ON votes.userid = users.id
+    WHERE users.id=?;
 \end{verbatim}
 \end{minipage}
     \caption{Queries supported by the application}
