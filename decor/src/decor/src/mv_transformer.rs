@@ -1,9 +1,11 @@
 use sql_parser::ast::*;
 use super::{helpers, config};
 use std::*;
+use std::collections::HashMap;
 
 pub struct MVTransformer {
     pub cfg: config::Config,
+    q2mvq: HashMap<Query, Query>,
 }
 
 /********************************************************
@@ -13,6 +15,7 @@ impl MVTransformer {
     pub fn new(cfg: &config::Config) -> Self {
         MVTransformer{
             cfg: cfg.clone(),
+            q2mvq: HashMap::new(),
         }
     }   
     pub fn objname_to_mv_string(&self, obj: &ObjectName) -> String {
@@ -50,7 +53,7 @@ impl MVTransformer {
         objs_mv
     }
 
-    fn tablefactor_to_mv_tablefactor(&self, tf: &TableFactor) -> TableFactor {
+    fn tablefactor_to_mv_tablefactor(&mut self, tf: &TableFactor) -> TableFactor {
         match tf {
             TableFactor::Table {
                 name,
@@ -82,7 +85,7 @@ impl MVTransformer {
         }
     }
 
-    fn joinoperator_to_mv_joinoperator(&self, jo: &JoinOperator) -> JoinOperator {
+    fn joinoperator_to_mv_joinoperator(&mut self, jo: &JoinOperator) -> JoinOperator {
         let jo_mv : JoinOperator;
         match jo {
             JoinOperator::Inner(JoinConstraint::On(e)) => 
@@ -98,7 +101,7 @@ impl MVTransformer {
         jo_mv
     }
 
-    fn tablewithjoins_to_mv_tablewithjoins(&self, twj: &TableWithJoins) -> TableWithJoins {
+    fn tablewithjoins_to_mv_tablewithjoins(&mut self, twj: &TableWithJoins) -> TableWithJoins {
         TableWithJoins {
             relation: self.tablefactor_to_mv_tablefactor(&twj.relation),
             joins: twj.joins
@@ -111,7 +114,7 @@ impl MVTransformer {
         }
     }
 
-    fn setexpr_to_mv_setexpr(&self, setexpr: &SetExpr) -> SetExpr {
+    fn setexpr_to_mv_setexpr(&mut self, setexpr: &SetExpr) -> SetExpr {
         match setexpr {
             SetExpr::Select(s) => 
                 SetExpr::Select(Box::new(Select{
@@ -169,7 +172,11 @@ impl MVTransformer {
         }
     }
 
-    pub fn query_to_mv_query(&self, query: &Query) -> Query {
+    pub fn query_to_mv_query(&mut self, query: &Query) -> Query {
+        if let Some(mvq) = self.q2mvq.get(query) {
+            return mvq.clone();
+        }
+
         let mut mv_query = query.clone(); 
 
         let mut cte_mv_query : Query;
@@ -200,11 +207,12 @@ impl MVTransformer {
                 f.quantity = new_quantity;
             }
         }
+        self.q2mvq.insert(query.clone(), mv_query.clone());
 
         mv_query
     }
  
-    pub fn expr_to_mv_expr(&self, expr: &Expr) -> Expr {
+    pub fn expr_to_mv_expr(&mut self, expr: &Expr) -> Expr {
         match expr {
             Expr::Identifier(ids) => Expr::Identifier(self.idents_to_mv_idents(&ids)),
             Expr::QualifiedWildcard(ids) => Expr::QualifiedWildcard(self.idents_to_mv_idents(&ids)),

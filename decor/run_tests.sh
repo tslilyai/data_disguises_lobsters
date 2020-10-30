@@ -2,9 +2,9 @@
 
 #set -x
 
-trials=3
+trials=1
 tests=( "no_shim" "shim_only" "shim_parse" "decor" )
-testops=( "select" "insert" "update" )
+testops=( "select" ) #"insert" "update" )
 
 cargo build --release
 

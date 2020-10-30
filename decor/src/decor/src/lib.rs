@@ -71,7 +71,7 @@ pub struct Shim {
 
 impl Drop for Shim {
     fn drop(&mut self) {
-        println!("\tSHIM performed {} queries", self.qtrans.stats.nqueries + self.qtrans.cache.stats.nqueries);
+        //println!("\tSHIM performed {} queries", self.qtrans.stats.nqueries + self.qtrans.cache.stats.nqueries);
         self.prepared.clear();
         // drop the connection (implicitly done).
     }
