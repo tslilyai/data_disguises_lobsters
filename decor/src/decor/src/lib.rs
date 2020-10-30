@@ -146,6 +146,48 @@ impl Shim {
         }
         Ok(())
     }
+
+    fn prep_statement(&mut self, query: &str) -> Result<(), Self::Error> {
+        match self.db.prep(query) {
+            Ok(stmt) => {
+                let params: Vec<_> = stmt
+                    .params()
+                    .into_iter()
+                    .map(|p| {
+                        Column {
+                            table: p.table_str().to_string(),
+                            column: p.name_str().to_string(),
+                            coltype: get_coltype(&p.column_type()),
+                            colflags: ColumnFlags::from_bits(p.flags().bits()).unwrap(),
+                        }
+                    })
+                    .collect();
+                let columns: Vec<_> = stmt
+                    .columns()
+                    .into_iter()
+                    .map(|c| {
+                        Column {
+                            table: c.table_str().to_string(),
+                            column: c.name_str().to_string(),
+                            coltype: get_coltype(&c.column_type()),
+                            colflags: ColumnFlags::from_bits(c.flags().bits()).unwrap(),
+                        }
+                    })
+                    .collect();
+                info.reply(stmt.id(), &params, &columns)?;
+                self.prepared.insert(stmt.id(), Prepared{stmt: stmt.clone(), params});
+            },
+            Err(e) => {
+                match e {
+                    mysql::Error::MySqlError(merr) => {
+                        info.error(ErrorKind::ER_NO, merr.message.as_bytes())?;
+                    },
+                    _ => return Err(e),
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl<W: io::Write> MysqlShim<W> for Shim {
@@ -412,46 +454,22 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         Ok(w.ok()?)
     }
 
-    fn on_prepare(&mut self, _query: &str, _info: StatementMetaWriter<W>) -> Result<(), Self::Error> {
-        // TODO save prepared stmts modified for MVs and ghosts table
-        /*match self.db.prep(self.query_using_mv_tables(query)) {
-            Ok(stmt) => {
-                let params: Vec<_> = stmt
-                    .params()
-                    .into_iter()
-                    .map(|p| {
-                        Column {
-                            table: p.table_str().to_string(),
-                            column: p.name_str().to_string(),
-                            coltype: get_coltype(&p.column_type()),
-                            colflags: ColumnFlags::from_bits(p.flags().bits()).unwrap(),
-                        }
-                    })
-                    .collect();
-                let columns: Vec<_> = stmt
-                    .columns()
-                    .into_iter()
-                    .map(|c| {
-                        Column {
-                            table: c.table_str().to_string(),
-                            column: c.name_str().to_string(),
-                            coltype: get_coltype(&c.column_type()),
-                            colflags: ColumnFlags::from_bits(c.flags().bits()).unwrap(),
-                        }
-                    })
-                    .collect();
-                info.reply(stmt.id(), &params, &columns)?;
-                self.prepared.insert(stmt.id(), Prepared{stmt: stmt.clone(), params});
-            },
-            Err(e) => {
-                match e {
-                    mysql::Error::MySqlError(merr) => {
-                        info.error(ErrorKind::ER_NO, merr.message.as_bytes())?;
-                    },
-                    _ => return Err(e),
-                }
-            }
-        }*/
+    fn on_prepare(&mut self, query: &str, _info: StatementMetaWriter<W>) -> Result<(), Self::Error> {
+        if !self.test_params.parse{
+            return self.prep_statement(query);
+        }
+        
+        let stmt_ast = self.sqlcache.get_single_parsed_stmt(&query.to_string())?;
+        if !self.test_params.translate {
+            self.qtrans.stats.nqueries+=1;
+            warn!("on_query: {}", stmt_ast);
+            return self.prep_statement(format!("{}", stmt_ast));
+        }
+        // wrap in txn to ensure that all reads are consistent if any are performed
+        let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
+        let mv_stmt = self.qtrans.prep_mv_stmt(&stmt_ast, &mut txn)?;
+        txn.commit()?;
+        // TODO add prepped statement
         Ok(())
     }
     

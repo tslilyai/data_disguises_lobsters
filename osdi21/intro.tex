@@ -11,23 +11,15 @@ For example, the GDPR requires that any user data remaining after a user unsubsc
 \emph{decorrelated}, i.e., cannot be (directly or indirectly) used to identify the user~\cite{gdpr}.  
 
 In this paper, we propose \sys, a new approach to managing user identities in web applications.
-\sys{} meets the decorrelation requirements in the GDPR, and goes beyond: with \sys, it is possible
+\sys{} meets the de-identification requirements in the GDPR, and goes beyond: with \sys, it is possible
 for users to switch between a privacy-preserving unsubscribed mode and an identity-revealing
 subscribed mode at any time. This facilitates important new web service paradigms, such as users
 granting a time-limited ``lease'' of data to a service instead of having a permanent service account.
 
-%Furthermore, keeping identifying and personal data when no longer strictly necessary increases
-%companies' liability: the GDPR and other laws mandate that companies retain only user data that is
-%relevant and necessary for their applications' purposes. To increase users' control over their data
-%and decrease the amount of incriminating data stored in the application at any one point, users
-%should be able to freely unsubscribe from the service to enter a privacy-preserving mode, and later
-%resubscribe when they wish to use the service. 
-
 \subsection{Goals} 
-\sys's goal is to provide the following properties while preserving an application's 
-semantics: 
+\sys's goal is to provide the following properties:
 \begin{description} 
-    \item[Decorrelation.] Informally, ideal decorrelation guarantees that it is impossible to distinguish
+    \item[Decorrelation.] Informally, decorrelation should guarantee that it is impossible to distinguish
         between two records formerly associated with the same unsubscribed user and two records from
         different unsubscribed users.  
     %\item Deletion Correctness: Deletion of user records should correctly conform to application
@@ -38,30 +30,11 @@ semantics:
 \end{description}
 
 \sys{} must implement these properties while ensuring (1) performance comparable to today’s
-widely-used databases, and (2) easy adoption (decorrelation should be
-automated without needing to modify application schemas or semantics).
+widely-used databases, and (2) easy adoption (requiring little to no modification of application
+schemas or semantics).
 
-\subsection{Threat Model.}
-We address applications in which application data consists of \emph{data records} and computations
-(such as aggregations) that may be performed over these data records. Data records are considered
-sensitive, private data records when they contain \emph{user identifiers (UIDs)}. For example, the
-user table ID field, usernames, or phone numbers are all UIDs, and a table row with any of
-these as columns is a private data record. Data records may also contain \emph{indirect 
-identifiers (IIDs)}, which include application metadata such as the time of posting or category of
-post.
-
-We assume that all user data records contain a user table ID field, a
-numerical user key \uidkey{} that is unique to each user, and which ties all data records
-to a particular user.
-Data records containing multiple \uidkey{}s are
-considered shared data records private to the identified users. 
-
-We refer to data records belonging
-to unsubscribed users as \emph{remnants}.
-
-We make the following assumptions of an attacker whose goal is to break decorrelation and reveal
-identifying information about data remnants:
-
+\subsection{Threat Model} 
+We make the following assumptions of an attacker whose goal is to break decorrelation:
 \begin{itemize}
     \item An attacker can perform only those queries allowed by the application API: an
 attacker can access the application only via its public interface. 
@@ -71,268 +44,112 @@ compliance policy); arbitrary queries over the
 entirety of the table are out of scope, unless ``private'' tables are removed and stored by
 unsubscribing users.}
 
-\item An attacker cannot perform application queries to the past or search web archives:
-information from prior application snapshots may reveal 
-exactly how data records were decorrelated from unsubscribed users. 
+    \item An attacker cannot perform application queries to the past or search web archives:
+    information from prior application snapshots may reveal 
+    exactly how data records were decorrelated from unsubscribed users. 
 
-\item An attacker cannot gain identifying information from arbitrary user-generated content (for
-    example, a reposted screenshot, or text in user posts or comments).  Decorrelation seeks to
-        remove identifying information from only IIDs (e.g., date of postings,
-        database ID columns), or controllable UIDs (e.g., a birthday or email address)
-        \lyt{There needs to be a clearer definition of what is ``arbitrary'' and what is
-        ``controllable''}
+    \item An attacker cannot gain identifying information from arbitrary user-generated content (for
+        example, a reposted screenshot, or text in user posts or comments). Decorrelation seeks to
+        remove identifying information from user-generated data that can be enumerated or follows a
+        specific pattern (e.g. a birthday or email address), and application metadata (e.g., date
+        of postings, database ID columns).
 \end{itemize}
 
-\subsection{Decorrelation Guarantees} 
-\paragraph{Decorrelation Techniques.}
-A common strawman decorrelation technique replaces all unsubscribed users' \uidkey{}s with
-one \emph{global placeholder} user, essentially collapsing all unsubscribed users' data into one pool.
-This means that all remnants can be identified by one distinct \gidkey{}.
-Other UIDs in data records (such as emails, phone numbers) are also replaced by global placeholders
-(such as a default email address) that are assigned to this global user.
-Using a global placeholder, however, makes resubscription challenging: users can no identify which unsubscribed data records belong to them if all user-specific data has been erased from the
-system. 
+\subsection{A General Model for Decorrelation}
+Application data is structured as tables, each containing a different \emph{data entity},
+e.g.,\ a post, user, or vote. 
+Entities can either be externally added via the application API by a client, or internally added by
+the application (e.g., tags or application metadata).
+Queries write, read from, and compute over entities. 
+As entities are processed by a query, their path from table to application client can be represented
+as \emph{flows} through computations specified by the query: each computation 
+can be classified as either a join, an aggregation (e.g., count, min, max), or a set operation (e.g., union,
+intersection) between flows.
 
-An alternative technique used by \sys{} generates a unique \emph{ghost user} for each data remnant,
-essentially splitting unsubscribed users' data into individual pieces, and replacing one
-\uidkey{} with many \gidkey{}s, one per data record owned by the user. Ghost users each have
-distinct GIDs in place of UIDs (e.g., a randomly generated email
-address per ghost).  Unlike a global placeholder, \sys{} allows users to reactivate their account and
-undo the decorrelation: \uidkey{}s can be linked back to a set of unique \gidkey{}s.
-This gives users the ability to freely unsubscribe to protect their privacy without worrying about
-losing their accounts.  \lyt{Ghosts also make schema changes / changing the location of data records
-easier to support.} 
+When a user $U$ unsubscribes, decorrelation must (1) determine which entities may reveal identifying
+information about $U$, and (2) prevent queries from leaking this information.
 
-We next describe how these two techniques can lead to different decorrelation guarantees.
+To address (1), the programmer developer specifies identifying tables or table columns 
+via developer annotations on
+the application schema: tables or table columns can be marked as identity-sensitive. If only tables
+are marked, all columns are assumed to be sensitive.
 
-\paragraph{Measuring Decorrelation.} 
-We say that the system achieves \textbf{$(Q, \epsilon)$-decorrelation} when the probability that an
-attacker can correctly determine that any two distinct remnants belong to any one user is less than
-$\epsilon$, given information derivable from performing any $Q$ queries.  \lyt{Note that the
-\emph{correctly} is probably essential here: An attacker who will mistakenly correlate two remnants
-with some user actually faces more challenges}
-
-Defining this probability requires calculating two others: \begin{enumerate}
-    \item[\premnant{}]: 
-        The probability that the attacker can determine that any data record is a remnant
-    \item[\plinked{}]:
-        The probability that the attacker can determine that any two remnants belong to the same individual
-\end{enumerate}
-
-%\lyt{(could also use some notion of asymptotic security here?)}
-
-\paragraph{Calculating \premnant{}.}
-The probability that an attacker can determine that a data record is a remnant depends on the
-database decorrelation technique and specific application semantics.
-
-At one extreme, an application may expose only aggregate information over data records via its
-queries, which prevents an attacker to locate individual data remnants or data records at all. 
-
-More realistically, however, the application may allow some queries to access the UIDs either
-directly or indirectly. Then if decorrelation utilizes a global placeholder, an attacker can
-determine with 100\% certainty which records are remnants: any record with a UID equal to the global
-placeholder is clearly a remnant. However, if decorrelation instead relies on ghost users, an
-attacker cannot guarantee that any revealed identifier is a ghost instead of a real (subscribed)
-user. Instead, the attacker must calculate the probability that an identifier belongs to a ghost
-using external knowledge about identifiers (e.g., GIDs may be randomly generated in a identifiable
-pattern). 
-
-An attacker can also use IIDs and knowledge of the distribution of real user profiles to calculate the
-probability that a record is a remnant, which would be necessary in the case in which queries cannot
-access UIDs directly or indirectly. Similar to how an attacker could use external knowledge about
-identifiers, an attacker could use knowledge about ghost profiles or ghosted records to distinguish
-them from real users.  For example, decorrelation may generate ghost profile usernames that are
-random numbers or arbitrary animals, while real users may have more human-friendly usernames.
-
-\paragraph{Decreasing \premnant{}.}
-Because an attacker may use the distribution of data records in the system to pinpoint outliers and
-anomalies that may be remnants, remnants may be less easily spotted if more users unsubscribe and
-the system contains more remnants. 
-
-Given the possibility for application-specific data to leak information even when identifiers are
-hidden and when ghost users are used in place of a global placeholder, the decorrelation should
-ensure that information exposed by remnants cannot distinguish remnants from real data records.
-Creating remnants from data records should not follow a clear pattern (such as assigning global
-values for usernames).  This is highly specific to the application: it may be difficult to
-convincingly create user profiles for applications like Facebook and eCommerce sites, but easy in
-applications such as Reddit where many users use pseudonyms and have simple usage patterns.
-
-\paragraph{Calculating \plinked{}.}
-The probability that two remnants belong to the same individual can be determined by how much
-identifying information (from UIDs and IIDs) that attacker queries can reveal.
-For example, if an attacker query reveals that multiple
-(likely) remnants are comments on classical music, these remnants are more likely to be
-correlated with the same individual than two remnants commenting on unrelated topics. If the
-attacker additionally queries for the time of post of these comments, and sees that both these posts
-were posted during daytime in California, the probability that they belong to the same individual
-increases (since the number of people who live in California and like classical music is less than
-the number of people who simply like classical music).
-
-\paragraph{Decreasing \plinked{}.}
-As with \premnant{}, increasing the number of unsubscribed users and resulting
-number of remnants decreases the probability that any two remnants can be linked to any one
-user. For example, if there are two records that are likely to be remnants and both are upvotes on topics related to
-classical music, the probability that these remnants belong to the same unsubscribed user is high; but if
-there are thousands of likely remnants and all are upvotes on topics related to classical music, it
-is less likely that an attacker can tell that any two of these remnants belong to any one
-unsubscribed user.~\lyt{I'm a bit unconvinced of this argument, but I feel like there is some
-intuition here}.
-
-Decreasing \plinked{} requires minimizing the amount of identifying information leaked
-through queries. However, there is a fundamental tradeoff between preserving useful information for
-the application and obfuscating remnant data. 
-
-At one extreme, if decorrelation does not modify UIDs at all (or does so in a predictable manner)
-and queries may return UIDs, then an attacker can learn usernames or email addresses that will
-identify the user. Similarly, if IIDs are not properly modified, attackers may learn
-information such as the location of posts or time of posts, leading to a high probability
-that the user can be identified.  Note that this leads to a low \premnant{} (since the
-remnant would look unmodified from any other subscribed user record), but also a high \plinked{}.
-
-At the other extreme, if decorrelation modifies the remnant completely by generating random and
-potentially meaningless values for all remnant UIDs and IIDs, then an attacker gains little identifying
-information from the remnant. However, this may increase \premnant{} significantly.
-Alternatively, decorrelation could simply to remove remnants completely. In either case, decorrelation limits the usefulness of remnant data to the application. 
-
-Practically, in order to both preserve the usefulness of remnants to the application and provide
-decorrelation, \sys{} will need to balance destroying remnant information with revealing identifying
-information to the attacker when creating ghosts during unsubscription. 
-
-\paragraph{Converting UIDs to GIDs, and adding noise to IIDs.}
-\lyt{ML/GANs seem potentially relevant here in generating fake users}
-
-\sys{} generates random \gidkey{}s for every unique data record belonging to one
-\uidkey{}, and ensure that \uidkey{}s are randomly generated in the schema so
-that \gidkey{}s are \uidkey{}s are indistinguishable.
-
-For all other UIDs, \sys's decorrelation does the following to generate corresponding GIDs:
+To address (2), we model queries as a dataflow computation, and perform actions on sensitive
+data flowing into computation nodes (joins, aggregations, or set operations) to prevent the
+computation result from exposing identifying information.
+Examples of actions include:
 \begin{itemize}
-    \item Phone number: randomly selects a real area code and randomly generates a 7-digit number
-        \lyt{take into account distribution of phone numbers in the system}
-    \item Email: randomly selects a real area code and randomly generates an amount to add to the 7-digit number, where the RNG is seeded with the \gidkey{}
-    \item Username: generates a random but human-readable string (consisting of the
-        concatenation of English words), using a hash of the original username and
-        \gidkey{} to select words in the username.
+    \item Deleting sensitive entities, or removing sensitive entities from the dataflow. Pros:
+        achieves leave-no-trace. Cons: can disrupt application semantics, and removes any useful
+        information from an unsubscribed user. 
+    \item Anonymizing sensitive entity columns: integer or string fields can be randomized, or
+        generated from a distribution of field values (e.g., a phone number). 
+    \item Injecting fake entities (noise) or fake associations (changing foreign key values).
 \end{itemize}
+\lyt{This seems similar to IFC declassification in a DP/probabilistic sense?}
 
-In order to add noise to IIDs, \sys{} looks at the type of each IID column and
-adds noise accordingly:
+Note that only certain computations may leak information, and certain actions may need to take place
+on only one of the flows into the computation instead of both to prevent sensitive information
+leakage.  Here, we list all possible scenarios, and which actions should be taken on which entities
+flowing into the computation: 
 \begin{itemize}
-\item Numerical Values and Dates/Times: adds a random amount equal to the
-        \lyt{reversible?} hash of the UID time and \gidkey{} of the data record.
-    \item 
-        \lyt{TODO add more here}
+    \item Aggregation/pipelined computations: depend on only one flow of entities. If the entities
+        or entity columns are sensitive, the result is also considered sensitive, and should be acted upon
+        appropriately before reaching the end user.
+    \item JOINs: if one or both of the flows into the joins include sensitive entities or entity
+    columns, all results of the JOIN depend on sensitive entities and should be acted upon before
+reaching the end user.  
+    \item Unions: only the sensitive entities or entity columns must be acted upon in
+    the resulting union
+    \item Intersection: if one of the flows is sensitive, the resulting flow must be acted upon
+        appropriately 
+    \item Minus: if either the entities in the subtrahend or the entities in the minuend are
+        sensitive or have sensitive columns, the resulting set of entities must be acted upon.
+        Information can leak about the entities which have been subtracted, or about the entities
+        which remain.
 \end{itemize}
 
-The application programmer can add GID-generating functions for other application-specific UID or
-IID columns via schema annotations; the programmer can also add functions to override \sys's
-defaults.  These annotation should generate GIDs in a manner that minimizes both \premnant{} and
-\plinked{}.
+\subsection{\sys{}: Instantiating the Decorrelation Model}
+\sys{} is one potential architecture for implementing this model. In \sys{}, sensitive columns are
+user ID fields (annotated by the application developer).  These user IDs are
+numerical user keys \uidkey{} that are each unique to one user, and map entities to a particular
+user. Entities containing multiple \uidkey{}s are considered shared among the identified users. 
 
-\lyt{TODO: Think about how this noising can be reversed upon resubscription / use something like
-trapdoor permuatations? If the \gidkey{}s are
-exposed, this might mean that an attacker could reverse the decorrelation as well... Perhaps the
-original \uidkey{} needs to come into play.}
+\sys{} handles flows that contain sensitive entities belonging to unsubscribed users by anonymizing
+the \uidkey{} column: the \uidkey{} is replaced by a unique ghost ID
+(\gidkey{}) per entity belonging to the unsubscribed user. 
+By replacing \uidkey{} values with \gidkey{} values, \sys{} ensures that the
+computations on the dataflow decorrelate these entities with the unsubscribed user: an unsubscribed
+user's data is split into individual pieces. 
 
-\subsection{A Simple Web Application}
-To provide a concrete example of how \sys{} performs decorrelation, and how \plinked{} and
-\premnant{} may be calculated to determine $Q$ and $\epsilon$, we look to a simple version of a typical social media 
-application.
-In this application, there are users, stories posted by users, and votes on stories with the schema
-shown in Figure~\ref{fig:app}.
-The application allows for story feed queries (selecting all of a story's content) and user profile
-queries (selecting all of a users' content), shown in Figure~\ref{fig:appqs}.
+While the model implies that actions are taken at runtime (when entities pass through query
+operators), \sys{} implements actions on \uidkey{}s by storing the \gidkey{}s in the underlying
+application data tables, saving a mapping of \gidkey{}s to \uidkey{} in the database, and
+maintaining materialized views to answer application queries that expose real or ghost identifiers
+depending on whether a particular user is subscribed. \sys{} implements a database shim layer that
+transparently rewrites application queries to query the materialized view (the ``acted-upon''
+result) rather than the data tables, and which propagates updates appropriately to the materialized
+view. In essence, the materialized views cache the result of the actions taken after a query
+operation such as a JOIN.
 
-\begin{figure*}
-    \centering
-\begin{minipage}[t]{0.3\textwidth}
-Users Table:
-\begin{itemize}
-    \item $^*$ID (\uidkey{}): u64
-    \item $^*$Username: varchar(255) 
-    \item $^*$Email: varchar(255) 
-    \item $^*$Phone: varchar(255)
-\end{itemize}
-\end{minipage}
-\begin{minipage}[t]{0.3\textwidth}
-Stories Table:
-\begin{itemize}
-    \item ID: u64
-    \item $^*$UserID (\uidkey{}): u64
-    \item Content: text 
-    \item $^{**}$Category: u64
-    \item $^{**}$Timestamp: datetime
-    \item $^{**}$Location: decimal(18,12)
-\end{itemize}
-\end{minipage}
-\begin{minipage}[t]{0.3\textwidth}
-Votes Table:
-\begin{itemize}
-    \item ID: u64
-    \item $^*$UserID (\uidkey{}): u64
-    \item $^{**}$StoryID: u64
-    \item $^{**}$Timestamp: datetime
-\end{itemize}
-\end{minipage}
-\caption{$^*$ indicates a UID column and $^{**}$ indicates an IID column that can leak identifying information either directly or indirectly.
-Arbitrary user-generated content is out of scope.}
-\label{fig:app}
-\hrulefill
-\end{figure*}
+An alternative action might replace all unsubscribed users' \uidkey{}s with one \emph{global
+placeholder} value, essentially collapsing all unsubscribed users' entities into one pool. However,
+this erases all user-specific data, making resubscription and subsequent recorrelation of a user's
+entities with the user's identity difficult. \sys{}'s ghost identifiers allows users to reactivate
+their account and undo the decorrelation: \uidkey{}s can be linked back to a set of unique
+\gidkey{}s.  This gives users the ability to freely unsubscribe to protect their privacy without
+worrying about losing their accounts.  \lyt{Ghosts also make schema changes / changing the location
+of data records easier to support.}
 
-\begin{figure*}
-    \centering
-\begin{minipage}[t]{0.45\textwidth}
-    \centering
-    Select story content:
-\begin{verbatim}
-SELECT users.username, 
-    stories.content, stories.category, 
-    stories.timestamp, stories.location, 
-    COUNT(DISTINCT votes.id) as `count`
-FROM stories 
-    JOIN votes on stories.id = votes.storyid
-    JOIN users on stories.userid = users.id
-WHERE stories.id = ?
-ORDER BY count;
-\end{verbatim}
-\end{minipage}
-\begin{minipage}[t]{0.45\textwidth}
-    \centering
-    Select user content:
-\begin{verbatim}
-    SELECT users.username, users.email, 
-        users.phone, stories.content, 
-        stories.category, 
-        stories.timestamp, 
-        stories.location, 
-        votes.storyid, votes.timestamp 
-    FROM users 
-        JOIN stories ON stories.userid = users.id 
-        JOIN votes ON votes.userid = users.id
-    WHERE users.id=?;
-\end{verbatim}
-\end{minipage}
-    \caption{Queries supported by the application}
-\label{fig:appqs}
-\end{figure*}
-If \sys{} performs zero modifications to data records when a user unsubscribes, \premnant{} = 0 and
-\plinked{} = 1 after even a single user profile query. Queries reveal all stories and votes that belong to a particular user. In other
-words, \sys{} achieves $(Q \geq 1, 1)$-decorrelation.
+Furthermore, ghost IDs provide increased decorrelation guarantees: if decorrelation utilizes a
+global placeholder and entities with \uidkey{}s are exposed by application queries, an attacker can
+determine with 100\% certainty which queried entities are unsubscribed entities, namely any entity
+with \uidkey{} equal to the global placeholder. If only one or a few users have unsubscribed,
+correlating these unsubscribed entities back to one identity may be trivial.
 
-Now suppose \sys{} uses a global placeholder strategy.  \sys{} zeroes u64 datatypes and datetimes,
-and replaces varchar values by 'deleted').  If \sys{} modifies all UIDs but does not modify IIDs,
-then \premnant{} = 1 after even a single user profile or story query.  An attacker needs to perform
-at least two queries to identify two distinct remnant stories or votes (now associated with users with
-the same zeroed or 'deleted' UIDs). 
-\plinked{} is a conditional probability: given the current distribution of users' content, what is
-the likelihood that two stories or votes belong to the same user?
-%If 2 story remnants have the same location, then \plinked{} is at least the chance of choosing the
-%correct user out of the total number of users residing in that location.
-%\plinked{} of two story remnants is calculated by estimating the total number of
-%people who could have posted a story at the spe
-%potentially taking into account the distribution of real users in the application.
-\lyt{TODO---not exactly sure how to precisely define this, even with a toy example. Perhaps
-the exponential mechanism/scoring functions might be useful here?}
-Thus, \sys{} achieves $(Q \geq 2$, \plinked{})-decorrelation when modifying only UIDs with a global
-placeholder strategy.
+However, if decorrelation instead relies on ghosts, an attacker cannot guarantee that any revealed
+identifier is a ghost instead of a real (subscribed) user. Instead, the attacker must calculate the
+probability that an identifier belongs to a ghost using external knowledge about identifiers (e.g.,
+GIDs may be randomly generated in a identifiable pattern) or other information exposed by the
+entity. This external, non-\uidkey{} information can be either marked sensitive (so \sys{} with
+act upon these entity columns as well) or treated as out of scope.
