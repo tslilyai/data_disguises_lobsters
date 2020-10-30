@@ -11,6 +11,7 @@ pub mod config;
 pub mod helpers;
 pub mod qtcache;
 pub mod query_transformer;
+pub mod mv_transformer;
 pub mod sqlparser_cache;
 
 const GHOST_ID_START : u64 = 1<<20;
@@ -50,7 +51,7 @@ fn set_initial_gid_query() -> String {
 
 struct Prepared {
     stmt: mysql::Statement,
-    //params: Vec<Column>,
+    params: Vec<Column>,
 }
 
 pub struct Shim { 
@@ -59,6 +60,7 @@ pub struct Shim {
     prepared: HashMap<u32, Prepared>,
 
     qtrans: query_transformer::QueryTransformer,
+    mvtrans: mv_transformer::MVTransformer,
     sqlcache: sqlparser_cache::ParserCache,
 
     // NOTE: not *actually* static, but tied to our connection's lifetime.
@@ -82,9 +84,10 @@ impl Shim {
         let cfg = config::parse_config(cfg_json).unwrap();
         let prepared = HashMap::new();
         let qtrans = query_transformer::QueryTransformer::new(&cfg, &test_params);
+        let mvtrans = mv_transformer::MVTransformer::new(&cfg);
         let sqlcache = sqlparser_cache::ParserCache::new();
         let schema = schema.to_string();
-        Shim{cfg, db, qtrans, sqlcache, prepared, schema, test_params}
+        Shim{cfg, db, qtrans, mvtrans, sqlcache, prepared, schema, test_params}
     }   
 
     pub fn get_num_queries(&self) -> usize {
@@ -109,13 +112,11 @@ impl Shim {
      * Must be issued after select_db statement is issued.
      * */
     fn create_schema(&mut self) -> Result<(), mysql::Error> {
-        let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
-
         /* create ghost metadata table with boolean cols for each user id */
         // XXX temp: create a new ghost metadata table
-        txn.query_drop("DROP TABLE IF EXISTS ghosts;")?;
-        txn.query_drop(create_ghosts_query(self.test_params.in_memory))?;
-        txn.query_drop(set_initial_gid_query())?;
+        self.db.query_drop("DROP TABLE IF EXISTS ghosts;")?;
+        self.db.query_drop(create_ghosts_query(self.test_params.in_memory))?;
+        self.db.query_drop(set_initial_gid_query())?;
         warn!("drop/create/alter ghosts table");
         self.qtrans.stats.nqueries+=3;
         
@@ -135,11 +136,7 @@ impl Shim {
                 stmt = helpers::process_schema_stmt(&stmt, self.test_params.in_memory);
                 
                 let stmt_ast = self.sqlcache.get_single_parsed_stmt(&stmt)?;
-                warn!("stmt: {}", stmt_ast);
-                let mv_stmt = self.qtrans.get_mv_stmt(&stmt_ast, &mut txn)?;
-                warn!("mv_stmt: {}", mv_stmt);
-                txn.query_drop(mv_stmt.to_string())?;
-                self.qtrans.stats.nqueries+=1;
+                self.qtrans.query_drop(&stmt_ast, &mut self.db)?;
                 
                 stmt = String::new();
             }
@@ -147,7 +144,7 @@ impl Shim {
         Ok(())
     }
 
-    fn prep_statement(&mut self, query: &str) -> Result<(), Self::Error> {
+    fn prep_statement(&mut self, query: &str) -> Result<(), mysql::Error> {
         match self.db.prep(query) {
             Ok(stmt) => {
                 let params: Vec<_> = stmt
@@ -157,7 +154,7 @@ impl Shim {
                         Column {
                             table: p.table_str().to_string(),
                             column: p.name_str().to_string(),
-                            coltype: get_coltype(&p.column_type()),
+                            coltype: helpers::get_coltype(&p.column_type()),
                             colflags: ColumnFlags::from_bits(p.flags().bits()).unwrap(),
                         }
                     })
@@ -169,18 +166,18 @@ impl Shim {
                         Column {
                             table: c.table_str().to_string(),
                             column: c.name_str().to_string(),
-                            coltype: get_coltype(&c.column_type()),
+                            coltype: helpers::get_coltype(&c.column_type()),
                             colflags: ColumnFlags::from_bits(c.flags().bits()).unwrap(),
                         }
                     })
                     .collect();
-                info.reply(stmt.id(), &params, &columns)?;
+                //info.reply(stmt.id(), &params, &columns)?;
                 self.prepared.insert(stmt.id(), Prepared{stmt: stmt.clone(), params});
             },
             Err(e) => {
                 match e {
                     mysql::Error::MySqlError(merr) => {
-                        info.error(ErrorKind::ER_NO, merr.message.as_bytes())?;
+                        //info.error(ErrorKind::ER_NO, merr.message.as_bytes())?;
                     },
                     _ => return Err(e),
                 }
@@ -188,6 +185,8 @@ impl Shim {
         }
         Ok(())
     }
+
+
 }
 
 impl<W: io::Write> MysqlShim<W> for Shim {
@@ -197,7 +196,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * Set all user_ids in the MV to ghost ids, insert ghost users into usersMV
      * TODO actually delete entries? 
      */
-    fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
+    fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), mysql::Error> {
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
                     
@@ -214,7 +213,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             fetch: None,
         };
         let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
-        let mv_table_name = self.qtrans.objname_to_mv_objname(&user_table_name);
+        let mv_table_name = self.mvtrans.objname_to_mv_objname(&user_table_name);
  
         /* 
          * 1. update the users MV to have an entry for all the users' GIDs
@@ -253,7 +252,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             let mut assignments : Vec<String> = vec![];
             for uc in ucols {
                 let uc_dt_ids = helpers::string_to_idents(&uc);
-                let uc_mv_ids = self.qtrans.idents_to_mv_idents(&uc_dt_ids);
+                let uc_mv_ids = self.mvtrans.idents_to_mv_idents(&uc_dt_ids);
                 let mut astr = String::new();
                 astr.push_str(&format!(
                         "{} = {}", 
@@ -284,7 +283,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 fullname.push_str(".");
                 fullname.push_str(&col);
                 let dt_ids = helpers::string_to_idents(&fullname);
-                let mv_ids = self.qtrans.idents_to_mv_idents(&dt_ids);
+                let mv_ids = self.mvtrans.idents_to_mv_idents(&dt_ids);
 
                 select_constraint = Expr::BinaryOp {
                     left: Box::new(select_constraint),
@@ -308,7 +307,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             }
                 
             let update_dt_stmt = format!("UPDATE {}, {} SET {} WHERE {};", 
-                self.qtrans.objname_to_mv_objname(&dtobjname).to_string(),
+                self.mvtrans.objname_to_mv_objname(&dtobjname).to_string(),
                 dtobjname.to_string(),
                 astr,
                 select_constraint.to_string(),
@@ -340,7 +339,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             .map(|g| Expr::Value(ast::Value::Number(g.to_string())))
             .collect();
         let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
-        let mv_table_name = self.qtrans.objname_to_mv_objname(&user_table_name);
+        let mv_table_name = self.mvtrans.objname_to_mv_objname(&user_table_name);
 
         /*
          * 1. drop all GIDs from users table 
@@ -387,7 +386,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             let mut assignments : Vec<String> = vec![];
             for uc in ucols {
                 let uc_dt_ids = helpers::string_to_idents(&uc);
-                let uc_mv_ids = self.qtrans.idents_to_mv_idents(&uc_dt_ids);
+                let uc_mv_ids = self.mvtrans.idents_to_mv_idents(&uc_dt_ids);
                 let mut astr = String::new();
                 astr.push_str(&format!(
                         "{} = {}", 
@@ -418,7 +417,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 fullname.push_str(".");
                 fullname.push_str(&col);
                 let dt_ids = helpers::string_to_idents(&fullname);
-                let mv_ids = self.qtrans.idents_to_mv_idents(&dt_ids);
+                let mv_ids = self.mvtrans.idents_to_mv_idents(&dt_ids);
 
                 select_constraint = Expr::BinaryOp {
                     left: Box::new(select_constraint),
@@ -441,7 +440,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 astr.push_str(&assignments[i]);
             }
             let update_dt_stmt = format!("UPDATE {}, {} SET {} WHERE {};", 
-                self.qtrans.objname_to_mv_objname(&dtobjname).to_string(),
+                self.mvtrans.objname_to_mv_objname(&dtobjname).to_string(),
                 dtobjname.to_string(),
                 astr,
                 select_constraint.to_string(),
@@ -463,11 +462,11 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         if !self.test_params.translate {
             self.qtrans.stats.nqueries+=1;
             warn!("on_query: {}", stmt_ast);
-            return self.prep_statement(format!("{}", stmt_ast));
+            return self.prep_statement(&format!("{}", stmt_ast));
         }
         // wrap in txn to ensure that all reads are consistent if any are performed
-        let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
-        let mv_stmt = self.qtrans.prep_mv_stmt(&stmt_ast, &mut txn)?;
+        let txn = self.db.start_transaction(mysql::TxOpts::default())?;
+        //let mv_stmt = self.qtrans.prep_mv_stmt(&stmt_ast, &mut txn)?;
         txn.commit()?;
         // TODO add prepped statement
         Ok(())
@@ -578,113 +577,16 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         if !self.test_params.parse {
             self.qtrans.stats.nqueries+=1;
             warn!("on_query: {}", query);
-            return answer_rows(results, self.db.query_iter(query));
+            return helpers::answer_rows(results, self.db.query_iter(query));
         }
 
         let stmt_ast = self.sqlcache.get_single_parsed_stmt(&query.to_string())?;
         if !self.test_params.translate {
             self.qtrans.stats.nqueries+=1;
             warn!("on_query: {}", stmt_ast);
-            return answer_rows(results, self.db.query_iter(stmt_ast.to_string()));
+            return helpers::answer_rows(results, self.db.query_iter(stmt_ast.to_string()));
         }
 
-        let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
-        let mv_stmt = self.qtrans.get_mv_stmt(&stmt_ast, &mut txn)?;
-        self.qtrans.stats.nqueries+=1;
-        warn!("on_query: {}", mv_stmt);
-        let res = answer_rows(results, txn.query_iter(mv_stmt.to_string()));
-        match res {
-            Err(e) => return Err(e),
-            Ok(()) => {
-                txn.commit()?;
-                return Ok(());
-            }
-        }
-    }
-}
-
-fn answer_rows<W: io::Write>(
-    results: QueryResultWriter<W>,
-    rows: mysql::Result<mysql::QueryResult<mysql::Text>>) 
-    -> Result<(), mysql::Error> 
-{
-    match rows {
-        Ok(rows) => {
-            let cols : Vec<_> = rows
-                .columns()
-                .as_ref()
-                .into_iter()
-                .map(|c| {
-                    Column {
-                    table : c.table_str().to_string(),
-                    column : c.name_str().to_string(),
-                    coltype : get_coltype(&c.column_type()),
-                    colflags: ColumnFlags::from_bits(c.flags().bits()).unwrap(),
-                }
-            })
-            .collect();
-            let mut writer = results.start(&cols)?;
-            for row in rows {
-                let vals = row.unwrap().unwrap();
-                for v in vals {
-                    writer.write_col(mysql_val_to_common_val(&v))?;
-                }
-                writer.end_row()?;
-            }
-            writer.finish()?;
-        }
-        Err(e) => {
-            results.error(ErrorKind::ER_BAD_SLAVE, format!("{:?}", e).as_bytes())?;
-        }
-    }
-    Ok(())
-}
-
-/// Convert a MySQL type to MySQL_svr type 
-fn get_coltype(t: &mysql::consts::ColumnType) -> ColumnType {
-    match t {
-        mysql::consts::ColumnType::MYSQL_TYPE_DECIMAL => ColumnType::MYSQL_TYPE_DECIMAL,
-        mysql::consts::ColumnType::MYSQL_TYPE_TINY => ColumnType::MYSQL_TYPE_TINY,
-        mysql::consts::ColumnType::MYSQL_TYPE_SHORT => ColumnType::MYSQL_TYPE_SHORT,
-        mysql::consts::ColumnType::MYSQL_TYPE_LONG => ColumnType::MYSQL_TYPE_LONG,
-        mysql::consts::ColumnType::MYSQL_TYPE_FLOAT => ColumnType::MYSQL_TYPE_FLOAT,
-        mysql::consts::ColumnType::MYSQL_TYPE_DOUBLE => ColumnType::MYSQL_TYPE_DOUBLE,
-        mysql::consts::ColumnType::MYSQL_TYPE_NULL => ColumnType::MYSQL_TYPE_NULL,
-        mysql::consts::ColumnType::MYSQL_TYPE_TIMESTAMP => ColumnType::MYSQL_TYPE_TIMESTAMP,
-        mysql::consts::ColumnType::MYSQL_TYPE_LONGLONG => ColumnType::MYSQL_TYPE_LONGLONG,
-        mysql::consts::ColumnType::MYSQL_TYPE_INT24 => ColumnType::MYSQL_TYPE_INT24,
-        mysql::consts::ColumnType::MYSQL_TYPE_DATE => ColumnType::MYSQL_TYPE_DATE,
-        mysql::consts::ColumnType::MYSQL_TYPE_TIME => ColumnType::MYSQL_TYPE_TIME,
-        mysql::consts::ColumnType::MYSQL_TYPE_DATETIME => ColumnType::MYSQL_TYPE_DATETIME,
-        mysql::consts::ColumnType::MYSQL_TYPE_YEAR => ColumnType::MYSQL_TYPE_YEAR,
-        mysql::consts::ColumnType::MYSQL_TYPE_NEWDATE => ColumnType::MYSQL_TYPE_NEWDATE,
-        mysql::consts::ColumnType::MYSQL_TYPE_VARCHAR => ColumnType::MYSQL_TYPE_VARCHAR,
-        mysql::consts::ColumnType::MYSQL_TYPE_BIT => ColumnType::MYSQL_TYPE_BIT,
-        mysql::consts::ColumnType::MYSQL_TYPE_TIMESTAMP2 => ColumnType::MYSQL_TYPE_TIMESTAMP2,
-        mysql::consts::ColumnType::MYSQL_TYPE_DATETIME2 => ColumnType::MYSQL_TYPE_DATETIME2,
-        mysql::consts::ColumnType::MYSQL_TYPE_TIME2 => ColumnType::MYSQL_TYPE_TIME2,
-        mysql::consts::ColumnType::MYSQL_TYPE_JSON => ColumnType::MYSQL_TYPE_JSON,
-        mysql::consts::ColumnType::MYSQL_TYPE_NEWDECIMAL => ColumnType::MYSQL_TYPE_NEWDECIMAL,
-        mysql::consts::ColumnType::MYSQL_TYPE_ENUM => ColumnType::MYSQL_TYPE_ENUM,
-        mysql::consts::ColumnType::MYSQL_TYPE_SET => ColumnType::MYSQL_TYPE_SET,
-        mysql::consts::ColumnType::MYSQL_TYPE_TINY_BLOB => ColumnType::MYSQL_TYPE_TINY_BLOB,
-        mysql::consts::ColumnType::MYSQL_TYPE_MEDIUM_BLOB => ColumnType::MYSQL_TYPE_MEDIUM_BLOB,
-        mysql::consts::ColumnType::MYSQL_TYPE_LONG_BLOB => ColumnType::MYSQL_TYPE_LONG_BLOB,
-        mysql::consts::ColumnType::MYSQL_TYPE_BLOB => ColumnType::MYSQL_TYPE_BLOB,
-        mysql::consts::ColumnType::MYSQL_TYPE_VAR_STRING => ColumnType::MYSQL_TYPE_VAR_STRING,
-        mysql::consts::ColumnType::MYSQL_TYPE_STRING => ColumnType::MYSQL_TYPE_STRING,
-        mysql::consts::ColumnType::MYSQL_TYPE_GEOMETRY => ColumnType::MYSQL_TYPE_GEOMETRY,
-    }
-}
-
-fn mysql_val_to_common_val(val: &mysql::Value) -> mysql_common::value::Value {
-    match val {
-        mysql::Value::NULL => mysql_common::value::Value::NULL,
-        mysql::Value::Bytes(bs) => mysql_common::value::Value::Bytes(bs.clone()),
-        mysql::Value::Int(i) => mysql_common::value::Value::Int(*i),
-        mysql::Value::UInt(i) => mysql_common::value::Value::UInt(*i),
-        mysql::Value::Float(f) => mysql_common::value::Value::Double(*f),
-        mysql::Value::Date(a,b,c,d,e,f,g) => mysql_common::value::Value::Date(*a,*b,*c,*d,*e,*f,*g),
-        mysql::Value::Time(a,b,c,d,e,f) => mysql_common::value::Value::Time(*a,*b,*c,*d,*e,*f),
+        self.qtrans.query(results, &stmt_ast, &mut self.db)
     }
 }

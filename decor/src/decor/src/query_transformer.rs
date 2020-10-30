@@ -1,14 +1,17 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use super::{helpers, qtcache, config};
+use super::{helpers, qtcache, config, mv_transformer};
 use std::sync::atomic::Ordering;
 use std::*;
 use log::{debug,warn};
 use std::sync::atomic::{AtomicU64};
+use msql_srv::{QueryResultWriter};
 
 pub struct QueryTransformer {
     pub cfg: config::Config,
     pub cache: qtcache::QueryCache,
+    
+    mvtrans: mv_transformer::MVTransformer,
     latest_uid: AtomicU64,
     
     // for tests
@@ -20,6 +23,7 @@ impl QueryTransformer {
     pub fn new(cfg: &config::Config, params: &super::TestParams) -> Self {
         QueryTransformer{
             cfg: cfg.clone(),
+            mvtrans: mv_transformer::MVTransformer::new(cfg),
             cache: qtcache::QueryCache::new(),
             latest_uid: AtomicU64::new(0),
             params: params.clone(),
@@ -36,7 +40,7 @@ impl QueryTransformer {
      * NOTE: queries are read-only operations (whereas statements may be writes)
      */
     fn query_to_value_query(&mut self, query: &Query, txn: &mut mysql::Transaction) -> Result<Query, mysql::Error> {
-        let mv_q = self.query_to_mv_query(query);
+        let mv_q = self.mvtrans.query_to_mv_query(query);
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
         
         warn!("query_to_value_query: {}", mv_q);
@@ -64,7 +68,7 @@ impl QueryTransformer {
      * This issues the specified query to the MVs, and returns a VALUES row 
      */
     fn query_to_value_rows(&mut self, query: &Query, is_single_column: bool, txn: &mut mysql::Transaction) -> Result<Vec<Expr>, mysql::Error> {
-        let mv_q = self.query_to_mv_query(query);
+        let mv_q = self.mvtrans.query_to_mv_query(query);
         let mut vals_vec : Vec<Expr>= vec![];
         
         warn!("query_to_value_rows: {}", mv_q);
@@ -715,7 +719,7 @@ impl QueryTransformer {
                 // we need to issue q to MVs to get rows that will be set as values
                 // regardless of whether this is a DT or not (because query needs
                 // to read from MV, rather than initially specified tables)
-                let mv_q = self.query_to_mv_query(q);
+                let mv_q = self.mvtrans.query_to_mv_query(q);
                 warn!("insert_source_q_to_values: {}", mv_q);
                 let rows = txn.query_iter(&mv_q.to_string())?;
                 self.stats.nqueries+=1;
@@ -729,871 +733,6 @@ impl QueryTransformer {
             }
         }    
         Ok(vals_vec)
-    }
-
-    /********************************************************
-     * Processing statements to use materialized views      
-     * ******************************************************/
-    pub fn objname_to_mv_string(&self, obj: &ObjectName) -> String {
-        let obj_mv = ObjectName(self.idents_to_mv_idents(&obj.0));
-        obj_mv.to_string()
-    }
-
-    pub fn objname_to_mv_objname(&self, obj: &ObjectName) -> ObjectName {
-        ObjectName(self.idents_to_mv_idents(&obj.0))
-    }
- 
-    pub fn idents_to_mv_idents(&self, obj: &Vec<Ident>) -> Vec<Ident> {
-        // note that we assume that the name specified in the config
-        // is the minimum needed to identify the data table.
-        // if there are duplicates, the database/schema would also
-        // need to be present as well. however, we allow for overspecifying
-        // in the query (so the data table name in the config may be a 
-        // subset of the query name).
-        
-        let mut objs_mv = obj.clone();
-        for dt in &self.cfg.data_tables {
-            if let Some((_start, end)) = helpers::str_subset_of_idents(&dt.name, obj) {
-                objs_mv.clear();
-                for (index, ident) in obj.iter().enumerate() {
-                    if index == end-1 {
-                        // we found a match
-                        objs_mv.push(Ident::new(&format!("{}{}", ident, super::MV_SUFFIX)));
-                    } else {
-                        objs_mv.push(ident.clone());
-                    }
-                } 
-                break;
-            }
-        }
-        objs_mv
-    }
-
-    fn tablefactor_to_mv_tablefactor(&self, tf: &TableFactor) -> TableFactor {
-        match tf {
-            TableFactor::Table {
-                name,
-                alias,
-            } => {
-                let mv_table_name = self.objname_to_mv_string(&name);
-                TableFactor::Table{
-                    name: helpers::string_to_objname(&mv_table_name),
-                    alias: alias.clone(),
-                }
-            }
-            TableFactor::Derived {
-                lateral,
-                subquery,
-                alias,
-            } => TableFactor::Derived {
-                    lateral: *lateral,
-                    subquery: Box::new(self.query_to_mv_query(&subquery)),
-                    alias: alias.clone(),
-                },
-            TableFactor::NestedJoin {
-                join,
-                alias,
-            } => TableFactor::NestedJoin{
-                    join: Box::new(self.tablewithjoins_to_mv_tablewithjoins(&join)),
-                    alias: alias.clone(),
-                },
-            _ => tf.clone(),
-        }
-    }
-
-    fn joinoperator_to_mv_joinoperator(&self, jo: &JoinOperator) -> JoinOperator {
-        let jo_mv : JoinOperator;
-        match jo {
-            JoinOperator::Inner(JoinConstraint::On(e)) => 
-                jo_mv = JoinOperator::Inner(JoinConstraint::On(self.expr_to_mv_expr(e))),
-            JoinOperator::LeftOuter(JoinConstraint::On(e)) => 
-                jo_mv = JoinOperator::LeftOuter(JoinConstraint::On(self.expr_to_mv_expr(e))),
-            JoinOperator::RightOuter(JoinConstraint::On(e)) => 
-                jo_mv = JoinOperator::RightOuter(JoinConstraint::On(self.expr_to_mv_expr(e))),
-            JoinOperator::FullOuter(JoinConstraint::On(e)) => 
-                jo_mv = JoinOperator::FullOuter(JoinConstraint::On(self.expr_to_mv_expr(e))),
-            _ => jo_mv = jo.clone(),
-        }
-        jo_mv
-    }
-
-    fn tablewithjoins_to_mv_tablewithjoins(&self, twj: &TableWithJoins) -> TableWithJoins {
-        TableWithJoins {
-            relation: self.tablefactor_to_mv_tablefactor(&twj.relation),
-            joins: twj.joins
-                .iter()
-                .map(|j| Join {
-                    relation: self.tablefactor_to_mv_tablefactor(&j.relation),
-                    join_operator: self.joinoperator_to_mv_joinoperator(&j.join_operator),
-                })
-                .collect(),
-        }
-    }
-
-    fn setexpr_to_mv_setexpr(&self, setexpr: &SetExpr) -> SetExpr {
-        match setexpr {
-            SetExpr::Select(s) => 
-                SetExpr::Select(Box::new(Select{
-                    distinct: s.distinct,
-                    projection: s.projection
-                        .iter()
-                        .map(|si| match si {
-                            SelectItem::Expr{
-                                expr,
-                                alias,
-                            } => SelectItem::Expr{
-                                expr: self.expr_to_mv_expr(&expr),
-                                alias: alias.clone(),
-                            },
-                            SelectItem::Wildcard => SelectItem::Wildcard
-                        })
-                        .collect(),
-                    from: s.from
-                        .iter()
-                        .map(|twj| self.tablewithjoins_to_mv_tablewithjoins(&twj))
-                        .collect(),
-                    selection: match &s.selection {
-                        Some(e) => Some(self.expr_to_mv_expr(&e)),
-                        None => None,
-                    },
-                    group_by: s.group_by
-                        .iter()
-                        .map(|e| self.expr_to_mv_expr(&e))
-                        .collect(),
-                    having: match &s.having {
-                        Some(e) => Some(self.expr_to_mv_expr(&e)),
-                        None => None,
-                    },
-                })),
-            SetExpr::Query(q) => SetExpr::Query(Box::new(self.query_to_mv_query(&q))),
-            SetExpr::SetOperation {
-                op,
-                all,
-                left,
-                right,
-            } => SetExpr::SetOperation{
-                    op: op.clone(),
-                    all: *all,
-                    left: Box::new(self.setexpr_to_mv_setexpr(&left)),
-                    right: Box::new(self.setexpr_to_mv_setexpr(&right)),
-                },
-                SetExpr::Values(Values(v)) => SetExpr::Values(
-                    Values(v
-                        .iter()
-                        .map(|exprs| exprs
-                             .iter()
-                             .map(|e| self.expr_to_mv_expr(&e))
-                             .collect())
-                        .collect())),
-        }
-    }
-
-    pub fn query_to_mv_query(&self, query: &Query) -> Query {
-        let mut mv_query = query.clone(); 
-
-        let mut cte_mv_query : Query;
-        for cte in &mut mv_query.ctes {
-            cte_mv_query = self.query_to_mv_query(&cte.query);
-            cte.query = cte_mv_query;
-        }
-
-        mv_query.body = self.setexpr_to_mv_setexpr(&query.body);
-
-        let mut mv_oexpr : Expr;
-        for orderby in &mut mv_query.order_by {
-            mv_oexpr = self.expr_to_mv_expr(&orderby.expr);
-            orderby.expr = mv_oexpr;
-        }
-
-        if let Some(e) = &query.limit {
-            mv_query.limit = Some(self.expr_to_mv_expr(&e));
-        }
-
-        if let Some(e) = &query.offset {
-            mv_query.offset = Some(self.expr_to_mv_expr(&e));
-        }       
-
-        if let Some(f) = &mut mv_query.fetch {
-            if let Some(e) = &f.quantity {
-                let new_quantity = Some(self.expr_to_mv_expr(&e));
-                f.quantity = new_quantity;
-            }
-        }
-
-        mv_query
-    }
- 
-    pub fn expr_to_mv_expr(&self, expr: &Expr) -> Expr {
-        match expr {
-            Expr::Identifier(ids) => Expr::Identifier(self.idents_to_mv_idents(&ids)),
-            Expr::QualifiedWildcard(ids) => Expr::QualifiedWildcard(self.idents_to_mv_idents(&ids)),
-            Expr::FieldAccess {
-                expr,
-                field,
-            } => Expr::FieldAccess {
-                expr: Box::new(self.expr_to_mv_expr(&expr)),
-                field: field.clone(),
-            },
-            Expr::WildcardAccess(e) => Expr::WildcardAccess(Box::new(self.expr_to_mv_expr(&e))),
-            Expr::IsNull{
-                expr,
-                negated,
-            } => Expr::IsNull {
-                expr: Box::new(self.expr_to_mv_expr(&expr)),
-                negated: *negated,
-            },
-            Expr::InList {
-                expr,
-                list,
-                negated,
-            } => Expr::InList {
-                expr: Box::new(self.expr_to_mv_expr(&expr)),
-                list: list
-                    .iter()
-                    .map(|e| self.expr_to_mv_expr(&e))
-                    .collect(),
-                negated: *negated,
-            },
-            Expr::InSubquery {
-                expr,
-                subquery,
-                negated,
-            } => Expr::InSubquery {
-                expr: Box::new(self.expr_to_mv_expr(&expr)),
-                subquery: Box::new(self.query_to_mv_query(&subquery)),
-                negated: *negated,
-            },
-            Expr::Between {
-                expr,
-                negated,
-                low,
-                high,
-            } => Expr::Between {
-                expr: Box::new(self.expr_to_mv_expr(&expr)),
-                negated: *negated,
-                low: Box::new(self.expr_to_mv_expr(&low)),
-                high: Box::new(self.expr_to_mv_expr(&high)),
-            },
-            Expr::BinaryOp{
-                left,
-                op,
-                right
-            } => Expr::BinaryOp{
-                left: Box::new(self.expr_to_mv_expr(&left)),
-                op: op.clone(),
-                right: Box::new(self.expr_to_mv_expr(&right)),
-            },
-            Expr::UnaryOp{
-                op,
-                expr,
-            } => Expr::UnaryOp{
-                op: op.clone(),
-                expr: Box::new(self.expr_to_mv_expr(&expr)),
-            },
-            Expr::Cast{
-                expr,
-                data_type,
-            } => Expr::Cast{
-                expr: Box::new(self.expr_to_mv_expr(&expr)),
-                data_type: data_type.clone(),
-            },
-            Expr::Collate {
-                expr,
-                collation,
-            } => Expr::Collate{
-                expr: Box::new(self.expr_to_mv_expr(&expr)),
-                collation: self.objname_to_mv_objname(&collation),
-            },
-            Expr::Nested(expr) => Expr::Nested(Box::new(self.expr_to_mv_expr(&expr))),
-            Expr::Row{
-                exprs,
-            } => Expr::Row{
-                exprs: exprs
-                    .iter()
-                    .map(|e| self.expr_to_mv_expr(&e))
-                    .collect(),
-            },
-            Expr::Function(f) => Expr::Function(Function{
-                name: self.objname_to_mv_objname(&f.name),
-                args: match &f.args {
-                    FunctionArgs::Star => FunctionArgs::Star,
-                    FunctionArgs::Args(exprs) => FunctionArgs::Args(exprs
-                        .iter()
-                        .map(|e| self.expr_to_mv_expr(&e))
-                        .collect()),
-                },
-                filter: match &f.filter {
-                    Some(filt) => Some(Box::new(self.expr_to_mv_expr(&filt))),
-                    None => None,
-                },
-                over: match &f.over {
-                    Some(ws) => Some(WindowSpec{
-                        partition_by: ws.partition_by
-                            .iter()
-                            .map(|e| self.expr_to_mv_expr(&e))
-                            .collect(),
-                        order_by: ws.order_by
-                            .iter()
-                            .map(|obe| OrderByExpr {
-                                expr: self.expr_to_mv_expr(&obe.expr),
-                                asc: obe.asc.clone(),
-                            })
-                            .collect(),
-                        window_frame: ws.window_frame.clone(),
-                    }),
-                    None => None,
-                },
-                distinct: f.distinct,
-            }),
-            Expr::Case{
-                operand,
-                conditions,
-                results,
-                else_result,
-            } => Expr::Case{
-                operand: match operand {
-                    Some(e) => Some(Box::new(self.expr_to_mv_expr(&e))),
-                    None => None,
-                },
-                conditions: conditions
-                    .iter()
-                    .map(|e| self.expr_to_mv_expr(&e))
-                    .collect(),
-                results:results
-                    .iter()
-                    .map(|e| self.expr_to_mv_expr(&e))
-                    .collect(),
-                else_result: match else_result {
-                    Some(e) => Some(Box::new(self.expr_to_mv_expr(&e))),
-                    None => None,
-                },
-            },
-            Expr::Exists(q) => Expr::Exists(Box::new(self.query_to_mv_query(&q))),
-            Expr::Subquery(q) => Expr::Subquery(Box::new(self.query_to_mv_query(&q))),
-            Expr::Any {
-                left,
-                op,
-                right,
-            } => Expr::Any {
-                left: Box::new(self.expr_to_mv_expr(&left)),
-                op: op.clone(),
-                right: Box::new(self.query_to_mv_query(&right)),
-            },
-            Expr::All{
-                left,
-                op,
-                right,
-            } => Expr::All{
-                left: Box::new(self.expr_to_mv_expr(&left)),
-                op: op.clone(),
-                right: Box::new(self.query_to_mv_query(&right)),
-            },
-            Expr::List(exprs) => Expr::List(exprs
-                .iter()
-                .map(|e| self.expr_to_mv_expr(&e))
-                .collect()),
-            Expr::SubscriptIndex {
-                expr,
-                subscript,
-            } => Expr::SubscriptIndex{
-                expr: Box::new(self.expr_to_mv_expr(&expr)),
-                subscript: Box::new(self.expr_to_mv_expr(&subscript)),
-            },
-            Expr::SubscriptSlice{
-                expr,
-                positions,
-            } => Expr::SubscriptSlice{
-                expr: Box::new(self.expr_to_mv_expr(&expr)),
-                positions: positions
-                    .iter()
-                    .map(|pos| SubscriptPosition {
-                        start: match &pos.start {
-                            Some(e) => Some(self.expr_to_mv_expr(&e)),
-                            None => None,
-                        },
-                        end: match &pos.end {
-                            Some(e) => Some(self.expr_to_mv_expr(&e)),
-                                None => None,
-                            },
-                        })
-                    .collect(),
-            },
-            _ => expr.clone(),
-        }
-    }
-
-    pub fn get_mv_stmt(&mut self, stmt: &Statement, txn: &mut mysql::Transaction) -> mysql::Result<Statement> {
-        let mv_stmt : Statement;
-        let mut is_dt_write = false;
-        let mv_table_name : String;
-
-        match stmt {
-            // Note: mysql doesn't support "as_of"
-            Statement::Select(SelectStatement{
-                query, 
-                as_of,
-            }) => {
-                let new_q = self.query_to_mv_query(&query);
-                mv_stmt = Statement::Select(SelectStatement{
-                    query: Box::new(new_q), 
-                    as_of: as_of.clone(),
-                })
-            }
-            Statement::Insert(InsertStatement{
-                table_name,
-                columns, 
-                source,
-            }) => {
-                mv_table_name = self.objname_to_mv_string(&table_name);
-                is_dt_write = mv_table_name != table_name.to_string();
-                let mut new_source = source.clone();
-                let mut mv_cols = columns.clone();
-                let mut new_q = None;
-                
-                // update sources if is a datatable
-                let mut values = vec![];
-                if is_dt_write || table_name.to_string() == self.cfg.user_table.name {
-                    match source {
-                        InsertSource::Query(q) => {
-                            values = self.insert_source_query_to_values(&q, txn)?;
-                            new_q = Some(q.clone());
-                        }
-                        InsertSource::DefaultValues => (),
-                    }
-                }
-
-                // issue to datatable with vals_vec BEFORE we modify vals_vec to include the
-                // user_id column
-                if is_dt_write {
-                    self.issue_insert_datatable_stmt(&mut values.clone(), InsertStatement{
-                        table_name: table_name.clone(), 
-                        columns: columns.clone(), 
-                        source: source.clone(),
-                    }, txn)?;
-                }
-                                       
-                // if the user table has an autoincrement column, we should 
-                // (1) see if the table is actually inserting a value for that column (found) 
-                // (2) update the self.latest_uid appropriately and insert the value for that column
-                if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
-                    let mut found = false;
-                    for (i, col) in columns.iter().enumerate() {
-                        if col.to_string() == self.cfg.user_table.id_col {
-                            // get the values of the uid col being inserted and update as
-                            // appropriate
-                            let mut max = self.latest_uid.load(Ordering::SeqCst);
-                            for vv in &values{
-                                match &vv[i] {
-                                    Expr::Value(Value::Number(n)) => {
-                                        let n = n.parse::<u64>().map_err(|e| mysql::Error::IoError(io::Error::new(
-                                                        io::ErrorKind::Other, format!("{}", e))))?;
-                                        max = cmp::max(max, n);
-                                    }
-                                    _ => (),
-                                }
-                            }
-                            // TODO ensure self.latest_uid never goes above GID_START
-                            self.latest_uid.fetch_max(max, Ordering::SeqCst);
-                            found = true;
-                            break;
-                        }
-                    }
-                    if !found {
-                        // put self.latest_uid + N as the id col values 
-                        let cur_uid = self.latest_uid.fetch_add(values.len() as u64, Ordering::SeqCst);
-                        for i in 0..values.len() {
-                            values[i].push(Expr::Value(Value::Number(format!("{}", cur_uid + (i as u64) + 1))));
-                        }
-                        // add id column to update
-                        mv_cols.push(Ident::new(self.cfg.user_table.id_col.clone()));
-                    }
-                    // update source with new vals_vec
-                    if let Some(mut nq) = new_q {
-                        nq.body = SetExpr::Values(Values(values.clone()));
-                        new_source = InsertSource::Query(nq);
-                    }
-                }
-                
-                mv_stmt = Statement::Insert(InsertStatement{
-                    table_name: helpers::string_to_objname(&mv_table_name),
-                    columns : mv_cols,
-                    source : new_source, 
-                });
-            }
-            Statement::Update(UpdateStatement{
-                table_name,
-                assignments,
-                selection,
-            }) => {
-                mv_table_name = self.objname_to_mv_string(&table_name);
-                is_dt_write = mv_table_name != table_name.to_string();
-
-                let mut assign_vals = vec![];
-                if is_dt_write || table_name.to_string() == self.cfg.user_table.name {
-                    let mut contains_ucol_id = false;
-                    for a in assignments {
-                        assign_vals.push(self.expr_to_value_expr(&a.value, txn, &mut contains_ucol_id, &vec![])?);
-                    }
-                }
-                    
-                if is_dt_write {
-                    self.issue_update_datatable_stmt(
-                        &assign_vals,
-                        UpdateStatement{
-                            table_name: table_name.clone(), 
-                            assignments: assignments.clone(), 
-                            selection: selection.clone()
-                        }, 
-                        txn)?;
-                }
- 
-                // if the user table has an autoincrement column, we should 
-                // (1) see if the table is actually updating a value for that column and
-                // (2) update the self.latest_uid appropriately 
-                if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
-                    for i in 0..assignments.len() {
-                        if assignments[i].id.to_string() == self.cfg.user_table.id_col {
-                            match &assign_vals[i] {
-                                Expr::Value(Value::Number(n)) => {
-                                    let n = n.parse::<u64>().map_err(|e| mysql::Error::IoError(io::Error::new(
-                                                    io::ErrorKind::Other, format!("{}", e))))?;
-                                    self.latest_uid.fetch_max(n, Ordering::SeqCst);
-                                }
-                                _ => (),
-                            }
-                        }
-                    }
-                }
-
-                let mut mv_assn = Vec::<Assignment>::new();
-                let mut mv_selection = selection.clone();
-                // update assignments
-                for a in assignments {
-                    mv_assn.push(Assignment{
-                        id : a.id.clone(),
-                        value: self.expr_to_mv_expr(&a.value),
-                    });
-                }
-                // update selection 
-                match selection {
-                    None => (),
-                    Some(s) => mv_selection = Some(self.expr_to_mv_expr(&s)),
-                }
-               
-                mv_stmt = Statement::Update(UpdateStatement{
-                    table_name: helpers::string_to_objname(&mv_table_name),
-                    assignments : mv_assn,
-                    selection : mv_selection,
-                });
-            }
-            Statement::Delete(DeleteStatement{
-                table_name,
-                selection,
-            }) => {
-                mv_table_name = self.objname_to_mv_string(&table_name);
-                is_dt_write = mv_table_name != table_name.to_string();
-
-                if is_dt_write {
-                    self.issue_delete_datatable_stmt(DeleteStatement{
-                        table_name: table_name.clone(), 
-                        selection: selection.clone(),
-                    }, txn)?;
-                }
-
-                let mut mv_selection = selection.clone();
-                // update selection 
-                match selection {
-                    None => (),
-                    Some(s) => mv_selection = Some(self.expr_to_mv_expr(&s)),
-                }
-               
-                mv_stmt = Statement::Delete(DeleteStatement{
-                    table_name: helpers::string_to_objname(&mv_table_name),
-                    selection : mv_selection,
-                });
-            }
-            Statement::CreateView(CreateViewStatement{
-                name,
-                columns,
-                with_options,
-                query,
-                if_exists,
-                temporary,
-                materialized,
-            }) => {
-                let mv_query = self.query_to_mv_query(&query);
-                mv_stmt = Statement::CreateView(CreateViewStatement{
-                    name: name.clone(),
-                    columns: columns.clone(),
-                    with_options: with_options.clone(),
-                    query : Box::new(mv_query),
-                    if_exists: if_exists.clone(),
-                    temporary: temporary.clone(),
-                    materialized: materialized.clone(),
-                });
-            }
-            Statement::CreateTable(CreateTableStatement{
-                name,
-                columns,
-                constraints,
-                indexes,
-                with_options,
-                if_not_exists,
-                engine,
-            }) => {
-                mv_table_name = self.objname_to_mv_string(&name);
-                is_dt_write = mv_table_name != name.to_string();
-                let mut new_engine = engine.clone();
-                if self.params.in_memory {
-                    new_engine = Some(Engine::Memory);
-                }
-
-                if is_dt_write {
-                    // create the original table as well if we're going to
-                    // create a MV for this table
-                    let dtstmt = CreateTableStatement {
-                        name: name.clone(),
-                        columns: columns.clone(),
-                        constraints: constraints.clone(),
-                        indexes: indexes.clone(),
-                        with_options: with_options.clone(),
-                        if_not_exists: *if_not_exists,
-                        engine: new_engine.clone(),
-                    };
-
-                    warn!("get_mv stmt: {}", dtstmt);
-                    txn.query_drop(dtstmt.to_string())?;
-                    self.stats.nqueries+=1;
-                }
-
-                let mv_constraints : Vec<TableConstraint> = constraints
-                    .iter()
-                    .map(|c| match c {
-                        TableConstraint::ForeignKey {
-                            name,
-                            columns,
-                            foreign_table,
-                            referred_columns,
-                        } => {
-                            let foreign_table = self.objname_to_mv_string(foreign_table);
-                            TableConstraint::ForeignKey{
-                                name: name.clone(),
-                                columns: columns.clone(),
-                                foreign_table: helpers::string_to_objname(&foreign_table),
-                                referred_columns: referred_columns.clone(),
-                            }
-                        }
-                        _ => c.clone(),
-                    })
-                    .collect(); 
-
-                let mut mv_cols = columns.clone();
-                // if we're creating the user table, remove any autoinc column
-                if name.to_string() == self.cfg.user_table.name {
-                    for col in &mut mv_cols{
-                        if col.name.to_string() != self.cfg.user_table.id_col {
-                            continue;
-                        }
-
-                        // if this is the user id column and it is autoincremented,
-                        // remove autoincrement in materialized view
-                        if col.options.iter().any(|cod| cod.option == ColumnOption::AutoIncrement) {
-                            self.cfg.user_table.is_autoinc = true;
-                            col.options.retain(|x| x.option != ColumnOption::AutoIncrement);
-                        }
-                        break;
-                    }
-                }
-                
-                mv_stmt = Statement::CreateTable(CreateTableStatement{
-                    name: helpers::string_to_objname(&mv_table_name),
-                    columns: mv_cols,
-                    constraints: mv_constraints,
-                    indexes: indexes.clone(),
-                    with_options: with_options.clone(),
-                    if_not_exists: *if_not_exists,
-                    engine: new_engine,
-                });
-            }
-            Statement::CreateIndex(CreateIndexStatement{
-                name,
-                on_name,
-                key_parts,
-                if_not_exists,
-            }) => {
-                mv_table_name = self.objname_to_mv_string(&on_name);
-                is_dt_write = mv_table_name != on_name.to_string();
-
-                if is_dt_write {
-                    // create the original index as well if we're going to
-                    // create a MV index 
-                    warn!("get_mv: {}", stmt);
-                    txn.query_drop(stmt.to_string())?;
-                    self.stats.nqueries+=1;
-                }
-
-                mv_stmt = Statement::CreateIndex(CreateIndexStatement{
-                    name: name.clone(),
-                    on_name: helpers::string_to_objname(&mv_table_name),
-                    key_parts: key_parts.clone(),
-                    if_not_exists: if_not_exists.clone(),
-                });
-            }
-            Statement::AlterObjectRename(AlterObjectRenameStatement{
-                object_type,
-                if_exists,
-                name,
-                to_item_name,
-            }) => {
-                let mut to_item_mv_name = to_item_name.to_string();
-                mv_table_name= self.objname_to_mv_string(&name);
-                is_dt_write = mv_table_name != name.to_string();
-
-                if is_dt_write {
-                    // alter the original table as well if we're going to
-                    // alter a MV table
-                    warn!("get_mv: {}", stmt);
-                    txn.query_drop(stmt.to_string())?;
-                    self.stats.nqueries+=1;
-                }
-                
-                match object_type {
-                    ObjectType::Table => {
-                        // update name(s)
-                        if mv_table_name != name.to_string() {
-                            // change config to reflect new table name
-                            // TODO change config as table names are updated
-                            /*if self.cfg.user_table.name == name.to_string() {
-                                self.cfg.user_table.name = to_item_name.to_string();
-                            } else {
-                                for tab in &mut self.cfg.data_tables {
-                                    if tab.name == name.to_string() {
-                                        tab.name = to_item_name.to_string();
-                                    }
-                                }
-                            }*/
-                            to_item_mv_name = format!("{}{}", to_item_name, super::MV_SUFFIX);
-                        }
-                    }
-                    _ => (),
-                }
-                mv_stmt = Statement::AlterObjectRename(AlterObjectRenameStatement{
-                    object_type: object_type.clone(),
-                    if_exists: *if_exists,
-                    name: helpers::string_to_objname(&mv_table_name),
-                    to_item_name: Ident::new(to_item_mv_name),
-                });
-            }
-            Statement::DropObjects(DropObjectsStatement{
-                object_type,
-                if_exists,
-                names,
-                cascade,
-            }) => {
-                let mut mv_names = names.clone();
-                match object_type {
-                    ObjectType::Table => {
-                        // update name(s)
-                        for name in &mut mv_names {
-                            let newname = self.objname_to_mv_string(&name);
-                            is_dt_write |= newname != name.to_string();
-
-                            if is_dt_write {
-                                // alter the original table as well if we're going to
-                                // alter a MV table
-                                warn!("get_mv: {}", stmt);
-                                txn.query_drop(stmt.to_string())?;
-                                self.stats.nqueries+=1;
-                            }
-
-                            *name = helpers::string_to_objname(&newname);
-                        }
-                    }
-                    _ => (),
-                }
-                mv_stmt = Statement::DropObjects(DropObjectsStatement{
-                    object_type: object_type.clone(),
-                    if_exists: *if_exists,
-                    names: mv_names,
-                    cascade: *cascade,
-                });
-            }
-            Statement::ShowObjects(ShowObjectsStatement{
-                object_type,
-                from,
-                extended,
-                full,
-                materialized,
-                filter,
-            }) => {
-                let mut mv_from = from.clone();
-                if let Some(f) = from {
-                    mv_from = Some(helpers::string_to_objname(&self.objname_to_mv_string(&f)));
-                }
-
-                let mut mv_filter = filter.clone();
-                if let Some(f) = filter {
-                    match f {
-                        ShowStatementFilter::Like(_s) => (),
-                        ShowStatementFilter::Where(expr) => {
-                            mv_filter = Some(ShowStatementFilter::Where(self.expr_to_mv_expr(&expr)));
-                        }
-                    }
-                }
-                mv_stmt = Statement::ShowObjects(ShowObjectsStatement{
-                    object_type: object_type.clone(),
-                    from: mv_from,
-                    extended: *extended,
-                    full: *full,
-                    materialized: *materialized,
-                    filter: mv_filter,
-                });
-            }
-            Statement::ShowIndexes(ShowIndexesStatement{
-                table_name,
-                extended,
-                filter,
-            }) => {
-                mv_table_name = self.objname_to_mv_string(&table_name);
-                let mut mv_filter = filter.clone();
-                if let Some(f) = filter {
-                    match f {
-                        ShowStatementFilter::Like(_s) => (),
-                        ShowStatementFilter::Where(expr) => {
-                            mv_filter = Some(ShowStatementFilter::Where(self.expr_to_mv_expr(&expr)));
-                        }
-                    }
-                }
-                mv_stmt = Statement::ShowIndexes(ShowIndexesStatement {
-                    table_name: helpers::string_to_objname(&mv_table_name),
-                    extended: *extended,
-                    filter: mv_filter,
-                });
-            }
-            /* TODO Handle Statement::Explain(stmt) => f.write_node(stmt)
-             *
-             * TODO Currently don't support alterations that reset autoincrement counters
-             * Assume that deletions leave autoincrement counters as monotonically increasing
-             *
-             * Don't handle CreateSink, CreateSource, Copy,
-             *  ShowCreateSource, ShowCreateSink, Tail, Explain
-             * 
-             * Don't modify queries for CreateSchema, CreateDatabase, 
-             * ShowDatabases, ShowCreateTable, DropDatabase, Transactions,
-             * ShowColumns, SetVariable (mysql exprs in set var not supported yet)
-             *
-             * XXX: ShowVariable, ShowCreateView and ShowCreateIndex will return 
-             *  queries that used the materialized views, rather than the 
-             *  application-issued tables. This is probably not a big issue, 
-             *  since these queries are used to create the table again?
-             *
-             * XXX: SHOW * from users will not return any ghost users in ghostusersMV
-             * */
-            _ => {
-                mv_stmt = stmt.clone()
-            }
-        }
-        Ok(mv_stmt)
     }
       
     /*
@@ -1627,12 +766,12 @@ impl QueryTransformer {
                             projection: vec![SelectItem::Wildcard],
                             from: vec![TableWithJoins{
                                 relation: TableFactor::Table{
-                                    name: self.objname_to_mv_objname(table_name),
+                                    name: self.mvtrans.objname_to_mv_objname(table_name),
                                     alias: None,
                                 },
                                 joins: vec![],
                             }],
-                            selection: Some(self.expr_to_mv_expr(&s)),
+                            selection: Some(self.mvtrans.expr_to_mv_expr(&s)),
                             group_by: vec![],
                             having: None,
                         })),
@@ -1980,4 +1119,516 @@ impl QueryTransformer {
         self.stats.nqueries+=1;
         Ok(())
     }
-}
+
+    fn issue_to_dt_and_get_mv_stmt (
+        &mut self, 
+        stmt: &Statement, 
+        txn: &mut mysql::Transaction) 
+        -> Result<Statement, mysql::Error>
+    {
+        let mv_stmt : Statement;
+        let mut is_dt_write = false;
+        let mv_table_name : String;
+
+        match stmt {
+            // Note: mysql doesn't support "as_of"
+            Statement::Select(SelectStatement{
+                query, 
+                as_of,
+            }) => {
+                let new_q = self.mvtrans.query_to_mv_query(&query);
+                mv_stmt = Statement::Select(SelectStatement{
+                    query: Box::new(new_q), 
+                    as_of: as_of.clone(),
+                })
+            }
+            Statement::Insert(InsertStatement{
+                table_name,
+                columns, 
+                source,
+            }) => {
+                mv_table_name = self.mvtrans.objname_to_mv_string(&table_name);
+                is_dt_write = mv_table_name != table_name.to_string();
+                let mut new_source = source.clone();
+                let mut mv_cols = columns.clone();
+                let mut new_q = None;
+                
+                // update sources if is a datatable
+                let mut values = vec![];
+                if is_dt_write || table_name.to_string() == self.cfg.user_table.name {
+                    match source {
+                        InsertSource::Query(q) => {
+                            values = self.insert_source_query_to_values(&q, txn)?;
+                            new_q = Some(q.clone());
+                        }
+                        InsertSource::DefaultValues => (),
+                    }
+                }
+
+                // issue to datatable with vals_vec BEFORE we modify vals_vec to include the
+                // user_id column
+                if is_dt_write {
+                    self.issue_insert_datatable_stmt(&mut values.clone(), InsertStatement{
+                        table_name: table_name.clone(), 
+                        columns: columns.clone(), 
+                        source: source.clone(),
+                    }, txn)?;
+                }
+                                       
+                // if the user table has an autoincrement column, we should 
+                // (1) see if the table is actually inserting a value for that column (found) 
+                // (2) update the self.latest_uid appropriately and insert the value for that column
+                if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
+                    let mut found = false;
+                    for (i, col) in columns.iter().enumerate() {
+                        if col.to_string() == self.cfg.user_table.id_col {
+                            // get the values of the uid col being inserted and update as
+                            // appropriate
+                            let mut max = self.latest_uid.load(Ordering::SeqCst);
+                            for vv in &values{
+                                match &vv[i] {
+                                    Expr::Value(Value::Number(n)) => {
+                                        let n = n.parse::<u64>().map_err(|e| mysql::Error::IoError(io::Error::new(
+                                                        io::ErrorKind::Other, format!("{}", e))))?;
+                                        max = cmp::max(max, n);
+                                    }
+                                    _ => (),
+                                }
+                            }
+                            // TODO ensure self.latest_uid never goes above GID_START
+                            self.latest_uid.fetch_max(max, Ordering::SeqCst);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if !found {
+                        // put self.latest_uid + N as the id col values 
+                        let cur_uid = self.latest_uid.fetch_add(values.len() as u64, Ordering::SeqCst);
+                        for i in 0..values.len() {
+                            values[i].push(Expr::Value(Value::Number(format!("{}", cur_uid + (i as u64) + 1))));
+                        }
+                        // add id column to update
+                        mv_cols.push(Ident::new(self.cfg.user_table.id_col.clone()));
+                    }
+                    // update source with new vals_vec
+                    if let Some(mut nq) = new_q {
+                        nq.body = SetExpr::Values(Values(values.clone()));
+                        new_source = InsertSource::Query(nq);
+                    }
+                }
+                
+                mv_stmt = Statement::Insert(InsertStatement{
+                    table_name: helpers::string_to_objname(&mv_table_name),
+                    columns : mv_cols,
+                    source : new_source, 
+                });
+            }
+            Statement::Update(UpdateStatement{
+                table_name,
+                assignments,
+                selection,
+            }) => {
+                mv_table_name = self.mvtrans.objname_to_mv_string(&table_name);
+                is_dt_write = mv_table_name != table_name.to_string();
+
+                let mut assign_vals = vec![];
+                if is_dt_write || table_name.to_string() == self.cfg.user_table.name {
+                    let mut contains_ucol_id = false;
+                    for a in assignments {
+                        assign_vals.push(self.expr_to_value_expr(&a.value, txn, &mut contains_ucol_id, &vec![])?);
+                    }
+                }
+                    
+                if is_dt_write {
+                    self.issue_update_datatable_stmt(
+                        &assign_vals,
+                        UpdateStatement{
+                            table_name: table_name.clone(), 
+                            assignments: assignments.clone(), 
+                            selection: selection.clone()
+                        }, 
+                        txn)?;
+                }
+ 
+                // if the user table has an autoincrement column, we should 
+                // (1) see if the table is actually updating a value for that column and
+                // (2) update the self.latest_uid appropriately 
+                if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
+                    for i in 0..assignments.len() {
+                        if assignments[i].id.to_string() == self.cfg.user_table.id_col {
+                            match &assign_vals[i] {
+                                Expr::Value(Value::Number(n)) => {
+                                    let n = n.parse::<u64>().map_err(|e| mysql::Error::IoError(io::Error::new(
+                                                    io::ErrorKind::Other, format!("{}", e))))?;
+                                    self.latest_uid.fetch_max(n, Ordering::SeqCst);
+                                }
+                                _ => (),
+                            }
+                        }
+                    }
+                }
+
+                let mut mv_assn = Vec::<Assignment>::new();
+                let mut mv_selection = selection.clone();
+                // update assignments
+                for a in assignments {
+                    mv_assn.push(Assignment{
+                        id : a.id.clone(),
+                        value: self.mvtrans.expr_to_mv_expr(&a.value),
+                    });
+                }
+                // update selection 
+                match selection {
+                    None => (),
+                    Some(s) => mv_selection = Some(self.mvtrans.expr_to_mv_expr(&s)),
+                }
+               
+                mv_stmt = Statement::Update(UpdateStatement{
+                    table_name: helpers::string_to_objname(&mv_table_name),
+                    assignments : mv_assn,
+                    selection : mv_selection,
+                });
+            }
+            Statement::Delete(DeleteStatement{
+                table_name,
+                selection,
+            }) => {
+                mv_table_name = self.mvtrans.objname_to_mv_string(&table_name);
+                is_dt_write = mv_table_name != table_name.to_string();
+
+                if is_dt_write {
+                    self.issue_delete_datatable_stmt(DeleteStatement{
+                        table_name: table_name.clone(), 
+                        selection: selection.clone(),
+                    }, txn)?;
+                }
+
+                let mut mv_selection = selection.clone();
+                // update selection 
+                match selection {
+                    None => (),
+                    Some(s) => mv_selection = Some(self.mvtrans.expr_to_mv_expr(&s)),
+                }
+               
+                mv_stmt = Statement::Delete(DeleteStatement{
+                    table_name: helpers::string_to_objname(&mv_table_name),
+                    selection : mv_selection,
+                });
+            }
+            Statement::CreateView(CreateViewStatement{
+                name,
+                columns,
+                with_options,
+                query,
+                if_exists,
+                temporary,
+                materialized,
+            }) => {
+                let mv_query = self.mvtrans.query_to_mv_query(&query);
+                mv_stmt = Statement::CreateView(CreateViewStatement{
+                    name: name.clone(),
+                    columns: columns.clone(),
+                    with_options: with_options.clone(),
+                    query : Box::new(mv_query),
+                    if_exists: if_exists.clone(),
+                    temporary: temporary.clone(),
+                    materialized: materialized.clone(),
+                });
+            }
+            Statement::CreateTable(CreateTableStatement{
+                name,
+                columns,
+                constraints,
+                indexes,
+                with_options,
+                if_not_exists,
+                engine,
+            }) => {
+                mv_table_name = self.mvtrans.objname_to_mv_string(&name);
+                is_dt_write = mv_table_name != name.to_string();
+                let mut new_engine = engine.clone();
+                if self.params.in_memory {
+                    new_engine = Some(Engine::Memory);
+                }
+
+                if is_dt_write {
+                    // create the original table as well if we're going to
+                    // create a MV for this table
+                    let dtstmt = CreateTableStatement {
+                        name: name.clone(),
+                        columns: columns.clone(),
+                        constraints: constraints.clone(),
+                        indexes: indexes.clone(),
+                        with_options: with_options.clone(),
+                        if_not_exists: *if_not_exists,
+                        engine: new_engine.clone(),
+                    };
+
+                    warn!("get_mv stmt: {}", dtstmt);
+                    txn.query_drop(dtstmt.to_string())?;
+                    self.stats.nqueries+=1;
+                }
+
+                let mv_constraints : Vec<TableConstraint> = constraints
+                    .iter()
+                    .map(|c| match c {
+                        TableConstraint::ForeignKey {
+                            name,
+                            columns,
+                            foreign_table,
+                            referred_columns,
+                        } => {
+                            let foreign_table = self.mvtrans.objname_to_mv_string(foreign_table);
+                            TableConstraint::ForeignKey{
+                                name: name.clone(),
+                                columns: columns.clone(),
+                                foreign_table: helpers::string_to_objname(&foreign_table),
+                                referred_columns: referred_columns.clone(),
+                            }
+                        }
+                        _ => c.clone(),
+                    })
+                    .collect(); 
+
+                let mut mv_cols = columns.clone();
+                // if we're creating the user table, remove any autoinc column
+                if name.to_string() == self.cfg.user_table.name {
+                    for col in &mut mv_cols{
+                        if col.name.to_string() != self.cfg.user_table.id_col {
+                            continue;
+                        }
+
+                        // if this is the user id column and it is autoincremented,
+                        // remove autoincrement in materialized view
+                        if col.options.iter().any(|cod| cod.option == ColumnOption::AutoIncrement) {
+                            self.cfg.user_table.is_autoinc = true;
+                            col.options.retain(|x| x.option != ColumnOption::AutoIncrement);
+                        }
+                        break;
+                    }
+                }
+                
+                mv_stmt = Statement::CreateTable(CreateTableStatement{
+                    name: helpers::string_to_objname(&mv_table_name),
+                    columns: mv_cols,
+                    constraints: mv_constraints,
+                    indexes: indexes.clone(),
+                    with_options: with_options.clone(),
+                    if_not_exists: *if_not_exists,
+                    engine: new_engine,
+                });
+            }
+            Statement::CreateIndex(CreateIndexStatement{
+                name,
+                on_name,
+                key_parts,
+                if_not_exists,
+            }) => {
+                mv_table_name = self.mvtrans.objname_to_mv_string(&on_name);
+                is_dt_write = mv_table_name != on_name.to_string();
+
+                if is_dt_write {
+                    // create the original index as well if we're going to
+                    // create a MV index 
+                    warn!("get_mv: {}", stmt);
+                    txn.query_drop(stmt.to_string())?;
+                    self.stats.nqueries+=1;
+                }
+
+                mv_stmt = Statement::CreateIndex(CreateIndexStatement{
+                    name: name.clone(),
+                    on_name: helpers::string_to_objname(&mv_table_name),
+                    key_parts: key_parts.clone(),
+                    if_not_exists: if_not_exists.clone(),
+                });
+            }
+            Statement::AlterObjectRename(AlterObjectRenameStatement{
+                object_type,
+                if_exists,
+                name,
+                to_item_name,
+            }) => {
+                let mut to_item_mv_name = to_item_name.to_string();
+                mv_table_name= self.mvtrans.objname_to_mv_string(&name);
+                is_dt_write = mv_table_name != name.to_string();
+
+                if is_dt_write {
+                    // alter the original table as well if we're going to
+                    // alter a MV table
+                    warn!("get_mv: {}", stmt);
+                    txn.query_drop(stmt.to_string())?;
+                    self.stats.nqueries+=1;
+                }
+                
+                match object_type {
+                    ObjectType::Table => {
+                        // update name(s)
+                        if mv_table_name != name.to_string() {
+                            // change config to reflect new table name
+                            // TODO change config as table names are updated
+                            /*if self.cfg.user_table.name == name.to_string() {
+                                self.cfg.user_table.name = to_item_name.to_string();
+                            } else {
+                                for tab in &mut self.cfg.data_tables {
+                                    if tab.name == name.to_string() {
+                                        tab.name = to_item_name.to_string();
+                                    }
+                                }
+                            }*/
+                            to_item_mv_name = format!("{}{}", to_item_name, super::MV_SUFFIX);
+                        }
+                    }
+                    _ => (),
+                }
+                mv_stmt = Statement::AlterObjectRename(AlterObjectRenameStatement{
+                    object_type: object_type.clone(),
+                    if_exists: *if_exists,
+                    name: helpers::string_to_objname(&mv_table_name),
+                    to_item_name: Ident::new(to_item_mv_name),
+                });
+            }
+            Statement::DropObjects(DropObjectsStatement{
+                object_type,
+                if_exists,
+                names,
+                cascade,
+            }) => {
+                let mut mv_names = names.clone();
+                match object_type {
+                    ObjectType::Table => {
+                        // update name(s)
+                        for name in &mut mv_names {
+                            let newname = self.mvtrans.objname_to_mv_string(&name);
+                            is_dt_write |= newname != name.to_string();
+
+                            if is_dt_write {
+                                // alter the original table as well if we're going to
+                                // alter a MV table
+                                warn!("get_mv: {}", stmt);
+                                txn.query_drop(stmt.to_string())?;
+                                self.stats.nqueries+=1;
+                            }
+
+                            *name = helpers::string_to_objname(&newname);
+                        }
+                    }
+                    _ => (),
+                }
+                mv_stmt = Statement::DropObjects(DropObjectsStatement{
+                    object_type: object_type.clone(),
+                    if_exists: *if_exists,
+                    names: mv_names,
+                    cascade: *cascade,
+                });
+            }
+            Statement::ShowObjects(ShowObjectsStatement{
+                object_type,
+                from,
+                extended,
+                full,
+                materialized,
+                filter,
+            }) => {
+                let mut mv_from = from.clone();
+                if let Some(f) = from {
+                    mv_from = Some(helpers::string_to_objname(&self.mvtrans.objname_to_mv_string(&f)));
+                }
+
+                let mut mv_filter = filter.clone();
+                if let Some(f) = filter {
+                    match f {
+                        ShowStatementFilter::Like(_s) => (),
+                        ShowStatementFilter::Where(expr) => {
+                            mv_filter = Some(ShowStatementFilter::Where(self.mvtrans.expr_to_mv_expr(&expr)));
+                        }
+                    }
+                }
+                mv_stmt = Statement::ShowObjects(ShowObjectsStatement{
+                    object_type: object_type.clone(),
+                    from: mv_from,
+                    extended: *extended,
+                    full: *full,
+                    materialized: *materialized,
+                    filter: mv_filter,
+                });
+            }
+            Statement::ShowIndexes(ShowIndexesStatement{
+                table_name,
+                extended,
+                filter,
+            }) => {
+                mv_table_name = self.mvtrans.objname_to_mv_string(&table_name);
+                let mut mv_filter = filter.clone();
+                if let Some(f) = filter {
+                    match f {
+                        ShowStatementFilter::Like(_s) => (),
+                        ShowStatementFilter::Where(expr) => {
+                            mv_filter = Some(ShowStatementFilter::Where(self.mvtrans.expr_to_mv_expr(&expr)));
+                        }
+                    }
+                }
+                mv_stmt = Statement::ShowIndexes(ShowIndexesStatement {
+                    table_name: helpers::string_to_objname(&mv_table_name),
+                    extended: *extended,
+                    filter: mv_filter,
+                });
+            }
+            /* TODO Handle Statement::Explain(stmt) => f.write_node(stmt)
+             *
+             * TODO Currently don't support alterations that reset autoincrement counters
+             * Assume that deletions leave autoincrement counters as monotonically increasing
+             *
+             * Don't handle CreateSink, CreateSource, Copy,
+             *  ShowCreateSource, ShowCreateSink, Tail, Explain
+             * 
+             * Don't modify queries for CreateSchema, CreateDatabase, 
+             * ShowDatabases, ShowCreateTable, DropDatabase, Transactions,
+             * ShowColumns, SetVariable (mysql exprs in set var not supported yet)
+             *
+             * XXX: ShowVariable, ShowCreateView and ShowCreateIndex will return 
+             *  queries that used the materialized views, rather than the 
+             *  application-issued tables. This is probably not a big issue, 
+             *  since these queries are used to create the table again?
+             *
+             * XXX: SHOW * from users will not return any ghost users in ghostusersMV
+             * */
+            _ => {
+                mv_stmt = stmt.clone()
+            }
+        }
+        Ok(mv_stmt)
+    }
+
+    pub fn query<W: io::Write>(
+        &mut self, 
+        writer: QueryResultWriter<W>, 
+        stmt: &Statement, 
+        db: &mut mysql::Conn) 
+        -> Result<(), mysql::Error>
+    {
+        let mut txn = db.start_transaction(mysql::TxOpts::default())?;
+        let mv_stmt = self.issue_to_dt_and_get_mv_stmt(stmt, &mut txn)?;
+        let res = helpers::answer_rows(writer, txn.query_iter(mv_stmt.to_string()));
+        txn.commit()?;
+        warn!("query_iter mv_stmt: {}", mv_stmt);
+        self.stats.nqueries+=1;
+        res
+    }
+
+    pub fn query_drop(
+        &mut self, 
+        stmt: &Statement, 
+        db: &mut mysql::Conn) 
+        -> Result<(), mysql::Error> 
+    {
+        let mut txn = db.start_transaction(mysql::TxOpts::default())?;
+        let mv_stmt = self.issue_to_dt_and_get_mv_stmt(stmt, &mut txn)?;
+        txn.query_drop(mv_stmt.to_string())?;
+        txn.commit()?;
+        self.stats.nqueries+=1;
+        warn!("query_drop mv_stmt: {}", mv_stmt);
+        Ok(())
+    }
+
+
+} 
