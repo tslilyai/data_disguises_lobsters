@@ -6,16 +6,15 @@ pub struct MVTransformer {
     pub cfg: config::Config,
 }
 
+/********************************************************
+ * Processing statements to use materialized views      
+ * ******************************************************/
 impl MVTransformer {
     pub fn new(cfg: &config::Config) -> Self {
         MVTransformer{
             cfg: cfg.clone(),
         }
     }   
-
-    /********************************************************
-     * Processing statements to use materialized views      
-     * ******************************************************/
     pub fn objname_to_mv_string(&self, obj: &ObjectName) -> String {
         let obj_mv = ObjectName(self.idents_to_mv_idents(&obj.0));
         obj_mv.to_string()
