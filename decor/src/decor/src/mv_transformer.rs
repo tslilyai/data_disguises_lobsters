@@ -1,11 +1,14 @@
 use sql_parser::ast::*;
 use super::{helpers, config};
 use std::*;
-use std::collections::HashMap;
+use lru::LruCache;
+//use std::collections::HashMap;
+
+const CACHE_SZ : usize = 64;
 
 pub struct MVTransformer {
     pub cfg: config::Config,
-    q2mvq: HashMap<Query, Query>,
+    q2mvq: LruCache<Query, Query>,
 }
 
 /********************************************************
@@ -15,7 +18,7 @@ impl MVTransformer {
     pub fn new(cfg: &config::Config) -> Self {
         MVTransformer{
             cfg: cfg.clone(),
-            q2mvq: HashMap::new(),
+            q2mvq: LruCache::new(CACHE_SZ),
         }
     }   
     pub fn objname_to_mv_string(&self, obj: &ObjectName) -> String {
@@ -207,7 +210,7 @@ impl MVTransformer {
                 f.quantity = new_quantity;
             }
         }
-        self.q2mvq.insert(query.clone(), mv_query.clone());
+        self.q2mvq.put(query.clone(), mv_query.clone());
 
         mv_query
     }
