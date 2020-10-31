@@ -39,7 +39,7 @@ impl QueryTransformer {
      * represents the values retrieved by the query to the MVs.
      * NOTE: queries are read-only operations (whereas statements may be writes)
      */
-    fn query_to_value_query(&mut self, query: &Query, txn: &mut mysql::Transaction) -> Result<Query, mysql::Error> {
+    fn query_to_value_query(&mut self, query: &Query, txn: &mut mysql::Conn) -> Result<Query, mysql::Error> {
         let mv_q = self.mvtrans.query_to_mv_query(query);
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
         
@@ -67,7 +67,7 @@ impl QueryTransformer {
     /* 
      * This issues the specified query to the MVs, and returns a VALUES row 
      */
-    fn query_to_value_rows(&mut self, query: &Query, is_single_column: bool, txn: &mut mysql::Transaction) -> Result<Vec<Expr>, mysql::Error> {
+    fn query_to_value_rows(&mut self, query: &Query, is_single_column: bool, txn: &mut mysql::Conn) -> Result<Vec<Expr>, mysql::Error> {
         let mv_q = self.mvtrans.query_to_mv_query(query);
         let mut vals_vec : Vec<Expr>= vec![];
         
@@ -98,7 +98,7 @@ impl QueryTransformer {
      * This changes any nested queries to the corresponding VALUE 
      * (read from the MVs), if any exist.
      */
-    fn expr_to_value_expr(&mut self, expr: &Expr, txn: &mut mysql::Transaction, 
+    fn expr_to_value_expr(&mut self, expr: &Expr, txn: &mut mysql::Conn, 
                               contains_ucol_id: &mut bool, 
                               ucols_to_replace: &Vec<String>) 
         -> Result<Expr, mysql::Error> 
@@ -357,7 +357,7 @@ impl QueryTransformer {
      * Note that expressions where we can guarantee that the constraint is on a non-user column are
      * also acceptable; nested or more complex expressions, however, are not.
      */
-    fn fastpath_expr_to_gid_expr(&mut self, e: &Expr, txn: &mut mysql::Transaction, ucols_to_replace: &Vec<String>) 
+    fn fastpath_expr_to_gid_expr(&mut self, e: &Expr, txn: &mut mysql::Conn, ucols_to_replace: &Vec<String>) 
         -> Result<Option<Expr>, mysql::Error> 
     {
         // if it's just an identifier, we can return if it's not a ucol
@@ -685,7 +685,7 @@ impl QueryTransformer {
     /* 
      * Convert all expressions to insert to primitive values
      */
-    fn insert_source_query_to_values(&mut self, q: &Query, txn: &mut mysql::Transaction) 
+    fn insert_source_query_to_values(&mut self, q: &Query, txn: &mut mysql::Conn) 
         -> Result<Vec<Vec<Expr>>, mysql::Error> 
     {
         let mut contains_ucol_id = false;
@@ -741,7 +741,7 @@ impl QueryTransformer {
     fn selection_to_datatable_selection(
         &mut self, 
         selection: &Option<Expr>, 
-        txn: &mut mysql::Transaction, 
+        txn: &mut mysql::Conn, 
         table_name: &ObjectName, 
         ucols: &Vec<String>) 
         -> Result<Option<Expr>, mysql::Error>
@@ -869,7 +869,7 @@ impl QueryTransformer {
         return Ok(qt_selection);
     }
     
-    fn issue_insert_datatable_stmt(&mut self, values: &mut Vec<Vec<Expr>>, stmt: InsertStatement, txn: &mut mysql::Transaction) 
+    fn issue_insert_datatable_stmt(&mut self, values: &mut Vec<Vec<Expr>>, stmt: InsertStatement, txn: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
         /* note that if the table is the users table,
@@ -926,7 +926,7 @@ impl QueryTransformer {
         Ok(())
     }
        
-    fn issue_update_datatable_stmt(&mut self, assign_vals: &Vec<Expr>, stmt: UpdateStatement, txn: &mut mysql::Transaction)
+    fn issue_update_datatable_stmt(&mut self, assign_vals: &Vec<Expr>, stmt: UpdateStatement, txn: &mut mysql::Conn)
         -> Result<(), mysql::Error> 
     {
         let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &stmt.table_name);
@@ -1049,7 +1049,7 @@ impl QueryTransformer {
         Ok(())
     }
     
-    fn issue_delete_datatable_stmt(&mut self, stmt: DeleteStatement, txn: &mut mysql::Transaction)
+    fn issue_delete_datatable_stmt(&mut self, stmt: DeleteStatement, txn: &mut mysql::Conn)
         -> Result<(), mysql::Error> 
     {        
         let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &stmt.table_name);
@@ -1123,7 +1123,7 @@ impl QueryTransformer {
     fn issue_to_dt_and_get_mv_stmt (
         &mut self, 
         stmt: &Statement, 
-        txn: &mut mysql::Transaction) 
+        txn: &mut mysql::Conn) 
         -> Result<Statement, mysql::Error>
     {
         let mv_stmt : Statement;
@@ -1582,7 +1582,7 @@ impl QueryTransformer {
              *  ShowCreateSource, ShowCreateSink, Tail, Explain
              * 
              * Don't modify queries for CreateSchema, CreateDatabase, 
-             * ShowDatabases, ShowCreateTable, DropDatabase, Transactions,
+             * ShowDatabases, ShowCreateTable, DropDatabase, Conns,
              * ShowColumns, SetVariable (mysql exprs in set var not supported yet)
              *
              * XXX: ShowVariable, ShowCreateView and ShowCreateIndex will return 
@@ -1606,10 +1606,10 @@ impl QueryTransformer {
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error>
     {
-        let mut txn = db.start_transaction(mysql::TxOpts::default())?;
-        let mv_stmt = self.issue_to_dt_and_get_mv_stmt(stmt, &mut txn)?;
-        let res = helpers::answer_rows(writer, txn.query_iter(mv_stmt.to_string()));
-        txn.commit()?;
+        //let mut txn = db.start_transaction(mysql::TxOpts::default())?;
+        let mv_stmt = self.issue_to_dt_and_get_mv_stmt(stmt, db)?;
+        let res = helpers::answer_rows(writer, db.query_iter(mv_stmt.to_string()));
+        //txn.commit()?;
         warn!("query_iter mv_stmt: {}", mv_stmt);
         self.stats.nqueries+=1;
         res
@@ -1621,10 +1621,10 @@ impl QueryTransformer {
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
-        let mut txn = db.start_transaction(mysql::TxOpts::default())?;
-        let mv_stmt = self.issue_to_dt_and_get_mv_stmt(stmt, &mut txn)?;
-        txn.query_drop(mv_stmt.to_string())?;
-        txn.commit()?;
+        //let mut txn = db.start_transaction(mysql::TxOpts::default())?;
+        let mv_stmt = self.issue_to_dt_and_get_mv_stmt(stmt, db)?;
+        db.query_drop(mv_stmt.to_string())?;
+        //txn.commit()?;
         self.stats.nqueries+=1;
         warn!("query_drop mv_stmt: {}", mv_stmt);
         Ok(())

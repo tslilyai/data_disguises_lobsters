@@ -56,7 +56,7 @@ impl QueryCache{
         Ok(())
     }
 
-    pub fn get_gids_for_uid(&mut self, uid: u64, txn:&mut mysql::Transaction) -> 
+    pub fn get_gids_for_uid(&mut self, uid: u64, txn:&mut mysql::Conn) -> 
         Result<Vec<u64>, mysql::Error> 
     {
         self.cache_uid2gids_for_uids(&vec![uid], txn)?;
@@ -66,7 +66,7 @@ impl QueryCache{
         Ok(gids.to_vec())
     }
 
-    pub fn get_gids_for_uids(&mut self, uids: &Vec<u64>, txn:&mut mysql::Transaction) -> 
+    pub fn get_gids_for_uids(&mut self, uids: &Vec<u64>, txn:&mut mysql::Conn) -> 
         Result<Vec<(u64, Vec<u64>)>, mysql::Error> {
         self.cache_uid2gids_for_uids(uids, txn)?;
         let mut gid_vecs = vec![];
@@ -83,7 +83,7 @@ impl QueryCache{
      * Add uid->gid mapping to cache if mapping not yet present
      * by querying the ghosts mapping table
      */
-    pub fn cache_uid2gids_for_uids(&mut self, uids: &Vec<u64>, txn:&mut mysql::Transaction) -> Result<(), mysql::Error>
+    pub fn cache_uid2gids_for_uids(&mut self, uids: &Vec<u64>, txn:&mut mysql::Conn) -> Result<(), mysql::Error>
     {
         let mut uncached_uids = vec![];
         for uid in uids {
@@ -144,7 +144,7 @@ impl QueryCache{
         Ok(())
     }
 
-    fn insert_gid_for_uid(&mut self, uid: u64, txn: &mut mysql::Transaction) -> Result<u64, mysql::Error> {
+    fn insert_gid_for_uid(&mut self, uid: u64, txn: &mut mysql::Conn) -> Result<u64, mysql::Error> {
         // user ids are always ints
         let insert_query = &format!("INSERT INTO {} ({}) VALUES ({});", 
                             super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid);
@@ -163,7 +163,7 @@ impl QueryCache{
         Ok(gid)
     }
     
-    pub fn insert_uid2gids_for_values(&mut self, values: &mut Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, txn: &mut mysql::Transaction) 
+    pub fn insert_uid2gids_for_values(&mut self, values: &mut Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, txn: &mut mysql::Conn) 
         -> Result<(), mysql::Error>
     {
         if ucol_indices.is_empty() {

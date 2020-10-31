@@ -200,7 +200,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
                     
-        let vals_vec : Vec<Vec<Expr>> = self.qtrans.cache.get_gids_for_uid(uid, &mut txn)?
+        /*let vals_vec : Vec<Vec<Expr>> = self.qtrans.cache.get_gids_for_uid(uid, &mut txn)?
             .iter()
             .map(|g| vec![Expr::Value(ast::Value::Number(g.to_string()))])
             .collect();
@@ -319,7 +319,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         }
         
         // TODO return some type of auth token?
-        txn.commit()?;
+        txn.commit()?;*/
         Ok(w.ok()?)
     }
 
@@ -334,7 +334,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
         
-        let gid_exprs : Vec<Expr> = self.qtrans.cache.get_gids_for_uid(uid, &mut txn)?
+        /*let gid_exprs : Vec<Expr> = self.qtrans.cache.get_gids_for_uid(uid, &mut txn)?
             .iter()
             .map(|g| Expr::Value(ast::Value::Number(g.to_string())))
             .collect();
@@ -449,7 +449,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             txn.query_drop(format!("{}", update_dt_stmt))?;
             self.qtrans.stats.nqueries+=1;
         }    
-        txn.commit()?;
+        txn.commit()?;*/
         Ok(w.ok()?)
     }
 
