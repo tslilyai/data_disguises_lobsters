@@ -535,10 +535,8 @@ impl MVTransformer {
                 });
             }
             Statement::CreateIndex(CreateIndexStatement{
-                name,
                 on_name,
-                key_parts,
-                if_not_exists,
+                ..
             }) => {
                 if self.objname_to_mv_string(&on_name) != on_name.to_string() {
                     return Ok(None);
