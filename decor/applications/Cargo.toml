@@ -17,6 +17,11 @@ hwloc = "0.5.0"
 libc = "0.2"
 
 [[bin]]
-name = "lobsters"
-path = "lobsters/main.rs"
+name = "lobsters-trawler"
+path = "lobsters/trawler/main.rs"
+doc = false
+
+[[bin]]
+name = "lobsters-microbenchmarks"
+path = "lobsters/microbenchmarks/main.rs"
 doc = false
