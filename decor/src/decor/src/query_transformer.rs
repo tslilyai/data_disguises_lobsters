@@ -1641,6 +1641,4 @@ impl QueryTransformer {
         self.stats.nqueries+=1;
         Ok(())
     }
-
-
 } 

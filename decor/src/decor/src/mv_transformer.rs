@@ -466,7 +466,9 @@ impl MVTransformer {
                 selection,
             }) => {
                 mv_table_name = self.objname_to_mv_string(&table_name);
-                if mv_table_name != table_name.to_string() {
+                if mv_table_name != table_name.to_string() 
+                    || table_name.to_string() == self.cfg.user_table.name 
+                {
                     return Ok(None);
                 }
 
@@ -511,8 +513,9 @@ impl MVTransformer {
                 if_not_exists,
                 engine,
             }) => {
-                mv_table_name = self.objname_to_mv_string(&name);
-                if mv_table_name != name.to_string() {
+                if self.objname_to_mv_string(&name) != name.to_string() 
+                    || name.to_string() == self.cfg.user_table.name 
+                {
                     return Ok(None);
                 }
 
@@ -521,49 +524,10 @@ impl MVTransformer {
                     new_engine = Some(Engine::Memory);
                 }
 
-                let mv_constraints : Vec<TableConstraint> = constraints
-                    .iter()
-                    .map(|c| match c {
-                        TableConstraint::ForeignKey {
-                            name,
-                            columns,
-                            foreign_table,
-                            referred_columns,
-                        } => {
-                            let foreign_table = self.objname_to_mv_string(foreign_table);
-                            TableConstraint::ForeignKey{
-                                name: name.clone(),
-                                columns: columns.clone(),
-                                foreign_table: helpers::string_to_objname(&foreign_table),
-                                referred_columns: referred_columns.clone(),
-                            }
-                        }
-                        _ => c.clone(),
-                    })
-                    .collect(); 
-
-                let mut mv_cols = columns.clone();
-                // if we're creating the user table, remove any autoinc column
-                if name.to_string() == self.cfg.user_table.name {
-                    for col in &mut mv_cols{
-                        if col.name.to_string() != self.cfg.user_table.id_col {
-                            continue;
-                        }
-
-                        // if this is the user id column and it is autoincremented,
-                        // remove autoincrement in materialized view
-                        if col.options.iter().any(|cod| cod.option == ColumnOption::AutoIncrement) {
-                            self.cfg.user_table.is_autoinc = true;
-                            col.options.retain(|x| x.option != ColumnOption::AutoIncrement);
-                        }
-                        break;
-                    }
-                }
-                
                 mv_stmt = Statement::CreateTable(CreateTableStatement{
-                    name: helpers::string_to_objname(&mv_table_name),
-                    columns: mv_cols,
-                    constraints: mv_constraints,
+                    name: name.clone(),
+                    columns: columns.clone(),
+                    constraints: constraints.clone(),
                     indexes: indexes.clone(),
                     with_options: with_options.clone(),
                     if_not_exists: *if_not_exists,
@@ -576,17 +540,11 @@ impl MVTransformer {
                 key_parts,
                 if_not_exists,
             }) => {
-                mv_table_name = self.objname_to_mv_string(&on_name);
-                if mv_table_name != on_name.to_string() {
+                if self.objname_to_mv_string(&on_name) != on_name.to_string() {
                     return Ok(None);
                 }
 
-                mv_stmt = Statement::CreateIndex(CreateIndexStatement{
-                    name: name.clone(),
-                    on_name: helpers::string_to_objname(&mv_table_name),
-                    key_parts: key_parts.clone(),
-                    if_not_exists: if_not_exists.clone(),
-                });
+                mv_stmt = stmt.clone();
             }
             Statement::AlterObjectRename(AlterObjectRenameStatement{
                 object_type,
