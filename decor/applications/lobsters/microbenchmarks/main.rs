@@ -35,7 +35,7 @@ use std::sync::{Arc, Mutex};
 
 use decor::*;
 
-const SCHEMA : &'static str = include_str!("./schema.sql");
+const SCHEMA : &'static str = include_str!("../schema.sql");
 const CONFIG : &'static str = include_str!("./config.json");
 const DBNAME : &'static str = &"decor_lobsters";
 
