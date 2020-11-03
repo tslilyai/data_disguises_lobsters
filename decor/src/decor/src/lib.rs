@@ -2,8 +2,6 @@ extern crate mysql;
 use msql_srv::*;
 use mysql::prelude::*;
 use std::collections::HashMap;
-use sql_parser::*;
-use sql_parser::ast::*;
 use std::io::{self, BufReader, BufWriter};
 use std::*;
 use log::{debug, warn};
@@ -13,6 +11,7 @@ pub mod qtcache;
 pub mod query_transformer;
 pub mod mv_transformer;
 pub mod sqlparser_cache;
+pub mod stats;
 
 const GHOST_ID_START : u64 = 1<<20;
 const GHOST_TABLE_NAME : &'static str = "ghosts";
@@ -25,10 +24,6 @@ pub struct TestParams {
     pub translate: bool,
     pub parse: bool,
     pub in_memory: bool,
-}
-
-pub struct QTStats {
-    pub nqueries : usize,
 }
 
 fn create_ghosts_query(in_memory: bool) -> String {
@@ -71,6 +66,7 @@ pub struct Shim {
 
 impl Drop for Shim {
     fn drop(&mut self) {
+        stats::print_stats(&self.qtrans.stats);
         //println!("\tSHIM performed {} queries", self.qtrans.stats.nqueries + self.qtrans.cache.stats.nqueries);
         self.prepared.clear();
         // drop the connection (implicitly done).
@@ -90,10 +86,6 @@ impl Shim {
         Shim{cfg, db, qtrans, mvtrans, sqlcache, prepared, schema, test_params}
     }   
 
-    pub fn get_num_queries(&self) -> usize {
-        self.qtrans.stats.nqueries
-    }
-   
     pub fn run_on_tcp(
         dbname: &str, 
         cfg_json: &str, 
@@ -123,7 +115,6 @@ impl Shim {
         self.db.query_drop(create_ghosts_query(self.test_params.in_memory))?;
         self.db.query_drop(set_initial_gid_query())?;
         warn!("drop/create/alter ghosts table");
-        self.qtrans.stats.nqueries+=3;
         
         /* issue schema statements */
         let mut sql = String::new();
@@ -202,134 +193,13 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO actually delete entries? 
      */
     fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), mysql::Error> {
-        // check if already unsubscribed
-        if !self.qtrans.cache.unsubscribe(uid) {
-            return Ok(())
+        match self.qtrans.unsubscribe(uid, &mut self.db) {
+            Ok(()) => Ok(w.ok()?),
+            Err(e) => {
+                w.error(ErrorKind::ER_BAD_DB_ERROR, b"select db failed")?;
+                return Ok(());
+            }
         }
-        let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
-        let uid_val = ast::Value::Number(uid.to_string());
-                    
-        let vals_vec : Vec<Vec<Expr>> = self.qtrans.cache.get_gids_for_uid(uid, &mut txn)?
-            .iter()
-            .map(|g| vec![Expr::Value(ast::Value::Number(g.to_string()))])
-            .collect();
-        let gid_source_q = Query {
-            ctes: vec![],
-            body: SetExpr::Values(Values(vals_vec)),
-            order_by: vec![],
-            limit: None,
-            offset: None,
-            fetch: None,
-        };
-        let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
-        let mv_table_name = self.mvtrans.objname_to_mv_objname(&user_table_name);
- 
-        /* 
-         * 1. update the users MV to have an entry for all the users' GIDs
-         */
-        let insert_gids_as_users_stmt = Statement::Insert(InsertStatement{
-            table_name: mv_table_name.clone(),
-            columns: vec![Ident::new(&self.cfg.user_table.id_col)],
-            source: InsertSource::Query(Box::new(gid_source_q)),
-        });
-        warn!("unsub: {}", insert_gids_as_users_stmt);
-        txn.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
-        self.qtrans.stats.nqueries+=1;
-        
-        /*
-         * 2. delete UID from users MV and users (only one table, so delete from either)
-         */
-        let delete_uid_from_users = Statement::Delete(DeleteStatement {
-            table_name: user_table_name,
-            selection: Some(Expr::BinaryOp{
-                left: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
-                op: BinaryOperator::Eq,
-                right: Box::new(Expr::Value(uid_val.clone())), 
-            }),
-        });
-        warn!("unsub: {}", delete_uid_from_users);
-        txn.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
-        self.qtrans.stats.nqueries+=1;
- 
-        /* 
-         * 3. Change all entries with this UID to use the correct GID in the MV
-         */
-        for dt in &self.cfg.data_tables {
-            let dtobjname = helpers::string_to_objname(&dt.name);
-            let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
-
-            let mut assignments : Vec<String> = vec![];
-            for uc in ucols {
-                let uc_dt_ids = helpers::string_to_idents(&uc);
-                let uc_mv_ids = self.mvtrans.idents_to_mv_idents(&uc_dt_ids);
-                let mut astr = String::new();
-                astr.push_str(&format!(
-                        "{} = {}", 
-                        ObjectName(uc_mv_ids.clone()),
-                        Expr::Case{
-                            operand: None, 
-                            // check usercol_mv = UID
-                            conditions: vec![Expr::BinaryOp{
-                                left: Box::new(Expr::Identifier(uc_mv_ids.clone())),
-                                op: BinaryOperator::Eq,
-                                right: Box::new(Expr::Value(uid_val.clone())),
-                            }],
-                            // then assign to ghost ucol value
-                            results: vec![Expr::Identifier(uc_dt_ids)],
-                            // otherwise keep as the uid in the MV
-                            else_result: Some(Box::new(Expr::Identifier(uc_mv_ids.clone()))),
-                        }));
-                assignments.push(astr);
-            }
-           
-            let mut select_constraint = Expr::Value(ast::Value::Boolean(true));
-            // add constraint on non-user columns to be identical (performing a "JOIN" on the DT
-            // and the MV so the correct rows are joined together)
-            // XXX could put a constraint selecting rows only with the UID in a ucol
-            // but the assignment CASE should already handle this?
-            for col in &dt.data_cols {
-                let mut fullname = dt.name.clone();
-                fullname.push_str(".");
-                fullname.push_str(&col);
-                let dt_ids = helpers::string_to_idents(&fullname);
-                let mv_ids = self.mvtrans.idents_to_mv_idents(&dt_ids);
-
-                select_constraint = Expr::BinaryOp {
-                    left: Box::new(select_constraint),
-                    op: BinaryOperator::And,
-                    right: Box::new(Expr::BinaryOp{
-                        left: Box::new(Expr::Identifier(mv_ids)),
-                        op: BinaryOperator::Eq,
-                        right: Box::new(Expr::Identifier(dt_ids)),
-                    }),             
-                };
-            }
-                
-            // UPDATE corresponding MV
-            // SET MV.usercols = (MV.usercol = uid) ? dt.usercol : MV.usercol 
-            // WHERE dtMV = dt ON [all other rows equivalent]
-            let mut astr = String::new();
-            astr.push_str(&assignments[0]);
-            for i in 1..assignments.len() {
-                astr.push_str(", ");
-                astr.push_str(&assignments[i]);
-            }
-                
-            let update_dt_stmt = format!("UPDATE {}, {} SET {} WHERE {};", 
-                self.mvtrans.objname_to_mv_objname(&dtobjname).to_string(),
-                dtobjname.to_string(),
-                astr,
-                select_constraint.to_string(),
-            );
-                
-            warn!("unsub: {}", update_dt_stmt);
-            txn.query_drop(format!("{}", update_dt_stmt))?;
-            self.qtrans.stats.nqueries+=1;
-        }
-        
-        // TODO return some type of auth token?
-        txn.commit()?;
-        Ok(w.ok()?)
     }
 
     /* 
@@ -339,134 +209,13 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO check that user doesn't already exist
      */
     fn on_resubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
-        // TODO check auth token?
-       
-        // check if already resubscribed
-        if !self.qtrans.cache.resubscribe(uid) {
-            return Ok(())
+        match self.qtrans.resubscribe(uid, &mut self.db) {
+            Ok(()) => Ok(w.ok()?),
+            Err(e) => {
+                w.error(ErrorKind::ER_BAD_DB_ERROR, b"select db failed")?;
+                return Ok(());
+            }
         }
-        let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
-        let uid_val = ast::Value::Number(uid.to_string());
-
-
-        let gid_exprs : Vec<Expr> = self.qtrans.cache.get_gids_for_uid(uid, &mut txn)?
-            .iter()
-            .map(|g| Expr::Value(ast::Value::Number(g.to_string())))
-            .collect();
-
-        let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
-        let mv_table_name = self.mvtrans.objname_to_mv_objname(&user_table_name);
-
-        /*
-         * 1. drop all GIDs from users table 
-         */
-        let delete_gids_as_users_stmt = Statement::Delete(DeleteStatement {
-            table_name: mv_table_name.clone(),
-            selection: Some(Expr::InList{
-                expr: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
-                list: gid_exprs.clone(),
-                negated: false, 
-            }),
-        });
-        warn!("resub: {}", delete_gids_as_users_stmt);
-        txn.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
-        self.qtrans.stats.nqueries+=1;
-
-        /*
-         * 2. Add user to users/usersmv (only one table)
-         * TODO should also add back all of the user data????
-         */
-        let insert_uid_as_user_stmt = Statement::Insert(InsertStatement{
-            table_name: user_table_name,
-            columns: vec![Ident::new(&self.cfg.user_table.id_col)],
-            source: InsertSource::Query(Box::new(Query{
-                ctes: vec![],
-                body: SetExpr::Values(Values(vec![vec![Expr::Value(uid_val.clone())]])),
-                order_by: vec![],
-                limit: None,
-                offset: None,
-                fetch: None,
-            })),
-        });
-        warn!("resub: {}", insert_uid_as_user_stmt.to_string());
-        txn.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
-        self.qtrans.stats.nqueries+=1;
- 
-        /* 
-         * 3. update assignments in MV to use UID again
-         */
-        for dt in &self.cfg.data_tables {
-            let dtobjname = helpers::string_to_objname(&dt.name);
-            let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
-            
-            let mut assignments : Vec<String> = vec![];
-            for uc in ucols {
-                let uc_dt_ids = helpers::string_to_idents(&uc);
-                let uc_mv_ids = self.mvtrans.idents_to_mv_idents(&uc_dt_ids);
-                let mut astr = String::new();
-                astr.push_str(&format!(
-                        "{} = {}", 
-                        ObjectName(uc_mv_ids.clone()),
-                        Expr::Case{
-                            operand: None, 
-                            // check usercol_mv IN gids
-                            conditions: vec![Expr::InList{
-                                expr: Box::new(Expr::Identifier(uc_mv_ids.clone())),
-                                list: gid_exprs.clone(),
-                                negated: false,
-                            }],
-                            // then assign UID value
-                            results: vec![Expr::Value(uid_val.clone())],
-                            // otherwise keep as the current value in the MV
-                            else_result: Some(Box::new(Expr::Identifier(uc_mv_ids.clone()))),
-                        }));
-                assignments.push(astr);
-            }
-           
-            let mut select_constraint = Expr::Value(ast::Value::Boolean(true));
-            // add constraint on non-user columns to be identical (performing a "JOIN" on the DT
-            // and the MV so the correct rows are joined together)
-            // XXX could put a constraint selecting rows only with the GIDs in a ucol
-            // but the assignment CASE should already handle this?
-            for col in &dt.data_cols {
-                let mut fullname = dt.name.clone();
-                fullname.push_str(".");
-                fullname.push_str(&col);
-                let dt_ids = helpers::string_to_idents(&fullname);
-                let mv_ids = self.mvtrans.idents_to_mv_idents(&dt_ids);
-
-                select_constraint = Expr::BinaryOp {
-                    left: Box::new(select_constraint),
-                    op: BinaryOperator::And,
-                    right: Box::new(Expr::BinaryOp{
-                        left: Box::new(Expr::Identifier(mv_ids)),
-                        op: BinaryOperator::Eq,
-                        right: Box::new(Expr::Identifier(dt_ids)),
-                    }),             
-                };
-            }
-                
-            // UPDATE corresponding MV
-            // SET MV.usercols = (MV.usercol = dt.usercol) ? uid : MV.usercol
-            // WHERE dtMV = dt ON [all other rows equivalent]
-            let mut astr = String::new();
-            astr.push_str(&assignments[0]);
-            for i in 1..assignments.len() {
-                astr.push_str(", ");
-                astr.push_str(&assignments[i]);
-            }
-            let update_dt_stmt = format!("UPDATE {}, {} SET {} WHERE {};", 
-                self.mvtrans.objname_to_mv_objname(&dtobjname).to_string(),
-                dtobjname.to_string(),
-                astr,
-                select_constraint.to_string(),
-            );
-            warn!("resub: {}", update_dt_stmt);
-            txn.query_drop(format!("{}", update_dt_stmt))?;
-            self.qtrans.stats.nqueries+=1;
-        }    
-        txn.commit()?;
-        Ok(w.ok()?)
     }
 
     fn on_prepare(&mut self, query: &str, _info: StatementMetaWriter<W>) -> Result<(), Self::Error> {
@@ -476,7 +225,6 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         
         let stmt_ast = self.sqlcache.get_single_parsed_stmt(&query.to_string())?;
         if !self.test_params.translate {
-            self.qtrans.stats.nqueries+=1;
             warn!("on_query: {}", stmt_ast);
             return self.prep_statement(&format!("{}", stmt_ast));
         }
@@ -494,48 +242,6 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         _ps: ParamParser,
         _results: QueryResultWriter<W>,
     ) -> Result<(), Self::Error> {
-        /*match self.prepared.get(&id) {
-            None => return Ok(results.error(ErrorKind::ER_NO, b"no such prepared statement")?),
-            Some(prepped) => {
-                // parse params
-                let args : Vec<mysql::Value> = ps
-                    .into_iter()
-                    .map(|p| match p.value.into_inner() {
-                        msql_srv::ValueInner::NULL => {
-                            mysql::Value::NULL
-                        }
-                        ValueInner::Bytes(bs) => {
-                            mysql::Value::Bytes(bs.to_vec())
-                        }
-                        ValueInner::Int(v) => {
-                            mysql::Value::Int(v)
-                        }
-                        ValueInner::UInt(v) => {
-                            mysql::Value::UInt(v)
-                        }
-                        ValueInner::Double(v) => {
-                            mysql::Value::Float(v)
-                        }
-                        ValueInner::Date(bs) => {
-                            assert!(bs.len() == 7);
-                            mysql::Value::Date(bs[0].into(), bs[1].into(), bs[2], bs[3], bs[4], bs[5], bs[6].into())
-                        }
-                        ValueInner::Time(bs) => {
-                            assert!(bs.len() == 6);
-                            mysql::Value::Time(bs[0] == 0, bs[1].into(), bs[2], bs[3], bs[4], bs[5].into())
-                        }
-                        ct => unimplemented!("no translation for param type {:?}", ct)
-                    }).collect();
-
-                let res = self.db.exec_iter(
-                    prepped.stmt.clone(), 
-                    mysql::params::Params::Positional(args),
-                );
-
-                // TODO get response
-                //answer_rows(results, self.db.query_iter(self.query_using_mv_tables("")))
-            }
-        }*/
         return Ok(());
     }
     
@@ -574,7 +280,6 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         for dt in &mut self.cfg.data_tables {
             warn!("Initializing columns of table: {}", dt.name);
             let res = self.db.query_iter(format!("SHOW COLUMNS FROM {dt_name}", dt_name=dt.name))?;
-            self.qtrans.stats.nqueries+=1;
             for row in res {
                 let vals = row.unwrap().unwrap();
                 if vals.len() < 1 {
@@ -590,19 +295,22 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     }
 
     fn on_query(&mut self, query: &str, results: QueryResultWriter<W>) -> Result<(), Self::Error> {
+        let res : Result<(), Self::Error>;
+        let start = time::Instant::now();
         if !self.test_params.parse {
-            self.qtrans.stats.nqueries+=1;
             warn!("on_query: {}", query);
-            return helpers::answer_rows(results, self.db.query_iter(query));
+            res = helpers::answer_rows(results, self.db.query_iter(query));
+        } else {
+            let stmt_ast = self.sqlcache.get_single_parsed_stmt(&query.to_string())?;
+            if !self.test_params.translate {
+                warn!("on_query: {}", stmt_ast);
+                res = helpers::answer_rows(results, self.db.query_iter(stmt_ast.to_string()));
+            } else {
+                res = self.qtrans.query(results, &stmt_ast, &mut self.db);
+            }
         }
-
-        let stmt_ast = self.sqlcache.get_single_parsed_stmt(&query.to_string())?;
-        if !self.test_params.translate {
-            self.qtrans.stats.nqueries+=1;
-            warn!("on_query: {}", stmt_ast);
-            return helpers::answer_rows(results, self.db.query_iter(stmt_ast.to_string()));
-        }
-
-        self.qtrans.query(results, &stmt_ast, &mut self.db)
+        let dur = start.elapsed();
+        self.qtrans.record_query_stats(dur);
+        res
     }
 }

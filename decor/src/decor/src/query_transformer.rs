@@ -1,8 +1,9 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use super::{helpers, qtcache, config, mv_transformer};
+use super::{helpers, qtcache, config, mv_transformer, stats};
 use std::sync::atomic::Ordering;
 use std::*;
+use std::time::Duration;
 use log::{debug,warn};
 use std::sync::atomic::{AtomicU64};
 use msql_srv::{QueryResultWriter};
@@ -16,7 +17,8 @@ pub struct QueryTransformer {
     
     // for tests
     params: super::TestParams,
-    pub stats: super::QTStats,
+    cur_stat: stats::QueryStat,
+    pub stats: Vec<stats::QueryStat>,
 }
 
 impl QueryTransformer {
@@ -27,7 +29,8 @@ impl QueryTransformer {
             cache: qtcache::QueryCache::new(),
             latest_uid: AtomicU64::new(0),
             params: params.clone(),
-            stats: super::QTStats{nqueries:0},
+            cur_stat: stats::QueryStat::new(),
+            stats: vec![],
         }
     }   
 
@@ -45,7 +48,7 @@ impl QueryTransformer {
         
         warn!("query_to_value_query: {}", mv_q);
         let res = txn.query_iter(&mv_q.to_string())?;
-        self.stats.nqueries+=1;
+        self.cur_stat.nqueries+=1;
 
         for row in res {
             let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
@@ -73,7 +76,7 @@ impl QueryTransformer {
         
         warn!("query_to_value_rows: {}", mv_q);
         let res = txn.query_iter(&mv_q.to_string())?;
-        self.stats.nqueries+=1;
+        self.cur_stat.nqueries+=1;
 
         for row in res {
             let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
@@ -722,7 +725,7 @@ impl QueryTransformer {
                 let mv_q = self.mvtrans.query_to_mv_query(q);
                 warn!("insert_source_q_to_values: {}", mv_q);
                 let rows = txn.query_iter(&mv_q.to_string())?;
-                self.stats.nqueries+=1;
+                self.cur_stat.nqueries+=1;
                 for row in rows {
                     let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
                     vals_vec.push(mysql_vals
@@ -784,7 +787,7 @@ impl QueryTransformer {
                     let mut cols = vec![];
                     warn!("selection_to_dt_selection: {}", mv_select_stmt);
                     let res = txn.query_iter(format!("{}", mv_select_stmt.to_string()))?;
-                    self.stats.nqueries+=1;
+                    self.cur_stat.nqueries+=1;
                     for row in res {
                         let row = row.unwrap();
                         cols = row.columns_ref().to_vec();
@@ -921,7 +924,7 @@ impl QueryTransformer {
  
         warn!("issue_insert_dt_stmt: {}", dt_stmt);
         txn.query_drop(dt_stmt.to_string())?;
-        self.stats.nqueries+=1;
+        self.cur_stat.nqueries+=1;
 
         Ok(())
     }
@@ -989,7 +992,7 @@ impl QueryTransformer {
             // get the user_col GIDs from the datatable
             warn!("issue_update_datatable_stmt: {}", get_gids_stmt_from_dt);
             let res = txn.query_iter(format!("{}", get_gids_stmt_from_dt.to_string()))?;
-            self.stats.nqueries+=1;
+            self.cur_stat.nqueries+=1;
 
             let mut ghost_update_stmts = vec![];
             let mut ghost_update_pairs = vec![];
@@ -1034,7 +1037,7 @@ impl QueryTransformer {
             for gstmt in ghost_update_stmts {
                 warn!("issue_update_dt_stmt: {}", gstmt);
                 txn.query_drop(format!("{}", gstmt.to_string()))?;
-                self.stats.nqueries+=1;
+                self.cur_stat.nqueries+=1;
             }
             self.cache.update_uid2gids_with(&ghost_update_pairs)?;
         }
@@ -1045,7 +1048,7 @@ impl QueryTransformer {
         });
         warn!("issue_update_dt_stmt: {}", update_stmt);
         txn.query_drop(update_stmt.to_string())?;
-        self.stats.nqueries+=1;
+        self.cur_stat.nqueries+=1;
         Ok(())
     }
     
@@ -1082,7 +1085,7 @@ impl QueryTransformer {
         });
         warn!("issue_delete_dt_stmt: {}", select_gids_stmt);
         let res = txn.query_iter(format!("{}", select_gids_stmt.to_string()))?;
-        self.stats.nqueries+=1;
+        self.cur_stat.nqueries+=1;
 
         let mut gids_list : Vec<Expr>= vec![];
         let mut ghost_update_pairs: Vec<(Option<u64>, u64)>= vec![];
@@ -1106,7 +1109,7 @@ impl QueryTransformer {
             });
             warn!("issue_delete_dt_stmt: {}", ghosts_delete_statement);
             txn.query_drop(&ghosts_delete_statement.to_string())?;
-            self.stats.nqueries+=1;
+            self.cur_stat.nqueries+=1;
         }
         self.cache.update_uid2gids_with(&ghost_update_pairs)?;
 
@@ -1116,7 +1119,7 @@ impl QueryTransformer {
         });
         warn!("issue_delete_dt_stmt: {}", delete_stmt);
         txn.query_drop(delete_stmt.to_string())?;
-        self.stats.nqueries+=1;
+        self.cur_stat.nqueries+=1;
         Ok(())
     }
 
@@ -1137,6 +1140,7 @@ impl QueryTransformer {
                 query, 
                 as_of,
             }) => {
+                self.cur_stat.qtype = stats::QueryType::Read;
                 let new_q = self.mvtrans.query_to_mv_query(&query);
                 mv_stmt = Statement::Select(SelectStatement{
                     query: Box::new(new_q), 
@@ -1148,6 +1152,7 @@ impl QueryTransformer {
                 columns, 
                 source,
             }) => {
+                self.cur_stat.qtype = stats::QueryType::Insert;
                 mv_table_name = self.mvtrans.objname_to_mv_string(&table_name);
                 is_dt_write = mv_table_name != table_name.to_string();
                 let mut new_source = source.clone();
@@ -1229,6 +1234,7 @@ impl QueryTransformer {
                 assignments,
                 selection,
             }) => {
+                self.cur_stat.qtype = stats::QueryType::Update;
                 mv_table_name = self.mvtrans.objname_to_mv_string(&table_name);
                 is_dt_write = mv_table_name != table_name.to_string();
 
@@ -1294,6 +1300,7 @@ impl QueryTransformer {
                 table_name,
                 selection,
             }) => {
+                self.cur_stat.qtype = stats::QueryType::Delete;
                 mv_table_name = self.mvtrans.objname_to_mv_string(&table_name);
                 is_dt_write = mv_table_name != table_name.to_string();
 
@@ -1325,6 +1332,7 @@ impl QueryTransformer {
                 temporary,
                 materialized,
             }) => {
+                self.cur_stat.qtype = stats::QueryType::WriteOther;
                 let mv_query = self.mvtrans.query_to_mv_query(&query);
                 mv_stmt = Statement::CreateView(CreateViewStatement{
                     name: name.clone(),
@@ -1345,6 +1353,7 @@ impl QueryTransformer {
                 if_not_exists,
                 engine,
             }) => {
+                self.cur_stat.qtype = stats::QueryType::WriteOther;
                 mv_table_name = self.mvtrans.objname_to_mv_string(&name);
                 is_dt_write = mv_table_name != name.to_string();
                 let mut new_engine = engine.clone();
@@ -1367,7 +1376,7 @@ impl QueryTransformer {
 
                     warn!("get_mv stmt: {}", dtstmt);
                     txn.query_drop(dtstmt.to_string())?;
-                    self.stats.nqueries+=1;
+                    self.cur_stat.nqueries+=1;
                 }
 
                 let mv_constraints : Vec<TableConstraint> = constraints
@@ -1425,6 +1434,7 @@ impl QueryTransformer {
                 key_parts,
                 if_not_exists,
             }) => {
+                self.cur_stat.qtype = stats::QueryType::WriteOther;
                 mv_table_name = self.mvtrans.objname_to_mv_string(&on_name);
                 is_dt_write = mv_table_name != on_name.to_string();
 
@@ -1433,7 +1443,7 @@ impl QueryTransformer {
                     // create a MV index 
                     warn!("get_mv: {}", stmt);
                     txn.query_drop(stmt.to_string())?;
-                    self.stats.nqueries+=1;
+                    self.cur_stat.nqueries+=1;
                 }
 
                 mv_stmt = Statement::CreateIndex(CreateIndexStatement{
@@ -1449,6 +1459,7 @@ impl QueryTransformer {
                 name,
                 to_item_name,
             }) => {
+                self.cur_stat.qtype = stats::QueryType::WriteOther;
                 let mut to_item_mv_name = to_item_name.to_string();
                 mv_table_name= self.mvtrans.objname_to_mv_string(&name);
                 is_dt_write = mv_table_name != name.to_string();
@@ -1458,7 +1469,7 @@ impl QueryTransformer {
                     // alter a MV table
                     warn!("get_mv: {}", stmt);
                     txn.query_drop(stmt.to_string())?;
-                    self.stats.nqueries+=1;
+                    self.cur_stat.nqueries+=1;
                 }
                 
                 match object_type {
@@ -1494,6 +1505,7 @@ impl QueryTransformer {
                 names,
                 cascade,
             }) => {
+                self.cur_stat.qtype = stats::QueryType::WriteOther;
                 let mut mv_names = names.clone();
                 match object_type {
                     ObjectType::Table => {
@@ -1507,7 +1519,7 @@ impl QueryTransformer {
                                 // alter a MV table
                                 warn!("get_mv: {}", stmt);
                                 txn.query_drop(stmt.to_string())?;
-                                self.stats.nqueries+=1;
+                                self.cur_stat.nqueries+=1;
                             }
 
                             *name = helpers::string_to_objname(&newname);
@@ -1530,6 +1542,7 @@ impl QueryTransformer {
                 materialized,
                 filter,
             }) => {
+                self.cur_stat.qtype = stats::QueryType::Read;
                 let mut mv_from = from.clone();
                 if let Some(f) = from {
                     mv_from = Some(helpers::string_to_objname(&self.mvtrans.objname_to_mv_string(&f)));
@@ -1558,6 +1571,7 @@ impl QueryTransformer {
                 extended,
                 filter,
             }) => {
+                self.cur_stat.qtype = stats::QueryType::Read;
                 mv_table_name = self.mvtrans.objname_to_mv_string(&table_name);
                 let mut mv_filter = filter.clone();
                 if let Some(f) = filter {
@@ -1600,6 +1614,14 @@ impl QueryTransformer {
         Ok(mv_stmt)
     }
 
+    pub fn record_query_stats(&mut self, dur: Duration) {
+        self.cur_stat.nqueries+=self.cache.nqueries;
+        self.cur_stat.duration = dur;
+        self.stats.push(self.cur_stat.clone());
+        self.cur_stat.clear();
+        self.cache.nqueries = 0;
+    }
+
     pub fn query<W: io::Write>(
         &mut self, 
         writer: QueryResultWriter<W>, 
@@ -1608,7 +1630,7 @@ impl QueryTransformer {
         -> Result<(), mysql::Error>
     {
         let res : Result<(), mysql::Error>;
-        if let Some(mv_stmt) = self.mvtrans.try_get_simple_mv_stmt(self.params.in_memory, stmt)? {
+        if let Some(mv_stmt) = self.mvtrans.try_get_simple_mv_stmt(self.params.in_memory, stmt, &mut self.cur_stat)? {
             warn!("query_iter nontxnal mv_stmt: {}", mv_stmt);
             res = helpers::answer_rows(writer, db.query_iter(mv_stmt.to_string()));
         } else {
@@ -1618,7 +1640,6 @@ impl QueryTransformer {
             res = helpers::answer_rows(writer, txn.query_iter(mv_stmt.to_string()));
             txn.commit()?;
         }
-        self.stats.nqueries+=1;
         res
     }
 
@@ -1628,7 +1649,7 @@ impl QueryTransformer {
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
-        if let Some(mv_stmt) = self.mvtrans.try_get_simple_mv_stmt(self.params.in_memory, stmt)? {
+        if let Some(mv_stmt) = self.mvtrans.try_get_simple_mv_stmt(self.params.in_memory, stmt, &mut self.cur_stat)? {
             warn!("query_drop nontxnal mv_stmt: {}", mv_stmt);
             db.query_drop(mv_stmt.to_string())?;
         } else {
@@ -1638,7 +1659,277 @@ impl QueryTransformer {
             txn.query_drop(mv_stmt.to_string())?;
             txn.commit()?;
         }
-        self.stats.nqueries+=1;
+        Ok(())
+    }
+
+    pub fn unsubscribe(&mut self, uid: u64, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+        self.cur_stat.qtype = stats::QueryType::Unsub;
+
+        // check if already unsubscribed
+        if !self.cache.unsubscribe(uid) {
+            return Ok(())
+        }
+        let mut txn = db.start_transaction(mysql::TxOpts::default())?;
+        let uid_val = Value::Number(uid.to_string());
+                    
+        let vals_vec : Vec<Vec<Expr>> = self.cache.get_gids_for_uid(uid, &mut txn)?
+            .iter()
+            .map(|g| vec![Expr::Value(Value::Number(g.to_string()))])
+            .collect();
+        let gid_source_q = Query {
+            ctes: vec![],
+            body: SetExpr::Values(Values(vals_vec)),
+            order_by: vec![],
+            limit: None,
+            offset: None,
+            fetch: None,
+        };
+        let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
+        let mv_table_name = self.mvtrans.objname_to_mv_objname(&user_table_name);
+ 
+        /* 
+         * 1. update the users MV to have an entry for all the users' GIDs
+         */
+        let insert_gids_as_users_stmt = Statement::Insert(InsertStatement{
+            table_name: mv_table_name.clone(),
+            columns: vec![Ident::new(&self.cfg.user_table.id_col)],
+            source: InsertSource::Query(Box::new(gid_source_q)),
+        });
+        warn!("unsub: {}", insert_gids_as_users_stmt);
+        txn.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
+        self.cur_stat.nqueries+=1;
+        
+        /*
+         * 2. delete UID from users MV and users (only one table, so delete from either)
+         */
+        let delete_uid_from_users = Statement::Delete(DeleteStatement {
+            table_name: user_table_name,
+            selection: Some(Expr::BinaryOp{
+                left: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(uid_val.clone())), 
+            }),
+        });
+        warn!("unsub: {}", delete_uid_from_users);
+        txn.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
+        self.cur_stat.nqueries+=1;
+ 
+        /* 
+         * 3. Change all entries with this UID to use the correct GID in the MV
+         */
+        for dt in &self.cfg.data_tables {
+            let dtobjname = helpers::string_to_objname(&dt.name);
+            let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
+
+            let mut assignments : Vec<String> = vec![];
+            for uc in ucols {
+                let uc_dt_ids = helpers::string_to_idents(&uc);
+                let uc_mv_ids = self.mvtrans.idents_to_mv_idents(&uc_dt_ids);
+                let mut astr = String::new();
+                astr.push_str(&format!(
+                        "{} = {}", 
+                        ObjectName(uc_mv_ids.clone()),
+                        Expr::Case{
+                            operand: None, 
+                            // check usercol_mv = UID
+                            conditions: vec![Expr::BinaryOp{
+                                left: Box::new(Expr::Identifier(uc_mv_ids.clone())),
+                                op: BinaryOperator::Eq,
+                                right: Box::new(Expr::Value(uid_val.clone())),
+                            }],
+                            // then assign to ghost ucol value
+                            results: vec![Expr::Identifier(uc_dt_ids)],
+                            // otherwise keep as the uid in the MV
+                            else_result: Some(Box::new(Expr::Identifier(uc_mv_ids.clone()))),
+                        }));
+                assignments.push(astr);
+            }
+           
+            let mut select_constraint = Expr::Value(Value::Boolean(true));
+            // add constraint on non-user columns to be identical (performing a "JOIN" on the DT
+            // and the MV so the correct rows are joined together)
+            // XXX could put a constraint selecting rows only with the UID in a ucol
+            // but the assignment CASE should already handle this?
+            for col in &dt.data_cols {
+                let mut fullname = dt.name.clone();
+                fullname.push_str(".");
+                fullname.push_str(&col);
+                let dt_ids = helpers::string_to_idents(&fullname);
+                let mv_ids = self.mvtrans.idents_to_mv_idents(&dt_ids);
+
+                select_constraint = Expr::BinaryOp {
+                    left: Box::new(select_constraint),
+                    op: BinaryOperator::And,
+                    right: Box::new(Expr::BinaryOp{
+                        left: Box::new(Expr::Identifier(mv_ids)),
+                        op: BinaryOperator::Eq,
+                        right: Box::new(Expr::Identifier(dt_ids)),
+                    }),             
+                };
+            }
+                
+            // UPDATE corresponding MV
+            // SET MV.usercols = (MV.usercol = uid) ? dt.usercol : MV.usercol 
+            // WHERE dtMV = dt ON [all other rows equivalent]
+            let mut astr = String::new();
+            astr.push_str(&assignments[0]);
+            for i in 1..assignments.len() {
+                astr.push_str(", ");
+                astr.push_str(&assignments[i]);
+            }
+                
+            let update_dt_stmt = format!("UPDATE {}, {} SET {} WHERE {};", 
+                self.mvtrans.objname_to_mv_objname(&dtobjname).to_string(),
+                dtobjname.to_string(),
+                astr,
+                select_constraint.to_string(),
+            );
+                
+            warn!("unsub: {}", update_dt_stmt);
+            txn.query_drop(format!("{}", update_dt_stmt))?;
+            self.cur_stat.nqueries+=1;
+        }
+        
+        // TODO return some type of auth token?
+        txn.commit()?;
+        Ok(())
+    }
+
+    /* 
+     * Set all user_ids in the ghosts table to specified user 
+     * refresh "materialized views"
+     * TODO add back deleted content from shard
+     * TODO check that user doesn't already exist
+     */
+    pub fn resubscribe(&mut self, uid: u64, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+        // TODO check auth token?
+       
+        self.cur_stat.qtype = stats::QueryType::Resub;
+
+        // check if already resubscribed
+        if !self.cache.resubscribe(uid) {
+            return Ok(())
+        }
+        let mut txn = db.start_transaction(mysql::TxOpts::default())?;
+        let uid_val = Value::Number(uid.to_string());
+
+        let gid_exprs : Vec<Expr> = self.cache.get_gids_for_uid(uid, &mut txn)?
+            .iter()
+            .map(|g| Expr::Value(Value::Number(g.to_string())))
+            .collect();
+
+        let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
+        let mv_table_name = self.mvtrans.objname_to_mv_objname(&user_table_name);
+
+        /*
+         * 1. drop all GIDs from users table 
+         */
+        let delete_gids_as_users_stmt = Statement::Delete(DeleteStatement {
+            table_name: mv_table_name.clone(),
+            selection: Some(Expr::InList{
+                expr: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
+                list: gid_exprs.clone(),
+                negated: false, 
+            }),
+        });
+        warn!("resub: {}", delete_gids_as_users_stmt);
+        txn.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
+        self.cur_stat.nqueries+=1;
+
+        /*
+         * 2. Add user to users/usersmv (only one table)
+         * TODO should also add back all of the user data????
+         */
+        let insert_uid_as_user_stmt = Statement::Insert(InsertStatement{
+            table_name: user_table_name,
+            columns: vec![Ident::new(&self.cfg.user_table.id_col)],
+            source: InsertSource::Query(Box::new(Query{
+                ctes: vec![],
+                body: SetExpr::Values(Values(vec![vec![Expr::Value(uid_val.clone())]])),
+                order_by: vec![],
+                limit: None,
+                offset: None,
+                fetch: None,
+            })),
+        });
+        warn!("resub: {}", insert_uid_as_user_stmt.to_string());
+        txn.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
+        self.cur_stat.nqueries+=1;
+ 
+        /* 
+         * 3. update assignments in MV to use UID again
+         */
+        for dt in &self.cfg.data_tables {
+            let dtobjname = helpers::string_to_objname(&dt.name);
+            let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
+            
+            let mut assignments : Vec<String> = vec![];
+            for uc in ucols {
+                let uc_dt_ids = helpers::string_to_idents(&uc);
+                let uc_mv_ids = self.mvtrans.idents_to_mv_idents(&uc_dt_ids);
+                let mut astr = String::new();
+                astr.push_str(&format!(
+                        "{} = {}", 
+                        ObjectName(uc_mv_ids.clone()),
+                        Expr::Case{
+                            operand: None, 
+                            // check usercol_mv IN gids
+                            conditions: vec![Expr::InList{
+                                expr: Box::new(Expr::Identifier(uc_mv_ids.clone())),
+                                list: gid_exprs.clone(),
+                                negated: false,
+                            }],
+                            // then assign UID value
+                            results: vec![Expr::Value(uid_val.clone())],
+                            // otherwise keep as the current value in the MV
+                            else_result: Some(Box::new(Expr::Identifier(uc_mv_ids.clone()))),
+                        }));
+                assignments.push(astr);
+            }
+           
+            let mut select_constraint = Expr::Value(Value::Boolean(true));
+            // add constraint on non-user columns to be identical (performing a "JOIN" on the DT
+            // and the MV so the correct rows are joined together)
+            // XXX could put a constraint selecting rows only with the GIDs in a ucol
+            // but the assignment CASE should already handle this?
+            for col in &dt.data_cols {
+                let mut fullname = dt.name.clone();
+                fullname.push_str(".");
+                fullname.push_str(&col);
+                let dt_ids = helpers::string_to_idents(&fullname);
+                let mv_ids = self.mvtrans.idents_to_mv_idents(&dt_ids);
+
+                select_constraint = Expr::BinaryOp {
+                    left: Box::new(select_constraint),
+                    op: BinaryOperator::And,
+                    right: Box::new(Expr::BinaryOp{
+                        left: Box::new(Expr::Identifier(mv_ids)),
+                        op: BinaryOperator::Eq,
+                        right: Box::new(Expr::Identifier(dt_ids)),
+                    }),             
+                };
+            }
+                
+            // UPDATE corresponding MV
+            // SET MV.usercols = (MV.usercol = dt.usercol) ? uid : MV.usercol
+            // WHERE dtMV = dt ON [all other rows equivalent]
+            let mut astr = String::new();
+            astr.push_str(&assignments[0]);
+            for i in 1..assignments.len() {
+                astr.push_str(", ");
+                astr.push_str(&assignments[i]);
+            }
+            let update_dt_stmt = format!("UPDATE {}, {} SET {} WHERE {};", 
+                self.mvtrans.objname_to_mv_objname(&dtobjname).to_string(),
+                dtobjname.to_string(),
+                astr,
+                select_constraint.to_string(),
+            );
+            warn!("resub: {}", update_dt_stmt);
+            txn.query_drop(format!("{}", update_dt_stmt))?;
+            self.cur_stat.nqueries+=1;
+        }    
+        txn.commit()?;
         Ok(())
     }
 } 

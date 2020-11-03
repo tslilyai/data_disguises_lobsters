@@ -3,7 +3,7 @@ use sql_parser::ast::*;
 use super::helpers;
 use std::sync::atomic::Ordering;
 use std::*;
-use log::{debug,warn};
+use log::{warn};
 use std::sync::atomic::{AtomicU64};
 use std::collections::{HashMap, HashSet};
 
@@ -13,7 +13,8 @@ pub struct QueryCache{
     uid2gids: HashMap<u64, Vec<u64>>,
     gid2uid: HashMap<u64, u64>,
     latest_gid: AtomicU64,
-    pub stats: super::QTStats,
+    
+    pub nqueries: u64,
 }
 
 impl QueryCache{
@@ -23,7 +24,7 @@ impl QueryCache{
             uid2gids: HashMap::new(),
             gid2uid: HashMap::new(),
             latest_gid: AtomicU64::new(super::GHOST_ID_START),
-            stats: super::QTStats{nqueries:0},
+            nqueries: 0,
         }
     }   
      
@@ -142,7 +143,7 @@ impl QueryCache{
 
             warn!("cache_uid2gids: {}", get_gids_of_uid_stmt);
             let res = txn.query_iter(format!("{}", get_gids_of_uid_stmt.to_string()))?;
-            self.stats.nqueries+=1;
+            self.nqueries+=1;
             for row in res {
                 let mut vals = vec![];
                 for v in row.unwrap().unwrap() {
@@ -160,7 +161,7 @@ impl QueryCache{
                             super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid);
         warn!("insert_gid_for_uid: {}", insert_query);
         let res = txn.query_iter(insert_query)?;
-        self.stats.nqueries+=1;
+        self.nqueries+=1;
         
         // we want to insert the GID in place of the UID
         let gid = res.last_insert_id().ok_or_else(|| 
