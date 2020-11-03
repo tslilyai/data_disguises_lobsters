@@ -5,7 +5,7 @@ use mysql::prelude::*;
 use std::*;
 //use log::{warn, debug};
 
-pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u32>, id: usize,  title: String) -> Result<(), mysql::Error> {
+pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title: String) -> Result<(), mysql::Error> {
     let user = acting_as.unwrap();
 
     db.exec_drop(

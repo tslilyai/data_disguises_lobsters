@@ -5,10 +5,11 @@ use std::sync::atomic::Ordering;
 use std::*;
 use log::{debug,warn};
 use std::sync::atomic::{AtomicU64};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub struct QueryCache{
     // caches
+    unsubscribed: HashSet<u64>,
     uid2gids: HashMap<u64, Vec<u64>>,
     gid2uid: HashMap<u64, u64>,
     latest_gid: AtomicU64,
@@ -18,13 +19,22 @@ pub struct QueryCache{
 impl QueryCache{
     pub fn new() -> Self {
         QueryCache{
+            unsubscribed: HashSet::new(),
             uid2gids: HashMap::new(),
             gid2uid: HashMap::new(),
             latest_gid: AtomicU64::new(super::GHOST_ID_START),
             stats: super::QTStats{nqueries:0},
         }
     }   
-    
+     
+    pub fn unsubscribe(&mut self, uid:u64) -> bool {
+        self.unsubscribed.insert(uid)
+    }
+
+    pub fn resubscribe(&mut self, uid:u64) -> bool {
+        self.unsubscribed.remove(&uid)
+    }
+
     pub fn insert_gid_into_caches(&mut self, uid:u64, gid:u64) {
         match self.uid2gids.get_mut(&uid) {
             Some(gids) => (*gids).push(gid),

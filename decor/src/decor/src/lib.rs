@@ -202,6 +202,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO actually delete entries? 
      */
     fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), mysql::Error> {
+        // check if already unsubscribed
+        if !self.qtrans.cache.unsubscribe(uid) {
+            return Ok(())
+        }
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
                     
@@ -336,13 +340,20 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      */
     fn on_resubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
         // TODO check auth token?
+       
+        // check if already resubscribed
+        if !self.qtrans.cache.resubscribe(uid) {
+            return Ok(())
+        }
         let mut txn = self.db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = ast::Value::Number(uid.to_string());
-        
+
+
         let gid_exprs : Vec<Expr> = self.qtrans.cache.get_gids_for_uid(uid, &mut txn)?
             .iter()
             .map(|g| Expr::Value(ast::Value::Number(g.to_string())))
             .collect();
+
         let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
         let mv_table_name = self.mvtrans.objname_to_mv_objname(&user_table_name);
 
@@ -362,7 +373,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         self.qtrans.stats.nqueries+=1;
 
         /*
-         * 2. Add user to users and usersmv (only one table)
+         * 2. Add user to users/usersmv (only one table)
          * TODO should also add back all of the user data????
          */
         let insert_uid_as_user_stmt = Statement::Insert(InsertStatement{

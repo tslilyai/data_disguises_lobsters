@@ -65,15 +65,15 @@ struct Cli {
     #[structopt(long="test", default_value="no_shim")]
     test: TestType,
     #[structopt(long="nusers", default_value="10")]
-    nusers: usize,
+    nusers: u64,
     #[structopt(long="nstories", default_value="10")]
-    nstories: usize,
+    nstories: u64,
     #[structopt(long="ncomments", default_value="100")]
-    ncomments: usize,
+    ncomments: u64,
     #[structopt(long="nthreads", default_value = "1")]
-    nthreads: usize,
+    nthreads: u64,
     #[structopt(long="nqueries", default_value = "100")]
-    nqueries: usize,
+    nqueries: u64,
     #[structopt(long="testop", default_value = "select")]
     testop: String,
 }
@@ -88,7 +88,7 @@ fn init_logger() {
         .try_init();
 }
 
-fn init_database(db: &mut mysql::Conn, nusers: usize, nstories: usize, ncomments: usize) {
+fn init_database(db: &mut mysql::Conn, nusers: u64, nstories: u64, ncomments: u64) {
     // users
     let mut user_ids = String::new();
     for user in 0..nusers {
@@ -153,7 +153,7 @@ fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     Ok(())
 }
 
-fn test_reads(db: &mut mysql::Conn, nqueries: usize, nstories: usize) {
+fn test_reads(db: &mut mysql::Conn, nqueries: u64, nstories: u64) {
     // select comments and stories at random to read
     for _ in 0..nqueries {
         let story = thread_rng().gen_range(0, nstories);
@@ -173,7 +173,7 @@ fn test_reads(db: &mut mysql::Conn, nqueries: usize, nstories: usize) {
     }
 }
 
-fn test_insert(db: &mut mysql::Conn, nqueries: usize, nstories: usize, nusers: usize, ncomments: usize) {
+fn test_insert(db: &mut mysql::Conn, nqueries: u64, nstories: u64, nusers: u64, ncomments: u64) {
     // select comments and stories at random to read
     for i in 0..nqueries {
         let user = (ncomments+i) % nusers;
@@ -186,7 +186,7 @@ fn test_insert(db: &mut mysql::Conn, nqueries: usize, nstories: usize, nusers: u
     }
 }
 
-fn test_update(db: &mut mysql::Conn, nqueries: usize, nusers: usize, nstories: usize) {
+fn test_update(db: &mut mysql::Conn, nqueries: u64, nusers: u64, nstories: u64) {
     // select comments and stories at random to read
     for i in 0..nqueries {
         let user = i % nusers;
@@ -198,7 +198,7 @@ fn test_update(db: &mut mysql::Conn, nqueries: usize, nusers: usize, nstories: u
     }
 }
 
-fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, nusers: usize, nstories: usize, ncomments: usize) 
+fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, nusers: u64, nstories: u64, ncomments: u64) 
     -> (mysql::Conn, Option<thread::JoinHandle<()>>) 
 {
     let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -300,6 +300,8 @@ fn main() {
     queriers::frontpage::query_frontpage(&mut db, Some(0)).unwrap();
     queriers::post_story::post_story(&mut db, Some(0), nstories + 1, "Dummy title".to_string()).unwrap();
     queriers::vote::vote_on_story(&mut db, Some(0), 1, true).unwrap();
+    queriers::user::get_profile(&mut db, 0).unwrap();
+    queriers::comment::post_comment(&mut db, Some(0), ncomments+1, 1, None).unwrap();
 
     let duration : std::time::Duration;
     match testop.as_str() {
