@@ -95,13 +95,18 @@ impl Shim {
     }
    
     pub fn run_on_tcp(
-        db: mysql::Conn, 
+        dbname: &str, 
         cfg_json: &str, 
         schema: &'static str, 
         test_params: TestParams, 
         s: net::TcpStream) 
         -> Result<(), mysql::Error> 
     {
+
+        let mut db = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
+        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", dbname)).unwrap();
+        db.query_drop(&format!("CREATE DATABASE {};", dbname)).unwrap();
+        assert_eq!(db.ping(), true);
         let rs = s.try_clone().unwrap();
         MysqlIntermediary::run_on(Shim::new(db, cfg_json, schema, test_params), 
                                     BufReader::new(rs), BufWriter::new(s))

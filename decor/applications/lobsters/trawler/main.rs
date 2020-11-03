@@ -228,7 +228,7 @@ impl trawler::AsyncShutdown for MysqlTrawler {
 }
 
 fn main() {
-    let args = App::new("lobsters-mysql")
+    let args = App::new("lobsters-decor")
         .version("0.1")
         .about("Benchmark a lobste.rs Rails installation using DeCor")
         .arg(
@@ -286,6 +286,11 @@ fn main() {
     if let Some(h) = args.value_of("histogram") {
         wl.with_histogram(h);
     }
+
+    /*let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let mut jh = None;
+    let url : String;*/
 
     // check that we can indeed connect
     let mut opts = my::OptsBuilder::from_opts(args.value_of("dbn").unwrap());

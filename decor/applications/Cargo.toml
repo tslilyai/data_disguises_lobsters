@@ -24,11 +24,6 @@ tower-service = "0.3.0"
 trawler = "0.11.0-alpha.4"
 
 [[bin]]
-name = "lobsters-trawler"
-path = "lobsters/trawler/main.rs"
-doc = false
-
-[[bin]]
 name = "lobsters-microbenchmarks"
 path = "lobsters/microbenchmarks/main.rs"
 doc = false

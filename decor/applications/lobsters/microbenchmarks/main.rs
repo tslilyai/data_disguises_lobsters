@@ -33,6 +33,7 @@ use hwloc::{Topology, ObjectType, CPUBIND_THREAD, CPUBIND_PROCESS, CpuSet};
 use std::sync::{Arc, Mutex};
 //use log::{warn, debug};
 
+mod queriers;
 use decor::*;
 
 const SCHEMA : &'static str = include_str!("../schema.sql");
@@ -250,12 +251,8 @@ fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, nusers: usize, nstories:
             }*/
 
             if let Ok((s, _)) = listener.accept() {
-                let mut db = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
-                db.query_drop(&format!("DROP DATABASE IF EXISTS {};", DBNAME)).unwrap();
-                db.query_drop(&format!("CREATE DATABASE {};", DBNAME)).unwrap();
-                assert_eq!(db.ping(), true);
                 decor::Shim::run_on_tcp(
-                    db, CONFIG, SCHEMA, 
+                    DBNAME, CONFIG, SCHEMA, 
                     decor::TestParams{translate:translate, parse:parse, in_memory: true}, s).unwrap();
             }
         }));
@@ -297,12 +294,13 @@ fn main() {
     cpuset.singlify();
     locked_topo.set_cpubind_for_process(pid, cpuset, CPUBIND_PROCESS).unwrap();
     drop(locked_topo);
-    /*unsafe {
-        libc::sched_setaffinity(pid as libc::pid_t, mem::size_of::<CpuSet>() as libc::size_t, 
-                                mem::transmute(&cpuset));
-    }*/
             
     let (mut db, jh) = init_db(topo.clone(), test.clone(), nusers, nstories, ncomments);
+    
+    queriers::frontpage::query_frontpage(&mut db, Some(0)).unwrap();
+    queriers::post_story::post_story(&mut db, Some(0), nstories + 1, "Dummy title".to_string()).unwrap();
+    queriers::vote::vote_on_story(&mut db, Some(0), 1, true).unwrap();
+
     let duration : std::time::Duration;
     match testop.as_str() {
         "select" => {
