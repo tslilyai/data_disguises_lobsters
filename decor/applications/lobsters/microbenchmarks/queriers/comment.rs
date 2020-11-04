@@ -67,7 +67,7 @@ pub fn post_comment(db: &mut mysql::Conn,
              `user_id`, `parent_comment_id`, `thread_id`, \
              `comment`, `upvotes`, `confidence`, \
              `markeddown_comment`) \
-             VALUES (\"{}\", \"{}\", {}, {}, {}, {}, {}, {}, {}, {}, {})",
+             VALUES (\'{}\', \'{}\', {}, {}, {}, {}, {}, {}, {}, {}, {})",
             now,
             now,
             id,
@@ -75,10 +75,10 @@ pub fn post_comment(db: &mut mysql::Conn,
             user,
             parent,
             thread,
-            "\"moar benchmarking\"", // lorem ipsum?
+            "\'moar benchmarking\'", // lorem ipsum?
             1,
             0.1828847834138887,
-            "\"<p>moar benchmarking</p>\\n\"",
+            "\'<p>moar benchmarking</p>\\n\'",
             )
         )?
     } else {
@@ -87,16 +87,16 @@ pub fn post_comment(db: &mut mysql::Conn,
              (`created_at`, `updated_at`, `short_id`, `story_id`, \
              `user_id`, `comment`, `upvotes`, `confidence`, \
              `markeddown_comment`) \
-             VALUES (\"{}\", \"{}\", {}, {}, {}, {}, {}, {}, {})",
+             VALUES (\'{}\', \'{}\', {}, {}, {}, {}, {}, {}, {})",
             now,
             now,
             id,
             story,
             user,
-            "\"moar benchmarking\"", // lorem ipsum?
+            "\'moar benchmarking\'", // lorem ipsum?
             1,
             0.1828847834138887,
-            "\"<p>moar benchmarking</p>\\n\"",
+            "\'<p>moar benchmarking</p>\\n\'",
             ),
         )?
     };
@@ -182,11 +182,11 @@ pub fn post_comment(db: &mut mysql::Conn,
         hotness - 1.0, story,
     ))?;
 
-    let key = format!("\"user:{}:comments_posted\"", user);
+    let key = format!("\'user:{}:comments_posted\'", user);
     db.query_drop(format!(
         "INSERT INTO keystores (`key`, `value`) \
-         VALUES ({}, {}) \
-         ON DUPLICATE KEY UPDATE `keystores`.`value` = `keystores`.`value` + 1",
+         VALUES ({}, {})",
+         //ON DUPLICATE KEY UPDATE `keystores`.`value` = `keystores`.`value` + 1",
         key, 1,
     ))?;
     Ok(())

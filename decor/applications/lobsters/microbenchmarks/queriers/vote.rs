@@ -42,7 +42,7 @@ pub fn vote_on_story(db: &mut mysql::Conn, acting_as: Option<u64>, story_id: u64
 
     db.query_drop(format!(
         "UPDATE `users` \
-         SET `users`.`karma` = `users`.`karma` {} \
+         SET `karma` = `users`.`karma` {} \
          WHERE `users`.`id` = {}",
         match pos {
             true => "+ 1",
@@ -85,9 +85,9 @@ pub fn vote_on_story(db: &mut mysql::Conn, acting_as: Option<u64>, story_id: u64
     // in the lobsters source for details.
     db.query_drop(format!(
         "UPDATE stories SET \
-         stories.upvotes = stories.upvotes {}, \
-         stories.downvotes = stories.downvotes {}, \
-         stories.hotness = {} \
+         upvotes = stories.upvotes {}, \
+         downvotes = stories.downvotes {}, \
+         hotness = {} \
          WHERE stories.id = {}",
         match pos {
             true => "+ 1",

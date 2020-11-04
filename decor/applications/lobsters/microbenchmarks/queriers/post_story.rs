@@ -40,8 +40,7 @@ pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title:
              (`created_at`, `user_id`, `title`, \
              `description`, `short_id`, `upvotes`, `hotness`, \
              `markeddown_description`) \
-             VALUES (\"{}\", {}, \"{}\", \"{}\", {}, {}, {}, \"{}\")",
-                chrono::Local::now().naive_local(),
+             VALUES (\'{}\', {}, \'{}\', \'{}\', {}, {}, {}, \'{}\')", chrono::Local::now().naive_local(),
                 user,
                 title,
                 "to infinity", // lorem ipsum?
@@ -61,11 +60,11 @@ pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title:
         (story, tag),
     )?;*/
 
-    let key = format!("\"user:{}:stories_submitted\"", user);
+    let key = format!("\'user:{}:stories_submitted\'", user);
     db.query_drop(format!(
         "INSERT INTO keystores (`key`, `value`) \
-         VALUES ({}, {}) \
-         ON DUPLICATE KEY UPDATE `keystores`.`value` = `keystores`.`value` + 1",
+         VALUES ({}, {})",
+         // not supported by parser ON DUPLICATE KEY UPDATE `keystores`.`value` = `keystores`.`value` + 1",
         key, 1),
     )?;
 

@@ -7,9 +7,9 @@ use std::*;
 
 pub fn get_profile(db: &mut mysql::Conn, uid: u32) -> Result<(), mysql::Error> {
     let uid : u32 = db.query(format!(
-            "SELECT  `users`.id FROM `users` \
+            "SELECT `users`.id FROM `users` \
              WHERE `users`.`username` = {}",
-            (format!("\"user{}\"", uid))
+            (format!("\'user{}\'", uid))
         ))?[0];
 
     let rows : Vec<(u32, u32)> = db.query(format!(
@@ -36,13 +36,13 @@ pub fn get_profile(db: &mut mysql::Conn, uid: u32) -> Result<(), mysql::Error> {
         "SELECT  `keystores`.* \
          FROM `keystores` \
          WHERE `keystores`.`key` = {}",
-        (format!("\"user:{}:stories_submitted\"", uid))),
+        (format!("\'user:{}:stories_submitted\'", uid))),
     )?;
     db.query_drop(format!(
         "SELECT  `keystores`.* \
          FROM `keystores` \
          WHERE `keystores`.`key` = {}",
-        (format!("\"user:{}:comments_posted\"", uid))),
+        (format!("\'user:{}:comments_posted\'", uid))),
     )?;
     db.query_drop(format!(
         "SELECT  1 AS one FROM `hats` \

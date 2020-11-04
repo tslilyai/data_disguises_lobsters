@@ -922,7 +922,7 @@ impl QueryTransformer {
             source : qt_source, 
         });
  
-        warn!("issue_insert_dt_stmt: {}", dt_stmt);
+        warn!("issue_insert_dt_stmt: {:?} \n {}", dt_stmt, dt_stmt);
         txn.query_drop(dt_stmt.to_string())?;
         self.cur_stat.nqueries+=1;
 
@@ -1173,6 +1173,7 @@ impl QueryTransformer {
 
                 // issue to datatable with vals_vec BEFORE we modify vals_vec to include the
                 // user_id column
+                warn!("source in issue insert: {:?}, {:?}", values, source);
                 if is_dt_write {
                     self.issue_insert_datatable_stmt(&mut values.clone(), InsertStatement{
                         table_name: table_name.clone(), 

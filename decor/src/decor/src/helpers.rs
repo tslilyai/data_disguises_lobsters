@@ -4,7 +4,7 @@ use std::*;
 use super::config;
 use std::str::FromStr;
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
-use log::{warn, debug};
+use log::{debug};
 
 pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
     // get rid of unsupported types
