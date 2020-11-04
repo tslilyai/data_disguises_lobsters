@@ -20,18 +20,18 @@ pub fn post_comment(db: &mut mysql::Conn,
              story
         ))?.unwrap();
 
-    db.exec_drop(
-        "SELECT `users`.* FROM `users` WHERE `users`.`id` = ?",
-        (author,),
-    )?;
+    db.query_drop(format!(
+        "SELECT `users`.* FROM `users` WHERE `users`.`id` = {}",
+        author
+    ))?;
 
     let parent : Option<(u64, u64)> = if let Some(parent) = parent {
         // check that parent exists
-        if let Some(p) = db.exec_first(
+        if let Some(p) = db.query_first(format!(
                 "SELECT  `comments`.id, comments.thread_id FROM `comments` \
-                 WHERE `comments`.`story_id` = ? \
-                 AND `comments`.`short_id` = ?",
-                 (story, parent,))? 
+                 WHERE `comments`.`story_id` = {} \
+                 AND `comments`.`short_id` = {}",
+                 story, parent))? 
         {
             Some(p)
         } else {
@@ -49,11 +49,11 @@ pub fn post_comment(db: &mut mysql::Conn,
     // parent to ensure we don't double-post accidentally
 
     // check that short id is available
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT  1 AS one FROM `comments` \
-         WHERE `comments`.`short_id` = ?",
-         (id,)
-    )?;
+         WHERE `comments`.`short_id` = {}",
+         id
+    ))?;
 
     // TODO: real impl checks *new* short_id *again*
 
@@ -61,133 +61,133 @@ pub fn post_comment(db: &mut mysql::Conn,
     // but let's be nice to it
     let now = chrono::Local::now().naive_local();
     let q = if let Some((parent, thread)) = parent {
-        db.exec_iter(
+        db.query_iter(format!(
             "INSERT INTO `comments` \
              (`created_at`, `updated_at`, `short_id`, `story_id`, \
              `user_id`, `parent_comment_id`, `thread_id`, \
              `comment`, `upvotes`, `confidence`, \
              `markeddown_comment`) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                now,
-                now,
-                id,
-                story,
-                user,
-                parent,
-                thread,
-                "moar benchmarking", // lorem ipsum?
-                1,
-                0.1828847834138887,
-                "<p>moar benchmarking</p>\n",
-            ),
+             VALUES (\"{}\", \"{}\", {}, {}, {}, {}, {}, {}, {}, {}, {})",
+            now,
+            now,
+            id,
+            story,
+            user,
+            parent,
+            thread,
+            "\"moar benchmarking\"", // lorem ipsum?
+            1,
+            0.1828847834138887,
+            "\"<p>moar benchmarking</p>\\n\"",
+            )
         )?
     } else {
-        db.exec_iter(
+        db.query_iter(format!(
             "INSERT INTO `comments` \
              (`created_at`, `updated_at`, `short_id`, `story_id`, \
              `user_id`, `comment`, `upvotes`, `confidence`, \
              `markeddown_comment`) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (
-                now,
-                now,
-                id,
-                story,
-                user,
-                "moar benchmarking", // lorem ipsum?
-                1,
-                0.1828847834138887,
-                "<p>moar benchmarking</p>\n",
+             VALUES (\"{}\", \"{}\", {}, {}, {}, {}, {}, {}, {})",
+            now,
+            now,
+            id,
+            story,
+            user,
+            "\"moar benchmarking\"", // lorem ipsum?
+            1,
+            0.1828847834138887,
+            "\"<p>moar benchmarking</p>\\n\"",
             ),
         )?
     };
-    let comment = q.last_insert_id().unwrap();
+    // TODO last insert ID not working?
+    //q.last_insert_id().unwrap();
     drop(q);
+    let comment : u64 = db.query_first(format!("SELECT comments.id FROM comments WHERE comments.short_id={}", id))?.unwrap();
 
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT  `votes`.* FROM `votes` \
-         WHERE `votes`.`user_id` = ? \
-         AND `votes`.`story_id` = ? \
-         AND `votes`.`comment_id` = ?",
-        (user, story, comment),
-    )?;
+         WHERE `votes`.`user_id` = {} \
+         AND `votes`.`story_id` = {} \
+         AND `votes`.`comment_id` = {}",
+        user, story, comment,
+    ))?;
 
-    db.exec_drop(
+    db.query_drop(format!(
         "INSERT INTO `votes` \
          (`user_id`, `story_id`, `comment_id`, `vote`) \
-         VALUES (?, ?, ?, ?)",
-        (user, story, comment, 1),
-    )?;
+         VALUES ({}, {}, {}, {})",
+        user, story, comment, 1,
+    ))?;
     
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT `stories`.`id` \
          FROM `stories` \
-         WHERE `stories`.`merged_story_id` = ?",
-        (story,),
-    )?;
+         WHERE `stories`.`merged_story_id` = {}",
+        story,
+    ))?;
 
     // why are these ordered?
-    let res : Vec<(u64, u64)> = db.exec(
+    let res : Vec<(u64, u64)> = db.query(format!(
         "SELECT `comments`.id, \
          `comments`.`upvotes` - `comments`.`downvotes` AS saldo \
          FROM `comments` \
-         WHERE `comments`.`story_id` = ? \
+         WHERE `comments`.`story_id` = {} \
          ORDER BY \
          saldo ASC, \
          confidence DESC",
-        (story,),
+        story,),
     )?;
     let count = res.len() + 1;
 
-    db.exec_drop(
+    db.query_drop(format!(
         "UPDATE `stories` \
-        SET `comments_count` = ?
-        WHERE `stories`.`id` = ?",
-        (count, story),
+        SET `comments_count` = {} 
+        WHERE `stories`.`id` = {}",
+        count, story)
     )?;
 
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT `tags`.* \
          FROM `tags` \
          INNER JOIN `taggings` \
          ON `tags`.`id` = `taggings`.`tag_id` \
-         WHERE `taggings`.`story_id` = ?",
-        (story,),
+         WHERE `taggings`.`story_id` = {}",
+        story,),
     )?;
 
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT \
          `comments`.`upvotes`, \
          `comments`.`downvotes` \
          FROM `comments` \
          JOIN `stories` ON (`stories`.`id` = `comments`.`story_id`) \
-         WHERE `comments`.`story_id` = ? \
+         WHERE `comments`.`story_id` = {} \
          AND `comments`.`user_id` <> `stories`.`user_id`",
-        (story,),
+        story)
     )?;
     
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT `stories`.`id` \
          FROM `stories` \
-         WHERE `stories`.`merged_story_id` = ?",
-        (story,),
+         WHERE `stories`.`merged_story_id` = {}",
+        story)
     )?;
 
     // why oh why is story hotness *updated* here?!
-    db.exec_drop(
+    db.query_drop(format!(
         "UPDATE `stories` \
-         SET `hotness` = ? \
-         WHERE `stories`.`id` = ?",
-        (hotness - 1.0, story),
-    )?;
+         SET `hotness` = {} \
+         WHERE `stories`.`id` = {}",
+        hotness - 1.0, story,
+    ))?;
 
-    let key = format!("user:{}:comments_posted", user);
-    db.exec_drop(
+    let key = format!("\"user:{}:comments_posted\"", user);
+    db.query_drop(format!(
         "INSERT INTO keystores (`key`, `value`) \
-         VALUES (?, ?) \
+         VALUES ({}, {}) \
          ON DUPLICATE KEY UPDATE `keystores`.`value` = `keystores`.`value` + 1",
-        (key, 1),
-    )?;
+        key, 1,
+    ))?;
     Ok(())
 }

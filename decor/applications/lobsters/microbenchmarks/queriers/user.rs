@@ -6,48 +6,48 @@ use std::*;
 //use log::{warn, debug};
 
 pub fn get_profile(db: &mut mysql::Conn, uid: u32) -> Result<(), mysql::Error> {
-    let uid : u32 = db.exec(
+    let uid : u32 = db.query(format!(
             "SELECT  `users`.id FROM `users` \
-             WHERE `users`.`username` = ?",
-            (format!("user{}", uid),),
-        )?[0];
+             WHERE `users`.`username` = {}",
+            (format!("\"user{}\"", uid))
+        ))?[0];
 
-    let rows : Vec<(u32, u32)> = db.exec(
+    let rows : Vec<(u32, u32)> = db.query(format!(
             "SELECT  `tags`.`id`, COUNT(*) AS `count` FROM `taggings` \
              INNER JOIN `tags` ON `taggings`.`tag_id` = `tags`.`id` \
              INNER JOIN `stories` ON `stories`.`id` = `taggings`.`story_id` \
              WHERE `tags`.`inactive` = 0 \
-             AND `stories`.`user_id` = ? \
+             AND `stories`.`user_id` = {} \
              GROUP BY `tags`.`id` \
              ORDER BY `count` desc LIMIT 1",
-            (uid,),
+            uid)
         )?;
 
     if !rows.is_empty() {
         let tag : u32 = rows[0].0;
-        db.exec_drop(
+        db.query_drop(format!(
             "SELECT  `tags`.* \
              FROM `tags` \
-             WHERE `tags`.`id` = ?",
-             (tag,)
+             WHERE `tags`.`id` = {}",
+             tag,)
         )?;
     }
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT  `keystores`.* \
          FROM `keystores` \
-         WHERE `keystores`.`key` = ?",
-        (format!("user:{}:stories_submitted", uid),),
+         WHERE `keystores`.`key` = {}",
+        (format!("\"user:{}:stories_submitted\"", uid))),
     )?;
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT  `keystores`.* \
          FROM `keystores` \
-         WHERE `keystores`.`key` = ?",
-        (format!("user:{}:comments_posted", uid),),
+         WHERE `keystores`.`key` = {}",
+        (format!("\"user:{}:comments_posted\"", uid))),
     )?;
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT  1 AS one FROM `hats` \
-         WHERE `hats`.`user_id` = ? LIMIT 1",
-        (uid,),
+         WHERE `hats`.`user_id` = {} LIMIT 1",
+        uid),
     )?;
     Ok(())
 } 

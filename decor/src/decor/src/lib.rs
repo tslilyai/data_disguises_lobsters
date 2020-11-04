@@ -55,7 +55,6 @@ pub struct Shim {
     prepared: HashMap<u32, Prepared>,
 
     qtrans: query_transformer::QueryTransformer,
-    mvtrans: mv_transformer::MVTransformer,
     sqlcache: sqlparser_cache::ParserCache,
 
     // NOTE: not *actually* static, but tied to our connection's lifetime.
@@ -67,7 +66,6 @@ pub struct Shim {
 impl Drop for Shim {
     fn drop(&mut self) {
         stats::print_stats(&self.qtrans.stats);
-        //println!("\tSHIM performed {} queries", self.qtrans.stats.nqueries + self.qtrans.cache.stats.nqueries);
         self.prepared.clear();
         // drop the connection (implicitly done).
     }
@@ -80,10 +78,9 @@ impl Shim {
         let cfg = config::parse_config(cfg_json).unwrap();
         let prepared = HashMap::new();
         let qtrans = query_transformer::QueryTransformer::new(&cfg, &test_params);
-        let mvtrans = mv_transformer::MVTransformer::new(&cfg);
         let sqlcache = sqlparser_cache::ParserCache::new();
         let schema = schema.to_string();
-        Shim{cfg, db, qtrans, mvtrans, sqlcache, prepared, schema, test_params}
+        Shim{cfg, db, qtrans, sqlcache, prepared, schema, test_params}
     }   
 
     pub fn run_on_tcp(
@@ -115,25 +112,21 @@ impl Shim {
         self.db.query_drop(create_ghosts_query(self.test_params.in_memory))?;
         self.db.query_drop(set_initial_gid_query())?;
         warn!("drop/create/alter ghosts table");
-        
+       
         /* issue schema statements */
-        let mut sql = String::new();
         let mut stmt = String::new();
         for line in self.schema.lines() {
             if line.starts_with("--") || line.is_empty() {
                 continue;
             }
-            if !sql.is_empty() {
-                sql.push_str(" ");
+            if !stmt.is_empty() {
                 stmt.push_str(" ");
             }
             stmt.push_str(line);
             if stmt.ends_with(';') {
                 stmt = helpers::process_schema_stmt(&stmt, self.test_params.in_memory);
-                
                 let stmt_ast = self.sqlcache.get_single_parsed_stmt(&stmt)?;
-                self.qtrans.query_drop(&stmt_ast, &mut self.db)?;
-                
+                self.qtrans.query_drop(&stmt_ast, &mut self.db)?;                
                 stmt = String::new();
             }
         }
@@ -225,7 +218,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         
         let stmt_ast = self.sqlcache.get_single_parsed_stmt(&query.to_string())?;
         if !self.test_params.translate {
-            warn!("on_query: {}", stmt_ast);
+            warn!("on_prepare: {}", stmt_ast);
             return self.prep_statement(&format!("{}", stmt_ast));
         }
         // wrap in txn to ensure that all reads are consistent if any are performed
@@ -267,7 +260,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         match self.create_schema() {
             Ok(_) => (),
             Err(e) => {
-                debug!("Create schema failed with error {}", e);
+                warn!("Create schema failed with error {}", e);
                 return Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?);
             }
         }

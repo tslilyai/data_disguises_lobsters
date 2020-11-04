@@ -31,7 +31,7 @@ use std::thread;
 use structopt::StructOpt;
 use hwloc::{Topology, ObjectType, CPUBIND_THREAD, CPUBIND_PROCESS, CpuSet};
 use std::sync::{Arc, Mutex};
-//use log::{warn, debug};
+use log::{warn, debug};
 
 mod queriers;
 use decor::*;
@@ -81,7 +81,7 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Error)
+        .filter_level(log::LevelFilter::Warn)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -303,7 +303,7 @@ fn main() {
     queriers::user::get_profile(&mut db, 0).unwrap();
     queriers::comment::post_comment(&mut db, Some(0), ncomments+1, 1, None).unwrap();
 
-    let duration : std::time::Duration;
+    /*let duration : std::time::Duration;
     match testop.as_str() {
         "select" => {
             // TEST RO Queries
@@ -324,10 +324,10 @@ fn main() {
             duration = start.elapsed().unwrap();
         }
         _ => panic!("Expected either select, insert, or update operations"),
-    }
+    }*/
+    //println!("{:.2}", nqueries as f64/duration.as_millis() as f64 * 1000f64);
     drop(db);
     if let Some(t) = jh {
         t.join().unwrap();
     } 
-    println!("{:.2}", nqueries as f64/duration.as_millis() as f64 * 1000f64);
 }

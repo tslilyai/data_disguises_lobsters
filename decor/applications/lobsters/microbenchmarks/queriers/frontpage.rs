@@ -100,47 +100,38 @@ pub fn query_frontpage(db: &mut mysql::Conn, acting_as: Option<u32>) -> Result<(
     
     // also load things that we need to highlight
     if let Some(uid) = acting_as {
-        let story_params = stories.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-        let values: Vec<_> = iter::once(&uid as &_)
-            .chain(stories.iter().map(|s| s as &_))
-            .collect();
-        db.exec_drop(
+        let story_params = stories.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(",");
+        db.query_drop(
                 &format!(
                     "SELECT `votes`.* FROM `votes` \
-                     WHERE `votes`.`user_id` = ? \
+                     WHERE `votes`.`user_id` = {} \
                      AND `votes`.`story_id` IN ({}) \
                      AND `votes`.`comment_id` IS NULL",
+                     uid,
                     story_params
                 ),
-                values,
             )?;
 
-        let values: Vec<_> = iter::once(&uid as &_)
-            .chain(stories.iter().map(|s| s as &_))
-            .collect();
-        db.exec_drop(
+        db.query_drop(
                 &format!(
                     "SELECT `hidden_stories`.* \
                      FROM `hidden_stories` \
-                     WHERE `hidden_stories`.`user_id` = ? \
+                     WHERE `hidden_stories`.`user_id` = {} \
                      AND `hidden_stories`.`story_id` IN ({})",
+                     uid,
                     story_params
                 ),
-                values,
             )?;
 
-        let values: Vec<_> = iter::once(&uid as &_)
-            .chain(stories.iter().map(|s| s as &_))
-            .collect();
-        db.exec_drop(
+        db.query_drop(
                 &format!(
                     "SELECT `saved_stories`.* \
                      FROM `saved_stories` \
-                     WHERE `saved_stories`.`user_id` = ? \
+                     WHERE `saved_stories`.`user_id` = {} \
                      AND `saved_stories`.`story_id` IN ({})",
+                    uid,
                     story_params
                 ),
-                values,
             )?;
     }
     Ok(())

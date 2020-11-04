@@ -13,13 +13,13 @@ pub fn vote_on_story(db: &mut mysql::Conn, acting_as: Option<u64>, story_id: u64
                  WHERE `stories`.`short_id` = {}",
                  story_id
             ))?[0];
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT  `votes`.* \
          FROM `votes` \
-         WHERE `votes`.`user_id` = ? \
-         AND `votes`.`story_id` = ? \
+         WHERE `votes`.`user_id` = {} \
+         AND `votes`.`story_id` = {} \
          AND `votes`.`comment_id` IS NULL",
-        (user, story),
+        user, story),
     )?;
 
     // TODO: do something else if user has already voted
@@ -27,59 +27,55 @@ pub fn vote_on_story(db: &mut mysql::Conn, acting_as: Option<u64>, story_id: u64
 
     // NOTE: MySQL technically does everything inside this and_then in a transaction,
     // but let's be nice to it
-    db.exec_drop(
+    db.query_drop(format!(
         "INSERT INTO `votes` \
          (`user_id`, `story_id`, `vote`) \
          VALUES \
-         (?, ?, ?)",
-        (
-            user,
-            story,
-            match pos {
-                true => 1,
-                false => 0,
-            },
-        ),
-    )?;
+         ({}, {}, {})",
+        user,
+        story,
+        match pos {
+            true => 1,
+            false => 0,
+        },
+    ))?;
 
-    db.exec_drop(
-        &format!(
-            "UPDATE `users` \
-             SET `users`.`karma` = `users`.`karma` {} \
-             WHERE `users`.`id` = ?",
-            match pos {
-                true => "+ 1",
-                false=> "- 1",
-            }
-        ),
-        (author,),
+    db.query_drop(format!(
+        "UPDATE `users` \
+         SET `users`.`karma` = `users`.`karma` {} \
+         WHERE `users`.`id` = {}",
+        match pos {
+            true => "+ 1",
+            false=> "- 1",
+        },
+        author),
     )?;
 
     // get all the stuff needed to compute updated hotness
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT `tags`.* \
          FROM `tags` \
          INNER JOIN `taggings` ON `tags`.`id` = `taggings`.`tag_id` \
-         WHERE `taggings`.`story_id` = ?",
-        (story,),
+         WHERE `taggings`.`story_id` = {}",
+        story,),
     )?;
 
-    db.exec_drop(
+    db.query_drop(format!(
          "SELECT \
          `comments`.`upvotes`, \
          `comments`.`downvotes` \
          FROM `comments` \
          JOIN `stories` ON (`stories`.`id` = `comments`.`story_id`) \
-         WHERE `comments`.`story_id` = ? \
+         WHERE `comments`.`story_id` = {} \
          AND `comments`.`user_id` <> `stories`.`user_id`",
-        (story,),
+        story,),
     )?;
 
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT `stories`.`id` \
          FROM `stories` \
-         WHERE `stories`.`merged_story_id` = ?",
-        (story,),
+         WHERE `stories`.`merged_story_id` = {}",
+        story,),
     )?;
 
     // the *actual* algorithm for computing hotness isn't all
@@ -87,30 +83,26 @@ pub fn vote_on_story(db: &mut mysql::Conn, acting_as: Option<u64>, story_id: u64
     // frontpage, but we're okay with using a more basic
     // upvote/downvote ratio thingy. See Story::calculated_hotness
     // in the lobsters source for details.
-    db.exec_drop(
-        &format!(
-            "UPDATE stories SET \
-             stories.upvotes = stories.upvotes {}, \
-             stories.downvotes = stories.downvotes {}, \
-             stories.hotness = ? \
-             WHERE stories.id = ?",
-            match pos {
-                true => "+ 1",
-                false => "+ 0",
+    db.query_drop(format!(
+        "UPDATE stories SET \
+         stories.upvotes = stories.upvotes {}, \
+         stories.downvotes = stories.downvotes {}, \
+         stories.hotness = {} \
+         WHERE stories.id = {}",
+        match pos {
+            true => "+ 1",
+            false => "+ 0",
+        },
+        match pos {
+            true => "+ 0",
+            false => "+ 1",
+        },
+        score
+            - match pos {
+                true => 1.0,
+                false => -1.0,
             },
-            match pos {
-                true => "+ 0",
-                false => "+ 1",
-            },
-        ),
-        (
-            score
-                - match pos {
-                    true => 1.0,
-                    false => -1.0,
-                },
-            story,
-        ),
-    )?;
+        story,
+    ))?;
     Ok(())
 }

@@ -8,10 +8,10 @@ use std::*;
 pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title: String) -> Result<(), mysql::Error> {
     let user = acting_as.unwrap();
 
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT  1 AS one FROM `stories` \
-         WHERE `stories`.`short_id` = ?",
-        (id,)
+         WHERE `stories`.`short_id` = {}",
+        id,)
     )?;
 
     // TODO: check for similar stories if there's a url
@@ -35,13 +35,12 @@ pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title:
     // NOTE: MySQL technically does everything inside this and_then in a transaction,
     // but let's be nice to it
     let q = db
-        .exec_iter(
+        .query_iter(format!(
             "INSERT INTO `stories` \
              (`created_at`, `user_id`, `title`, \
              `description`, `short_id`, `upvotes`, `hotness`, \
              `markeddown_description`) \
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (
+             VALUES (\"{}\", {}, \"{}\", \"{}\", {}, {}, {}, \"{}\")",
                 chrono::Local::now().naive_local(),
                 user,
                 title,
@@ -49,66 +48,67 @@ pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title:
                 id,
                 1,
                 -19216.2884921,
-                "<p>to infinity</p>\n",
+                "<p>to infinity</p>\\n",
             ),
         )?;
-    let story = q.last_insert_id().unwrap();
+    // TODO this returned none?
+    //let story = q.last_insert_id().unwrap();
     drop(q);
 
-    /*db.exec_drop(
+    /*db.query_drop(format!(
         "INSERT INTO `taggings` (`story_id`, `tag_id`) \
-         VALUES (?, ?)",
+         VALUES ({}, {})",
         (story, tag),
     )?;*/
 
-    let key = format!("user:{}:stories_submitted", user);
-    db.exec_drop(
+    let key = format!("\"user:{}:stories_submitted\"", user);
+    db.query_drop(format!(
         "INSERT INTO keystores (`key`, `value`) \
-         VALUES (?, ?) \
+         VALUES ({}, {}) \
          ON DUPLICATE KEY UPDATE `keystores`.`value` = `keystores`.`value` + 1",
-        (key, 1),
+        key, 1),
     )?;
 
     // "priming"
-    let key = format!("user:{}:stories_submitted", user);
-    db.exec_drop(
+    /*let key = format!("user:{}:stories_submitted", user);
+    db.query_drop(format!(
         "SELECT  `keystores`.* \
          FROM `keystores` \
-         WHERE `keystores`.`key` = ?",
-        (key,),
+         WHERE `keystores`.`key` = {}",
+        key,),
     )?;
 
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT  `votes`.* FROM `votes` \
-         WHERE `votes`.`user_id` = ? \
-         AND `votes`.`story_id` = ? \
+         WHERE `votes`.`user_id` = {} \
+         AND `votes`.`story_id` = {} \
          AND `votes`.`comment_id` IS NULL",
-        (user, story),
+        user, story),
     )?;
     
-    db.exec_drop(
+    db.query_drop(format!(
         "INSERT INTO `votes` (`user_id`, `story_id`, `vote`) \
-         VALUES (?, ?, ?)",
-        (user, story, 1),
+         VALUES ({}, {}, {})",
+        user, story, 1),
     )?;
     
-    db.exec_drop(
+    db.query_drop(format!(
         "SELECT \
          `comments`.`upvotes`, \
          `comments`.`downvotes` \
          FROM `comments` \
          JOIN `stories` ON (`stories`.`id` = `comments`.`story_id`) \
-         WHERE `comments`.`story_id` = ? \
+         WHERE `comments`.`story_id` = {} \
          AND `comments`.`user_id` <> `stories`.`user_id`",
-        (story,),
+        story,),
     )?;
     
-    db.exec_drop(
+    db.query_drop(format!(
         "UPDATE `stories` \
-         SET `hotness` = ? \
-         WHERE `stories`.`id` = ?",
-        (-19216.5479744, story),
-    )?;
+         SET `hotness` = {} \
+         WHERE `stories`.`id` = {}",
+        -19216.5479744, story),
+    )?;*/
 
     Ok(())
 }
