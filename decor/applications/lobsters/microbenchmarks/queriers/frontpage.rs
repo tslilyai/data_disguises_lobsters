@@ -14,7 +14,8 @@ pub fn query_frontpage(db: &mut mysql::Conn, acting_as: Option<u32>) -> Result<(
          WHERE `stories`.`merged_story_id` IS NULL \
          AND `stories`.`is_expired` = 0 \
          AND `stories`.`upvotes` - `stories`.`downvotes` >= 0 \
-         ORDER BY hotness LIMIT 51 OFFSET 0",
+         ORDER BY hotness LIMIT 51",
+         // OFFSET 0" parser can't handle this for some reason,
          |(user_id, id)| {
             users.insert(user_id);
             stories.insert(id);
