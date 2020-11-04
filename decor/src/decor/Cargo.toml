@@ -15,6 +15,7 @@ serde = { version = "1.0", features = ["derive"] }
 regex = "1"
 mysql_common = "0.22"
 log = "0.4"
+plotlib = "0.5.1"
 env_logger = "0.7.1"
 #lru = "0.6.0"
 
