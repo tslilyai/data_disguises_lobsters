@@ -9,7 +9,7 @@ names = ["Read", "Update", "Insert", "Other"]
 bins = np.linspace(0, 800, 100)
 
 for test in tests:
-    with open('results/{}1.csv'.format(test),'r') as csvfile:
+    with open('{}1.csv'.format(test),'r') as csvfile:
         rows = csvfile.readlines()
         fig, axes = plt.subplots(nrows=len(rows), ncols=1, figsize=(6,8))
         axes_flat = axes.flatten()
@@ -36,4 +36,4 @@ for test in tests:
             axes_flat[i].set_xlabel('Per-Query Latency (us)')
             axes_flat[i].set_ylabel('Number of Queries')
     fig.tight_layout(h_pad=4)
-    plt.savefig('results/{}.png'.format(test), dpi=300)
+    plt.savefig('{}.png'.format(test), dpi=300)
