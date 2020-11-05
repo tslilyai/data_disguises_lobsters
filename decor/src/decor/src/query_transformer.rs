@@ -1140,7 +1140,6 @@ impl QueryTransformer {
                 query, 
                 as_of,
             }) => {
-                self.cur_stat.qtype = stats::QueryType::Read;
                 let new_q = self.mvtrans.query_to_mv_query(&query);
                 mv_stmt = Statement::Select(SelectStatement{
                     query: Box::new(new_q), 
@@ -1152,7 +1151,6 @@ impl QueryTransformer {
                 columns, 
                 source,
             }) => {
-                self.cur_stat.qtype = stats::QueryType::Insert;
                 mv_table_name = self.mvtrans.objname_to_mv_string(&table_name);
                 is_dt_write = mv_table_name != table_name.to_string();
                 let mut new_source = source.clone();
@@ -1235,7 +1233,6 @@ impl QueryTransformer {
                 assignments,
                 selection,
             }) => {
-                self.cur_stat.qtype = stats::QueryType::Update;
                 mv_table_name = self.mvtrans.objname_to_mv_string(&table_name);
                 is_dt_write = mv_table_name != table_name.to_string();
 
@@ -1301,7 +1298,6 @@ impl QueryTransformer {
                 table_name,
                 selection,
             }) => {
-                self.cur_stat.qtype = stats::QueryType::Delete;
                 mv_table_name = self.mvtrans.objname_to_mv_string(&table_name);
                 is_dt_write = mv_table_name != table_name.to_string();
 
@@ -1333,7 +1329,6 @@ impl QueryTransformer {
                 temporary,
                 materialized,
             }) => {
-                self.cur_stat.qtype = stats::QueryType::WriteOther;
                 let mv_query = self.mvtrans.query_to_mv_query(&query);
                 mv_stmt = Statement::CreateView(CreateViewStatement{
                     name: name.clone(),
@@ -1354,7 +1349,6 @@ impl QueryTransformer {
                 if_not_exists,
                 engine,
             }) => {
-                self.cur_stat.qtype = stats::QueryType::WriteOther;
                 mv_table_name = self.mvtrans.objname_to_mv_string(&name);
                 is_dt_write = mv_table_name != name.to_string();
                 let mut new_engine = engine.clone();
@@ -1435,7 +1429,6 @@ impl QueryTransformer {
                 key_parts,
                 if_not_exists,
             }) => {
-                self.cur_stat.qtype = stats::QueryType::WriteOther;
                 mv_table_name = self.mvtrans.objname_to_mv_string(&on_name);
                 is_dt_write = mv_table_name != on_name.to_string();
 
@@ -1460,7 +1453,6 @@ impl QueryTransformer {
                 name,
                 to_item_name,
             }) => {
-                self.cur_stat.qtype = stats::QueryType::WriteOther;
                 let mut to_item_mv_name = to_item_name.to_string();
                 mv_table_name= self.mvtrans.objname_to_mv_string(&name);
                 is_dt_write = mv_table_name != name.to_string();
@@ -1506,7 +1498,6 @@ impl QueryTransformer {
                 names,
                 cascade,
             }) => {
-                self.cur_stat.qtype = stats::QueryType::WriteOther;
                 let mut mv_names = names.clone();
                 match object_type {
                     ObjectType::Table => {
@@ -1543,7 +1534,6 @@ impl QueryTransformer {
                 materialized,
                 filter,
             }) => {
-                self.cur_stat.qtype = stats::QueryType::Read;
                 let mut mv_from = from.clone();
                 if let Some(f) = from {
                     mv_from = Some(helpers::string_to_objname(&self.mvtrans.objname_to_mv_string(&f)));
@@ -1572,7 +1562,6 @@ impl QueryTransformer {
                 extended,
                 filter,
             }) => {
-                self.cur_stat.qtype = stats::QueryType::Read;
                 mv_table_name = self.mvtrans.objname_to_mv_string(&table_name);
                 let mut mv_filter = filter.clone();
                 if let Some(f) = filter {
@@ -1615,9 +1604,10 @@ impl QueryTransformer {
         Ok(mv_stmt)
     }
 
-    pub fn record_query_stats(&mut self, dur: Duration) {
+    pub fn record_query_stats(&mut self, qtype: stats::QueryType, dur: Duration) {
         self.cur_stat.nqueries+=self.cache.nqueries;
         self.cur_stat.duration = dur;
+        self.cur_stat.qtype = qtype;
         self.stats.push(self.cur_stat.clone());
         self.cur_stat.clear();
         self.cache.nqueries = 0;
@@ -1631,7 +1621,7 @@ impl QueryTransformer {
         -> Result<(), mysql::Error>
     {
         let res : Result<(), mysql::Error>;
-        if let Some(mv_stmt) = self.mvtrans.try_get_simple_mv_stmt(self.params.in_memory, stmt, &mut self.cur_stat)? {
+        if let Some(mv_stmt) = self.mvtrans.try_get_simple_mv_stmt(self.params.in_memory, stmt)? {
             warn!("query_iter nontxnal mv_stmt: {}", mv_stmt);
             res = helpers::answer_rows(writer, db.query_iter(mv_stmt.to_string()));
         } else {
@@ -1650,7 +1640,7 @@ impl QueryTransformer {
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
-        if let Some(mv_stmt) = self.mvtrans.try_get_simple_mv_stmt(self.params.in_memory, stmt, &mut self.cur_stat)? {
+        if let Some(mv_stmt) = self.mvtrans.try_get_simple_mv_stmt(self.params.in_memory, stmt)? {
             warn!("query_drop nontxnal mv_stmt: {}", mv_stmt);
             db.query_drop(mv_stmt.to_string())?;
         } else {
@@ -1804,7 +1794,6 @@ impl QueryTransformer {
      */
     pub fn resubscribe(&mut self, uid: u64, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         // TODO check auth token?
-       
         self.cur_stat.qtype = stats::QueryType::Resub;
 
         // check if already resubscribed

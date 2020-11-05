@@ -166,7 +166,7 @@ impl Shim {
             },
             Err(e) => {
                 match e {
-                    mysql::Error::MySqlError(merr) => {
+                    mysql::Error::MySqlError(_merr) => {
                         //info.error(ErrorKind::ER_NO, merr.message.as_bytes())?;
                     },
                     _ => return Err(e),
@@ -189,8 +189,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), mysql::Error> {
         match self.qtrans.unsubscribe(uid, &mut self.db) {
             Ok(()) => Ok(w.ok()?),
-            Err(e) => {
-                w.error(ErrorKind::ER_BAD_DB_ERROR, b"select db failed")?;
+            Err(_e) => {
+                w.error(ErrorKind::ER_BAD_DB_ERROR, b"unsub failed")?;
                 return Ok(());
             }
         }
@@ -205,8 +205,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     fn on_resubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
         match self.qtrans.resubscribe(uid, &mut self.db) {
             Ok(()) => Ok(w.ok()?),
-            Err(e) => {
-                w.error(ErrorKind::ER_BAD_DB_ERROR, b"select db failed")?;
+            Err(_e) => {
+                w.error(ErrorKind::ER_BAD_DB_ERROR, b"resubfailed")?;
                 return Ok(());
             }
         }
@@ -303,11 +303,12 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 res = self.qtrans.query(results, &stmt_ast, &mut self.db);
             }
         }
+        let qtype = stats::get_qtype(query)?;
         let dur = start.elapsed();
         if dur.as_secs() > 1 {
             error!("Long query: {}, {}s", query, dur.as_secs());
         }
-        self.qtrans.record_query_stats(dur);
+        self.qtrans.record_query_stats(qtype, dur);
         res
     }
 }

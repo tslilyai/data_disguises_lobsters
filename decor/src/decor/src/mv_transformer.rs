@@ -420,8 +420,7 @@ impl MVTransformer {
     pub fn try_get_simple_mv_stmt (
         &mut self, 
         in_memory: bool, 
-        stmt: &Statement,
-        cur_stat: &mut stats::QueryStat)
+        stmt: &Statement)
         -> Result<Option<Statement>, mysql::Error>
     {
         let mv_stmt : Statement;
@@ -433,7 +432,6 @@ impl MVTransformer {
                 query, 
                 as_of,
             }) => {
-                (*cur_stat).qtype = stats::QueryType::Read;
                 let new_q = self.query_to_mv_query(&query);
                 mv_stmt = Statement::Select(SelectStatement{
                     query: Box::new(new_q), 
@@ -450,7 +448,6 @@ impl MVTransformer {
                 {
                     return Ok(None);
                 }
-                (*cur_stat).qtype = stats::QueryType::Insert;
                 mv_stmt = stmt.clone();
             }
             Statement::Update(UpdateStatement{
@@ -462,7 +459,6 @@ impl MVTransformer {
                 {                
                     return Ok(None);
                 }
-                (*cur_stat).qtype = stats::QueryType::Update;
                 mv_stmt = stmt.clone();
             }
             Statement::Delete(DeleteStatement{
@@ -483,7 +479,6 @@ impl MVTransformer {
                     Some(s) => mv_selection = Some(self.expr_to_mv_expr(&s)),
                 }
                
-                (*cur_stat).qtype = stats::QueryType::Delete;
                 mv_stmt = Statement::Delete(DeleteStatement{
                     table_name: helpers::string_to_objname(&mv_table_name),
                     selection : mv_selection,
@@ -499,7 +494,6 @@ impl MVTransformer {
                 materialized,
             }) => {
                 let mv_query = self.query_to_mv_query(&query);
-                (*cur_stat).qtype = stats::QueryType::WriteOther;
                 mv_stmt = Statement::CreateView(CreateViewStatement{
                     name: name.clone(),
                     columns: columns.clone(),
@@ -530,7 +524,6 @@ impl MVTransformer {
                     new_engine = Some(Engine::Memory);
                 }
 
-                (*cur_stat).qtype = stats::QueryType::WriteOther;
                 mv_stmt = Statement::CreateTable(CreateTableStatement{
                     name: name.clone(),
                     columns: columns.clone(),
@@ -549,7 +542,6 @@ impl MVTransformer {
                     return Ok(None);
                 }
 
-                (*cur_stat).qtype = stats::QueryType::WriteOther;
                 mv_stmt = stmt.clone();
             }
             Statement::AlterObjectRename(AlterObjectRenameStatement{
@@ -570,7 +562,6 @@ impl MVTransformer {
                     }
                     _ => (),
                 }
-                (*cur_stat).qtype = stats::QueryType::WriteOther;
                 mv_stmt = Statement::AlterObjectRename(AlterObjectRenameStatement{
                     object_type: object_type.clone(),
                     if_exists: *if_exists,
@@ -602,7 +593,6 @@ impl MVTransformer {
                     }
                     _ => (),
                 }
-                (*cur_stat).qtype = stats::QueryType::WriteOther;
                 mv_stmt = Statement::DropObjects(DropObjectsStatement{
                     object_type: object_type.clone(),
                     if_exists: *if_exists,
@@ -632,7 +622,6 @@ impl MVTransformer {
                         }
                     }
                 }
-                (*cur_stat).qtype = stats::QueryType::Read;
                 mv_stmt = Statement::ShowObjects(ShowObjectsStatement{
                     object_type: object_type.clone(),
                     from: mv_from,
@@ -657,7 +646,6 @@ impl MVTransformer {
                         }
                     }
                 }
-                (*cur_stat).qtype = stats::QueryType::Read;
                 mv_stmt = Statement::ShowIndexes(ShowIndexesStatement {
                     table_name: helpers::string_to_objname(&mv_table_name),
                     extended: *extended,

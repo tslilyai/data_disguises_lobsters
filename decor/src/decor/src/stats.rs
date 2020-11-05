@@ -1,6 +1,9 @@
 use std::fs::File;
 use std::io::prelude::*;
 use std::time::Duration;
+use sql_parser::ast::*;
+use sql_parser::parser::*;
+use std::*;
 use log::{warn};
 
 #[derive(Debug, Clone)]
@@ -35,6 +38,69 @@ impl QueryStat {
         self.duration = Duration::new(0,0);
         self.nqueries = 1;
         self.qtype = QueryType::None;
+    }
+}
+
+pub fn get_qtype(query: &str) -> Result<QueryType, mysql::Error> {
+    let asts = parse_statements(query.to_string());
+    match asts {
+        Err(e) => Err(mysql::Error::IoError(io::Error::new(
+                    io::ErrorKind::InvalidInput, e))),
+        Ok(asts) => {
+            if asts.len() != 1 {
+                return Err(mysql::Error::IoError(io::Error::new(
+                    io::ErrorKind::InvalidInput, "More than one stmt")));
+            }
+            match asts[0] {
+                Statement::Insert(InsertStatement{
+                    ..
+                }) => {
+                    Ok(QueryType::Insert)
+                }
+                Statement::Update(UpdateStatement{
+                    ..
+                }) => {
+                    Ok(QueryType::Update)
+                }
+                Statement::Delete(DeleteStatement{
+                    ..
+                }) => {
+                    Ok(QueryType::Delete)
+                }
+                Statement::CreateView(CreateViewStatement{
+                    ..
+                }) => {
+                    Ok(QueryType::WriteOther)
+                }
+                Statement::CreateTable(CreateTableStatement{..}) 
+                | Statement::CreateIndex(CreateIndexStatement{..})
+                | Statement::AlterObjectRename(AlterObjectRenameStatement{..})
+                | Statement::DropObjects(DropObjectsStatement{..})
+                => {
+                    Ok(QueryType::WriteOther)
+                }
+                /* TODO Handle Statement::Explain(stmt) => f.write_node(stmt)
+                 *
+                 * TODO Currently don't support alterations that reset autoincrement counters
+                 * Assume that deletions leave autoincrement counters as monotonically increasing
+                 *
+                 * Don't handle CreateSink, CreateSource, Copy,
+                 *  ShowCreateSource, ShowCreateSink, Tail, Explain
+                 * 
+                 * Don't modify queries for CreateSchema, CreateDatabase, 
+                 * ShowDatabases, ShowCreateTable, DropDatabase, Transactions,
+                 * ShowColumns, SetVariable (mysql exprs in set var not supported yet)
+                 *
+                 * XXX: ShowVariable, ShowCreateView and ShowCreateIndex will return 
+                 *  queries that used the materialized views, rather than the 
+                 *  application-issued tables. This is probably not a big issue, 
+                 *  since these queries are used to create the table again?
+                 *
+                 * XXX: SHOW * from users will not return any ghost users in ghostusersMV
+                 * */
+                _ =>Ok(QueryType::Read)
+            }
+        }
     }
 }
 
