@@ -262,6 +262,7 @@ fn main() {
 
     let mut total_stories = nstories;
     let mut total_comments = ncomments;
+    let start = time::Instant::now();
     for i in 0..nqueries {
         let user = users[((i % nusers) as usize)];
         let story= stories[((i+1)%nstories) as usize];
@@ -281,6 +282,8 @@ fn main() {
             _ => (),
         }
     }
+    let dur = start.elapsed();
+    println!("Long query: {}s", dur.as_secs());
 
     //println!("{:.2}", nqueries as f64/duration.as_millis() as f64 * 1000f64);
     drop(db);
