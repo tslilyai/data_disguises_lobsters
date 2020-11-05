@@ -60,13 +60,13 @@ pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title:
         (story, tag),
     )?;*/
 
-    let key = format!("\'user:{}:stories_submitted\'", user);
+    /*let key = format!("\'user:{}:stories_submitted\'", user);
     db.query_drop(format!(
         "INSERT INTO keystores (`key`, `value`) \
          VALUES ({}, {})",
          // not supported by parser ON DUPLICATE KEY UPDATE `keystores`.`value` = `keystores`.`value` + 1",
         key, 1),
-    )?;
+    )?;*/
 
     // "priming"
     /*let key = format!("user:{}:stories_submitted", user);

@@ -6,9 +6,9 @@ use std::*;
 use std::collections::HashSet;
 //use log::{warn, debug};
 
-pub fn query_frontpage(db: &mut mysql::Conn, acting_as: Option<u32>) -> Result<(), mysql::Error> {
-    let mut users : HashSet<u32> = HashSet::new(); 
-    let mut stories : HashSet<u32> = HashSet::new();
+pub fn query_frontpage(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), mysql::Error> {
+    let mut users : HashSet<u64> = HashSet::new(); 
+    let mut stories : HashSet<u64> = HashSet::new();
     db.query_map(
         "SELECT  `stories`.`user_id`, `stories`.`id` FROM `stories` \
          WHERE `stories`.`merged_story_id` IS NULL \
@@ -78,7 +78,7 @@ pub fn query_frontpage(db: &mut mysql::Conn, acting_as: Option<u32>) -> Result<(
         stories_in
     ))?;
 
-    let mut tags : HashSet<u32> = HashSet::new();
+    let mut tags : HashSet<u64> = HashSet::new();
     db.query_map(&format!(
             "SELECT `taggings`.`tag_id` FROM `taggings` \
              WHERE `taggings`.`story_id` IN ({})",

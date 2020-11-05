@@ -4,7 +4,7 @@ use mysql::prelude::*;
 use std::collections::HashMap;
 use std::io::{self, BufReader, BufWriter};
 use std::*;
-use log::{debug, warn};
+use log::{error, warn};
 pub mod config;
 pub mod helpers;
 pub mod qtcache;
@@ -21,6 +21,7 @@ const MV_SUFFIX : &'static str = "mv";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
+    pub testname: String,
     pub translate: bool,
     pub parse: bool,
     pub in_memory: bool,
@@ -65,7 +66,7 @@ pub struct Shim {
 
 impl Drop for Shim {
     fn drop(&mut self) {
-        stats::print_stats(&self.qtrans.stats);
+        stats::print_stats(&self.qtrans.stats, self.test_params.testname.clone());
         self.prepared.clear();
         // drop the connection (implicitly done).
     }
@@ -303,6 +304,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             }
         }
         let dur = start.elapsed();
+        if dur.as_secs() > 1 {
+            error!("Long query: {}, {}s", query, dur.as_secs());
+        }
         self.qtrans.record_query_stats(dur);
         res
     }

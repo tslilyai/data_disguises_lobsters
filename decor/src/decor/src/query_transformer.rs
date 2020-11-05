@@ -4,9 +4,9 @@ use super::{helpers, qtcache, config, mv_transformer, stats};
 use std::sync::atomic::Ordering;
 use std::*;
 use std::time::Duration;
-use log::{debug,warn};
 use std::sync::atomic::{AtomicU64};
 use msql_srv::{QueryResultWriter};
+use log::{warn, debug};
 
 pub struct QueryTransformer {
     pub cfg: config::Config,

@@ -1,9 +1,7 @@
+use std::fs::File;
+use std::io::prelude::*;
 use std::time::Duration;
 use log::{warn};
-use plotlib::page::Page;
-use plotlib::repr::{Histogram, HistogramBins};
-use plotlib::view::ContinuousView;
-use plotlib::style::{PointMarker, PointStyle};
 
 #[derive(Debug, Clone)]
 pub enum QueryType {
@@ -40,44 +38,47 @@ impl QueryStat {
     }
 }
 
-pub fn print_stats(stats: &Vec<QueryStat>) {
-    let mut qs_vs_latency = vec![];
+pub fn print_stats(stats: &Vec<QueryStat>, filename: String) {
     let mut read_latencies = vec![];
     let mut insert_latencies = vec![];
     let mut update_latencies = vec![];
     let mut other_latencies = vec![];
+    let mut max = 0;
     for stat in stats {
-        qs_vs_latency.push((stat.nqueries, stat.duration));
+        if stat.duration.as_micros() > max {
+            max = stat.duration.as_micros();
+        }
         match stat.qtype {
             QueryType::Read => {
-                read_latencies.push(stat.duration.as_millis() as f64)
+                read_latencies.push((stat.nqueries, stat.duration.as_micros()));
             }
             QueryType::Update => {
-                update_latencies.push(stat.duration.as_millis() as f64)
+                update_latencies.push((stat.nqueries, stat.duration.as_micros()));
             }
             QueryType::Insert => {
-                insert_latencies.push(stat.duration.as_millis() as f64)
+                insert_latencies.push((stat.nqueries, stat.duration.as_micros()));
             }
-            _ => 
-                other_latencies.push(stat.duration.as_millis() as f64)
+            _ => {
+                other_latencies.push((stat.nqueries, stat.duration.as_micros()));
+            }
         }
     }
 
-    let s1: Histogram = Histogram::from_slice(
-        &read_latencies[..],
-        HistogramBins::Count(30));
-    let s2: Histogram = Histogram::from_slice(
-        &update_latencies[..], 
-        HistogramBins::Count(30));
-
-    let v = ContinuousView::new()
-        .add(s1)
-        .add(s2)
-        .x_range(0., 10.)
-        .y_range(0., 100.)
-        .x_label("Some varying variable")
-        .y_label("The response of something");
-
-    // A page with a single view is then saved to an SVG file
-    Page::single(&v).save("histograms.svg").unwrap();
+    let mut file = File::create(format!("{}.csv", filename)).unwrap();
+    for v in read_latencies {
+        file.write(format!("{},{}; ", v.0, v.1).as_bytes()).unwrap();
+    }
+    file.write(b"\n").unwrap();
+    for v in update_latencies {
+        file.write(format!("{},{}; ", v.0, v.1).as_bytes()).unwrap();
+    }
+    file.write(b"\n").unwrap();
+    for v in insert_latencies {
+        file.write(format!("{},{}; ", v.0, v.1).as_bytes()).unwrap();
+    }
+    file.write(b"\n").unwrap();
+    for v in other_latencies {
+        file.write(format!("{},{}; ", v.0, v.1).as_bytes()).unwrap();
+    }
+    file.flush().unwrap();
 }

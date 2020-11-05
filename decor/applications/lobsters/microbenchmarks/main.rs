@@ -74,14 +74,14 @@ struct Cli {
     nthreads: u64,
     #[structopt(long="nqueries", default_value = "100")]
     nqueries: u64,
-    #[structopt(long="testop", default_value = "select")]
-    testop: String,
+    #[structopt(long="testname", default_value = "decor_1")]
+    testname: String,
 }
 
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -153,52 +153,7 @@ fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     Ok(())
 }
 
-fn test_reads(db: &mut mysql::Conn, nqueries: u64, nstories: u64) {
-    // select comments and stories at random to read
-    for _ in 0..nqueries {
-        let story = thread_rng().gen_range(0, nstories);
-        db.query_iter(&format!("SELECT story_id from stories \
-            LEFT JOIN comments ON comments.story_id = stories.id \
-            where stories.id = {}", story)).unwrap();
-        /*let mut rows = vec![];
-        for row in res {
-            let row = row.unwrap();
-            let mut row_vals = vec![];
-            for i in 0..row.len() {
-                row_vals.push(row[i].clone());
-            }
-            rows.push(row_vals);
-        }*/
-        //println!("story {}: {:?}", story, rows);
-    }
-}
-
-fn test_insert(db: &mut mysql::Conn, nqueries: u64, nstories: u64, nusers: u64, ncomments: u64) {
-    // select comments and stories at random to read
-    for i in 0..nqueries {
-        let user = (ncomments+i) % nusers;
-        let story = (ncomments+i) % nstories;
-        let time = "2004-05-23T14:25:00";
-        db.query_drop(&format!("INSERT INTO comments \
-            (user_id, story_id, created_at, comment, short_id) \
-            VALUES ({}, {}, '{}', 'newcomment', {});",
-            user, story, time, ncomments+i)).unwrap();
-    }
-}
-
-fn test_update(db: &mut mysql::Conn, nqueries: u64, nusers: u64, nstories: u64) {
-    // select comments and stories at random to read
-    for i in 0..nqueries {
-        let user = i % nusers;
-        let story = i % nstories;
-        db.query_drop(&format!("UPDATE comments \
-            SET comment = 'newercomment' \
-            WHERE story_id = {} AND user_id = {};",
-            story, user)).unwrap();
-    }
-}
-
-fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, nusers: u64, nstories: u64, ncomments: u64) 
+fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, testname: String, nusers: u64, nstories: u64, ncomments: u64) 
     -> (mysql::Conn, Option<thread::JoinHandle<()>>) 
 {
     let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -253,7 +208,7 @@ fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, nusers: u64, nstories: u
             if let Ok((s, _)) = listener.accept() {
                 decor::Shim::run_on_tcp(
                     DBNAME, CONFIG, SCHEMA, 
-                    decor::TestParams{translate:translate, parse:parse, in_memory: true}, s).unwrap();
+                    decor::TestParams{testname: testname, translate:translate, parse:parse, in_memory: true}, s).unwrap();
             }
         }));
         url = format!("mysql://127.0.0.1:{}", port);
@@ -282,7 +237,7 @@ fn main() {
     let nstories = args.nstories;
     let nusers = args.nusers;
     let nthreads = args.nthreads;
-    let testop = args.testop;
+    let testname = args.testname;
 
     // bind each thread to a particular cpu to avoid non-local memory accesses
     let topo = Arc::new(Mutex::new(Topology::new()));
@@ -295,36 +250,38 @@ fn main() {
     locked_topo.set_cpubind_for_process(pid, cpuset, CPUBIND_PROCESS).unwrap();
     drop(locked_topo);
             
-    let (mut db, jh) = init_db(topo.clone(), test.clone(), nusers, nstories, ncomments);
-    
-    queriers::frontpage::query_frontpage(&mut db, Some(0)).unwrap();
-    queriers::post_story::post_story(&mut db, Some(0), nstories + 1, "Dummy title".to_string()).unwrap();
-    queriers::vote::vote_on_story(&mut db, Some(0), 1, true).unwrap();
-    queriers::user::get_profile(&mut db, 0).unwrap();
-    queriers::comment::post_comment(&mut db, Some(0), ncomments+1, 1, None).unwrap();
+    let (mut db, jh) = init_db(topo.clone(), test.clone(), testname, nusers, nstories, ncomments);
 
-    /*let duration : std::time::Duration;
-    match testop.as_str() {
-        "select" => {
-            // TEST RO Queries
-            let start = std::time::SystemTime::now();
-            test_reads(&mut db, nqueries/ nthreads, nstories);
-            duration = start.elapsed().unwrap();
+    let mut rng = rand::thread_rng();
+    let mut users: Vec<u64> = (0..nusers).collect();
+    let mut stories: Vec<u64> = (0..nstories).collect();
+    let mut comments: Vec<u64> = (0..ncomments).collect();
+    users.shuffle(&mut rng);
+    stories.shuffle(&mut rng);
+    comments.shuffle(&mut rng);
+
+    let mut total_stories = nstories;
+    let mut total_comments = ncomments;
+    for i in 0..nqueries {
+        let user = users[((i % nusers) as usize)];
+        let story= stories[((i+1)%nstories) as usize];
+        let comments= comments[((i+2)%ncomments) as usize];
+        match rng.gen_range(0, 10) {
+            0..=5 => queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
+            6 => {
+                queriers::post_story::post_story(&mut db, Some(user), total_stories + 1, "Dummy title".to_string()).unwrap();
+                total_stories += 1;
+            }
+            7 => queriers::vote::vote_on_story(&mut db, Some(user), story, true).unwrap(),
+            8 => queriers::user::get_profile(&mut db, user).unwrap(),
+            9 => {
+                queriers::comment::post_comment(&mut db, Some(user), total_comments + 1, story, None).unwrap();
+                total_comments += 1;
+            }
+            _ => (),
         }
-        "insert" => {
-            // TEST Insert Queries (should just double queries to insert)
-            let start = std::time::SystemTime::now();
-            test_insert(&mut db, nqueries/ nthreads, nstories, nusers, ncomments);
-            duration = start.elapsed().unwrap();
-        }
-        "update" => {
-            // TEST Update Queries (should read from ghosts)
-            let start = std::time::SystemTime::now();
-            test_update(&mut db, nqueries/ nthreads, nusers, nstories);
-            duration = start.elapsed().unwrap();
-        }
-        _ => panic!("Expected either select, insert, or update operations"),
-    }*/
+    }
+
     //println!("{:.2}", nqueries as f64/duration.as_millis() as f64 * 1000f64);
     drop(db);
     if let Some(t) = jh {

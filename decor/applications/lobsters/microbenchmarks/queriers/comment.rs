@@ -182,12 +182,12 @@ pub fn post_comment(db: &mut mysql::Conn,
         hotness - 1.0, story,
     ))?;
 
-    let key = format!("\'user:{}:comments_posted\'", user);
+    /*let key = format!("\'user:{}:comments_posted\'", user);
     db.query_drop(format!(
         "INSERT INTO keystores (`key`, `value`) \
          VALUES ({}, {})",
          //ON DUPLICATE KEY UPDATE `keystores`.`value` = `keystores`.`value` + 1",
         key, 1,
-    ))?;
+    ))?;*/
     Ok(())
 }
