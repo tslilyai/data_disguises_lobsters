@@ -3,8 +3,8 @@
 #set -x
 
 trials=2
-#tests=( "shim_only" "shim_parse" "decor" )
-tests=( "decor" )
+tests=( "shim_only" "shim_parse" "decor" )
+#tests=( "decor" )
 testops=( "select" "insert" "update" )
 
 cargo build --release
@@ -17,7 +17,8 @@ do
         for testop in "${testops[@]}"
         do
             ./target/release/lobsters-microbenchmarks \
-                --test=$test --testname=$test$trial --nusers=10 --nstories=100 --ncomments=1000 --nthreads=1 --nqueries=300
+                --test=$test --testname=results/$test$trial --nusers=10 --nstories=100 --ncomments=1000
+            --nthreads=1 --nqueries=3000
         done
     done
 done
