@@ -9,7 +9,7 @@ pub mod config;
 pub mod helpers;
 pub mod ghosts_cache;
 pub mod query_transformer;
-pub mod mv_transformer;
+pub mod views;
 pub mod sqlparser_cache;
 pub mod stats;
 
