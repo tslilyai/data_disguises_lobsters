@@ -17,8 +17,7 @@ do
         for testop in "${testops[@]}"
         do
             ./target/release/lobsters-microbenchmarks \
-                --test=$test --testname=results/$test$trial --nusers=10 --nstories=100 --ncomments=1000
-            --nthreads=1 --nqueries=3000
+                --test=$test --testname=results/$test$trial --nusers=10 --nstories=100 --ncomments=1000 --nthreads=1 --nqueries=3000
         done
     done
 done
