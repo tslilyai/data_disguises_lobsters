@@ -57,62 +57,6 @@ fn trim_one<'a>(s: &'a str) -> &'a str {
     }
 }
 
-/*
- * This test fails now because getting the MV queries actually may issue subqueries..
- 
-#[test]
-fn test_mvtrans_datadriven() {
-    let cfg = config::parse_config(include_str!("./config_mvtrans_test.json")).unwrap();
-    let mut db = mysql::Conn::new("mysql://tslilyai:pass@localhost").unwrap();
-    db.query_drop("DROP DATABASE IF EXISTS gdpr_mvtrans;").unwrap();
-    db.query_drop("CREATE DATABASE gdpr_mvtrans;").unwrap();
-    assert_eq!(db.ping(), true);
-    assert!(db.select_db("gdpr_mvtrans"));
-
-    walk("tests/testdata", |f| {
-        f.run(|test_case| -> String {
-            let mut qt_trans = query_transformer::QueryTransformer::new(&cfg);
-            match test_case.directive.as_str() {
-                "parse-statement" => {
-                    let sql = trim_one(&test_case.input).to_owned();
-                    match parser::parse_statements(sql) {
-                        Ok(s) => {
-                            if s.len() != 1 {
-                                "expected exactly one statement".to_string()
-                            } else {
-                                let stmt = s.iter().next().unwrap();
-                                let mv_stmt = qt_trans.get_mv_stmt(stmt, &mut db).unwrap();
-                                if test_case.args.get("roundtrip").is_some() {
-                                    format!("{}\n", mv_stmt.to_string())
-                                } else {
-                                    format!("{}\n=>\n{:?}\n", stmt.to_string(), mv_stmt)
-                                }
-                            }
-                        }
-                        Err(e) => format!("error:\n{}\n", e),
-                    }
-                }
-                "parse-scalar" => {
-                    let sql = test_case.input.trim().to_owned();
-                    match parser::parse_expr(sql) {
-                        Ok(s) => {
-                            if test_case.args.get("roundtrip").is_some() {
-                                format!("{}\n", s.to_string())
-                            } else {
-                                format!("{:?}\n", s)
-                            }
-                        }
-                        Err(e) => format!("error:\n{}\n", e),
-                    }
-                }
-                dir => {
-                    panic!("unhandled directive {}", dir);
-                }
-            }
-        })
-    });
-}*/
-
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
