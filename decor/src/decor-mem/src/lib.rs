@@ -271,7 +271,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         }
 
         // initialize columns of DT
-        for dt in &mut self.cfg.data_tables {
+        for dt in &mut self.qtrans.cfg.data_tables {
             warn!("Initializing columns of table: {}", dt.name);
             let res = self.db.query_iter(format!("SHOW COLUMNS FROM {dt_name}", dt_name=dt.name))?;
             for row in res {

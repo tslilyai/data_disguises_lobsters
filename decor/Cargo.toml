@@ -2,7 +2,8 @@
 members = [
     "src/ore",
     "src/repr",
-    "src/decor",
+    "src/decor-mysql",
+    "src/decor-mem",
     "src/sql-parser",
     "src/msql-srv",
     "applications",
