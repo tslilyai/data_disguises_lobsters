@@ -1,6 +1,6 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use super::{helpers, qtcache, config, mv_transformer, stats};
+use super::{helpers, ghosts_cache, config, mv_transformer, stats};
 use std::sync::atomic::Ordering;
 use std::*;
 use std::time::Duration;
@@ -10,7 +10,7 @@ use log::{warn, debug};
 
 pub struct QueryTransformer {
     pub cfg: config::Config,
-    pub cache: qtcache::QueryCache,
+    pub cache: ghosts_cache::GhostsCache,
     
     mvtrans: mv_transformer::MVTransformer,
     latest_uid: AtomicU64,
@@ -26,7 +26,7 @@ impl QueryTransformer {
         QueryTransformer{
             cfg: cfg.clone(),
             mvtrans: mv_transformer::MVTransformer::new(cfg),
-            cache: qtcache::QueryCache::new(),
+            cache: ghosts_cache::GhostsCache::new(),
             latest_uid: AtomicU64::new(0),
             params: params.clone(),
             cur_stat: stats::QueryStat::new(),

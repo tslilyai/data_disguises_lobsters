@@ -7,7 +7,7 @@ use log::{warn};
 use std::sync::atomic::{AtomicU64};
 use std::collections::{HashMap, HashSet};
 
-pub struct QueryCache{
+pub struct GhostsCache{
     // caches
     unsubscribed: HashSet<u64>,
     uid2gids: HashMap<u64, Vec<u64>>,
@@ -17,9 +17,9 @@ pub struct QueryCache{
     pub nqueries: u64,
 }
 
-impl QueryCache{
+impl GhostsCache{
     pub fn new() -> Self {
-        QueryCache{
+        GhostsCache{
             unsubscribed: HashSet::new(),
             uid2gids: HashMap::new(),
             gid2uid: HashMap::new(),

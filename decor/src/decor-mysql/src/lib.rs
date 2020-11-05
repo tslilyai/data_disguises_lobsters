@@ -7,7 +7,7 @@ use std::*;
 use log::{error, warn};
 pub mod config;
 pub mod helpers;
-pub mod qtcache;
+pub mod ghosts_cache;
 pub mod query_transformer;
 pub mod mv_transformer;
 pub mod sqlparser_cache;
