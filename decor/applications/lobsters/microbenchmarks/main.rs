@@ -268,7 +268,7 @@ fn main() {
         let story= stories[((i+1)%nstories) as usize];
         let comments= comments[((i+2)%ncomments) as usize];
         match rng.gen_range(0, 10) {
-            0..=5 => queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
+            0..=9 => queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
             6 => {
                 queriers::post_story::post_story(&mut db, Some(user), total_stories + 1, "Dummy title".to_string()).unwrap();
                 total_stories += 1;
