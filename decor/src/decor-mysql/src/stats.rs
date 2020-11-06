@@ -23,6 +23,7 @@ pub struct QueryStat {
     pub duration: Duration,
     pub nqueries: u64,
     pub qtype: QueryType,
+    pub query: String,
 }
 
 impl QueryStat {
@@ -31,6 +32,7 @@ impl QueryStat {
             duration: Duration::new(0,0),
             nqueries : 1,
             qtype : QueryType::None,
+            query : String::new(),
         }
     }
 
@@ -110,25 +112,37 @@ pub fn print_stats(stats: &Vec<QueryStat>, filename: String) {
     let mut update_latencies = vec![];
     let mut other_latencies = vec![];
     let mut max = 0;
+
+    let mut readf = File::create(format!("{}.csv", "qs_read")).unwrap();
+    let mut insf = File::create(format!("{}.csv", "qs_insert")).unwrap();
+    let mut upf = File::create(format!("{}.csv", "qs_update")).unwrap();
+
     for stat in stats {
         if stat.duration.as_micros() > max {
             max = stat.duration.as_micros();
         }
+
         match stat.qtype {
             QueryType::Read => {
                 read_latencies.push((stat.nqueries, stat.duration.as_micros()));
+                readf.write(format!("{}, {}, {}\n", stat.duration.as_micros(), stat.nqueries, stat.query).as_bytes()).unwrap();
             }
             QueryType::Update => {
                 update_latencies.push((stat.nqueries, stat.duration.as_micros()));
+                upf.write(format!("{}, {}, {}\n", stat.duration.as_micros(), stat.nqueries, stat.query).as_bytes()).unwrap();
             }
             QueryType::Insert => {
                 insert_latencies.push((stat.nqueries, stat.duration.as_micros()));
+                insf.write(format!("{}, {}, {}\n", stat.duration.as_micros(), stat.nqueries, stat.query).as_bytes()).unwrap();
             }
             _ => {
                 other_latencies.push((stat.nqueries, stat.duration.as_micros()));
             }
         }
     }
+    readf.flush().unwrap();
+    insf.flush().unwrap();
+    upf.flush().unwrap();
 
     let mut file = File::create(format!("{}.csv", filename)).unwrap();
     for v in read_latencies {

@@ -35,6 +35,15 @@ impl Views {
                 query, 
                 as_of,
             }) => {
+                /*Query{
+                    ctes: vec![],
+                    body: 
+                    order_by: vec![],
+                    limit: None,
+                    offset: None,
+                    fetch: None,
+                })),*/
+
             }
             Statement::Insert(InsertStatement{
                 table_name,

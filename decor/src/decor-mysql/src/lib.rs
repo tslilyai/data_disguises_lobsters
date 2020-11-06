@@ -303,12 +303,11 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 res = self.qtrans.query(results, &stmt_ast, &mut self.db);
             }
         }
-        let qtype = stats::get_qtype(query)?;
         let dur = start.elapsed();
         if dur.as_secs() > 1 {
             error!("Long query: {}, {}s", query, dur.as_secs());
         }
-        self.qtrans.record_query_stats(qtype, dur);
+        self.qtrans.record_query_stats(query, dur);
         res
     }
 }
