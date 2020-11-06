@@ -4,7 +4,7 @@ use mysql::prelude::*;
 use std::collections::HashMap;
 use std::io::{self, BufReader, BufWriter};
 use std::*;
-use log::{error, warn};
+use log::{warn};
 pub mod config;
 pub mod helpers;
 pub mod ghosts_cache;
@@ -305,7 +305,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         }
         let dur = start.elapsed();
         if dur.as_secs() > 1 {
-            error!("Long query: {}, {}s", query, dur.as_secs());
+            warn!("Long query: {}, {}s", query, dur.as_secs());
         }
         self.qtrans.record_query_stats(query, dur);
         res

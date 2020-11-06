@@ -1607,7 +1607,7 @@ impl QueryTransformer {
         self.cur_stat.qtype = stats::get_qtype(query).unwrap();
         self.cur_stat.nqueries+=self.cache.nqueries;
         self.cur_stat.duration = dur;
-        self.cur_stat.query = query.to_string();
+        //self.cur_stat.query = query.to_string();
         self.stats.push(self.cur_stat.clone());
         self.cur_stat.clear();
         self.cache.nqueries = 0;
