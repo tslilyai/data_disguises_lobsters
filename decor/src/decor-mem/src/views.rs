@@ -10,13 +10,13 @@ pub struct View {
     // values stored in table
     rows: Vec<Vec<Value>>,
     // List of indices (by column) INDEX of column (only INT type for now) to row
-    indices: HashMap<Ident, HashMap<u64, usize>>,
+    indices: HashMap<String, HashMap<String, Vec<usize>>>,
 }
 
 impl View {
-    pub fn new(name: Ident, columns: Vec<ColumnDef>) -> Self {
+    pub fn new(columns: Vec<ColumnDef>) -> Self {
         View {
-            name: name.to_string(),
+            name: String::new(),
             columns: columns,
             rows: vec![],
             indices: HashMap::new(),
@@ -30,6 +30,26 @@ impl View {
             }
             eq
         })
+    }
+    pub fn get_rows_of_col(&self, col_index: usize, val: &Value) -> Vec<Vec<Value>> {
+        let mut rows = vec![];
+        if let Some(index) = self.indices.get(&self.columns[col_index].name.to_string()) {
+            if let Some(row_indices) = index.get(&val.to_string()) {
+                for i in row_indices {
+                    rows.push(self.rows[*i].clone());
+                }
+            }
+        } else {
+            for row in &self.rows {
+                match &row[col_index] {
+                    Value::Number(v) => if *v == val.to_string() {
+                        rows.push(row.clone());
+                    }
+                    _ => unimplemented!("Must be a number!")
+                } 
+            }
+        }
+        rows
     }
 }
 
@@ -124,33 +144,24 @@ impl Views {
             })
             .collect();
         new_cols.append(&mut new_cols_2);
-        let mut new_view = View::new(Ident::new(""), new_cols);
+        let mut new_view = View::new(new_cols);
         match jo {
             JoinOperator::Inner(JoinConstraint::On(e)) => {
                 let (i1, i2) = self.get_join_on_col_indices(&e, v1, v2)?;
                 // this seems very very inefficient
                 for row1 in &v1.rows {
-                    for row2 in &v2.rows {
-                        if row1[i1] == row2[i2] {
-                            let mut new_row = row1.clone();
-                            new_row.append(&mut row2.clone());
-                            new_view.rows.push(new_row);
-                        }
-                    }
+                    new_view.rows.append(&mut v2.get_rows_of_col(i2, &row1[i1]));
                 }
             }
             JoinOperator::LeftOuter(JoinConstraint::On(e)) => {
                 let (i1, i2) = self.get_join_on_col_indices(&e, v1, v2)?;
                 for row1 in &v1.rows {
                     let mut found = false;
-                    for row2 in &v2.rows {
-                        if row1[i1] == row2[i2] {
-                            let mut new_row = row1.clone();
-                            new_row.append(&mut row2.clone());
-                            new_view.rows.push(new_row);
-                            found = true;
-                        }
-                    } 
+                    let mut rows2 = v2.get_rows_of_col(i2, &row1[i1]);
+                    if !rows2.is_empty() {
+                        new_view.rows.append(&mut rows2);
+                        found = true;
+                    }
                     if !found {
                         let mut new_row = row1.clone();
                         new_row.append(&mut vec![Value::Null; v2.columns.len()]);
@@ -162,14 +173,11 @@ impl Views {
                 let (i1, i2) = self.get_join_on_col_indices(&e, v1, v2)?;
                 for row2 in &v2.rows {
                     let mut found = false;
-                    for row1 in &v1.rows {
-                        if row1[i1] == row2[i2] {
-                            let mut new_row = row1.clone();
-                            new_row.append(&mut row2.clone());
-                            new_view.rows.push(new_row);
-                            found = true;
-                        }
-                    } 
+                    let mut rows1 = v1.get_rows_of_col(i1, &row2[i2]);
+                    if !rows1.is_empty() {
+                        new_view.rows.append(&mut rows1);
+                        found = true;
+                    }
                     if !found {
                         let mut new_row = vec![Value::Null; v1.columns.len()];
                         new_row.append(&mut row2.clone());
@@ -181,13 +189,10 @@ impl Views {
                 let (i1, i2) = self.get_join_on_col_indices(&e, v1, v2)?;
                 for row1 in &v1.rows {
                     let mut found = false;
-                    for row2 in &v2.rows {
-                        if row1[i1] == row2[i2] {
-                            let mut new_row = row1.clone();
-                            new_row.append(&mut row2.clone());
-                            new_view.rows.push(new_row);
-                            found = true;
-                        }
+                    let mut rows2 = v2.get_rows_of_col(i2, &row1[i1]);
+                    if !rows2.is_empty() {
+                        new_view.rows.append(&mut rows2);
+                        found = true;
                     } 
                     if !found {
                         let mut new_row = row1.clone();
@@ -195,15 +200,12 @@ impl Views {
                         new_view.rows.push(new_row);
                     }
                 }
+                // only add null rows for rows that weren't matched
                 for row2 in &v2.rows {
                     let mut found = false;
-                    for row1 in &v1.rows {
-                        if row1[i1] == row2[i2] {
-                            let mut new_row = row1.clone();
-                            new_row.append(&mut row2.clone());
-                            new_view.rows.push(new_row);
-                            found = true;
-                        }
+                    let rows1 = v1.get_rows_of_col(i1, &row2[i2]);
+                    if !rows1.is_empty() {
+                        found = true;
                     } 
                     if !found {
                         let mut new_row = vec![Value::Null; v1.columns.len()];
@@ -229,7 +231,7 @@ impl Views {
     fn get_setexpr_results(&self, se: &SetExpr) -> Result<View, Error> {
         match se {
             SetExpr::Select(s) => {
-                let mut new_view = View::new(Ident::new(""), vec![]);
+                let mut new_view = View::new(vec![]);
                 if s.having != None {
                     unimplemented!("No support for having queries");
                 }
@@ -494,7 +496,7 @@ impl Views {
     }*/
 
     pub fn query_view(&self, stmt: &Statement) -> Result<(View, bool), Error> {
-        let mut results : View = View::new(Ident::new(""), vec![]);
+        let mut results : View = View::new(vec![]);
         let mut is_write = false;
         match stmt {
             // Note: mysql doesn't support "as_of"
