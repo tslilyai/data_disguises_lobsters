@@ -36,6 +36,16 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
     new
 }
 
+// returns if the first value is larger than the second
+pub fn parser_val_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> cmp::Ordering {
+    use sql_parser::ast::Value as Value;
+    match (v1, v2) {
+        (Value::Number(i1), Value::Number(i2)) => i1.cmp(i2),
+        (Value::String(i1), Value::String(i2)) => i1.cmp(i2),
+        _ => unimplemented!("value not comparable! {} and {}", v1, v2),
+    }
+}
+
 pub fn parser_val_to_f64(val: &sql_parser::ast::Value) -> f64 {
     use sql_parser::ast::Value as Value;
     match val {

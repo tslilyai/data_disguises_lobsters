@@ -10,7 +10,11 @@ pub struct TableColumnDef {
 }
 impl TableColumnDef {
     pub fn name(&self) -> String {
-        format!("{}.{}", self.table, self.column.name)
+        if !self.table.is_empty() {
+            format!("{}.{}", self.table, self.column.name)
+        } else {
+            self.column.name.to_string()
+        }
     } 
 }
 

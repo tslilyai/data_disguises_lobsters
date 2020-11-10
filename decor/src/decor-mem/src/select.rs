@@ -1,8 +1,9 @@
-use sql_parser::ast::*;
-use std::collections::HashMap;
-use std::io::{Error, ErrorKind};
 use crate::views::{View, TableColumnDef};
 use crate::helpers;
+use std::collections::HashMap;
+use std::io::{Error, ErrorKind};
+use std::str::FromStr;
+use sql_parser::ast::*;
 
 /*
  * Convert table name (with optional alias) to current view
@@ -150,12 +151,15 @@ fn tablewithjoins_to_view(views: &HashMap<String, View>, twj: &TableWithJoins) -
 // return table name and optionally column if not wildcard
 fn expr_to_col(e: &Expr) -> (String, String) {
     match e {
-        // only support form table.[column | *]
+        // only support form column or table.column
         Expr::Identifier(ids) => {
-            if ids.len() != 2 {
+            if ids.len() > 2 || ids.len() < 1 {
                 unimplemented!("expr needs to be of form table.column {}", e);
             }
-            return (ids[0].to_string(), format!("{}.{}", ids[0], ids[1]));
+            if ids.len() == 2 {
+                return (ids[0].to_string(), format!("{}.{}", ids[0], ids[1]));
+            }
+            return ("".to_string(), ids[0].to_string());
         }
         _ => unimplemented!("expr_to_col {} not supported", e),
     }
@@ -321,25 +325,49 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
                 new_view.columns.append(&mut v.columns);
                 new_view.rows.append(&mut v.rows);
             }
-
-            // filter out rows by where clause
-            if let Some(selection) = &s.selection {
-                new_view.rows = get_rows_matching_constraint(&selection, &mut new_view);
-            } 
             
-            // which columns to keep for which tables
-            let cols_to_keep : HashMap<String, Vec<usize>> = HashMap::new();
+            // take account columns to keep for which tables
+            // also alter aliases here prior to where clause filtering
+            let mut cols_to_keep = vec![];
             for proj in &s.projection {
                 match proj {
                     SelectItem::Wildcard => {
                         // only support wildcards if there are no other projections...
                         assert!(s.projection.len() == 1);
                     },
+                    // TODO note this doesn't allow for `tablename.*` selections
                     SelectItem::Expr {expr, alias} => {
-                        let (tab, col) = expr_to_col(expr);
+                        let (_tab, col) = expr_to_col(expr);
+                        let index = new_view.columns.iter().position(|c| c.name() == col).unwrap();
+                        cols_to_keep.push(index);
+                        // alias; use in WHERE will match against this alias
+                        if let Some(a) = alias {
+                            new_view.columns[index].column.name = a.clone();
+                            new_view.columns[index].table = String::new();
+                        }
                     }
                 }
             }
+
+            // filter out rows by where clause
+            if let Some(selection) = &s.selection {
+                new_view.rows = get_rows_matching_constraint(&selection, &mut new_view);
+            } 
+
+            // reduce view to only return selected columns
+            if !cols_to_keep.is_empty() {
+                let mut new_cols = vec![];
+                let mut new_rows = vec![vec![]; new_view.rows.len()];
+                for ci in cols_to_keep {
+                    new_cols.push(new_view.columns[ci].clone());
+                    for (i, row) in new_view.rows.iter().enumerate() {
+                        new_rows[i].push(row[ci].clone());
+                    }
+                }
+                new_view.columns = new_cols;
+                new_view.rows = new_rows;
+            }
+
             Ok(new_view)
         }
         SetExpr::Query(q) => {
@@ -347,9 +375,9 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
         }
         SetExpr::SetOperation {
             op,
-            all,
             left,
             right,
+            ..
         } => {
             let left_view = get_setexpr_results(views, &left)?;
             let right_view = get_setexpr_results(views, &right)?;
@@ -357,6 +385,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
             match op {
                 // TODO primary keys / unique keys 
                 SetOperator::Union => {
+                    // TODO currently allowing for duplicates regardless of ALL...
                     view.rows.append(&mut right_view.rows.clone());
                     return Ok(view);
                 }
@@ -372,13 +401,44 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
                 }
             }
         }
-        SetExpr::Values(vals) => {
+        SetExpr::Values(_vals) => {
             unimplemented!("Shouldn't be getting values when looking up results: {}", se); 
         }
     }
 }
 
 pub fn get_query_results(views: &HashMap<String, View>, q: &Query) -> Result<View, Error> {
-    get_setexpr_results(views, &q.body)
-}
+    let mut new_view = get_setexpr_results(views, &q.body)?;
 
+    // don't support OFFSET or fetches yet
+    assert!(q.offset.is_none() && q.fetch.is_none());
+
+    // order_by
+    if q.order_by.len() > 0 {
+        // only support one order by constraint for now
+        assert!(q.order_by.len() < 2);
+        let orderby = &q.order_by[0];
+        let (_tab, col) = expr_to_col(&orderby.expr);
+        let ci = new_view.columns.iter().position(|c| c.name() == col).unwrap();
+        match orderby.asc {
+            Some(false) => {
+                new_view.rows.sort_by(|r1, r2| helpers::parser_val_cmp(&r2[ci], &r1[ci]));
+            }
+            Some(true) | None => {
+                new_view.rows.sort_by(|r1, r2| helpers::parser_val_cmp(&r1[ci], &r2[ci]));
+            }
+        }
+    }
+
+    // limit
+    if q.limit.is_some() {
+        if let Some(Expr::Value(Value::Number(n))) = &q.limit {
+            let limit = usize::from_str(n).unwrap();
+            new_view.rows.truncate(limit);
+        } else {
+            unimplemented!("bad limit! {}", q);
+        }
+    }
+
+    Ok(new_view)
+}
