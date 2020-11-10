@@ -36,6 +36,15 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
     new
 }
 
+pub fn parser_val_to_f64(val: &sql_parser::ast::Value) -> f64 {
+    use sql_parser::ast::Value as Value;
+    match val {
+        Value::Number(i) => f64::from_str(i).unwrap(),
+        Value::String(i) => f64::from_str(i).unwrap(),
+        _ => unimplemented!("value not a number! {}", val),
+    }
+}
+
 pub fn parser_expr_to_u64(val: &Expr) -> Result<u64, mysql::Error> {
     use sql_parser::ast::Value as Value;
     match val {

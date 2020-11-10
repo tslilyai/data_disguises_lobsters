@@ -8,6 +8,11 @@ pub struct TableColumnDef {
     pub table: String,
     pub column: ColumnDef,
 }
+impl TableColumnDef {
+    pub fn name(&self) -> String {
+        format!("{}.{}", self.table, self.column.name)
+    } 
+}
 
 #[derive(Debug, Clone)]
 pub struct View {
@@ -17,7 +22,7 @@ pub struct View {
     // values stored in table
     pub rows: Vec<Vec<Value>>,
     // List of indices (by column) INDEX of column (only INT type for now) to row
-    pub indices: HashMap<String, HashMap<String, Vec<usize>>>,
+    pub indices: Option<HashMap<String, HashMap<String, Vec<usize>>>>,
 }
 
 impl View {
@@ -26,7 +31,7 @@ impl View {
             name: String::new(),
             columns: columns,
             rows: vec![],
-            indices: HashMap::new(),
+            indices: None,
         }
     }
     pub fn contains_row(&self, r: &Vec<Value>) -> bool {
@@ -40,15 +45,18 @@ impl View {
     }
     pub fn get_rows_of_col(&self, col_index: usize, val: &Value) -> Vec<Vec<Value>> {
         let mut rows = vec![];
-        if let Some(index) = self.indices.get(
-            &self.columns[col_index].column.name.to_string()) 
-        {
-            if let Some(row_indices) = index.get(&val.to_string()) {
-                for i in row_indices {
-                    rows.push(self.rows[*i].clone());
+        let mut indexed = false;
+        if let Some(indices) = &self.indices {
+            if let Some(index) = indices.get(&self.columns[col_index].column.name.to_string()) {
+                if let Some(row_indices) = index.get(&val.to_string()) {
+                    for i in row_indices {
+                        rows.push(self.rows[*i].clone());
+                    }
                 }
+                indexed = true;
             }
-        } else {
+        } 
+        if !indexed {
             for row in &self.rows {
                 match &row[col_index] {
                     Value::Number(v) => if *v == val.to_string() {

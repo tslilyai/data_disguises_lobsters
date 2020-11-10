@@ -2,6 +2,7 @@ use sql_parser::ast::*;
 use std::collections::HashMap;
 use std::io::{Error, ErrorKind};
 use crate::views::{View, TableColumnDef};
+use crate::helpers;
 
 /*
  * Convert table name (with optional alias) to current view
@@ -41,21 +42,19 @@ fn get_join_on_col_indices(e: &Expr, v1: &View, v2: &View) -> Result<(usize, usi
         if let BinaryOperator::Eq = op {
             let (tab1, col1) = expr_to_col(left);
             let (tab2, col2) = expr_to_col(right);
-            if let (Some(col1), Some(col2)) = (col1, col2) {
-                if v1.name == tab1.to_string() && v2.name == tab2.to_string() {
-                    i1 = v1.columns.iter().position(|c| c.column.name.to_string() == col1.to_string());
-                    i2 = v2.columns.iter().position(|c| c.column.name.to_string() == col2.to_string());
-                } else if v2.name == tab1.to_string() && v1.name == tab2.to_string() {
-                    i1 = v1.columns.iter().position(|c| c.column.name.to_string() == col1.to_string());
-                    i2 = v2.columns.iter().position(|c| c.column.name.to_string() == col2.to_string());
-                } else {
-                    return Err(err);
-                }
-                if i1 == None || i2 == None {
-                    return Err(err);
-                }
-                return Ok((i1.unwrap(), i2.unwrap()));
+            if v1.name == tab1 && v2.name == tab2 {
+                i1 = v1.columns.iter().position(|c| c.name() == col1);
+                i2 = v2.columns.iter().position(|c| c.name() == col2);
+            } else if v2.name == tab1.to_string() && v1.name == tab2.to_string() {
+                i1 = v1.columns.iter().position(|c| c.name() == col1);
+                i2 = v2.columns.iter().position(|c| c.name() == col2);
+            } else {
+                return Err(err);
             }
+            if i1 == None || i2 == None {
+                return Err(err);
+            }
+            return Ok((i1.unwrap(), i2.unwrap()));
         }
     }
     unimplemented!("join_on {}", e)
@@ -149,23 +148,164 @@ fn tablewithjoins_to_view(views: &HashMap<String, View>, twj: &TableWithJoins) -
 }
 
 // return table name and optionally column if not wildcard
-fn expr_to_col(e: &Expr) -> (Ident, Option<Ident>) {
+fn expr_to_col(e: &Expr) -> (String, String) {
     match e {
         // only support form table.[column | *]
         Expr::Identifier(ids) => {
             if ids.len() != 2 {
                 unimplemented!("expr needs to be of form table.column {}", e);
             }
-            return (ids[0].clone(), Some(ids[1].clone()));
+            return (ids[0].to_string(), format!("{}.{}", ids[0], ids[1]));
         }
-        Expr::QualifiedWildcard(ids) => {
-            if ids.len() != 1 {
-                unimplemented!("expr needs to be of form table.* {}", e);
-            }
-            return (ids[0].clone(), None);
-        }
-        _ => unimplemented!("projection {} not supported", e),
+        _ => unimplemented!("expr_to_col {} not supported", e),
     }
+}
+
+fn get_value_for_rows(e: &Expr, v: &View) -> Vec<f64> {
+    let mut res = vec![];
+    match e {
+        Expr::Identifier(_) => {
+            let (_tab, col) = expr_to_col(&e);
+            let index = v.columns.iter().position(|c| c.name() == col).unwrap();
+            for row in &v.rows {
+                res.push(helpers::parser_val_to_f64(&row[index]));
+            }
+        }
+        Expr::Value(val) => {
+            res.push(helpers::parser_val_to_f64(&val));
+        }
+        Expr::BinaryOp{left, op, right} => {
+            let mut lindex : Option<usize> = None;
+            let mut rindex : Option<usize> = None;
+            let mut lval : f64 = 0.0;
+            let mut rval : f64 = 0.0;
+            match &**left {
+                Expr::Identifier(_) => {
+                    let (_ltab, lcol) = expr_to_col(&left);
+                    lindex = Some(v.columns.iter().position(|c| c.name() == lcol).unwrap());
+                }
+                Expr::Value(val) => {
+                    lval = helpers::parser_val_to_f64(&val);
+                }
+                _ => unimplemented!("must be id or value: {}", e),
+            }
+            match &**right {
+                Expr::Identifier(_) => {
+                    let (_rtab, rcol) = expr_to_col(&right);
+                    rindex = Some(v.columns.iter().position(|c| c.name() == rcol).unwrap());
+                }
+                Expr::Value(val) => {
+                    rval = helpers::parser_val_to_f64(&val);
+                }
+                _ => unimplemented!("must be id or value: {}", e),
+            }
+            for r in &v.rows {
+                if let Some(li) = lindex {
+                    lval = helpers::parser_val_to_f64(&r[li]);
+                }
+                if let Some(ri) = rindex {
+                    rval = helpers::parser_val_to_f64(&r[ri]);
+                }
+                match op {
+                    BinaryOperator::Plus => {
+                        res.push(lval + rval);
+                    }
+                    BinaryOperator::Minus => {
+                        res.push(lval + rval);
+                    }
+                    _ => unimplemented!("op {} not supported to get value", op),
+                }
+            }
+        }
+        _ => unimplemented!("get value not supported {}", e),
+    }
+    res
+}
+
+/* returns pairs of columns and the value(s) that the column must take on */
+fn get_rows_matching_constraint(e: &Expr, v: &mut View) -> Vec<Vec<Value>> {
+    let mut new_rows = vec![];
+    match e {
+        Expr::InList { expr, list, negated } => {
+            let (_tab, col) = expr_to_col(&expr);
+            let vals : Vec<Value> = list.iter()
+                .map(|e| match e {
+                    Expr::Value(v) => v.clone(),
+                    _ => unimplemented!("list can only contain values: {:?}", list),
+                })
+                .collect();
+            let i = v.columns.iter().position(|c| c.name() == col).unwrap();
+            for row in &v.rows {
+                if (!*negated && vals.iter().any(|v| *v == row[i])) 
+                    || (*negated && vals.iter().any(|v| *v == row[i])) 
+                {
+                    new_rows.push(row.clone());
+                }
+            }
+        }
+        Expr::IsNull { expr, negated } => {
+            let (_tab, col) = expr_to_col(&expr);
+            let i = v.columns.iter().position(|c| c.name() == col).unwrap();
+            for row in &v.rows {
+                if (*negated && row[i] != Value::Null) || (!*negated && row[i] == Value::Null) {
+                   new_rows.push(row.clone());
+                }
+            }
+        }
+        Expr::BinaryOp {left, op, right} => {
+            match op {
+                BinaryOperator::And => {
+                    v.rows = get_rows_matching_constraint(left, v);
+                    new_rows = get_rows_matching_constraint(right, v);
+                }
+                BinaryOperator::Or => {
+                    new_rows = get_rows_matching_constraint(left, v);
+                    new_rows.append(&mut get_rows_matching_constraint(right, v));
+                }
+                _ => {
+                    let left_vals = get_value_for_rows(&left, v);
+                    let right_vals = get_value_for_rows(&right, v);
+                    for (i, row) in v.rows.iter().enumerate() {
+                        match op {
+                            BinaryOperator::Eq => {
+                                if left_vals[i] == right_vals[i] {
+                                    new_rows.push(row.clone());
+                                }
+                            }
+                            BinaryOperator::NotEq => {
+                                if left_vals[i] != right_vals[i] {
+                                    new_rows.push(row.clone());
+                                }
+                            }
+                            BinaryOperator::Lt => {
+                                if left_vals[i] < right_vals[i] {
+                                    new_rows.push(row.clone());
+                                }
+                            }
+                            BinaryOperator::Gt => {
+                                if left_vals[i] > right_vals[i] {
+                                    new_rows.push(row.clone());
+                                }
+                            }
+                            BinaryOperator::LtEq => {
+                                if left_vals[i] <= right_vals[i] {
+                                    new_rows.push(row.clone());
+                                }
+                            }
+                            BinaryOperator::GtEq => {
+                                if left_vals[i] >= right_vals[i] {
+                                    new_rows.push(row.clone());
+                                }
+                            }
+                            _ => unimplemented!("Constraint not supported {}", e),
+                        }
+                    }
+                }
+            }
+        }
+        _ => unimplemented!("Constraint not supported {}", e),
+    }
+    new_rows
 }
 
 fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<View, Error> {
@@ -176,27 +316,15 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
                 unimplemented!("No support for having queries");
             }
 
-            let mut from_views = vec![];
             for twj in &s.from {
-                let v = tablewithjoins_to_view(views, &twj)?;
-                from_views.push(tablewithjoins_to_view(views, &twj)?);
+                let mut v = tablewithjoins_to_view(views, &twj)?;
+                new_view.columns.append(&mut v.columns);
+                new_view.rows.append(&mut v.rows);
             }
 
             // filter out rows by where clause
             if let Some(selection) = &s.selection {
-                match selection {
-                    Expr::InList { expr, list, negated } => {
-                        let (tab, col) = expr_to_col(&expr);
-                        for view in &from_views {
-                            for row in &view.rows {
-                            }
-                        }
-                    }
-                    Expr::BinaryOp {left, op, right } => {
-
-                    }
-                    _ => unimplemented!("WHERE not supported: {}", selection)
-                }
+                new_view.rows = get_rows_matching_constraint(&selection, &mut new_view);
             } 
             
             // which columns to keep for which tables
@@ -204,9 +332,6 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
             for proj in &s.projection {
                 match proj {
                     SelectItem::Wildcard => {
-                        for v in &from_views {
-                            new_view.columns.append(&mut v.columns.clone());
-                        }
                         // only support wildcards if there are no other projections...
                         assert!(s.projection.len() == 1);
                     },
