@@ -1,7 +1,6 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use super::{helpers, ghosts_cache, config, stats, views};
-use std::sync::atomic::Ordering;
 use std::*;
 use std::time::Duration;
 use std::sync::atomic::{AtomicU64};
@@ -38,10 +37,10 @@ impl QueryTransformer {
         &mut self, 
         stmt: &Statement, 
         txn: &mut mysql::Transaction) 
-        -> Result<Statement, mysql::Error>
+        -> Result<Statement, io::Error>
     {
         // TODO consistency?
-        let is_write = self.views.update_view(stmt);
+        let (results, is_write) = self.views.query_view(stmt)?;
         match stmt {
             // Note: mysql doesn't support "as_of"
             Statement::Select(SelectStatement{
