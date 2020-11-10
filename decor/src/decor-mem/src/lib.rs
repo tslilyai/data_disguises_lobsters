@@ -12,6 +12,7 @@ pub mod query_transformer;
 pub mod views;
 pub mod sqlparser_cache;
 pub mod stats;
+pub mod select;
 
 const GHOST_ID_START : u64 = 1<<20;
 const GHOST_TABLE_NAME : &'static str = "ghosts";
