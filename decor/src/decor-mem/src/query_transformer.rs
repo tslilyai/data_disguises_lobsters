@@ -33,111 +33,79 @@ impl QueryTransformer {
         }
     }   
 
-    fn issue_stmt (
-        &mut self, 
-        stmt: &Statement, 
-        txn: &mut mysql::Transaction) 
-        -> Result<Statement, io::Error>
+    fn issue_statement (
+            &mut self, 
+            stmt: &Statement,
+            db: &mut mysql::Conn) 
+        -> Result<views::View, mysql::Error>
     {
         // TODO consistency?
-        let (results, is_write) = self.views.query_view(stmt)?;
-        match stmt {
-            // Note: mysql doesn't support "as_of"
-            Statement::Select(SelectStatement{
-                query, 
-                as_of,
-            }) => {
-            }
-            Statement::Insert(InsertStatement{
-                table_name,
-                columns, 
-                source,
-            }) => {
-            }
-            Statement::Update(UpdateStatement{
-                table_name,
-                assignments,
-                selection,
-            }) => {
-            }
-            Statement::Delete(DeleteStatement{
-                table_name,
-                selection,
-            }) => {
-            }
-            Statement::CreateView(CreateViewStatement{
-                name,
-                columns,
-                with_options,
-                query,
-                if_exists,
-                temporary,
-                materialized,
-            }) => {
-            }
-            Statement::CreateTable(CreateTableStatement{
-                name,
-                columns,
-                constraints,
-                indexes,
-                with_options,
-                if_not_exists,
-                engine,
-            }) => {
-            }
-            Statement::CreateIndex(CreateIndexStatement{
-                name,
-                on_name,
-                key_parts,
-                if_not_exists,
-            }) => {
-            }
-            Statement::AlterObjectRename(AlterObjectRenameStatement{
-                object_type,
-                if_exists,
-                name,
-                to_item_name,
-            }) => {
-            }
-            Statement::DropObjects(DropObjectsStatement{
-                object_type,
-                if_exists,
-                names,
-                cascade,
-            }) => {
-            }
-            Statement::ShowObjects(ShowObjectsStatement{
-                object_type,
-                from,
-                extended,
-                full,
-                materialized,
-                filter,
-            }) => {
-            }
-            /* TODO Handle Statement::Explain(stmt) => f.write_node(stmt)
-             *
-             * TODO Currently don't support alterations that reset autoincrement counters
-             * Assume that deletions leave autoincrement counters as monotonically increasing
-             *
-             * Don't handle CreateSink, CreateSource, Copy,
-             *  ShowCreateSource, ShowCreateSink, Tail, Explain
-             * 
-             * Don't modify queries for CreateSchema, CreateDatabase, 
-             * ShowDatabases, ShowCreateTable, DropDatabase, Transactions,
-             * ShowColumns, SetVariable (mysql exprs in set var not supported yet)
-             *
-             * XXX: ShowVariable, ShowCreateView and ShowCreateIndex will return 
-             *  queries that used the materialized views, rather than the 
-             *  application-issued tables. This is probably not a big issue, 
-             *  since these queries are used to create the table again?
-             *
-             * XXX: SHOW * from users will not return any ghost users in ghostusersMV
-             * */
-            _ => {
+        let (view, is_write) = self.views.query_view(stmt)?;
+
+        if is_write {
+            match stmt {
+                Statement::Insert(InsertStatement{
+                    table_name,
+                    columns, 
+                    source,
+                }) => {
+                }
+                Statement::Update(UpdateStatement{
+                    table_name,
+                    assignments,
+                    selection,
+                }) => {
+                }
+                Statement::Delete(DeleteStatement{
+                    table_name,
+                    selection,
+                }) => {
+                }
+                Statement::CreateView(CreateViewStatement{
+                    name,
+                    columns,
+                    with_options,
+                    query,
+                    if_exists,
+                    temporary,
+                    materialized,
+                }) => {
+                }
+                Statement::CreateTable(CreateTableStatement{
+                    name,
+                    columns,
+                    constraints,
+                    indexes,
+                    with_options,
+                    if_not_exists,
+                    engine,
+                }) => {
+                }
+                Statement::CreateIndex(CreateIndexStatement{
+                    name,
+                    on_name,
+                    key_parts,
+                    if_not_exists,
+                }) => {
+                }
+                Statement::AlterObjectRename(AlterObjectRenameStatement{
+                    object_type,
+                    if_exists,
+                    name,
+                    to_item_name,
+                }) => {
+                }
+                Statement::DropObjects(DropObjectsStatement{
+                    object_type,
+                    if_exists,
+                    names,
+                    cascade,
+                }) => {
+                }
+                _ => unimplemented!("Statement that was a write? {}", stmt),
             }
         }
-        Ok(stmt.clone())
+        Ok(view)
     }
 
     pub fn record_query_stats(&mut self, qtype: stats::QueryType, dur: Duration) {
@@ -156,7 +124,8 @@ impl QueryTransformer {
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error>
     {
-        helpers::answer_rows(writer, db.query_iter(stmt.to_string()))
+        let view = self.issue_statement(stmt, db);
+        helpers::view_to_answer_rows(writer, view)
     }
 
     pub fn query_drop(
@@ -165,7 +134,8 @@ impl QueryTransformer {
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
-        db.query_drop(stmt.to_string())
+        self.issue_statement(stmt, db)?; 
+        Ok(())
     }
 
     pub fn unsubscribe(&mut self, uid: u64, db: &mut mysql::Conn) -> Result<(), mysql::Error> {

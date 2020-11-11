@@ -1,7 +1,8 @@
 extern crate mysql;
-use sql_parser::ast::{Expr, Ident, ObjectName};
+extern crate hex;
+use sql_parser::ast::{Expr, Ident, ObjectName, DataType};
 use std::*;
-use super::config;
+use super::{config, views};
 use std::str::FromStr;
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 use log::{debug};
@@ -196,10 +197,107 @@ pub fn idents_subset_of_idents(id1: &Vec<Ident>, id2: &Vec<Ident>) -> Option<(us
     None
 }
 
+/*
+ * Parser response helpers
+ */
+pub fn view_to_answer_rows<W: io::Write>(
+    results: QueryResultWriter<W>,
+    view: Result<views::View, mysql::Error>) 
+    -> Result<(), mysql::Error> 
+{
+    use sql_parser::ast::ColumnOption as ColumnOption;
+    match view {
+        Ok(view) => {
+            let cols : Vec<_> = view.columns.iter()
+                .map(|c| {
+                    let mut flags = ColumnFlags::empty();
+                    for opt in &c.column.options {
+                        match opt.option {
+                            ColumnOption::AutoIncrement => flags.insert(ColumnFlags::AUTO_INCREMENT_FLAG),
+                            ColumnOption::NotNull => flags.insert(ColumnFlags::NOT_NULL_FLAG),
+                            ColumnOption::Unique {is_primary} => {
+                                if is_primary {
+                                    flags.insert(ColumnFlags::PRI_KEY_FLAG)
+                                } else {
+                                    flags.insert(ColumnFlags::UNIQUE_KEY_FLAG)
+                                }
+                            }
+                            _ => (),
+                        }
+                    }
+                    Column {
+                        table : c.table.clone(),
+                        column : c.column.name.to_string(),
+                        coltype : get_parser_coltype(&c.column.data_type),
+                        colflags: flags,
+                    }
+                })
+                .collect();
+            let mut writer = results.start(&cols)?;
+            for row in view.rows {
+                for v in row {
+                    writer.write_col(parser_val_to_common_val(&v))?;
+                }
+                writer.end_row()?;
+            }
+            writer.finish()?;
+        }
+        Err(e) => {
+            results.error(msql_srv::ErrorKind::ER_BAD_SLAVE, format!("{:?}", e).as_bytes())?;
+        }
+    }
+    Ok(())
+}
+
+/// Convert a MySQL type to MySQL_svr type 
+pub fn get_parser_coltype(t: &DataType) -> msql_srv::ColumnType {
+    use msql_srv::ColumnType as ColumnType;
+    match t {
+        DataType::Decimal(..) => ColumnType::MYSQL_TYPE_DECIMAL,
+        DataType::Float(..) => ColumnType::MYSQL_TYPE_FLOAT,
+        DataType::Double => ColumnType::MYSQL_TYPE_DOUBLE,
+        DataType::Timestamp => ColumnType::MYSQL_TYPE_TIMESTAMP,
+        DataType::BigInt => ColumnType::MYSQL_TYPE_LONGLONG,
+        DataType::SmallInt => ColumnType::MYSQL_TYPE_INT24,
+        DataType::Date => ColumnType::MYSQL_TYPE_DATE,
+        DataType::Time => ColumnType::MYSQL_TYPE_TIME,
+        DataType::Varchar(..) => ColumnType::MYSQL_TYPE_VARCHAR,
+        DataType::Jsonb => ColumnType::MYSQL_TYPE_JSON,
+        DataType::Blob(..) => ColumnType::MYSQL_TYPE_BLOB,
+        DataType::Char(..) => ColumnType::MYSQL_TYPE_STRING,
+        DataType::Boolean => ColumnType::MYSQL_TYPE_BIT,
+        _ => unimplemented!("not a valid data type {:?}", t),
+    }
+}
+
+pub fn parser_val_to_common_val(val: &sql_parser::ast::Value) -> mysql_common::value::Value {
+    use sql_parser::ast::Value as Value;
+    match val {
+        Value::Null => mysql_common::value::Value::NULL,
+        Value::String(s) => mysql_common::value::Value::Bytes(s.as_bytes().to_vec()),
+        Value::HexString(s) => mysql_common::value::Value::Bytes(hex::decode(s).unwrap()),
+        Value::Number(i) => {
+            if !i.contains('.') {
+                mysql_common::value::Value::Int(i64::from_str(i).unwrap())
+            } else {
+                mysql_common::value::Value::Double(f64::from_str(i).unwrap())
+            }
+        }
+        Value::Boolean(b) => {
+            let bit = match b {
+                true => 1,
+                false => 0,
+            };
+            mysql_common::value::Value::Int(bit)
+        }
+        _ => unimplemented!("Value not supported: {}", val),
+    }
+}
+
+
 /* 
  * MYSQL HELPERS
  */
-
 pub fn answer_rows<W: io::Write>(
     results: QueryResultWriter<W>,
     rows: mysql::Result<mysql::QueryResult<mysql::Text>>) 
@@ -286,7 +384,6 @@ pub fn mysql_val_to_common_val(val: &mysql::Value) -> mysql_common::value::Value
         mysql::Value::Time(a,b,c,d,e,f) => mysql_common::value::Value::Time(*a,*b,*c,*d,*e,*f),
     }
 }
-
 
 pub fn mysql_val_to_parser_val(val: &mysql::Value) -> sql_parser::ast::Value {
     use sql_parser::ast::Value as Value;

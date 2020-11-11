@@ -18,7 +18,6 @@ const GHOST_ID_START : u64 = 1<<20;
 const GHOST_TABLE_NAME : &'static str = "ghosts";
 const GHOST_USER_COL : &'static str = "user_id";
 const GHOST_ID_COL: &'static str = "ghost_id";
-const MV_SUFFIX : &'static str = "mv"; 
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
