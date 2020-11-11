@@ -668,16 +668,16 @@ impl QueryTransformer {
      * Convert all expressions to insert to primitive values
      */
     fn insert_source_query_to_values(&mut self, q: &Query) 
-        -> Result<Vec<Vec<Expr>>, mysql::Error> 
+        -> Result<Vec<Vec<Value>>, mysql::Error> 
     {
         let mut contains_ucol_id = false;
-        let mut vals_vec : Vec<Vec<Expr>>= vec![];
+        let mut vals_vec : Vec<Vec<Value>>= vec![];
         match &q.body {
             SetExpr::Values(Values(expr_vals)) => {
                 // NOTE: only need to modify values if we're dealing with a DT,
                 // could perform check here rather than calling vals_vec
                 for row in expr_vals {
-                    let mut vals_row : Vec<Expr> = vec![];
+                    let mut vals_row : Vec<Value> = vec![];
                     for val in row {
                         let value_expr = self.expr_to_value_expr(&val, &mut contains_ucol_id, &vec![])?;
                         match value_expr {
@@ -686,12 +686,16 @@ impl QueryTransformer {
                                     SetExpr::Values(Values(subq_exprs)) => {
                                         assert_eq!(subq_exprs.len(), 1);
                                         assert_eq!(subq_exprs[0].len(), 1);
-                                        vals_row.push(subq_exprs[0][0].clone());
+                                        match &subq_exprs[0][0] {
+                                            Expr::Value(v) => vals_row.push(v.clone()),
+                                            _ => unimplemented!("Bad value? q"),
+                                        }
                                     }
                                     _ => unimplemented!("query_to_data_query should only return a Value"),
                                 }
                             }
-                            _ => vals_row.push(value_expr),
+                            Expr::Value(v) => vals_row.push(v),
+                            _ => unimplemented!("Bad value expression: {}", value_expr),
                         }
                     }
                     vals_vec.push(vals_row);
@@ -701,14 +705,7 @@ impl QueryTransformer {
                 // we need to issue q to MVs to get rows that will be set as values
                 // regardless of whether this is a DT or not (because query needs
                 // to read from MV, rather than initially specified tables)
-                let rows = self.views.query_iter(q)?.rows;
-                self.cur_stat.nqueries_mv +=1;
-                for row in &rows {
-                    vals_vec.push(row
-                        .iter()
-                        .map(|val| Expr::Value(val.clone()))
-                        .collect());
-                }
+                vals_vec = self.views.query_iter(q)?.rows;
             }
         }    
         Ok(vals_vec)
@@ -737,27 +734,24 @@ impl QueryTransformer {
                 // if a user column is being used as a selection criteria, first perform a 
                 // select of all UIDs of matching rows in the MVs
                 if contains_ucol_id {
-                    let select_stmt = Statement::Select(SelectStatement {
-                            query: Box::new(Query::select(Select{
-                            distinct: true,
-                            projection: vec![SelectItem::Wildcard],
-                            from: vec![TableWithJoins{
-                                relation: TableFactor::Table{
-                                    name: table_name.clone(),
-                                    alias: None,
-                                },
-                                joins: vec![],
-                            }],
-                            selection: selection.clone(),
-                            group_by: vec![],
-                            having: None,
-                        })),
-                        as_of: None,
+                    let query = Query::select(Select{
+                        distinct: true,
+                        projection: vec![SelectItem::Wildcard],
+                        from: vec![TableWithJoins{
+                            relation: TableFactor::Table{
+                                name: table_name.clone(),
+                                alias: None,
+                            },
+                            joins: vec![],
+                        }],
+                        selection: selection.clone(),
+                        group_by: vec![],
+                        having: None,
                     });
 
                     // collect row results from MV
                     let mut uids = vec![];
-                    let view = self.views.stmt_iter(&select_stmt)?;
+                    let view = self.views.query_iter(&query)?;
                     let rows = view.rows;
                     let cols = view.columns;
                     self.cur_stat.nqueries_mv+=1;
@@ -838,7 +832,7 @@ impl QueryTransformer {
         return Ok(qt_selection);
     }
     
-    fn issue_insert_datatable_stmt(&mut self, values: &mut Vec<Vec<Expr>>, stmt: InsertStatement, db: &mut mysql::Conn) 
+    fn issue_insert_datatable_stmt(&mut self, values: &Vec<Vec<Value>>, stmt: InsertStatement, db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
         /* note that if the table is the users table,
@@ -877,9 +871,15 @@ impl QueryTransformer {
          * */
         match stmt.source {
             InsertSource::Query(q) => {
-                self.ghosts_cache.insert_uid2gids_for_values(values, &ucol_indices, db)?;
+                let mut ghost_values = values.clone();
+                self.ghosts_cache.insert_uid2gids_for_values(&mut ghost_values, &ucol_indices, db)?;
                 let mut new_q = q.clone();
-                new_q.body = SetExpr::Values(Values(values.to_vec()));
+                let new_vals = ghost_values.iter()
+                    .map(|vals| vals.iter()
+                         .map(|v| Expr::Value(v.clone()))
+                         .collect())
+                    .collect();
+                new_q.body = SetExpr::Values(Values(new_vals));
                 qt_source = InsertSource::Query(new_q);
             }
             InsertSource::DefaultValues => (),
@@ -1098,8 +1098,13 @@ impl QueryTransformer {
             db: &mut mysql::Conn) 
         -> Result<views::View, mysql::Error>
     {
+        let mut view_res : views::View = views::View::new(vec![]);
+        
         // TODO consistency?
         match stmt {
+            Statement::Select(SelectStatement{query, ..}) => {
+                view_res = self.views.query_iter(&query)?;
+            }
             Statement::Insert(InsertStatement{
                 table_name,
                 columns, 
@@ -1122,7 +1127,7 @@ impl QueryTransformer {
                 // user_id column
                 if is_dt_write {
                     self.issue_insert_datatable_stmt(
-                        &mut values, 
+                        &values, 
                         InsertStatement{
                             table_name: table_name.clone(), 
                             columns: columns.clone(), 
@@ -1131,6 +1136,9 @@ impl QueryTransformer {
                         db
                     )?;
                 }
+
+                // insert into views
+                self.views.insert(&table_name, &columns, &mut values)?;
             }
             Statement::Update(UpdateStatement{
                 table_name,
@@ -1242,8 +1250,7 @@ impl QueryTransformer {
             }
             _ => unimplemented!("this is a read? {}", stmt),
         }
-        let view = self.views.stmt_iter(stmt)?;
-        Ok(view)
+        Ok(view_res)
     }
 
     pub fn record_query_stats(&mut self, qtype: stats::QueryType, dur: Duration) {

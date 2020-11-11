@@ -141,7 +141,7 @@ impl GhostsCache{
         Ok(gid)
     }
     
-    pub fn insert_uid2gids_for_values(&mut self, values: &mut Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
+    pub fn insert_uid2gids_for_values(&mut self, values: &mut Vec<Vec<Value>>, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
         -> Result<(), mysql::Error>
     {
         if ucol_indices.is_empty() {
@@ -152,10 +152,10 @@ impl GhostsCache{
                 // add entry to ghosts table
                 if ucol_indices.contains(&col) {
                     // NULL check: don't add ghosts entry if new UID value is NULL
-                    if values[row][col] != Expr::Value(Value::Null) {
-                        let uid = helpers::parser_expr_to_u64(&values[row][col])?;
+                    if values[row][col] != Value::Null {
+                        let uid = helpers::parser_val_to_u64(&values[row][col]);
                         let gid = self.insert_gid_for_uid(uid, db)?;
-                        values[row][col] = Expr::Value(Value::Number(gid.to_string()));
+                        values[row][col] = Value::Number(gid.to_string());
                     }
                 }
             }

@@ -27,7 +27,8 @@ pub struct View {
     pub rows: Vec<Vec<Value>>,
     // List of indices (by column) INDEX of column (only INT type for now) to row
     pub indices: Option<HashMap<String, HashMap<String, Vec<usize>>>>,
-    pub latest_id: u64,
+    // optional autoinc column (index) and current value
+    pub autoinc_col: Option<(usize, u64)>,
 }
 
 impl View {
@@ -37,7 +38,7 @@ impl View {
             columns: columns,
             rows: vec![],
             indices: None,
-            latest_id: 0,
+            autoinc_col: None,
         }
     }
     pub fn contains_row(&self, r: &Vec<Value>) -> bool {
@@ -92,69 +93,74 @@ impl Views {
     pub fn query_iter(&self, query: &Query) -> Result<View, Error> {
         select::get_query_results(&self.views, query)
     }
-
-    pub fn stmt_iter(&mut self, stmt: &Statement) -> Result<View, Error> {
-        let mut view_res : View = View::new(vec![]);
-        match stmt {
-            // Note: mysql doesn't support "as_of"
-            Statement::Select(SelectStatement{
-                query, 
-                as_of,
-            }) => {
-                view_res = self.query_iter(&query)?;
-            }
-            Statement::Insert(InsertStatement{
-                table_name,
-                columns, 
-                source,
-            }) => {
-                // if the user table has an autoincrement column, we should 
-                // (1) see if the table is actually inserting a value for that column (found) 
-                // (2) update the self.latest_uid appropriately and insert the value for that column
-                /*if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
-                    let mut found = false;
-                    for (i, col) in columns.iter().enumerate() {
-                        if col.to_string() == self.cfg.user_table.id_col {
-                            // get the values of the uid col being inserted and update as
-                            // appropriate
-                            let mut max = self.latest_id.load(Ordering::SeqCst);
-                            for vv in &values{
-                                match &vv[i] {
-                                    Expr::Value(Value::Number(n)) => {
-                                        let n = n.parse::<u64>().map_err(|e| mysql::Error::IoError(io::Error::new(
-                                                        io::ErrorKind::Other, format!("{}", e))))?;
-                                        max = cmp::max(max, n);
-                                    }
-                                    _ => (),
-                                }
+ 
+    pub fn insert(&mut self, table_name: &ObjectName, columns: &Vec<Ident>, values: &mut Vec<Vec<Value>>) -> Result<(), Error> {
+        let view = self.views.get_mut(&table_name.to_string()).unwrap();
+        
+        // initialize the rows to insert
+        let mut insert_rows = vec![vec![Value::Null; view.columns.len()]; values.len()];
+        
+        let mut cis : Vec<usize>;
+        if columns.is_empty() {
+            // update all columns
+            cis = (0..columns.len()).collect();
+        } else {
+            cis = columns.iter()
+                .map(|c| view.columns.iter().position(|vc| vc.column.name == *c).unwrap())
+                .collect();
+        }
+         
+        // if there is an autoincrement column, we should 
+        // (1) see if the table is actually inserting a value for that column (found) 
+        // (2) update the self.latest_uid appropriately and insert the value for that column
+        if let Some(autoinc_col) = view.autoinc_col {
+            let col_index = autoinc_col.0;
+            let col = &view.columns[autoinc_col.0];
+            let id_val = autoinc_col.1;
+            let num_insert : u64 = values.len() as u64;
+            
+            let mut found = false;
+            for c in columns {
+                if *c == col.column.name {
+                    // get the values of the uid col being inserted, update autoinc
+                    let mut max = id_val;
+                    for vv in values.into_iter() {
+                        match &vv[col_index] {
+                            Value::Number(n) => {
+                                let n = n.parse::<u64>().unwrap();
+                                max = u64::max(max, n);
                             }
-                            // TODO ensure self.latest_uid never goes above GID_START
-                            self.latest_uid.fetch_max(max, Ordering::SeqCst);
-                            found = true;
-                            break;
+                            _ => (),
                         }
                     }
-                    if !found {
-                        // put self.latest_uid + N as the id col values 
-                        let cur_uid = self.latest_uid.fetch_add(values.len() as u64, Ordering::SeqCst);
-                        for i in 0..values.len() {
-                            values[i].push(Expr::Value(Value::Number(format!("{}", cur_uid + (i as u64) + 1))));
-                        }
-                        // add id column to update
-                        mv_cols.push(Ident::new(self.cfg.user_table.id_col.clone()));
-                    }
-                    // update source with new vals_vec
-                    if let Some(mut nq) = new_q {
-                        nq.body = SetExpr::Values(Values(values.clone()));
-                        new_source = InsertSource::Query(nq);
-                    }
-                }*/
+                    // TODO ensure self.latest_uid never goes above GID_START
+                    view.autoinc_col = Some((col_index, max));
+                    found = true;
+                    break;
+                }
             }
-            Statement::Update(UpdateStatement{
-                table_name,
-                assignments,
-                selection,
-            }) => {
+            if !found {
+                // put self.latest_uid + N as the id col values 
+                let cur_uid = id_val + num_insert; 
+                for i in 0..num_insert {
+                    values[i as usize].push(Value::Number(format!("{}", cur_uid + i + 1)));
+                }
+                // add id column to update
+                cis.push(col_index);
+                view.autoinc_col = Some((col_index, id_val + values.len() as u64));
+            }
+        }
+
+        // update indices
+
+        // insert rows with non-speified columns set as NULL for now (TODO)
+        for row in values {
+             
+        }
+        view.rows.append(&mut insert_rows);
+        Ok(())
+    }
+
                 // if the user table has an autoincrement column, we should 
                 // (1) see if the table is actually updating a value for that column and
                 // (2) update the self.latest_uid appropriately 
@@ -172,75 +178,4 @@ impl Views {
                         }
                     }
                 }*/
-            }
-            Statement::Delete(DeleteStatement{
-                table_name,
-                selection,
-            }) => {
-            }
-            Statement::CreateView(CreateViewStatement{
-                name,
-                columns,
-                with_options,
-                query,
-                if_exists,
-                temporary,
-                materialized,
-            }) => {
-            }
-            Statement::CreateTable(CreateTableStatement{
-                name,
-                columns,
-                constraints,
-                indexes,
-                with_options,
-                if_not_exists,
-                engine,
-            }) => {
-            }
-            Statement::CreateIndex(CreateIndexStatement{
-                name,
-                on_name,
-                key_parts,
-                if_not_exists,
-            }) => {
-            }
-            Statement::AlterObjectRename(AlterObjectRenameStatement{
-                object_type,
-                if_exists,
-                name,
-                to_item_name,
-            }) => {
-            }
-            Statement::DropObjects(DropObjectsStatement{
-                object_type,
-                if_exists,
-                names,
-                cascade,
-            }) => {
-            }
-            /* TODO Handle Statement::Explain(stmt) => f.write_node(stmt), ShowObjects
-             *
-             * TODO Currently don't support alterations that reset autoincrement counters
-             * Assume that deletions leave autoincrement counters as monotonically increasing
-             *
-             * Don't handle CreateSink, CreateSource, Copy,
-             *  ShowCreateSource, ShowCreateSink, Tail, Explain
-             * 
-             * Don't modify queries for CreateSchema, CreateDatabase, 
-             * ShowDatabases, ShowCreateTable, DropDatabase, Transactions,
-             * ShowColumns, SetVariable (mysql exprs in set var not supported yet)
-             *
-             * XXX: ShowVariable, ShowCreateView and ShowCreateIndex will return 
-             *  queries that used the materialized views, rather than the 
-             *  application-issued tables. This is probably not a big issue, 
-             *  since these queries are used to create the table again?
-             *
-             * XXX: SHOW * from users will not return any ghost users in ghostusersMV
-             * */
-            _ => {
-            }
-        }
-        Ok(view_res)
-    }
 }
