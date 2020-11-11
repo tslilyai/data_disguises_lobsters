@@ -98,6 +98,7 @@ impl Views {
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
         
         // initialize the rows to insert
+        // insert rows with non-specified columns set as NULL for now (TODO)
         let mut insert_rows = vec![vec![Value::Null; view.columns.len()]; values.len()];
         
         let mut cis : Vec<usize>;
@@ -145,18 +146,26 @@ impl Views {
                 for i in 0..num_insert {
                     values[i as usize].push(Value::Number(format!("{}", cur_uid + i + 1)));
                 }
+                
                 // add id column to update
+                // first, ensure that it wasn't included to begin with (if columns were empty)
+                cis.retain(|&ci| ci != col_index);
+
+                // then add it to the end!
                 cis.push(col_index);
                 view.autoinc_col = Some((col_index, id_val + values.len() as u64));
             }
         }
 
-        // update indices
-
-        // insert rows with non-speified columns set as NULL for now (TODO)
-        for row in values {
-             
+        // update with the values to insert
+        for (val_index, ci) in cis.iter().enumerate() {
+            for (i, row) in values.iter().enumerate() {
+                // update the right column ci with the value corresponding 
+                // to that column to update
+                insert_rows[i][*ci] = row[val_index].clone();
+            }
         }
+
         view.rows.append(&mut insert_rows);
         Ok(())
     }
