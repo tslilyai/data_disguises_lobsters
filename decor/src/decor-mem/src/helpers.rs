@@ -7,6 +7,33 @@ use std::str::FromStr;
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 use log::{debug};
 
+pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName) -> Vec<String> {
+    let mut res : Vec<String> = vec![];
+    let table_str = table_name.to_string();
+    'dtloop: for dt in &cfg.data_tables {
+        if table_str.ends_with(&dt.name) || table_str == dt.name {
+            for uc in &dt.user_cols {
+                let mut new_table_str = table_str.clone();
+                new_table_str.push_str(".");
+                new_table_str.push_str(uc);
+                res.push(new_table_str);
+            }
+            break 'dtloop;
+        }
+    }
+    res
+}
+
+pub fn is_datatable(cfg: &config::Config, table_name: &ObjectName) -> bool {
+    let table_str = table_name.to_string();
+    for dt in &cfg.data_tables {
+        if table_str.ends_with(&dt.name) || table_str == dt.name {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
     // get rid of unsupported types
     debug!("helpers:{}", stmt);
@@ -37,58 +64,6 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
     new
 }
 
-// returns if the first value is larger than the second
-pub fn parser_val_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> cmp::Ordering {
-    use sql_parser::ast::Value as Value;
-    match (v1, v2) {
-        (Value::Number(i1), Value::Number(i2)) => i1.cmp(i2),
-        (Value::String(i1), Value::String(i2)) => i1.cmp(i2),
-        _ => unimplemented!("value not comparable! {} and {}", v1, v2),
-    }
-}
-
-pub fn parser_val_to_f64(val: &sql_parser::ast::Value) -> f64 {
-    use sql_parser::ast::Value as Value;
-    match val {
-        Value::Number(i) => f64::from_str(i).unwrap(),
-        Value::String(i) => f64::from_str(i).unwrap(),
-        _ => unimplemented!("value not a number! {}", val),
-    }
-}
-
-pub fn parser_expr_to_u64(val: &Expr) -> Result<u64, mysql::Error> {
-    use sql_parser::ast::Value as Value;
-    match val {
-        Expr::Value(Value::Number(i)) => Ok(u64::from_str(i).unwrap()),
-        Expr::Value(Value::String(i)) => {
-            match u64::from_str(i) {
-                Ok(v) => Ok(v),
-                Err(_e) => 
-                    Err(mysql::Error::IoError(io::Error::new(
-                        io::ErrorKind::Other, format!("expr {:?} is not an int", val)))),
-            }
-        }
-        _ => Err(mysql::Error::IoError(io::Error::new(
-                io::ErrorKind::Other, format!("expr {:?} is not an int", val)))),
-    }
-}
-
-pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName) -> Vec<String> {
-    let mut res : Vec<String> = vec![];
-    let table_str = table_name.to_string();
-    'dtloop: for dt in &cfg.data_tables {
-        if table_str.ends_with(&dt.name) || table_str == dt.name {
-            for uc in &dt.user_cols {
-                let mut new_table_str = table_str.clone();
-                new_table_str.push_str(".");
-                new_table_str.push_str(uc);
-                res.push(new_table_str);
-            }
-            break 'dtloop;
-        }
-    }
-    res
-}
 
 
 /***************************
@@ -197,9 +172,54 @@ pub fn idents_subset_of_idents(id1: &Vec<Ident>, id2: &Vec<Ident>) -> Option<(us
     None
 }
 
-/*
- * Parser response helpers
- */
+/*****************************************
+ * Parser helpers 
+ ****************************************/
+// returns if the first value is larger than the second
+pub fn parser_val_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> cmp::Ordering {
+    use sql_parser::ast::Value as Value;
+    match (v1, v2) {
+        (Value::Number(i1), Value::Number(i2)) => i1.cmp(i2),
+        (Value::String(i1), Value::String(i2)) => i1.cmp(i2),
+        _ => unimplemented!("value not comparable! {} and {}", v1, v2),
+    }
+}
+
+pub fn parser_val_to_f64(val: &sql_parser::ast::Value) -> f64 {
+    use sql_parser::ast::Value as Value;
+    match val {
+        Value::Number(i) => f64::from_str(i).unwrap(),
+        Value::String(i) => f64::from_str(i).unwrap(),
+        _ => unimplemented!("value not a number! {}", val),
+    }
+}
+
+pub fn parser_val_to_u64(val: &sql_parser::ast::Value) -> u64 {
+    use sql_parser::ast::Value as Value;
+    match val {
+        Value::Number(i) => u64::from_str(i).unwrap(),
+        Value::String(i) => u64::from_str(i).unwrap(),
+        _ => unimplemented!("value not a number! {}", val),
+    }
+}
+
+pub fn parser_expr_to_u64(val: &Expr) -> Result<u64, mysql::Error> {
+    use sql_parser::ast::Value as Value;
+    match val {
+        Expr::Value(Value::Number(i)) => Ok(u64::from_str(i).unwrap()),
+        Expr::Value(Value::String(i)) => {
+            match u64::from_str(i) {
+                Ok(v) => Ok(v),
+                Err(_e) => 
+                    Err(mysql::Error::IoError(io::Error::new(
+                        io::ErrorKind::Other, format!("expr {:?} is not an int", val)))),
+            }
+        }
+        _ => Err(mysql::Error::IoError(io::Error::new(
+                io::ErrorKind::Other, format!("expr {:?} is not an int", val)))),
+    }
+}
+
 pub fn view_to_answer_rows<W: io::Write>(
     results: QueryResultWriter<W>,
     view: Result<views::View, mysql::Error>) 
@@ -249,7 +269,7 @@ pub fn view_to_answer_rows<W: io::Write>(
     Ok(())
 }
 
-/// Convert a MySQL type to MySQL_svr type 
+/// Convert a parser type to MySQL_svr type 
 pub fn get_parser_coltype(t: &DataType) -> msql_srv::ColumnType {
     use msql_srv::ColumnType as ColumnType;
     match t {
@@ -295,9 +315,9 @@ pub fn parser_val_to_common_val(val: &sql_parser::ast::Value) -> mysql_common::v
 }
 
 
-/* 
+/************************************ 
  * MYSQL HELPERS
- */
+ ************************************/
 pub fn answer_rows<W: io::Write>(
     results: QueryResultWriter<W>,
     rows: mysql::Result<mysql::QueryResult<mysql::Text>>) 

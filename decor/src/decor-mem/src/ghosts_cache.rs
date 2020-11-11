@@ -67,19 +67,19 @@ impl GhostsCache{
         Ok(())
     }
 
-    pub fn get_gids_for_uid(&mut self, uid: u64, txn:&mut mysql::Transaction) -> 
+    pub fn get_gids_for_uid(&mut self, uid: u64) -> 
         Result<Vec<u64>, mysql::Error> 
     {
-        self.cache_uid2gids_for_uids(&vec![uid], txn)?;
+        self.cache_uid2gids_for_uids(&vec![uid])?;
         let gids = self.uid2gids.get(&uid).ok_or(
                 mysql::Error::IoError(io::Error::new(
                     io::ErrorKind::Other, "get_gids: uid not present in cache?")))?;
         Ok(gids.to_vec())
     }
 
-    pub fn get_gids_for_uids(&mut self, uids: &Vec<u64>, txn:&mut mysql::Transaction) -> 
+    pub fn get_gids_for_uids(&mut self, uids: &Vec<u64>) -> 
         Result<Vec<(u64, Vec<u64>)>, mysql::Error> {
-        self.cache_uid2gids_for_uids(uids, txn)?;
+        self.cache_uid2gids_for_uids(uids)?;
         let mut gid_vecs = vec![];
         for uid in uids {
             let gids = self.uid2gids.get(&uid).ok_or(
@@ -94,7 +94,7 @@ impl GhostsCache{
      * Add uid->gid mapping to cache if mapping not yet present
      * by querying the ghosts mapping table
      */
-    pub fn cache_uid2gids_for_uids(&mut self, uids: &Vec<u64>, txn:&mut mysql::Transaction) -> Result<(), mysql::Error>
+    pub fn cache_uid2gids_for_uids(&mut self, uids: &Vec<u64>) -> Result<(), mysql::Error>
     {
         let mut uncached_uids = vec![];
         for uid in uids {
@@ -117,50 +117,17 @@ impl GhostsCache{
             };
         }
         if uncached_uids.len() > 0 {
-            let get_gids_of_uid_stmt = Query::select(Select{
-                distinct: true,
-                projection: vec![
-                    SelectItem::Expr{
-                        expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_USER_COL).0),
-                        alias: None,
-                    },
-                    SelectItem::Expr{
-                        expr: Expr::Identifier(helpers::string_to_objname(&super::GHOST_ID_COL).0),
-                        alias: None,
-                    }
-                ],
-                from: vec![TableWithJoins{
-                    relation: TableFactor::Table{
-                        name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
-                        alias: None,
-                    },
-                    joins: vec![],
-                }],
-                selection: Some(selection),
-                group_by: vec![],
-                having: None,
-            });
-
-            warn!("cache_uid2gids: {}", get_gids_of_uid_stmt);
-            let res = txn.query_iter(format!("{}", get_gids_of_uid_stmt.to_string()))?;
-            self.nqueries+=1;
-            for row in res {
-                let mut vals = vec![];
-                for v in row.unwrap().unwrap() {
-                    vals.push(helpers::mysql_val_to_u64(&v)?);
-                }
-                self.insert_gid_into_caches(vals[0], vals[1]);
-            }
+            unimplemented!("ghosts always should be in cache (as a MV)");
         }
         Ok(())
     }
 
-    fn insert_gid_for_uid(&mut self, uid: u64, txn: &mut mysql::Transaction) -> Result<u64, mysql::Error> {
+    fn insert_gid_for_uid(&mut self, uid: u64, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
         // user ids are always ints
         let insert_query = &format!("INSERT INTO {} ({}) VALUES ({});", 
                             super::GHOST_TABLE_NAME, super::GHOST_USER_COL, uid);
         warn!("insert_gid_for_uid: {}", insert_query);
-        let res = txn.query_iter(insert_query)?;
+        let res = db.query_iter(insert_query)?;
         self.nqueries+=1;
         
         // we want to insert the GID in place of the UID
@@ -174,7 +141,7 @@ impl GhostsCache{
         Ok(gid)
     }
     
-    pub fn insert_uid2gids_for_values(&mut self, values: &mut Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, txn: &mut mysql::Transaction) 
+    pub fn insert_uid2gids_for_values(&mut self, values: &mut Vec<Vec<Expr>>, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
         -> Result<(), mysql::Error>
     {
         if ucol_indices.is_empty() {
@@ -187,7 +154,7 @@ impl GhostsCache{
                     // NULL check: don't add ghosts entry if new UID value is NULL
                     if values[row][col] != Expr::Value(Value::Null) {
                         let uid = helpers::parser_expr_to_u64(&values[row][col])?;
-                        let gid = self.insert_gid_for_uid(uid, txn)?;
+                        let gid = self.insert_gid_for_uid(uid, db)?;
                         values[row][col] = Expr::Value(Value::Number(gid.to_string()));
                     }
                 }

@@ -22,6 +22,7 @@ pub enum QueryType {
 pub struct QueryStat {
     pub duration: Duration,
     pub nqueries: u64,
+    pub nqueries_mv: u64,
     pub qtype: QueryType,
 }
 
@@ -30,13 +31,15 @@ impl QueryStat {
         QueryStat {
             duration: Duration::new(0,0),
             nqueries : 1,
+            nqueries_mv : 0,
             qtype : QueryType::None,
         }
     }
 
     pub fn clear(&mut self) {
         self.duration = Duration::new(0,0);
-        self.nqueries = 1;
+        self.nqueries = 0;
+        self.nqueries_mv = 0;
         self.qtype = QueryType::None;
     }
 }
