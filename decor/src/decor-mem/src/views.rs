@@ -33,7 +33,7 @@ pub struct View {
 }
 
 impl View {
-    pub fn new(columns: Vec<TableColumnDef>) -> Self {
+    pub fn new_with_cols(columns: Vec<TableColumnDef>) -> Self {
         View {
             name: String::new(),
             columns: columns,
@@ -42,6 +42,62 @@ impl View {
             autoinc_col: None,
         }
     }
+
+    pub fn new(name: String, columns: Vec<ColumnDef>, indexes: &Vec<IndexDef>) -> Self {
+        // create autoinc column if doesn't exist
+        let autoinc_col = match columns.iter().position(
+            |c| c.options
+            .iter()
+            .any(|opt| opt.option == ColumnOption::AutoIncrement)
+        ) {
+            Some(ci) => Some((ci, 1)),
+            None => None,
+        };
+
+        // create indices for any explicit indexes
+        let mut indices = if !indexes.is_empty() {
+            let mut map = HashMap::new();
+            for i in indexes {
+                if i.key_parts.len() > 1 {
+                    unimplemented!("no multi-column indices yet");
+                }
+                map.insert(i.key_parts[0].to_string(), HashMap::new());
+            }
+            Some(map)
+        } else {
+            None
+        };
+
+        // add an index for any unique column
+        for c in &columns {
+            for opt in &c.options {
+                if let ColumnOption::Unique{..} = opt.option {
+                    match indices {
+                        Some(ref mut is_map) => {
+                            is_map.insert(c.name.to_string(), HashMap::new());
+                        }
+                        None => {
+                            let mut map = HashMap::new();
+                            map.insert(c.name.to_string(), HashMap::new());
+                            indices = Some(map);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        View {
+            name: name.clone(),
+            columns: columns.iter()
+                .map(|c| TableColumnDef{ table: name.clone(), column: c.clone() })
+                .collect(),
+            rows: vec![],
+            indices: indices,
+            autoinc_col: autoinc_col,
+        }
+    }
+
     pub fn contains_row(&self, r: &Vec<Value>) -> bool {
         self.rows.iter().any(|row| {
             let mut eq = true;
@@ -124,6 +180,10 @@ impl Views {
             cfg: cfg,
             views: HashMap::new(),
         }
+    }
+
+    pub fn add_view(&mut self, name: String, columns: Vec<ColumnDef>, indexes: &Vec<IndexDef>) {
+        self.views.insert(name.clone(), View::new(name, columns, indexes));
     }
     
     pub fn query_iter(&self, query: &Query) -> Result<View, Error> {

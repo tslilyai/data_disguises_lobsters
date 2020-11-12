@@ -1099,7 +1099,7 @@ impl QueryTransformer {
             db: &mut mysql::Conn) 
         -> Result<views::View, mysql::Error>
     {
-        let mut view_res : views::View = views::View::new(vec![]);
+        let mut view_res : views::View = views::View::new_with_cols(vec![]);
         
         // TODO consistency?
         match stmt {
@@ -1219,6 +1219,13 @@ impl QueryTransformer {
                 };
                 db.query_drop(dtstmt.to_string())?;
                 self.cur_stat.nqueries+=1;
+
+                // create view for this table
+                self.views.add_view(
+                    name.to_string(), 
+                    columns.to_vec(),
+                    &indexes,
+                );
             }
             _ => unimplemented!("stmt not supported: {}", stmt),
         }
@@ -1262,10 +1269,9 @@ impl QueryTransformer {
         if !self.ghosts_cache.unsubscribe(uid) {
             return Ok(())
         }
-        /*let mut txn = db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = Value::Number(uid.to_string());
                     
-        let vals_vec : Vec<Vec<Expr>> = self.ghosts_cache.get_gids_for_uid(uid, &mut txn)?
+        let vals_vec : Vec<Vec<Expr>> = self.ghosts_cache.get_gids_for_uid(uid)?
             .iter()
             .map(|g| vec![Expr::Value(Value::Number(g.to_string()))])
             .collect();
@@ -1278,24 +1284,23 @@ impl QueryTransformer {
             fetch: None,
         };
         let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
-        let mv_table_name = self.mvtrans.objname_to_mv_objname(&user_table_name);
  
         /* 
          * 1. update the users MV to have an entry for all the users' GIDs
          */
-        let insert_gids_as_users_stmt = Statement::Insert(InsertStatement{
+        /*let insert_gids_as_users_stmt = Statement::Insert(InsertStatement{
             table_name: mv_table_name.clone(),
             columns: vec![Ident::new(&self.cfg.user_table.id_col)],
             source: InsertSource::Query(Box::new(gid_source_q)),
         });
         warn!("unsub: {}", insert_gids_as_users_stmt);
         txn.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
-        self.cur_stat.nqueries+=1;
+        self.cur_stat.nqueries+=1;*/
         
         /*
          * 2. delete UID from users MV and users (only one table, so delete from either)
          */
-        let delete_uid_from_users = Statement::Delete(DeleteStatement {
+        /*let delete_uid_from_users = Statement::Delete(DeleteStatement {
             table_name: user_table_name,
             selection: Some(Expr::BinaryOp{
                 left: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
@@ -1305,12 +1310,12 @@ impl QueryTransformer {
         });
         warn!("unsub: {}", delete_uid_from_users);
         txn.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
-        self.cur_stat.nqueries+=1;
+        self.cur_stat.nqueries+=1;*/
  
         /* 
          * 3. Change all entries with this UID to use the correct GID in the MV
          */
-        for dt in &self.cfg.data_tables {
+        /*for dt in &self.cfg.data_tables {
             let dtobjname = helpers::string_to_objname(&dt.name);
             let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
 
@@ -1381,11 +1386,9 @@ impl QueryTransformer {
             warn!("unsub: {}", update_dt_stmt);
             txn.query_drop(format!("{}", update_dt_stmt))?;
             self.cur_stat.nqueries+=1;
-        }
+        }*/
         
         // TODO return some type of auth token?
-        txn.commit()?;
-        */
         Ok(())
     }
 
@@ -1405,10 +1408,9 @@ impl QueryTransformer {
         }
 
         /*
-        let mut txn = db.start_transaction(mysql::TxOpts::default())?;
         let uid_val = Value::Number(uid.to_string());
 
-        let gid_exprs : Vec<Expr> = self.ghosts_cache.get_gids_for_uid(uid, &mut txn)?
+        let gid_exprs : Vec<Expr> = self.ghosts_cache.get_gids_for_uid(uid)?
             .iter()
             .map(|g| Expr::Value(Value::Number(g.to_string())))
             .collect();
@@ -1524,7 +1526,7 @@ impl QueryTransformer {
             txn.query_drop(format!("{}", update_dt_stmt))?;
             self.cur_stat.nqueries+=1;
         }    
-        txn.commit()?;*/
+        */
         Ok(())
     }
 } 

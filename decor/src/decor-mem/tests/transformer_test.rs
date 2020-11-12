@@ -105,9 +105,9 @@ fn test_normal_execution() {
     }
     let tables = vec![
         "ghosts", 
-        "stories", "storiesmv",
+        "stories", 
         "users", 
-        "moderations", "moderationsmv",
+        "moderations", 
     ];
     assert_eq!(results.len(), tables.len());
     for tab in results {

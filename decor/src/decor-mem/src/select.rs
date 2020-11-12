@@ -64,7 +64,7 @@ fn get_join_on_col_indices(e: &Expr, v1: &View, v2: &View) -> Result<(usize, usi
 fn join_views(jo: &JoinOperator, v1: &View, v2: &View) -> Result<View, Error> {
     let mut new_cols : Vec<TableColumnDef> = v1.columns.clone();
     new_cols.append(&mut v2.columns.clone());
-    let mut new_view = View::new(new_cols);
+    let mut new_view = View::new_with_cols(new_cols);
     match jo {
         JoinOperator::Inner(JoinConstraint::On(e)) => {
             let (i1, i2) = get_join_on_col_indices(&e, v1, v2)?;
@@ -337,7 +337,7 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> (Vec<Vec<Value>>, Has
 fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<View, Error> {
     match se {
         SetExpr::Select(s) => {
-            let mut new_view = View::new(vec![]);
+            let mut new_view = View::new_with_cols(vec![]);
             if s.having != None {
                 unimplemented!("No support for having queries");
             }
