@@ -185,6 +185,12 @@ impl Views {
     pub fn add_view(&mut self, name: String, columns: Vec<ColumnDef>, indexes: &Vec<IndexDef>) {
         self.views.insert(name.clone(), View::new(name, columns, indexes));
     }
+
+    pub fn remove_views(&mut self, names: &Vec<ObjectName>) {
+        for name in names {
+            self.views.remove(&name.to_string());
+        }
+    }
     
     pub fn query_iter(&self, query: &Query) -> Result<View, Error> {
         select::get_query_results(&self.views, query)

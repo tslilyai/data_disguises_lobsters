@@ -22,7 +22,6 @@ extern crate mysql;
 extern crate log;
 
 use mysql::prelude::*;
-use datadriven::walk;
 use std::*;
 use sql_parser::parser;
 
@@ -46,14 +45,6 @@ fn mysql_val_to_parser_val(val: &mysql::Value) -> sql_parser::ast::Value {
         _ => unimplemented!("No sqlparser support for dates yet?")
         /*mysql::Date(u16, u8, u8, u8, u8, u8, u32),
         mysql::Time(bool, u32, u8, u8, u8, u32),8*/
-    }
-}
-
-fn trim_one<'a>(s: &'a str) -> &'a str {
-    if s.ends_with('\n') {
-        &s[..s.len() - 1]
-    } else {
-        s
     }
 }
 
@@ -95,7 +86,7 @@ fn test_normal_execution() {
     /* 
      * TEST 1: all tables successfully created 
      */
-    let mut results = vec![];
+    /*let mut results = vec![];
     let res = db.query_iter("SHOW tables;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
@@ -112,7 +103,7 @@ fn test_normal_execution() {
     assert_eq!(results.len(), tables.len());
     for tab in results {
         assert!(tables.iter().any(|tt| &tab == *tt));
-    }
+    }*/
 
     /*
      * TEST 2: insert users works properly

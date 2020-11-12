@@ -1227,6 +1227,23 @@ impl QueryTransformer {
                     &indexes,
                 );
             }
+            Statement::DropObjects(DropObjectsStatement{
+                object_type,
+                names,
+                ..
+            }) => {
+                match object_type {
+                    ObjectType::Table => {
+                        // alter the data table
+                        db.query_drop(stmt.to_string())?;
+                        self.cur_stat.nqueries+=1;
+
+                        // remove view
+                        self.views.remove_views(names);
+                    }
+                    _ => unimplemented!("Cannot drop object {}", stmt),
+                }
+            }
             _ => unimplemented!("stmt not supported: {}", stmt),
         }
         Ok(view_res)
@@ -1262,7 +1279,7 @@ impl QueryTransformer {
         Ok(())
     }
 
-    pub fn unsubscribe(&mut self, uid: u64, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    pub fn unsubscribe(&mut self, uid: u64) -> Result<(), mysql::Error> {
         self.cur_stat.qtype = stats::QueryType::Unsub;
 
         // check if already unsubscribed

@@ -279,6 +279,7 @@ pub fn get_parser_coltype(t: &DataType) -> msql_srv::ColumnType {
         DataType::Timestamp => ColumnType::MYSQL_TYPE_TIMESTAMP,
         DataType::BigInt => ColumnType::MYSQL_TYPE_LONGLONG,
         DataType::SmallInt => ColumnType::MYSQL_TYPE_INT24,
+        DataType::Int => ColumnType::MYSQL_TYPE_LONGLONG,
         DataType::Date => ColumnType::MYSQL_TYPE_DATE,
         DataType::Time => ColumnType::MYSQL_TYPE_TIME,
         DataType::Varchar(..) => ColumnType::MYSQL_TYPE_VARCHAR,
