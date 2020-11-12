@@ -26,7 +26,7 @@ pub struct View {
     pub columns: Vec<TableColumnDef>,
     // values stored in table
     pub rows: Vec<Vec<Value>>,
-    // List of indices (by column) INDEX of column (only INT type for now) to row
+    // List of indices (by column): column val(string, and only INT type for now) to row
     pub indices: Option<HashMap<String, HashMap<String, Vec<usize>>>>,
     // optional autoinc column (index) and current value
     pub autoinc_col: Option<(usize, u64)>,
@@ -76,6 +76,41 @@ impl View {
         }
         rows
     }
+    
+    pub fn insert_into_index(&mut self, row_index: usize, col_index: usize, new_val: &Value) {
+        if let Some(indices) = &mut self.indices {
+            if let Some(index) = indices.get_mut(&self.columns[col_index].column.name.to_string()) {
+                // insert into the new indexed row_indices 
+                if let Some(new_row_indices) = index.get_mut(&new_val.to_string()) {
+                    new_row_indices.push(row_index);
+                } else {
+                    index.insert(new_val.to_string(), vec![row_index]);
+                }
+            }
+        }
+    }
+ 
+    pub fn update_index(&mut self, row_index: usize, col_index: usize, new_val: Option<&Value>) {
+        let old_val = &self.rows[row_index][col_index];
+        if let Some(indices) = &mut self.indices {
+            if let Some(index) = indices.get_mut(&self.columns[col_index].column.name.to_string()) {
+                // get the old indexed row_indices if they existed for this column value
+                // remove this row!
+                if let Some(old_row_indices) = index.get_mut(&old_val.to_string()) {
+                    old_row_indices.retain(|&ri| ri != row_index);
+                }
+                // insert into the new indexed row_indices but only if we are updating to a new
+                // value (otherwise we're just deleting)
+                if let Some(new_val) = new_val {
+                    if let Some(new_row_indices) = index.get_mut(&new_val.to_string()) {
+                        new_row_indices.push(row_index);
+                    } else {
+                        index.insert(new_val.to_string(), vec![row_index]);
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub struct Views {
@@ -96,7 +131,6 @@ impl Views {
     }
  
     pub fn insert(&mut self, table_name: &ObjectName, columns: &Vec<Ident>, values: &mut Vec<Vec<Value>>) -> Result<(), Error> {
-        // TODO indices
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
         
         // initialize the rows to insert
@@ -164,6 +198,7 @@ impl Views {
             for (i, row) in values.iter().enumerate() {
                 // update the right column ci with the value corresponding 
                 // to that column to update
+                view.insert_into_index(i, *ci, &row[val_index]);
                 insert_rows[i][*ci] = row[val_index].clone();
             }
         }
@@ -217,6 +252,7 @@ impl Views {
         // update the rows!
         for ri in row_indices {
             for ci in &cis {
+                view.update_index(ri, *ci, Some(&assign_vals[*ci]));
                 view.rows[ri][*ci] = assign_vals[*ci].clone();
             }
         }
@@ -241,6 +277,9 @@ impl Views {
         let mut ris : Vec<usize> = Vec::from_iter(row_indices);
         ris.sort_by(|a, b| b.cmp(a));
         for ri in ris {
+            for ci in 0..view.columns.len() {
+                view.update_index(ri, ci, None);
+            }
             view.rows.remove(ri);
         }
         Ok(())
