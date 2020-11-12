@@ -898,7 +898,7 @@ impl QueryTransformer {
         Ok(())
     }
        
-    fn issue_update_datatable_stmt(&mut self, assign_vals: &Vec<Expr>, stmt: UpdateStatement, db: &mut mysql::Conn)
+    fn issue_update_datatable_stmt(&mut self, assign_vals: &Vec<Value>, stmt: UpdateStatement, db: &mut mysql::Conn)
         -> Result<(), mysql::Error> 
     {
         let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &stmt.table_name);
@@ -914,10 +914,10 @@ impl QueryTransformer {
             // we also want to update any usercol value to NULL if the UID is being set to NULL, so we put it
             // in qt_assn too (rather than only updating the GID)
             let is_ucol = ucols.iter().any(|uc| helpers::str_ident_match(&a.id.to_string(), uc));
-            if !is_ucol || assign_vals[i] == Expr::Value(Value::Null) {
+            if !is_ucol || assign_vals[i] == Value::Null {
                 qt_assn.push(Assignment{
                     id: a.id.clone(),
-                    value: assign_vals[i].clone(),
+                    value: Expr::Value(assign_vals[i].clone()),
                 });
             } 
             // if we have an assignment to a UID, we need to update the GID->UID mapping
@@ -926,7 +926,7 @@ impl QueryTransformer {
             if is_ucol {
                 ucol_assigns.push(Assignment {
                     id: a.id.clone(),
-                    value: assign_vals[i].clone(),
+                    value: Expr::Value(assign_vals[i].clone()),
                 });
                 ucol_selectitems_assn.push(SelectItem::Expr{
                     expr: Expr::Identifier(vec![a.id.clone()]),
@@ -966,6 +966,7 @@ impl QueryTransformer {
             let mut ghost_update_stmts = vec![];
             let mut ghost_update_pairs = vec![];
             for row in res {
+                
                 let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
                 for (i, uc_val) in ucol_assigns.iter().enumerate() {
                     let gid = helpers::mysql_val_to_parser_val(&mysql_vals[i]);
@@ -1149,12 +1150,15 @@ impl QueryTransformer {
 
                 let mut assign_vals = vec![];
                 if is_dt_write || table_name.to_string() == self.cfg.user_table.name {
-                    let mut contains_ucol_id = false;
                     for a in assignments {
-                        assign_vals.push(self.expr_to_value_expr(&a.value, &mut contains_ucol_id, &vec![])?);
+                        if let Expr::Value(v) = &a.value {
+                            assign_vals.push(v.clone());
+                        } else {
+                            unimplemented!("Assignments must be values");
+                        }
                     }
                 }
-                    
+
                 if is_dt_write {
                     self.issue_update_datatable_stmt(
                         &assign_vals,
@@ -1168,6 +1172,9 @@ impl QueryTransformer {
                     db.query_drop(stmt.to_string())?;
                     self.cur_stat.nqueries+=1;
                 }
+
+                // update views
+                self.views.update(&table_name, &assignments, &selection, &assign_vals)?;
             }
             Statement::Delete(DeleteStatement{
                 table_name,
@@ -1183,16 +1190,8 @@ impl QueryTransformer {
                     db.query_drop(stmt.to_string())?;
                     self.cur_stat.nqueries+=1;
                 }
-            }
-            Statement::CreateView(CreateViewStatement{
-                name,
-                columns,
-                with_options,
-                query,
-                if_exists,
-                temporary,
-                materialized,
-            }) => {
+                // delete from views
+                self.views.delete(&table_name, &selection)?;
             }
             Statement::CreateTable(CreateTableStatement{
                 name,
@@ -1221,34 +1220,7 @@ impl QueryTransformer {
                 db.query_drop(dtstmt.to_string())?;
                 self.cur_stat.nqueries+=1;
             }
-            Statement::CreateIndex(CreateIndexStatement{
-                name,
-                on_name,
-                key_parts,
-                if_not_exists,
-            }) => {
-                db.query_drop(stmt.to_string())?;
-                self.cur_stat.nqueries+=1;
-            }
-            Statement::AlterObjectRename(AlterObjectRenameStatement{
-                object_type,
-                if_exists,
-                name,
-                to_item_name,
-            }) => {
-                db.query_drop(stmt.to_string())?;
-                self.cur_stat.nqueries+=1;
-            }
-            Statement::DropObjects(DropObjectsStatement{
-                object_type,
-                if_exists,
-                names,
-                cascade,
-            }) => {
-                db.query_drop(stmt.to_string())?;
-                self.cur_stat.nqueries+=1;
-            }
-            _ => unimplemented!("this is a read? {}", stmt),
+            _ => unimplemented!("stmt not supported: {}", stmt),
         }
         Ok(view_res)
     }

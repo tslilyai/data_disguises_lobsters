@@ -1,6 +1,6 @@
 use crate::views::{View, TableColumnDef};
 use crate::helpers;
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_set::HashSet};
 use std::io::{Error, ErrorKind};
 use std::str::FromStr;
 use sql_parser::ast::*;
@@ -226,9 +226,14 @@ fn get_value_for_rows(e: &Expr, v: &View) -> Vec<f64> {
     res
 }
 
-/* returns pairs of columns and the value(s) that the column must take on */
-fn get_rows_matching_constraint(e: &Expr, v: &mut View) -> Vec<Vec<Value>> {
+/* 
+ * returns the rows matching the WHERE clause
+ * and the indices into the view rows where these rows reside
+ * 
+ * */
+pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> (Vec<Vec<Value>>, HashSet<usize>) {
     let mut new_rows = vec![];
+    let mut row_indices = HashSet::new();
     match e {
         Expr::InList { expr, list, negated } => {
             let (_tab, col) = expr_to_col(&expr);
@@ -238,33 +243,44 @@ fn get_rows_matching_constraint(e: &Expr, v: &mut View) -> Vec<Vec<Value>> {
                     _ => unimplemented!("list can only contain values: {:?}", list),
                 })
                 .collect();
-            let i = v.columns.iter().position(|c| c.name() == col).unwrap();
-            for row in &v.rows {
-                if (!*negated && vals.iter().any(|v| *v == row[i])) 
-                    || (*negated && vals.iter().any(|v| *v == row[i])) 
+            let coli = v.columns.iter().position(|c| c.name() == col).unwrap();
+            for (i, row) in v.rows.iter().enumerate() {
+                if (!*negated && vals.iter().any(|v| *v == row[coli])) 
+                    || (*negated && vals.iter().any(|v| *v == row[coli])) 
                 {
                     new_rows.push(row.clone());
+                    row_indices.insert(i);
                 }
             }
         }
         Expr::IsNull { expr, negated } => {
             let (_tab, col) = expr_to_col(&expr);
-            let i = v.columns.iter().position(|c| c.name() == col).unwrap();
-            for row in &v.rows {
-                if (*negated && row[i] != Value::Null) || (!*negated && row[i] == Value::Null) {
+            let coli = v.columns.iter().position(|c| c.name() == col).unwrap();
+            for (i, row) in v.rows.iter().enumerate() {
+                if (*negated && row[coli] != Value::Null) || (!*negated && row[coli] == Value::Null) {
                    new_rows.push(row.clone());
+                   row_indices.insert(i);
                 }
             }
         }
         Expr::BinaryOp {left, op, right} => {
+            // TODO can split up into two fxns, one to get rows, other to get indices...
             match op {
                 BinaryOperator::And => {
-                    v.rows = get_rows_matching_constraint(left, v);
-                    new_rows = get_rows_matching_constraint(right, v);
+                    let (_lrows, lindices) = get_rows_matching_constraint(left, v);
+                    let (_rrows, rindices) = get_rows_matching_constraint(right, v);
+                    for i in lindices.intersection(&rindices) {
+                        new_rows.push(v.rows[*i as usize].clone());
+                        row_indices.insert(*i as usize);
+                    }
                 }
                 BinaryOperator::Or => {
-                    new_rows = get_rows_matching_constraint(left, v);
-                    new_rows.append(&mut get_rows_matching_constraint(right, v));
+                    let (_lrows, lindices) = get_rows_matching_constraint(left, v);
+                    let (_rrows, rindices) = get_rows_matching_constraint(right, v);
+                    for i in lindices.union(&rindices) {
+                        new_rows.push(v.rows[*i as usize].clone());
+                        row_indices.insert(*i as usize);
+                    }                
                 }
                 _ => {
                     let left_vals = get_value_for_rows(&left, v);
@@ -274,31 +290,37 @@ fn get_rows_matching_constraint(e: &Expr, v: &mut View) -> Vec<Vec<Value>> {
                             BinaryOperator::Eq => {
                                 if left_vals[i] == right_vals[i] {
                                     new_rows.push(row.clone());
+                                    row_indices.insert(i);
                                 }
                             }
                             BinaryOperator::NotEq => {
                                 if left_vals[i] != right_vals[i] {
                                     new_rows.push(row.clone());
+                                    row_indices.insert(i);
                                 }
                             }
                             BinaryOperator::Lt => {
                                 if left_vals[i] < right_vals[i] {
                                     new_rows.push(row.clone());
+                                    row_indices.insert(i);
                                 }
                             }
                             BinaryOperator::Gt => {
                                 if left_vals[i] > right_vals[i] {
                                     new_rows.push(row.clone());
+                                    row_indices.insert(i);
                                 }
                             }
                             BinaryOperator::LtEq => {
                                 if left_vals[i] <= right_vals[i] {
                                     new_rows.push(row.clone());
+                                    row_indices.insert(i);
                                 }
                             }
                             BinaryOperator::GtEq => {
                                 if left_vals[i] >= right_vals[i] {
                                     new_rows.push(row.clone());
+                                    row_indices.insert(i);
                                 }
                             }
                             _ => unimplemented!("Constraint not supported {}", e),
@@ -309,7 +331,7 @@ fn get_rows_matching_constraint(e: &Expr, v: &mut View) -> Vec<Vec<Value>> {
         }
         _ => unimplemented!("Constraint not supported {}", e),
     }
-    new_rows
+    (new_rows, row_indices)
 }
 
 fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<View, Error> {
@@ -351,7 +373,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
 
             // filter out rows by where clause
             if let Some(selection) = &s.selection {
-                new_view.rows = get_rows_matching_constraint(&selection, &mut new_view);
+                new_view.rows = get_rows_matching_constraint(&selection, &new_view).0;
             } 
 
             // reduce view to only return selected columns

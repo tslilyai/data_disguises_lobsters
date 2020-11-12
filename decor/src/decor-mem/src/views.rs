@@ -1,5 +1,6 @@
+use std::iter::FromIterator;
 use sql_parser::ast::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, hash_set::HashSet};
 use crate::{select, config};
 use std::io::{Error};
 
@@ -95,6 +96,7 @@ impl Views {
     }
  
     pub fn insert(&mut self, table_name: &ObjectName, columns: &Vec<Ident>, values: &mut Vec<Vec<Value>>) -> Result<(), Error> {
+        // TODO indices
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
         
         // initialize the rows to insert
@@ -170,21 +172,77 @@ impl Views {
         Ok(())
     }
 
-                // if the user table has an autoincrement column, we should 
-                // (1) see if the table is actually updating a value for that column and
-                // (2) update the self.latest_uid appropriately 
-                /*if table_name.to_string() == self.cfg.user_table.name && self.cfg.user_table.is_autoinc {
-                    for i in 0..assignments.len() {
-                        if assignments[i].id.to_string() == self.cfg.user_table.id_col {
-                            match &assign_vals[i] {
-                                Expr::Value(Value::Number(n)) => {
-                                    let n = n.parse::<u64>().map_err(|e| mysql::Error::IoError(io::Error::new(
-                                                    io::ErrorKind::Other, format!("{}", e))))?;
-                                    self.latest_uid.fetch_max(n, Ordering::SeqCst);
-                                }
-                                _ => (),
-                            }
+    pub fn update(&mut self, 
+          table_name: &ObjectName, 
+          assignments: &Vec<Assignment>, 
+          selection: &Option<Expr>, 
+          assign_vals: &Vec<Value>) 
+        -> Result<(), Error> 
+    {
+        let view = self.views.get_mut(&table_name.to_string()).unwrap();
+        let row_indices : HashSet<usize>;
+        if let Some(s) = selection {
+            row_indices = select::get_rows_matching_constraint(s, &view).1;
+        } else {
+            row_indices = (0..view.rows.len()).collect();
+        }
+        
+        // if the table has an autoincrement column, we should 
+        // (1) see if the table is actually updating a value for that column and
+        // (2) update the self.latest_uid appropriately 
+        if let Some(autoinc_col) = view.autoinc_col {
+            let col_index = autoinc_col.0;
+            let col = &view.columns[autoinc_col.0];
+            let id_val = autoinc_col.1;
+
+            for i in 0..assignments.len() {
+                if assignments[i].id == col.column.name {
+                    match &assign_vals[i] {
+                        Value::Number(n) => {
+                            let n = n.parse::<u64>().unwrap();
+                            view.autoinc_col = Some((col_index, u64::max(id_val, n)));
                         }
+                        _ => (),
                     }
-                }*/
+                    break;
+                }
+            }
+        }
+
+        let mut cis = vec![];
+        for a in assignments {
+            cis.push(view.columns.iter().position(|vc| vc.column.name == a.id).unwrap());
+        }
+
+        // update the rows!
+        for ri in row_indices {
+            for ci in &cis {
+                view.rows[ri][*ci] = assign_vals[*ci].clone();
+            }
+        }
+        Ok(())
+    }
+
+    pub fn delete(&mut self, 
+          table_name: &ObjectName, 
+          selection: &Option<Expr>)
+        -> Result<(), Error> 
+    {
+        let view = self.views.get_mut(&table_name.to_string()).unwrap();
+        let row_indices : HashSet<usize>;
+        if let Some(s) = selection {
+            row_indices = select::get_rows_matching_constraint(s, &view).1;
+        } else {
+            row_indices = (0..view.rows.len()).collect();
+        }
+       
+        // remove the rows!
+        // pretty expensive, but oh well... (can optimize later?)
+        let mut ris : Vec<usize> = Vec::from_iter(row_indices);
+        ris.sort_by(|a, b| b.cmp(a));
+        for ri in ris {
+            view.rows.remove(ri);
+        }
+        Ok(())
+    }
 }
