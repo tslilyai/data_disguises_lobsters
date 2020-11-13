@@ -1,6 +1,8 @@
 use crate::views::{View, TableColumnDef};
 use crate::helpers;
+use log::warn;
 use std::collections::{HashMap, hash_set::HashSet};
+use std::cmp::Ordering;
 use std::io::{Error, ErrorKind};
 use std::str::FromStr;
 use sql_parser::ast::*;
@@ -165,60 +167,76 @@ fn expr_to_col(e: &Expr) -> (String, String) {
     }
 }
 
-fn get_value_for_rows(e: &Expr, v: &View) -> Vec<f64> {
+fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
+    c.column.name.to_string() == col || c.name() == col
+}
+
+fn get_value_for_rows(e: &Expr, v: &View, views: &HashMap<String, View>) -> Vec<Value> {
+    // TODO kind of annoying to keep passing views around..
     let mut res = vec![];
     match e {
         Expr::Identifier(_) => {
             let (_tab, col) = expr_to_col(&e);
-            let index = v.columns.iter().position(|c| c.name() == col).unwrap();
+            warn!("Identifier column {}", col);
+            let index = v.columns.iter().position(|c| tablecolumn_matches_col(c, &col)).unwrap();
             for row in &v.rows {
-                res.push(helpers::parser_val_to_f64(&row[index]));
+                res.push(row[index].clone());
             }
         }
         Expr::Value(val) => {
-            res.push(helpers::parser_val_to_f64(&val));
+            for _ in &v.rows {
+                res.push(val.clone());
+            }
         }
         Expr::BinaryOp{left, op, right} => {
             let mut lindex : Option<usize> = None;
             let mut rindex : Option<usize> = None;
-            let mut lval : f64 = 0.0;
-            let mut rval : f64 = 0.0;
+            let mut lval = Value::Null; 
+            let mut rval = Value::Null;
             match &**left {
                 Expr::Identifier(_) => {
                     let (_ltab, lcol) = expr_to_col(&left);
-                    lindex = Some(v.columns.iter().position(|c| c.name() == lcol).unwrap());
+                    lindex = Some(v.columns.iter().position(|c| tablecolumn_matches_col(c, &lcol)).unwrap());
                 }
                 Expr::Value(val) => {
-                    lval = helpers::parser_val_to_f64(&val);
+                    lval = val.clone()
                 }
                 _ => unimplemented!("must be id or value: {}", e),
             }
             match &**right {
                 Expr::Identifier(_) => {
                     let (_rtab, rcol) = expr_to_col(&right);
-                    rindex = Some(v.columns.iter().position(|c| c.name() == rcol).unwrap());
+                    rindex = Some(v.columns.iter().position(|c| tablecolumn_matches_col(c, &rcol)).unwrap());
                 }
                 Expr::Value(val) => {
-                    rval = helpers::parser_val_to_f64(&val);
+                    rval = val.clone()
                 }
                 _ => unimplemented!("must be id or value: {}", e),
             }
             for r in &v.rows {
                 if let Some(li) = lindex {
-                    lval = helpers::parser_val_to_f64(&r[li]);
+                    lval = r[li].clone();
                 }
                 if let Some(ri) = rindex {
-                    rval = helpers::parser_val_to_f64(&r[ri]);
+                    rval = r[ri].clone()
                 }
                 match op {
                     BinaryOperator::Plus => {
-                        res.push(lval + rval);
+                        res.push(helpers::plus_parser_vals(&lval, &rval));
                     }
                     BinaryOperator::Minus => {
-                        res.push(lval + rval);
+                        res.push(helpers::minus_parser_vals(&lval, &rval));
                     }
                     _ => unimplemented!("op {} not supported to get value", op),
                 }
+            }
+        }
+        Expr::Subquery(q) => {
+            // todo handle errors?
+            let results = get_query_results(views, &q).unwrap();
+            assert!(results.rows.len() == 1 && results.rows[0].len() == 1);
+            for _ in &v.rows {
+                res.push(results.rows[0][0].clone()); 
             }
         }
         _ => unimplemented!("get value not supported {}", e),
@@ -231,7 +249,7 @@ fn get_value_for_rows(e: &Expr, v: &View) -> Vec<f64> {
  * and the indices into the view rows where these rows reside
  * 
  * */
-pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> (Vec<Vec<Value>>, HashSet<usize>) {
+pub fn get_rows_matching_constraint(e: &Expr, v: &View, views: &HashMap<String, View>) -> (Vec<Vec<Value>>, HashSet<usize>) {
     let mut new_rows = vec![];
     let mut row_indices = HashSet::new();
     match e {
@@ -243,10 +261,10 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> (Vec<Vec<Value>>, Has
                     _ => unimplemented!("list can only contain values: {:?}", list),
                 })
                 .collect();
-            let coli = v.columns.iter().position(|c| c.name() == col).unwrap();
+            let ci = v.columns.iter().position(|c| tablecolumn_matches_col(c, &col)).unwrap();
             for (i, row) in v.rows.iter().enumerate() {
-                if (!*negated && vals.iter().any(|v| *v == row[coli])) 
-                    || (*negated && vals.iter().any(|v| *v == row[coli])) 
+                if (!*negated && vals.iter().any(|v| *v == row[ci])) 
+                    || (*negated && vals.iter().any(|v| *v == row[ci])) 
                 {
                     new_rows.push(row.clone());
                     row_indices.insert(i);
@@ -255,9 +273,9 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> (Vec<Vec<Value>>, Has
         }
         Expr::IsNull { expr, negated } => {
             let (_tab, col) = expr_to_col(&expr);
-            let coli = v.columns.iter().position(|c| c.name() == col).unwrap();
+            let ci = v.columns.iter().position(|c| tablecolumn_matches_col(c, &col)).unwrap();
             for (i, row) in v.rows.iter().enumerate() {
-                if (*negated && row[coli] != Value::Null) || (!*negated && row[coli] == Value::Null) {
+                if (*negated && row[ci] != Value::Null) || (!*negated && row[ci] == Value::Null) {
                    new_rows.push(row.clone());
                    row_indices.insert(i);
                 }
@@ -267,58 +285,59 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> (Vec<Vec<Value>>, Has
             // TODO can split up into two fxns, one to get rows, other to get indices...
             match op {
                 BinaryOperator::And => {
-                    let (_lrows, lindices) = get_rows_matching_constraint(left, v);
-                    let (_rrows, rindices) = get_rows_matching_constraint(right, v);
+                    let (_lrows, lindices) = get_rows_matching_constraint(left, v, views);
+                    let (_rrows, rindices) = get_rows_matching_constraint(right, v, views);
                     for i in lindices.intersection(&rindices) {
                         new_rows.push(v.rows[*i as usize].clone());
                         row_indices.insert(*i as usize);
                     }
                 }
                 BinaryOperator::Or => {
-                    let (_lrows, lindices) = get_rows_matching_constraint(left, v);
-                    let (_rrows, rindices) = get_rows_matching_constraint(right, v);
+                    let (_lrows, lindices) = get_rows_matching_constraint(left, v, views);
+                    let (_rrows, rindices) = get_rows_matching_constraint(right, v, views);
                     for i in lindices.union(&rindices) {
                         new_rows.push(v.rows[*i as usize].clone());
                         row_indices.insert(*i as usize);
                     }                
                 }
                 _ => {
-                    let left_vals = get_value_for_rows(&left, v);
-                    let right_vals = get_value_for_rows(&right, v);
+                    let left_vals = get_value_for_rows(&left, v, views);
+                    let right_vals = get_value_for_rows(&right, v, views);
                     for (i, row) in v.rows.iter().enumerate() {
+                        let cmp = helpers::parser_vals_cmp(&left_vals[i], &right_vals[i]);
                         match op {
                             BinaryOperator::Eq => {
-                                if left_vals[i] == right_vals[i] {
+                                if cmp == Ordering::Equal {
                                     new_rows.push(row.clone());
                                     row_indices.insert(i);
                                 }
                             }
                             BinaryOperator::NotEq => {
-                                if left_vals[i] != right_vals[i] {
+                                if cmp != Ordering::Equal {
                                     new_rows.push(row.clone());
                                     row_indices.insert(i);
                                 }
                             }
                             BinaryOperator::Lt => {
-                                if left_vals[i] < right_vals[i] {
+                                if cmp == Ordering::Less {
                                     new_rows.push(row.clone());
                                     row_indices.insert(i);
                                 }
                             }
                             BinaryOperator::Gt => {
-                                if left_vals[i] > right_vals[i] {
+                                if cmp == Ordering::Greater {
                                     new_rows.push(row.clone());
                                     row_indices.insert(i);
                                 }
                             }
                             BinaryOperator::LtEq => {
-                                if left_vals[i] <= right_vals[i] {
+                                if cmp != Ordering::Greater {
                                     new_rows.push(row.clone());
                                     row_indices.insert(i);
                                 }
                             }
                             BinaryOperator::GtEq => {
-                                if left_vals[i] >= right_vals[i] {
+                                if cmp != Ordering::Less {
                                     new_rows.push(row.clone());
                                     row_indices.insert(i);
                                 }
@@ -347,6 +366,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
                 new_view.columns.append(&mut v.columns);
                 new_view.rows.append(&mut v.rows);
             }
+            warn!("columns {:?}", new_view.columns);
             
             // take account columns to keep for which tables
             // also alter aliases here prior to where clause filtering
@@ -360,7 +380,8 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
                     // TODO note this doesn't allow for `tablename.*` selections
                     SelectItem::Expr {expr, alias} => {
                         let (_tab, col) = expr_to_col(expr);
-                        let index = new_view.columns.iter().position(|c| c.name() == col).unwrap();
+                        warn!("{}: selecting {}", s, col);
+                        let index = new_view.columns.iter().position(|c| tablecolumn_matches_col(c, &col)).unwrap();
                         cols_to_keep.push(index);
                         // alias; use in WHERE will match against this alias
                         if let Some(a) = alias {
@@ -373,7 +394,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
 
             // filter out rows by where clause
             if let Some(selection) = &s.selection {
-                new_view.rows = get_rows_matching_constraint(&selection, &new_view).0;
+                new_view.rows = get_rows_matching_constraint(&selection, &new_view, views).0;
             } 
 
             // reduce view to only return selected columns
@@ -444,10 +465,10 @@ pub fn get_query_results(views: &HashMap<String, View>, q: &Query) -> Result<Vie
         let ci = new_view.columns.iter().position(|c| c.name() == col).unwrap();
         match orderby.asc {
             Some(false) => {
-                new_view.rows.sort_by(|r1, r2| helpers::parser_val_cmp(&r2[ci], &r1[ci]));
+                new_view.rows.sort_by(|r1, r2| helpers::parser_vals_cmp(&r2[ci], &r1[ci]));
             }
             Some(true) | None => {
-                new_view.rows.sort_by(|r1, r2| helpers::parser_val_cmp(&r1[ci], &r2[ci]));
+                new_view.rows.sort_by(|r1, r2| helpers::parser_vals_cmp(&r1[ci], &r2[ci]));
             }
         }
     }

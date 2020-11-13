@@ -1,8 +1,9 @@
 use std::iter::FromIterator;
 use sql_parser::ast::*;
 use std::collections::{HashMap, hash_set::HashSet};
-use crate::{select, config};
+use crate::{select};
 use std::io::{Error};
+use log::{warn};
 
 #[derive(Debug, Clone)]
 pub struct TableColumnDef {
@@ -134,6 +135,7 @@ impl View {
     }
     
     pub fn insert_into_index(&mut self, row_index: usize, col_index: usize, new_val: &Value) {
+        warn!("{}: inserting {}", self.columns[col_index].name(), new_val);
         if let Some(indices) = &mut self.indices {
             if let Some(index) = indices.get_mut(&self.columns[col_index].column.name.to_string()) {
                 // insert into the new indexed row_indices 
@@ -147,6 +149,7 @@ impl View {
     }
  
     pub fn update_index(&mut self, row_index: usize, col_index: usize, new_val: Option<&Value>) {
+        warn!("{}: updating {:?})", self.columns[col_index].name(), new_val);
         let old_val = &self.rows[row_index][col_index];
         if let Some(indices) = &mut self.indices {
             if let Some(index) = indices.get_mut(&self.columns[col_index].column.name.to_string()) {
@@ -170,14 +173,12 @@ impl View {
 }
 
 pub struct Views {
-    cfg : config::Config,
     views: HashMap<String, View>,
 }
 
 impl Views {
-    pub fn new(cfg: config::Config) -> Self {
+    pub fn new() -> Self {
         Views {
-            cfg: cfg,
             views: HashMap::new(),
         }
     }
@@ -244,9 +245,9 @@ impl Views {
             }
             if !found {
                 // put self.latest_uid + N as the id col values 
-                let cur_uid = id_val + num_insert; 
+                let cur_uid = id_val; 
                 for i in 0..num_insert {
-                    values[i as usize].push(Value::Number(format!("{}", cur_uid + i + 1)));
+                    values[i as usize].push(Value::Number(format!("{}", cur_uid + i)));
                 }
                 
                 // add id column to update
@@ -269,6 +270,22 @@ impl Views {
             }
         }
 
+        // update with default (not null) values
+        for row in &mut insert_rows {
+            for ci in 0..view.columns.len() {
+                for opt in &view.columns[ci].column.options {
+                    if let ColumnOption::Default(Expr::Value(v)) = &opt.option {
+                        if row[ci] == Value::Null {
+                            row[ci] = v.clone();
+                        } 
+                    }  
+                    if let ColumnOption::NotNull = &opt.option {
+                        assert!(row[ci] != Value::Null);
+                    }
+                }
+            }
+        }
+
         view.rows.append(&mut insert_rows);
         Ok(())
     }
@@ -280,10 +297,13 @@ impl Views {
           assign_vals: &Vec<Value>) 
         -> Result<(), Error> 
     {
+        let views = self.views.clone();
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
+        warn!("{}: update {:?} with vals {:?}", view.name, assignments, assign_vals);
+
         let row_indices : HashSet<usize>;
         if let Some(s) = selection {
-            row_indices = select::get_rows_matching_constraint(s, &view).1;
+            row_indices = select::get_rows_matching_constraint(s, &view, &views).1;
         } else {
             row_indices = (0..view.rows.len()).collect();
         }
@@ -315,11 +335,12 @@ impl Views {
             cis.push(view.columns.iter().position(|vc| vc.column.name == a.id).unwrap());
         }
 
+        warn!("{}: update columns of indices {:?}", view.name, cis);
         // update the rows!
         for ri in row_indices {
-            for ci in &cis {
-                view.update_index(ri, *ci, Some(&assign_vals[*ci]));
-                view.rows[ri][*ci] = assign_vals[*ci].clone();
+            for (assign_index, ci) in cis.iter().enumerate() {
+                view.update_index(ri, *ci, Some(&assign_vals[assign_index]));
+                view.rows[ri][*ci] = assign_vals[assign_index].clone();
             }
         }
         Ok(())
@@ -330,10 +351,11 @@ impl Views {
           selection: &Option<Expr>)
         -> Result<(), Error> 
     {
+        let views = self.views.clone();
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
         let row_indices : HashSet<usize>;
         if let Some(s) = selection {
-            row_indices = select::get_rows_matching_constraint(s, &view).1;
+            row_indices = select::get_rows_matching_constraint(s, &view, &views).1;
         } else {
             row_indices = (0..view.rows.len()).collect();
         }

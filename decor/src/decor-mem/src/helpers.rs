@@ -176,20 +176,31 @@ pub fn idents_subset_of_idents(id1: &Vec<Ident>, id2: &Vec<Ident>) -> Option<(us
  * Parser helpers 
  ****************************************/
 // returns if the first value is larger than the second
-pub fn parser_val_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> cmp::Ordering {
+pub fn parser_vals_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> cmp::Ordering {
     use sql_parser::ast::Value as Value;
     match (v1, v2) {
         (Value::Number(i1), Value::Number(i2)) => i1.cmp(i2),
         (Value::String(i1), Value::String(i2)) => i1.cmp(i2),
-        _ => unimplemented!("value not comparable! {} and {}", v1, v2),
+        (Value::String(i1), Value::Number(i2)) => i1.cmp(i2),
+        (Value::Number(i1), Value::String(i2)) => i1.cmp(i2),
+        _ => unimplemented!("value not comparable! {:?} and {:?}", v1, v2),
     }
+}
+
+pub fn plus_parser_vals(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> sql_parser::ast::Value {
+    use sql_parser::ast::Value as Value;
+    Value::Number((parser_val_to_f64(v1) + parser_val_to_f64(v2)).to_string())
+}
+
+pub fn minus_parser_vals(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> sql_parser::ast::Value {
+    use sql_parser::ast::Value as Value;
+    Value::Number((parser_val_to_f64(v1) - parser_val_to_f64(v2)).to_string())
 }
 
 pub fn parser_val_to_f64(val: &sql_parser::ast::Value) -> f64 {
     use sql_parser::ast::Value as Value;
     match val {
         Value::Number(i) => f64::from_str(i).unwrap(),
-        Value::String(i) => f64::from_str(i).unwrap(),
         _ => unimplemented!("value not a number! {}", val),
     }
 }

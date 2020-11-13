@@ -78,6 +78,10 @@ fn test_normal_execution() {
     assert_eq!(db.ping(), true);
     assert_eq!(db.select_db("gdpr_normal"), true);
 
+    let mut db_actual = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
+    assert_eq!(db_actual.ping(), true);
+    assert_eq!(db_actual.select_db("gdpr_normal"), true);
+
     /*
      * NOTE: the column types are all right, but the mysql value returned is always Bytes,
      * so it always parses as a String
@@ -86,8 +90,8 @@ fn test_normal_execution() {
     /* 
      * TEST 1: all tables successfully created 
      */
-    /*let mut results = vec![];
-    let res = db.query_iter("SHOW tables;").unwrap();
+    let mut results = vec![];
+    let res = db_actual.query_iter("SHOW tables;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         let name = format!("{}", mysql_val_to_parser_val(&vals[0]));
@@ -103,14 +107,14 @@ fn test_normal_execution() {
     assert_eq!(results.len(), tables.len());
     for tab in results {
         assert!(tables.iter().any(|tt| &tab == *tt));
-    }*/
+    }
 
     /*
      * TEST 2: insert users works properly
      */
     let mut results = vec![];
     db.query_drop(r"INSERT INTO users (username) VALUES ('hello_1'), ('hello_2');").unwrap();
-    let res = db.query_iter(r"SELECT * FROM users WHERE users.username='hello_1' OR users.username='hello_2';").unwrap();
+    let res = db.query_iter(r"SELECT * FROM users WHERE users.username='hello_1' OR users.username='hello_2' ORDER BY users.id;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 3);
@@ -125,7 +129,7 @@ fn test_normal_execution() {
 
     //  No ghost entries added
     let mut results = vec![];
-    let res = db.query_iter(r"SELECT COUNT(*) FROM ghosts;").unwrap();
+    let res = db_actual.query_iter(r"SELECT COUNT(*) FROM ghosts;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 1);
@@ -140,7 +144,7 @@ fn test_normal_execution() {
      */
     let mut results = vec![];
     db.query_drop(r"INSERT INTO moderations (moderator_user_id, story_id, user_id, action) VALUES (1, 0, 2, 'bad story!');").unwrap();
-    let res = db.query_iter(r"SELECT * FROM moderations;").unwrap();
+    let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.id;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 5);
@@ -161,7 +165,7 @@ fn test_normal_execution() {
 
     // two ghost entries added, beginning from GHOST_ID_START
     let mut results = vec![];
-    let res = db.query_iter(r"SELECT * FROM ghosts;").unwrap();
+    let res = db_actual.query_iter(r"SELECT * FROM ghosts ORDER BY ghosts.ghost_id;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 2);
@@ -178,7 +182,7 @@ fn test_normal_execution() {
      */
     let mut results = vec![];
     db.query_drop(r"INSERT INTO moderations (moderator_user_id, story_id, user_id, action) VALUES ((SELECT id FROM users WHERE username='hello_2'), '0', '1', 'worst story!');").unwrap();
-    let res = db.query_iter(r"SELECT * FROM moderations;").unwrap();
+    let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.id;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 5);
@@ -195,7 +199,7 @@ fn test_normal_execution() {
 
     // two ghost entries added, beginning from GHOST_ID_START
     let mut results = vec![];
-    let res = db.query_iter(r"SELECT * FROM ghosts;").unwrap();
+    let res = db_actual.query_iter(r"SELECT * FROM ghosts;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 2);
@@ -231,7 +235,7 @@ fn test_normal_execution() {
 
     // latest ghost entry removed (user was set to NULL)
     let mut results = vec![];
-    let res = db.query_iter(r"SELECT * FROM ghosts;").unwrap();
+    let res = db_actual.query_iter(r"SELECT * FROM ghosts;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 2);
@@ -265,7 +269,7 @@ fn test_normal_execution() {
 
     // first two ghost entries removed 
     let mut results = vec![];
-    let res = db.query_iter(r"SELECT * FROM ghosts;").unwrap();
+    let res = db_actual.query_iter(r"SELECT * FROM ghosts;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 2);
@@ -277,6 +281,7 @@ fn test_normal_execution() {
     assert_eq!(results[0], (format!("'{}'", GHOST_ID_START+2), "'3'".to_string()));
    
     drop(db);
+    drop(db_actual);
     jh.join().unwrap();
 }
 
@@ -335,7 +340,7 @@ fn test_users() {
 
     // users modified appropriately: ghosts added to users 
     let mut results = vec![];
-    let res = db.query_iter(r"SELECT id FROM users;").unwrap();
+    let res = db.query_iter(r"SELECT id FROM users ORDER BY user.id;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 1);
@@ -353,7 +358,7 @@ fn test_users() {
      */
     db.query_drop(format!("RESUBSCRIBE UID {};", 1)).unwrap();
     let mut results = vec![];
-    let res = db.query_iter(r"SELECT * FROM moderations;").unwrap();
+    let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.id;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 5);

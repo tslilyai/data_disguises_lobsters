@@ -21,7 +21,7 @@ pub struct QueryTransformer {
 impl QueryTransformer {
     pub fn new(cfg: &config::Config, params: &super::TestParams) -> Self {
         QueryTransformer{
-            views: views::Views::new(cfg.clone()),
+            views: views::Views::new(),
             cfg: cfg.clone(),
             ghosts_cache: ghosts_cache::GhostsCache::new(),
             params: params.clone(),
@@ -1099,6 +1099,7 @@ impl QueryTransformer {
             db: &mut mysql::Conn) 
         -> Result<views::View, mysql::Error>
     {
+        warn!("issue statement: {}", stmt);
         let mut view_res : views::View = views::View::new_with_cols(vec![]);
         
         // TODO consistency?
