@@ -49,66 +49,142 @@ unsubscribing users.}
     exactly how data records were decorrelated from unsubscribed users. 
 
     \item An attacker cannot gain identifying information from arbitrary user-generated content (for
-        example, a reposted screenshot, or text in user posts or comments). Decorrelation seeks to
+        example, a reposted screenshot, or text in user stories or comments). Decorrelation seeks to
         remove identifying information from user-generated data that can be enumerated or follows a
-        specific pattern (e.g. a birthday or email address), and application metadata (e.g., date
+        specific pattern (e.g., a birthday or email address), and application metadata (e.g., date
         of postings, database ID columns).
 \end{itemize}
 
-\subsection{A General Model for Decorrelation}
-Application data is structured as tables, each containing a different \emph{data entity},
-e.g.,\ a post, user, or vote. 
-Entities can either be externally added via the application API by a client, or internally added by
-the application (e.g., tags or application metadata).
-Queries write, read from, and compute over entities. 
-As entities are processed by a query, their path from table to application client can be represented
-as \emph{flows} through computations specified by the query: each computation 
-can be classified as either a join, an aggregation (e.g., count, min, max), or a set operation (e.g., union,
-intersection) between flows.
+\subsection{Modeling Decorrelation}
+Application data is structured as tables, each containing a different \emph{data entity}, e.g.,\ a
+story, user, or vote.  
+%Entities can either be externally added via the application API by a client, or internally added by the application 
+%(e.g., tags or application metadata).  
+Queries write, read
+from, and compute over entities. 
 
-When a user $U$ unsubscribes, decorrelation must (1) determine which entities may reveal identifying
-information about $U$, and (2) prevent queries from leaking this information.
+Decorrelation of a user entity splits the user into a set of \emph{ghost user} entities, with one
+ghost user for each data entity that is \emph{clustered} by the user.  Clusters are determined by
+foreign key attributes in data tables which correspond to user identifiers, or by attributes that
+are used to JOIN with the user table.  For example, stories cluster by user because they contain a
+foreign key attribute (\texttt{user\_id}) into the user table, specifying which user wrote the
+story.
 
-To address (1), the programmer developer specifies identifying tables or table columns 
-via developer annotations on
-the application schema: tables or table columns can be marked as identity-sensitive. If only tables
-are marked, all columns are assumed to be sensitive.
+However, breaking up user-associated clusters of entities may not sufficiently decorrelate these
+entities from the user. For example, perhaps only stories belonging to the user possess a particular
+tag. Or perhaps the user's stories are all upvoted only by all of the users'
+friends. These pieces of information allow an adversary to correlate a story back to a user's
+identity without using the \texttt{user\_id} value. 
 
-To address (2), we model queries as a dataflow computation, and perform actions on sensitive
-data flowing into computation nodes (joins, aggregations, or set operations) to prevent the
-computation result from exposing identifying information.
-Examples of actions include:
-\begin{itemize}
-    \item Deleting sensitive entities, or removing sensitive entities from the dataflow. Pros:
-        achieves leave-no-trace. Cons: can disrupt application semantics, and removes any useful
-        information from an unsubscribed user. 
-    \item Anonymizing sensitive entity columns: integer or string fields can be randomized, or
-        generated from a distribution of field values (e.g., a phone number). 
-    \item Injecting fake entities (noise) or fake associations (changing foreign key values).
-\end{itemize}
-\lyt{This seems similar to IFC declassification in a DP/probabilistic sense?}
+To prevent these information leaks, decorrelation of a user \emph{propagates} recursively through
+entities associated with the user. To generalize decorrelation, let $a$ of entity type $A$ be the
+entity being decorrelated. Then decorrelation on $a$ performs the following: 
+\begin{enumerate}
+    \item \textbf{Break Direct Clusters and Recurse.} $a$ splits into ghost entities of type $A$, one for each entity
+        $b\in B$ which is clustered by $a$. Each cluster entity $b$ is recursively
+        decorrelated from its data.
 
-Note that only certain computations may leak information, and certain actions may need to take place
-on only one of the flows into the computation instead of both to prevent sensitive information
-leakage.  Here, we list all possible scenarios, and which actions should be taken on which entities
-flowing into the computation: 
-\begin{itemize}
-    \item Aggregation/pipelined computations: depend on only one flow of entities. If the entities
-        or entity columns are sensitive, the result is also considered sensitive, and should be acted upon
-        appropriately before reaching the end user.
-    \item JOINs: if one or both of the flows into the joins include sensitive entities or entity
-    columns, all results of the JOIN depend on sensitive entities and should be acted upon before
-reaching the end user.  
-    \item Unions: only the sensitive entities or entity columns must be acted upon in
-    the resulting union
-    \item Intersection: if one of the flows is sensitive, the resulting flow must be acted upon
-        appropriately 
-    \item Minus: if either the entities in the subtrahend or the entities in the minuend are
-        sensitive or have sensitive columns, the resulting set of entities must be acted upon.
-        Information can leak about the entities which have been subtracted, or about the entities
-        which remain.
-\end{itemize}
+        For example, each story (the $b$) clustered by a user (the $a$) is reassigned to a ghost
+        user. Then each story is itself decorrelated, splitting into one ghost story per vote on the
+        story. If votes also have clusters, then the votes would also be decorrelated from these
+        entities, and so on. This recursive decorrelation prevents structural information about the
+        story (e.g., friends who liked the story) from leaking identifying information about who the
+        story may belong to.
 
+    \item \textbf{Decorrelate Identity Substitutes.} If more than one of the $b$ clustered by $a$ also
+        clusters by entity $c \in C$, then we decorrelate $c$ from its data. 
+        More formally, let $B_a$ be the set of entities of type $B$ clustered by $a$, the entity undergoing
+        decorrelation.  Then $c$ is an identity substitute for $a$ if $\exists B_c$ such that
+        \begin{itemize}
+            \item $B_c \subseteq B_a$
+            \item $|B_c| > 1$ 
+            \item $B_c$ is a set of entities of type $B$ clustered by $c$
+        \end{itemize}
+
+        For example, a tag may act as an identity substitute if many of the stories associated with
+        a \texttt{user\_id} are also associated with that tag, and the tag is then decorrelated.
+\end{enumerate}
+
+\subsection{Tradeoff: Ghost Entities vs. Utility}
+Decorrelation fundamentally decreases the utility of data for the application: introducing
+ghost entities and ghost associations decrease the amount of accurate information returned to
+application queries. In essence, ghosts act as a mechanism to add noise to obfuscate a user's
+presence in a dataset.
+
+\paragraph{Maintaining aggregate accuracy.}
+Queries that specifically perform aggregations and return statistical measures (e.g.,
+the count of number of users in the system, or the number of stories per user), can return
+significantly different results. This affects the utility of the data for the application: for
+example, if the application relies on the number of stories per tag to determine hot topics, these
+would be heavily changed if ghost tags were created.  In addition, the adversary may learn which
+entities are ghosts: for example, an abnormally low count of stories per tag might indicate to an
+adversary that these tags are ghost tags.  \lyt{But perhaps it's ok if an adversary can tell what's
+a ghost, as long as it can't tell which user each ghost is correlated with.}
+
+One solution is to analyze the aggregations performed by application queries, and then
+introduce ghosts entities that lead to the same (or close-enough) aggregation result. For example,
+if a tag is split into ghost tags, one per story associated with the tag, but the application still
+would like the count of stories for this tag to be high, one of the ghost tags can be populated with
+many ghost stories to retain the count of stories per tag. These ghost stories identifiers would be
+uploaded upon recorrelation, allowing \sys{} to remove any ghost stories that were created. In this
+situation, this creates a large number of ghost tags with only one story, which would only affect
+application semantics if a query calculates the mean of number of stories per tag (which requires a
+different way of populating tags with stories). Note that this solution may be impossible for  
+certain combinations of aggregations (e.g., queries that return both the average stories per tag and also
+the total number of stories).
+
+A second solution would be to store and separately update answers to aggregation queries;
+these answers would be updated when queries update the data tables.
+
+\lyt{I don't *think* differential privacy really should be applied here, because we'd also face the
+issue of running out of privacy budget. Adding noise might ensure that the impact of any one
+(real/ghost) user is very little, but it has its own noise/utility tradeoff. Furthermore, the amount
+of noise necessary if many ghost users are created might be too large.}
+
+\paragraph{Maintaining application structure.}
+Many applications allow queries to return individual entities (e.g., a particular story) in addition
+to statistics and aggregations. Ghost entities muddy individual entities' data, and potentially
+alter the application's structure in ways that render it meaningless. For example,
+subreddits---similar to tags or categories---on Reddit create communities and social circles 
+that are fundamental to how people interact on Reddit.
+These subreddits may become nonsensical if many users unsubscribe and stories are
+decorrelated from a particular subreddit.
+
+To prevent these potentially disastrous scenarios, application developers can annotate which
+entities do not need to be recursively decorrelated during the first step of decorrelation, which
+breaks direct clusters. For example, perhaps the cluster of votes grouped by story does not leak any
+identifying information, and thus stories do not need to be decorrelated.  The developer may also
+indicate if the entity (e.g., the
+story) does leak identifying information through its clusters but decorrelating it would destroy
+application integrity, which results in the removal of the entity and its dependencies.
+However, the entity cannot be restored upon resubscription in this case.
+
+In the second step of decorrelation, we decorrelate identity substitutes only enough to be below a
+\emph{correlation threshold} specified by the application developer. Again, if the application
+developer annotates a particular entity as essential to the application structure and the
+correlation threshold is exceeded, then the entity is entirely removed from the database. 
+
+At a high level, the correlation threshold limits the ability of an adversary to use an identity
+substitute as a proxy for a user's identity.  This correlation threshold is defined on a type of
+entity $C$ as follows. Let $B_a$ be the set of entities of type $B$ clustered by $a$, the entity
+undergoing decorrelation.  Let $c \in C$ be an entity that acts as an identity substitute for $a$, with
+$B_c \subseteq B_a$ clustered by $c$. Let $B_{total}$ be the set of entities of type $B$ clustered
+by $c$. The correlation threshold for the entity $c$ is the maximum value for the proportion $B_a /
+B_{total}$. Thus, lowering the threshold increases the number of entities in $B_{total}$ that belong
+to other users, and lowers the ability of the adversary to use $c$ to correlate the $b \in B_{c}$ to
+a single identity.
+
+For entities such as tags or categories, a reasonable correlation threshold might be 0.05: less than
+5\% of all stories associated with that tag are allowed to cluster by one (unsubscribed) user. Note
+that user entity types are always associated with a correlation threshold of 0: after a user
+unsubscribes, no entities should be clustered by that user.
+
+Note that meeting the threshold can be done by breaking up the entity $c$ into 
+ghosts, each associated with a singleton $b \in B_c$, until the threshold is met. Another strategy
+might pollute $B_{total}$ with \emph{new} ghost entities to lower the proportion, rather than
+breaking up the cluster. 
+
+\iffalse
 \subsection{\sys{}: Instantiating the Decorrelation Model}
 \sys{} is one potential architecture for implementing this model. In \sys{}, sensitive columns are
 user ID fields (annotated by the application developer).  These user IDs are
@@ -153,3 +229,4 @@ probability that an identifier belongs to a ghost using external knowledge about
 GIDs may be randomly generated in a identifiable pattern) or other information exposed by the
 entity. This external, non-\uidkey{} information can be either marked sensitive (so \sys{} with
 act upon these entity columns as well) or treated as out of scope.
+\fi

@@ -17,19 +17,12 @@ Differential privacy provides a formal framework that defines the privacy loss a
 when the user's data is included in the dataset. However, the setting of differential privacy
 that of \sys{} in several important ways. 
 
-%First, differential privacy guarantees are formally defined on a fixed dataset; \sys{} aims to
-%ensure privacy in the context of changing datasets, as is common in social media settings where
-%users constantly add, update, and delete content.  While differential privacy-defined loss can be
-%computed for a particular query on data set snapshots and added together by treating snapshots as
-%independent, potential privacy loss from queries performed on a flucuating dataset, where the
-%flucuations in the dataset might themselves leak information, has not been formally defined.  PINQ supports
-%data analysis queries only on a fixed dataset.
-
 First, web applications' utility often derives from visibility into individual data records. PINQ
 restricts JOIN transformation and exposes information only through differentially-private
 aggregation mechanisms. While sufficient for many data analyses, this approach severely hinders web
 application functionality. \sys{} supports all application queries, even ones that expose individual
-records.  However, this makes formally defining the privacy guarantees of \sys{} more complex than
+records, such as \texttt{SELECT story.content, story.tag FROM stories LIMIT 10}.  
+However, this makes formally defining the privacy guarantees of \sys{} more complex than
 simply applying DP.  DP provides formal guarantees for results such as sums or averages because such
 results are computed using well-defined mathematics, allowing us to neatly capture the total
 knowledge gained by the adversary. However, in the world of web applications, the knowledge gained
@@ -95,6 +88,16 @@ user is now associated with a unique (ghost) user.
 %
 %\lyt{(cite Reddit, Lobsters, others?)}
 %
+
+%First, differential privacy guarantees are formally defined on a fixed dataset; \sys{} aims to
+%ensure privacy in the context of changing datasets, as is common in social media settings where
+%users constantly add, update, and delete content.  While differential privacy-defined loss can be
+%computed for a particular query on data set snapshots and added together by treating snapshots as
+%independent, potential privacy loss from queries performed on a flucuating dataset, where the
+%flucuations in the dataset might themselves leak information, has not been formally defined.  PINQ supports
+%data analysis queries only on a fixed dataset.
+
+
 \subsection{Deletion Privacy}
 The right to be forgotten has also been formally defined by Garg et
 al.~\cite{garg}, where correct deletion corresponds to the notion of
