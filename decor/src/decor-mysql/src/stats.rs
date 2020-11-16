@@ -113,9 +113,9 @@ pub fn print_stats(stats: &Vec<QueryStat>, filename: String) {
     let mut other_latencies = vec![];
     let mut max = 0;
 
-    let mut readf = File::create(format!("{}.csv", "qs_read")).unwrap();
-    let mut insf = File::create(format!("{}.csv", "qs_insert")).unwrap();
-    let mut upf = File::create(format!("{}.csv", "qs_update")).unwrap();
+    let mut readf = File::create(format!("{}_{}.csv", filename, "qs_read")).unwrap();
+    let mut insf = File::create(format!("{}_{}.csv", filename, "qs_insert")).unwrap();
+    let mut upf = File::create(format!("{}_{}.csv", filename, "qs_update")).unwrap();
 
     for stat in stats {
         if stat.duration.as_micros() > max {
