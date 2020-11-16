@@ -302,17 +302,17 @@ impl Views {
           assign_vals: &Vec<Expr>) 
         -> Result<(), Error> 
     {
-        let views = self.views.clone();
+        //let views = self.views.clone();
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
         warn!("{}: update {:?} with vals {:?}", view.name, assignments, assign_vals);
 
         let row_indices : HashSet<usize>;
         if let Some(s) = selection {
-            row_indices = select::get_rows_matching_constraint(s, &view, &views);
+            row_indices = select::get_rows_matching_constraint(s, &view);
         } else {
             row_indices = (0..view.rows.len()).collect();
         }
-        
+
         // if the table has an autoincrement column, we should 
         // (1) see if the table is actually updating a value for that column and
         // (2) update the self.latest_uid appropriately 
@@ -352,7 +352,7 @@ impl Views {
                     }
                 }
                 _ => {
-                    let val_for_rows = select::get_value_for_rows(&assign_vals[assign_index], &view, &views);
+                    let val_for_rows = select::get_value_for_rows(&assign_vals[assign_index], &view);
                     for ri in &row_indices {
                         view.rows[*ri][*ci] = val_for_rows[*ri].clone();
                     }
@@ -367,11 +367,10 @@ impl Views {
           selection: &Option<Expr>)
         -> Result<(), Error> 
     {
-        let views = self.views.clone();
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
         let row_indices : HashSet<usize>;
         if let Some(s) = selection {
-            row_indices = select::get_rows_matching_constraint(s, &view, &views);
+            row_indices = select::get_rows_matching_constraint(s, &view);
         } else {
             row_indices = (0..view.rows.len()).collect();
         }

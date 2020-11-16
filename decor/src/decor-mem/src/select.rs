@@ -200,7 +200,7 @@ fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
 /*
  * Turn expression into a value, one for each row in the view
  */
-pub fn get_value_for_rows(e: &Expr, v: &View, views: &HashMap<String, View>) -> Vec<Value> {
+pub fn get_value_for_rows(e: &Expr, v: &View) -> Vec<Value> {
     // TODO kind of annoying to keep passing views around..
     let mut res = vec![];
     match e {
@@ -276,12 +276,13 @@ pub fn get_value_for_rows(e: &Expr, v: &View, views: &HashMap<String, View>) -> 
             }
         }
         Expr::Subquery(q) => {
+            unimplemented!("we don't handle subqueries in value expressions {}", e);
             // todo handle errors?
-            let results = get_query_results(views, &q).unwrap();
+            /*let results = get_query_results(views, &q).unwrap();
             assert!(results.rows.len() == 1 && results.rows[0].len() == 1);
             for _ in &v.rows {
                 res.push(results.rows[0][0].clone()); 
-            }
+            }*/
         }
         _ => unimplemented!("get value not supported {}", e),
     }
@@ -292,7 +293,7 @@ pub fn get_value_for_rows(e: &Expr, v: &View, views: &HashMap<String, View>) -> 
  * returns the indices into the view rows where these rows reside
  * 
  * */
-pub fn get_rows_matching_constraint(e: &Expr, v: &View, views: &HashMap<String, View>) -> HashSet<usize> {
+pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> HashSet<usize> {
     let mut row_indices = HashSet::new();
     match e {
         Expr::InList { expr, list, negated } => {
@@ -325,23 +326,23 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View, views: &HashMap<String, 
             // TODO can split up into two fxns, one to get rows, other to get indices...
             match op {
                 BinaryOperator::And => {
-                    let lindices = get_rows_matching_constraint(left, v, views);
-                    let rindices = get_rows_matching_constraint(right, v, views);
+                    let lindices = get_rows_matching_constraint(left, v);
+                    let rindices = get_rows_matching_constraint(right, v);
                     for i in lindices.intersection(&rindices) {
                         row_indices.insert(*i as usize);
                     }
                 }
                 BinaryOperator::Or => {
-                    let lindices = get_rows_matching_constraint(left, v, views);
-                    let rindices = get_rows_matching_constraint(right, v, views);
+                    let lindices = get_rows_matching_constraint(left, v);
+                    let rindices = get_rows_matching_constraint(right, v);
                     for i in lindices.union(&rindices) {
                         row_indices.insert(*i as usize);
                     }                
                 }
                 _ => {
-                    let left_vals = get_value_for_rows(&left, v, views);
-                    let right_vals = get_value_for_rows(&right, v, views);
-                    for (i, row) in v.rows.iter().enumerate() {
+                    let left_vals = get_value_for_rows(&left, v);
+                    let right_vals = get_value_for_rows(&right, v);
+                    for i in 0..v.rows.len() {
                         let cmp = helpers::parser_vals_cmp(&left_vals[i], &right_vals[i]);
                         match op {
                             BinaryOperator::Eq => {
@@ -454,7 +455,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                             // SELECT `col1 - col2 AS alias`
                             assert!(alias.is_some());
 
-                            let vals = get_value_for_rows(expr, &new_view, views);
+                            let vals = get_value_for_rows(expr, &new_view);
                             for (i, val) in vals.iter().enumerate() {
                                 new_view.rows[i].push(val.clone());
                             }
@@ -489,7 +490,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
 
             // filter out rows by where clause
             if let Some(selection) = &s.selection {
-                let rows_to_keep = get_rows_matching_constraint(&selection, &new_view, views);
+                let rows_to_keep = get_rows_matching_constraint(&selection, &new_view);
                 warn!("Keeping rows {:?}", rows_to_keep);
                 let mut kept_rows = vec![];
                 for ri in rows_to_keep {
