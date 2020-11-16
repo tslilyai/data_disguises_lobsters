@@ -252,7 +252,7 @@ fn main() {
             
     let (mut db, jh) = init_db(topo.clone(), test.clone(), testname, nusers, nstories, ncomments);
 
-    let mut rng = rand::thread_rng();
+    /*let mut rng = rand::thread_rng();
     let mut users: Vec<u64> = (0..nusers).collect();
     let mut stories: Vec<u64> = (0..nstories).collect();
     let mut comments: Vec<u64> = (0..ncomments).collect();
@@ -284,6 +284,7 @@ fn main() {
     let dur = start.elapsed();
     println!("Time to do {} queries: {}s", nqueries, dur.as_secs());
     //println!("{:.2}", nqueries as f64/duration.as_millis() as f64 * 1000f64);
+    */
     drop(db);
     if let Some(t) = jh {
         t.join().unwrap();
