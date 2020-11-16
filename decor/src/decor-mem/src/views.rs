@@ -308,7 +308,7 @@ impl Views {
 
         let row_indices : HashSet<usize>;
         if let Some(s) = selection {
-            row_indices = select::get_rows_matching_constraint(s, &view, &views).1;
+            row_indices = select::get_rows_matching_constraint(s, &view, &views);
         } else {
             row_indices = (0..view.rows.len()).collect();
         }
@@ -371,7 +371,7 @@ impl Views {
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
         let row_indices : HashSet<usize>;
         if let Some(s) = selection {
-            row_indices = select::get_rows_matching_constraint(s, &view, &views).1;
+            row_indices = select::get_rows_matching_constraint(s, &view, &views);
         } else {
             row_indices = (0..view.rows.len()).collect();
         }
