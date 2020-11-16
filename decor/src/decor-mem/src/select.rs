@@ -34,36 +34,57 @@ fn tablefactor_to_view(views: &HashMap<String, View>, tf: &TableFactor) -> Resul
     }
 }
 
+fn get_binop_indices(e: &Expr, v1: &View, v2: &View) -> Option<(usize, usize)> {
+    let i1: Option<usize>; 
+    let i2 : Option<usize>; 
+    if let Expr::BinaryOp{left, op, right} = e {
+        if let BinaryOperator::Eq = op {
+            let (tab1, col1) = expr_to_col(left);
+            let (tab2, col2) = expr_to_col(right);
+            warn!("Join got tables and columns {}.{} and {}.{} from expr {:?}", tab1, col1, tab2, col2, e);
+
+            // note: view 1 may not have name attached any more because it was from a prior join.
+            // the names are embedded in the columns of the view, so we should compare the entire
+            // name of the new column/table
+            if v2.name == tab2 {
+                i1 = v1.columns.iter().position(|c| tablecolumn_matches_col(c, &format!("{}.{}", tab1, col1)));
+                i2 = v2.columns.iter().position(|c| tablecolumn_matches_col(c, &col2));
+            } else if v2.name == tab1 {
+                i1 = v2.columns.iter().position(|c| tablecolumn_matches_col(c, &col1));
+                i2 = v1.columns.iter().position(|c| tablecolumn_matches_col(c, &format!("{}.{}", tab2, col2)));
+            } else {
+                warn!("Join: no matching tables for {}/{} and {}/{}", v1.name, tab1, v2.name, tab2);
+                return None;
+            }
+            if i1 == None || i2 == None {
+                warn!("No columns found! {:?} {:?}", v1.columns, v2.columns);
+                return None;
+            }
+            return Some((i1.unwrap(), i2.unwrap()));
+        }
+    }
+    None
+}
+
 /*
  * Only handle join constraints of form "table.col = table'.col'"
  */
 fn get_join_on_col_indices(e: &Expr, v1: &View, v2: &View) -> Result<(usize, usize), Error> {
-    let err = Error::new(ErrorKind::Other, format!("joins constraint not supported: {:?}", e));
-    let i1: Option<usize>; 
-    let i2 : Option<usize>;
-    if let Expr::BinaryOp {left, op, right} = e {
-        if let BinaryOperator::Eq = op {
-            let (tab1, col1) = expr_to_col(left);
-            let (tab2, col2) = expr_to_col(right);
-            if v1.name == tab1 && v2.name == tab2 {
-                i1 = v1.columns.iter().position(|c| c.name() == col1);
-                i2 = v2.columns.iter().position(|c| c.name() == col2);
-            } else if v2.name == tab1.to_string() && v1.name == tab2.to_string() {
-                i1 = v1.columns.iter().position(|c| c.name() == col1);
-                i2 = v2.columns.iter().position(|c| c.name() == col2);
-            } else {
-                return Err(err);
-            }
-            if i1 == None || i2 == None {
-                return Err(err);
-            }
-            return Ok((i1.unwrap(), i2.unwrap()));
-        }
+    let is : Option<(usize, usize)>;
+    if let Expr::Nested(binexpr) = e {
+        is = get_binop_indices(binexpr, v1, v2);
+    } else {
+        is = get_binop_indices(e, v1, v2);
     }
-    unimplemented!("join_on {}", e)
+
+    match is {
+        None => unimplemented!("Unsupported join_on {:?}, {}, {}", e, v1.name, v2.name),
+        Some((i1, i2)) => Ok((i1, i2)),
+    }
 }
 
 fn join_views(jo: &JoinOperator, v1: &View, v2: &View) -> Result<View, Error> {
+    warn!("Joining views {} and {}", v1.name, v2.name);
     let mut new_cols : Vec<TableColumnDef> = v1.columns.clone();
     new_cols.append(&mut v2.columns.clone());
     let mut new_view = View::new_with_cols(new_cols);
@@ -152,6 +173,7 @@ fn tablewithjoins_to_view(views: &HashMap<String, View>, twj: &TableWithJoins) -
 
 // return table name and optionally column if not wildcard
 fn expr_to_col(e: &Expr) -> (String, String) {
+    warn!("expr_to_col: {:?}", e);
     match e {
         // only support form column or table.column
         Expr::Identifier(ids) => {
@@ -159,7 +181,7 @@ fn expr_to_col(e: &Expr) -> (String, String) {
                 unimplemented!("expr needs to be of form table.column {}", e);
             }
             if ids.len() == 2 {
-                return (ids[0].to_string(), format!("{}.{}", ids[0], ids[1]));
+                return (ids[0].to_string(), ids[1].to_string());
             }
             return ("".to_string(), ids[0].to_string());
         }
@@ -168,10 +190,14 @@ fn expr_to_col(e: &Expr) -> (String, String) {
 }
 
 fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
+    warn!("Matching columns {} and {}", c.name(), col);
     c.column.name.to_string() == col || c.name() == col
 }
 
-fn get_value_for_rows(e: &Expr, v: &View, views: &HashMap<String, View>) -> Vec<Value> {
+/*
+ * Turn expression into a value, one for each row in the view
+ */
+pub fn get_value_for_rows(e: &Expr, v: &View, views: &HashMap<String, View>) -> Vec<Value> {
     // TODO kind of annoying to keep passing views around..
     let mut res = vec![];
     match e {
@@ -186,6 +212,21 @@ fn get_value_for_rows(e: &Expr, v: &View, views: &HashMap<String, View>) -> Vec<
         Expr::Value(val) => {
             for _ in &v.rows {
                 res.push(val.clone());
+            }
+        }
+        Expr::UnaryOp{op, expr} => {
+            if let Expr::Value(ref val) = **expr {
+                match op {
+                    UnaryOperator::Minus => {
+                        let n = -1.0 * helpers::parser_val_to_f64(&val);
+                        for _ in &v.rows {
+                            res.push(Value::Number(n.to_string()));
+                        }
+                    }
+                    _ => unimplemented!("Unary op not supported! {:?}", expr),
+                }
+            } else {
+                unimplemented!("Unary op not supported! {:?}", expr);
             }
         }
         Expr::BinaryOp{left, op, right} => {
@@ -353,7 +394,7 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View, views: &HashMap<String, 
     (new_rows, row_indices)
 }
 
-fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<View, Error> {
+fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &Vec<OrderByExpr>) -> Result<View, Error> {
     match se {
         SetExpr::Select(s) => {
             let mut new_view = View::new_with_cols(vec![]);
@@ -366,27 +407,90 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
                 new_view.columns.append(&mut v.columns);
                 new_view.rows.append(&mut v.rows);
             }
-            warn!("columns {:?}", new_view.columns);
-            
-            // take account columns to keep for which tables
-            // also alter aliases here prior to where clause filtering
+
+            // 1) compute any additional rows added by projection 
+            //      TODO alter aliases prior to where or order_by clause filtering 
+            // 2) keep track of whether we want to return the count of rows (count)
+            // 3) keep track of which columns to keep for which tables (cols_to_keep)
             let mut cols_to_keep = vec![];
+            let mut count = false;
+            let mut count_alias = Ident::new("count");
             for proj in &s.projection {
                 match proj {
                     SelectItem::Wildcard => {
                         // only support wildcards if there are no other projections...
                         assert!(s.projection.len() == 1);
                     },
-                    // TODO note this doesn't allow for `tablename.*` selections
                     SelectItem::Expr {expr, alias} => {
-                        let (_tab, col) = expr_to_col(expr);
-                        warn!("{}: selecting {}", s, col);
-                        let index = new_view.columns.iter().position(|c| tablecolumn_matches_col(c, &col)).unwrap();
-                        cols_to_keep.push(index);
-                        // alias; use in WHERE will match against this alias
-                        if let Some(a) = alias {
-                            new_view.columns[index].column.name = a.clone();
-                            new_view.columns[index].table = String::new();
+                        // SELECT 1...
+                        if let Expr::Value(v) = expr {
+                            // not sure what to put for column in this case but it's probably ok?
+                            new_view.columns = vec![TableColumnDef{
+                                table: "".to_string(),
+                                column: ColumnDef {
+                                    name: Ident::new(""),
+                                    data_type: DataType::Int,
+                                    collation: None,
+                                    options: vec![],
+                                }
+                            }];
+                            for r in &mut new_view.rows {
+                                *r = vec![v.clone()];
+                            }
+                            return Ok(new_view)
+                        }
+
+                        // SELECT `tablename.*`: keep all columns of this table
+                        if let Expr::QualifiedWildcard(ids) = expr {
+                            let table_to_select = ids.last().unwrap().to_string();
+                            for (i, c) in new_view.columns.iter().enumerate() {
+                                if c.table == table_to_select {
+                                    cols_to_keep.push(i);
+                                }
+                            } 
+                        } else if let Expr::Identifier(_ids) = expr {
+                            // SELECT `tablename.columname` 
+                            let (_tab, col) = expr_to_col(expr);
+                            warn!("{}: selecting {}", s, col);
+                            let index = new_view.columns.iter().position(|c| tablecolumn_matches_col(c, &col)).unwrap();
+                            cols_to_keep.push(index);
+                            // alias; use in WHERE will match against this alias
+                            if let Some(a) = alias {
+                                new_view.columns[index].column.name = a.clone();
+                                new_view.columns[index].table = String::new();
+                            }
+                        } else if let Expr::BinaryOp{..} = expr {
+                            // SELECT `col1 - col2 AS alias`
+                            assert!(alias.is_some());
+
+                            let vals = get_value_for_rows(expr, &new_view, views);
+                            for (i, val) in vals.iter().enumerate() {
+                                new_view.rows[i].push(val.clone());
+                            }
+                            
+                            // add a new column for this!
+                            cols_to_keep.push(new_view.columns.len());
+
+                            // XXX for now assume datatype is int..
+                            new_view.columns.push(TableColumnDef{
+                                table: new_view.name.clone(),
+                                column: ColumnDef{
+                                    name: alias.as_ref().unwrap().clone(),
+                                    data_type: DataType::Int,
+                                    collation: None,
+                                    options: vec![],
+
+                                },
+                            });
+                        } else if let Expr::Function(f) = expr {
+                            if f.name.to_string() == "count" && f.args == FunctionArgs::Star {
+                                count = true;
+                                if let Some(a) = alias {
+                                    count_alias = a.clone();
+                                }
+                            }
+                        } else {
+                            unimplemented!("No support for projection {:?}", expr);
                         }
                     }
                 }
@@ -397,6 +501,81 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
                 new_view.rows = get_rows_matching_constraint(&selection, &new_view, views).0;
             } 
 
+            // add the count of selected columns as a column if it were projected
+            if count {
+                let count = new_view.rows.len();
+                for r in &mut new_view.rows {
+                    r.push(Value::Number(count.to_string()));
+                }
+                new_view.columns.push(TableColumnDef{
+                    table:new_view.name.clone(),
+                    column: ColumnDef {
+                        name: count_alias,
+                        data_type: DataType::Int,
+                        collation:None,
+                        options: vec![],
+                    }
+                });
+            }
+
+            // order rows if necessary
+            // do before projection because column ordering by may not be selected
+            if order_by.len() > 0 {
+                
+                // TODO only support at most two order by constraints for now
+                assert!(order_by.len() < 3);
+                let orderby1 = &order_by[0];
+                let (_tab, col1) = expr_to_col(&orderby1.expr);
+                let ci1 = new_view.columns.iter().position(|c| tablecolumn_matches_col(c, &col1)).unwrap();
+               
+                if order_by.len() == 2 {
+                    let orderby2 = &order_by[1];
+                    let (_tab, col2) = expr_to_col(&orderby2.expr);
+                    let ci2 = new_view.columns.iter().position(|c| tablecolumn_matches_col(c, &col2)).unwrap();
+                    match orderby1.asc {
+                        Some(false) => {
+                            new_view.rows.sort_by(|r1, r2| {
+                                let res = helpers::parser_vals_cmp(&r2[ci1], &r1[ci1]);
+                                if res == Ordering::Equal {
+                                    match orderby2.asc {
+                                        Some(false) => helpers::parser_vals_cmp(&r2[ci2], &r1[ci2]),
+                                        Some(true) | None => helpers::parser_vals_cmp(&r1[ci2], &r2[ci2]),
+                                    }
+                                } else {
+                                    res
+                                }
+                            });
+                        }
+                        Some(true) | None => {
+                            new_view.rows.sort_by(|r1, r2| {
+                                let res = helpers::parser_vals_cmp(&r2[ci1], &r1[ci1]);
+                                if res == Ordering::Equal {
+                                    match orderby2.asc {
+                                        Some(false) => helpers::parser_vals_cmp(&r2[ci2], &r1[ci2]),
+                                        Some(true) | None => helpers::parser_vals_cmp(&r1[ci2], &r2[ci2]),
+                                    }
+                                } else {
+                                    res
+                                }
+                            });
+                        }
+                    }
+                } else {
+                    match orderby1.asc {
+                        Some(false) => {
+                            new_view.rows.sort_by(|r1, r2| {
+                                helpers::parser_vals_cmp(&r2[ci1], &r1[ci1])
+                            });
+                        }
+                        Some(true) | None => {
+                            new_view.rows.sort_by(|r1, r2| {
+                                helpers::parser_vals_cmp(&r2[ci1], &r1[ci1])
+                            });
+                        }
+                    }
+                }
+            }
+            
             // reduce view to only return selected columns
             if !cols_to_keep.is_empty() {
                 let mut new_cols = vec![];
@@ -410,6 +589,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
                 new_view.columns = new_cols;
                 new_view.rows = new_rows;
             }
+            warn!("columns {:?}", new_view.columns);
 
             Ok(new_view)
         }
@@ -422,8 +602,8 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
             right,
             ..
         } => {
-            let left_view = get_setexpr_results(views, &left)?;
-            let right_view = get_setexpr_results(views, &right)?;
+            let left_view = get_setexpr_results(views, &left, order_by)?;
+            let right_view = get_setexpr_results(views, &right, order_by)?;
             let mut view = left_view.clone();
             match op {
                 // TODO primary keys / unique keys 
@@ -451,27 +631,33 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr) -> Result<Vi
 }
 
 pub fn get_query_results(views: &HashMap<String, View>, q: &Query) -> Result<View, Error> {
-    let mut new_view = get_setexpr_results(views, &q.body)?;
-
-    // don't support OFFSET or fetches yet
-    assert!(q.offset.is_none() && q.fetch.is_none());
-
-    // order_by
-    if q.order_by.len() > 0 {
+    // XXX ORDER BY not supported for union/except/intersect atm
+    // order_by: do first because column ordering by may not be selected
+    /*if q.order_by.len() > 0 {
         // only support one order by constraint for now
         assert!(q.order_by.len() < 2);
         let orderby = &q.order_by[0];
         let (_tab, col) = expr_to_col(&orderby.expr);
-        let ci = new_view.columns.iter().position(|c| c.name() == col).unwrap();
-        match orderby.asc {
-            Some(false) => {
-                new_view.rows.sort_by(|r1, r2| helpers::parser_vals_cmp(&r2[ci], &r1[ci]));
+        let ci = new_view.columns.iter().position(|c| tablecolumn_matches_col(c, &col));
+        match ci {
+            None => {
+                return Err(Error::new(ErrorKind::Other, format!("No matching column for order by: {}", q)));
             }
-            Some(true) | None => {
-                new_view.rows.sort_by(|r1, r2| helpers::parser_vals_cmp(&r1[ci], &r2[ci]));
+            Some(ci) => 
+            match orderby.asc {
+                Some(false) => {
+                    new_view.rows.sort_by(|r1, r2| helpers::parser_vals_cmp(&r2[ci], &r1[ci]));
+                }
+                Some(true) | None => {
+                    new_view.rows.sort_by(|r1, r2| helpers::parser_vals_cmp(&r1[ci], &r2[ci]));
+                }
             }
         }
-    }
+    }*/
+
+    let mut new_view = get_setexpr_results(views, &q.body, &q.order_by)?;
+    // don't support OFFSET or fetches yet
+    assert!(q.offset.is_none() && q.fetch.is_none());
 
     // limit
     if q.limit.is_some() {

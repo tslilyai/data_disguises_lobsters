@@ -2,6 +2,7 @@ extern crate mysql;
 extern crate hex;
 use sql_parser::ast::{Expr, Ident, ObjectName, DataType};
 use std::*;
+use std::cmp::Ordering;
 use super::{config, views};
 use std::str::FromStr;
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
@@ -183,6 +184,9 @@ pub fn parser_vals_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value)
         (Value::String(i1), Value::String(i2)) => i1.cmp(i2),
         (Value::String(i1), Value::Number(i2)) => i1.cmp(i2),
         (Value::Number(i1), Value::String(i2)) => i1.cmp(i2),
+        (Value::Null, Value::Null) => Ordering::Equal,
+        (_, Value::Null) => Ordering::Greater,
+        (Value::Null, _) => Ordering::Less,
         _ => unimplemented!("value not comparable! {:?} and {:?}", v1, v2),
     }
 }
@@ -290,6 +294,7 @@ pub fn get_parser_coltype(t: &DataType) -> msql_srv::ColumnType {
         DataType::Timestamp => ColumnType::MYSQL_TYPE_TIMESTAMP,
         DataType::BigInt => ColumnType::MYSQL_TYPE_LONGLONG,
         DataType::SmallInt => ColumnType::MYSQL_TYPE_INT24,
+        DataType::TinyInt(..) => ColumnType::MYSQL_TYPE_INT24,
         DataType::Int => ColumnType::MYSQL_TYPE_LONGLONG,
         DataType::Date => ColumnType::MYSQL_TYPE_DATE,
         DataType::Time => ColumnType::MYSQL_TYPE_TIME,
@@ -298,6 +303,7 @@ pub fn get_parser_coltype(t: &DataType) -> msql_srv::ColumnType {
         DataType::Blob(..) => ColumnType::MYSQL_TYPE_BLOB,
         DataType::Char(..) => ColumnType::MYSQL_TYPE_STRING,
         DataType::Boolean => ColumnType::MYSQL_TYPE_BIT,
+        DataType::DateTime => ColumnType::MYSQL_TYPE_DATETIME,
         _ => unimplemented!("not a valid data type {:?}", t),
     }
 }

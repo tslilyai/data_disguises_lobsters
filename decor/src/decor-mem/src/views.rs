@@ -60,9 +60,11 @@ impl View {
             let mut map = HashMap::new();
             for i in indexes {
                 if i.key_parts.len() > 1 {
-                    unimplemented!("no multi-column indices yet");
+                    warn!("no multi-column indices yet");
+                    //unimplemented!("no multi-column indices yet");
+                } else {
+                    map.insert(i.key_parts[0].to_string(), HashMap::new());
                 }
-                map.insert(i.key_parts[0].to_string(), HashMap::new());
             }
             Some(map)
         } else {
@@ -88,7 +90,7 @@ impl View {
             }
         }
 
-        View {
+        let view = View {
             name: name.clone(),
             columns: columns.iter()
                 .map(|c| TableColumnDef{ table: name.clone(), column: c.clone() })
@@ -96,7 +98,9 @@ impl View {
             rows: vec![],
             indices: indices,
             autoinc_col: autoinc_col,
-        }
+        };
+        warn!("created new view {:?}", view);
+        view
     }
 
     pub fn contains_row(&self, r: &Vec<Value>) -> bool {
@@ -171,6 +175,7 @@ impl View {
         }
     }
 }
+
 
 pub struct Views {
     views: HashMap<String, View>,
@@ -294,7 +299,7 @@ impl Views {
           table_name: &ObjectName, 
           assignments: &Vec<Assignment>, 
           selection: &Option<Expr>, 
-          assign_vals: &Vec<Value>) 
+          assign_vals: &Vec<Expr>) 
         -> Result<(), Error> 
     {
         let views = self.views.clone();
@@ -319,10 +324,11 @@ impl Views {
             for i in 0..assignments.len() {
                 if assignments[i].id == col.column.name {
                     match &assign_vals[i] {
-                        Value::Number(n) => {
+                        Expr::Value(Value::Number(n)) => {
                             let n = n.parse::<u64>().unwrap();
                             view.autoinc_col = Some((col_index, u64::max(id_val, n)));
                         }
+                        
                         _ => (),
                     }
                     break;
@@ -337,10 +343,20 @@ impl Views {
 
         warn!("{}: update columns of indices {:?}", view.name, cis);
         // update the rows!
-        for ri in row_indices {
-            for (assign_index, ci) in cis.iter().enumerate() {
-                view.update_index(ri, *ci, Some(&assign_vals[assign_index]));
-                view.rows[ri][*ci] = assign_vals[assign_index].clone();
+        for (assign_index, ci) in cis.iter().enumerate() {
+            match &assign_vals[assign_index] {
+                Expr::Value(v) => {
+                    for ri in &row_indices {
+                        view.update_index(*ri, *ci, Some(&v));
+                        view.rows[*ri][*ci] = v.clone();
+                    }
+                }
+                _ => {
+                    let val_for_rows = select::get_value_for_rows(&assign_vals[assign_index], &view, &views);
+                    for ri in &row_indices {
+                        view.rows[*ri][*ci] = val_for_rows[*ri].clone();
+                    }
+                }
             }
         }
         Ok(())
