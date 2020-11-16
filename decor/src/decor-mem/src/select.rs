@@ -167,6 +167,8 @@ fn join_views(jo: &JoinOperator, v1: &View, v2: &View) -> Result<View, Error> {
 
 fn tablewithjoins_to_view(views: &HashMap<String, View>, twj: &TableWithJoins) -> Result<View, Error> {
     let mut joined_views = tablefactor_to_view(views, &twj.relation)?.clone();
+    
+    // TODO only do expensive copy if there is an actual join
     for j in &twj.joins {
         let view2 = tablefactor_to_view(views, &j.relation)?;
         joined_views = join_views(&j.join_operator, &joined_views, view2)?;
@@ -200,20 +202,23 @@ fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
 /*
  * Turn expression into a value, one for each row in the view
  */
-pub fn get_value_for_rows(e: &Expr, v: &View) -> Vec<Value> {
-    // TODO kind of annoying to keep passing views around..
+pub fn get_value_for_rows(e: &Expr, v: &View, which_rows: Option<&Vec<usize>>) -> Vec<Value> {
+    let ris : Vec<_> = match which_rows {
+        Some(ris) => ris.clone(),
+        None => (0..v.rows.len()).collect(),
+    };
     let mut res = vec![];
     match e {
         Expr::Identifier(_) => {
             let (_tab, col) = expr_to_col(&e);
             warn!("Identifier column {}", col);
             let index = v.columns.iter().position(|c| tablecolumn_matches_col(c, &col)).unwrap();
-            for row in &v.rows {
-                res.push(row[index].clone());
+            for ri in ris {
+                res.push(v.rows[ri][index].clone());
             }
         }
         Expr::Value(val) => {
-            for _ in &v.rows {
+            for _ in ris {
                 res.push(val.clone());
             }
         }
@@ -222,7 +227,7 @@ pub fn get_value_for_rows(e: &Expr, v: &View) -> Vec<Value> {
                 match op {
                     UnaryOperator::Minus => {
                         let n = -1.0 * helpers::parser_val_to_f64(&val);
-                        for _ in &v.rows {
+                        for _ in ris {
                             res.push(Value::Number(n.to_string()));
                         }
                     }
@@ -257,12 +262,12 @@ pub fn get_value_for_rows(e: &Expr, v: &View) -> Vec<Value> {
                 }
                 _ => unimplemented!("must be id or value: {}", e),
             }
-            for r in &v.rows {
+            for ri in ris {
                 if let Some(li) = lindex {
-                    lval = r[li].clone();
+                    lval = v.rows[ri][li].clone();
                 }
-                if let Some(ri) = rindex {
-                    rval = r[ri].clone()
+                if let Some(i) = rindex {
+                    rval = v.rows[ri][i].clone()
                 }
                 match op {
                     BinaryOperator::Plus => {
@@ -340,8 +345,8 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> HashSet<usize> {
                     }                
                 }
                 _ => {
-                    let left_vals = get_value_for_rows(&left, v);
-                    let right_vals = get_value_for_rows(&right, v);
+                    let left_vals = get_value_for_rows(&left, v, None);
+                    let right_vals = get_value_for_rows(&right, v, None);
                     for i in 0..v.rows.len() {
                         let cmp = helpers::parser_vals_cmp(&left_vals[i], &right_vals[i]);
                         match op {
@@ -392,6 +397,11 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
             let mut new_view = View::new_with_cols(vec![]);
             if s.having != None {
                 unimplemented!("No support for having queries");
+            }
+
+            // special case: we're getting results from only this view
+            if s.from.len() == 1 && s.from[0].joins.is_empty() {
+
             }
 
             for twj in &s.from {
@@ -455,7 +465,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                             // SELECT `col1 - col2 AS alias`
                             assert!(alias.is_some());
 
-                            let vals = get_value_for_rows(expr, &new_view);
+                            let vals = get_value_for_rows(expr, &new_view, None);
                             for (i, val) in vals.iter().enumerate() {
                                 new_view.rows[i].push(val.clone());
                             }
