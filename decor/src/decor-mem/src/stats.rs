@@ -30,7 +30,7 @@ impl QueryStat {
     pub fn new() -> Self {
         QueryStat {
             duration: Duration::new(0,0),
-            nqueries : 1,
+            nqueries : 0,
             nqueries_mv : 0,
             qtype : QueryType::None,
         }

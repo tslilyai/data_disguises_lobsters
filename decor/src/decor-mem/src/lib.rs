@@ -218,11 +218,13 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let start = time::Instant::now();
         if !self.test_params.parse {
             warn!("on_query: {}", query);
+            self.qtrans.cur_stat.nqueries+=1;
             res = helpers::answer_rows(results, self.db.query_iter(query));
         } else {
             let stmt_ast = self.sqlcache.get_single_parsed_stmt(&query.to_string())?;
             if !self.test_params.translate {
                 warn!("on_query: {}", stmt_ast);
+                self.qtrans.cur_stat.nqueries+=1;
                 res = helpers::answer_rows(results, self.db.query_iter(stmt_ast.to_string()));
             } else {
                 res = self.qtrans.query(results, &stmt_ast, &mut self.db);

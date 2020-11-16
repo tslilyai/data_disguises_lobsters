@@ -14,7 +14,7 @@ pub struct QueryTransformer {
     
     // for tests
     params: super::TestParams,
-    cur_stat: stats::QueryStat,
+    pub cur_stat: stats::QueryStat,
     pub stats: Vec<stats::QueryStat>,
 }
 
