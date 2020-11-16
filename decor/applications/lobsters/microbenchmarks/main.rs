@@ -267,13 +267,13 @@ fn main() {
         let user = users[((i % nusers) as usize)];
         let story= stories[((i+1)%nstories) as usize];
         match rng.gen_range(0, 10) {
-            /*0..=5 => queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
+            0..=5 => queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
             6 => {
                 queriers::post_story::post_story(&mut db, Some(user), total_stories + 1, "Dummy title".to_string()).unwrap();
                 total_stories += 1;
             }
             7 => queriers::vote::vote_on_story(&mut db, Some(user), story, true).unwrap(),
-            8 => queriers::user::get_profile(&mut db, user).unwrap(),*/
+            8 => queriers::user::get_profile(&mut db, user).unwrap(),
             0..=9 => {
                 queriers::comment::post_comment(&mut db, Some(user), total_comments + 1, story, None).unwrap();
                 total_comments += 1;
@@ -282,8 +282,7 @@ fn main() {
         }
     }
     let dur = start.elapsed();
-    println!("Long query: {}s", dur.as_secs());
-
+    println!("Time to do {} queries: {}s", nqueries, dur.as_secs());
     //println!("{:.2}", nqueries as f64/duration.as_millis() as f64 * 1000f64);
     drop(db);
     if let Some(t) = jh {
