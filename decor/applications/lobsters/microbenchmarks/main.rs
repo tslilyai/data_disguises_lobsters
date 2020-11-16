@@ -252,7 +252,7 @@ fn main() {
             
     let (mut db, jh) = init_db(topo.clone(), test.clone(), testname, nusers, nstories, ncomments);
 
-    /*let mut rng = rand::thread_rng();
+    let mut rng = rand::thread_rng();
     let mut users: Vec<u64> = (0..nusers).collect();
     let mut stories: Vec<u64> = (0..nstories).collect();
     let mut comments: Vec<u64> = (0..ncomments).collect();
@@ -266,7 +266,7 @@ fn main() {
     for i in 0..nqueries {
         let user = users[((i % nusers) as usize)];
         let story= stories[((i+1)%nstories) as usize];
-        match rng.gen_range(0, 10) {
+        /*match rng.gen_range(0, 10) {
             0..=5 => queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
             6 => {
                 queriers::post_story::post_story(&mut db, Some(user), total_stories + 1, "Dummy title".to_string()).unwrap();
@@ -279,12 +279,13 @@ fn main() {
                 total_comments += 1;
             }
             _ => (),
-        }
+        }*/
+        queriers::expensive_queries::post_comment(&mut db, Some(user), total_comments + 1, story, None).unwrap();
     }
     let dur = start.elapsed();
     println!("Time to do {} queries: {}s", nqueries, dur.as_secs());
     //println!("{:.2}", nqueries as f64/duration.as_millis() as f64 * 1000f64);
-    */
+    
     drop(db);
     if let Some(t) = jh {
         t.join().unwrap();
