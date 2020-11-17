@@ -143,6 +143,7 @@ impl View {
         if let Some(indices) = &self.indices {
             if let Some(index) = indices.get(&self.columns[col_index].column.name.to_string()) {
                 if let Some(row_indices) = index.get(&col_val.to_string()) {
+                    warn!("Found {} rows for col val {}!", row_indices.len(), col_val);
                     return row_indices.clone();
                 } else {
                     unimplemented!("Col value of index not inserted");

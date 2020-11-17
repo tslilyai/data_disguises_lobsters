@@ -166,9 +166,9 @@ fn join_views(jo: &JoinOperator, v1: &View, v2: &View) -> Result<View, Error> {
 }
 
 fn tablewithjoins_to_view(views: &HashMap<String, View>, twj: &TableWithJoins) -> Result<View, Error> {
+    // TODO only do expensive copy if there is an actual join
     let mut joined_views = tablefactor_to_view(views, &twj.relation)?.clone();
     
-    // TODO only do expensive copy if there is an actual join
     for j in &twj.joins {
         let view2 = tablefactor_to_view(views, &j.relation)?;
         joined_views = join_views(&j.join_operator, &joined_views, view2)?;
@@ -299,7 +299,7 @@ pub fn get_value_for_rows(e: &Expr, v: &View, which_rows: Option<&Vec<usize>>) -
  * 
  * */
 pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> HashSet<usize> {
-    // TODO actually use indices..
+    // TODO actually use indices.. FOR NEWLY CREATED ROWS
     let mut row_indices = HashSet::new();
     match e {
         Expr::InList { expr, list, negated } => {
