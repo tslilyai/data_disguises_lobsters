@@ -13,6 +13,7 @@ pub fn post_comment(db: &mut mysql::Conn,
     ) -> Result<(), mysql::Error> 
 {
     let user = acting_as.unwrap();
+    db.query_drop("SELECT `users`.* FROM `users` WHERE `users`.`id` IN (6,7,8,4,1,0,9,5,2,3)");
     /*let (author, hotness, story) : (u64, f64, u64) = db.query_first(format!(
             "SELECT `stories`.`user_id`, `stories`.`hotness`, stories.id \
              FROM `stories` \

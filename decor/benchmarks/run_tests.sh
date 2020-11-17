@@ -13,8 +13,8 @@ do
     for trial in `seq $trials`
     do
         echo $test: Trial $trial
-    	../target/release/lobsters-microbenchmarks \
+    	perflock ../target/release/lobsters-microbenchmarks \
 		--test=$test --testname=$test$trial \
-		--nusers=10 --nstories=100 --ncomments=1000 --nthreads=1 --nqueries=3000
+		--nusers=10 --nstories=100 --ncomments=1000 --nthreads=1 --nqueries=6000
     done
 done
