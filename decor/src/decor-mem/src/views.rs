@@ -27,8 +27,8 @@ pub struct View {
     pub columns: Vec<TableColumnDef>,
     // values stored in table
     pub rows: Vec<Vec<Value>>,
-    // List of indices (by column): column val(string, and only INT type for now) to row
-    pub indices: Option<HashMap<String, HashMap<String, HashSet<usize>>>>,
+    // List of indexes (by column): column val(string, and only INT type for now) to row
+    pub indexes: Option<HashMap<String, HashMap<String, HashSet<usize>>>>,
     // optional autoinc column (index) and current value
     pub autoinc_col: Option<(usize, u64)>,
 }
@@ -39,7 +39,7 @@ impl View {
             name: String::new(),
             columns: columns,
             rows: vec![],
-            indices: None,
+            indexes: None,
             autoinc_col: None,
         }
     }
@@ -55,16 +55,15 @@ impl View {
             None => None,
         };
 
-        // create indices for any explicit indexes
-        let mut indices = if !indexes.is_empty() {
+        // create indexes for any explicit indexes
+        let mut indexes = if !indexes.is_empty() {
             let mut map = HashMap::new();
             for i in indexes {
-                if i.key_parts.len() > 1 {
-                    warn!("no multi-column indices yet");
-                    //unimplemented!("no multi-column indices yet");
-                } else {
-                    map.insert(i.key_parts[0].to_string(), HashMap::new());
-                    warn!("{}: Created index for column {}", name, i.key_parts[0].to_string());
+                for key in &i.key_parts {
+                    // TODO just create a separate index for each key part for now rather than
+                    // nesting
+                    map.insert(key.to_string(), HashMap::new());
+                    warn!("{}: Created index for column {}", name, key.to_string());
                 }
             }
             Some(map)
@@ -76,7 +75,7 @@ impl View {
         for c in &columns {
             for opt in &c.options {
                 if let ColumnOption::Unique{..} = opt.option {
-                    match indices {
+                    match indexes {
                         Some(ref mut is_map) => {
                             is_map.insert(c.name.to_string(), HashMap::new());
                             warn!("{}: Created unique index for column {}", name, c.name.to_string());
@@ -85,7 +84,7 @@ impl View {
                             let mut map = HashMap::new();
                             map.insert(c.name.to_string(), HashMap::new());
                             warn!("{}: Created unique index for column {}", name, c.name.to_string());
-                            indices = Some(map);
+                            indexes = Some(map);
                         }
                     }
                     break;
@@ -99,7 +98,7 @@ impl View {
                 .map(|c| TableColumnDef{ table: name.clone(), column: c.clone() })
                 .collect(),
             rows: vec![],
-            indices: indices,
+            indexes: indexes,
             autoinc_col: autoinc_col,
         };
         warn!("created new view {:?}", view);
@@ -118,10 +117,10 @@ impl View {
 
     pub fn get_rows_of_col(&self, col_index: usize, col_val: &Value) -> Vec<Vec<Value>> {
         let mut rows = vec![];
-        if let Some(indices) = &self.indices {
-            if let Some(index) = indices.get(&self.columns[col_index].column.name.to_string()) {
-                if let Some(row_indices) = index.get(&col_val.to_string()) {
-                    for i in row_indices {
+        if let Some(indexes) = &self.indexes {
+            if let Some(index) = indexes.get(&self.columns[col_index].column.name.to_string()) {
+                if let Some(ris) = index.get(&col_val.to_string()) {
+                    for i in ris {
                         rows.push(self.rows[*i].clone());
                     }
                 } 
@@ -129,7 +128,7 @@ impl View {
                 return rows;
             }
         } 
-        warn!("{}'s indices are {:?}", self.name, self.indices);
+        warn!("{}'s indexes are {:?}", self.name, self.indexes);
         warn!("get_rows: no index for col {} val {}!", self.columns[col_index].name(), col_val);
         for row in &self.rows {
             if row[col_index].to_string() == col_val.to_string() {
@@ -139,20 +138,19 @@ impl View {
         rows
     }
 
-    pub fn get_row_indices_of_col(&self, col_index: usize, col_val: &Value) -> HashSet<usize> {
-        if let Some(indices) = &self.indices {
-            if let Some(index) = indices.get(&self.columns[col_index].column.name.to_string()) {
-                if let Some(row_indices) = index.get(&col_val.to_string()) {
-                    warn!("Found ris {:?} for col val {}!", row_indices, col_val);
-                    return row_indices.clone();
+    pub fn get_ris_of_col(&self, col_index: usize, col_val: &Value) -> HashSet<usize> {
+        if let Some(indexes) = &self.indexes {
+            if let Some(index) = indexes.get(&self.columns[col_index].column.name.to_string()) {
+                if let Some(ris) = index.get(&col_val.to_string()) {
+                    warn!("Found ris {:?} for col val {}!", ris, col_val);
+                    return ris.clone();
                 } else {
-                    warn!("get_row_indices: Did not find rows for col {} val {}!", self.columns[col_index].name(), col_val);
+                    warn!("get_ris: Did not find rows for col {} val {}!", self.columns[col_index].name(), col_val);
                     return HashSet::new();
                 }
             }
         } 
-        //warn!("{}'s indices are {:?}", self.name, self.indices);
-        warn!("get_row_indices: no index for col {} val {}!", self.columns[col_index].name(), col_val);
+        warn!("get_ris: no index for col {} val {}!", self.columns[col_index].name(), col_val);
         let mut ris = HashSet::new();
         for ri in 0..self.rows.len() {
             //warn!("{}: checking for {:?} val {:?}", self.name, self.rows[ri][col_index], col_val);
@@ -164,12 +162,12 @@ impl View {
     }
     
     pub fn insert_into_index(&mut self, row_index: usize, col_index: usize, new_val: &Value) {
-        if let Some(indices) = &mut self.indices {
-            if let Some(index) = indices.get_mut(&self.columns[col_index].column.name.to_string()) {
+        if let Some(indexes) = &mut self.indexes {
+            if let Some(index) = indexes.get_mut(&self.columns[col_index].column.name.to_string()) {
                 warn!("{}: inserting {} into index", self.columns[col_index].name(), new_val);
-                // insert into the new indexed row_indices 
-                if let Some(new_row_indices) = index.get_mut(&new_val.to_string()) {
-                    new_row_indices.insert(row_index);
+                // insert into the new indexed ris 
+                if let Some(new_ris) = index.get_mut(&new_val.to_string()) {
+                    new_ris.insert(row_index);
                 } else {
                     let mut hs = HashSet::new();
                     hs.insert(row_index);
@@ -182,18 +180,18 @@ impl View {
     pub fn update_index(&mut self, row_index: usize, col_index: usize, new_val: Option<&Value>) {
         warn!("{}: updating {:?})", self.columns[col_index].name(), new_val);
         let old_val = &self.rows[row_index][col_index];
-        if let Some(indices) = &mut self.indices {
-            if let Some(index) = indices.get_mut(&self.columns[col_index].column.name.to_string()) {
-                // get the old indexed row_indices if they existed for this column value
+        if let Some(indexes) = &mut self.indexes {
+            if let Some(index) = indexes.get_mut(&self.columns[col_index].column.name.to_string()) {
+                // get the old indexed row_indexes if they existed for this column value
                 // remove this row!
-                if let Some(old_row_indices) = index.get_mut(&old_val.to_string()) {
-                    old_row_indices.retain(|&ri| ri != row_index);
+                if let Some(old_ris) = index.get_mut(&old_val.to_string()) {
+                    old_ris.retain(|&ri| ri != row_index);
                 }
-                // insert into the new indexed row_indices but only if we are updating to a new
+                // insert into the new indexed ris but only if we are updating to a new
                 // value (otherwise we're just deleting)
                 if let Some(new_val) = new_val {
-                    if let Some(new_row_indices) = index.get_mut(&new_val.to_string()) {
-                        new_row_indices.insert(row_index);
+                    if let Some(new_ris) = index.get_mut(&new_val.to_string()) {
+                        new_ris.insert(row_index);
                     } else {
                         let mut hs = HashSet::new();
                         hs.insert(row_index);
@@ -342,11 +340,11 @@ impl Views {
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
         warn!("{}: update {:?} with vals {:?}", view.name, assignments, assign_vals);
 
-        let row_indices : Vec<usize>;
+        let ris : Vec<usize>;
         if let Some(s) = selection {
-            row_indices = select::get_rows_matching_constraint(s, &view, None, None).into_iter().collect();
+            ris = select::get_rows_matching_constraint(s, &view, None, None).into_iter().collect();
         } else {
-            row_indices = (0..view.rows.len()).collect();
+            ris = (0..view.rows.len()).collect();
         }
 
         // if the table has an autoincrement column, we should 
@@ -382,15 +380,15 @@ impl Views {
         for (assign_index, ci) in cis.iter().enumerate() {
             match &assign_vals[assign_index] {
                 Expr::Value(v) => {
-                    for ri in &row_indices {
+                    for ri in &ris {
                         view.update_index(*ri, *ci, Some(&v));
                         view.rows[*ri][*ci] = v.clone();
                     }
                 }
                 _ => {
-                    let val_for_rows = select::get_value_for_rows(&assign_vals[assign_index], &view, None, None, Some(&row_indices));
-                    for i in 0..row_indices.len() {
-                        view.rows[row_indices[i]][*ci] = val_for_rows[i].clone();
+                    let val_for_rows = select::get_value_for_rows(&assign_vals[assign_index], &view, None, None, Some(&ris));
+                    for i in 0..ris.len() {
+                        view.rows[ris[i]][*ci] = val_for_rows[i].clone();
                     }
                 }
             }
@@ -404,16 +402,16 @@ impl Views {
         -> Result<(), Error> 
     {
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
-        let row_indices : HashSet<usize>;
+        let ris : HashSet<usize>;
         if let Some(s) = selection {
-            row_indices = select::get_rows_matching_constraint(s, &view, None, None);
+            ris = select::get_rows_matching_constraint(s, &view, None, None);
         } else {
-            row_indices = (0..view.rows.len()).collect();
+            ris = (0..view.rows.len()).collect();
         }
        
         // remove the rows!
         // pretty expensive, but oh well... (can optimize later?)
-        let mut ris : Vec<usize> = Vec::from_iter(row_indices);
+        let mut ris : Vec<usize> = Vec::from_iter(ris);
         ris.sort_by(|a, b| b.cmp(a));
         for ri in ris {
             for ci in 0..view.columns.len() {

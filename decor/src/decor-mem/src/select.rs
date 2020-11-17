@@ -362,7 +362,7 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View,
                                     computed: Option<&HashMap<String, Vec<Value>>>)
     -> HashSet<usize> 
 {
-    let mut row_indices = HashSet::new();
+    let mut ris = HashSet::new();
     match e {
         Expr::InList { expr, list, negated } => {
             let list_vals : Vec<Value> = list.iter()
@@ -373,16 +373,16 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View,
                 .collect();
             let (_tab, col) = expr_to_col(&expr);
             if *negated {
-                row_indices = (0..v.rows.len()).collect();
+                ris = (0..v.rows.len()).collect();
             }  
 
             if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
                 for lv in &list_vals {
-                    for ri in v.get_row_indices_of_col(ci, lv) {
+                    for ri in v.get_ris_of_col(ci, lv) {
                         if *negated {
-                            row_indices.remove(&ri);
+                            ris.remove(&ri);
                         } else {
-                            row_indices.insert(ri);
+                            ris.insert(ri);
                         }
                     }
                 }
@@ -392,9 +392,9 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View,
                     if let Some(vals) = computed.get(&col) {
                         for ri in get_indices_of_values(&vals, &list_vals) {
                             if *negated {
-                                row_indices.remove(&ri);
+                                ris.remove(&ri);
                             } else {
-                                row_indices.insert(ri);
+                                ris.insert(ri);
                             }
                         }
                     }
@@ -404,16 +404,16 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View,
         Expr::IsNull { expr, negated } => {
             let (_tab, col) = expr_to_col(&expr);
             if *negated {
-                row_indices = (0..v.rows.len()).collect();
+                ris = (0..v.rows.len()).collect();
             }
 
             if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
-               for ri in v.get_row_indices_of_col(ci, &Value::Null) {
+               for ri in v.get_ris_of_col(ci, &Value::Null) {
                     if *negated {
-                        row_indices.remove(&ri);
+                        ris.remove(&ri);
                     } else {
                         warn!("Inserting {} into row indices!", ri);
-                        row_indices.insert(ri);
+                        ris.insert(ri);
                     }
                 }            
             } else {
@@ -422,9 +422,9 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View,
                     if let Some(vals) = computed.get(&col) {
                         for ri in get_indices_of_values(&vals, &vec![Value::Null]) {
                             if *negated {
-                                row_indices.remove(&ri);
+                                ris.remove(&ri);
                             } else {
-                                row_indices.insert(ri);
+                                ris.insert(ri);
                             }
                         }
                     }
@@ -438,14 +438,14 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View,
                     let lindices = get_rows_matching_constraint(left, v, aliases, computed);
                     let rindices = get_rows_matching_constraint(right, v, aliases, computed);
                     for i in lindices.intersection(&rindices) {
-                        row_indices.insert(*i as usize);
+                        ris.insert(*i as usize);
                     }
                 }
                 BinaryOperator::Or => {
                     let lindices = get_rows_matching_constraint(left, v, aliases, computed);
                     let rindices = get_rows_matching_constraint(right, v, aliases, computed);
                     for i in lindices.union(&rindices) {
-                        row_indices.insert(*i as usize);
+                        ris.insert(*i as usize);
                     }                
                 }
                 _ => {
@@ -458,15 +458,15 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View,
                                 fastpath = true;
                                 let (_tab, col) = expr_to_col(&left);
                                 if *op == BinaryOperator::NotEq {
-                                    row_indices = (0..v.rows.len()).collect();
+                                    ris = (0..v.rows.len()).collect();
                                 }
 
                                 if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
-                                    for ri in v.get_row_indices_of_col(ci, &val) {
+                                    for ri in v.get_ris_of_col(ci, &val) {
                                         if *op == BinaryOperator::Eq {
-                                            row_indices.insert(ri);
+                                            ris.insert(ri);
                                         } else if *op == BinaryOperator::NotEq {
-                                            row_indices.remove(&ri);
+                                            ris.remove(&ri);
                                         }
                                     }
                                 } else {
@@ -475,9 +475,9 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View,
                                         if let Some(vals) = computed.get(&col) {
                                             for ri in get_indices_of_values(&vals, &vec![val.clone()]) {
                                                 if *op == BinaryOperator::NotEq{
-                                                    row_indices.remove(&ri);
+                                                    ris.remove(&ri);
                                                 } else {
-                                                    row_indices.insert(ri);
+                                                    ris.insert(ri);
                                                 }
                                             }
                                         }
@@ -494,32 +494,32 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View,
                             match op {
                                 BinaryOperator::Eq => {
                                     if cmp == Ordering::Equal {
-                                        row_indices.insert(i);
+                                        ris.insert(i);
                                     }
                                 }
                                 BinaryOperator::NotEq => {
                                     if cmp != Ordering::Equal {
-                                        row_indices.insert(i);
+                                        ris.insert(i);
                                     }
                                 }
                                 BinaryOperator::Lt => {
                                     if cmp == Ordering::Less {
-                                        row_indices.insert(i);
+                                        ris.insert(i);
                                     }
                                 }
                                 BinaryOperator::Gt => {
                                     if cmp == Ordering::Greater {
-                                        row_indices.insert(i);
+                                        ris.insert(i);
                                     }
                                 }
                                 BinaryOperator::LtEq => {
                                     if cmp != Ordering::Greater {
-                                        row_indices.insert(i);
+                                        ris.insert(i);
                                     }
                                 }
                                 BinaryOperator::GtEq => {
                                     if cmp != Ordering::Less {
-                                        row_indices.insert(i);
+                                        ris.insert(i);
                                     }
                                 }
                                 _ => unimplemented!("Constraint not supported {}", e),
@@ -531,8 +531,8 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View,
         }
         _ => unimplemented!("Constraint not supported {}", e),
     }
-    warn!("Get rows matching constraint: {:?}, {:?}", e, row_indices);
-    row_indices
+    warn!("Get rows matching constraint: {:?}, {:?}", e, ris);
+    ris
 }
 
 fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &Vec<OrderByExpr>) -> Result<View, Error> {
