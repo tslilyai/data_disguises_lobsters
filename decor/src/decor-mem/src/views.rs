@@ -156,6 +156,7 @@ impl View {
         let mut ris = HashSet::new();
         for ri in 0..self.rows.len() {
             if self.rows[ri][col_index].to_string() == col_val.to_string() {
+                warn!("{}: checking for {} val {}", self.name, self.rows[ri][col_index], col_val);
                 ris.insert(ri);
             }
         }
@@ -342,7 +343,7 @@ impl Views {
 
         let row_indices : Vec<usize>;
         if let Some(s) = selection {
-            row_indices = select::get_rows_matching_constraint(s, &view).into_iter().collect();
+            row_indices = select::get_rows_matching_constraint(s, &view, None, None).into_iter().collect();
         } else {
             row_indices = (0..view.rows.len()).collect();
         }
@@ -386,7 +387,7 @@ impl Views {
                     }
                 }
                 _ => {
-                    let val_for_rows = select::get_value_for_rows(&assign_vals[assign_index], &view, Some(&row_indices));
+                    let val_for_rows = select::get_value_for_rows(&assign_vals[assign_index], &view, None, None, Some(&row_indices));
                     for i in 0..row_indices.len() {
                         view.rows[row_indices[i]][*ci] = val_for_rows[i].clone();
                     }
@@ -404,7 +405,7 @@ impl Views {
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
         let row_indices : HashSet<usize>;
         if let Some(s) = selection {
-            row_indices = select::get_rows_matching_constraint(s, &view);
+            row_indices = select::get_rows_matching_constraint(s, &view, None, None);
         } else {
             row_indices = (0..view.rows.len()).collect();
         }
