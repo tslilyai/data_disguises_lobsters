@@ -26,18 +26,18 @@ pub fn post_comment(db: &mut mysql::Conn,
     ))?;*/
 
     // check that short id is available
-    /*db.query_drop(format!(
+    db.query_drop(format!(
         "SELECT  1 AS one FROM `comments` \
          WHERE `comments`.`short_id` = {}",
          id
-    ))?;*/
+    ))?;
 
     // the *actual* algorithm for computing hotness isn't all
     // that interesting to us. it does affect what's on the
     // frontpage, but we're okay with using a more basic
     // upvote/downvote ratio thingy. See Story::calculated_hotness
     // in the lobsters source for details.
-    db.query_drop(format!(
+    /*db.query_drop(format!(
         "UPDATE stories SET \
          upvotes = stories.upvotes {}, \
          downvotes = stories.downvotes {}, \
@@ -47,7 +47,7 @@ pub fn post_comment(db: &mut mysql::Conn,
          "+ 1",
         1.0,
         story,
-    ))?;
+    ))?;*/
 
     /*let res : Vec<(u64, u64)> = db.query(format!(
         "SELECT `comments`.id, \
