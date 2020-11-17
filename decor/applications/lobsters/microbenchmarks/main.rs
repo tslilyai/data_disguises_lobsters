@@ -281,7 +281,8 @@ fn main() {
             }
             _ => (),
         }*/
-        queriers::expensive_queries::post_comment(&mut db, Some(user), total_comments + 1, story, None).unwrap();
+        queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap();
+        //queriers::expensive_queries::post_comment(&mut db, Some(user), total_comments + 1, story, None).unwrap();
     }
     let dur = start.elapsed();
     println!("Time to do {} queries: {}s", nqueries, dur.as_secs());
