@@ -590,11 +590,8 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                     SelectItem::Expr {expr, alias} => {
                         // SELECT 1...
                         if let Expr::Value(v) = expr {
-                            
                             select_val = Some(v);
-                        }
-
-                        if let Expr::QualifiedWildcard(ids) = expr {
+                        } else if let Expr::QualifiedWildcard(ids) = expr {
                             // SELECT `tablename.*`: keep all columns of this table
                             
                             let table_to_select = ids.last().unwrap().to_string();
@@ -614,7 +611,6 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                             // alias; use in WHERE will match against this alias
                             if let Some(a) = alias {
                                 column_aliases.insert(a.to_string(), ci);
-                                
                             }
 
                         } else if let Expr::BinaryOp{..} = expr {
@@ -631,6 +627,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                                 let vals = get_value_for_rows(expr, &new_view, None, None, None);
                                 computed_columns.insert(a.to_string(), vals);
                             }
+                            warn!("Adding to computed columns {:?}", computed_columns)
 
                         } else if let Expr::Function(f) = expr {
                             if f.name.to_string() == "count" && f.args == FunctionArgs::Star {
@@ -667,37 +664,13 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                     }
                 }
                 new_view.rows = rows_to_keep;
-
-                // add the computed values to the rows with the appropriate aliases
-                for (colname, vals) in computed_columns {
-                    new_view.columns.push(TableColumnDef{
-                        table: new_view.name.clone(),
-                        column: ColumnDef{
-                            name: Ident::new(colname),
-                            data_type: DataType::Int,
-                            collation: None,
-                            options: vec![],
-
-                        },
-                    });
-                    for ri in 0..new_view.rows.len() {
-                        new_view.rows[ri].push(vals[ri].clone());
-                    }   
-                }
-
-                // deal with aliases
-                for (alias, ci) in column_aliases {
-                    new_view.columns[ci].column.name = Ident::new(alias);
-                    new_view.columns[ci].table = String::new();
-                }
-            } 
-            // no selection, so we just copy all the rows from the source (if we haven't already
-            // via the join)
-            else if let Some(source_view) = source_view {
+            } else if let Some(source_view) = source_view {
+                // no selection, so we just copy all the rows from the source (if we haven't already
+                // via the join)
                 new_view.rows = source_view.rows.clone();
             }
-            
-            // return val if select val was issued 
+ 
+            // fast path: return val if select val was issued 
             if let Some(v) = select_val {
                 for r in &mut new_view.rows {
                     *r = vec![v.clone()];
@@ -715,6 +688,31 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                 return Ok(new_view)
             }
 
+            // deal with present column aliases
+            for (alias, ci) in column_aliases {
+                new_view.columns[ci].column.name = Ident::new(alias);
+                new_view.columns[ci].table = String::new();
+            }
+ 
+            // add the computed values to the rows with the appropriate aliases
+            for (colname, vals) in computed_columns {
+                warn!("Adding computed column {}", colname);
+                cols_to_keep.push(new_view.columns.len());
+                new_view.columns.push(TableColumnDef{
+                    table: new_view.name.clone(),
+                    column: ColumnDef{
+                        name: Ident::new(colname),
+                        data_type: DataType::Int,
+                        collation: None,
+                        options: vec![],
+
+                    },
+                });
+                for ri in 0..new_view.rows.len() {
+                    new_view.rows[ri].push(vals[ri].clone());
+                }   
+            }
+          
             // add the count of selected columns as a column if it were projected
             if count {
                 let count = new_view.rows.len();
@@ -803,8 +801,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                 new_view.columns = new_cols;
                 new_view.rows = new_rows;
             }
-            warn!("columns {:?}", new_view.columns);
-
+            warn!("setexpr select: returning {:?}", new_view);
             Ok(new_view)
         }
         SetExpr::Query(q) => {

@@ -151,11 +151,11 @@ impl View {
                 }
             }
         } 
-        warn!("{}'s indices are {:?}", self.name, self.indices);
+        //warn!("{}'s indices are {:?}", self.name, self.indices);
         warn!("get_row_indices: no index for col {} val {}!", self.columns[col_index].name(), col_val);
         let mut ris = HashSet::new();
         for ri in 0..self.rows.len() {
-            warn!("{}: checking for {:?} val {:?}", self.name, self.rows[ri][col_index], col_val);
+            //warn!("{}: checking for {:?} val {:?}", self.name, self.rows[ri][col_index], col_val);
             if self.rows[ri][col_index].to_string() == col_val.to_string() {
                 ris.insert(ri);
             }
