@@ -64,6 +64,7 @@ impl View {
                     //unimplemented!("no multi-column indices yet");
                 } else {
                     map.insert(i.key_parts[0].to_string(), HashMap::new());
+                    warn!("{}: Created index for column {}", name, i.key_parts[0].to_string());
                 }
             }
             Some(map)
@@ -78,10 +79,12 @@ impl View {
                     match indices {
                         Some(ref mut is_map) => {
                             is_map.insert(c.name.to_string(), HashMap::new());
+                            warn!("{}: Created unique index for column {}", name, c.name.to_string());
                         }
                         None => {
                             let mut map = HashMap::new();
                             map.insert(c.name.to_string(), HashMap::new());
+                            warn!("{}: Created unique index for column {}", name, c.name.to_string());
                             indices = Some(map);
                         }
                     }
@@ -121,19 +124,17 @@ impl View {
                     for i in row_indices {
                         rows.push(self.rows[*i].clone());
                     }
-                    warn!("get_rows: found {} rows for col val {}!", rows.len(), col_val);
                 } 
+                warn!("get_rows: found {} rows for col {} val {}!", rows.len(), self.columns[col_index].name(), col_val);
                 return rows;
             }
         } 
-        warn!("get_rows: Did not find rows for col val {}!", col_val);
+        warn!("{}'s indices are {:?}", self.name, self.indices);
+        warn!("get_rows: no index for col {} val {}!", self.columns[col_index].name(), col_val);
         for row in &self.rows {
-            match &row[col_index] {
-                Value::Number(v) => if *v == col_val.to_string() {
-                    rows.push(row.clone());
-                }
-                _ => unimplemented!("Must be a number!"),
-            } 
+            if row[col_index].to_string() == col_val.to_string() {
+                rows.push(row.clone());
+            }
         }
         rows
     }
@@ -142,30 +143,29 @@ impl View {
         if let Some(indices) = &self.indices {
             if let Some(index) = indices.get(&self.columns[col_index].column.name.to_string()) {
                 if let Some(row_indices) = index.get(&col_val.to_string()) {
-                    warn!("Found {} rows for col val {}!", row_indices.len(), col_val);
+                    warn!("Found ris {:?} for col val {}!", row_indices, col_val);
                     return row_indices.clone();
                 } else {
+                    warn!("get_row_indices: Did not find rows for col {} val {}!", self.columns[col_index].name(), col_val);
                     return HashSet::new();
                 }
             }
         } 
-        warn!("get_row_indices: Did not find rows for col val {}!", col_val);
+        warn!("{}'s indices are {:?}", self.name, self.indices);
+        warn!("get_row_indices: no index for col {} val {}!", self.columns[col_index].name(), col_val);
         let mut ris = HashSet::new();
         for ri in 0..self.rows.len() {
-            match &self.rows[ri][col_index] {
-                Value::Number(v) => if *v == col_val.to_string() {
-                    ris.insert(ri);
-                }
-                _ => unimplemented!("Must be a number!"),
-            } 
+            if self.rows[ri][col_index].to_string() == col_val.to_string() {
+                ris.insert(ri);
+            }
         }
         ris
     }
     
     pub fn insert_into_index(&mut self, row_index: usize, col_index: usize, new_val: &Value) {
-        warn!("{}: inserting {}", self.columns[col_index].name(), new_val);
         if let Some(indices) = &mut self.indices {
             if let Some(index) = indices.get_mut(&self.columns[col_index].column.name.to_string()) {
+                warn!("{}: inserting {} into index", self.columns[col_index].name(), new_val);
                 // insert into the new indexed row_indices 
                 if let Some(new_row_indices) = index.get_mut(&new_val.to_string()) {
                     new_row_indices.insert(row_index);
@@ -298,16 +298,18 @@ impl Views {
             for (i, row) in values.iter().enumerate() {
                 // update the right column ci with the value corresponding 
                 // to that column to update
-                view.insert_into_index(i, *ci, &row[val_index]);
                 insert_rows[i][*ci] = row[val_index].clone();
             }
         }
 
-        // update with default (not null) values
-        for row in &mut insert_rows {
+        for i in 0..insert_rows.len() {
             for ci in 0..view.columns.len() {
+                let row = &mut insert_rows[i];
+                
+                // update with default (not null) values
                 for opt in &view.columns[ci].column.options {
                     if let ColumnOption::Default(Expr::Value(v)) = &opt.option {
+                        warn!("Updating col {} with default value {}", view.columns[ci].name(), v);
                         if row[ci] == Value::Null {
                             row[ci] = v.clone();
                         } 
@@ -316,6 +318,10 @@ impl Views {
                         assert!(row[ci] != Value::Null);
                     }
                 }
+
+                // insert all values (even if null) into indices
+                warn!("Attempt insert into index: col {} with value {}", view.columns[ci].name(), row[ci]);
+                view.insert_into_index(i, ci, &row[ci]);
             }
         }
 

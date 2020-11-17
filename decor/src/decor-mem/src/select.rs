@@ -167,6 +167,7 @@ fn join_views(jo: &JoinOperator, v1: &View, v2: &View) -> Result<View, Error> {
 
 fn tablewithjoins_to_view(views: &HashMap<String, View>, twj: &TableWithJoins) -> Result<View, Error> {
     // TODO only do expensive copy if there is an actual join
+    // TODO copy indices when joining?
     let mut joined_views = tablefactor_to_view(views, &twj.relation)?.clone();
     
     for j in &twj.joins {
@@ -178,7 +179,7 @@ fn tablewithjoins_to_view(views: &HashMap<String, View>, twj: &TableWithJoins) -
 
 // return table name and optionally column if not wildcard
 fn expr_to_col(e: &Expr) -> (String, String) {
-    warn!("expr_to_col: {:?}", e);
+    //warn!("expr_to_col: {:?}", e);
     match e {
         // only support form column or table.column
         Expr::Identifier(ids) => {
@@ -195,7 +196,6 @@ fn expr_to_col(e: &Expr) -> (String, String) {
 }
 
 fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
-    warn!("Matching columns {} and {}", c.name(), col);
     c.column.name.to_string() == col || c.name() == col
 }
 
@@ -334,6 +334,7 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> HashSet<usize> {
                 if *negated {
                     row_indices.remove(&ri);
                 } else {
+                    warn!("Inserting {} into row indices!", ri);
                     row_indices.insert(ri);
                 }
             }
@@ -370,9 +371,9 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> HashSet<usize> {
                                 }
                                 for ri in v.get_row_indices_of_col(ci, &val) {
                                     if *op == BinaryOperator::Eq {
-                                        row_indices.remove(&ri);
-                                    } else if *op == BinaryOperator::NotEq {
                                         row_indices.insert(ri);
+                                    } else if *op == BinaryOperator::NotEq {
+                                        row_indices.remove(&ri);
                                     }
                                 }
                             }
@@ -423,6 +424,7 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> HashSet<usize> {
         }
         _ => unimplemented!("Constraint not supported {}", e),
     }
+    warn!("Get rows matching constraint: {:?}, {:?}", e, row_indices);
     row_indices
 }
 
@@ -443,6 +445,10 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                 let mut v = tablewithjoins_to_view(views, &twj)?;
                 new_view.columns.append(&mut v.columns);
                 new_view.rows.append(&mut v.rows);
+                // TODO if this is a join, how to handle indices and names?
+                // this only works if there is only one table...
+                new_view.name = v.name;
+                new_view.indices = v.indices;
             }
 
             // 1) compute any additional rows added by projection 
@@ -536,7 +542,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
             // filter out rows by where clause
             if let Some(selection) = &s.selection {
                 let rows_to_keep = get_rows_matching_constraint(&selection, &new_view);
-                warn!("Keeping rows {:?}", rows_to_keep);
+                warn!("Where: Keeping rows {:?} {:?}", selection, rows_to_keep);
                 let mut kept_rows = vec![];
                 for ri in rows_to_keep {
                     kept_rows.push(new_view.rows[ri].clone()); 
