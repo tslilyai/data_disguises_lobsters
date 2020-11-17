@@ -195,7 +195,7 @@ fn expr_to_col(e: &Expr) -> (String, String) {
     }
 }
 
-fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
+pub fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
     c.column.name.to_string() == col || c.name() == col
 }
 
@@ -357,7 +357,7 @@ fn get_col_index_with_aliases(col: &str, columns: &Vec<TableColumnDef>, aliases:
  * returns the indices into the view rows where these rows reside
  * 
  * */
-pub fn get_rows_matching_constraint(e: &Expr, v: &View, 
+pub fn get_ris_matching_constraint(e: &Expr, v: &View, 
                                     aliases: Option<&HashMap<String, usize>>, 
                                     computed: Option<&HashMap<String, Vec<Value>>>)
     -> HashSet<usize> 
@@ -435,15 +435,15 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View,
             // TODO can split up into two fxns, one to get rows, other to get indices...
             match op {
                 BinaryOperator::And => {
-                    let lindices = get_rows_matching_constraint(left, v, aliases, computed);
-                    let rindices = get_rows_matching_constraint(right, v, aliases, computed);
+                    let lindices = get_ris_matching_constraint(left, v, aliases, computed);
+                    let rindices = get_ris_matching_constraint(right, v, aliases, computed);
                     for i in lindices.intersection(&rindices) {
                         ris.insert(*i as usize);
                     }
                 }
                 BinaryOperator::Or => {
-                    let lindices = get_rows_matching_constraint(left, v, aliases, computed);
-                    let rindices = get_rows_matching_constraint(right, v, aliases, computed);
+                    let lindices = get_ris_matching_constraint(left, v, aliases, computed);
+                    let rindices = get_ris_matching_constraint(right, v, aliases, computed);
                     for i in lindices.union(&rindices) {
                         ris.insert(*i as usize);
                     }                
@@ -649,9 +649,9 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                 
                 let ris_to_keep : HashSet<usize>;
                 if let Some(source_view) = source_view {
-                    ris_to_keep = get_rows_matching_constraint(&selection, source_view, Some(&column_aliases), Some(&computed_columns));
+                    ris_to_keep = get_ris_matching_constraint(&selection, source_view, Some(&column_aliases), Some(&computed_columns));
                 } else {
-                    ris_to_keep = get_rows_matching_constraint(&selection, &new_view, Some(&column_aliases), Some(&computed_columns));
+                    ris_to_keep = get_ris_matching_constraint(&selection, &new_view, Some(&column_aliases), Some(&computed_columns));
                 }
                 
                 warn!("Where: Keeping rows {:?} {:?}", selection, ris_to_keep);

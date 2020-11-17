@@ -1,6 +1,6 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use super::{helpers, ghosts_cache, config, stats, views};
+use super::{helpers, ghosts_cache, config, stats, views, select};
 use std::*;
 use std::time::Duration;
 use msql_srv::{QueryResultWriter};
@@ -1203,7 +1203,6 @@ impl QueryTransformer {
                     db.query_drop(stmt.to_string())?;
                     self.cur_stat.nqueries+=1;
                 }
-                // delete from views
                 self.views.delete(&table_name, &selection)?;
             }
             Statement::CreateTable(CreateTableStatement{
@@ -1292,7 +1291,7 @@ impl QueryTransformer {
         Ok(())
     }
 
-    pub fn unsubscribe(&mut self, uid: u64) -> Result<(), mysql::Error> {
+    pub fn unsubscribe(&mut self, uid: u64, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         self.cur_stat.qtype = stats::QueryType::Unsub;
 
         // check if already unsubscribed
@@ -1301,122 +1300,75 @@ impl QueryTransformer {
         }
         let uid_val = Value::Number(uid.to_string());
                     
-        let vals_vec : Vec<Vec<Expr>> = self.ghosts_cache.get_gids_for_uid(uid)?
+        let mut gid_values: Vec<Vec<Value>> = self.ghosts_cache.get_gids_for_uid(uid)?
             .iter()
-            .map(|g| vec![Expr::Value(Value::Number(g.to_string()))])
+            .map(|g| vec![Value::Number(g.to_string())])
             .collect();
-        let gid_source_q = Query {
-            ctes: vec![],
-            body: SetExpr::Values(Values(vals_vec)),
-            order_by: vec![],
-            limit: None,
-            offset: None,
-            fetch: None,
-        };
         let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
  
         /* 
          * 1. update the users MV to have an entry for all the users' GIDs
          */
-        /*let insert_gids_as_users_stmt = Statement::Insert(InsertStatement{
-            table_name: mv_table_name.clone(),
-            columns: vec![Ident::new(&self.cfg.user_table.id_col)],
-            source: InsertSource::Query(Box::new(gid_source_q)),
-        });
-        warn!("unsub: {}", insert_gids_as_users_stmt);
-        txn.query_drop(format!("{}", insert_gids_as_users_stmt.to_string()))?;
-        self.cur_stat.nqueries+=1;*/
+        self.views.insert(&user_table_name, &vec![Ident::new(&self.cfg.user_table.id_col)], &mut gid_values)?;
         
         /*
-         * 2. delete UID from users MV and users (only one table, so delete from either)
+         * 2. delete UID from users MV and users data table
          */
-        /*let delete_uid_from_users = Statement::Delete(DeleteStatement {
-            table_name: user_table_name,
-            selection: Some(Expr::BinaryOp{
-                left: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
+        let uid_col = Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col));
+        let selection = Some(Expr::BinaryOp{
+                left: Box::new(uid_col),
                 op: BinaryOperator::Eq,
                 right: Box::new(Expr::Value(uid_val.clone())), 
-            }),
+        });
+        let delete_uid_from_users = Statement::Delete(DeleteStatement {
+            table_name: user_table_name.clone(),
+            selection: selection.clone(),
         });
         warn!("unsub: {}", delete_uid_from_users);
-        txn.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
-        self.cur_stat.nqueries+=1;*/
+        db.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
+        self.cur_stat.nqueries+=1;
+
+        // delete from user mv  
+        self.views.delete(&user_table_name, &selection)?;
  
         /* 
          * 3. Change all entries with this UID to use the correct GID in the MV
          */
-        /*for dt in &self.cfg.data_tables {
+        for dt in &self.cfg.data_tables {
             let dtobjname = helpers::string_to_objname(&dt.name);
             let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
 
-            let mut assignments : Vec<String> = vec![];
-            for uc in ucols {
-                let uc_dt_ids = helpers::string_to_idents(&uc);
-                let uc_mv_ids = self.mvtrans.idents_to_mv_idents(&uc_dt_ids);
-                let mut astr = String::new();
-                astr.push_str(&format!(
-                        "{} = {}", 
-                        ObjectName(uc_mv_ids.clone()),
-                        Expr::Case{
-                            operand: None, 
-                            // check usercol_mv = UID
-                            conditions: vec![Expr::BinaryOp{
-                                left: Box::new(Expr::Identifier(uc_mv_ids.clone())),
-                                op: BinaryOperator::Eq,
-                                right: Box::new(Expr::Value(uid_val.clone())),
-                            }],
-                            // then assign to ghost ucol value
-                            results: vec![Expr::Identifier(uc_dt_ids)],
-                            // otherwise keep as the uid in the MV
-                            else_result: Some(Box::new(Expr::Identifier(uc_mv_ids.clone()))),
-                        }));
-                assignments.push(astr);
-            }
-           
-            let mut select_constraint = Expr::Value(Value::Boolean(true));
-            // add constraint on non-user columns to be identical (performing a "JOIN" on the DT
-            // and the MV so the correct rows are joined together)
-            // XXX could put a constraint selecting rows only with the UID in a ucol
-            // but the assignment CASE should already handle this?
-            for col in &dt.data_cols {
-                let mut fullname = dt.name.clone();
-                fullname.push_str(".");
-                fullname.push_str(&col);
-                let dt_ids = helpers::string_to_idents(&fullname);
-                let mv_ids = self.mvtrans.idents_to_mv_idents(&dt_ids);
-
+            let view = self.views.get_mut_view(&dt.name).unwrap();
+            let mut select_constraint = Expr::Value(Value::Boolean(false));
+            let mut cis = vec![];
+            for col in &ucols {
+                cis.push(view.columns.iter().position(|c| select::tablecolumn_matches_col(c, &col)).unwrap());
                 select_constraint = Expr::BinaryOp {
                     left: Box::new(select_constraint),
-                    op: BinaryOperator::And,
+                    op: BinaryOperator::Or,
                     right: Box::new(Expr::BinaryOp{
-                        left: Box::new(Expr::Identifier(mv_ids)),
+                        left: Box::new(Expr::Identifier(vec![Ident::new(col)])),
                         op: BinaryOperator::Eq,
-                        right: Box::new(Expr::Identifier(dt_ids)),
+                        right: Box::new(Expr::Value(uid_val.clone())),
                     }),             
                 };
+            }            
+
+            let mut gid_index = 0;
+            let ris_to_update = select::get_ris_matching_constraint(&select_constraint, &view, None, None);
+            for ri in ris_to_update {
+                for ci in &cis {
+                    if view.rows[ri][*ci].to_string() == uid_val.to_string() {
+                        assert!(gid_index < gid_values.len());
+                        let val = gid_values[gid_index][0].clone();
+                        view.update_index(ri, *ci, Some(&val));
+                        view.rows[ri][*ci] = val;
+                        gid_index += 1;
+                    }
+                }
             }
-                
-            // UPDATE corresponding MV
-            // SET MV.usercols = (MV.usercol = uid) ? dt.usercol : MV.usercol 
-            // WHERE dtMV = dt ON [all other rows equivalent]
-            let mut astr = String::new();
-            astr.push_str(&assignments[0]);
-            for i in 1..assignments.len() {
-                astr.push_str(", ");
-                astr.push_str(&assignments[i]);
-            }
-                
-            let update_dt_stmt = format!("UPDATE {}, {} SET {} WHERE {};", 
-                self.mvtrans.objname_to_mv_objname(&dtobjname).to_string(),
-                dtobjname.to_string(),
-                astr,
-                select_constraint.to_string(),
-            );
-                
-            warn!("unsub: {}", update_dt_stmt);
-            txn.query_drop(format!("{}", update_dt_stmt))?;
-            self.cur_stat.nqueries+=1;
-        }*/
+            assert!(gid_index == gid_values.len());
+        }
         
         // TODO return some type of auth token?
         Ok(())

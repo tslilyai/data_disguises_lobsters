@@ -143,7 +143,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO actually delete entries? 
      */
     fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), mysql::Error> {
-        match self.qtrans.unsubscribe(uid) {
+        match self.qtrans.unsubscribe(uid, &mut self.db) {
             Ok(()) => Ok(w.ok()?),
             Err(_e) => {
                 w.error(ErrorKind::ER_BAD_DB_ERROR, b"unsub failed")?;

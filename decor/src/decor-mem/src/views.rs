@@ -214,6 +214,10 @@ impl Views {
             views: HashMap::new(),
         }
     }
+    
+    pub fn get_mut_view<'a>(&'a mut self, name: &str) -> Option<&'a mut View> {
+        self.views.get_mut(name)
+    }
 
     pub fn add_view(&mut self, name: String, columns: Vec<ColumnDef>, indexes: &Vec<IndexDef>) {
         self.views.insert(name.clone(), View::new(name, columns, indexes));
@@ -342,7 +346,7 @@ impl Views {
 
         let ris : Vec<usize>;
         if let Some(s) = selection {
-            ris = select::get_rows_matching_constraint(s, &view, None, None).into_iter().collect();
+            ris = select::get_ris_matching_constraint(s, &view, None, None).into_iter().collect();
         } else {
             ris = (0..view.rows.len()).collect();
         }
@@ -404,7 +408,7 @@ impl Views {
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
         let ris : HashSet<usize>;
         if let Some(s) = selection {
-            ris = select::get_rows_matching_constraint(s, &view, None, None);
+            ris = select::get_ris_matching_constraint(s, &view, None, None);
         } else {
             ris = (0..view.rows.len()).collect();
         }
