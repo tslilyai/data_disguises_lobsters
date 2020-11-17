@@ -181,7 +181,8 @@ fn test_normal_execution() {
      * TEST 4: complex insert into datatables works properly
      */
     let mut results = vec![];
-    db.query_drop(r"INSERT INTO moderations (moderator_user_id, story_id, user_id, action) VALUES ((SELECT id FROM users WHERE username='hello_2'), '0', '1', 'worst story!');").unwrap();
+    db.query_drop(r"INSERT INTO moderations (moderator_user_id, story_id, user_id, action) VALUES ('2', '0', '1', 'worst story!');").unwrap();
+    //((SELECT id FROM users WHERE username='hello_2'), '0', '1', 'worst story!');").unwrap();
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.id;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
@@ -252,7 +253,8 @@ fn test_normal_execution() {
      * TEST 6: deletions correctly remove ghost IDs
      */
     let mut results = vec![];
-    db.query_drop(r"DELETE FROM moderations WHERE moderator_user_id = (SELECT id FROM users WHERE username='hello_1');").unwrap();
+    db.query_drop(r"DELETE FROM moderations WHERE moderator_user_id = '1'").unwrap(); 
+    //(SELECT id FROM users WHERE username='hello_1');").unwrap();
     let res = db.query_iter(r"SELECT * FROM moderations;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();

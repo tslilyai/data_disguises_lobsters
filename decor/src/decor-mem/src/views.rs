@@ -28,7 +28,7 @@ pub struct View {
     // values stored in table
     pub rows: Vec<Vec<Value>>,
     // List of indices (by column): column val(string, and only INT type for now) to row
-    pub indices: Option<HashMap<String, HashMap<String, Vec<usize>>>>,
+    pub indices: Option<HashMap<String, HashMap<String, HashSet<usize>>>>,
     // optional autoinc column (index) and current value
     pub autoinc_col: Option<(usize, u64)>,
 }
@@ -112,30 +112,53 @@ impl View {
             eq
         })
     }
-    pub fn get_rows_of_col(&self, col_index: usize, val: &Value) -> Vec<Vec<Value>> {
+
+    pub fn get_rows_of_col(&self, col_index: usize, col_val: &Value) -> Vec<Vec<Value>> {
         let mut rows = vec![];
         let mut indexed = false;
         if let Some(indices) = &self.indices {
             if let Some(index) = indices.get(&self.columns[col_index].column.name.to_string()) {
-                if let Some(row_indices) = index.get(&val.to_string()) {
+                if let Some(row_indices) = index.get(&col_val.to_string()) {
                     for i in row_indices {
                         rows.push(self.rows[*i].clone());
                     }
+                    return rows;
+                } else {
+                    unimplemented!("Col value of index not inserted");
                 }
-                indexed = true;
             }
         } 
-        if !indexed {
-            for row in &self.rows {
-                match &row[col_index] {
-                    Value::Number(v) => if *v == val.to_string() {
-                        rows.push(row.clone());
-                    }
-                    _ => unimplemented!("Must be a number!")
-                } 
-            }
+        for row in &self.rows {
+            match &row[col_index] {
+                Value::Number(v) => if *v == col_val.to_string() {
+                    rows.push(row.clone());
+                }
+                _ => unimplemented!("Must be a number!"),
+            } 
         }
         rows
+    }
+
+    pub fn get_row_indices_of_col(&self, col_index: usize, col_val: &Value) -> HashSet<usize> {
+        if let Some(indices) = &self.indices {
+            if let Some(index) = indices.get(&self.columns[col_index].column.name.to_string()) {
+                if let Some(row_indices) = index.get(&col_val.to_string()) {
+                    return row_indices.clone();
+                } else {
+                    unimplemented!("Col value of index not inserted");
+                }
+            }
+        } 
+        let mut ris = HashSet::new();
+        for ri in 0..self.rows.len() {
+            match &self.rows[ri][col_index] {
+                Value::Number(v) => if *v == col_val.to_string() {
+                    ris.insert(ri);
+                }
+                _ => unimplemented!("Must be a number!"),
+            } 
+        }
+        ris
     }
     
     pub fn insert_into_index(&mut self, row_index: usize, col_index: usize, new_val: &Value) {
@@ -144,9 +167,11 @@ impl View {
             if let Some(index) = indices.get_mut(&self.columns[col_index].column.name.to_string()) {
                 // insert into the new indexed row_indices 
                 if let Some(new_row_indices) = index.get_mut(&new_val.to_string()) {
-                    new_row_indices.push(row_index);
+                    new_row_indices.insert(row_index);
                 } else {
-                    index.insert(new_val.to_string(), vec![row_index]);
+                    let mut hs = HashSet::new();
+                    hs.insert(row_index);
+                    index.insert(new_val.to_string(), hs);
                 }
             }
         }
@@ -166,9 +191,11 @@ impl View {
                 // value (otherwise we're just deleting)
                 if let Some(new_val) = new_val {
                     if let Some(new_row_indices) = index.get_mut(&new_val.to_string()) {
-                        new_row_indices.push(row_index);
+                        new_row_indices.insert(row_index);
                     } else {
-                        index.insert(new_val.to_string(), vec![row_index]);
+                        let mut hs = HashSet::new();
+                        hs.insert(row_index);
+                        index.insert(new_val.to_string(), hs);
                     }
                 }
             }

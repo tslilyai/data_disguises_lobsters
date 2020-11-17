@@ -299,31 +299,47 @@ pub fn get_value_for_rows(e: &Expr, v: &View, which_rows: Option<&Vec<usize>>) -
  * 
  * */
 pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> HashSet<usize> {
+    // TODO actually use indices..
     let mut row_indices = HashSet::new();
     match e {
         Expr::InList { expr, list, negated } => {
             let (_tab, col) = expr_to_col(&expr);
-            let vals : Vec<Value> = list.iter()
+            let list_vals : Vec<Value> = list.iter()
                 .map(|e| match e {
                     Expr::Value(v) => v.clone(),
                     _ => unimplemented!("list can only contain values: {:?}", list),
                 })
                 .collect();
             let ci = v.columns.iter().position(|c| tablecolumn_matches_col(c, &col)).unwrap();
-            for (i, row) in v.rows.iter().enumerate() {
-                if (!*negated && vals.iter().any(|v| *v == row[ci])) 
-                    || (*negated && vals.iter().any(|v| *v == row[ci])) 
-                {
-                    row_indices.insert(i);
+            if *negated {
+                row_indices = (0..v.rows.len()).collect();
+            }
+
+            // add all rows that match column
+            for lv in &list_vals {
+                for ri in v.get_row_indices_of_col(ci, lv) {
+                    if *negated {
+                        row_indices.remove(&ri);
+                    } else {
+                        row_indices.insert(ri);
+                    }
                 }
             }
         }
         Expr::IsNull { expr, negated } => {
             let (_tab, col) = expr_to_col(&expr);
             let ci = v.columns.iter().position(|c| tablecolumn_matches_col(c, &col)).unwrap();
-            for (i, row) in v.rows.iter().enumerate() {
-                if (*negated && row[ci] != Value::Null) || (!*negated && row[ci] == Value::Null) {
-                   row_indices.insert(i);
+           
+            if *negated {
+                row_indices = (0..v.rows.len()).collect();
+            }
+
+            // add all rows that match column
+            for ri in v.get_row_indices_of_col(ci, &Value::Null) {
+                if *negated {
+                    row_indices.remove(&ri);
+                } else {
+                    row_indices.insert(ri);
                 }
             }
         }
