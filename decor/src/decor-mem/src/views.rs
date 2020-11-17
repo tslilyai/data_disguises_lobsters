@@ -115,19 +115,18 @@ impl View {
 
     pub fn get_rows_of_col(&self, col_index: usize, col_val: &Value) -> Vec<Vec<Value>> {
         let mut rows = vec![];
-        let mut indexed = false;
         if let Some(indices) = &self.indices {
             if let Some(index) = indices.get(&self.columns[col_index].column.name.to_string()) {
                 if let Some(row_indices) = index.get(&col_val.to_string()) {
                     for i in row_indices {
                         rows.push(self.rows[*i].clone());
                     }
-                    return rows;
-                } else {
-                    unimplemented!("Col value of index not inserted");
-                }
+                    warn!("get_rows: found {} rows for col val {}!", rows.len(), col_val);
+                } 
+                return rows;
             }
         } 
+        warn!("get_rows: Did not find rows for col val {}!", col_val);
         for row in &self.rows {
             match &row[col_index] {
                 Value::Number(v) => if *v == col_val.to_string() {
@@ -146,10 +145,11 @@ impl View {
                     warn!("Found {} rows for col val {}!", row_indices.len(), col_val);
                     return row_indices.clone();
                 } else {
-                    unimplemented!("Col value of index not inserted");
+                    return HashSet::new();
                 }
             }
         } 
+        warn!("get_row_indices: Did not find rows for col val {}!", col_val);
         let mut ris = HashSet::new();
         for ri in 0..self.rows.len() {
             match &self.rows[ri][col_index] {

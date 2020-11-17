@@ -314,8 +314,6 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> HashSet<usize> {
             if *negated {
                 row_indices = (0..v.rows.len()).collect();
             }
-
-            // add all rows that match column
             for lv in &list_vals {
                 for ri in v.get_row_indices_of_col(ci, lv) {
                     if *negated {
@@ -329,12 +327,9 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> HashSet<usize> {
         Expr::IsNull { expr, negated } => {
             let (_tab, col) = expr_to_col(&expr);
             let ci = v.columns.iter().position(|c| tablecolumn_matches_col(c, &col)).unwrap();
-           
             if *negated {
                 row_indices = (0..v.rows.len()).collect();
             }
-
-            // add all rows that match column
             for ri in v.get_row_indices_of_col(ci, &Value::Null) {
                 if *negated {
                     row_indices.remove(&ri);
@@ -361,42 +356,66 @@ pub fn get_rows_matching_constraint(e: &Expr, v: &View) -> HashSet<usize> {
                     }                
                 }
                 _ => {
-                    let left_vals = get_value_for_rows(&left, v, None);
-                    let right_vals = get_value_for_rows(&right, v, None);
-                    for i in 0..v.rows.len() {
-                        let cmp = helpers::parser_vals_cmp(&left_vals[i], &right_vals[i]);
-                        match op {
-                            BinaryOperator::Eq => {
-                                if cmp == Ordering::Equal {
-                                    row_indices.insert(i);
+                    // special case: use index to perform comparisons against 
+                    // fixed value on the RHS
+                    let mut fastpath = false;
+                    if let Expr::Identifier(_) = **left {
+                        if let Expr::Value(ref val) = **right {
+                            if *op == BinaryOperator::Eq || *op == BinaryOperator::NotEq {
+                                fastpath = true;
+                                let (_tab, col) = expr_to_col(&left);
+                                let ci = v.columns.iter().position(|c| tablecolumn_matches_col(c, &col)).unwrap();
+                                if *op == BinaryOperator::NotEq {
+                                    row_indices = (0..v.rows.len()).collect();
+                                }
+                                for ri in v.get_row_indices_of_col(ci, &val) {
+                                    if *op == BinaryOperator::Eq {
+                                        row_indices.remove(&ri);
+                                    } else if *op == BinaryOperator::NotEq {
+                                        row_indices.insert(ri);
+                                    }
                                 }
                             }
-                            BinaryOperator::NotEq => {
-                                if cmp != Ordering::Equal {
-                                    row_indices.insert(i);
+                        } 
+                    }
+                    if !fastpath {
+                        let left_vals = get_value_for_rows(&left, v, None);
+                        let right_vals = get_value_for_rows(&right, v, None);
+                        for i in 0..v.rows.len() {
+                            let cmp = helpers::parser_vals_cmp(&left_vals[i], &right_vals[i]);
+                            match op {
+                                BinaryOperator::Eq => {
+                                    if cmp == Ordering::Equal {
+                                        row_indices.insert(i);
+                                    }
                                 }
-                            }
-                            BinaryOperator::Lt => {
-                                if cmp == Ordering::Less {
-                                    row_indices.insert(i);
+                                BinaryOperator::NotEq => {
+                                    if cmp != Ordering::Equal {
+                                        row_indices.insert(i);
+                                    }
                                 }
-                            }
-                            BinaryOperator::Gt => {
-                                if cmp == Ordering::Greater {
-                                    row_indices.insert(i);
+                                BinaryOperator::Lt => {
+                                    if cmp == Ordering::Less {
+                                        row_indices.insert(i);
+                                    }
                                 }
-                            }
-                            BinaryOperator::LtEq => {
-                                if cmp != Ordering::Greater {
-                                    row_indices.insert(i);
+                                BinaryOperator::Gt => {
+                                    if cmp == Ordering::Greater {
+                                        row_indices.insert(i);
+                                    }
                                 }
-                            }
-                            BinaryOperator::GtEq => {
-                                if cmp != Ordering::Less {
-                                    row_indices.insert(i);
+                                BinaryOperator::LtEq => {
+                                    if cmp != Ordering::Greater {
+                                        row_indices.insert(i);
+                                    }
                                 }
+                                BinaryOperator::GtEq => {
+                                    if cmp != Ordering::Less {
+                                        row_indices.insert(i);
+                                    }
+                                }
+                                _ => unimplemented!("Constraint not supported {}", e),
                             }
-                            _ => unimplemented!("Constraint not supported {}", e),
                         }
                     }
                 }
