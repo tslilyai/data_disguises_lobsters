@@ -26,11 +26,11 @@ pub fn post_comment(db: &mut mysql::Conn,
     ))?;*/
 
     // check that short id is available
-    db.query_drop(format!(
+    /*db.query_drop(format!(
         "SELECT  1 AS one FROM `comments` \
          WHERE `comments`.`short_id` = {}",
          id
-    ))?;
+    ))?;*/
 
     // the *actual* algorithm for computing hotness isn't all
     // that interesting to us. it does affect what's on the
