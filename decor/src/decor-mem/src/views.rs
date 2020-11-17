@@ -155,8 +155,8 @@ impl View {
         warn!("get_row_indices: no index for col {} val {}!", self.columns[col_index].name(), col_val);
         let mut ris = HashSet::new();
         for ri in 0..self.rows.len() {
+            warn!("{}: checking for {:?} val {:?}", self.name, self.rows[ri][col_index], col_val);
             if self.rows[ri][col_index].to_string() == col_val.to_string() {
-                warn!("{}: checking for {} val {}", self.name, self.rows[ri][col_index], col_val);
                 ris.insert(ri);
             }
         }
@@ -326,6 +326,7 @@ impl Views {
             }
         }
 
+        warn!("{}: Appending rows: {:?}", view.name, insert_rows);
         view.rows.append(&mut insert_rows);
         Ok(())
     }
