@@ -1,7 +1,7 @@
 use sql_parser::ast::{Expr, Ident, ObjectName, DataType};
 use std::*;
 use std::cmp::Ordering;
-use super::{config, views};
+use super::{config};
 use std::str::FromStr;
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 use log::{debug};
@@ -231,55 +231,6 @@ pub fn parser_expr_to_u64(val: &Expr) -> Result<u64, mysql::Error> {
         _ => Err(mysql::Error::IoError(io::Error::new(
                 io::ErrorKind::Other, format!("expr {:?} is not an int", val)))),
     }
-}
-
-pub fn view_to_answer_rows<W: io::Write>(
-    results: QueryResultWriter<W>,
-    view: Result<views::View, mysql::Error>) 
-    -> Result<(), mysql::Error> 
-{
-    use sql_parser::ast::ColumnOption as ColumnOption;
-    match view {
-        Ok(view) => {
-            let cols : Vec<_> = view.columns.iter()
-                .map(|c| {
-                    let mut flags = ColumnFlags::empty();
-                    for opt in &c.column.options {
-                        match opt.option {
-                            ColumnOption::AutoIncrement => flags.insert(ColumnFlags::AUTO_INCREMENT_FLAG),
-                            ColumnOption::NotNull => flags.insert(ColumnFlags::NOT_NULL_FLAG),
-                            ColumnOption::Unique {is_primary} => {
-                                if is_primary {
-                                    flags.insert(ColumnFlags::PRI_KEY_FLAG)
-                                } else {
-                                    flags.insert(ColumnFlags::UNIQUE_KEY_FLAG)
-                                }
-                            }
-                            _ => (),
-                        }
-                    }
-                    Column {
-                        table : c.table.clone(),
-                        column : c.column.name.to_string(),
-                        coltype : get_parser_coltype(&c.column.data_type),
-                        colflags: flags,
-                    }
-                })
-                .collect();
-            let mut writer = results.start(&cols)?;
-            for row in view.rows {
-                for v in row {
-                    writer.write_col(parser_val_to_common_val(&v))?;
-                }
-                writer.end_row()?;
-            }
-            writer.finish()?;
-        }
-        Err(e) => {
-            results.error(msql_srv::ErrorKind::ER_BAD_SLAVE, format!("{:?}", e).as_bytes())?;
-        }
-    }
-    Ok(())
 }
 
 /// Convert a parser type to MySQL_svr type 

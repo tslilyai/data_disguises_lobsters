@@ -1052,6 +1052,7 @@ impl QueryTransformer {
         // TODO we might want to keep this around if data is "restorable"
         self.ghosts_map.update_uid2gids_with(&ghost_update_pairs, db)?;
 
+        // delete from the data table
         let delete_stmt = Statement::Delete(DeleteStatement{
             table_name: stmt.table_name.clone(),
             selection : qt_selection,
@@ -1231,8 +1232,8 @@ impl QueryTransformer {
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error>
     {
-        let view = self.issue_statement(stmt, db);
-        helpers::view_to_answer_rows(writer, view)
+        let view = self.issue_statement(stmt, db)?;
+        view.view_to_answer_rows(writer)
     }
 
     pub fn query_drop(

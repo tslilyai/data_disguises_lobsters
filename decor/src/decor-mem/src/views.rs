@@ -1,9 +1,10 @@
 use std::iter::FromIterator;
 use sql_parser::ast::*;
 use std::collections::{HashMap, hash_set::HashSet};
-use crate::{select};
-use std::io::{Error};
+use crate::{select, helpers};
+use std::io::{Error, Write};
 use log::{warn};
+use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 
 #[derive(Debug, Clone)]
 pub struct TableColumnDef {
@@ -103,6 +104,45 @@ impl View {
         };
         warn!("created new view {:?}", view);
         view
+    }
+
+    pub fn view_to_answer_rows<W: Write>(&self, results: QueryResultWriter<W>)
+        -> Result<(), mysql::Error> 
+    {
+        let cols : Vec<_> = self.columns.iter()
+            .map(|c| {
+                let mut flags = ColumnFlags::empty();
+                for opt in &c.column.options {
+                    match opt.option {
+                        ColumnOption::AutoIncrement => flags.insert(ColumnFlags::AUTO_INCREMENT_FLAG),
+                        ColumnOption::NotNull => flags.insert(ColumnFlags::NOT_NULL_FLAG),
+                        ColumnOption::Unique {is_primary} => {
+                            if is_primary {
+                                flags.insert(ColumnFlags::PRI_KEY_FLAG)
+                            } else {
+                                flags.insert(ColumnFlags::UNIQUE_KEY_FLAG)
+                            }
+                        }
+                        _ => (),
+                    }
+                }
+                Column {
+                    table : c.table.clone(),
+                    column : c.column.name.to_string(),
+                    coltype : helpers::get_parser_coltype(&c.column.data_type),
+                    colflags: flags,
+                }
+            })
+            .collect();
+        let mut writer = results.start(&cols)?;
+        for row in &self.rows {
+            for v in row {
+                writer.write_col(helpers::parser_val_to_common_val(&v))?;
+            }
+            writer.end_row()?;
+        }
+        writer.finish()?;
+        Ok(())
     }
 
     pub fn contains_row(&self, r: &Vec<Value>) -> bool {
@@ -426,3 +466,4 @@ impl Views {
         Ok(())
     }
 }
+
