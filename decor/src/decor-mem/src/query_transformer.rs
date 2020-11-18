@@ -1344,27 +1344,24 @@ impl QueryTransformer {
         // TODO check auth token?
         self.cur_stat.qtype = stats::QueryType::Resub;
 
-        // check if already resubscribed
-        if !self.ghosts_map.resubscribe(uid, gids, db) {
-            return Ok(())
+        if !self.ghosts_map.resubscribe(uid, gids, db)? {
+            return Ok(());
         }
 
-        /*
         let uid_val = Value::Number(uid.to_string());
 
-        let gid_exprs : Vec<Expr> = self.ghosts_map.get_gids_for_uid(uid)?
+        let gid_exprs : Vec<Expr> = gids
             .iter()
             .map(|g| Expr::Value(Value::Number(g.to_string())))
             .collect();
 
         let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
-        let mv_table_name = self.mvtrans.objname_to_mv_objname(&user_table_name);
 
         /*
          * 1. drop all GIDs from users table 
          */
         let delete_gids_as_users_stmt = Statement::Delete(DeleteStatement {
-            table_name: mv_table_name.clone(),
+            table_name: user_table_name.clone(),
             selection: Some(Expr::InList{
                 expr: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
                 list: gid_exprs.clone(),
@@ -1372,11 +1369,11 @@ impl QueryTransformer {
             }),
         });
         warn!("resub: {}", delete_gids_as_users_stmt);
-        txn.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
+        db.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
         self.cur_stat.nqueries+=1;
 
         /*
-         * 2. Add user to users/usersmv (only one table)
+         * 2. Add user to users
          * TODO should also add back all of the user data????
          */
         let insert_uid_as_user_stmt = Statement::Insert(InsertStatement{
@@ -1392,7 +1389,7 @@ impl QueryTransformer {
             })),
         });
         warn!("resub: {}", insert_uid_as_user_stmt.to_string());
-        txn.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
+        db.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
         self.cur_stat.nqueries+=1;
  
         /* 
@@ -1401,74 +1398,35 @@ impl QueryTransformer {
         for dt in &self.cfg.data_tables {
             let dtobjname = helpers::string_to_objname(&dt.name);
             let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
-            
-            let mut assignments : Vec<String> = vec![];
-            for uc in ucols {
-                let uc_dt_ids = helpers::string_to_idents(&uc);
-                let uc_mv_ids = self.mvtrans.idents_to_mv_idents(&uc_dt_ids);
-                let mut astr = String::new();
-                astr.push_str(&format!(
-                        "{} = {}", 
-                        ObjectName(uc_mv_ids.clone()),
-                        Expr::Case{
-                            operand: None, 
-                            // check usercol_mv IN gids
-                            conditions: vec![Expr::InList{
-                                expr: Box::new(Expr::Identifier(uc_mv_ids.clone())),
-                                list: gid_exprs.clone(),
-                                negated: false,
-                            }],
-                            // then assign UID value
-                            results: vec![Expr::Value(uid_val.clone())],
-                            // otherwise keep as the current value in the MV
-                            else_result: Some(Box::new(Expr::Identifier(uc_mv_ids.clone()))),
-                        }));
-                assignments.push(astr);
-            }
-           
-            let mut select_constraint = Expr::Value(Value::Boolean(true));
-            // add constraint on non-user columns to be identical (performing a "JOIN" on the DT
-            // and the MV so the correct rows are joined together)
-            // XXX could put a constraint selecting rows only with the GIDs in a ucol
-            // but the assignment CASE should already handle this?
-            for col in &dt.data_cols {
-                let mut fullname = dt.name.clone();
-                fullname.push_str(".");
-                fullname.push_str(&col);
-                let dt_ids = helpers::string_to_idents(&fullname);
-                let mv_ids = self.mvtrans.idents_to_mv_idents(&dt_ids);
 
+            let view = self.views.get_mut_view(&dt.name).unwrap();
+            let mut select_constraint = Expr::Value(Value::Boolean(false));
+            let mut cis = vec![];
+            for col in &ucols {
+                // push all user columns, even if some of them might not "belong" to us
+                cis.push(view.columns.iter().position(|c| select::tablecolumn_matches_col(c, &col)).unwrap());
                 select_constraint = Expr::BinaryOp {
                     left: Box::new(select_constraint),
-                    op: BinaryOperator::And,
-                    right: Box::new(Expr::BinaryOp{
-                        left: Box::new(Expr::Identifier(mv_ids)),
-                        op: BinaryOperator::Eq,
-                        right: Box::new(Expr::Identifier(dt_ids)),
+                    op: BinaryOperator::Or,
+                    right: Box::new(Expr::InList{
+                        expr: Box::new(Expr::Identifier(vec![Ident::new(col)])),
+                        list: gid_exprs.clone(),
+                        negated: false,
                     }),             
                 };
+            }            
+
+            let ris_to_update = select::get_ris_matching_constraint(&select_constraint, &view, None, None);
+            for ri in ris_to_update {
+                for ci in &cis {
+                    // update the columns to use the uid
+                    if gids.iter().any(|g| g.to_string() == view.rows[ri][*ci].to_string()) {
+                        view.update_index(ri, *ci, Some(&uid_val));
+                        view.rows[ri][*ci] = uid_val.clone();
+                    }
+                }
             }
-                
-            // UPDATE corresponding MV
-            // SET MV.usercols = (MV.usercol = dt.usercol) ? uid : MV.usercol
-            // WHERE dtMV = dt ON [all other rows equivalent]
-            let mut astr = String::new();
-            astr.push_str(&assignments[0]);
-            for i in 1..assignments.len() {
-                astr.push_str(", ");
-                astr.push_str(&assignments[i]);
-            }
-            let update_dt_stmt = format!("UPDATE {}, {} SET {} WHERE {};", 
-                self.mvtrans.objname_to_mv_objname(&dtobjname).to_string(),
-                dtobjname.to_string(),
-                astr,
-                select_constraint.to_string(),
-            );
-            warn!("resub: {}", update_dt_stmt);
-            txn.query_drop(format!("{}", update_dt_stmt))?;
-            self.cur_stat.nqueries+=1;
-        }    
-        */
+        }
         Ok(())
     }
 } 

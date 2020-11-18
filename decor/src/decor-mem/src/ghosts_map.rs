@@ -135,9 +135,45 @@ impl GhostsMap{
      * Removes the UID unsubscribing.
      * Returns true if was unsubscribed 
      */
-    pub fn resubscribe(&mut self, uid:u64, gids: &Vec<u64>, db: &mut mysql::Conn) -> bool {
-        false
-        //self.unsubscribed.remove(&uid)
+    pub fn resubscribe(&mut self, uid:u64, gids: &Vec<u64>, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
+        // check hash and ensure that user has been unsubscribed
+        // TODO could also use MAC to authenticate user
+        match self.unsubscribed.get(&uid) {
+            Some(gidshash) => {
+                let serialized = serde_json::to_string(&gids).unwrap();
+                self.hasher.input_str(&serialized);
+                if *gidshash != self.hasher.result_str() {
+                    return Ok(false);
+                }
+                self.hasher.reset();
+                self.unsubscribed.remove(&uid); 
+            }
+            None => return Ok(false),
+        }
+
+        let mut pairs = String::new();
+
+        // insert mappings
+        // no mappings should exist!
+        assert!(self.uid2gids.insert(uid, gids.clone()).is_none());
+        for i in 0..gids.len() {
+            self.gid2uid.insert(gids[i], uid);
+            
+            // save values to insert into ghosts table
+            pairs.push_str(&format!("({}, {})", gids[i], uid));
+            if i < gids.len()-1 {
+                pairs.push_str(", ");
+            }
+        }
+
+        // insert into ghost table
+        let insert_query = &format!("INSERT INTO {} ({}, {}) VALUES ({});", 
+                            GHOST_TABLE_NAME, GHOST_ID_COL, GHOST_USER_COL, pairs);
+        warn!("insert_gid_for_uid: {}", insert_query);
+        db.query_iter(insert_query)?;
+        self.nqueries+=1;
+
+        Ok(true)
     }
 
     pub fn insert_gid_into_caches(&mut self, uid:u64, gid:u64) {
