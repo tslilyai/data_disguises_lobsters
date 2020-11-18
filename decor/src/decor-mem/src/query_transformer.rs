@@ -1,14 +1,14 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use super::{helpers, ghosts_cache, config, stats, views, select};
+use super::{helpers, ghosts_map, config, stats, views, select};
 use std::*;
 use std::time::Duration;
-use msql_srv::{QueryResultWriter};
+use msql_srv::{QueryResultWriter, SubscribeWriter};
 use log::{warn, debug};
 
 pub struct QueryTransformer {
     pub cfg: config::Config,
-    pub ghosts_cache: ghosts_cache::GhostsCache,
+    pub ghosts_map: ghosts_map::GhostsMap,
     
     views: views::Views,
     
@@ -23,7 +23,7 @@ impl QueryTransformer {
         QueryTransformer{
             views: views::Views::new(),
             cfg: cfg.clone(),
-            ghosts_cache: ghosts_cache::GhostsCache::new(),
+            ghosts_map: ghosts_map::GhostsMap::new(),
             params: params.clone(),
             cur_stat: stats::QueryStat::new(),
             stats: vec![],
@@ -379,7 +379,7 @@ impl QueryTransformer {
 
                         // now change the uids to gids
                         let mut gid_exprs = vec![];
-                        for (_uid, gids) in self.ghosts_cache.get_gids_for_uids(&uid_vals)? {
+                        for (_uid, gids) in self.ghosts_map.get_gids_for_uids(&uid_vals)? {
                             for g in gids {
                                 gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
                             }
@@ -416,7 +416,7 @@ impl QueryTransformer {
 
                         // now change the uids to gids
                         let mut gid_exprs = vec![];
-                        for (_uid, gids) in self.ghosts_cache.get_gids_for_uids(&uid_vals)? {
+                        for (_uid, gids) in self.ghosts_map.get_gids_for_uids(&uid_vals)? {
                             for g in gids {
                                 gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
                             }
@@ -458,7 +458,7 @@ impl QueryTransformer {
                         // change the uids in the range to gids
                         let uid_vals : Vec<u64> = ops::RangeInclusive::new(lowu64, highu64).collect();
                         let mut gid_exprs = vec![];
-                        for (_uid, gids) in self.ghosts_cache.get_gids_for_uids(&uid_vals)? {
+                        for (_uid, gids) in self.ghosts_map.get_gids_for_uids(&uid_vals)? {
                             for g in gids {
                                 gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
                             }
@@ -490,7 +490,7 @@ impl QueryTransformer {
                                         _ => vec![v],
                                     };
                                     let mut gid_exprs = vec![];
-                                    for (_uid, gids) in self.ghosts_cache.get_gids_for_uids(&uid_vals)? {
+                                    for (_uid, gids) in self.ghosts_map.get_gids_for_uids(&uid_vals)? {
                                         for g in gids {
                                             gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
                                         }
@@ -790,7 +790,7 @@ impl QueryTransformer {
                     // get all the gid rows corresponding to uids
                     // TODO deal with potential GIDs in user_cols due to
                     // unsubscriptions/resubscriptions
-                    self.ghosts_cache.cache_uid2gids_for_uids(&uids)?;
+                    self.ghosts_map.cache_uid2gids_for_uids(&uids)?;
 
                     // expr to constrain to select a particular row
                     let mut or_row_constraint_expr = Expr::Value(Value::Boolean(false));
@@ -811,7 +811,7 @@ impl QueryTransformer {
                                     op: BinaryOperator::And,
                                     right: Box::new(Expr::InList {
                                         expr: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
-                                        list: self.ghosts_cache.get_gids_for_uid(uid)?.iter()
+                                        list: self.ghosts_map.get_gids_for_uid(uid)?.iter()
                                                 .map(|g| Expr::Value(Value::Number(g.to_string())))
                                                 .collect(),
                                         negated: false,
@@ -883,12 +883,11 @@ impl QueryTransformer {
          * with the values of the usercol value as the UID
          * and then set the GID as the new source value of the usercol 
          * (thus why values is mutable)
-         * 
          * */
         match stmt.source {
             InsertSource::Query(q) => {
                 let mut ghost_values = values.clone();
-                self.ghosts_cache.insert_uid2gids_for_values(&mut ghost_values, &ucol_indices, db)?;
+                self.ghosts_map.insert_uid2gids_for_values(&mut ghost_values, &ucol_indices, db)?;
                 let mut new_q = q.clone();
                 let new_vals = ghost_values.iter()
                     .map(|vals| vals.iter()
@@ -979,52 +978,20 @@ impl QueryTransformer {
             let res = db.query_iter(format!("{}", get_gids_stmt_from_dt.to_string()))?;
             self.cur_stat.nqueries+=1;
 
-            let mut ghost_update_stmts = vec![];
             let mut ghost_update_pairs = vec![];
             for row in res {
                 let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
                 for (i, uc_val) in ucol_assigns.iter().enumerate() {
-                    let gid = helpers::mysql_val_to_parser_val(&mysql_vals[i]);
-                    // delete the GID entry if it is being set to NULL
                     if uc_val.value == Expr::Value(Value::Null) {
-                        ghost_update_stmts.push(Statement::Delete(DeleteStatement {
-                            table_name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
-                            selection: Some(Expr::BinaryOp{
-                                left: Box::new(Expr::Identifier(
-                                              helpers::string_to_idents(super::GHOST_ID_COL))),
-                                op: BinaryOperator::Eq,
-                                right: Box::new(Expr::Value(gid)),
-                            }),
-                        }));
                         ghost_update_pairs.push((None, helpers::mysql_val_to_u64(&mysql_vals[i])?));
                     } else {
-                        // otherwise, update GID entry with new UID value
-                        // XXX what if the value IS a GID??? should we just remove this GID?
-                        ghost_update_stmts.push(Statement::Update(UpdateStatement {
-                            table_name: helpers::string_to_objname(super::GHOST_TABLE_NAME),
-                            assignments: vec![Assignment{
-                                id: Ident::new(super::GHOST_USER_COL),
-                                value: uc_val.value.clone(),
-                            }],
-                            selection: Some(Expr::BinaryOp{
-                                left: Box::new(Expr::Identifier(
-                                              helpers::string_to_idents(super::GHOST_ID_COL))),
-                                op: BinaryOperator::Eq,
-                                right: Box::new(Expr::Value(gid)),
-                            }),
-                        }));
                         ghost_update_pairs.push(
                             (Some(helpers::parser_expr_to_u64(&uc_val.value)?), 
                              helpers::mysql_val_to_u64(&mysql_vals[i])?));
                     }
                 }
             }
-            for gstmt in ghost_update_stmts {
-                warn!("issue_update_dt_stmt: {}", gstmt);
-                db.query_drop(format!("{}", gstmt.to_string()))?;
-                self.cur_stat.nqueries+=1;
-            }
-            self.ghosts_cache.update_uid2gids_with(&ghost_update_pairs)?;
+            self.ghosts_map.update_uid2gids_with(&ghost_update_pairs, db)?;
         }
         let update_stmt = Statement::Update(UpdateStatement{
             table_name: stmt.table_name.clone(),
@@ -1083,20 +1050,7 @@ impl QueryTransformer {
 
         // delete from ghosts table if GIDs are removed
         // TODO we might want to keep this around if data is "restorable"
-        if !ucols.is_empty() {
-            let ghosts_delete_statement = Statement::Delete(DeleteStatement{
-                table_name: helpers::string_to_objname(&super::GHOST_TABLE_NAME),
-                selection: Some(Expr::InList{
-                    expr: Box::new(Expr::Identifier(helpers::string_to_idents(&super::GHOST_ID_COL))),
-                    list: gids_list,
-                    negated: false,
-                }),
-            });
-            warn!("issue_delete_dt_stmt: {}", ghosts_delete_statement);
-            db.query_drop(&ghosts_delete_statement.to_string())?;
-            self.cur_stat.nqueries+=1;
-        }
-        self.ghosts_cache.update_uid2gids_with(&ghost_update_pairs)?;
+        self.ghosts_map.update_uid2gids_with(&ghost_update_pairs, db)?;
 
         let delete_stmt = Statement::Delete(DeleteStatement{
             table_name: stmt.table_name.clone(),
@@ -1262,12 +1216,12 @@ impl QueryTransformer {
     }
 
     pub fn record_query_stats(&mut self, qtype: stats::QueryType, dur: Duration) {
-        self.cur_stat.nqueries+=self.ghosts_cache.nqueries;
+        self.cur_stat.nqueries+=self.ghosts_map.nqueries;
         self.cur_stat.duration = dur;
         self.cur_stat.qtype = qtype;
         self.stats.push(self.cur_stat.clone());
         self.cur_stat.clear();
-        self.ghosts_cache.nqueries = 0;
+        self.ghosts_map.nqueries = 0;
     }
 
     pub fn query<W: io::Write>(
@@ -1291,16 +1245,19 @@ impl QueryTransformer {
         Ok(())
     }
 
-    pub fn unsubscribe(&mut self, uid: u64, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: SubscribeWriter<W>) -> Result<(), mysql::Error> {
         self.cur_stat.qtype = stats::QueryType::Unsub;
 
         // check if already unsubscribed
-        if !self.ghosts_cache.unsubscribe(uid) {
-            return Ok(())
+        // get list of ghosts to return otherwise
+        let mut gids = vec![];
+        match self.ghosts_map.unsubscribe(uid)? {
+            None => return Ok(()),
+            Some(ghosts) => gids = ghosts,
         }
+
         let uid_val = Value::Number(uid.to_string());
-                    
-        let mut gid_values: Vec<Vec<Value>> = self.ghosts_cache.get_gids_for_uid(uid)?
+        let mut gid_values: Vec<Vec<Value>> = self.ghosts_map.get_gids_for_uid(uid)?
             .iter()
             .map(|g| vec![Value::Number(g.to_string())])
             .collect();
@@ -1370,7 +1327,8 @@ impl QueryTransformer {
             assert!(gid_index == gid_values.len());
         }
         
-        // TODO return some type of auth token?
+        // TODO remove mappings from ghosts here, auth hash
+        // use writer to return response
         Ok(())
     }
 
@@ -1380,19 +1338,19 @@ impl QueryTransformer {
      * TODO add back deleted content from shard
      * TODO check that user doesn't already exist
      */
-    pub fn resubscribe(&mut self, uid: u64, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    pub fn resubscribe(&mut self, uid: u64, gids: Vec<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         // TODO check auth token?
         self.cur_stat.qtype = stats::QueryType::Resub;
 
         // check if already resubscribed
-        if !self.ghosts_cache.resubscribe(uid) {
+        if !self.ghosts_map.resubscribe(uid, gids, db) {
             return Ok(())
         }
 
         /*
         let uid_val = Value::Number(uid.to_string());
 
-        let gid_exprs : Vec<Expr> = self.ghosts_cache.get_gids_for_uid(uid)?
+        let gid_exprs : Vec<Expr> = self.ghosts_map.get_gids_for_uid(uid)?
             .iter()
             .map(|g| Expr::Value(Value::Number(g.to_string())))
             .collect();

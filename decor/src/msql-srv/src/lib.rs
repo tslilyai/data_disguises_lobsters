@@ -37,6 +37,7 @@
 //!    fn on_resubscribe(
 //!        &mut self,
 //!        _id: u64,
+//!        gids: Vec<u64>,
 //!        w: SubscribeWriter<W>
 //!    ) -> Result<(), Self::Error>
 //!    {
@@ -206,7 +207,7 @@ pub trait MysqlShim<W: Write> {
     /// [`QueryResultWriter`](struct.QueryResultWriter.html).
     fn on_unsubscribe(
         &mut self,
-        id: u64,
+        uid: u64,
         w: SubscribeWriter<'_, W>,
     ) -> Result<(), Self::Error>;
 
@@ -216,7 +217,8 @@ pub trait MysqlShim<W: Write> {
     /// [`QueryResultWriter`](struct.QueryResultWriter.html).
     fn on_resubscribe(
         &mut self,
-        id: u64,
+        uid: u64,
+        gids: Vec<u64>,
         w: SubscribeWriter<'_, W>,
     ) -> Result<(), Self::Error>;
 
@@ -387,13 +389,22 @@ impl<B: MysqlShim<W>, R: Read, W: Write> MysqlIntermediary<B, R, W> {
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
                         self.shim.on_unsubscribe(uid, w)?;
                     } else if q.starts_with(b"RESUBSCRIBE UID ") || q.starts_with(b"resubscribe uid ") {
+                        // RESUBSCRIBE UID uid WITH GIDS (gid1, gid2, ...);
                         let w = SubscribeWriter { writer: &mut self.writer };
-                        let uidstr = ::std::str::from_utf8(&q[b"RESUBSCRIBE UID ".len()..])
+                        let args = ::std::str::from_utf8(&q[b"RESUBSCRIBE UID ".len()..])
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-                        let uidstr = uidstr.trim().trim_end_matches(';').trim_matches('`');
+                        let args : Vec<&str> = args.split(" WITH GIDS (").collect();
+                        assert!(args.len() == 2);
+                        let uidstr = args[0].trim().trim_end_matches(';').trim_matches('`');
+                        let gidstrs : Vec<&str> = args[1].trim_end_matches(';').trim_matches(')').split(',').collect();
+                        let mut gids = vec![];
+                        for gid in &gidstrs {
+                            gids.push(u64::from_str(gid.trim())
+                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?);
+                        }
                         let uid = u64::from_str(uidstr)
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-                        self.shim.on_resubscribe(uid, w)?;
+                        self.shim.on_resubscribe(uid, gids, w)?;
                     } else {
                         let w = QueryResultWriter::new(&mut self.writer, false);
                         self.shim.on_query(

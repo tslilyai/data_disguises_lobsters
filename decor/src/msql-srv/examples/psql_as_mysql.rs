@@ -126,6 +126,7 @@ impl<W: io::Write> MysqlShim<W> for Postgres {
     fn on_resubscribe(
         &mut self,
         _id: u64,
+        _gids: Vec<u64>,
         w: SubscribeWriter<W>
     ) -> Result<(), Self::Error>
     {

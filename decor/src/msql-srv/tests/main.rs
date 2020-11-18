@@ -44,6 +44,7 @@ where
     fn on_resubscribe(
         &mut self,
         _id: u64,
+        _gids: Vec<u64>,
         w: SubscribeWriter<net::TcpStream>,
     ) -> Result<(), Self::Error>
     {

@@ -1,4 +1,5 @@
 extern crate mysql;
+extern crate crypto;
 use msql_srv::*;
 use mysql::prelude::*;
 use std::collections::HashMap;
@@ -7,17 +8,12 @@ use std::*;
 use log::{error, warn};
 pub mod config;
 pub mod helpers;
-pub mod ghosts_cache;
+pub mod ghosts_map;
 pub mod query_transformer;
 pub mod views;
 pub mod sqlparser_cache;
 pub mod stats;
 pub mod select;
-
-const GHOST_ID_START : u64 = 1<<20;
-const GHOST_TABLE_NAME : &'static str = "ghosts";
-const GHOST_USER_COL : &'static str = "user_id";
-const GHOST_ID_COL: &'static str = "ghost_id";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
@@ -25,24 +21,6 @@ pub struct TestParams {
     pub translate: bool,
     pub parse: bool,
     pub in_memory: bool,
-}
-
-fn create_ghosts_query(in_memory: bool) -> String {
-    let mut q = format!(
-        r"CREATE TABLE IF NOT EXISTS {} (
-            `{}` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            `{}` int unsigned)", 
-        GHOST_TABLE_NAME, GHOST_ID_COL, GHOST_USER_COL);
-    if in_memory {
-        q.push_str(" ENGINE = MEMORY");
-    }
-    q
-}
-
-fn set_initial_gid_query() -> String {
-    format!(
-        r"ALTER TABLE {} AUTO_INCREMENT={};",
-        GHOST_TABLE_NAME, GHOST_ID_START)
 }
 
 struct Prepared {
@@ -108,11 +86,7 @@ impl Shim {
      * */
     fn create_schema(&mut self) -> Result<(), mysql::Error> {
         /* create ghost metadata table with boolean cols for each user id */
-        // XXX temp: create a new ghost metadata table
-        self.db.query_drop("DROP TABLE IF EXISTS ghosts;")?;
-        self.db.query_drop(create_ghosts_query(self.test_params.in_memory))?;
-        self.db.query_drop(set_initial_gid_query())?;
-        warn!("drop/create/alter ghosts table");
+        ghosts_map::create_ghosts_table(&mut self.db, self.test_params.in_memory)?;
        
         /* issue schema statements */
         let mut stmt = String::new();
@@ -143,13 +117,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO actually delete entries? 
      */
     fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), mysql::Error> {
-        match self.qtrans.unsubscribe(uid, &mut self.db) {
-            Ok(()) => Ok(w.ok()?),
-            Err(_e) => {
-                w.error(ErrorKind::ER_BAD_DB_ERROR, b"unsub failed")?;
-                return Ok(());
-            }
-        }
+        self.qtrans.unsubscribe(uid, &mut self.db, w)
     }
 
     /* 
@@ -158,8 +126,8 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO add back deleted content from shard
      * TODO check that user doesn't already exist
      */
-    fn on_resubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
-        match self.qtrans.resubscribe(uid, &mut self.db) {
+    fn on_resubscribe(&mut self, uid: u64, gids: Vec<u64>, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
+        match self.qtrans.resubscribe(uid, gids, &mut self.db) {
             Ok(()) => Ok(w.ok()?),
             Err(_e) => {
                 w.error(ErrorKind::ER_BAD_DB_ERROR, b"resub failed")?;
