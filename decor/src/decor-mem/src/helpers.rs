@@ -1,5 +1,3 @@
-extern crate mysql;
-extern crate hex;
 use sql_parser::ast::{Expr, Ident, ObjectName, DataType};
 use std::*;
 use std::cmp::Ordering;

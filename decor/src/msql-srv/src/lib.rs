@@ -28,7 +28,7 @@
 //!    fn on_unsubscribe(
 //!        &mut self,
 //!        _id: u64,
-//!        w: SubscribeWriter<W>
+//!        w: QueryResultWriter<W>
 //!        ) -> Result<(), Self::Error> 
 //!    {
 //!        Ok(w.ok()?)
@@ -38,7 +38,7 @@
 //!        &mut self,
 //!        _id: u64,
 //!        gids: Vec<u64>,
-//!        w: SubscribeWriter<W>
+//!        w: QueryResultWriter<W>
 //!    ) -> Result<(), Self::Error>
 //!    {
 //!        Ok(w.ok()?)
@@ -154,7 +154,7 @@ pub struct Column {
 
 pub use crate::errorcodes::ErrorKind;
 pub use crate::params::{ParamParser, ParamValue, Params};
-pub use crate::resultset::{SubscribeWriter, InitWriter, QueryResultWriter, RowWriter, StatementMetaWriter};
+pub use crate::resultset::{QueryResultWriter, InitWriter, RowWriter, StatementMetaWriter};
 pub use crate::value::{ToMysqlValue, Value, ValueInner};
 
 /// Implementors of this trait can be used to drive a MySQL-compatible database backend.
@@ -208,7 +208,7 @@ pub trait MysqlShim<W: Write> {
     fn on_unsubscribe(
         &mut self,
         uid: u64,
-        w: SubscribeWriter<'_, W>,
+        w: QueryResultWriter<'_, W>,
     ) -> Result<(), Self::Error>;
 
     /// Called when the client asks to resubscribe a user with UID uid (must be an int)
@@ -219,7 +219,7 @@ pub trait MysqlShim<W: Write> {
         &mut self,
         uid: u64,
         gids: Vec<u64>,
-        w: SubscribeWriter<'_, W>,
+        w: QueryResultWriter<'_, W>,
     ) -> Result<(), Self::Error>;
 
     /// Called when client switches database.
@@ -381,7 +381,7 @@ impl<B: MysqlShim<W>, R: Read, W: Write> MysqlIntermediary<B, R, W> {
                         let schema = schema.trim().trim_end_matches(';').trim_matches('`');
                         self.shim.on_init(&schema, w)?;
                     } else if q.starts_with(b"UNSUBSCRIBE UID ") || q.starts_with(b"unsubscribe uid ") {
-                        let w = SubscribeWriter { writer: &mut self.writer };
+                        let w = QueryResultWriter::new(&mut self.writer, false);
                         let uidstr = ::std::str::from_utf8(&q[b"UNSUBSCRIBE UID ".len()..])
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
                         let uidstr = uidstr.trim().trim_end_matches(';').trim_matches('`');
@@ -390,7 +390,7 @@ impl<B: MysqlShim<W>, R: Read, W: Write> MysqlIntermediary<B, R, W> {
                         self.shim.on_unsubscribe(uid, w)?;
                     } else if q.starts_with(b"RESUBSCRIBE UID ") || q.starts_with(b"resubscribe uid ") {
                         // RESUBSCRIBE UID uid WITH GIDS (gid1, gid2, ...);
-                        let w = SubscribeWriter { writer: &mut self.writer };
+                        let w = QueryResultWriter::new(&mut self.writer, false);
                         let args = ::std::str::from_utf8(&q[b"RESUBSCRIBE UID ".len()..])
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
                         let args : Vec<&str> = args.split(" WITH GIDS (").collect();

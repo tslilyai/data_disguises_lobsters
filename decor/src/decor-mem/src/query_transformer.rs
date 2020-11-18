@@ -3,7 +3,7 @@ use sql_parser::ast::*;
 use super::{helpers, ghosts_map, config, stats, views, select};
 use std::*;
 use std::time::Duration;
-use msql_srv::{QueryResultWriter, SubscribeWriter};
+use msql_srv::{QueryResultWriter};
 use log::{warn, debug};
 
 pub struct QueryTransformer {
@@ -1245,23 +1245,26 @@ impl QueryTransformer {
         Ok(())
     }
 
-    pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: SubscribeWriter<W>) -> Result<(), mysql::Error> {
+    pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) -> Result<(), mysql::Error> {
         self.cur_stat.qtype = stats::QueryType::Unsub;
+
+        let uid_val = Value::Number(uid.to_string());
+        let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
 
         // check if already unsubscribed
         // get list of ghosts to return otherwise
-        let mut gids = vec![];
-        match self.ghosts_map.unsubscribe(uid)? {
-            None => return Ok(()),
-            Some(ghosts) => gids = ghosts,
+        let gids : Vec<u64>;
+        let mut gid_values : Vec<Vec<Value>>;
+        match self.ghosts_map.unsubscribe(uid, db)? {
+            None => {
+                writer.error(msql_srv::ErrorKind::ER_BAD_SLAVE, format!("{:?}", "user already unsubscribed").as_bytes())?;
+                return Ok(());
+            }
+            Some(ghosts) => {
+                gid_values = ghosts.iter().map(|g| vec![Value::Number(g.to_string())]).collect();
+                gids = ghosts;
+            }
         }
-
-        let uid_val = Value::Number(uid.to_string());
-        let mut gid_values: Vec<Vec<Value>> = self.ghosts_map.get_gids_for_uid(uid)?
-            .iter()
-            .map(|g| vec![Value::Number(g.to_string())])
-            .collect();
-        let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
  
         /* 
          * 1. update the users MV to have an entry for all the users' GIDs
@@ -1327,9 +1330,7 @@ impl QueryTransformer {
             assert!(gid_index == gid_values.len());
         }
         
-        // TODO remove mappings from ghosts here, auth hash
-        // use writer to return response
-        Ok(())
+        ghosts_map::answer_rows(writer, &gids)
     }
 
     /* 
@@ -1338,7 +1339,7 @@ impl QueryTransformer {
      * TODO add back deleted content from shard
      * TODO check that user doesn't already exist
      */
-    pub fn resubscribe(&mut self, uid: u64, gids: Vec<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    pub fn resubscribe(&mut self, uid: u64, gids: &Vec<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         // TODO check auth token?
         self.cur_stat.qtype = stats::QueryType::Resub;
 

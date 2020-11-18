@@ -13,7 +13,7 @@ use std::net;
 use std::thread;
 
 use msql_srv::{
-    Column, ErrorKind, MysqlIntermediary, MysqlShim, ParamParser, QueryResultWriter,
+    Column, ErrorKind, MysqlIntermediary, MysqlShim, ParamParser, 
     StatementMetaWriter, SubscribeWriter,
 };
 

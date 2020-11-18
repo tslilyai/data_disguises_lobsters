@@ -1,5 +1,6 @@
 extern crate mysql;
 extern crate crypto;
+extern crate hex;
 use msql_srv::*;
 use mysql::prelude::*;
 use std::collections::HashMap;
@@ -116,7 +117,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * Set all user_ids in the MV to ghost ids, insert ghost users into usersMV
      * TODO actually delete entries? 
      */
-    fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), mysql::Error> {
+    fn on_unsubscribe(&mut self, uid: u64, w: QueryResultWriter<W>) -> Result<(), mysql::Error> {
         self.qtrans.unsubscribe(uid, &mut self.db, w)
     }
 
@@ -126,12 +127,12 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO add back deleted content from shard
      * TODO check that user doesn't already exist
      */
-    fn on_resubscribe(&mut self, uid: u64, gids: Vec<u64>, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
-        match self.qtrans.resubscribe(uid, gids, &mut self.db) {
-            Ok(()) => Ok(w.ok()?),
-            Err(_e) => {
+    fn on_resubscribe(&mut self, uid: u64, gids: Vec<u64>, w: QueryResultWriter<W>) -> Result<(), Self::Error> {
+        match self.qtrans.resubscribe(uid, &gids, &mut self.db) {
+            Ok(()) => Ok(w.completed(gids.len() as u64, 0)?),
+            Err(e) => {
                 w.error(ErrorKind::ER_BAD_DB_ERROR, b"resub failed")?;
-                return Ok(());
+                Ok(())
             }
         }
     }

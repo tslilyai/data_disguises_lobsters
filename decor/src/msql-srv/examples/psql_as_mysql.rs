@@ -117,7 +117,7 @@ impl<W: io::Write> MysqlShim<W> for Postgres {
     fn on_unsubscribe(
         &mut self,
         _id: u64,
-        w: SubscribeWriter<W>
+        w: QueryResultWriter<W>
         ) -> Result<(), Self::Error> 
     {
         Ok(w.ok()?)
@@ -127,7 +127,7 @@ impl<W: io::Write> MysqlShim<W> for Postgres {
         &mut self,
         _id: u64,
         _gids: Vec<u64>,
-        w: SubscribeWriter<W>
+        w: QueryResultWriter<W>
     ) -> Result<(), Self::Error>
     {
         Ok(w.ok()?)

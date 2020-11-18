@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicU64};
 use std::collections::{HashMap};
 use crypto::digest::Digest;
 use crypto::sha3::Sha3;
+use msql_srv::{QueryResultWriter};
 
 const GHOST_ID_START : u64 = 1<<20;
 const GHOST_TABLE_NAME : &'static str = "ghosts";
@@ -40,6 +41,27 @@ pub fn create_ghosts_table(db: &mut mysql::Conn, in_memory: bool) -> Result<(), 
     Ok(())
 }
 
+pub fn answer_rows<W: io::Write>(
+    results: QueryResultWriter<W>,
+    gids: &Vec<u64>) 
+    -> Result<(), mysql::Error> 
+{
+    let cols : Vec<_> = vec![msql_srv::Column {
+        table : GHOST_TABLE_NAME.to_string(),
+        column : GHOST_ID_COL.to_string(),
+        coltype: msql_srv::ColumnType::MYSQL_TYPE_LONGLONG,
+        colflags: msql_srv::ColumnFlags::empty(),
+    }];
+    let mut writer = results.start(&cols)?;
+    for &gid in gids {
+        writer.write_col(mysql_common::value::Value::UInt(gid))?;
+        writer.end_row()?;
+    }
+    writer.finish()?;
+    Ok(())
+}
+
+
 pub struct GhostsMap{
     // caches
     unsubscribed: HashMap<u64,String>,
@@ -68,16 +90,35 @@ impl GhostsMap{
      * Returns a hash of the list of ghosts if user is not yet unsubscribed,
      * else None if the user is already unsubscribed
      */
-    pub fn unsubscribe(&mut self, uid:u64) -> Result<Option<Vec<u64>>, mysql::Error> {
+    pub fn unsubscribe(&mut self, uid:u64, db: &mut mysql::Conn) -> Result<Option<Vec<u64>>, mysql::Error> {
         if self.unsubscribed.get(&uid).is_none() {
             self.cache_uid2gids_for_uids(&vec![uid])?;
             if let Some(gids) = self.uid2gids.remove(&uid) {
+                // remove gids from reverse mapping
+                for gid in &gids {
+                    self.gid2uid.remove(gid);
+                }
+
                 // cache the hash of the gids
                 let serialized = serde_json::to_string(&gids).unwrap();
                 self.hasher.input_str(&serialized);
                 let result = self.hasher.result_str();
                 self.hasher.reset();
+                // TODO should we persist the hash?
                 self.unsubscribed.insert(uid, result); 
+
+                // delete from ghosts table
+                let delete_stmt = Statement::Delete(DeleteStatement{
+                    table_name: helpers::string_to_objname(&GHOST_TABLE_NAME),
+                    selection: Some(Expr::InList{
+                        expr: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_ID_COL))),
+                        list: gids.iter().map(|g| Expr::Value(Value::Number(g.to_string()))).collect(),
+                        negated: false,
+                    }),
+                });
+                warn!("issue_update_dt_stmt: {}", delete_stmt);
+                db.query_drop(format!("{}", delete_stmt))?;
+                self.nqueries+=1;
            
                 // return the gids
                 return Ok(Some(gids));
@@ -94,7 +135,7 @@ impl GhostsMap{
      * Removes the UID unsubscribing.
      * Returns true if was unsubscribed 
      */
-    pub fn resubscribe(&mut self, uid:u64, gids: Vec<u64>, db: &mut mysql::Conn) -> bool {
+    pub fn resubscribe(&mut self, uid:u64, gids: &Vec<u64>, db: &mut mysql::Conn) -> bool {
         false
         //self.unsubscribed.remove(&uid)
     }
