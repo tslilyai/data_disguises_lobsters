@@ -4,7 +4,7 @@ use std::cmp::Ordering;
 use super::{config};
 use std::str::FromStr;
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
-use log::{debug};
+use log::{debug, warn};
 
 pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName) -> Vec<String> {
     let mut res : Vec<String> = vec![];
@@ -177,16 +177,19 @@ pub fn idents_subset_of_idents(id1: &Vec<Ident>, id2: &Vec<Ident>) -> Option<(us
 // returns if the first value is larger than the second
 pub fn parser_vals_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> cmp::Ordering {
     use sql_parser::ast::Value as Value;
+    let res : cmp::Ordering;
     match (v1, v2) {
-        (Value::Number(i1), Value::Number(i2)) => i1.cmp(i2),
-        (Value::String(i1), Value::String(i2)) => i1.cmp(i2),
-        (Value::String(i1), Value::Number(i2)) => i1.cmp(i2),
-        (Value::Number(i1), Value::String(i2)) => i1.cmp(i2),
-        (Value::Null, Value::Null) => Ordering::Equal,
-        (_, Value::Null) => Ordering::Greater,
-        (Value::Null, _) => Ordering::Less,
+        (Value::Number(i1), Value::Number(i2)) => res = u64::from_str(i1).unwrap().cmp(&u64::from_str(i2).unwrap()),
+        (Value::String(i1), Value::Number(i2)) => res = u64::from_str(i1).unwrap().cmp(&u64::from_str(i2).unwrap()),
+        (Value::Number(i1), Value::String(i2)) => res = u64::from_str(i1).unwrap().cmp(&u64::from_str(i2).unwrap()),
+        (Value::String(i1), Value::String(i2)) => res = i1.cmp(i2),
+        (Value::Null, Value::Null) => res = Ordering::Equal,
+        (_, Value::Null) => res = Ordering::Greater,
+        (Value::Null, _) => res = Ordering::Less,
         _ => unimplemented!("value not comparable! {:?} and {:?}", v1, v2),
     }
+    warn!("comparing {:?} =? {:?} : {:?}", v1, v2, res);
+    res
 }
 
 pub fn plus_parser_vals(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> sql_parser::ast::Value {

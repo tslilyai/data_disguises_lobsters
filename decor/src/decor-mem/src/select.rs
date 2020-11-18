@@ -364,6 +364,9 @@ pub fn get_ris_matching_constraint(e: &Expr, v: &View,
 {
     let mut ris = HashSet::new();
     match e {
+        Expr::Value(Value::Boolean(b)) => if *b {
+            ris = (0..v.rows.len()).collect();
+        }
         Expr::InList { expr, list, negated } => {
             let list_vals : Vec<Value> = list.iter()
                 .map(|e| match e {
@@ -461,6 +464,7 @@ pub fn get_ris_matching_constraint(e: &Expr, v: &View,
                                     ris = (0..v.rows.len()).collect();
                                 }
 
+                                warn!("fastpath equal expression: {} =? {}", col, val);
                                 if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
                                     for ri in v.get_ris_of_col(ci, &val) {
                                         if *op == BinaryOperator::Eq {
@@ -470,6 +474,7 @@ pub fn get_ris_matching_constraint(e: &Expr, v: &View,
                                         }
                                     }
                                 } else {
+                                    warn!("fastpath equal expression: checking if computed col {} =? {}", col, val);
                                     // if this col is a computed col, check if null and return
                                     if let Some(computed) = computed {
                                         if let Some(vals) = computed.get(&col) {
@@ -522,7 +527,7 @@ pub fn get_ris_matching_constraint(e: &Expr, v: &View,
                                         ris.insert(i);
                                     }
                                 }
-                                _ => unimplemented!("Constraint not supported {}", e),
+                                _ => unimplemented!("binop constraint not supported {}", e),
                             }
                         }
                     }
@@ -531,7 +536,7 @@ pub fn get_ris_matching_constraint(e: &Expr, v: &View,
         }
         _ => unimplemented!("Constraint not supported {}", e),
     }
-    warn!("Get rows matching constraint: {:?}, {:?}", e, ris);
+    warn!("Get ris matching constraint: {:?}, {:?}", e, ris);
     ris
 }
 
@@ -760,7 +765,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                         }
                         Some(true) | None => {
                             new_view.rows.sort_by(|r1, r2| {
-                                let res = helpers::parser_vals_cmp(&r2[ci1], &r1[ci1]);
+                                let res = helpers::parser_vals_cmp(&r1[ci1], &r2[ci1]);
                                 if res == Ordering::Equal {
                                     match orderby2.asc {
                                         Some(false) => helpers::parser_vals_cmp(&r2[ci2], &r1[ci2]),
@@ -776,13 +781,16 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                     match orderby1.asc {
                         Some(false) => {
                             new_view.rows.sort_by(|r1, r2| {
-                                helpers::parser_vals_cmp(&r2[ci1], &r1[ci1])
+                                helpers::parser_vals_cmp(&r1[ci1], &r2[ci1])
                             });
+                            warn!("order by desc! {:?}", new_view.rows);
                         }
                         Some(true) | None => {
+                            warn!("before sort: order by asc! {:?}", new_view.rows);
                             new_view.rows.sort_by(|r1, r2| {
                                 helpers::parser_vals_cmp(&r1[ci1], &r2[ci1])
                             });
+                            warn!("order by asc! {:?}", new_view.rows);
                         }
                     }
                 }

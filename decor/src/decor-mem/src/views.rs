@@ -218,7 +218,7 @@ impl View {
     }
  
     pub fn update_index(&mut self, row_index: usize, col_index: usize, new_val: Option<&Value>) {
-        warn!("{}: updating {:?})", self.columns[col_index].name(), new_val);
+        warn!("{}: updating {:?}", self.columns[col_index].name(), new_val);
         let old_val = &self.rows[row_index][col_index];
         if let Some(indexes) = &mut self.indexes {
             if let Some(index) = indexes.get_mut(&self.columns[col_index].column.name.to_string()) {

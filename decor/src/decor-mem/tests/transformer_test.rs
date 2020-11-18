@@ -24,6 +24,7 @@ extern crate log;
 use mysql::prelude::*;
 use std::*;
 use sql_parser::parser;
+use log::warn;
 
 const SCHEMA : &'static str = include_str!("./schema.sql");
 const CONFIG : &'static str = include_str!("./config.json");
@@ -315,7 +316,18 @@ fn test_users() {
      *  Test 1: Unsubscribe of user 1 adds two ghost entries to user table, anonymizes both
      *  moderation entries
      */
-    db.query_drop(format!("UNSUBSCRIBE UID {};", 1)).unwrap();
+    let mut results = vec![];
+    let res = db.query_iter(format!("UNSUBSCRIBE UID {};", 1)).unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        let gid = format!("{}", mysql_val_to_parser_val(&vals[0]));
+        results.push(gid);
+    }
+    assert_eq!(results.len(), 2);
+    assert!((results[0].clone(), results[1].clone()) == (format!("'{}'", GHOST_ID_START), format!("'{}'", GHOST_ID_START+3))
+        || (results[0].clone(), results[1].clone()) == (format!("'{}'", GHOST_ID_START), format!("'{}'", GHOST_ID_START+3)));
+
     let mut results = vec![];
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.user_id;").unwrap();
     for row in res {
@@ -329,16 +341,28 @@ fn test_users() {
         results.push((id, mod_id, story_id, user_id, action));
     }
     assert_eq!(results.len(), 2);
-    assert_eq!(results[0], ("'1'".to_string(), 
-                            format!("'{}'", GHOST_ID_START), 
-                            "'0'".to_string(), 
-                            "'2'".to_string(), 
-                            "'bad story!'".to_string()));
-    assert_eq!(results[1], ("'2'".to_string(), 
+    warn!("results are {:?}", results);
+    assert!(((results[0] == ("'2'".to_string(), 
                             "'2'".to_string(), 
                             "'0'".to_string(), 
                             format!("'{}'", GHOST_ID_START+3), 
-                            "'worst story!'".to_string()));
+                            "'worst story!'".to_string()))
+            && (results[1] == ("'1'".to_string(), 
+                            format!("'{}'", GHOST_ID_START), 
+                            "'0'".to_string(), 
+                            "'2'".to_string(), 
+                            "'bad story!'".to_string())))
+        || ((results[0] == ("'2'".to_string(), 
+                            "'2'".to_string(), 
+                            "'0'".to_string(), 
+                            format!("'{}'", GHOST_ID_START), 
+                            "'worst story!'".to_string()))
+            && (results[1] == ("'1'".to_string(), 
+                            format!("'{}'", GHOST_ID_START+3), 
+                            "'0'".to_string(), 
+                            "'2'".to_string(), 
+                            "'bad story!'".to_string()))));
+
 
     // users modified appropriately: ghosts added to users 
     let mut results = vec![];
@@ -358,7 +382,7 @@ fn test_users() {
      *  Test 2: Resubscribe of user 1 adds uid to user table, removes gids from user table, 
      *  unanonymizes both moderation entries
      */
-    db.query_drop(format!("RESUBSCRIBE UID {};", 1)).unwrap();
+    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS ({}, {});", 1, GHOST_ID_START, GHOST_ID_START+3)).unwrap();
     let mut results = vec![];
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.id;").unwrap();
     for row in res {

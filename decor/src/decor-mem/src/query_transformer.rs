@@ -1247,6 +1247,7 @@ impl QueryTransformer {
     }
 
     pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) -> Result<(), mysql::Error> {
+        warn!("Unsubscribing {}", uid);
         self.cur_stat.qtype = stats::QueryType::Unsub;
 
         let uid_val = Value::Number(uid.to_string());
@@ -1262,6 +1263,7 @@ impl QueryTransformer {
                 return Ok(());
             }
             Some(ghosts) => {
+                warn!("unsub: got gids {:?}", ghosts);
                 gid_values = ghosts.iter().map(|g| vec![Value::Number(g.to_string())]).collect();
                 gids = ghosts;
             }
@@ -1295,6 +1297,7 @@ impl QueryTransformer {
         /* 
          * 3. Change all entries with this UID to use the correct GID in the MV
          */
+        let mut gid_index = 0;
         for dt in &self.cfg.data_tables {
             let dtobjname = helpers::string_to_objname(&dt.name);
             let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
@@ -1308,14 +1311,13 @@ impl QueryTransformer {
                     left: Box::new(select_constraint),
                     op: BinaryOperator::Or,
                     right: Box::new(Expr::BinaryOp{
-                        left: Box::new(Expr::Identifier(vec![Ident::new(col)])),
+                        left: Box::new(Expr::Identifier(helpers::string_to_idents(&col))),
                         op: BinaryOperator::Eq,
                         right: Box::new(Expr::Value(uid_val.clone())),
                     }),             
                 };
             }            
 
-            let mut gid_index = 0;
             let ris_to_update = select::get_ris_matching_constraint(&select_constraint, &view, None, None);
             for ri in ris_to_update {
                 for ci in &cis {
@@ -1328,9 +1330,9 @@ impl QueryTransformer {
                     }
                 }
             }
-            assert!(gid_index == gid_values.len());
         }
-        
+        warn!("gid_index is {}, gid_values has len {}", gid_index, gid_values.len());
+        assert!(gid_index == gid_values.len());  
         ghosts_map::answer_rows(writer, &gids)
     }
 
@@ -1409,7 +1411,7 @@ impl QueryTransformer {
                     left: Box::new(select_constraint),
                     op: BinaryOperator::Or,
                     right: Box::new(Expr::InList{
-                        expr: Box::new(Expr::Identifier(vec![Ident::new(col)])),
+                        expr: Box::new(Expr::Identifier(helpers::string_to_idents(&col))),
                         list: gid_exprs.clone(),
                         negated: false,
                     }),             
