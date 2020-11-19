@@ -1,7 +1,7 @@
 use std::iter::FromIterator;
 use sql_parser::ast::*;
 use std::collections::{HashMap, hash_set::HashSet};
-use crate::{select, helpers};
+use crate::{select, helpers, ghosts_map};
 use std::io::{Error, Write};
 use log::{warn};
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
@@ -33,6 +33,7 @@ pub struct View {
     // Current row-index value
     pub current_index: usize,
     // optional autoinc column (index) and current value
+    // invariant: autoinc_col.1 is always the *next* value that should be used
     pub autoinc_col: Option<(usize, u64)>,
 }
 
@@ -230,13 +231,13 @@ impl View {
     }
  
     pub fn update_index(&mut self, row_index: usize, col_index: usize, new_val: Option<&Value>) {
-        warn!("{}: updating {:?}", self.columns[col_index].name(), new_val);
         let mut old_val : &Value = &Value::Null;
         if let Some(row) = self.rows.get(&row_index) {
             old_val = &row[col_index];
         } else {
             assert!(false, "Value in index but not view?");
         }
+        warn!("{}: updating {:?} from {:?}", self.columns[col_index].name(), new_val, old_val);
         if let Some(indexes) = &mut self.indexes {
             if let Some(index) = indexes.get_mut(&self.columns[col_index].column.name.to_string()) {
                 // get the old indexed row_indexes if they existed for this column value
@@ -293,7 +294,8 @@ impl Views {
  
     pub fn insert(&mut self, table_name: &ObjectName, columns: &Vec<Ident>, values: &mut Vec<Vec<Value>>) -> Result<(), Error> {
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
-        
+
+        warn!("{}: insert values {:?} into {}", view.name, values, table_name);
         // initialize the rows to insert
         // insert rows with non-specified columns set as NULL for now (TODO)
         let mut insert_rows = vec![vec![Value::Null; view.columns.len()]; values.len()];
@@ -326,13 +328,16 @@ impl Views {
                         match &vv[col_index] {
                             Value::Number(n) => {
                                 let n = n.parse::<u64>().unwrap();
-                                max = u64::max(max, n);
+                                // only update if it's a UID!!!
+                                if n < ghosts_map::GHOST_ID_START {
+                                    max = u64::max(max, n);
+                                }
                             }
                             _ => (),
                         }
                     }
                     // TODO ensure self.latest_uid never goes above GID_START
-                    view.autoinc_col = Some((col_index, max));
+                    view.autoinc_col = Some((col_index, max+1));
                     found = true;
                     break;
                 }
@@ -359,6 +364,7 @@ impl Views {
             for (i, row) in values.iter().enumerate() {
                 // update the right column ci with the value corresponding 
                 // to that column to update
+                warn!("insert: setting insert_row col {} to {}", ci, row[val_index]);
                 insert_rows[i][*ci] = row[val_index].clone();
             }
         }
@@ -381,8 +387,9 @@ impl Views {
                 }
 
                 // insert all values (even if null) into indices
-                warn!("Attempt insert into index: col {} with value {}", view.columns[ci].name(), row[ci]);
-                view.insert_into_index(i, ci, &row[ci]);
+                warn!("views::insert: Attempt insert into index: col {} with value {}", view.columns[ci].name(), row[ci]);
+                // make sure to actually insert into the right index!!!
+                view.insert_into_index(view.current_index+i, ci, &row[ci]);
             }
         }
 
@@ -424,7 +431,9 @@ impl Views {
                     match &assign_vals[i] {
                         Expr::Value(Value::Number(n)) => {
                             let n = n.parse::<u64>().unwrap();
-                            view.autoinc_col = Some((col_index, u64::max(id_val, n)));
+                            if n < ghosts_map::GHOST_ID_START {
+                                view.autoinc_col = Some((col_index, u64::max(id_val, n+1)));
+                            }
                         }
                         
                         _ => (),

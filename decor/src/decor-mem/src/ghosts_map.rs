@@ -10,7 +10,7 @@ use crypto::digest::Digest;
 use crypto::sha3::Sha3;
 use msql_srv::{QueryResultWriter};
 
-const GHOST_ID_START : u64 = 1<<20;
+pub const GHOST_ID_START : u64 = 1<<20;
 const GHOST_TABLE_NAME : &'static str = "ghosts";
 const GHOST_USER_COL : &'static str = "user_id";
 const GHOST_ID_COL: &'static str = "ghost_id";

@@ -1167,7 +1167,6 @@ impl QueryTransformer {
                 if_not_exists,
                 engine,
             }) => {
-                // TODO autoinc
                 let mut new_engine = engine.clone();
                 if self.params.in_memory {
                     new_engine = Some(Engine::Memory);
@@ -1261,7 +1260,6 @@ impl QueryTransformer {
                 return Ok(());
             }
             Some(ghosts) => {
-                warn!("unsub: got gids {:?}", ghosts);
                 gid_values = ghosts.iter().map(|g| vec![Value::Number(g.to_string())]).collect();
                 gids = ghosts;
             }
@@ -1270,6 +1268,7 @@ impl QueryTransformer {
         /* 
          * 1. update the users MV to have an entry for all the users' GIDs
          */
+        warn!("UNSUB: inserting into user view {:?}", gid_values);
         self.views.insert(&user_table_name, &vec![Ident::new(&self.cfg.user_table.id_col)], &mut gid_values)?;
         
         /*
@@ -1281,18 +1280,17 @@ impl QueryTransformer {
                 op: BinaryOperator::Eq,
                 right: Box::new(Expr::Value(uid_val.clone())), 
         });
-        
         // delete from user mv  
+        warn!("UNSUB: deleting from user view {:?}", selection);
         self.views.delete(&user_table_name, &selection)?;
 
         let delete_uid_from_users = Statement::Delete(DeleteStatement {
             table_name: user_table_name.clone(),
             selection: selection.clone(),
         });
-        warn!("unsub: {}", delete_uid_from_users);
+        warn!("UNSUB: {}", delete_uid_from_users);
         db.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
         self.cur_stat.nqueries+=1;
-        
  
         /* 
          * 3. Change all entries with this UID to use the correct GID in the MV
@@ -1326,6 +1324,7 @@ impl QueryTransformer {
                             assert!(gid_index < gid_values.len());
                             let val = gid_values[gid_index][0].clone();
                             row[*ci] = val.clone();
+                            warn!("UNSUB: updating row {} col {} to {:?}", ri, ci, val); 
                             view.update_index(ri, *ci, Some(&val));
                             gid_index += 1;
                         }
