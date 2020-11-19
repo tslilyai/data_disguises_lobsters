@@ -2,7 +2,7 @@
 
 #set -x
 
-trials=2
+trials=1
 tests=( "shim_only" "shim_parse" "decor" )
 #tests=( "decor" )
 
@@ -15,6 +15,6 @@ do
         echo $test: Trial $trial
     	perflock ../target/release/lobsters-microbenchmarks \
 		--test=$test --testname=$test$trial \
-		--nusers=10 --nstories=100 --ncomments=1000 --nthreads=1 --nqueries=6000
+		--nusers=100 --nstories=500 --ncomments=1000 --nthreads=1 --nqueries=6000
     done
 done
