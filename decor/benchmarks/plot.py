@@ -6,8 +6,12 @@ plt.style.use('seaborn-deep')
 
 tests = ["decor", "shim_only", "shim_parse"]
 names = ["Read", "Update", "Insert", "Other"]
-ybounds = [12000, 1400, 1400, 600]
-bins = np.linspace(0, 10000, 100)
+ybounds = [12000, 2000, 1400, 600]
+bins = [np.linspace(0, 10000, 100),
+    np.linspace(0, 1000, 100),
+    np.linspace(0, 1000, 100),
+    np.linspace(0, 1000, 100),
+]
 
 for test in tests:
     with open('{}1.csv'.format(test),'r') as csvfile:
@@ -27,7 +31,7 @@ for test in tests:
                     continue
                 q2lats[qs].append(latency)
             axes_flat[i].hist(q2lats,
-                    bins,
+                    bins[i],
                     stacked=True,
                     label=[str(i) + "x Query Mult." for i in range(len(q2lats))])
             axes_flat[i].legend(loc='upper right')
