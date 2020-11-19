@@ -6,11 +6,11 @@ plt.style.use('seaborn-deep')
 
 tests = ["decor", "shim_only", "shim_parse"]
 names = ["Read", "Update", "Insert", "Other"]
-ybounds = [12000, 2000, 1400, 600]
-bins = [np.linspace(0, 10000, 100),
-    np.linspace(0, 1000, 100),
-    np.linspace(0, 1000, 100),
-    np.linspace(0, 1000, 100),
+ybounds = [15000, 2000, 1400, 600]
+bins = [np.linspace(0, 8000, 200),
+    np.linspace(0, 600, 100),
+    np.linspace(0, 600, 100),
+    np.linspace(0, 600, 100),
 ]
 
 for test in tests:
@@ -37,6 +37,7 @@ for test in tests:
             axes_flat[i].legend(loc='upper right')
             axes_flat[i].set_title(names[i]+" Queries Latency Histogram")
             axes_flat[i].set_ybound(lower=0, upper=ybounds[i])
+            axes_flat[i].set_yscale('log')
             axes_flat[i].set_xlabel('Per-Query Latency (us)')
             axes_flat[i].set_ylabel('Number of Queries')
     fig.tight_layout(h_pad=4)

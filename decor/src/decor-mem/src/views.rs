@@ -411,11 +411,11 @@ impl Views {
         let view = self.views.get_mut(&table_name.to_string()).unwrap();
         warn!("{}: update {:?} with vals {:?}", view.name, assignments, assign_vals);
 
-        let ris : Vec<usize>;
+        let ris : HashSet<usize>;
         if let Some(s) = selection {
-            ris = select::get_ris_matching_constraint(s, &view, None, None).into_iter().collect();
+            ris = select::get_ris_matching_constraint(s, &view, None, None);
         } else {
-            ris = (0..view.rows.len()).collect();
+            ris = view.rows.iter().map(|(k,_v)| k.clone()).collect();
         }
 
         // if the table has an autoincrement column, we should 
@@ -459,9 +459,9 @@ impl Views {
                     }
                 }
                 _ => {
-                    let val_for_rows = select::get_value_for_rows(&assign_vals[assign_index], &view, None, None, Some(&ris));
-                    for (ri, val) in val_for_rows {
-                        view.rows.get_mut(&ri).unwrap()[*ci] = val.clone();
+                    for ri in &ris {
+                        let row = view.rows.get_mut(ri).unwrap();
+                        row[*ci] = select::get_value_for_row(&assign_vals[assign_index], &view.columns, &row, None, None);
                     }
                 }
             }
@@ -479,17 +479,15 @@ impl Views {
         if let Some(s) = selection {
             ris = select::get_ris_matching_constraint(s, &view, None, None);
         } else {
-            ris = (0..view.rows.len()).collect();
+            ris = view.rows.iter().map(|(k,_v)| k.clone()).collect();
         }
        
         // remove the rows!
-        // pretty expensive, but oh well... (can optimize later?)
-        let mut ris : Vec<usize> = Vec::from_iter(ris);
-        ris.sort_by(|a, b| b.cmp(a));
-        for ri in ris {
+        // XXX pretty expensive...
+        for ri in &ris {
             for ci in 0..view.columns.len() {
-                // TODO all the row indices have to change too..
-                view.update_index(ri, ci, None);
+                // all the row indices have to change too..
+                view.update_index(*ri, ci, None);
             }
             view.rows.remove(&ri);
         }
