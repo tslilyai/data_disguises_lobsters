@@ -218,11 +218,10 @@ pub fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
  */
 pub fn get_value_for_row(e: &Expr, 
                          columns: &Vec<TableColumnDef>,
-                         row: &Vec<Value>, 
                          aliases: Option<&HashMap<String, usize>>, 
                          computed_opt: Option<&HashMap<String, &Expr>>)
--> Value {
-    match e {
+-> Box<dyn Fn(&Vec<Value>) -> Value> {
+    match &e {
         Expr::Identifier(_) => {
             let (_tab, col) = expr_to_col(&e);
             warn!("Identifier column {}", col);
@@ -237,26 +236,27 @@ pub fn get_value_for_row(e: &Expr,
                     None => None,
                 }
             };
-     
             if let Some(ci) = ci {
-                return row[ci].clone();
+                return Box::new(move |row| row[ci].clone());
             } else if let Some(computed) = computed_opt {
                 // if this col is a computed col, check member in list and return
                 if let Some(e) = computed.get(&col) {
-                    return get_value_for_row(&e, columns, row, aliases, Some(computed));
+                    let computed_func = get_value_for_row(&e, columns, aliases, Some(computed));
+                    return Box::new(move |row| computed_func(row));
                 }
-            } 
+            }
             unimplemented!("No value?");
         }
         Expr::Value(val) => {
-            return val.clone();
+            let newv = val.clone();
+            return Box::new(move |_row| newv.clone());
         }
         Expr::UnaryOp{op, expr} => {
             if let Expr::Value(ref val) = **expr {
                 match op {
                     UnaryOperator::Minus => {
                         let n = -1.0 * helpers::parser_val_to_f64(&val);
-                        return Value::Number(n.to_string());
+                        return Box::new(move |_row| Value::Number(n.to_string()));
                     }
                     _ => unimplemented!("Unary op not supported! {:?}", expr),
                 }
@@ -267,22 +267,23 @@ pub fn get_value_for_row(e: &Expr,
         Expr::BinaryOp{left, op, right} => {
             let mut lindex : Option<usize> = None;
             let mut rindex : Option<usize> = None;
-            let mut lval = Value::Null; 
-            let mut rval = Value::Null;
+            let mut lval : Box<dyn Fn(&Vec<Value>) -> Value> = Box::new(|_row| Value::Null);
+            let mut rval : Box<dyn Fn(&Vec<Value>) -> Value> = Box::new(|_row| Value::Null);
             match &**left {
                 Expr::Identifier(_) => {
                     let (_ltab, lcol) = expr_to_col(&left);
                     lindex = get_col_index_with_aliases(&lcol, columns, aliases);
                     if lindex.is_none() {
-                    if let Some(computed) = computed_opt {
+                        if let Some(computed) = computed_opt {
                             if let Some(e) = computed.get(&lcol) {
-                                rval = get_value_for_row(e, columns, row, aliases, Some(computed)).clone();
+                                lval = get_value_for_row(e, columns, aliases, Some(computed));
                             }
                         }
                     }
                 }
                 Expr::Value(val) => {
-                    lval = val.clone()
+                    let newv = val.clone();
+                    lval = Box::new(move |_row| newv.clone());
                 }
                 _ => unimplemented!("must be id or value: {}", e),
             }
@@ -293,47 +294,35 @@ pub fn get_value_for_row(e: &Expr,
                     if rindex.is_none() {
                         if let Some(computed) = computed_opt {
                             if let Some(e) = computed.get(&rcol) {
-                                rval = get_value_for_row(e, columns, row, aliases, Some(computed)).clone();
+                                rval = get_value_for_row(e, columns, aliases, Some(computed));
                             }
                         }
                     }
                 }
                 Expr::Value(val) => {
-                    rval = val.clone()
+                    let newv = val.clone();
+                    rval = Box::new(move |_row| newv.clone());
                 }
                 _ => unimplemented!("must be id or value: {}", e),
             }
             if let Some(li) = lindex {
-                lval = row[li].clone();
+                lval = Box::new(move |row| row[li].clone());
             }
             if let Some(ri) = rindex {
-                rval = row[ri].clone();
+                rval = Box::new(move |row| row[ri].clone());
             }
             match op {
                 BinaryOperator::Plus => {
-                    return helpers::plus_parser_vals(&lval, &rval);
+                    return Box::new(move |row| helpers::plus_parser_vals(&lval(row), &rval(row)));
                 }
                 BinaryOperator::Minus => {
-                    return helpers::minus_parser_vals(&lval, &rval);
+                    return Box::new(move |row| helpers::minus_parser_vals(&lval(row), &rval(row)));
                 }
                 _ => unimplemented!("op {} not supported to get value", op),
             }
         }
         _ => unimplemented!("get value not supported {}", e),
     }
-}
-
-/*
- * Returns the indexes of the values that match the given value
- */
-fn get_indices_of_values(vals: &Vec<&Value>, col_vals: &Vec<Value>) -> HashSet<usize> {
-    let mut ris = HashSet::new();
-    for ri in 0..vals.len() {
-        if col_vals.iter().any(|cv| cv.to_string() == vals[ri].to_string()) {
-            ris.insert(ri);
-        }
-    }
-    ris
 }
 
 fn get_col_index_with_aliases(col: &str, columns: &Vec<TableColumnDef>, aliases: Option<&HashMap<String, usize>>) -> Option<usize> {
@@ -388,8 +377,9 @@ pub fn get_ris_matching_constraint(e: &Expr, v: &View,
             } else if let Some(computed) = computed {
                 // if this col is a computed col, check member in list and return
                 if let Some(e) = computed.get(&col) {
+                    let ccval_func = get_value_for_row(&e, &v.columns, aliases, Some(&computed));
                     for (ri, row) in &v.rows {
-                        let ccval = get_value_for_row(&e, &v.columns, &row, aliases, Some(&computed));
+                        let ccval = ccval_func(&row);
                         let in_list = list_vals.iter().any(|lv| helpers::parser_vals_cmp(&ccval, &lv) == Ordering::Equal);
                         if (*negated && !in_list) || (!*negated && in_list) {
                             ris.insert(*ri);
@@ -415,8 +405,9 @@ pub fn get_ris_matching_constraint(e: &Expr, v: &View,
             } else if let Some(computed) = computed {
                 // if this col is a computed col, check if null and return
                 if let Some(e) = computed.get(&col) {
+                    let ccval_func = get_value_for_row(&e, &v.columns, aliases, Some(&computed));
                     for (ri, row) in &v.rows {
-                        let ccval = get_value_for_row(&e, &v.columns, &row, aliases, Some(&computed));
+                        let ccval = ccval_func(&row);
                         let is_null = ccval.to_string() == Value::Null.to_string();
                         if (*negated && !is_null) || (!*negated && is_null) {
                             ris.insert(*ri);
@@ -452,8 +443,8 @@ pub fn get_ris_matching_constraint(e: &Expr, v: &View,
                                 fastpath = true;
                                 let (_tab, col) = expr_to_col(&left);
                                 
-                                warn!("fastpath equal expression: {} =? {}", col, val);
                                 if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
+                                    warn!("fastpath equal expression: {} =? {}", col, val);
                                     if *op == BinaryOperator::NotEq {
                                         ris = v.rows.iter().map(|(k,_v)| k.clone()).collect();
                                     }
@@ -469,8 +460,9 @@ pub fn get_ris_matching_constraint(e: &Expr, v: &View,
                                     // if this col is a computed col, check if null and return
                                     if let Some(computed) = computed {
                                         if let Some(e) = computed.get(&col) {
+                                            let ccval_func = get_value_for_row(&e, &v.columns, aliases, Some(&computed));
                                             for (ri, row) in &v.rows {
-                                                let ccval = get_value_for_row(e, &v.columns, &row, aliases, Some(&computed));
+                                                let ccval = ccval_func(&row);
                                                 let cmp = helpers::parser_vals_cmp(&ccval, &val);
                                                 if (*op == BinaryOperator::NotEq && cmp != Ordering::Equal) ||
                                                     (*op == BinaryOperator::Eq && cmp == Ordering::Equal) {
@@ -484,9 +476,12 @@ pub fn get_ris_matching_constraint(e: &Expr, v: &View,
                         }
                     }
                     if !fastpath {
+                        let left_fn = get_value_for_row(&left, &v.columns, aliases, computed);
+                        let right_fn = get_value_for_row(&right, &v.columns, aliases, computed);
+
                         for (ri, row) in &v.rows {
-                            let left_val = get_value_for_row(&left, &v.columns, &row, aliases, computed);
-                            let right_val = get_value_for_row(&right, &v.columns, &row, aliases, computed);
+                            let left_val = left_fn(&row);
+                            let right_val = right_fn(&row);
                             let cmp = helpers::parser_vals_cmp(&left_val, &right_val);
                             match op {
                                 BinaryOperator::Eq => {
@@ -639,7 +634,6 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
             let table_name = new_view.name.clone();
 
             if let Some(selection) = &s.selection {
-                
                 let ris_to_keep : HashSet<usize>;
                 if let Some(source_view) = source_view {
                     ris_to_keep = get_ris_matching_constraint(&selection, source_view, Some(&column_aliases), Some(&computed_columns));
@@ -703,8 +697,9 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
 
                     },
                 });
+                let val_func = get_value_for_row(expr, &columns, None, None);
                 for ri in 0..rows_to_keep.len() {
-                    let val = get_value_for_row(expr, &columns, &rows_to_keep[ri], None, None);
+                    let val = val_func(&rows_to_keep[ri]);
                     rows_to_keep[ri].push(val);
                 }   
             }

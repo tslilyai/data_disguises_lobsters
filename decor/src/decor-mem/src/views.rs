@@ -459,9 +459,10 @@ impl Views {
                     }
                 }
                 _ => {
+                    let assign_vals_fn = select::get_value_for_row(&assign_vals[assign_index], &view.columns, None, None);
                     for ri in &ris {
                         let row = view.rows.get_mut(ri).unwrap();
-                        row[*ci] = select::get_value_for_row(&assign_vals[assign_index], &view.columns, &row, None, None);
+                        row[*ci] = assign_vals_fn(&row);
                     }
                 }
             }
