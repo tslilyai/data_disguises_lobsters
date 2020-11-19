@@ -178,17 +178,18 @@ pub fn idents_subset_of_idents(id1: &Vec<Ident>, id2: &Vec<Ident>) -> Option<(us
 pub fn parser_vals_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> cmp::Ordering {
     use sql_parser::ast::Value as Value;
     let res : cmp::Ordering;
+    warn!("comparing {:?} =? {:?}", v1, v2);
     match (v1, v2) {
-        (Value::Number(i1), Value::Number(i2)) => res = u64::from_str(i1).unwrap().cmp(&u64::from_str(i2).unwrap()),
-        (Value::String(i1), Value::Number(i2)) => res = u64::from_str(i1).unwrap().cmp(&u64::from_str(i2).unwrap()),
-        (Value::Number(i1), Value::String(i2)) => res = u64::from_str(i1).unwrap().cmp(&u64::from_str(i2).unwrap()),
+        (Value::Number(i1), Value::Number(i2)) => res = f64::from_str(i1).unwrap().partial_cmp(&f64::from_str(i2).unwrap()).unwrap(),
+        (Value::String(i1), Value::Number(i2)) => res = f64::from_str(i1).unwrap().partial_cmp(&f64::from_str(i2).unwrap()).unwrap(),
+        (Value::Number(i1), Value::String(i2)) => res = f64::from_str(i1).unwrap().partial_cmp(&f64::from_str(i2).unwrap()).unwrap(),
         (Value::String(i1), Value::String(i2)) => res = i1.cmp(i2),
         (Value::Null, Value::Null) => res = Ordering::Equal,
         (_, Value::Null) => res = Ordering::Greater,
         (Value::Null, _) => res = Ordering::Less,
         _ => unimplemented!("value not comparable! {:?} and {:?}", v1, v2),
     }
-    //warn!("comparing {:?} =? {:?} : {:?}", v1, v2, res);
+    warn!("comparing {:?} =? {:?} : {:?}", v1, v2, res);
     res
 }
 
