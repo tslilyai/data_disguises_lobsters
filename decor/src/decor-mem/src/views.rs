@@ -30,6 +30,8 @@ pub struct View {
     pub rows: HashMap<usize, Vec<Value>>,
     // List of indexes (by column): column val(string, and only INT type for now) to row
     pub indexes: Option<HashMap<String, HashMap<String, HashSet<usize>>>>,
+    // Current row-index value
+    pub current_index: usize,
     // optional autoinc column (index) and current value
     pub autoinc_col: Option<(usize, u64)>,
 }
@@ -74,12 +76,19 @@ pub fn view_cols_rows_to_answer_rows<W: Write>(cols: &Vec<TableColumnDef>, rows:
 }
 
 impl View {
+    pub fn insert_row(&mut self, row: Vec<Value>) {
+        let new_index = self.current_index;
+        self.current_index += 1;
+        self.rows.insert(new_index, row);
+    }
+
     pub fn new_with_cols(columns: Vec<TableColumnDef>) -> Self {
         View {
             name: String::new(),
             columns: columns,
             rows: HashMap::new(),
             indexes: None,
+            current_index: 0,
             autoinc_col: None,
         }
     }
@@ -139,6 +148,7 @@ impl View {
                 .collect(),
             rows: HashMap::new(),
             indexes: indexes,
+            current_index: 0,
             autoinc_col: autoinc_col,
         };
         warn!("created new view {:?}", view);
@@ -378,7 +388,7 @@ impl Views {
 
         warn!("{}: Appending rows: {:?}", view.name, insert_rows);
         for row in insert_rows {
-            view.rows.insert(view.rows.len(), row);
+            view.insert_row(row);
         }
         Ok(())
     }

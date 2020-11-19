@@ -101,7 +101,7 @@ fn join_views(jo: &JoinOperator, v1: &View, v2: &View) -> Result<View, Error> {
                     row2.remove(i2);
                     let mut new_row = row1.clone();
                     new_row.append(&mut row2);
-                    new_view.rows.insert(new_view.rows.len(), new_row);
+                    new_view.insert_row(new_row);
                 }
             }
         }
@@ -114,13 +114,13 @@ fn join_views(jo: &JoinOperator, v1: &View, v2: &View) -> Result<View, Error> {
                     row2.remove(i2);
                     let mut new_row = row1.clone();
                     new_row.append(&mut row2);
-                    new_view.rows.insert(new_view.rows.len(), new_row);
+                    new_view.insert_row(new_row);
                     found = true;
                 }
                 if !found {
                     let mut new_row = row1.clone();
                     new_row.append(&mut vec![Value::Null; v2.columns.len()]);
-                    new_view.rows.insert(new_view.rows.len(), new_row);
+                    new_view.insert_row(new_row);
                 }
             }
         }
@@ -133,13 +133,13 @@ fn join_views(jo: &JoinOperator, v1: &View, v2: &View) -> Result<View, Error> {
                     row1.remove(i2);
                     let mut new_row = row2.clone();
                     new_row.append(&mut row1);
-                    new_view.rows.insert(new_view.rows.len(), new_row);
+                    new_view.insert_row(new_row);
                     found = true;
                 }
                 if !found {
                     let mut new_row = row2.clone();
                     new_row.append(&mut vec![Value::Null; v1.columns.len()]);
-                    new_view.rows.insert(new_view.rows.len(), new_row);
+                    new_view.insert_row(new_row);
                 }
             }            
         }
@@ -152,13 +152,13 @@ fn join_views(jo: &JoinOperator, v1: &View, v2: &View) -> Result<View, Error> {
                     row2.remove(i2);
                     let mut new_row = row1.clone();
                     new_row.append(&mut row2);
-                    new_view.rows.insert(new_view.rows.len(), new_row);
+                    new_view.insert_row(new_row);
                     found = true;
                 }
                 if !found {
                     let mut new_row = row1.clone();
                     new_row.append(&mut vec![Value::Null; v2.columns.len()]);
-                    new_view.rows.insert(new_view.rows.len(), new_row);
+                    new_view.insert_row(new_row);
                 }
             }
             // only add null rows for rows that weren't matched
@@ -170,7 +170,7 @@ fn join_views(jo: &JoinOperator, v1: &View, v2: &View) -> Result<View, Error> {
                 if !found {
                     let mut new_row = row2.clone();
                     new_row.append(&mut vec![Value::Null; v1.columns.len()]);
-                    new_view.rows.insert(new_view.rows.len(), new_row);
+                    new_view.insert_row(new_row);
                 }
             }            
         }
