@@ -186,9 +186,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * Set all user_ids in the MV to ghost ids, insert ghost users into usersMV
      * TODO actually delete entries? 
      */
-    fn on_unsubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), mysql::Error> {
+    fn on_unsubscribe(&mut self, uid: u64, w: QueryResultWriter<W>) -> Result<(), mysql::Error> {
         match self.qtrans.unsubscribe(uid, &mut self.db) {
-            Ok(()) => Ok(w.ok()?),
+            Ok(()) => Ok(w.completed(0,0)?),
             Err(_e) => {
                 w.error(ErrorKind::ER_BAD_DB_ERROR, b"unsub failed")?;
                 return Ok(());
@@ -202,9 +202,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO add back deleted content from shard
      * TODO check that user doesn't already exist
      */
-    fn on_resubscribe(&mut self, uid: u64, w: SubscribeWriter<W>) -> Result<(), Self::Error> {
+    fn on_resubscribe(&mut self, uid: u64, _gids: Vec<u64>, w: QueryResultWriter<W>) -> Result<(), Self::Error> {
         match self.qtrans.resubscribe(uid, &mut self.db) {
-            Ok(()) => Ok(w.ok()?),
+            Ok(()) => Ok(w.completed(0,0)?),
             Err(_e) => {
                 w.error(ErrorKind::ER_BAD_DB_ERROR, b"resubfailed")?;
                 return Ok(());
