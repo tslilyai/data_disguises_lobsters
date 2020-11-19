@@ -27,11 +27,50 @@ pub struct View {
     // schema column definitions
     pub columns: Vec<TableColumnDef>,
     // values stored in table
-    pub rows: Vec<Vec<Value>>,
+    pub rows: HashMap<usize, Vec<Value>>,
     // List of indexes (by column): column val(string, and only INT type for now) to row
     pub indexes: Option<HashMap<String, HashMap<String, HashSet<usize>>>>,
     // optional autoinc column (index) and current value
     pub autoinc_col: Option<(usize, u64)>,
+}
+
+pub fn view_cols_rows_to_answer_rows<W: Write>(cols: &Vec<TableColumnDef>, rows: &Vec<Vec<Value>>, results: QueryResultWriter<W>)
+    -> Result<(), mysql::Error> 
+{
+    let cols : Vec<_> = cols.iter()
+        .map(|c| {
+            let mut flags = ColumnFlags::empty();
+            for opt in &c.column.options {
+                match opt.option {
+                    ColumnOption::AutoIncrement => flags.insert(ColumnFlags::AUTO_INCREMENT_FLAG),
+                    ColumnOption::NotNull => flags.insert(ColumnFlags::NOT_NULL_FLAG),
+                    ColumnOption::Unique {is_primary} => {
+                        if is_primary {
+                            flags.insert(ColumnFlags::PRI_KEY_FLAG)
+                        } else {
+                            flags.insert(ColumnFlags::UNIQUE_KEY_FLAG)
+                        }
+                    }
+                    _ => (),
+                }
+            }
+            Column {
+                table : c.table.clone(),
+                column : c.column.name.to_string(),
+                coltype : helpers::get_parser_coltype(&c.column.data_type),
+                colflags: flags,
+            }
+        })
+        .collect();
+    let mut writer = results.start(&cols)?;
+    for row in rows {
+        for v in row {
+            writer.write_col(helpers::parser_val_to_common_val(&v))?;
+        }
+        writer.end_row()?;
+    }
+    writer.finish()?;
+    Ok(())
 }
 
 impl View {
@@ -39,7 +78,7 @@ impl View {
         View {
             name: String::new(),
             columns: columns,
-            rows: vec![],
+            rows: HashMap::new(),
             indexes: None,
             autoinc_col: None,
         }
@@ -98,7 +137,7 @@ impl View {
             columns: columns.iter()
                 .map(|c| TableColumnDef{ table: name.clone(), column: c.clone() })
                 .collect(),
-            rows: vec![],
+            rows: HashMap::new(),
             indexes: indexes,
             autoinc_col: autoinc_col,
         };
@@ -106,47 +145,8 @@ impl View {
         view
     }
 
-    pub fn view_to_answer_rows<W: Write>(&self, results: QueryResultWriter<W>)
-        -> Result<(), mysql::Error> 
-    {
-        let cols : Vec<_> = self.columns.iter()
-            .map(|c| {
-                let mut flags = ColumnFlags::empty();
-                for opt in &c.column.options {
-                    match opt.option {
-                        ColumnOption::AutoIncrement => flags.insert(ColumnFlags::AUTO_INCREMENT_FLAG),
-                        ColumnOption::NotNull => flags.insert(ColumnFlags::NOT_NULL_FLAG),
-                        ColumnOption::Unique {is_primary} => {
-                            if is_primary {
-                                flags.insert(ColumnFlags::PRI_KEY_FLAG)
-                            } else {
-                                flags.insert(ColumnFlags::UNIQUE_KEY_FLAG)
-                            }
-                        }
-                        _ => (),
-                    }
-                }
-                Column {
-                    table : c.table.clone(),
-                    column : c.column.name.to_string(),
-                    coltype : helpers::get_parser_coltype(&c.column.data_type),
-                    colflags: flags,
-                }
-            })
-            .collect();
-        let mut writer = results.start(&cols)?;
-        for row in &self.rows {
-            for v in row {
-                writer.write_col(helpers::parser_val_to_common_val(&v))?;
-            }
-            writer.end_row()?;
-        }
-        writer.finish()?;
-        Ok(())
-    }
-
     pub fn contains_row(&self, r: &Vec<Value>) -> bool {
-        self.rows.iter().any(|row| {
+        self.rows.iter().any(|(_, row)| {
             let mut eq = true;
             for i in 0..row.len() {
                 eq = eq && (row[i] == r[i]);
@@ -161,7 +161,9 @@ impl View {
             if let Some(index) = indexes.get(&self.columns[col_index].column.name.to_string()) {
                 if let Some(ris) = index.get(&col_val.to_string()) {
                     for i in ris {
-                        rows.push(self.rows[*i].clone());
+                        if let Some(row) = self.rows.get(i) {
+                            rows.push(row.clone());
+                        }
                     }
                 } 
                 warn!("get_rows: found {} rows for col {} val {}!", rows.len(), self.columns[col_index].name(), col_val);
@@ -170,7 +172,7 @@ impl View {
         } 
         warn!("{}'s indexes are {:?}", self.name, self.indexes);
         warn!("get_rows: no index for col {} val {}!", self.columns[col_index].name(), col_val);
-        for row in &self.rows {
+        for (_, row) in &self.rows {
             if row[col_index].to_string() == col_val.to_string() {
                 rows.push(row.clone());
             }
@@ -192,10 +194,10 @@ impl View {
         } 
         warn!("get_ris: no index for col {} val {}!", self.columns[col_index].name(), col_val);
         let mut ris = HashSet::new();
-        for ri in 0..self.rows.len() {
+        for (ri, row) in self.rows.iter() {
             //warn!("{}: checking for {:?} val {:?}", self.name, self.rows[ri][col_index], col_val);
-            if self.rows[ri][col_index].to_string() == col_val.to_string() {
-                ris.insert(ri);
+            if row[col_index].to_string() == col_val.to_string() {
+                ris.insert(*ri);
             }
         }
         ris
@@ -204,7 +206,7 @@ impl View {
     pub fn insert_into_index(&mut self, row_index: usize, col_index: usize, new_val: &Value) {
         if let Some(indexes) = &mut self.indexes {
             if let Some(index) = indexes.get_mut(&self.columns[col_index].column.name.to_string()) {
-                warn!("{}: inserting {} into index", self.columns[col_index].name(), new_val);
+                warn!("{}: inserting ({}, row {}) into index", self.columns[col_index].name(), new_val, row_index);
                 // insert into the new indexed ris 
                 if let Some(new_ris) = index.get_mut(&new_val.to_string()) {
                     new_ris.insert(row_index);
@@ -219,12 +221,18 @@ impl View {
  
     pub fn update_index(&mut self, row_index: usize, col_index: usize, new_val: Option<&Value>) {
         warn!("{}: updating {:?}", self.columns[col_index].name(), new_val);
-        let old_val = &self.rows[row_index][col_index];
+        let mut old_val : &Value = &Value::Null;
+        if let Some(row) = self.rows.get(&row_index) {
+            old_val = &row[col_index];
+        } else {
+            assert!(false, "Value in index but not view?");
+        }
         if let Some(indexes) = &mut self.indexes {
             if let Some(index) = indexes.get_mut(&self.columns[col_index].column.name.to_string()) {
                 // get the old indexed row_indexes if they existed for this column value
                 // remove this row!
                 if let Some(old_ris) = index.get_mut(&old_val.to_string()) {
+                    warn!("{}: removing {:?} (row {}) from ris {:?}", self.columns[col_index].name(), old_val, row_index, old_ris);
                     old_ris.retain(|&ri| ri != row_index);
                 }
                 // insert into the new indexed ris but only if we are updating to a new
@@ -269,7 +277,7 @@ impl Views {
         }
     }
     
-    pub fn query_iter(&self, query: &Query) -> Result<View, Error> {
+    pub fn query_iter(&self, query: &Query) -> Result<(Vec<TableColumnDef>, Vec<Vec<Value>>), Error> {
         select::get_query_results(&self.views, query)
     }
  
@@ -369,7 +377,9 @@ impl Views {
         }
 
         warn!("{}: Appending rows: {:?}", view.name, insert_rows);
-        view.rows.append(&mut insert_rows);
+        for row in insert_rows {
+            view.rows.insert(view.rows.len(), row);
+        }
         Ok(())
     }
 
@@ -426,13 +436,13 @@ impl Views {
                 Expr::Value(v) => {
                     for ri in &ris {
                         view.update_index(*ri, *ci, Some(&v));
-                        view.rows[*ri][*ci] = v.clone();
+                        view.rows.get_mut(ri).unwrap()[*ci] = v.clone();
                     }
                 }
                 _ => {
                     let val_for_rows = select::get_value_for_rows(&assign_vals[assign_index], &view, None, None, Some(&ris));
-                    for i in 0..ris.len() {
-                        view.rows[ris[i]][*ci] = val_for_rows[i].clone();
+                    for (ri, val) in val_for_rows {
+                        view.rows.get_mut(&ri).unwrap()[*ci] = val.clone();
                     }
                 }
             }
@@ -459,11 +469,11 @@ impl Views {
         ris.sort_by(|a, b| b.cmp(a));
         for ri in ris {
             for ci in 0..view.columns.len() {
+                // TODO all the row indices have to change too..
                 view.update_index(ri, ci, None);
             }
-            view.rows.remove(ri);
+            view.rows.remove(&ri);
         }
         Ok(())
     }
 }
-

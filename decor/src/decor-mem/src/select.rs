@@ -95,68 +95,82 @@ fn join_views(jo: &JoinOperator, v1: &View, v2: &View) -> Result<View, Error> {
         JoinOperator::Inner(JoinConstraint::On(e)) => {
             let (i1, i2) = get_join_on_col_indices(&e, v1, v2)?;
             // this seems very very inefficient
-            for row1 in &v1.rows {
-                new_view.rows.append(&mut v2.get_rows_of_col(i2, &row1[i1]));
+            for (_id, row1) in v1.rows.iter() {
+                for mut row2 in v2.get_rows_of_col(i2, &row1[i1]) {
+                    // remove duplicatte from row
+                    row2.remove(i2);
+                    let mut new_row = row1.clone();
+                    new_row.append(&mut row2);
+                    new_view.rows.insert(new_view.rows.len(), new_row);
+                }
             }
         }
         JoinOperator::LeftOuter(JoinConstraint::On(e)) => {
             let (i1, i2) = get_join_on_col_indices(&e, v1, v2)?;
-            for row1 in &v1.rows {
+            for (_, row1) in v1.rows.iter() {
                 let mut found = false;
-                let mut rows2 = v2.get_rows_of_col(i2, &row1[i1]);
-                if !rows2.is_empty() {
-                    new_view.rows.append(&mut rows2);
+                for mut row2 in v2.get_rows_of_col(i2, &row1[i1]) {
+                    // remove duplicatte from row
+                    row2.remove(i2);
+                    let mut new_row = row1.clone();
+                    new_row.append(&mut row2);
+                    new_view.rows.insert(new_view.rows.len(), new_row);
                     found = true;
                 }
                 if !found {
                     let mut new_row = row1.clone();
                     new_row.append(&mut vec![Value::Null; v2.columns.len()]);
-                    new_view.rows.push(new_row);
+                    new_view.rows.insert(new_view.rows.len(), new_row);
                 }
             }
         }
         JoinOperator::RightOuter(JoinConstraint::On(e)) => {
             let (i1, i2) = get_join_on_col_indices(&e, v1, v2)?;
-            for row2 in &v2.rows {
+            for (_, row2) in v2.rows.iter() {
                 let mut found = false;
-                let mut rows1 = v1.get_rows_of_col(i1, &row2[i2]);
-                if !rows1.is_empty() {
-                    new_view.rows.append(&mut rows1);
+                for mut row1 in v1.get_rows_of_col(i2, &row2[i1]) {
+                    // remove duplicatte from row
+                    row1.remove(i2);
+                    let mut new_row = row2.clone();
+                    new_row.append(&mut row1);
+                    new_view.rows.insert(new_view.rows.len(), new_row);
                     found = true;
                 }
                 if !found {
-                    let mut new_row = vec![Value::Null; v1.columns.len()];
-                    new_row.append(&mut row2.clone());
-                    new_view.rows.push(new_row);
+                    let mut new_row = row2.clone();
+                    new_row.append(&mut vec![Value::Null; v1.columns.len()]);
+                    new_view.rows.insert(new_view.rows.len(), new_row);
                 }
             }            
         }
         JoinOperator::FullOuter(JoinConstraint::On(e)) => {
             let (i1, i2) = get_join_on_col_indices(&e, v1, v2)?;
-            for row1 in &v1.rows {
+            for (_, row1) in v1.rows.iter() {
                 let mut found = false;
-                let mut rows2 = v2.get_rows_of_col(i2, &row1[i1]);
-                if !rows2.is_empty() {
-                    new_view.rows.append(&mut rows2);
+                for mut row2 in v2.get_rows_of_col(i2, &row1[i1]) {
+                    // remove duplicatte from row
+                    row2.remove(i2);
+                    let mut new_row = row1.clone();
+                    new_row.append(&mut row2);
+                    new_view.rows.insert(new_view.rows.len(), new_row);
                     found = true;
-                } 
+                }
                 if !found {
                     let mut new_row = row1.clone();
                     new_row.append(&mut vec![Value::Null; v2.columns.len()]);
-                    new_view.rows.push(new_row);
+                    new_view.rows.insert(new_view.rows.len(), new_row);
                 }
             }
             // only add null rows for rows that weren't matched
-            for row2 in &v2.rows {
+            for (_, row2) in v2.rows.iter() {
                 let mut found = false;
-                let rows1 = v1.get_rows_of_col(i1, &row2[i2]);
-                if !rows1.is_empty() {
+                if !v1.get_rows_of_col(i2, &row2[i1]).is_empty() {
                     found = true;
-                } 
+                }
                 if !found {
-                    let mut new_row = vec![Value::Null; v1.columns.len()];
-                    new_row.append(&mut row2.clone());
-                    new_view.rows.push(new_row);
+                    let mut new_row = row2.clone();
+                    new_row.append(&mut vec![Value::Null; v1.columns.len()]);
+                    new_view.rows.insert(new_view.rows.len(), new_row);
                 }
             }            
         }
@@ -206,12 +220,12 @@ pub fn get_value_for_rows(e: &Expr, v: &View,
                          aliases: Option<&HashMap<String, usize>>, 
                          computed: Option<&HashMap<String, Vec<Value>>>,
                          which_rows: Option<&Vec<usize>>) 
--> Vec<Value> {
+-> HashMap<usize, Value> {
     let ris : Vec<_> = match which_rows {
         Some(ris) => ris.clone(),
         None => (0..v.rows.len()).collect(),
     };
-    let mut res = vec![];
+    let mut res = HashMap::new();
     match e {
         Expr::Identifier(_) => {
             let (_tab, col) = expr_to_col(&e);
@@ -230,22 +244,24 @@ pub fn get_value_for_rows(e: &Expr, v: &View,
      
             if let Some(ci) = ci {
                 for ri in ris {
-                    res.push(v.rows[ri][ci].clone());
+                    if let Some(row) = v.rows.get(&ri) {
+                        res.insert(ri, row[ci].clone());
+                    }
                 }
             } else {
                 // if this col is a computed col, check member in list and return
                 if let Some(computed) = computed {
                     if let Some(vals) = computed.get(&col) {
                         for ri in ris {
-                            res.push(vals[ri].clone());
+                            res.insert(ri, vals[ri].clone());
                         }
                     }
                 }
             }
         }
         Expr::Value(val) => {
-            for _ in ris {
-                res.push(val.clone());
+            for ri in ris {
+                res.insert(ri, val.clone());
             }
         }
         Expr::UnaryOp{op, expr} => {
@@ -253,8 +269,8 @@ pub fn get_value_for_rows(e: &Expr, v: &View,
                 match op {
                     UnaryOperator::Minus => {
                         let n = -1.0 * helpers::parser_val_to_f64(&val);
-                        for _ in ris {
-                            res.push(Value::Number(n.to_string()));
+                        for ri in ris {
+                            res.insert(ri, Value::Number(n.to_string()));
                         }
                     }
                     _ => unimplemented!("Unary op not supported! {:?}", expr),
@@ -302,21 +318,21 @@ pub fn get_value_for_rows(e: &Expr, v: &View,
             }
             for ri in ris {
                 if let Some(li) = lindex {
-                    lval = v.rows[ri][li].clone();
+                    lval = v.rows.get(&ri).unwrap()[li].clone();
                 } else if let Some(lcomputed) = lcomputed {
                     lval = lcomputed[ri].clone();
                 }
                 if let Some(i) = rindex {
-                    rval = v.rows[ri][i].clone()
+                    rval = v.rows.get(&ri).unwrap()[i].clone();
                 } else if let Some(rcomputed) = rcomputed {
                     rval = rcomputed[ri].clone();
                 }
                 match op {
                     BinaryOperator::Plus => {
-                        res.push(helpers::plus_parser_vals(&lval, &rval));
+                        res.insert(ri, helpers::plus_parser_vals(&lval, &rval));
                     }
                     BinaryOperator::Minus => {
-                        res.push(helpers::minus_parser_vals(&lval, &rval));
+                        res.insert(ri, helpers::minus_parser_vals(&lval, &rval));
                     }
                     _ => unimplemented!("op {} not supported to get value", op),
                 }
@@ -494,37 +510,38 @@ pub fn get_ris_matching_constraint(e: &Expr, v: &View,
                     if !fastpath {
                         let left_vals = get_value_for_rows(&left, v, aliases, computed, None);
                         let right_vals = get_value_for_rows(&right, v, aliases, computed, None);
-                        for i in 0..v.rows.len() {
-                            let cmp = helpers::parser_vals_cmp(&left_vals[i], &right_vals[i]);
+                        for (i, left_val)  in left_vals.iter() {
+                            let right_val = right_vals.get(&i).unwrap();
+                            let cmp = helpers::parser_vals_cmp(&left_val, &right_val);
                             match op {
                                 BinaryOperator::Eq => {
                                     if cmp == Ordering::Equal {
-                                        ris.insert(i);
+                                        ris.insert(*i);
                                     }
                                 }
                                 BinaryOperator::NotEq => {
                                     if cmp != Ordering::Equal {
-                                        ris.insert(i);
+                                        ris.insert(*i);
                                     }
                                 }
                                 BinaryOperator::Lt => {
                                     if cmp == Ordering::Less {
-                                        ris.insert(i);
+                                        ris.insert(*i);
                                     }
                                 }
                                 BinaryOperator::Gt => {
                                     if cmp == Ordering::Greater {
-                                        ris.insert(i);
+                                        ris.insert(*i);
                                     }
                                 }
                                 BinaryOperator::LtEq => {
                                     if cmp != Ordering::Greater {
-                                        ris.insert(i);
+                                        ris.insert(*i);
                                     }
                                 }
                                 BinaryOperator::GtEq => {
                                     if cmp != Ordering::Less {
-                                        ris.insert(i);
+                                        ris.insert(*i);
                                     }
                                 }
                                 _ => unimplemented!("binop constraint not supported {}", e),
@@ -540,7 +557,7 @@ pub fn get_ris_matching_constraint(e: &Expr, v: &View,
     ris
 }
 
-fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &Vec<OrderByExpr>) -> Result<View, Error> {
+fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &Vec<OrderByExpr>) -> Result<(Vec<TableColumnDef>, Vec<Vec<Value>>), Error> {
     match se {
         SetExpr::Select(s) => {
             let mut new_view = View::new_with_cols(vec![]);
@@ -570,7 +587,9 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                 for twj in &s.from {
                     let mut v = tablewithjoins_to_view(views, &twj)?;
                     new_view.columns.append(&mut v.columns);
-                    new_view.rows.append(&mut v.rows);
+                    for (k, r) in v.rows {
+                        new_view.rows.insert(k, r);
+                    }
                 }
             }
 
@@ -625,11 +644,17 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
 
                             // this selects using the indices from the original view, if any exist
                             if let Some(source_view) = source_view {
-                                let vals = get_value_for_rows(expr, source_view, None, None, None);
+                                let vals = get_value_for_rows(expr, source_view, None, None, None)
+                                    .iter()
+                                    .map(|(_, val)| val.clone())
+                                    .collect();
                                 computed_columns.insert(a.to_string(), vals);
                             } else {
                                 // otherwise just get the value from the (joined) new view
-                                let vals = get_value_for_rows(expr, &new_view, None, None, None);
+                                let vals = get_value_for_rows(expr, &new_view, None, None, None)
+                                    .iter()
+                                    .map(|(_, val)| val.clone())
+                                    .collect();
                                 computed_columns.insert(a.to_string(), vals);
                             }
                             warn!("Adding to computed columns {:?}", computed_columns)
@@ -650,6 +675,10 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
 
             // filter out rows by where clause
             // and actually add these to the new view (this is the last time we'll use source_view)
+            let mut rows_to_keep : Vec<Vec<Value>> = vec![];
+            let mut columns: Vec<TableColumnDef> = new_view.columns.clone();
+            let table_name = new_view.name.clone();
+
             if let Some(selection) = &s.selection {
                 
                 let ris_to_keep : HashSet<usize>;
@@ -660,28 +689,30 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                 }
                 
                 warn!("Where: Keeping rows {:?} {:?}", selection, ris_to_keep);
-                let mut rows_to_keep : Vec<Vec<Value>> = vec![];
                 for ri in ris_to_keep {
                     if let Some(source_view) = source_view {
-                        rows_to_keep.push(source_view.rows[ri].clone());
+                        rows_to_keep.push(source_view.rows.get(&ri).unwrap().clone());
                     } else {
-                        rows_to_keep.push(new_view.rows[ri].clone());
+                        rows_to_keep.push(new_view.rows.get(&ri).unwrap().clone());
                     }
                 }
-                new_view.rows = rows_to_keep;
             } else if let Some(source_view) = source_view {
                 // no selection, so we just copy all the rows from the source (if we haven't already
                 // via the join)
-                new_view.rows = source_view.rows.clone();
+                rows_to_keep = source_view.rows.iter().map(|(_k, r)| r.clone()).collect();
             }
+
+            /*
+             * INVARIANT: AFTER HERE, NO NEW_VIEW/SOURCE_VIEW USED
+             */
  
             // fast path: return val if select val was issued 
             if let Some(v) = select_val {
-                for r in &mut new_view.rows {
+                for r in &mut rows_to_keep {
                     *r = vec![v.clone()];
                 }
                 // not sure what to put for column in this case but it's probably ok?
-                new_view.columns = vec![TableColumnDef{
+                columns = vec![TableColumnDef{
                     table: "".to_string(),
                     column: ColumnDef {
                         name: Ident::new(""),
@@ -690,21 +721,21 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                         options: vec![],
                     }
                 }];
-                return Ok(new_view)
+                return Ok((columns, rows_to_keep));
             }
 
             // deal with present column aliases
             for (alias, ci) in column_aliases {
-                new_view.columns[ci].column.name = Ident::new(alias);
-                new_view.columns[ci].table = String::new();
+                columns[ci].column.name = Ident::new(alias);
+                columns[ci].table = String::new();
             }
  
             // add the computed values to the rows with the appropriate aliases
             for (colname, vals) in computed_columns {
                 warn!("Adding computed column {}", colname);
-                cols_to_keep.push(new_view.columns.len());
-                new_view.columns.push(TableColumnDef{
-                    table: new_view.name.clone(),
+                cols_to_keep.push(columns.len());
+                columns.push(TableColumnDef{
+                    table: table_name.clone(),
                     column: ColumnDef{
                         name: Ident::new(colname),
                         data_type: DataType::Int,
@@ -713,19 +744,19 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
 
                     },
                 });
-                for ri in 0..new_view.rows.len() {
-                    new_view.rows[ri].push(vals[ri].clone());
+                for ri in 0..rows_to_keep.len() {
+                    rows_to_keep[ri].push(vals[ri].clone());
                 }   
             }
           
             // add the count of selected columns as a column if it were projected
             if count {
-                let count = new_view.rows.len();
-                for r in &mut new_view.rows {
+                let count = rows_to_keep.len();
+                for r in &mut rows_to_keep {
                     r.push(Value::Number(count.to_string()));
                 }
-                new_view.columns.push(TableColumnDef{
-                    table:new_view.name.clone(),
+                columns.push(TableColumnDef{
+                    table: table_name.clone(),
                     column: ColumnDef {
                         name: count_alias,
                         data_type: DataType::Int,
@@ -743,15 +774,15 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                 assert!(order_by.len() < 3);
                 let orderby1 = &order_by[0];
                 let (_tab, col1) = expr_to_col(&orderby1.expr);
-                let ci1 = new_view.columns.iter().position(|c| tablecolumn_matches_col(c, &col1)).unwrap();
+                let ci1 = columns.iter().position(|c| tablecolumn_matches_col(c, &col1)).unwrap();
                
                 if order_by.len() == 2 {
                     let orderby2 = &order_by[1];
                     let (_tab, col2) = expr_to_col(&orderby2.expr);
-                    let ci2 = new_view.columns.iter().position(|c| tablecolumn_matches_col(c, &col2)).unwrap();
+                    let ci2 = columns.iter().position(|c| tablecolumn_matches_col(c, &col2)).unwrap();
                     match orderby1.asc {
                         Some(false) => {
-                            new_view.rows.sort_by(|r1, r2| {
+                            rows_to_keep.sort_by(|r1, r2| {
                                 let res = helpers::parser_vals_cmp(&r2[ci1], &r1[ci1]);
                                 if res == Ordering::Equal {
                                     match orderby2.asc {
@@ -764,7 +795,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                             });
                         }
                         Some(true) | None => {
-                            new_view.rows.sort_by(|r1, r2| {
+                            rows_to_keep.sort_by(|r1, r2| {
                                 let res = helpers::parser_vals_cmp(&r1[ci1], &r2[ci1]);
                                 if res == Ordering::Equal {
                                     match orderby2.asc {
@@ -780,17 +811,17 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                 } else {
                     match orderby1.asc {
                         Some(false) => {
-                            new_view.rows.sort_by(|r1, r2| {
+                            rows_to_keep.sort_by(|r1, r2| {
                                 helpers::parser_vals_cmp(&r1[ci1], &r2[ci1])
                             });
-                            warn!("order by desc! {:?}", new_view.rows);
+                            warn!("order by desc! {:?}", rows_to_keep);
                         }
                         Some(true) | None => {
-                            warn!("before sort: order by asc! {:?}", new_view.rows);
-                            new_view.rows.sort_by(|r1, r2| {
+                            warn!("before sort: order by asc! {:?}", rows_to_keep);
+                            rows_to_keep.sort_by(|r1, r2| {
                                 helpers::parser_vals_cmp(&r1[ci1], &r2[ci1])
                             });
-                            warn!("order by asc! {:?}", new_view.rows);
+                            warn!("order by asc! {:?}", rows_to_keep);
                         }
                     }
                 }
@@ -799,18 +830,18 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
             // reduce view to only return selected columns
             if !cols_to_keep.is_empty() {
                 let mut new_cols = vec![];
-                let mut new_rows = vec![vec![]; new_view.rows.len()];
+                let mut new_rows = vec![vec![]; rows_to_keep.len()];
                 for ci in cols_to_keep {
-                    new_cols.push(new_view.columns[ci].clone());
-                    for (i, row) in new_view.rows.iter().enumerate() {
-                        new_rows[i].push(row[ci].clone());
+                    new_cols.push(columns[ci].clone());
+                    for i in 0..rows_to_keep.len() {
+                        new_rows[i].push(rows_to_keep[i][ci].clone());
                     }
                 }
-                new_view.columns = new_cols;
-                new_view.rows = new_rows;
+                columns = new_cols;
+                rows_to_keep = new_rows;
             }
-            warn!("setexpr select: returning {:?}", new_view);
-            Ok(new_view)
+            warn!("setexpr select: returning {:?}", rows_to_keep);
+            Ok((columns, rows_to_keep))
         }
         SetExpr::Query(q) => {
             return get_query_results(views, &q);
@@ -821,25 +852,35 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
             right,
             ..
         } => {
-            let left_view = get_setexpr_results(views, &left, order_by)?;
-            let right_view = get_setexpr_results(views, &right, order_by)?;
-            let mut view = left_view.clone();
+            let (mut lcols, mut left_rows) = get_setexpr_results(views, &left, order_by)?;
+            let (mut rcols, mut right_rows) = get_setexpr_results(views, &right, order_by)?;
+            lcols.append(&mut rcols);
             match op {
                 // TODO primary keys / unique keys 
                 SetOperator::Union => {
                     // TODO currently allowing for duplicates regardless of ALL...
-                    view.rows.append(&mut right_view.rows.clone());
-                    return Ok(view);
+                    left_rows.append(&mut right_rows);
+                    return Ok((lcols, left_rows));
                 }
                 SetOperator::Except => {
-                    let mut view = left_view.clone();
-                    view.rows.retain(|r| !right_view.contains_row(&r));
-                    return Ok(view);
+                    left_rows.retain(|r| !right_rows.iter().any(|row| {
+                        let mut eq = true;
+                        for i in 0..row.len() {
+                            eq = eq && (row[i] == r[i]);
+                        }
+                        eq
+                    }));
+                    return Ok((lcols, left_rows));
                 },
                 SetOperator::Intersect => {
-                    let mut view = left_view.clone();
-                    view.rows.retain(|r| right_view.contains_row(&r));
-                    return Ok(view);
+                    left_rows.retain(|r| right_rows.iter().any(|row| {
+                        let mut eq = true;
+                        for i in 0..row.len() {
+                            eq = eq && (row[i] == r[i]);
+                        }
+                        eq
+                    }));
+                    return Ok((lcols, left_rows));
                 }
             }
         }
@@ -849,7 +890,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
     }
 }
 
-pub fn get_query_results(views: &HashMap<String, View>, q: &Query) -> Result<View, Error> {
+pub fn get_query_results(views: &HashMap<String, View>, q: &Query) -> Result<(Vec<TableColumnDef>, Vec<Vec<Value>>), Error> {
     // XXX ORDER BY not supported for union/except/intersect atm
     // order_by: do first because column ordering by may not be selected
     /*if q.order_by.len() > 0 {
@@ -874,7 +915,7 @@ pub fn get_query_results(views: &HashMap<String, View>, q: &Query) -> Result<Vie
         }
     }*/
 
-    let mut new_view = get_setexpr_results(views, &q.body, &q.order_by)?;
+    let (cols, mut rows) = get_setexpr_results(views, &q.body, &q.order_by)?;
     // don't support OFFSET or fetches yet
     assert!(q.offset.is_none() && q.fetch.is_none());
 
@@ -882,11 +923,11 @@ pub fn get_query_results(views: &HashMap<String, View>, q: &Query) -> Result<Vie
     if q.limit.is_some() {
         if let Some(Expr::Value(Value::Number(n))) = &q.limit {
             let limit = usize::from_str(n).unwrap();
-            new_view.rows.truncate(limit);
+            rows.truncate(limit);
         } else {
             unimplemented!("bad limit! {}", q);
         }
     }
 
-    Ok(new_view)
+    Ok((cols, rows))
 }

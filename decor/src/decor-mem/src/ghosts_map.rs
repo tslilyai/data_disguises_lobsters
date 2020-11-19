@@ -167,7 +167,7 @@ impl GhostsMap{
         }
 
         // insert into ghost table
-        let insert_query = &format!("INSERT INTO {} ({}, {}) VALUES ({});", 
+        let insert_query = &format!("INSERT INTO {} ({}, {}) VALUES {};", 
                             GHOST_TABLE_NAME, GHOST_ID_COL, GHOST_USER_COL, pairs);
         warn!("insert_gid_for_uid: {}", insert_query);
         db.query_iter(insert_query)?;
@@ -279,7 +279,7 @@ impl GhostsMap{
                 uncached_uids.push(uids[0])
             }
         }
-        let selection : Expr;
+        /*let selection : Expr;
         if uids.len() == 1 {
             selection = Expr::BinaryOp{
                 left: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_USER_COL))),
@@ -292,7 +292,7 @@ impl GhostsMap{
                 list: uncached_uids.iter().map(|u| Expr::Value(Value::Number(u.to_string()))).collect(),
                 negated: false, 
             };
-        }
+        }*/
         if uncached_uids.len() > 0 {
             unimplemented!("ghosts always should be in cache (as a MV)");
         }

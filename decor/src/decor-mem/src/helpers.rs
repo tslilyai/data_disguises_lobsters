@@ -188,7 +188,7 @@ pub fn parser_vals_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value)
         (Value::Null, _) => res = Ordering::Less,
         _ => unimplemented!("value not comparable! {:?} and {:?}", v1, v2),
     }
-    warn!("comparing {:?} =? {:?} : {:?}", v1, v2, res);
+    //warn!("comparing {:?} =? {:?} : {:?}", v1, v2, res);
     res
 }
 

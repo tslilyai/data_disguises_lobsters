@@ -341,23 +341,22 @@ fn test_users() {
         results.push((id, mod_id, story_id, user_id, action));
     }
     assert_eq!(results.len(), 2);
-    warn!("results are {:?}", results);
-    assert!(((results[0] == ("'2'".to_string(), 
+    assert!(((results[1] == ("'2'".to_string(), 
                             "'2'".to_string(), 
                             "'0'".to_string(), 
                             format!("'{}'", GHOST_ID_START+3), 
                             "'worst story!'".to_string()))
-            && (results[1] == ("'1'".to_string(), 
+            && (results[0] == ("'1'".to_string(), 
                             format!("'{}'", GHOST_ID_START), 
                             "'0'".to_string(), 
                             "'2'".to_string(), 
                             "'bad story!'".to_string())))
-        || ((results[0] == ("'2'".to_string(), 
+        || ((results[1] == ("'2'".to_string(), 
                             "'2'".to_string(), 
                             "'0'".to_string(), 
                             format!("'{}'", GHOST_ID_START), 
                             "'worst story!'".to_string()))
-            && (results[1] == ("'1'".to_string(), 
+            && (results[0] == ("'1'".to_string(), 
                             format!("'{}'", GHOST_ID_START+3), 
                             "'0'".to_string(), 
                             "'2'".to_string(), 
@@ -416,6 +415,7 @@ fn test_users() {
         let uid = format!("{}", mysql_val_to_parser_val(&vals[0]));
         results.push(uid);
     }
+    warn!("Got results {:?}", results);
     assert_eq!(results.len(), 2);
     assert_eq!(results[0], format!("'{}'", 1));
     assert_eq!(results[1], format!("'{}'", 2));

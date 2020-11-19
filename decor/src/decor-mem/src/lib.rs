@@ -30,7 +30,6 @@ struct Prepared {
 }
 
 pub struct Shim { 
-    cfg: config::Config,
     db: mysql::Conn,
     prepared: HashMap<u32, Prepared>,
 
@@ -60,7 +59,7 @@ impl Shim {
         let qtrans = query_transformer::QueryTransformer::new(&cfg, &test_params);
         let sqlcache = sqlparser_cache::ParserCache::new();
         let schema = schema.to_string();
-        Shim{cfg, db, qtrans, sqlcache, prepared, schema, test_params}
+        Shim{db, qtrans, sqlcache, prepared, schema, test_params}
     }   
 
     pub fn run_on_tcp(
@@ -131,7 +130,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         match self.qtrans.resubscribe(uid, &gids, &mut self.db) {
             Ok(()) => Ok(w.completed(gids.len() as u64, 0)?),
             Err(e) => {
-                w.error(ErrorKind::ER_BAD_DB_ERROR, b"resub failed")?;
+                w.error(ErrorKind::ER_BAD_DB_ERROR, format!("b{}", e).as_bytes())?;
                 Ok(())
             }
         }

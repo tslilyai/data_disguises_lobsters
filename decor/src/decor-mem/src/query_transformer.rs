@@ -40,7 +40,7 @@ impl QueryTransformer {
      */
     fn query_to_value_query(&mut self, query: &Query) -> Result<Query, mysql::Error> {
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
-        for row in self.views.query_iter(query)?.rows {
+        for row in self.views.query_iter(query)?.1 {
             vals_vec.push(row.iter().map(|v| Expr::Value(v.clone())).collect());
         }
         self.cur_stat.nqueries_mv+=1;
@@ -60,7 +60,7 @@ impl QueryTransformer {
     fn query_to_value_rows(&mut self, query: &Query, is_single_column: bool) -> Result<Vec<Expr>, mysql::Error> {
         let mut vals_vec : Vec<Expr>= vec![];
         self.cur_stat.nqueries_mv+=1;
-        for row in self.views.query_iter(query)?.rows {
+        for row in self.views.query_iter(query)?.1 {
             if is_single_column {
                 if row.len() != 1 {
                     return Err(mysql::Error::IoError(io::Error::new(io::ErrorKind::Other, format!("Query should only select one column"))));
@@ -721,7 +721,7 @@ impl QueryTransformer {
                 // we need to issue q to MVs to get rows that will be set as values
                 // regardless of whether this is a DT or not (because query needs
                 // to read from MV, rather than initially specified tables)
-                vals_vec = self.views.query_iter(q)?.rows;
+                vals_vec = self.views.query_iter(q)?.1;
             }
         }    
         Ok(vals_vec)
@@ -767,9 +767,7 @@ impl QueryTransformer {
 
                     // collect row results from MV
                     let mut uids = vec![];
-                    let view = self.views.query_iter(&query)?;
-                    let rows = view.rows;
-                    let cols = view.columns;
+                    let (cols, rows) = self.views.query_iter(&query)?;
                     self.cur_stat.nqueries_mv+=1;
                     for row in &rows {
                         for i in 0..cols.len() {
@@ -1067,10 +1065,10 @@ impl QueryTransformer {
             &mut self, 
             stmt: &Statement,
             db: &mut mysql::Conn) 
-        -> Result<views::View, mysql::Error>
+        -> Result<(Vec<views::TableColumnDef>, Vec<Vec<Value>>), mysql::Error>
     {
         warn!("issue statement: {}", stmt);
-        let mut view_res : views::View = views::View::new_with_cols(vec![]);
+        let mut view_res : (Vec<views::TableColumnDef>, Vec<Vec<Value>>) = (vec![], vec![]);
         
         // TODO consistency?
         match stmt {
@@ -1232,8 +1230,8 @@ impl QueryTransformer {
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error>
     {
-        let view = self.issue_statement(stmt, db)?;
-        view.view_to_answer_rows(writer)
+        let view_res = self.issue_statement(stmt, db)?;
+        views::view_cols_rows_to_answer_rows(&view_res.0, &view_res.1, writer)
     }
 
     pub fn query_drop(
@@ -1283,6 +1281,10 @@ impl QueryTransformer {
                 op: BinaryOperator::Eq,
                 right: Box::new(Expr::Value(uid_val.clone())), 
         });
+        
+        // delete from user mv  
+        self.views.delete(&user_table_name, &selection)?;
+
         let delete_uid_from_users = Statement::Delete(DeleteStatement {
             table_name: user_table_name.clone(),
             selection: selection.clone(),
@@ -1290,9 +1292,7 @@ impl QueryTransformer {
         warn!("unsub: {}", delete_uid_from_users);
         db.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
         self.cur_stat.nqueries+=1;
-
-        // delete from user mv  
-        self.views.delete(&user_table_name, &selection)?;
+        
  
         /* 
          * 3. Change all entries with this UID to use the correct GID in the MV
@@ -1321,12 +1321,14 @@ impl QueryTransformer {
             let ris_to_update = select::get_ris_matching_constraint(&select_constraint, &view, None, None);
             for ri in ris_to_update {
                 for ci in &cis {
-                    if view.rows[ri][*ci].to_string() == uid_val.to_string() {
-                        assert!(gid_index < gid_values.len());
-                        let val = gid_values[gid_index][0].clone();
-                        view.update_index(ri, *ci, Some(&val));
-                        view.rows[ri][*ci] = val;
-                        gid_index += 1;
+                    if let Some(row) = view.rows.get_mut(&ri) {
+                        if row[*ci].to_string() == uid_val.to_string() {
+                            assert!(gid_index < gid_values.len());
+                            let val = gid_values[gid_index][0].clone();
+                            row[*ci] = val.clone();
+                            view.update_index(ri, *ci, Some(&val));
+                            gid_index += 1;
+                        }
                     }
                 }
             }
@@ -1350,6 +1352,7 @@ impl QueryTransformer {
             return Ok(());
         }
 
+        let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
         let uid_val = Value::Number(uid.to_string());
 
         let gid_exprs : Vec<Expr> = gids
@@ -1357,18 +1360,20 @@ impl QueryTransformer {
             .map(|g| Expr::Value(Value::Number(g.to_string())))
             .collect();
 
-        let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
-
         /*
          * 1. drop all GIDs from users table 
          */
-        let delete_gids_as_users_stmt = Statement::Delete(DeleteStatement {
-            table_name: user_table_name.clone(),
-            selection: Some(Expr::InList{
+        let selection =  Some(Expr::InList{
                 expr: Box::new(Expr::Identifier(helpers::string_to_idents(&self.cfg.user_table.id_col))),
                 list: gid_exprs.clone(),
                 negated: false, 
-            }),
+        });
+        // delete from users MV
+        self.views.delete(&user_table_name, &selection)?;
+
+        let delete_gids_as_users_stmt = Statement::Delete(DeleteStatement {
+            table_name: user_table_name.clone(),
+            selection: selection.clone(),
         });
         warn!("resub: {}", delete_gids_as_users_stmt);
         db.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
@@ -1378,6 +1383,8 @@ impl QueryTransformer {
          * 2. Add user to users
          * TODO should also add back all of the user data????
          */
+        self.views.insert(&user_table_name, &vec![Ident::new(&self.cfg.user_table.id_col)], &mut vec![vec![uid_val.clone()]])?;
+
         let insert_uid_as_user_stmt = Statement::Insert(InsertStatement{
             table_name: user_table_name,
             columns: vec![Ident::new(&self.cfg.user_table.id_col)],
@@ -1393,6 +1400,7 @@ impl QueryTransformer {
         warn!("resub: {}", insert_uid_as_user_stmt.to_string());
         db.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
         self.cur_stat.nqueries+=1;
+        
  
         /* 
          * 3. update assignments in MV to use UID again
@@ -1420,11 +1428,13 @@ impl QueryTransformer {
 
             let ris_to_update = select::get_ris_matching_constraint(&select_constraint, &view, None, None);
             for ri in ris_to_update {
+                let row = view.rows.get(&ri).unwrap().clone();
                 for ci in &cis {
                     // update the columns to use the uid
-                    if gids.iter().any(|g| g.to_string() == view.rows[ri][*ci].to_string()) {
+                    if gids.iter().any(|g| g.to_string() == row[*ci].to_string()) {
                         view.update_index(ri, *ci, Some(&uid_val));
-                        view.rows[ri][*ci] = uid_val.clone();
+                        let row_mut = view.rows.get_mut(&ri).unwrap();
+                        row_mut[*ci] = uid_val.clone();
                     }
                 }
             }
