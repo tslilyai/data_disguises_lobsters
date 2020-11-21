@@ -192,8 +192,8 @@ impl View {
                         indexes_map.insert(c.name.to_string(), HashMap::new());
                         warn!("{}: Created unique index for column {}", name, c.name.to_string());
                     }
+                    break;
                 }
-                break;
             }
         }
 
