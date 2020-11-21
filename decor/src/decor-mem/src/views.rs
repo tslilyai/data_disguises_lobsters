@@ -220,13 +220,13 @@ impl View {
             } 
             return rptrs;
         }
-        warn!("{}'s indexes are {:?}", self.name, self.indexes);
         warn!("get_rows: no index for col {} val {}!", self.columns[col_index].name(), col_val);
         for (_pk, row) in self.rows.iter() {
             if row.borrow()[col_index].to_string() == col_val.to_string() {
                 rptrs.push(row.clone());
             }
         }
+        warn!("get_rows: {} returns {:?}", self.name, rptrs);
         rptrs
     }
     
@@ -312,8 +312,10 @@ impl Views {
         warn!("{}: insert rows {:?} into {}", view.name, val_rows, table_name);
         // initialize the rows to insert
         // insert rows with non-specified columns set as NULL for now (TODO)
-        let insert_rows = vec![Rc::new(RefCell::new(vec![Value::Null; view.columns.len()])); val_rows.len()];
-        
+        let mut insert_rows = vec![];
+        for _ in 0..val_rows.len() {
+            insert_rows.push(Rc::new(RefCell::new(vec![Value::Null; view.columns.len()])));
+        }
         let mut cis : Vec<usize>;
         if columns.is_empty() {
             // update all columns
@@ -376,42 +378,45 @@ impl Views {
         }
 
         // update with the values to insert
-        for (val_index, ci) in cis.iter().enumerate() {
-            for (i, row) in val_rows.iter().enumerate() {
+        for (i, row) in val_rows.iter().enumerate() {
+            let mut irow = insert_rows[i].borrow_mut();
+            warn!("views::insert: insert_rows {} is {:?}", i, irow);
+            let row = row.borrow();
+            for (val_index, ci) in cis.iter().enumerate() {
                 // update the right column ci with the value corresponding 
                 // to that column to update
-                let row = row.borrow();
-                warn!("insert: setting insert_row col {} to {}", ci, row[val_index]);
-                let mut irow = insert_rows[i].borrow_mut();
+                warn!("views::insert: setting insert_row col {} to {}", ci, row[val_index]);
                 irow[*ci] = row[val_index].clone();
             }
+            warn!("views::insert: insert_rows {} is {:?}", i, irow);
         }
+        warn!("views::insert: insert_rows are {:?}", insert_rows);
 
-        for i in 0..insert_rows.len() {
+        for row in &insert_rows {
             for ci in 0..view.columns.len() {
-                let mut row = insert_rows[i].borrow_mut();
+                let mut irow = row.borrow_mut();
                 
                 // update with default (not null) values
                 for opt in &view.columns[ci].column.options {
                     if let ColumnOption::Default(Expr::Value(v)) = &opt.option {
-                        warn!("Updating col {} with default value {}", view.columns[ci].name(), v);
-                        if row[ci] == Value::Null {
-                            row[ci] = v.clone();
+                        warn!("views::insert: Updating col {} with default value {}", view.columns[ci].name(), v);
+                        if irow[ci] == Value::Null {
+                            irow[ci] = v.clone();
                         } 
                     }  
                     if let ColumnOption::NotNull = &opt.option {
-                        assert!(row[ci] != Value::Null);
+                        assert!(irow[ci] != Value::Null);
                     }
                 }
 
                 // insert all values (even if null) into indices
-                warn!("views::insert: Attempt insert into index: col {} with value {}", view.columns[ci].name(), row[ci]);
+                warn!("views::insert: Attempt insert into index: col {} with value {}", view.columns[ci].name(), irow[ci]);
                 // make sure to actually insert into the right index!!!
-                view.insert_into_index(insert_rows[i].clone(), ci);
+                view.insert_into_index(row.clone(), ci);
             }
         }
 
-        warn!("{}: Appending rows: {:?}", view.name, insert_rows);
+        warn!("views::insert {}: Appending rows: {:?}", view.name, insert_rows);
         for row in insert_rows {
             view.insert_row(row);
         }
@@ -482,9 +487,9 @@ impl Views {
                         }
                     } else {
                         let mut rptrs = vec![];
-                        view.rows.iter().map(|(_pk, rptr)| {
+                        for (_pk, rptr) in view.rows.iter() {
                             rptrs.push(rptr.clone()); 
-                        });
+                        };
                         for rptr in &rptrs {
                             view.update_index(rptr.clone(), *ci, Some(&v));
                             rptr.borrow_mut()[*ci] = v.clone();
@@ -501,9 +506,9 @@ impl Views {
                         }
                     } else {
                         let mut rptrs = vec![];
-                        view.rows.iter().map(|(_pk, rptr)| {
+                        for (_pk, rptr) in view.rows.iter() {
                             rptrs.push(rptr.clone()); 
-                        });
+                        };
                         for rptr in &rptrs {
                             let v = assign_vals_fn(&rptr.borrow());
                             view.update_index(rptr.clone(), *ci, Some(&v));
@@ -547,10 +552,10 @@ impl Views {
         } else {
             let mut pks = vec![];
             let mut rptrs = vec![];
-            view.rows.iter().map(|(pk, rptr)| {
+            for (pk, rptr) in view.rows.iter() {
                 rptrs.push(rptr.clone()); 
-                pks.push(pk.clone());
-            });
+                pks.push(pk.clone()); 
+            };
             for rptr in rptrs {
                 for ci in 0..view.columns.len() {
                     view.update_index(rptr.clone(), ci, None);

@@ -325,9 +325,9 @@ impl GhostsMap{
         if !ucol_indices.is_empty() {
             for row in 0..values.len() {
                 let mut gid_vals = vec![];
-                let mut found = false;
                 let valrow = values[row].borrow();
                 for col in 0..valrow.len() {
+                    let mut found = false;
                     // add entry to ghosts table
                     if ucol_indices.contains(&col) {
                         // NULL check: don't add ghosts entry if new UID value is NULL

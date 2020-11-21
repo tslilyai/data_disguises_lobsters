@@ -213,6 +213,7 @@ fn expr_to_col(e: &Expr) -> (String, String) {
 }
 
 pub fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
+    warn!("matching {} to {}", c.column.name, col);
     c.column.name.to_string() == col || c.name() == col
 }
 
@@ -351,6 +352,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
     -> (bool, RowPtrs)
 {
     let mut matching_rows = vec![];
+    warn!("getting rptrs of constraint {:?}", e);
     match e {
         Expr::Value(Value::Boolean(b)) => {
             return (*b, matching_rows);
@@ -402,10 +404,10 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
             return (*negated, matching_rows);
         }
         Expr::BinaryOp {left, op, right} => {
-            let (lnegated, mut lptrs) = get_rptrs_matching_constraint(left, v, aliases, computed);
-            let (rnegated, mut rptrs) = get_rptrs_matching_constraint(right, v, aliases, computed);
             match op {
                 BinaryOperator::And => {
+                    let (lnegated, mut lptrs) = get_rptrs_matching_constraint(left, v, aliases, computed);
+                    let (rnegated, mut rptrs) = get_rptrs_matching_constraint(right, v, aliases, computed);
                     // if both are negated or not negated, return (negated?, combo of ptrs)
                     if lnegated == rnegated {
                         matching_rows = v.intersect_rptrs(&mut lptrs, &mut rptrs);
@@ -422,6 +424,8 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                     }
                 }
                 BinaryOperator::Or => {
+                    let (lnegated, mut lptrs) = get_rptrs_matching_constraint(left, v, aliases, computed);
+                    let (rnegated, mut rptrs) = get_rptrs_matching_constraint(right, v, aliases, computed);
                     if lnegated == rnegated {
                         matching_rows.append(&mut lptrs);
                         matching_rows.append(&mut rptrs);
@@ -446,6 +450,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                     // fixed value on the RHS
                     if let Expr::Identifier(_) = **left {
                         if let Expr::Value(ref val) = **right {
+                            warn!("getting rptrs of constraint: Fast path {:?}", e);
                             if *op == BinaryOperator::Eq || *op == BinaryOperator::NotEq {
                                 let (_tab, col) = expr_to_col(&left);
                                 
@@ -474,6 +479,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                             }
                         }
                     }
+                    warn!("getting rptrs of constraint: Slow path {:?}", e);
                     let left_fn = get_value_for_row_closure(&left, &v.columns, aliases, computed);
                     let right_fn = get_value_for_row_closure(&right, &v.columns, aliases, computed);
 
@@ -549,6 +555,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 let tab = tab_ref.borrow();
                 
                 new_view.borrow_mut().primary_index = tab.primary_index;
+                new_view.borrow_mut().columns = tab.columns.clone();
                 
                 source_view = Some(tab_ref.clone());
             } else {
