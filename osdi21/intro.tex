@@ -2,47 +2,42 @@
 \section{Introduction}
 %-------------------------------------------------------------------------------
 
-\subsection{Motivation} 
-
 Web application companies face increasing legal requirements to protect users’ data. These
 requirements pressure companies to properly delete and anonymize users' data when a user requests to
 \emph{unsubscribe} from the service (i.e.,\ revoke access to their personal data). For example, the
-GDPR requires that any user data remaining after a user unsubscribes cannot be (directly or
+GDPR requires that any data remaining after a user unsubscribes cannot be (directly or
 indirectly) used to identify the user~\cite{gdpr}.  
 
-In this paper, we propose \sys{}, a new approach to managing user identities in web applications.
-\sys{} makes the key observation that a piece of data leaks identifying information not only through
-direct identifiers (e.g.,\ usernames), but also via its \emph{correlations} to other data in the
-application.  These correlations range from obviously identifying (posts linked to a user id) to
-subtly perilous (user-created tags associated with an anonymized post). \sys{} provides a way for
-applications to easily and correctly \emph{decorrelate} users from their data: \sys{} breaks direct
-links between the user and the user's generated data, and recursively decorrelates data records in
-the application that may leak identifying information about the user.  By implementing
-decorrelation, \sys{} allows the application to retain user data while protecting an unsubscribed
-user's identity beyond simple anonymization.
+In this paper, we propose \sys{}, which enables applications to meet the de-identification
+requirements in the GDPR, and goes beyond: with \sys{}, it is possible for users to switch between a
+privacy-preserving unsubscribed mode and an identity-revealing subscribed mode at any time without
+permanently losing their data. This facilitates important new web service paradigms,
+such as users granting a time-limited ``lease'' of data to a service instead of having a permanent
+service account.
 
-\sys{} enables applications to meet the de-identification requirements in the GDPR, and goes beyond:
-with \sys{}, it is possible for users to switch between a privacy-preserving unsubscribed mode and
-an identity-revealing subscribed mode at any time. This facilitates important new web service
-paradigms, such as users granting a time-limited ``lease'' of data to a service instead of having a
-permanent service account.
+\sys{} enables these unsubscription-resubscription modes with strong de-identification properties
+upon unsubscription by maximally \emph{decorrelating} a user's data entities from each other and
+from the user's identity.
+Today's web applications de-identify users upon account deletion by replacing unique user
+identifiers such as usernames with global placeholders (``anonymous'') or a pseudonym
+(``anonymous\_mouse'').
 
-\subsection{Goals} 
-\sys's goal is to provide the following properties:
-\begin{description} 
-    \item[Decorrelation.] Informally, decorrelation should guarantee that it is impossible to distinguish
-        between two records formerly associated with the same unsubscribed user and two records from
-        different unsubscribed users.  
-    %\item Deletion Correctness: Deletion of user records should correctly conform to application
-        %semantics: for example, post deletion could remove the post and its underlying comments, or
-    %simply anonymize the post and keep all content accessible.  
-    \item[Resubscription.] Users should be able to easily switch between a privacy-preserving unsubscribed mode 
-       and an identity-revealing subscribed mode, without permanently losing their application data.  
-\end{description}
+\sys{} makes the key observation that data entities leak identifying information both directly
+through their content (e.g.,\ a username) and indirectly through their correlations with other data
+entities. These correlations range from obviously identifying (e.g.,\ posts linked by user)
+to subtly perilous (e.g.,\ posts linked by user-created tags). 
 
-\sys{} must implement these properties while ensuring (1) performance comparable to today’s
-widely-used databases, and (2) easy adoption (requiring little to no modification of application
-schemas or semantics).
+
+Today's web applications 
+
+\sys{} provides a
+way for applications to easily and correctly \emph{decorrelate} these entities when users
+unsubscribe. Using only a high-level specification that captures the desired application semantics
+for unsubscribed users, DeCor ensures that entities left behind for an unsubscribed user are
+
+\sys{} supports automatic decorrelation when a user unsubscribes while ensuring (1) performance
+comparable to today’s widely-used databases, and (2) easy adoption (requiring little to no
+modification of application schemas or semantics).
 
 \subsection{Threat Model} 
 We make the following assumptions about an adversary who aims to break decorrelation.
