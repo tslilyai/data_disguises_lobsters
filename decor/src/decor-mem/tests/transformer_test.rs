@@ -216,7 +216,26 @@ fn test_normal_execution() {
     assert_eq!(results[3], (format!("'{}'", GHOST_ID_START+3), "'1'".to_string()));
 
     /* 
-     * TEST 5: update correctly changes ghost values to point to new UIDs (correctly handling
+     * TEST 5: complex joins
+     */
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT moderations.moderator_user_id, users.username 
+                            FROM users JOIN moderations ON users.id = moderations.user_id 
+                            ORDER BY moderations.user_id ASC 
+                            LIMIT 2;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 2);
+        let mod_id = format!("{}", mysql_val_to_parser_val(&vals[0]));
+        let username = format!("{}", mysql_val_to_parser_val(&vals[1]));
+        results.push((mod_id, username));
+    }
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0], ("'2'".to_string(), "'hello1'".to_string()));
+    assert_eq!(results[1], ("'1'".to_string(), "'hello2'".to_string()));
+
+    /* 
+     * TEST 6: update correctly changes ghost values to point to new UIDs (correctly handling
      * deletion upon updates to NULL)
      */
     let mut results = vec![];
@@ -251,7 +270,7 @@ fn test_normal_execution() {
     assert_eq!(results[2], (format!("'{}'", GHOST_ID_START+2), "'3'".to_string()));
 
     /* 
-     * TEST 6: deletions correctly remove ghost IDs
+     * TEST 7: deletions correctly remove ghost IDs
      */
     let mut results = vec![];
     db.query_drop(r"DELETE FROM moderations WHERE moderator_user_id = 1").unwrap(); 
