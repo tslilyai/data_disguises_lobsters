@@ -1321,17 +1321,25 @@ impl QueryTransformer {
                 let mut all_rptrs : views::RowPtrs = view.rows.iter().map(|(_pk, rptr)| rptr.clone()).collect();
                 rptrs_to_update = view.minus_rptrs(&mut all_rptrs, &mut rptrs_to_update);
             } 
+            let mut updated_cis = vec![];
             for rptr in &rptrs_to_update {
+                let mut row = rptr.borrow_mut();
                 for ci in &cis {
-                    let mut row = rptr.borrow_mut();
                     if row[*ci].to_string() == uid_val.to_string() {
                         assert!(gid_index < gid_values.len());
                         let val = &gid_values[gid_index].borrow()[0];
+                        warn!("UNSUB: updating {:?} with {}", row, val);
                         row[*ci] = val.clone();
-                        warn!("UNSUB: updating row {:?} col {} to {:?}", row, ci, val); 
-                        view.update_index(rptr.clone(), *ci, Some(&val));
+                        updated_cis.push(*ci);
                         gid_index += 1;
                     }
+                }
+            }
+            for rptr in &rptrs_to_update {
+                for ci in &updated_cis {
+                    let val = &rptr.borrow()[*ci];
+                    warn!("UNSUB: updating {:?} with {}", rptr, val);
+                    view.update_index(rptr.clone(), *ci, Some(&val));
                 }
             }
         }
@@ -1435,14 +1443,21 @@ impl QueryTransformer {
                 let mut all_rptrs : views::RowPtrs = view.rows.iter().map(|(_pk, rptr)| rptr.clone()).collect();
                 rptrs_to_update = view.minus_rptrs(&mut all_rptrs, &mut rptrs_to_update);
             } 
+            let mut updated_cis = vec![];
             for rptr in &rptrs_to_update {
                 let mut row = rptr.borrow_mut();
                 for ci in &cis {
                     // update the columns to use the uid
                     if gids.iter().any(|g| g.to_string() == row[*ci].to_string()) {
-                        view.update_index(rptr.clone(), *ci, Some(&uid_val));
+                        updated_cis.push(*ci);
                         row[*ci] = uid_val.clone();
                     }
+                }
+            }
+            for rptr in &rptrs_to_update {
+                for ci in &updated_cis {
+                    warn!("RESUB: updating {:?} with {}", rptr, uid_val);
+                    view.update_index(rptr.clone(), *ci, Some(&uid_val));
                 }
             }
         }
