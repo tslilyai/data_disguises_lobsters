@@ -512,14 +512,14 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                                     matching_rows.push(row.clone());
                                 }
                             }
-                            _ => unimplemented!("binop constraint not supported {}", e),
+                            _ => unimplemented!("binop constraint not supported {:?}", e),
                         }
                     }
                     return (false, matching_rows);
                 }
             }
         }
-        _ => unimplemented!("Constraint not supported {}", e),
+        _ => unimplemented!("Constraint not supported {:?}", e),
     }
 }
 
