@@ -1,16 +1,18 @@
-use crate::views::{View, TableColumnDef};
+use crate::views::{View, TableColumnDef, RowPtrs};
 use crate::helpers;
 use log::warn;
-use std::collections::{HashMap, hash_set::HashSet};
+use std::collections::{HashMap};
 use std::cmp::Ordering;
 use std::io::{Error, ErrorKind};
 use std::str::FromStr;
 use sql_parser::ast::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /*
  * Convert table name (with optional alias) to current view
  */
-fn tablefactor_to_view<'a>(views: &'a HashMap<String, View>, tf: &TableFactor) -> Result<&'a View, Error> {
+fn tablefactor_to_view(views: &HashMap<String, Rc<RefCell<View>>>, tf: &TableFactor) -> Result<Rc<RefCell<View>>, Error> {
     match tf {
         TableFactor::Table {
             name,
@@ -29,7 +31,7 @@ fn tablefactor_to_view<'a>(views: &'a HashMap<String, View>, tf: &TableFactor) -
                         assert!(a.columns.is_empty());
                         view.name = a.name.to_string();
                     }*/
-                    Ok(&t)
+                    Ok(t.clone())
                 }
             }
         }
@@ -86,19 +88,20 @@ fn get_join_on_col_indices(e: &Expr, v1: &View, v2: &View) -> Result<(usize, usi
     }
 }
 
-fn join_views(jo: &JoinOperator, v1: &View, v2: &View) -> Result<View, Error> {
-    warn!("Joining views {} and {}", v1.name, v2.name);
-    let mut new_cols : Vec<TableColumnDef> = v1.columns.clone();
-    new_cols.append(&mut v2.columns.clone());
-    let mut new_view = View::new_with_cols(new_cols);
-    match jo {
+fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -> Result<Rc<RefCell<View>>, Error> {
+    //warn!("Joining views {} and {}", v1.name, v2.name);
+    let mut new_cols : Vec<TableColumnDef> = v1.borrow().columns.clone();
+    new_cols.append(&mut v2.borrow().columns.clone());
+    let new_view = View::new_with_cols(new_cols);
+    /*match jo {
         JoinOperator::Inner(JoinConstraint::On(e)) => {
             let (i1, i2) = get_join_on_col_indices(&e, v1, v2)?;
             // this seems very very inefficient
             for (_id, row1) in v1.rows.iter() {
-                for mut row2 in v2.get_rows_of_col(i2, &row1[i1]) {
-                    // remove duplicatte from row
-                    row2.remove(i2);
+                for row2 in v2.get_rptrs_of_col(i2, &row1[i1]) {
+                    // remove duplicate from row
+                    // TODO
+                    //row2.remove(i2);
                     let mut new_row = row1.clone();
                     new_row.append(&mut row2);
                     new_view.insert_row(new_row);
@@ -175,18 +178,18 @@ fn join_views(jo: &JoinOperator, v1: &View, v2: &View) -> Result<View, Error> {
             }            
         }
         _ => unimplemented!("No support for join type {:?}", jo),
-    }
-    Ok(new_view)
+    }*/
+    Ok(Rc::new(RefCell::new(new_view)))
 }
 
-fn tablewithjoins_to_view(views: &HashMap<String, View>, twj: &TableWithJoins) -> Result<View, Error> {
+fn tablewithjoins_to_view(views: &HashMap<String, Rc<RefCell<View>>>, twj: &TableWithJoins) -> Result<Rc<RefCell<View>>, Error> {
     // TODO only do expensive copy if there is an actual join
     // TODO copy indices when joining?
-    let mut joined_views = tablefactor_to_view(views, &twj.relation)?.clone();
+    let mut joined_views = tablefactor_to_view(views, &twj.relation)?;
     
     for j in &twj.joins {
         let view2 = tablefactor_to_view(views, &j.relation)?;
-        joined_views = join_views(&j.join_operator, &joined_views, view2)?;
+        joined_views = join_views(&j.join_operator, joined_views, view2)?;
     }
     Ok(joined_views)
 }
@@ -216,7 +219,7 @@ pub fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
 /*
  * Turn expression into a value for row
  */
-pub fn get_value_for_row(e: &Expr, 
+pub fn get_value_for_row_closure(e: &Expr, 
                          columns: &Vec<TableColumnDef>,
                          aliases: Option<&HashMap<String, usize>>, 
                          computed_opt: Option<&HashMap<String, &Expr>>)
@@ -241,7 +244,7 @@ pub fn get_value_for_row(e: &Expr,
             } else if let Some(computed) = computed_opt {
                 // if this col is a computed col, check member in list and return
                 if let Some(e) = computed.get(&col) {
-                    let computed_func = get_value_for_row(&e, columns, aliases, Some(computed));
+                    let computed_func = get_value_for_row_closure(&e, columns, aliases, Some(computed));
                     return Box::new(move |row| computed_func(row));
                 }
             }
@@ -276,7 +279,7 @@ pub fn get_value_for_row(e: &Expr,
                     if lindex.is_none() {
                         if let Some(computed) = computed_opt {
                             if let Some(e) = computed.get(&lcol) {
-                                lval = get_value_for_row(e, columns, aliases, Some(computed));
+                                lval = get_value_for_row_closure(e, columns, aliases, Some(computed));
                             }
                         }
                     }
@@ -294,7 +297,7 @@ pub fn get_value_for_row(e: &Expr,
                     if rindex.is_none() {
                         if let Some(computed) = computed_opt {
                             if let Some(e) = computed.get(&rcol) {
-                                rval = get_value_for_row(e, columns, aliases, Some(computed));
+                                rval = get_value_for_row_closure(e, columns, aliases, Some(computed));
                             }
                         }
                     }
@@ -339,19 +342,19 @@ fn get_col_index_with_aliases(col: &str, columns: &Vec<TableColumnDef>, aliases:
 }
 
 /* 
- * returns the indices into the view rows where these rows reside
+ * returns (negated, MatchingPtrs) 
  * 
  * */
-pub fn get_ris_matching_constraint(e: &Expr, v: &View, 
+pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, 
                                     aliases: Option<&HashMap<String, usize>>, 
                                     computed: Option<&HashMap<String, &Expr>>)
-    -> HashSet<usize> 
+    -> (bool, RowPtrs)
 {
-    let mut ris = HashSet::new();
+    let mut matching_rows = vec![];
     match e {
-        Expr::Value(Value::Boolean(b)) => if *b {
-            ris = v.rows.iter().map(|(k,_v)| k.clone()).collect();
-        }
+        Expr::Value(Value::Boolean(b)) => {
+            return (*b, matching_rows);
+        } 
         Expr::InList { expr, list, negated } => {
             let list_vals : Vec<Value> = list.iter()
                 .map(|e| match e {
@@ -362,180 +365,177 @@ pub fn get_ris_matching_constraint(e: &Expr, v: &View,
             let (_tab, col) = expr_to_col(&expr);
               
             if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
-                if *negated {
-                    ris = v.rows.iter().map(|(k,_v)| k.clone()).collect();
-                }
                 for lv in &list_vals {
-                    for ri in v.get_ris_of_col(ci, lv) {
-                        if *negated {
-                            ris.remove(&ri);
-                        } else {
-                            ris.insert(ri);
-                        }
-                    }
+                    matching_rows.append(&mut v.get_rptrs_of_col(ci, lv));
                 }
             } else if let Some(computed) = computed {
                 // if this col is a computed col, check member in list and return
                 if let Some(e) = computed.get(&col) {
-                    let ccval_func = get_value_for_row(&e, &v.columns, aliases, Some(&computed));
-                    for (ri, row) in &v.rows {
-                        let ccval = ccval_func(&row);
+                    let ccval_func = get_value_for_row_closure(&e, &v.columns, aliases, Some(&computed));
+                    for (_pk, row) in &v.rows {
+                        let ccval = ccval_func(&row.borrow());
                         let in_list = list_vals.iter().any(|lv| helpers::parser_vals_cmp(&ccval, &lv) == Ordering::Equal);
-                        if (*negated && !in_list) || (!*negated && in_list) {
-                            ris.insert(*ri);
+                        if in_list {
+                            matching_rows.push(row.clone());
                         }
                     }
                 }
             }
+            return (*negated, matching_rows);
         }
         Expr::IsNull { expr, negated } => {
             let (_tab, col) = expr_to_col(&expr);
             if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
-                if *negated {
-                    ris = v.rows.iter().map(|(k,_v)| k.clone()).collect();
-                }
-                for ri in v.get_ris_of_col(ci, &Value::Null) {
-                    if *negated {
-                        ris.remove(&ri);
-                    } else {
-                        warn!("Inserting {} into row indices!", ri);
-                        ris.insert(ri);
-                    }
-                }            
+                matching_rows.append(&mut v.get_rptrs_of_col(ci, &Value::Null));
             } else if let Some(computed) = computed {
                 // if this col is a computed col, check if null and return
                 if let Some(e) = computed.get(&col) {
-                    let ccval_func = get_value_for_row(&e, &v.columns, aliases, Some(&computed));
-                    for (ri, row) in &v.rows {
-                        let ccval = ccval_func(&row);
-                        let is_null = ccval.to_string() == Value::Null.to_string();
-                        if (*negated && !is_null) || (!*negated && is_null) {
-                            ris.insert(*ri);
+                    let ccval_func = get_value_for_row_closure(&e, &v.columns, aliases, Some(&computed));
+                    for (_ri, row) in &v.rows {
+                        let ccval = ccval_func(&row.borrow());
+                        if ccval.to_string() == Value::Null.to_string() {
+                            matching_rows.push(row.clone());
                         }
                     }
                 }
             }
+            return (*negated, matching_rows);
         }
         Expr::BinaryOp {left, op, right} => {
-            // TODO can split up into two fxns, one to get rows, other to get indices...
+            let (lnegated, mut lptrs) = get_rptrs_matching_constraint(left, v, aliases, computed);
+            let (rnegated, mut rptrs) = get_rptrs_matching_constraint(right, v, aliases, computed);
             match op {
                 BinaryOperator::And => {
-                    let lindices = get_ris_matching_constraint(left, v, aliases, computed);
-                    let rindices = get_ris_matching_constraint(right, v, aliases, computed);
-                    for i in lindices.intersection(&rindices) {
-                        ris.insert(*i as usize);
+                    // if both are negated or not negated, return (negated?, combo of ptrs)
+                    if lnegated == rnegated {
+                        matching_rows = v.intersect_rptrs(&mut lptrs, &mut rptrs);
+                        return (lnegated, matching_rows);
+                    } else {
+                        if lnegated {
+                            // only lefthandside negated, return (false, all rptrs - lptrs)
+                            matching_rows = v.minus_rptrs(&mut rptrs, &mut lptrs);
+                        } else {
+                            // only right negated, return (false, all lptrs - rptrs)
+                            matching_rows = v.minus_rptrs(&mut lptrs, &mut rptrs);
+                        } 
+                        return (false, matching_rows);
                     }
                 }
                 BinaryOperator::Or => {
-                    let lindices = get_ris_matching_constraint(left, v, aliases, computed);
-                    let rindices = get_ris_matching_constraint(right, v, aliases, computed);
-                    for i in lindices.union(&rindices) {
-                        ris.insert(*i as usize);
-                    }                
+                    if lnegated == rnegated {
+                        matching_rows.append(&mut lptrs);
+                        matching_rows.append(&mut rptrs);
+                        matching_rows.sort_by(|r1, r2| helpers::parser_vals_cmp(
+                                &r1.borrow()[v.primary_index], 
+                                &r2.borrow()[v.primary_index]));
+                        matching_rows.dedup();
+                        return (lnegated, matching_rows);
+                    } else {
+                        if lnegated {
+                            // only lefthandside negated, return (true, lptrs - rptrs)
+                            matching_rows = v.minus_rptrs(&mut lptrs, &mut rptrs);
+                        } else {
+                            // only righthandside negated, return (left, all rptrs - lptrs)
+                            matching_rows = v.minus_rptrs(&mut rptrs, &mut lptrs);
+                        }
+                        return (true, matching_rows);
+                    }
                 }
                 _ => {
                     // special case: use index to perform comparisons against 
                     // fixed value on the RHS
-                    let mut fastpath = false;
                     if let Expr::Identifier(_) = **left {
                         if let Expr::Value(ref val) = **right {
                             if *op == BinaryOperator::Eq || *op == BinaryOperator::NotEq {
-                                fastpath = true;
                                 let (_tab, col) = expr_to_col(&left);
                                 
                                 if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
                                     warn!("fastpath equal expression: {} =? {}", col, val);
-                                    if *op == BinaryOperator::NotEq {
-                                        ris = v.rows.iter().map(|(k,_v)| k.clone()).collect();
-                                    }
-                                    for ri in v.get_ris_of_col(ci, &val) {
-                                        if *op == BinaryOperator::Eq {
-                                            ris.insert(ri);
-                                        } else if *op == BinaryOperator::NotEq {
-                                            ris.remove(&ri);
-                                        }
-                                    }
+                                    matching_rows.append(&mut v.get_rptrs_of_col(ci, &val));
+                                    return (*op == BinaryOperator::NotEq, matching_rows);
                                 } else {
                                     warn!("fastpath equal expression: checking if computed col {} =? {}", col, val);
                                     // if this col is a computed col, check if null and return
                                     if let Some(computed) = computed {
                                         if let Some(e) = computed.get(&col) {
-                                            let ccval_func = get_value_for_row(&e, &v.columns, aliases, Some(&computed));
-                                            for (ri, row) in &v.rows {
-                                                let ccval = ccval_func(&row);
+                                            let ccval_func = get_value_for_row_closure(&e, &v.columns, aliases, Some(&computed));
+                                            for (_pk, row) in &v.rows {
+                                                let ccval = ccval_func(&row.borrow());
                                                 let cmp = helpers::parser_vals_cmp(&ccval, &val);
                                                 if (*op == BinaryOperator::NotEq && cmp != Ordering::Equal) ||
                                                     (*op == BinaryOperator::Eq && cmp == Ordering::Equal) {
-                                                    ris.insert(*ri);
+                                                    matching_rows.push(row.clone());
                                                 }
                                             }
+                                            return (false, matching_rows);
                                         }
                                     }
                                 } 
                             }
                         }
                     }
-                    if !fastpath {
-                        let left_fn = get_value_for_row(&left, &v.columns, aliases, computed);
-                        let right_fn = get_value_for_row(&right, &v.columns, aliases, computed);
+                    let left_fn = get_value_for_row_closure(&left, &v.columns, aliases, computed);
+                    let right_fn = get_value_for_row_closure(&right, &v.columns, aliases, computed);
 
-                        for (ri, row) in &v.rows {
-                            let left_val = left_fn(&row);
-                            let right_val = right_fn(&row);
-                            let cmp = helpers::parser_vals_cmp(&left_val, &right_val);
-                            match op {
-                                BinaryOperator::Eq => {
-                                    if cmp == Ordering::Equal {
-                                        ris.insert(*ri);
-                                    }
+                    for (_pk, row) in &v.rows {
+                        let left_val = left_fn(&row.borrow());
+                        let right_val = right_fn(&row.borrow());
+                        let cmp = helpers::parser_vals_cmp(&left_val, &right_val);
+                        match op {
+                            BinaryOperator::Eq => {
+                                if cmp == Ordering::Equal {
+                                    matching_rows.push(row.clone());
                                 }
-                                BinaryOperator::NotEq => {
-                                    if cmp != Ordering::Equal {
-                                        ris.insert(*ri);
-                                    }
-                                }
-                                BinaryOperator::Lt => {
-                                    if cmp == Ordering::Less {
-                                        ris.insert(*ri);
-                                    }
-                                }
-                                BinaryOperator::Gt => {
-                                    if cmp == Ordering::Greater {
-                                        ris.insert(*ri);
-                                    }
-                                }
-                                BinaryOperator::LtEq => {
-                                    if cmp != Ordering::Greater {
-                                        ris.insert(*ri);
-                                    }
-                                }
-                                BinaryOperator::GtEq => {
-                                    if cmp != Ordering::Less {
-                                        ris.insert(*ri);
-                                    }
-                                }
-                                _ => unimplemented!("binop constraint not supported {}", e),
                             }
+                            BinaryOperator::NotEq => {
+                                if cmp != Ordering::Equal {
+                                    matching_rows.push(row.clone());
+                                }
+                            }
+                            BinaryOperator::Lt => {
+                                if cmp == Ordering::Less {
+                                    matching_rows.push(row.clone());
+                                }
+                            }
+                            BinaryOperator::Gt => {
+                                if cmp == Ordering::Greater {
+                                    matching_rows.push(row.clone());
+                                }
+                            }
+                            BinaryOperator::LtEq => {
+                                if cmp != Ordering::Greater {
+                                    matching_rows.push(row.clone());
+                                }
+                            }
+                            BinaryOperator::GtEq => {
+                                if cmp != Ordering::Less {
+                                    matching_rows.push(row.clone());
+                                }
+                            }
+                            _ => unimplemented!("binop constraint not supported {}", e),
                         }
                     }
+                    return (false, matching_rows);
                 }
             }
         }
         _ => unimplemented!("Constraint not supported {}", e),
     }
-    warn!("Get ris matching constraint: {:?}, {:?}", e, ris);
-    ris
 }
 
-fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &Vec<OrderByExpr>) -> Result<(Vec<TableColumnDef>, Vec<Vec<Value>>), Error> {
+/* 
+ * Return vectors of columns, rows, and additional computed columns/values
+ */
+fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr, order_by: &Vec<OrderByExpr>) 
+    -> Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), std::io::Error> {
     match se {
         SetExpr::Select(s) => {
-            let mut new_view = View::new_with_cols(vec![]);
             if s.having != None {
                 unimplemented!("No support for having queries");
             }
 
-            let mut source_view : Option<&View> = None;
+            let new_view = Rc::new(RefCell::new(View::new_with_cols(vec![])));
+            let mut source_view : Option<Rc<RefCell<View>>> = None;
             // new name for column at index 
             let mut column_aliases : HashMap<String, usize> = HashMap::new();
             // additional columns and their values
@@ -543,24 +543,28 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
             
             // special case: we're getting results from only this view
             // INVARIANT: if source_view is Some, new_view does not have any rows
+            // TODO fix this so that we only ever refer to one view...
             if s.from.len() == 1 && s.from[0].joins.is_empty() {
-                source_view = Some(tablefactor_to_view(views, &s.from[0].relation)?);
-            
-                // TODO if this is a join, how to handle indices and names?
-                // this only works if there is only one table...
-                new_view.name = source_view.unwrap().name.clone();
-                new_view.columns = source_view.unwrap().columns.clone();
-
+                let tab_ref = tablefactor_to_view(views, &s.from[0].relation)?;
+                let tab = tab_ref.borrow();
+                
+                new_view.borrow_mut().primary_index = tab.primary_index;
+                
+                source_view = Some(tab_ref.clone());
             } else {
                 // otherwise, it's a join
                 // INVARIANT: new_view after a join is populated with all the rows
-                for twj in &s.from {
-                    let mut v = tablewithjoins_to_view(views, &twj)?;
-                    new_view.columns.append(&mut v.columns);
+                /*for twj in &s.from {
+                    // TODO if this is a join, how to handle indices and names?
+                    // TODO don't copy unless necessary?
+                    let v = tablewithjoins_to_view(views, &twj)?.borrow();
+                    new_view.borrow_mut().columns.append(&mut v.columns);
+                    // TODO correctly update primary index---right now there can be duplicates from
+                    // different tables
                     for (k, r) in v.rows {
-                        new_view.rows.insert(k, r);
+                        new_view.borrow_mut().rows.insert(k, r);
                     }
-                }
+                }*/
             }
 
             // 1) compute any additional rows added by projection 
@@ -574,32 +578,37 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
             let mut select_val = None;
             let mut count = false;
             let mut count_alias = Ident::new("count");
+            let mut columns: Vec<TableColumnDef> = new_view.borrow_mut().columns.clone();
+            let table_name = new_view.borrow_mut().name.clone();
+
             for proj in &s.projection {
                 match proj {
                     SelectItem::Wildcard => {
                         // only support wildcards if there are no other projections...
                         assert!(s.projection.len() == 1);
-                        cols_to_keep = (0..new_view.columns.len()).collect();
+                        cols_to_keep = (0..columns.len()).collect();
                     },
                     SelectItem::Expr {expr, alias} => {
                         // SELECT 1...
                         if let Expr::Value(v) = expr {
                             select_val = Some(v);
+
                         } else if let Expr::QualifiedWildcard(ids) = expr {
                             // SELECT `tablename.*`: keep all columns of this table
                             
                             let table_to_select = ids.last().unwrap().to_string();
-                            for (i, c) in new_view.columns.iter().enumerate() {
+                            for (i, c) in columns.iter().enumerate() {
                                 if c.table == table_to_select {
                                     cols_to_keep.push(i);
                                 }
                             } 
+                        
                         } else if let Expr::Identifier(_ids) = expr {
                             // SELECT `tablename.columname` 
                             
                             let (_tab, col) = expr_to_col(expr);
                             warn!("{}: selecting {}", s, col);
-                            let ci = new_view.columns.iter().position(|c| tablecolumn_matches_col(c, &col)).unwrap();
+                            let ci = columns.iter().position(|c| tablecolumn_matches_col(c, &col)).unwrap();
                             cols_to_keep.push(ci);
                             
                             // alias; use in WHERE will match against this alias
@@ -613,6 +622,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                             let a = alias.as_ref().unwrap();
                             computed_columns.insert(a.to_string(), expr);
                             warn!("Adding to computed columns {:?}", computed_columns)
+                        
                         } else if let Expr::Function(f) = expr {
                             if f.name.to_string() == "count" && f.args == FunctionArgs::Star {
                                 count = true;
@@ -629,41 +639,32 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
 
             // filter out rows by where clause
             // and actually add these to the new view (this is the last time we'll use source_view)
-            let mut rows_to_keep : Vec<Vec<Value>> = vec![];
-            let mut columns: Vec<TableColumnDef> = new_view.columns.clone();
-            let table_name = new_view.name.clone();
-
+            let mut rptrs_to_keep : RowPtrs;
+            let source : Rc<RefCell<View>>;
+            if let Some(source_view) = source_view {
+                source = source_view.clone(); 
+            } else {
+                source = new_view;
+            }
             if let Some(selection) = &s.selection {
-                let ris_to_keep : HashSet<usize>;
-                if let Some(source_view) = source_view {
-                    ris_to_keep = get_ris_matching_constraint(&selection, source_view, Some(&column_aliases), Some(&computed_columns));
-                } else {
-                    ris_to_keep = get_ris_matching_constraint(&selection, &new_view, Some(&column_aliases), Some(&computed_columns));
+                let (negated, mut matching_rptrs) = 
+                    get_rptrs_matching_constraint(&selection, &source.borrow(), Some(&column_aliases), Some(&computed_columns));
+                if negated {
+                    let mut all_rptrs : RowPtrs = source.borrow().rows.iter().map(|(_pk, rptr)| rptr.clone()).collect();
+                    matching_rptrs = source.borrow().minus_rptrs(&mut all_rptrs, &mut matching_rptrs);
                 }
-                
-                warn!("Where: Keeping rows {:?} {:?}", selection, ris_to_keep);
-                for ri in ris_to_keep {
-                    if let Some(source_view) = source_view {
-                        rows_to_keep.push(source_view.rows.get(&ri).unwrap().clone());
-                    } else {
-                        rows_to_keep.push(new_view.rows.get(&ri).unwrap().clone());
-                    }
-                }
-            } else if let Some(source_view) = source_view {
-                // no selection, so we just copy all the rows from the source (if we haven't already
-                // via the join)
-                rows_to_keep = source_view.rows.iter().map(|(_k, r)| r.clone()).collect();
+                rptrs_to_keep = matching_rptrs;
+                warn!("Where: Keeping rows {:?} {:?}", selection, rptrs_to_keep);
+            } else {
+                rptrs_to_keep = source.borrow().rows.iter().map(|(_pk, rptr)| rptr.clone()).collect();
             }
 
-            /*
-             * INVARIANT: AFTER HERE, NO NEW_VIEW/SOURCE_VIEW USED
-             */
- 
-            // fast path: return val if select val was issued 
-            if let Some(v) = select_val {
-                for r in &mut rows_to_keep {
-                    *r = vec![v.clone()];
-                }
+            // fast path: return val if select val was issued
+            if let Some(val) = select_val {
+                let rows : RowPtrs;
+                let val_row = Rc::new(RefCell::new(vec![val.clone()]));
+                rows = vec![val_row; rptrs_to_keep.len()];
+                
                 // not sure what to put for column in this case but it's probably ok?
                 columns = vec![TableColumnDef{
                     table: "".to_string(),
@@ -674,7 +675,9 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                         options: vec![],
                     }
                 }];
-                return Ok((columns, rows_to_keep));
+                cols_to_keep = vec![0];
+
+                return Ok((columns, rows, cols_to_keep));
             }
 
             // deal with present column aliases
@@ -686,7 +689,9 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
             // add the computed values to the rows with the appropriate aliases
             for (colname, expr) in computed_columns {
                 warn!("Adding computed column {}", colname);
-                cols_to_keep.push(columns.len());
+                let newcol_index = columns.len();
+                cols_to_keep.push(newcol_index);
+                
                 columns.push(TableColumnDef{
                     table: table_name.clone(),
                     column: ColumnDef{
@@ -697,19 +702,25 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
 
                     },
                 });
-                let val_func = get_value_for_row(expr, &columns, None, None);
-                for ri in 0..rows_to_keep.len() {
-                    let val = val_func(&rows_to_keep[ri]);
-                    rows_to_keep[ri].push(val);
-                }   
+                
+                let val_func = get_value_for_row_closure(expr, &columns, None, None);
+                // XXX NOTE: WE'RE ACTUALLY MODIFYING THE ROW HERE???
+                for rptr in &rptrs_to_keep {
+                    let mut row = rptr.borrow_mut();
+                    let val = val_func(&row);
+                    if row.len() > newcol_index {
+                        row[newcol_index] = val;
+                    } else {
+                        row.push(val);
+                    }
+                }
             }
           
-            // add the count of selected columns as a column if it were projected
+            // add the count of selected columns as an extra column if it were projected
             if count {
-                let count = rows_to_keep.len();
-                for r in &mut rows_to_keep {
-                    r.push(Value::Number(count.to_string()));
-                }
+                let newcol_index = columns.len();
+                cols_to_keep.push(newcol_index);
+
                 columns.push(TableColumnDef{
                     table: table_name.clone(),
                     column: ColumnDef {
@@ -719,6 +730,16 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                         options: vec![],
                     }
                 });
+
+                let num = Value::Number(rptrs_to_keep.len().to_string());
+                for rptr in &rptrs_to_keep {
+                    let mut row = rptr.borrow_mut();
+                    if row.len() > newcol_index {
+                        row[newcol_index] = num.clone();
+                    } else {
+                        row.push(num.clone());
+                    }
+                }
             }
 
             // order rows if necessary
@@ -726,8 +747,7 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
             if order_by.len() > 0 {
                 
                 // TODO only support at most two order by constraints for now
-                assert!(order_by.len() < 3);
-                let orderby1 = &order_by[0];
+                assert!(order_by.len() < 3); let orderby1 = &order_by[0];
                 let (_tab, col1) = expr_to_col(&orderby1.expr);
                 let ci1 = columns.iter().position(|c| tablecolumn_matches_col(c, &col1)).unwrap();
                
@@ -737,12 +757,12 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                     let ci2 = columns.iter().position(|c| tablecolumn_matches_col(c, &col2)).unwrap();
                     match orderby1.asc {
                         Some(false) => {
-                            rows_to_keep.sort_by(|r1, r2| {
-                                let res = helpers::parser_vals_cmp(&r2[ci1], &r1[ci1]);
+                            rptrs_to_keep.sort_by(|r1, r2| {
+                                let res = helpers::parser_vals_cmp(&r2.borrow()[ci1], &r1.borrow()[ci1]);
                                 if res == Ordering::Equal {
                                     match orderby2.asc {
-                                        Some(false) => helpers::parser_vals_cmp(&r2[ci2], &r1[ci2]),
-                                        Some(true) | None => helpers::parser_vals_cmp(&r1[ci2], &r2[ci2]),
+                                        Some(false) => helpers::parser_vals_cmp(&r2.borrow()[ci2], &r1.borrow()[ci2]),
+                                        Some(true) | None => helpers::parser_vals_cmp(&r1.borrow()[ci2], &r2.borrow()[ci2]),
                                     }
                                 } else {
                                     res
@@ -750,12 +770,12 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                             });
                         }
                         Some(true) | None => {
-                            rows_to_keep.sort_by(|r1, r2| {
-                                let res = helpers::parser_vals_cmp(&r1[ci1], &r2[ci1]);
+                            rptrs_to_keep.sort_by(|r1, r2| {
+                                let res = helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1]);
                                 if res == Ordering::Equal {
                                     match orderby2.asc {
-                                        Some(false) => helpers::parser_vals_cmp(&r2[ci2], &r1[ci2]),
-                                        Some(true) | None => helpers::parser_vals_cmp(&r1[ci2], &r2[ci2]),
+                                        Some(false) => helpers::parser_vals_cmp(&r2.borrow()[ci2], &r1.borrow()[ci2]),
+                                        Some(true) | None => helpers::parser_vals_cmp(&r1.borrow()[ci2], &r2.borrow()[ci2]),
                                     }
                                 } else {
                                     res
@@ -766,37 +786,23 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
                 } else {
                     match orderby1.asc {
                         Some(false) => {
-                            rows_to_keep.sort_by(|r1, r2| {
-                                helpers::parser_vals_cmp(&r1[ci1], &r2[ci1])
+                            rptrs_to_keep.sort_by(|r1, r2| {
+                                helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])
                             });
-                            warn!("order by desc! {:?}", rows_to_keep);
+                            warn!("order by desc! {:?}", rptrs_to_keep);
                         }
                         Some(true) | None => {
-                            warn!("before sort: order by asc! {:?}", rows_to_keep);
-                            rows_to_keep.sort_by(|r1, r2| {
-                                helpers::parser_vals_cmp(&r1[ci1], &r2[ci1])
+                            warn!("before sort: order by asc! {:?}", rptrs_to_keep);
+                            rptrs_to_keep.sort_by(|r1, r2| {
+                                helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])
                             });
-                            warn!("order by asc! {:?}", rows_to_keep);
+                            warn!("order by asc! {:?}", rptrs_to_keep);
                         }
                     }
                 }
             }
-            
-            // reduce view to only return selected columns
-            if !cols_to_keep.is_empty() {
-                let mut new_cols = vec![];
-                let mut new_rows = vec![vec![]; rows_to_keep.len()];
-                for ci in cols_to_keep {
-                    new_cols.push(columns[ci].clone());
-                    for i in 0..rows_to_keep.len() {
-                        new_rows[i].push(rows_to_keep[i][ci].clone());
-                    }
-                }
-                columns = new_cols;
-                rows_to_keep = new_rows;
-            }
-            warn!("setexpr select: returning {:?}", rows_to_keep);
-            Ok((columns, rows_to_keep))
+            warn!("setexpr select: returning {:?}", rptrs_to_keep);
+            Ok((columns, rptrs_to_keep, cols_to_keep))
         }
         SetExpr::Query(q) => {
             return get_query_results(views, &q);
@@ -807,36 +813,20 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
             right,
             ..
         } => {
-            let (mut lcols, mut left_rows) = get_setexpr_results(views, &left, order_by)?;
-            let (mut rcols, mut right_rows) = get_setexpr_results(views, &right, order_by)?;
+            let (mut lcols, mut left_rows, mut lcols_to_keep) = get_setexpr_results(views, &left, order_by)?;
+            let (mut rcols, mut right_rows, mut rcols_to_keep) = get_setexpr_results(views, &right, order_by)?;
             lcols.append(&mut rcols);
             match op {
                 // TODO primary keys / unique keys 
                 SetOperator::Union => {
                     // TODO currently allowing for duplicates regardless of ALL...
+                    rcols_to_keep = rcols_to_keep.iter().map(|ci| lcols_to_keep.len() + ci).collect();
+                    lcols_to_keep.append(&mut rcols_to_keep);
                     left_rows.append(&mut right_rows);
-                    return Ok((lcols, left_rows));
+
+                    return Ok((lcols, left_rows, lcols_to_keep));
                 }
-                SetOperator::Except => {
-                    left_rows.retain(|r| !right_rows.iter().any(|row| {
-                        let mut eq = true;
-                        for i in 0..row.len() {
-                            eq = eq && (row[i] == r[i]);
-                        }
-                        eq
-                    }));
-                    return Ok((lcols, left_rows));
-                },
-                SetOperator::Intersect => {
-                    left_rows.retain(|r| right_rows.iter().any(|row| {
-                        let mut eq = true;
-                        for i in 0..row.len() {
-                            eq = eq && (row[i] == r[i]);
-                        }
-                        eq
-                    }));
-                    return Ok((lcols, left_rows));
-                }
+                _ => unimplemented!("Not supported set operation {}", se),
             }
         }
         SetExpr::Values(_vals) => {
@@ -845,32 +835,8 @@ fn get_setexpr_results(views: &HashMap<String, View>, se: &SetExpr, order_by: &V
     }
 }
 
-pub fn get_query_results(views: &HashMap<String, View>, q: &Query) -> Result<(Vec<TableColumnDef>, Vec<Vec<Value>>), Error> {
-    // XXX ORDER BY not supported for union/except/intersect atm
-    // order_by: do first because column ordering by may not be selected
-    /*if q.order_by.len() > 0 {
-        // only support one order by constraint for now
-        assert!(q.order_by.len() < 2);
-        let orderby = &q.order_by[0];
-        let (_tab, col) = expr_to_col(&orderby.expr);
-        let ci = new_view.columns.iter().position(|c| tablecolumn_matches_col(c, &col));
-        match ci {
-            None => {
-                return Err(Error::new(ErrorKind::Other, format!("No matching column for order by: {}", q)));
-            }
-            Some(ci) => 
-            match orderby.asc {
-                Some(false) => {
-                    new_view.rows.sort_by(|r1, r2| helpers::parser_vals_cmp(&r2[ci], &r1[ci]));
-                }
-                Some(true) | None => {
-                    new_view.rows.sort_by(|r1, r2| helpers::parser_vals_cmp(&r1[ci], &r2[ci]));
-                }
-            }
-        }
-    }*/
-
-    let (cols, mut rows) = get_setexpr_results(views, &q.body, &q.order_by)?;
+pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) -> Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), Error> {
+    let (all_cols, mut rptrs, cols_to_keep) = get_setexpr_results(views, &q.body, &q.order_by)?;
     // don't support OFFSET or fetches yet
     assert!(q.offset.is_none() && q.fetch.is_none());
 
@@ -878,11 +844,11 @@ pub fn get_query_results(views: &HashMap<String, View>, q: &Query) -> Result<(Ve
     if q.limit.is_some() {
         if let Some(Expr::Value(Value::Number(n))) = &q.limit {
             let limit = usize::from_str(n).unwrap();
-            rows.truncate(limit);
+            rptrs.truncate(limit);
         } else {
             unimplemented!("bad limit! {}", q);
         }
     }
 
-    Ok((cols, rows))
+    Ok((all_cols, rptrs, cols_to_keep))
 }

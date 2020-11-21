@@ -1,6 +1,6 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use super::helpers;
+use crate::{helpers, views};
 use std::sync::atomic::Ordering;
 use std::*;
 use log::{warn};
@@ -318,25 +318,33 @@ impl GhostsMap{
         Ok(gid)
     }
     
-    pub fn insert_uid2gids_for_values(&mut self, values: &mut Vec<Vec<Value>>, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
-        -> Result<(), mysql::Error>
+    pub fn insert_uid2gids_for_values(&mut self, values: &views::RowPtrs, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
+        -> Result<Vec<Vec<Expr>>, mysql::Error>
     {
-        if ucol_indices.is_empty() {
-            return Ok(());
-        }         
-        for row in 0..values.len() {
-            for col in 0..values[row].len() {
-                // add entry to ghosts table
-                if ucol_indices.contains(&col) {
-                    // NULL check: don't add ghosts entry if new UID value is NULL
-                    if values[row][col] != Value::Null {
-                        let uid = helpers::parser_val_to_u64(&values[row][col]);
-                        let gid = self.insert_gid_for_uid(uid, db)?;
-                        values[row][col] = Value::Number(gid.to_string());
+        let mut gid_rows = vec![];
+        if !ucol_indices.is_empty() {
+            for row in 0..values.len() {
+                let mut gid_vals = vec![];
+                let mut found = false;
+                let valrow = values[row].borrow();
+                for col in 0..valrow.len() {
+                    // add entry to ghosts table
+                    if ucol_indices.contains(&col) {
+                        // NULL check: don't add ghosts entry if new UID value is NULL
+                        if valrow[col] != Value::Null {
+                            let uid = helpers::parser_val_to_u64(&valrow[col]);
+                            let gid = self.insert_gid_for_uid(uid, db)?;
+                            gid_vals.push(Expr::Value(Value::Number(gid.to_string())));
+                            found = true;
+                        }
+                    } 
+                    if !found {
+                        gid_vals.push(Expr::Value(valrow[col].clone()));
                     }
                 }
+                gid_rows.push(gid_vals);
             }
         }
-        Ok(())
+        Ok(gid_rows)
     }
 }

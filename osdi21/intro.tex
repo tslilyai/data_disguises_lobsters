@@ -6,15 +6,26 @@
 
 Web application companies face increasing legal requirements to protect users’ data. These
 requirements pressure companies to properly delete and anonymize users' data when a user requests to
-\emph{unsubscribe} from the service (i.e.,\ revoke access to their personal data).
-For example, the GDPR requires that any user data remaining after a user unsubscribes is
-\emph{decorrelated}, i.e., cannot be (directly or indirectly) used to identify the user~\cite{gdpr}.  
+\emph{unsubscribe} from the service (i.e.,\ revoke access to their personal data). For example, the
+GDPR requires that any user data remaining after a user unsubscribes cannot be (directly or
+indirectly) used to identify the user~\cite{gdpr}.  
 
-In this paper, we propose \sys, a new approach to managing user identities in web applications.
-\sys{} meets the de-identification requirements in the GDPR, and goes beyond: with \sys, it is possible
-for users to switch between a privacy-preserving unsubscribed mode and an identity-revealing
-subscribed mode at any time. This facilitates important new web service paradigms, such as users
-granting a time-limited ``lease'' of data to a service instead of having a permanent service account.
+In this paper, we propose \sys{}, a new approach to managing user identities in web applications.
+\sys{} makes the key observation that a piece of data leaks identifying information not only through
+direct identifiers (e.g.,\ usernames), but also via its \emph{correlations} to other data in the
+application.  These correlations range from obviously identifying (posts linked to a user id) to
+subtly perilous (user-created tags associated with an anonymized post). \sys{} provides a way for
+applications to easily and correctly \emph{decorrelate} users from their data: \sys{} breaks direct
+links between the user and the user's generated data, and recursively decorrelates data records in
+the application that may leak identifying information about the user.  By implementing
+decorrelation, \sys{} allows the application to retain user data while protecting an unsubscribed
+user's identity beyond simple anonymization.
+
+\sys{} enables applications to meet the de-identification requirements in the GDPR, and goes beyond:
+with \sys{}, it is possible for users to switch between a privacy-preserving unsubscribed mode and
+an identity-revealing subscribed mode at any time. This facilitates important new web service
+paradigms, such as users granting a time-limited ``lease'' of data to a service instead of having a
+permanent service account.
 
 \subsection{Goals} 
 \sys's goal is to provide the following properties:
@@ -34,21 +45,21 @@ widely-used databases, and (2) easy adoption (requiring little to no modificatio
 schemas or semantics).
 
 \subsection{Threat Model} 
-We make the following assumptions of an attacker whose goal is to break decorrelation:
+We make the following assumptions about an adversary who aims to break decorrelation.
 \begin{itemize}
-    \item An attacker can perform only those queries allowed by the application API: an
-attacker can access the application only via its public interface. 
-\lyt{Alternatively, an attacker could perform arbitrary queries on some public subset of the
+    \item An adversary can perform only those queries allowed by the application API, 
+i.e.,\ can access the application only via its public interface. 
+\lyt{Alternatively, an adversary could perform arbitrary queries on some public subset of the
 application schema (e.g., all tables other than the mapping table, or all tables marked with some
 compliance policy); arbitrary queries over the
 entirety of the table are out of scope, unless ``private'' tables are removed and stored by
 unsubscribing users.}
 
-    \item An attacker cannot perform application queries to the past or search web archives:
+    \item An adversary cannot perform application queries to the past or search web archives:
     information from prior application snapshots may reveal 
     exactly how data records were decorrelated from unsubscribed users. 
 
-    \item An attacker cannot gain identifying information from arbitrary user-generated content (for
+    \item An adversary cannot gain identifying information from arbitrary user-generated content (for
         example, a reposted screenshot, or text in user stories or comments). Decorrelation seeks to
         remove identifying information from user-generated data that can be enumerated or follows a
         specific pattern (e.g., a birthday or email address), and application metadata (e.g., date

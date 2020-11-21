@@ -2,6 +2,8 @@ use mysql::prelude::*;
 use sql_parser::ast::*;
 use super::{helpers, ghosts_map, config, stats, views, select};
 use std::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::Duration;
 use msql_srv::{QueryResultWriter};
 use log::{warn, debug};
@@ -41,7 +43,7 @@ impl QueryTransformer {
     fn query_to_value_query(&mut self, query: &Query) -> Result<Query, mysql::Error> {
         let mut vals_vec : Vec<Vec<Expr>>= vec![];
         for row in self.views.query_iter(query)?.1 {
-            vals_vec.push(row.iter().map(|v| Expr::Value(v.clone())).collect());
+            vals_vec.push(row.borrow().iter().map(|v| Expr::Value(v.clone())).collect());
         }
         self.cur_stat.nqueries_mv+=1;
         Ok(Query {
@@ -61,6 +63,7 @@ impl QueryTransformer {
         let mut vals_vec : Vec<Expr>= vec![];
         self.cur_stat.nqueries_mv+=1;
         for row in self.views.query_iter(query)?.1 {
+            let row = row.borrow();
             if is_single_column {
                 if row.len() != 1 {
                     return Err(mysql::Error::IoError(io::Error::new(io::ErrorKind::Other, format!("Query should only select one column"))));
@@ -667,17 +670,17 @@ impl QueryTransformer {
     /* 
      * Convert all expressions to insert to primitive values
      */
-    fn insert_source_query_to_values(&mut self, q: &Query) 
-        -> Result<Vec<Vec<Value>>, mysql::Error> 
+    fn insert_source_query_to_rptrs(&mut self, q: &Query) 
+        -> Result<views::RowPtrs, mysql::Error> 
     {
         let mut contains_ucol_id = false;
-        let mut vals_vec : Vec<Vec<Value>>= vec![];
+        let mut vals_vec : views::RowPtrs = vec![];
         match &q.body {
             SetExpr::Values(Values(expr_vals)) => {
                 // NOTE: only need to modify values if we're dealing with a DT,
                 // could perform check here rather than calling vals_vec
                 for row in expr_vals {
-                    let mut vals_row : Vec<Value> = vec![];
+                    let mut vals_row : views::Row = vec![];
                     for val in row {
                         let value_expr = self.expr_to_value_expr(&val, &mut contains_ucol_id, &vec![])?;
                         match value_expr {
@@ -714,7 +717,7 @@ impl QueryTransformer {
                             _ => unimplemented!("Bad value expression: {:?}", value_expr),
                         }
                     }
-                    vals_vec.push(vals_row);
+                    vals_vec.push(Rc::new(RefCell::new(vals_row)));
                 }
             }
             _ => {
@@ -767,20 +770,21 @@ impl QueryTransformer {
 
                     // collect row results from MV
                     let mut uids = vec![];
-                    let (cols, rows) = self.views.query_iter(&query)?;
+                    let (cols, rows, _cols_to_keep) = self.views.query_iter(&query)?;
                     self.cur_stat.nqueries_mv+=1;
-                    for row in &rows {
-                        for i in 0..cols.len() {
+                    for rptr in &rows {
+                        let row = rptr.borrow();
+                        for ci in 0..cols.len() {
                             // if it's a user column, add restriction on GID
-                            let colname = cols[i].name();
+                            let colname = cols[ci].name();
      
                             // Add condition on user column to be within relevant GIDs mapped
                             // to by the UID value
                             // However, only update with GIDs if UID value is NOT NULL
                             if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) 
-                                && row[i] != Value::Null
+                                && row[ci] != Value::Null
                             {
-                                uids.push(helpers::parser_val_to_u64(&row[i]));
+                                uids.push(helpers::parser_val_to_u64(&row[ci]));
                             }
                         }
                     }
@@ -792,17 +796,18 @@ impl QueryTransformer {
 
                     // expr to constrain to select a particular row
                     let mut or_row_constraint_expr = Expr::Value(Value::Boolean(false));
-                    for row in rows {
+                    for rptr in &rows {
+                        let row = rptr.borrow();
                         let mut and_col_constraint_expr = Expr::Value(Value::Boolean(true));
-                        for i in 0..cols.len() {
+                        for ci in 0..cols.len() {
                             // Add condition on user column to be within relevant GIDs mapped
                             // to by the UID value
                             // However, only update with GIDs if UID value is NOT NULL
-                            let colname = cols[i].name();
+                            let colname = cols[ci].name();
                             if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) 
-                                && row[i] != Value::Null
+                                && row[ci] != Value::Null
                             {
-                                let uid = helpers::parser_val_to_u64(&row[i]);
+                                let uid = helpers::parser_val_to_u64(&row[ci]);
                                 // add condition on user column to be within the relevant GIDs
                                 and_col_constraint_expr = Expr::BinaryOp {
                                     left: Box::new(and_col_constraint_expr),
@@ -826,7 +831,7 @@ impl QueryTransformer {
                                     right: Box::new(Expr::BinaryOp{
                                         left: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
                                         op: BinaryOperator::Eq,
-                                        right: Box::new(Expr::Value(row[i].clone())),
+                                        right: Box::new(Expr::Value(row[ci].clone())),
                                     }),             
                                 };
                             }
@@ -846,7 +851,7 @@ impl QueryTransformer {
         return Ok(qt_selection);
     }
     
-    fn issue_insert_datatable_stmt(&mut self, values: &Vec<Vec<Value>>, stmt: InsertStatement, db: &mut mysql::Conn) 
+    fn issue_insert_datatable_stmt(&mut self, values: &views::RowPtrs, stmt: InsertStatement, db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
         /* note that if the table is the users table,
@@ -884,15 +889,9 @@ impl QueryTransformer {
          * */
         match stmt.source {
             InsertSource::Query(q) => {
-                let mut ghost_values = values.clone();
-                self.ghosts_map.insert_uid2gids_for_values(&mut ghost_values, &ucol_indices, db)?;
+                let vals_with_gids = self.ghosts_map.insert_uid2gids_for_values(&values, &ucol_indices, db)?;
                 let mut new_q = q.clone();
-                let new_vals = ghost_values.iter()
-                    .map(|vals| vals.iter()
-                         .map(|v| Expr::Value(v.clone()))
-                         .collect())
-                    .collect();
-                new_q.body = SetExpr::Values(Values(new_vals));
+                new_q.body = SetExpr::Values(Values(vals_with_gids));
                 qt_source = InsertSource::Query(new_q);
             }
             InsertSource::DefaultValues => (),
@@ -1065,10 +1064,10 @@ impl QueryTransformer {
             &mut self, 
             stmt: &Statement,
             db: &mut mysql::Conn) 
-        -> Result<(Vec<views::TableColumnDef>, Vec<Vec<Value>>), mysql::Error>
+        -> Result<(Vec<views::TableColumnDef>, views::RowPtrs, Vec<usize>), mysql::Error>
     {
         warn!("issue statement: {}", stmt);
-        let mut view_res : (Vec<views::TableColumnDef>, Vec<Vec<Value>>) = (vec![], vec![]);
+        let mut view_res : (Vec<views::TableColumnDef>, views::RowPtrs, Vec<usize>) = (vec![], vec![], vec![]);
         
         // TODO consistency?
         match stmt {
@@ -1087,7 +1086,7 @@ impl QueryTransformer {
                 if is_dt_write || table_name.to_string() == self.cfg.user_table.name {
                     match source {
                         InsertSource::Query(q) => {
-                            values = self.insert_source_query_to_values(&q)?;
+                            values = self.insert_source_query_to_rptrs(&q)?;
                         }
                         InsertSource::DefaultValues => (),
                     }
@@ -1108,7 +1107,7 @@ impl QueryTransformer {
                 }
 
                 // insert into views
-                self.views.insert(&table_name, &columns, &mut values)?;
+                self.views.insert(&table_name, &columns, &values)?;
             }
             Statement::Update(UpdateStatement{
                 table_name,
@@ -1230,7 +1229,7 @@ impl QueryTransformer {
         -> Result<(), mysql::Error>
     {
         let view_res = self.issue_statement(stmt, db)?;
-        views::view_cols_rows_to_answer_rows(&view_res.0, &view_res.1, writer)
+        views::view_cols_rows_to_answer_rows(&view_res.0, view_res.1, &view_res.2, writer)
     }
 
     pub fn query_drop(
@@ -1253,14 +1252,14 @@ impl QueryTransformer {
         // check if already unsubscribed
         // get list of ghosts to return otherwise
         let gids : Vec<u64>;
-        let mut gid_values : Vec<Vec<Value>>;
+        let mut gid_values : views::RowPtrs;
         match self.ghosts_map.unsubscribe(uid, db)? {
             None => {
                 writer.error(msql_srv::ErrorKind::ER_BAD_SLAVE, format!("{:?}", "user already unsubscribed").as_bytes())?;
                 return Ok(());
             }
             Some(ghosts) => {
-                gid_values = ghosts.iter().map(|g| vec![Value::Number(g.to_string())]).collect();
+                gid_values = ghosts.iter().map(|g| Rc::new(RefCell::new(vec![Value::Number(g.to_string())]))).collect();
                 gids = ghosts;
             }
         }
@@ -1269,7 +1268,7 @@ impl QueryTransformer {
          * 1. update the users MV to have an entry for all the users' GIDs
          */
         warn!("UNSUB: inserting into user view {:?}", gid_values);
-        self.views.insert(&user_table_name, &vec![Ident::new(&self.cfg.user_table.id_col)], &mut gid_values)?;
+        self.views.insert(&user_table_name, &vec![Ident::new(&self.cfg.user_table.id_col)], &gid_values)?;
         
         /*
          * 2. delete UID from users MV and users data table
@@ -1300,7 +1299,8 @@ impl QueryTransformer {
             let dtobjname = helpers::string_to_objname(&dt.name);
             let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
 
-            let view = self.views.get_mut_view(&dt.name).unwrap();
+            let view_ptr = self.views.get_view(&dt.name).unwrap();
+            let mut view = view_ptr.borrow_mut();
             let mut select_constraint = Expr::Value(Value::Boolean(false));
             let mut cis = vec![];
             for col in &ucols {
@@ -1316,18 +1316,21 @@ impl QueryTransformer {
                 };
             }            
 
-            let ris_to_update = select::get_ris_matching_constraint(&select_constraint, &view, None, None);
-            for ri in ris_to_update {
+            let (neg, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, None, None);
+            if neg {
+                let mut all_rptrs : views::RowPtrs = view.rows.iter().map(|(_pk, rptr)| rptr.clone()).collect();
+                rptrs_to_update = view.minus_rptrs(&mut all_rptrs, &mut rptrs_to_update);
+            } 
+            for rptr in &rptrs_to_update {
                 for ci in &cis {
-                    if let Some(row) = view.rows.get_mut(&ri) {
-                        if row[*ci].to_string() == uid_val.to_string() {
-                            assert!(gid_index < gid_values.len());
-                            let val = gid_values[gid_index][0].clone();
-                            row[*ci] = val.clone();
-                            warn!("UNSUB: updating row {} col {} to {:?}", ri, ci, val); 
-                            view.update_index(ri, *ci, Some(&val));
-                            gid_index += 1;
-                        }
+                    let mut row = rptr.borrow_mut();
+                    if row[*ci].to_string() == uid_val.to_string() {
+                        assert!(gid_index < gid_values.len());
+                        let val = &gid_values[gid_index].borrow()[0];
+                        row[*ci] = val.clone();
+                        warn!("UNSUB: updating row {:?} col {} to {:?}", row, ci, val); 
+                        view.update_index(rptr.clone(), *ci, Some(&val));
+                        gid_index += 1;
                     }
                 }
             }
@@ -1382,7 +1385,8 @@ impl QueryTransformer {
          * 2. Add user to users
          * TODO should also add back all of the user data????
          */
-        self.views.insert(&user_table_name, &vec![Ident::new(&self.cfg.user_table.id_col)], &mut vec![vec![uid_val.clone()]])?;
+        self.views.insert(&user_table_name, &vec![Ident::new(&self.cfg.user_table.id_col)], 
+                          &vec![Rc::new(RefCell::new(vec![uid_val.clone()]))])?;
 
         let insert_uid_as_user_stmt = Statement::Insert(InsertStatement{
             table_name: user_table_name,
@@ -1408,7 +1412,8 @@ impl QueryTransformer {
             let dtobjname = helpers::string_to_objname(&dt.name);
             let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
 
-            let view = self.views.get_mut_view(&dt.name).unwrap();
+            let view_ptr = self.views.get_view(&dt.name).unwrap();
+            let mut view = view_ptr.borrow_mut();
             let mut select_constraint = Expr::Value(Value::Boolean(false));
             let mut cis = vec![];
             for col in &ucols {
@@ -1425,15 +1430,18 @@ impl QueryTransformer {
                 };
             }            
 
-            let ris_to_update = select::get_ris_matching_constraint(&select_constraint, &view, None, None);
-            for ri in ris_to_update {
-                let row = view.rows.get(&ri).unwrap().clone();
+            let (negated, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, None, None);
+            if negated {
+                let mut all_rptrs : views::RowPtrs = view.rows.iter().map(|(_pk, rptr)| rptr.clone()).collect();
+                rptrs_to_update = view.minus_rptrs(&mut all_rptrs, &mut rptrs_to_update);
+            } 
+            for rptr in &rptrs_to_update {
+                let mut row = rptr.borrow_mut();
                 for ci in &cis {
                     // update the columns to use the uid
                     if gids.iter().any(|g| g.to_string() == row[*ci].to_string()) {
-                        view.update_index(ri, *ci, Some(&uid_val));
-                        let row_mut = view.rows.get_mut(&ri).unwrap();
-                        row_mut[*ci] = uid_val.clone();
+                        view.update_index(rptr.clone(), *ci, Some(&uid_val));
+                        row[*ci] = uid_val.clone();
                     }
                 }
             }
