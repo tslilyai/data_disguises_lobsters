@@ -540,7 +540,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 unimplemented!("No support for having queries");
             }
 
-            let new_view = Rc::new(RefCell::new(View::new_with_cols(vec![])));
+            let mut columns: Vec<TableColumnDef> = vec![]; 
             let mut source_view : Option<Rc<RefCell<View>>> = None;
             // new name for column at index 
             let mut column_aliases : HashMap<String, usize> = HashMap::new();
@@ -550,13 +550,13 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             // special case: we're getting results from only this view
             // INVARIANT: if source_view is Some, new_view does not have any rows
             // TODO fix this so that we only ever refer to one view...
+            let new_view = Rc::new(RefCell::new(View::new_with_cols(vec![])));
             if s.from.len() == 1 && s.from[0].joins.is_empty() {
                 let tab_ref = tablefactor_to_view(views, &s.from[0].relation)?;
                 let tab = tab_ref.borrow();
                 
                 new_view.borrow_mut().primary_index = tab.primary_index;
-                new_view.borrow_mut().columns = tab.columns.clone();
-                
+                columns = tab.columns.clone();
                 source_view = Some(tab_ref.clone());
             } else {
                 // otherwise, it's a join
@@ -581,13 +581,11 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             // 4) keep track of which columns to keep for which tables (cols_to_keep)
             //
             // INVARIANT: new_view is not modified during this block
+            let table_name = new_view.borrow_mut().name.clone();
             let mut cols_to_keep = vec![];
             let mut select_val = None;
             let mut count = false;
             let mut count_alias = Ident::new("count");
-            let mut columns: Vec<TableColumnDef> = new_view.borrow_mut().columns.clone();
-            let table_name = new_view.borrow_mut().name.clone();
-
             for proj in &s.projection {
                 match proj {
                     SelectItem::Wildcard => {
