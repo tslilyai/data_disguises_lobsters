@@ -149,23 +149,23 @@ entities to be decorrelated without affecting queries which specifically return 
 
 \paragraph{Specifying Decorrelation Behavior and Correlation Thresholds.}
 Ghost entities muddy individual entities' data, and potentially alter the application's structure in
-ways that render it meaningless. For example, subreddits---similar to tags or categories---on Reddit
-create communities and social circles that are fundamental to how people interact on Reddit.  These
-subreddits may become nonsensical if many users unsubscribe and stories are decorrelated from a
-particular subreddit.
+ways that render it meaningless. 
+%For example, subreddits---similar to tags or categories---on Reddit
+%create communities and social circles that are fundamental to how people interact on Reddit.  These
+%subreddits may become nonsensical if many users unsubscribe and stories are decorrelated from a
+%particular subreddit.
+For example, perhaps it is meaningless to create ghost stories in order to break up clusters of
+votes identified by story; or perhaps it would ruin the applications' recommendation-by-tag
+semantics to create ghost tags.   To prevent these potentially disastrous scenarios, application developers
+provide annotations on which entity types (database tables) that cannot be exploded into ghost
+entities.  The application developer also indicates whether it is acceptable
+to \emph{add} ghost entities to clusters if clusters cannot be broken, and if so, the mechanism to
+generate these ghosts. 
 
-To prevent these potentially disastrous scenarios, application developers provide annotations on
-which entity types (database tables) that cannot be exploded into ghost entities. For example,
-perhaps it is meaningless to create ghost stories to break up clusters of votes identified by story,
-or would break the applications' recommendation-by-tag semantics to create ghost tags to break up
-clusters of stories identified by a tag.  The application developer also indicates whether it is
-acceptable to \emph{add} ghost entities to clusters if clusters cannot be broken, and if so, the
-mechanism to generate these ghosts. 
-
-\sys{} determines whether a still-correlated entity needs to be removed---its correlations expose too much
-identifying information---by computing the proportion of entities in a cluster that are related to
-the entity being decorrelated. This proportion is compared to a \emph{cluster threshold} \lyt{(developer specified?
-set by user?)}.
+\sys{} determines whether a still-correlated entity needs to be removed---its correlations expose
+too much identifying information---by computing the proportion of entities in a cluster that are
+related to the entity being decorrelated. This proportion is compared to a \emph{cluster threshold}
+\lyt{(developer specified?  set by user?)}.
 
 If \sys{} cannot decorrelate clusters identified by an entity (step 1), then \sys{} checks whether
 it is possible to add ghost entities to the cluster. If yes, then \sys{} generates enough ghosts
