@@ -23,7 +23,6 @@ extern crate log;
 
 use mysql::prelude::*;
 use std::*;
-use sql_parser::parser;
 use log::warn;
 
 const SCHEMA : &'static str = include_str!("./schema.sql");
@@ -231,8 +230,8 @@ fn test_normal_execution() {
         results.push((mod_id, username));
     }
     assert_eq!(results.len(), 2);
-    assert_eq!(results[0], ("'2'".to_string(), "'hello1'".to_string()));
-    assert_eq!(results[1], ("'1'".to_string(), "'hello2'".to_string()));
+    assert_eq!(results[0], ("'2'".to_string(), "'hello_1'".to_string()));
+    assert_eq!(results[1], ("'1'".to_string(), "'hello_2'".to_string()));
 
     /* 
      * TEST 6: update correctly changes ghost values to point to new UIDs (correctly handling

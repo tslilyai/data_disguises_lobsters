@@ -1252,7 +1252,7 @@ impl QueryTransformer {
         // check if already unsubscribed
         // get list of ghosts to return otherwise
         let gids : Vec<u64>;
-        let mut gid_values : views::RowPtrs;
+        let gid_values : views::RowPtrs;
         match self.ghosts_map.unsubscribe(uid, db)? {
             None => {
                 writer.error(msql_srv::ErrorKind::ER_BAD_SLAVE, format!("{:?}", "user already unsubscribed").as_bytes())?;
@@ -1318,7 +1318,7 @@ impl QueryTransformer {
 
             let (neg, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, None, None);
             if neg {
-                let mut all_rptrs : views::RowPtrs = view.rows.iter().map(|(_pk, rptr)| rptr.clone()).collect();
+                let mut all_rptrs : views::RowPtrs = view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
                 rptrs_to_update = view.minus_rptrs(&mut all_rptrs, &mut rptrs_to_update);
             } 
             let mut updated_cis = vec![];
@@ -1440,7 +1440,7 @@ impl QueryTransformer {
 
             let (negated, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, None, None);
             if negated {
-                let mut all_rptrs : views::RowPtrs = view.rows.iter().map(|(_pk, rptr)| rptr.clone()).collect();
+                let mut all_rptrs : views::RowPtrs = view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
                 rptrs_to_update = view.minus_rptrs(&mut all_rptrs, &mut rptrs_to_update);
             } 
             let mut updated_cis = vec![];

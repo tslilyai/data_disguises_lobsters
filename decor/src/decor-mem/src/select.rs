@@ -1,4 +1,4 @@
-use crate::views::{View, TableColumnDef, RowPtrs};
+use crate::views::{View, TableColumnDef, RowPtrs, ViewIndex};
 use crate::helpers;
 use log::warn;
 use std::collections::{HashMap};
@@ -10,191 +10,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 /*
- * Convert table name (with optional alias) to current view
+ * return table name and optionally column if not wildcard
  */
-fn tablefactor_to_view(views: &HashMap<String, Rc<RefCell<View>>>, tf: &TableFactor) -> Result<Rc<RefCell<View>>, Error> {
-    match tf {
-        TableFactor::Table {
-            name,
-            alias,
-        } => {
-            let tab = views.get(&name.to_string());
-            match tab {
-                None => Err(Error::new(ErrorKind::Other, format!("table {:?} does not exist", tf))),
-                Some(t) => {
-                    if alias.is_some() {
-                        unimplemented!("No aliasing of tables for now {}", tf);
-                    }
-                    /*let mut view = t.clone();
-                    if let Some(a) = alias {
-                        // only alias table name..
-                        assert!(a.columns.is_empty());
-                        view.name = a.name.to_string();
-                    }*/
-                    Ok(t.clone())
-                }
-            }
-        }
-        _ => unimplemented!("no derived joins {:?}", tf),
-    }
-}
-
-fn get_binop_indices(e: &Expr, v1: &View, v2: &View) -> Option<(usize, usize)> {
-    let i1: Option<usize>; 
-    let i2 : Option<usize>; 
-    if let Expr::BinaryOp{left, op, right} = e {
-        if let BinaryOperator::Eq = op {
-            let (tab1, col1) = expr_to_col(left);
-            let (tab2, col2) = expr_to_col(right);
-            warn!("Join got tables and columns {}.{} and {}.{} from expr {:?}", tab1, col1, tab2, col2, e);
-
-            // note: view 1 may not have name attached any more because it was from a prior join.
-            // the names are embedded in the columns of the view, so we should compare the entire
-            // name of the new column/table
-            if v2.name == tab2 {
-                i1 = v1.columns.iter().position(|c| tablecolumn_matches_col(c, &format!("{}.{}", tab1, col1)));
-                i2 = v2.columns.iter().position(|c| tablecolumn_matches_col(c, &col2));
-            } else if v2.name == tab1 {
-                i1 = v2.columns.iter().position(|c| tablecolumn_matches_col(c, &col1));
-                i2 = v1.columns.iter().position(|c| tablecolumn_matches_col(c, &format!("{}.{}", tab2, col2)));
-            } else {
-                warn!("Join: no matching tables for {}/{} and {}/{}", v1.name, tab1, v2.name, tab2);
-                return None;
-            }
-            if i1 == None || i2 == None {
-                warn!("No columns found! {:?} {:?}", v1.columns, v2.columns);
-                return None;
-            }
-            return Some((i1.unwrap(), i2.unwrap()));
-        }
-    }
-    None
-}
-
-/*
- * Only handle join constraints of form "table.col = table'.col'"
- */
-fn get_join_on_col_indices(e: &Expr, v1: &View, v2: &View) -> Result<(usize, usize), Error> {
-    let is : Option<(usize, usize)>;
-    if let Expr::Nested(binexpr) = e {
-        is = get_binop_indices(binexpr, v1, v2);
-    } else {
-        is = get_binop_indices(e, v1, v2);
-    }
-
-    match is {
-        None => unimplemented!("Unsupported join_on {:?}, {}, {}", e, v1.name, v2.name),
-        Some((i1, i2)) => Ok((i1, i2)),
-    }
-}
-
-fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -> Result<Rc<RefCell<View>>, Error> {
-    //warn!("Joining views {} and {}", v1.name, v2.name);
-    let mut new_cols : Vec<TableColumnDef> = v1.borrow().columns.clone();
-    new_cols.append(&mut v2.borrow().columns.clone());
-    let new_view = View::new_with_cols(new_cols);
-    /*match jo {
-        JoinOperator::Inner(JoinConstraint::On(e)) => {
-            let (i1, i2) = get_join_on_col_indices(&e, v1, v2)?;
-            // this seems very very inefficient
-            for (_id, row1) in v1.rows.iter() {
-                for row2 in v2.get_rptrs_of_col(i2, &row1[i1]) {
-                    // remove duplicate from row
-                    // TODO
-                    //row2.remove(i2);
-                    let mut new_row = row1.clone();
-                    new_row.append(&mut row2);
-                    new_view.insert_row(new_row);
-                }
-            }
-        }
-        JoinOperator::LeftOuter(JoinConstraint::On(e)) => {
-            let (i1, i2) = get_join_on_col_indices(&e, v1, v2)?;
-            for (_, row1) in v1.rows.iter() {
-                let mut found = false;
-                for mut row2 in v2.get_rows_of_col(i2, &row1[i1]) {
-                    // remove duplicatte from row
-                    row2.remove(i2);
-                    let mut new_row = row1.clone();
-                    new_row.append(&mut row2);
-                    new_view.insert_row(new_row);
-                    found = true;
-                }
-                if !found {
-                    let mut new_row = row1.clone();
-                    new_row.append(&mut vec![Value::Null; v2.columns.len()]);
-                    new_view.insert_row(new_row);
-                }
-            }
-        }
-        JoinOperator::RightOuter(JoinConstraint::On(e)) => {
-            let (i1, i2) = get_join_on_col_indices(&e, v1, v2)?;
-            for (_, row2) in v2.rows.iter() {
-                let mut found = false;
-                for mut row1 in v1.get_rows_of_col(i2, &row2[i1]) {
-                    // remove duplicatte from row
-                    row1.remove(i2);
-                    let mut new_row = row2.clone();
-                    new_row.append(&mut row1);
-                    new_view.insert_row(new_row);
-                    found = true;
-                }
-                if !found {
-                    let mut new_row = row2.clone();
-                    new_row.append(&mut vec![Value::Null; v1.columns.len()]);
-                    new_view.insert_row(new_row);
-                }
-            }            
-        }
-        JoinOperator::FullOuter(JoinConstraint::On(e)) => {
-            let (i1, i2) = get_join_on_col_indices(&e, v1, v2)?;
-            for (_, row1) in v1.rows.iter() {
-                let mut found = false;
-                for mut row2 in v2.get_rows_of_col(i2, &row1[i1]) {
-                    // remove duplicatte from row
-                    row2.remove(i2);
-                    let mut new_row = row1.clone();
-                    new_row.append(&mut row2);
-                    new_view.insert_row(new_row);
-                    found = true;
-                }
-                if !found {
-                    let mut new_row = row1.clone();
-                    new_row.append(&mut vec![Value::Null; v2.columns.len()]);
-                    new_view.insert_row(new_row);
-                }
-            }
-            // only add null rows for rows that weren't matched
-            for (_, row2) in v2.rows.iter() {
-                let mut found = false;
-                if !v1.get_rows_of_col(i2, &row2[i1]).is_empty() {
-                    found = true;
-                }
-                if !found {
-                    let mut new_row = row2.clone();
-                    new_row.append(&mut vec![Value::Null; v1.columns.len()]);
-                    new_view.insert_row(new_row);
-                }
-            }            
-        }
-        _ => unimplemented!("No support for join type {:?}", jo),
-    }*/
-    Ok(Rc::new(RefCell::new(new_view)))
-}
-
-fn tablewithjoins_to_view(views: &HashMap<String, Rc<RefCell<View>>>, twj: &TableWithJoins) -> Result<Rc<RefCell<View>>, Error> {
-    // TODO only do expensive copy if there is an actual join
-    // TODO copy indices when joining?
-    let mut joined_views = tablefactor_to_view(views, &twj.relation)?;
-    
-    for j in &twj.joins {
-        let view2 = tablefactor_to_view(views, &j.relation)?;
-        joined_views = join_views(&j.join_operator, joined_views, view2)?;
-    }
-    Ok(joined_views)
-}
-
-// return table name and optionally column if not wildcard
 fn expr_to_col(e: &Expr) -> (String, String) {
     //warn!("expr_to_col: {:?}", e);
     match e {
@@ -213,8 +30,283 @@ fn expr_to_col(e: &Expr) -> (String, String) {
 }
 
 pub fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
-    warn!("matching {} to {}", c.column.name, col);
+    //warn!("matching {} to {}", c.column.name, col);
     c.column.name.to_string() == col || c.name() == col
+}
+
+/*
+ * Convert table name (with optional alias) to current view
+ */
+fn tablefactor_to_view(views: &HashMap<String, Rc<RefCell<View>>>, tf: &TableFactor) -> Result<Rc<RefCell<View>>, Error> {
+    match tf {
+        TableFactor::Table {
+            name,
+            alias,
+        } => {
+            let tab = views.get(&name.to_string());
+            match tab {
+                None => Err(Error::new(ErrorKind::Other, format!("table {:?} does not exist", tf))),
+                Some(t) => {
+                    if alias.is_some() {
+                        unimplemented!("No aliasing of tables for now {}", tf);
+                    }
+                    /*if let Some(a) = alias {
+                        // alias column table names too?
+                        assert!(a.columns.is_empty());
+                        view.name = a.name.to_string();
+                    }*/
+                    Ok(t.clone())
+                }
+            }
+        }
+        _ => unimplemented!("no derived joins {:?}", tf),
+    }
+}
+
+fn get_binop_indexes(e: &Expr, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) 
+    -> Option<(ViewIndex, ViewIndex)>
+{
+    let i1: Option<ViewIndex>;
+    let i2: Option<ViewIndex>; 
+    if let Expr::BinaryOp{left, op, right} = e {
+        if let BinaryOperator::Eq = op {
+            let (tab1, col1) = expr_to_col(left);
+            let (tab2, col2) = expr_to_col(right);
+            warn!("Join got tables and columns {}.{} and {}.{} from expr {:?}", tab1, col1, tab2, col2, e);
+            
+            let v1 = v1.borrow();
+            let v2 = v2.borrow();
+
+            // note: view 1 may not have name attached any more because it was from a prior join.
+            // the names are embedded in the columns of the view, so we should compare the entire
+            // name of the new column/table
+            if v2.name == tab2 {
+                i1 = v1.get_index_of_view(&col1);
+                i2 = v2.get_index_of_view(&col2);
+            } else if v2.name == tab1 {
+                i1 = v1.get_index_of_view(&col2);
+                i2 = v2.get_index_of_view(&col1);
+            } else {
+                warn!("Join: no matching tables for {}/{} and {}/{}", v1.name, tab1, v2.name, tab2);
+                return None;
+            }
+            if i1.is_none() || i2.is_none() {
+                warn!("No columns found! {:?} {:?}", v1.columns, v2.columns);
+                return None;
+            }
+            return Some((i1.unwrap(), i2.unwrap()));
+        }
+    }
+    None
+}
+
+/*
+ * Get indexes for views for a join expression `WHERE table.col = table.col`
+ */
+fn get_join_on_indexes(e: &Expr, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -> (ViewIndex, ViewIndex) {
+    let is : Option<(ViewIndex, ViewIndex)>;
+    if let Expr::Nested(binexpr) = e {
+        is = get_binop_indexes(binexpr, v1.clone(), v2.clone());
+    } else {
+        is = get_binop_indexes(e, v1.clone(), v2.clone());
+    }
+
+    match is {
+        Some((i1, i2)) => (i1, i2),
+        _ => unimplemented!("Unsupported join_on {:?}, {}, {}", e, v1.borrow().name, v2.borrow().name),
+    }
+}
+
+
+fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -> Result<Rc<RefCell<View>>, Error> {
+    //warn!("Joining views {} and {}", v1.name, v2.name);
+    let mut new_cols : Vec<TableColumnDef> = v1.borrow().columns.clone();
+    new_cols.append(&mut v2.borrow().columns.clone());
+    
+    // TODO Fix names, indexes
+    let mut new_view = View::new_with_cols(new_cols);
+    //new_view.indexes 
+    
+    // assuming that indexes exist?
+    let (r1len, r2len) = (v1.borrow().columns.len(), v2.borrow().columns.len());
+   
+    match jo {
+        JoinOperator::Inner(JoinConstraint::On(e)) => {
+            let (i1, i2) = get_join_on_indexes(&e, v1.clone(), v2.clone());
+            match i1 {
+                ViewIndex::Primary(ref i1) => {
+                    for (id1, row1) in i1.borrow().iter() {
+                        if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
+                            for row2 in rows2 {
+                                let mut new_row = row1.borrow().clone();
+                                new_row.append(&mut row2.borrow().clone());
+                                new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                            }
+                        }
+                    }
+                }
+                ViewIndex::Secondary(ref i1) => {
+                    for (id1, rows1) in i1.borrow().iter() {
+                        for row1 in rows1 {
+                            if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
+                                for row2 in rows2 {
+                                    let mut new_row = row1.borrow().clone();
+                                    new_row.append(&mut row2.borrow().clone());
+                                    new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        JoinOperator::LeftOuter(JoinConstraint::On(e)) => {
+            let (i1, i2) = get_join_on_indexes(&e, v1.clone(), v2.clone());
+            match i1 {
+                ViewIndex::Primary(ref i1) => {
+                    for (id1, row1) in i1.borrow().iter() {
+                        if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
+                            for row2 in rows2 {
+                                let mut new_row = row1.borrow().clone();
+                                new_row.append(&mut row2.borrow().clone());
+                                new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                            }
+                        } else {
+                            let mut new_row = row1.borrow().clone();
+                            new_row.append(&mut vec![Value::Null; r2len]);
+                            new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                        }
+                    }
+                }
+                ViewIndex::Secondary(ref i1) => {
+                    for (id1, rows1) in i1.borrow().iter() {
+                        for row1 in rows1 {
+                            if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
+                                for row2 in rows2 {
+                                    let mut new_row = row1.borrow().clone();
+                                    new_row.append(&mut row2.borrow().clone());
+                                    new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                                }
+                            } else {
+                                let mut new_row = row1.borrow().clone();
+                                new_row.append(&mut vec![Value::Null; r2len]);
+                                new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        JoinOperator::RightOuter(JoinConstraint::On(e)) => {
+            let (i1, i2) = get_join_on_indexes(&e, v1.clone(), v2.clone());
+            match i2 {
+                ViewIndex::Primary(ref i2) => {
+                    for (id2, row2) in i2.borrow().iter() {
+                        if let Some(rows1) = i1.get_index_rows_of_val(&id2) {
+                            for row1 in rows1 {
+                                let mut new_row = row2.borrow().clone();
+                                new_row.append(&mut row1.borrow().clone());
+                                new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                            }
+                        } else {
+                            let mut new_row = row2.borrow().clone();
+                            new_row.append(&mut vec![Value::Null; r1len]);
+                            new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                        }
+                    }
+                }
+                ViewIndex::Secondary(ref i2) => {
+                    for (id2, rows2) in i2.borrow().iter() {
+                        for row2 in rows2 {
+                            if let Some(rows1) = i1.get_index_rows_of_val(&id2) {
+                                for row1 in rows1 {
+                                    let mut new_row = row2.borrow().clone();
+                                    new_row.append(&mut row1.borrow().clone());
+                                    new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                                }
+                            } else {
+                                let mut new_row = row2.borrow().clone();
+                                new_row.append(&mut vec![Value::Null; r1len]);
+                                new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        JoinOperator::FullOuter(JoinConstraint::On(e)) => {
+            let (i1, i2) = get_join_on_indexes(&e, v1.clone(), v2.clone());
+            match i1 {
+                ViewIndex::Primary(ref i1) => {
+                    for (id1, row1) in i1.borrow().iter() {
+                        if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
+                            for row2 in rows2 {
+                                let mut new_row = row1.borrow().clone();
+                                new_row.append(&mut row2.borrow().clone());
+                                new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                            }
+                        } else {
+                            let mut new_row = row1.borrow().clone();
+                            new_row.append(&mut vec![Value::Null; r2len]);
+                            new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                        }
+                    }
+                }
+                ViewIndex::Secondary(ref i1) => {
+                    for (id1, rows1) in i1.borrow().iter() {
+                        for row1 in rows1 {
+                            if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
+                                for row2 in rows2 {
+                                    let mut new_row = row1.borrow().clone();
+                                    new_row.append(&mut row2.borrow().clone());
+                                    new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                                }
+                            } else {
+                                let mut new_row = row1.borrow().clone();
+                                new_row.append(&mut vec![Value::Null; r2len]);
+                                new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                            }
+                        }
+                    }
+                }
+            }
+            // only add null rows for rows that weren't matched
+            match i2 {
+                ViewIndex::Primary(ref i2) => {
+                    for (id2, row2) in i2.borrow().iter() {
+                        if i1.get_index_rows_of_val(&id2).is_none() {
+                            let mut new_row = row2.borrow().clone();
+                            new_row.append(&mut vec![Value::Null; r1len]);
+                            new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                        }
+                    }
+                }
+                ViewIndex::Secondary(ref i2) => {
+                    for (id2, rows2) in i2.borrow().iter() {
+                        for row2 in rows2 {
+                            if i1.get_index_rows_of_val(&id2).is_none() {
+                                let mut new_row = row2.borrow().clone();
+                                new_row.append(&mut vec![Value::Null; r1len]);
+                                new_view.insert_row(Rc::new(RefCell::new(new_row)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        _ => unimplemented!("No support for join type {:?}", jo),
+    }
+    Ok(Rc::new(RefCell::new(new_view)))
+}
+
+fn tablewithjoins_to_view(views: &HashMap<String, Rc<RefCell<View>>>, twj: &TableWithJoins) -> Result<Rc<RefCell<View>>, Error> {
+    let mut joined_views = tablefactor_to_view(views, &twj.relation)?;
+    
+    for j in &twj.joins {
+        let view2 = tablefactor_to_view(views, &j.relation)?;
+        joined_views = join_views(&j.join_operator, joined_views, view2)?;
+    }
+    Ok(joined_views)
 }
 
 /*
@@ -374,7 +466,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                 // if this col is a computed col, check member in list and return
                 if let Some(e) = computed.get(&col) {
                     let ccval_func = get_value_for_row_closure(&e, &v.columns, aliases, Some(&computed));
-                    for (_pk, row) in &v.rows {
+                    for (_pk, row) in v.rows.borrow().iter() {
                         let ccval = ccval_func(&row.borrow());
                         let in_list = list_vals.iter().any(|lv| helpers::parser_vals_cmp(&ccval, &lv) == Ordering::Equal);
                         if in_list {
@@ -393,7 +485,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                 // if this col is a computed col, check if null and return
                 if let Some(e) = computed.get(&col) {
                     let ccval_func = get_value_for_row_closure(&e, &v.columns, aliases, Some(&computed));
-                    for (_ri, row) in &v.rows {
+                    for (_ri, row) in v.rows.borrow().iter() {
                         let ccval = ccval_func(&row.borrow());
                         if ccval.to_string() == Value::Null.to_string() {
                             matching_rows.push(row.clone());
@@ -464,7 +556,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                                     if let Some(computed) = computed {
                                         if let Some(e) = computed.get(&col) {
                                             let ccval_func = get_value_for_row_closure(&e, &v.columns, aliases, Some(&computed));
-                                            for (_pk, row) in &v.rows {
+                                            for (_pk, row) in v.rows.borrow().iter() {
                                                 let ccval = ccval_func(&row.borrow());
                                                 let cmp = helpers::parser_vals_cmp(&ccval, &val);
                                                 if (*op == BinaryOperator::NotEq && cmp != Ordering::Equal) ||
@@ -483,7 +575,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                     let left_fn = get_value_for_row_closure(&left, &v.columns, aliases, computed);
                     let right_fn = get_value_for_row_closure(&right, &v.columns, aliases, computed);
 
-                    for (_pk, row) in &v.rows {
+                    for (_pk, row) in v.rows.borrow().iter() {
                         let left_val = left_fn(&row.borrow());
                         let right_val = right_fn(&row.borrow());
                         let cmp = helpers::parser_vals_cmp(&left_val, &right_val);
@@ -540,39 +632,21 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 unimplemented!("No support for having queries");
             }
 
-            let mut columns: Vec<TableColumnDef> = vec![]; 
-            let mut source_view : Option<Rc<RefCell<View>>> = None;
             // new name for column at index 
             let mut column_aliases : HashMap<String, usize> = HashMap::new();
             // additional columns and their values
             let mut computed_columns : HashMap<String, &Expr> = HashMap::new();
+            // TODO don't need to init?
+            let mut new_view: Rc<RefCell<View>> = Rc::new(RefCell::new(View::new_with_cols(vec![])));
             
             // special case: we're getting results from only this view
-            // INVARIANT: if source_view is Some, new_view does not have any rows
-            // TODO fix this so that we only ever refer to one view...
-            let new_view = Rc::new(RefCell::new(View::new_with_cols(vec![])));
-            if s.from.len() == 1 && s.from[0].joins.is_empty() {
-                let tab_ref = tablefactor_to_view(views, &s.from[0].relation)?;
-                let tab = tab_ref.borrow();
-                
-                new_view.borrow_mut().primary_index = tab.primary_index;
-                columns = tab.columns.clone();
-                source_view = Some(tab_ref.clone());
-            } else {
-                // otherwise, it's a join
-                // INVARIANT: new_view after a join is populated with all the rows
-                /*for twj in &s.from {
-                    // TODO if this is a join, how to handle indices and names?
-                    // TODO don't copy unless necessary?
-                    let v = tablewithjoins_to_view(views, &twj)?.borrow();
-                    new_view.borrow_mut().columns.append(&mut v.columns);
-                    // TODO correctly update primary index---right now there can be duplicates from
-                    // different tables
-                    for (k, r) in v.rows {
-                        new_view.borrow_mut().rows.insert(k, r);
-                    }
-                }*/
+            assert!(s.from.len() <= 1);
+            for twj in &s.from {
+                new_view = tablewithjoins_to_view(views, &twj)?;
+                // TODO correctly update primary index---right now there can be duplicates from
+                // different tables
             }
+            warn!("Joined new view is {:?}", new_view);
 
             // 1) compute any additional rows added by projection 
             // 2) compute aliases prior to where or order_by clause filtering 
@@ -581,7 +655,9 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             // 4) keep track of which columns to keep for which tables (cols_to_keep)
             //
             // INVARIANT: new_view is not modified during this block
-            let table_name = new_view.borrow_mut().name.clone();
+            let new_view = new_view.borrow();
+            let table_name = new_view.name.clone();
+            let mut columns: Vec<TableColumnDef> = new_view.columns.clone(); 
             let mut cols_to_keep = vec![];
             let mut select_val = None;
             let mut count = false;
@@ -643,25 +719,18 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             }
 
             // filter out rows by where clause
-            // and actually add these to the new view (this is the last time we'll use source_view)
             let mut rptrs_to_keep : RowPtrs;
-            let source : Rc<RefCell<View>>;
-            if let Some(source_view) = source_view {
-                source = source_view.clone(); 
-            } else {
-                source = new_view;
-            }
             if let Some(selection) = &s.selection {
                 let (negated, mut matching_rptrs) = 
-                    get_rptrs_matching_constraint(&selection, &source.borrow(), Some(&column_aliases), Some(&computed_columns));
+                    get_rptrs_matching_constraint(&selection, &new_view, Some(&column_aliases), Some(&computed_columns));
                 if negated {
-                    let mut all_rptrs : RowPtrs = source.borrow().rows.iter().map(|(_pk, rptr)| rptr.clone()).collect();
-                    matching_rptrs = source.borrow().minus_rptrs(&mut all_rptrs, &mut matching_rptrs);
+                    let mut all_rptrs : RowPtrs = new_view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
+                    matching_rptrs = new_view.minus_rptrs(&mut all_rptrs, &mut matching_rptrs);
                 }
                 rptrs_to_keep = matching_rptrs;
                 warn!("Where: Keeping rows {:?} {:?}", selection, rptrs_to_keep);
             } else {
-                rptrs_to_keep = source.borrow().rows.iter().map(|(_pk, rptr)| rptr.clone()).collect();
+                rptrs_to_keep = new_view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
             }
 
             // fast path: return val if select val was issued
@@ -752,7 +821,8 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             if order_by.len() > 0 {
                 
                 // TODO only support at most two order by constraints for now
-                assert!(order_by.len() < 3); let orderby1 = &order_by[0];
+                assert!(order_by.len() < 3); 
+                let orderby1 = &order_by[0];
                 let (_tab, col1) = expr_to_col(&orderby1.expr);
                 let ci1 = columns.iter().position(|c| tablecolumn_matches_col(c, &col1)).unwrap();
                
