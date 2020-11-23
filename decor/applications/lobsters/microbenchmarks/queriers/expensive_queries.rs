@@ -13,7 +13,7 @@ pub fn post_comment(db: &mut mysql::Conn,
     ) -> Result<(), mysql::Error> 
 {
     let user = acting_as.unwrap();
-    db.query_drop("SELECT `users`.* FROM `users` WHERE `users`.`id` IN (6,7,8,4,1,0,9,5,2,3)");
+    //db.query_drop("SELECT `users`.* FROM `users` WHERE `users`.`id` IN (6,7,8,4,1,0,9,5,2,3)");
     /*let (author, hotness, story) : (u64, f64, u64) = db.query_first(format!(
             "SELECT `stories`.`user_id`, `stories`.`hotness`, stories.id \
              FROM `stories` \
@@ -37,7 +37,7 @@ pub fn post_comment(db: &mut mysql::Conn,
     // that interesting to us. it does affect what's on the
     // frontpage, but we're okay with using a more basic
     // upvote/downvote ratio thingy. See Story::calculated_hotness
-    // in the lobsters source for details.
+    //in the lobsters source for details.
     /*db.query_drop(format!(
         "UPDATE stories SET \
          upvotes = stories.upvotes {}, \
@@ -50,7 +50,7 @@ pub fn post_comment(db: &mut mysql::Conn,
         story,
     ))?;*/
 
-    /*let res : Vec<(u64, u64)> = db.query(format!(
+    let res : Vec<(u64, u64)> = db.query(format!(
         "SELECT `comments`.id, \
          `comments`.`upvotes` - `comments`.`downvotes` AS saldo \
          FROM `comments` \
@@ -62,7 +62,7 @@ pub fn post_comment(db: &mut mysql::Conn,
     )?;
     let count = res.len() + 1;
 
-    db.query_drop(format!(
+    /*db.query_drop(format!(
         "UPDATE `stories` \
         SET `comments_count` = {} 
         WHERE `stories`.`id` = {}",
