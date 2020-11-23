@@ -502,21 +502,17 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                     let (rnegated, mut rptrs) = get_rptrs_matching_constraint(right, v, aliases, computed);
                     // if both are negated or not negated, return (negated?, combo of ptrs)
                     if lnegated == rnegated {
-                        for lptr in lptrs {
-                            if rptrs.get(&lptr).is_some() {
-                                matching_rows.insert(lptr);
-                            }
-                        }
-                        return (lnegated, matching_rows);
+                        lptrs.retain(|lptr| rptrs.get(&lptr).is_some());
+                        return (lnegated, lptrs);
                     } else {
                         if lnegated {
-                            // only lefthandside negated, return (false, all rptrs - lptrs)
+                            // only lefthandside negated, return (false, rptrs - lptrs)
                             for lptr in lptrs {
                                 rptrs.remove(&lptr);
                             }
                             matching_rows = rptrs;
                         } else {
-                            // only right negated, return (false, all lptrs - rptrs)
+                            // only right negated, return (false, lptrs - rptrs)
                             for rptr in rptrs {
                                 lptrs.remove(&rptr);
                             }
