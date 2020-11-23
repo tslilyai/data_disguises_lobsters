@@ -133,7 +133,7 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
                             for row2 in rows2 {
                                 let mut new_row = row1.borrow().clone();
-                                new_row.append(&mut row2.borrow().clone());
+                                new_row.append(&mut row2.0.borrow().clone());
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
                         }
@@ -144,8 +144,8 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         for row1 in rows1 {
                             if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
                                 for row2 in rows2 {
-                                    let mut new_row = row1.borrow().clone();
-                                    new_row.append(&mut row2.borrow().clone());
+                                    let mut new_row = row1.0.borrow().clone();
+                                    new_row.append(&mut row2.0.borrow().clone());
                                     new_view.insert_row(Rc::new(RefCell::new(new_row)));
                                 }
                             }
@@ -162,7 +162,7 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
                             for row2 in rows2 {
                                 let mut new_row = row1.borrow().clone();
-                                new_row.append(&mut row2.borrow().clone());
+                                new_row.append(&mut row2.0.borrow().clone());
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
                         } else {
@@ -177,12 +177,12 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         for row1 in rows1 {
                             if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
                                 for row2 in rows2 {
-                                    let mut new_row = row1.borrow().clone();
-                                    new_row.append(&mut row2.borrow().clone());
+                                    let mut new_row = row1.0.borrow().clone();
+                                    new_row.append(&mut row2.0.borrow().clone());
                                     new_view.insert_row(Rc::new(RefCell::new(new_row)));
                                 }
                             } else {
-                                let mut new_row = row1.borrow().clone();
+                                let mut new_row = row1.0.borrow().clone();
                                 new_row.append(&mut vec![Value::Null; r2len]);
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
@@ -199,7 +199,7 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         if let Some(rows1) = i1.get_index_rows_of_val(&id2) {
                             for row1 in rows1 {
                                 let mut new_row = row2.borrow().clone();
-                                new_row.append(&mut row1.borrow().clone());
+                                new_row.append(&mut row1.0.borrow().clone());
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
                         } else {
@@ -214,12 +214,12 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         for row2 in rows2 {
                             if let Some(rows1) = i1.get_index_rows_of_val(&id2) {
                                 for row1 in rows1 {
-                                    let mut new_row = row2.borrow().clone();
-                                    new_row.append(&mut row1.borrow().clone());
+                                    let mut new_row = row2.0.borrow().clone();
+                                    new_row.append(&mut row1.0.borrow().clone());
                                     new_view.insert_row(Rc::new(RefCell::new(new_row)));
                                 }
                             } else {
-                                let mut new_row = row2.borrow().clone();
+                                let mut new_row = row2.0.borrow().clone();
                                 new_row.append(&mut vec![Value::Null; r1len]);
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
@@ -236,7 +236,7 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
                             for row2 in rows2 {
                                 let mut new_row = row1.borrow().clone();
-                                new_row.append(&mut row2.borrow().clone());
+                                new_row.append(&mut row2.0.borrow().clone());
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
                         } else {
@@ -251,12 +251,12 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         for row1 in rows1 {
                             if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
                                 for row2 in rows2 {
-                                    let mut new_row = row1.borrow().clone();
-                                    new_row.append(&mut row2.borrow().clone());
+                                    let mut new_row = row1.0.borrow().clone();
+                                    new_row.append(&mut row2.0.borrow().clone());
                                     new_view.insert_row(Rc::new(RefCell::new(new_row)));
                                 }
                             } else {
-                                let mut new_row = row1.borrow().clone();
+                                let mut new_row = row1.0.borrow().clone();
                                 new_row.append(&mut vec![Value::Null; r2len]);
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
@@ -279,7 +279,7 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                     for (id2, rows2) in i2.borrow().iter() {
                         for row2 in rows2 {
                             if i1.get_index_rows_of_val(&id2).is_none() {
-                                let mut new_row = row2.borrow().clone();
+                                let mut new_row = row2.0.borrow().clone();
                                 new_row.append(&mut vec![Value::Null; r1len]);
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
@@ -454,10 +454,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
               
             if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
                 for lv in &list_vals {
-                    let rptrs_of_val = v.get_rptrs_of_col(ci, &lv.to_string());
-                    for rptr in &rptrs_of_val {
-                        matching_rows.insert(HashedRowPtr(rptr.clone()));
-                    }
+                    matching_rows.extend(v.get_rptrs_of_col(ci, &lv.to_string()));
                 }
             } else if let Some(computed) = computed {
                 // if this col is a computed col, check member in list and return
@@ -477,10 +474,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
         Expr::IsNull { expr, negated } => {
             let (_tab, col) = expr_to_col(&expr);
             if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
-                let rptrs_of_val = v.get_rptrs_of_col(ci, &Value::Null.to_string());
-                for rptr in &rptrs_of_val {
-                    matching_rows.insert(HashedRowPtr(rptr.clone()));
-                }
+                matching_rows = v.get_rptrs_of_col(ci, &Value::Null.to_string());
             } else if let Some(computed) = computed {
                 // if this col is a computed col, check if null and return
                 if let Some(e) = computed.get(&col) {
@@ -555,10 +549,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                                 
                                 if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
                                     warn!("fastpath equal expression: {} =? {}", col, val);
-                                    let rptrs_of_col = v.get_rptrs_of_col(ci, &val.to_string());
-                                    for rptr in rptrs_of_col {
-                                        matching_rows.insert(HashedRowPtr(rptr.clone()));
-                                    }
+                                    matching_rows = v.get_rptrs_of_col(ci, &val.to_string());
                                     return (*op == BinaryOperator::NotEq, matching_rows);
                                 } else {
                                     warn!("fastpath equal expression: checking if computed col {} =? {}", col, val);

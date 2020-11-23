@@ -12,28 +12,30 @@ use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 pub type Row = Vec<Value>;
 pub type RowPtrs = Vec<Rc<RefCell<Row>>>;
 
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub struct HashedRowPtr(pub Rc<RefCell<Row>>);
 impl Hash for HashedRowPtr {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.borrow().hash(state);
     }
 }
+pub type HashedRowPtrs = HashSet<HashedRowPtr>;
 
 #[derive(Debug, Clone)]
 pub enum ViewIndex { 
     Primary(Rc<RefCell<HashMap<String, Rc<RefCell<Row>>>>>),
-    Secondary(Rc<RefCell<HashMap<String, RowPtrs>>>),
+    Secondary(Rc<RefCell<HashMap<String, HashedRowPtrs>>>),
 }
 
 impl ViewIndex {
-    pub fn get_index_rows_of_val(&self, val: &str) -> Option<RowPtrs> {
+    pub fn get_index_rows_of_val(&self, val: &str) -> Option<HashedRowPtrs> {
         match self {
             ViewIndex::Primary(index) => {
                 let index = index.borrow();
                 match index.get(val) {
                     Some(r) => {
-                        let rows = vec![r.clone()];
+                        let mut rows = HashSet::new();
+                        rows.insert(HashedRowPtr(r.clone()));
                         Some(rows)
                     }
                     None => None,
@@ -73,7 +75,7 @@ pub struct View {
     // table rows: primary key to row
     pub rows: Rc<RefCell<HashMap<String, Rc<RefCell<Row>>>>>,
     // Hashmap of secondary indexes (by column): column val(string) to row pointers
-    pub indexes: HashMap<String, Rc<RefCell<HashMap<String, RowPtrs>>>>,
+    pub indexes: HashMap<String, Rc<RefCell<HashMap<String, HashedRowPtrs>>>>,
     // Primary key column position
     pub primary_index: usize,
     // optional autoinc column (index) and current value
@@ -278,8 +280,8 @@ impl View {
         None
     }
 
-    pub fn get_rptrs_of_col(&self, col_index: usize, col_val: &str) -> RowPtrs {
-        let mut rptrs : RowPtrs = vec![];
+    pub fn get_rptrs_of_col(&self, col_index: usize, col_val: &str) -> HashSet<HashedRowPtr> {
+        let mut rptrs = HashSet::new();
         if let Some(index) = self.indexes.get(&self.columns[col_index].column.name.to_string()) {
             if let Some(rptrs) = index.borrow().get(col_val) {
                 warn!("get_rows: found rows for col {} val {}!", self.columns[col_index].name(), col_val);
@@ -290,7 +292,7 @@ impl View {
         warn!("get_rows: no index for col {} val {}!", self.columns[col_index].name(), col_val);
         for (_pk, row) in self.rows.borrow().iter() {
             if row.borrow()[col_index].to_string() == col_val {
-                rptrs.push(row.clone());
+                rptrs.insert(HashedRowPtr(row.clone()));
             }
         }
         warn!("get_rows: {} returns {:?}", self.name, rptrs);
@@ -304,10 +306,10 @@ impl View {
             // insert into the new indexed ris 
             let mut index = index.borrow_mut();
             if let Some(rptrs) = index.get_mut(&col_val.to_string()) {
-                rptrs.push(row.clone());
+                rptrs.insert(HashedRowPtr(row.clone()));
             } else {
-                let mut rptrs = Vec::new();
-                rptrs.push(row.clone());
+                let mut rptrs = HashSet::new();
+                rptrs.insert(HashedRowPtr(row.clone()));
                 index.insert(col_val.to_string(), rptrs);
             }
         }
@@ -316,7 +318,7 @@ impl View {
     pub fn update_index(&mut self, rptr: Rc<RefCell<Row>>, col_index: usize, col_val: Option<&Value>) {
         let row = rptr.borrow();
         let old_val = &row[col_index];
-        let pk = self.primary_index;
+        //let pk = self.primary_index;
         warn!("{}: updating {:?} from {:?}", self.columns[col_index].name(), col_val, old_val);
 
         if let Some(index) = self.indexes.get_mut(&self.columns[col_index].column.name.to_string()) {
@@ -324,17 +326,18 @@ impl View {
             // remove this row!
             if let Some(old_ris) = index.borrow_mut().get_mut(&old_val.to_string()) {
                 warn!("{}: removing {:?} (row {:?}) from ris {:?}", self.columns[col_index].name(), old_val, rptr, old_ris);
-                old_ris.retain(|oldrp| oldrp.borrow()[pk] != rptr.borrow()[pk]);
+                old_ris.remove(&HashedRowPtr(rptr.clone()));
+                //old_ris.retain(|oldrp| oldrp.0.borrow()[pk] != rptr.borrow()[pk]);
             }
             // insert into the new indexed ris but only if we are updating to a new
             // value (otherwise we're just deleting)
             if let Some(col_val) = col_val {
                 let mut index = index.borrow_mut();
                 if let Some(new_ris) = index.get_mut(&col_val.to_string()) {
-                    new_ris.push(rptr.clone());
+                    new_ris.insert(HashedRowPtr(rptr.clone()));
                 } else {
-                    let mut rptrs = Vec::new();
-                    rptrs.push(rptr.clone());
+                    let mut rptrs = HashSet::new();
+                    rptrs.insert(HashedRowPtr(rptr.clone()));
                     index.insert(col_val.to_string(), rptrs);
                 }
             }
