@@ -23,6 +23,20 @@ pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName)
     res
 }
 
+pub fn get_user_col_idents_of_datatable(cfg: &config::Config, table_name: &ObjectName) -> Vec<Ident> {
+    let mut res : Vec<Ident> = vec![];
+    let table_str = table_name.to_string();
+    'dtloop: for dt in &cfg.data_tables {
+        if table_str.ends_with(&dt.name) || table_str == dt.name {
+            for uc in &dt.user_cols {
+                res.push(Ident::new(uc));
+            }
+            break 'dtloop;
+        }
+    }
+    res
+}
+
 pub fn is_datatable(cfg: &config::Config, table_name: &ObjectName) -> bool {
     let table_str = table_name.to_string();
     for dt in &cfg.data_tables {

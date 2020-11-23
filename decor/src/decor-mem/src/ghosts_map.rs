@@ -222,7 +222,7 @@ impl GhostsMap{
                         right: Box::new(Expr::Value(Value::Number(gid.to_string()))),
                     }),
                 });
-                warn!("issue_update_dt_stmt: {}", update_stmt);
+                warn!("issue_update_uid2gids_stmt: {}", update_stmt);
                 db.query_drop(format!("{}", update_stmt))?;
                 self.nqueries+=1;
             }

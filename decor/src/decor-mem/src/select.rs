@@ -454,7 +454,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
               
             if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
                 for lv in &list_vals {
-                    matching_rows.append(&mut v.get_rptrs_of_col(ci, lv));
+                    matching_rows.append(&mut v.get_rptrs_of_col(ci, &lv.to_string()));
                 }
             } else if let Some(computed) = computed {
                 // if this col is a computed col, check member in list and return
@@ -474,7 +474,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
         Expr::IsNull { expr, negated } => {
             let (_tab, col) = expr_to_col(&expr);
             if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
-                matching_rows.append(&mut v.get_rptrs_of_col(ci, &Value::Null));
+                matching_rows.append(&mut v.get_rptrs_of_col(ci, &Value::Null.to_string()));
             } else if let Some(computed) = computed {
                 // if this col is a computed col, check if null and return
                 if let Some(e) = computed.get(&col) {
@@ -542,7 +542,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                                 
                                 if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
                                     warn!("fastpath equal expression: {} =? {}", col, val);
-                                    matching_rows.append(&mut v.get_rptrs_of_col(ci, &val));
+                                    matching_rows.append(&mut v.get_rptrs_of_col(ci, &val.to_string()));
                                     return (*op == BinaryOperator::NotEq, matching_rows);
                                 } else {
                                     warn!("fastpath equal expression: checking if computed col {} =? {}", col, val);

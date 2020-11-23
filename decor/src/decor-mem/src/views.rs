@@ -269,10 +269,10 @@ impl View {
         None
     }
 
-    pub fn get_rptrs_of_col(&self, col_index: usize, col_val: &Value) -> RowPtrs {
+    pub fn get_rptrs_of_col(&self, col_index: usize, col_val: &str) -> RowPtrs {
         let mut rptrs : RowPtrs = vec![];
         if let Some(index) = self.indexes.get(&self.columns[col_index].column.name.to_string()) {
-            if let Some(rptrs) = index.borrow().get(&col_val.to_string()) {
+            if let Some(rptrs) = index.borrow().get(col_val) {
                 warn!("get_rows: found rows for col {} val {}!", self.columns[col_index].name(), col_val);
                 return rptrs.clone();
             } 
@@ -280,7 +280,7 @@ impl View {
         }
         warn!("get_rows: no index for col {} val {}!", self.columns[col_index].name(), col_val);
         for (_pk, row) in self.rows.borrow().iter() {
-            if row.borrow()[col_index].to_string() == col_val.to_string() {
+            if row.borrow()[col_index].to_string() == col_val {
                 rptrs.push(row.clone());
             }
         }
