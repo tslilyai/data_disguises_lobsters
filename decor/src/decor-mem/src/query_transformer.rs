@@ -1066,7 +1066,7 @@ impl QueryTransformer {
             db: &mut mysql::Conn) 
         -> Result<(Vec<views::TableColumnDef>, views::RowPtrs, Vec<usize>), mysql::Error>
     {
-        warn!("issue statement: {}", stmt);
+        warn!("issue statement: {:?}", stmt);
         let mut view_res : (Vec<views::TableColumnDef>, views::RowPtrs, Vec<usize>) = (vec![], vec![], vec![]);
         
         // TODO consistency?
@@ -1186,8 +1186,9 @@ impl QueryTransformer {
                 // create view for this table
                 self.views.add_view(
                     name.to_string(), 
-                    columns.to_vec(),
+                    columns,
                     &indexes,
+                    &constraints,
                 );
             }
             Statement::DropObjects(DropObjectsStatement{

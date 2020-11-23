@@ -185,9 +185,9 @@ impl View {
         }
     }
 
-    pub fn new(name: String, columns: Vec<ColumnDef>, indexes: &Vec<IndexDef>) -> Self {
+    pub fn new(name: String, view_columns: &Vec<ColumnDef>, indexes: &Vec<IndexDef>, constraints: &Vec<TableConstraint>) -> Self {
         // create autoinc column if doesn't exist
-        let autoinc_col = match columns.iter().position(
+        let autoinc_col = match view_columns.iter().position(
             |c| c.options
             .iter()
             .any(|opt| opt.option == ColumnOption::AutoIncrement)
@@ -212,8 +212,8 @@ impl View {
         }; 
 
         // add an index for any unique column
-        for ci in 0..columns.len() {
-            let c = &columns[ci];
+        for ci in 0..view_columns.len() {
+            let c = &view_columns[ci];
             for opt in &c.options {
                 if let ColumnOption::Unique{is_primary} = opt.option {
                     if is_primary {
@@ -226,10 +226,26 @@ impl View {
                 }
             }
         }
-
+        for constraint in constraints {
+            match constraint {
+                TableConstraint::Unique{columns, is_primary, ..} =>  {
+                    if *is_primary {
+                        assert!(columns.len() == 1);
+                        let ci = view_columns.iter().position(|vc| vc.name.to_string() == columns[0].to_string()).unwrap();
+                        primary_index = Some(ci);
+                    } else {
+                        for c in columns {
+                            indexes_map.insert(c.to_string(), Rc::new(RefCell::new(HashMap::new())));
+                            warn!("{}: Created unique index for column {}", name, c.to_string());
+                        }
+                    }
+                }
+                _ => (),
+            }
+        }
         let view = View {
             name: name.clone(),
-            columns: columns.iter()
+            columns: view_columns.iter()
                 .map(|c| TableColumnDef{ table: name.clone(), column: c.clone() })
                 .collect(),
             rows: Rc::new(RefCell::new(HashMap::new())),
@@ -336,8 +352,8 @@ impl Views {
         }
     }
 
-    pub fn add_view(&mut self, name: String, columns: Vec<ColumnDef>, indexes: &Vec<IndexDef>) {
-        self.views.insert(name.clone(), Rc::new(RefCell::new(View::new(name, columns, indexes))));
+    pub fn add_view(&mut self, name: String, columns: &Vec<ColumnDef>, indexes: &Vec<IndexDef>, constraints: &Vec<TableConstraint>) {
+        self.views.insert(name.clone(), Rc::new(RefCell::new(View::new(name, columns, indexes, constraints))));
     }
 
     pub fn remove_views(&mut self, names: &Vec<ObjectName>) {
