@@ -631,16 +631,16 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             // additional columns and their values
             let mut computed_columns : HashMap<String, &Expr> = HashMap::new();
             // TODO don't need to init?
-            let mut new_view: Rc<RefCell<View>> = Rc::new(RefCell::new(View::new_with_cols(vec![])));
+            let mut from_view: Rc<RefCell<View>> = Rc::new(RefCell::new(View::new_with_cols(vec![])));
             
             // special case: we're getting results from only this view
             assert!(s.from.len() <= 1);
             for twj in &s.from {
-                new_view = tablewithjoins_to_view(views, &twj)?;
+                from_view = tablewithjoins_to_view(views, &twj)?;
                 // TODO correctly update primary index---right now there can be duplicates from
                 // different tables
             }
-            warn!("Joined new view is {:?}", new_view);
+            warn!("Joined new view is {:?}", from_view);
 
             // 1) compute any additional rows added by projection 
             // 2) compute aliases prior to where or order_by clause filtering 
@@ -648,10 +648,10 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             // 3) keep track of whether we want to return 1 for each row (select_val)
             // 4) keep track of which columns to keep for which tables (cols_to_keep)
             //
-            // INVARIANT: new_view is not modified during this block
-            let new_view = new_view.borrow();
-            let table_name = new_view.name.clone();
-            let mut columns: Vec<TableColumnDef> = new_view.columns.clone(); 
+            // INVARIANT: from_view is not modified during this block
+            let from_view = from_view.borrow();
+            let table_name = from_view.name.clone();
+            let mut columns: Vec<TableColumnDef> = from_view.columns.clone(); 
             let mut cols_to_keep = vec![];
             let mut select_val = None;
             let mut count = false;
@@ -716,15 +716,15 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             let mut rptrs_to_keep : RowPtrs;
             if let Some(selection) = &s.selection {
                 let (negated, mut matching_rptrs) = 
-                    get_rptrs_matching_constraint(&selection, &new_view, Some(&column_aliases), Some(&computed_columns));
+                    get_rptrs_matching_constraint(&selection, &from_view, Some(&column_aliases), Some(&computed_columns));
                 if negated {
-                    let mut all_rptrs : RowPtrs = new_view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
-                    matching_rptrs = new_view.minus_rptrs(&mut all_rptrs, &mut matching_rptrs);
+                    let mut all_rptrs : RowPtrs = from_view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
+                    matching_rptrs = from_view.minus_rptrs(&mut all_rptrs, &mut matching_rptrs);
                 }
                 rptrs_to_keep = matching_rptrs;
                 warn!("Where: Keeping rows {:?} {:?}", selection, rptrs_to_keep);
             } else {
-                rptrs_to_keep = new_view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
+                rptrs_to_keep = from_view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
             }
 
             // fast path: return val if select val was issued
