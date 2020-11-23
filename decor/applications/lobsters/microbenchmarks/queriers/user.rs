@@ -12,7 +12,8 @@ pub fn get_profile(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
             (format!("\'user{}\'", uid))
         ))?[0];
 
-    let rows : Vec<(u64, u64)> = db.query(format!(
+    /* TODO MULTIPLE JOINS 
+     let rows : Vec<(u64, u64)> = db.query(format!(
             "SELECT  `tags`.`id`, COUNT(*) AS `count` FROM `taggings` \
              INNER JOIN `tags` ON `taggings`.`tag_id` = `tags`.`id` \
              INNER JOIN `stories` ON `stories`.`id` = `taggings`.`story_id` \
@@ -31,7 +32,7 @@ pub fn get_profile(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
              WHERE `tags`.`id` = {}",
              tag,)
         )?;
-    }
+    }*/
     db.query_drop(format!(
         "SELECT  `keystores`.* \
          FROM `keystores` \

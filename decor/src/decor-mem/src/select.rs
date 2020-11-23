@@ -64,7 +64,7 @@ fn tablefactor_to_view(views: &HashMap<String, Rc<RefCell<View>>>, tf: &TableFac
 }
 
 fn get_binop_indexes(e: &Expr, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) 
-    -> Option<(ViewIndex, ViewIndex)>
+    -> (ViewIndex, ViewIndex)
 {
     let i1: Option<ViewIndex>;
     let i2: Option<ViewIndex>; 
@@ -87,34 +87,28 @@ fn get_binop_indexes(e: &Expr, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>)
                 i1 = v1.get_index_of_view(&col2);
                 i2 = v2.get_index_of_view(&col1);
             } else {
-                warn!("Join: no matching tables for {}/{} and {}/{}", v1.name, tab1, v2.name, tab2);
-                return None;
+                unimplemented!("Join: no matching tables for {}/{} and {}/{}", v1.name, tab1, v2.name, tab2);
             }
             if i1.is_none() || i2.is_none() {
-                warn!("No columns found! {:?} {:?}", v1.columns, v2.columns);
-                return None;
+                unimplemented!("No index for columns found! {:?}", e);
             }
-            return Some((i1.unwrap(), i2.unwrap()));
+            return (i1.unwrap(), i2.unwrap());
         }
     }
-    None
+    unimplemented!("Join: unsupported join operation {:?}", e);
 }
 
 /*
  * Get indexes for views for a join expression `WHERE table.col = table.col`
  */
 fn get_join_on_indexes(e: &Expr, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -> (ViewIndex, ViewIndex) {
-    let is : Option<(ViewIndex, ViewIndex)>;
+    let is : (ViewIndex, ViewIndex);
     if let Expr::Nested(binexpr) = e {
         is = get_binop_indexes(binexpr, v1.clone(), v2.clone());
     } else {
         is = get_binop_indexes(e, v1.clone(), v2.clone());
     }
-
-    match is {
-        Some((i1, i2)) => (i1, i2),
-        _ => unimplemented!("Unsupported join_on {:?}, {}, {}", e, v1.borrow().name, v2.borrow().name),
-    }
+    is
 }
 
 
