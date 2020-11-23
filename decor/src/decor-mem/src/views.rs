@@ -1,15 +1,24 @@
 use sql_parser::ast::*;
-use std::collections::{HashMap};
+use std::collections::{HashSet, HashMap};
 use std::cmp::Ordering;
 use crate::{select, helpers, ghosts_map};
-use std::io::{Error, Write};
 use std::cell::RefCell;
+use std::hash::{Hash, Hasher};
+use std::io::{Error, Write};
 use std::rc::Rc;
 use log::{warn};
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 
 pub type Row = Vec<Value>;
 pub type RowPtrs = Vec<Rc<RefCell<Row>>>;
+
+#[derive(Eq, PartialEq, Debug)]
+pub struct HashedRowPtr(pub Rc<RefCell<Row>>);
+impl Hash for HashedRowPtr {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.borrow().hash(state);
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum ViewIndex { 
@@ -148,8 +157,8 @@ impl View {
     }
 
     pub fn intersect_rptrs(&self, a: &mut RowPtrs, b: &mut RowPtrs) -> RowPtrs {
-        a.sort_by(|r1, r2| helpers::parser_vals_cmp(&r1.borrow()[self.primary_index], &r2.borrow()[self.primary_index]));
-        b.sort_by(|r1, r2| helpers::parser_vals_cmp(&r1.borrow()[self.primary_index], &r2.borrow()[self.primary_index]));
+        //a.sort_by(|r1, r2| helpers::parser_vals_cmp(&r1.borrow()[self.primary_index], &r2.borrow()[self.primary_index]));
+        //b.sort_by(|r1, r2| helpers::parser_vals_cmp(&r1.borrow()[self.primary_index], &r2.borrow()[self.primary_index]));
         let mut intersection = vec![];
         let mut b_iter = b.iter();
         if let Some(mut current_b) = b_iter.next() {
@@ -521,13 +530,16 @@ impl Views {
             cis.push(view.columns.iter().position(|vc| vc.column.name == a.id).unwrap());
         }
 
-        let mut rptrs: Option<RowPtrs> = None;
+        let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            let (neg, mut matching) = select::get_rptrs_matching_constraint(s, &view, None, None);
+            let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, None, None);
             // we should do the inverse here, I guess...
             if neg {
-                let mut all_rptrs : RowPtrs = view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
-                rptrs = Some(view.minus_rptrs(&mut all_rptrs, &mut matching));
+                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
+                for rptr in matching {
+                    all_rptrs.remove(&rptr);
+                }
+                rptrs = Some(all_rptrs);
             } else {
                 rptrs = Some(matching);
             }
@@ -540,8 +552,8 @@ impl Views {
                 Expr::Value(v) => {
                     if let Some(ref rptrs) = rptrs {
                         for rptr in rptrs {
-                            view.update_index(rptr.clone(), *ci, Some(&v));
-                            rptr.borrow_mut()[*ci] = v.clone();
+                            view.update_index(rptr.0.clone(), *ci, Some(&v));
+                            rptr.0.borrow_mut()[*ci] = v.clone();
                         }
                     } else {
                         let mut rptrs = vec![];
@@ -558,9 +570,9 @@ impl Views {
                     let assign_vals_fn = select::get_value_for_row_closure(&assign_vals[assign_index], &view.columns, None, None);
                     if let Some(ref rptrs) = rptrs {
                         for rptr in rptrs {
-                            let v = assign_vals_fn(&rptr.borrow());
-                            view.update_index(rptr.clone(), *ci, Some(&v));
-                            rptr.borrow_mut()[*ci] = v.clone();
+                            let v = assign_vals_fn(&rptr.0.borrow());
+                            view.update_index(rptr.0.clone(), *ci, Some(&v));
+                            rptr.0.borrow_mut()[*ci] = v.clone();
                         }
                     } else {
                         let mut rptrs = vec![];
@@ -586,13 +598,15 @@ impl Views {
     {
         let mut view = self.views.get(&table_name.to_string()).unwrap().borrow_mut();
 
-        let mut rptrs: Option<RowPtrs> = None;
+        let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            let (neg, mut matching) = select::get_rptrs_matching_constraint(s, &view, None, None);
-            // we should do the inverse here, I guess...
+            let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, None, None);
             if neg {
-                let mut all_rptrs : RowPtrs = view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
-                rptrs = Some(view.minus_rptrs(&mut all_rptrs, &mut matching));
+                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
+                for rptr in matching {
+                    all_rptrs.remove(&rptr);
+                }
+                rptrs = Some(all_rptrs);
             } else {
                 rptrs = Some(matching);
             }
@@ -602,10 +616,10 @@ impl Views {
             for rptr in rptrs {
                 for ci in 0..view.columns.len() {
                     // all the row indices have to change too..
-                    view.update_index(rptr.clone(), ci, None);
+                    view.update_index(rptr.0.clone(), ci, None);
                 }
                 let pk = view.primary_index;
-                view.rows.borrow_mut().remove(&rptr.borrow()[pk].to_string());
+                view.rows.borrow_mut().remove(&rptr.0.borrow()[pk].to_string());
             }
         } else {
             let mut pks = vec![];

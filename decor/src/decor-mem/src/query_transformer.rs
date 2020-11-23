@@ -1,10 +1,12 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use super::{helpers, ghosts_map, config, stats, views, select};
-use std::*;
+use crate::{helpers, ghosts_map, config, stats, views, select};
+use crate::views::{TableColumnDef, Views, Row, RowPtrs, HashedRowPtr};
+use std::collections::{HashSet};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
+use std::*;
 use msql_srv::{QueryResultWriter};
 use log::{warn, debug};
 
@@ -12,7 +14,7 @@ pub struct QueryTransformer {
     pub cfg: config::Config,
     pub ghosts_map: ghosts_map::GhostsMap,
     
-    views: views::Views,
+    views: Views,
     
     // for tests
     params: super::TestParams,
@@ -23,7 +25,7 @@ pub struct QueryTransformer {
 impl QueryTransformer {
     pub fn new(cfg: &config::Config, params: &super::TestParams) -> Self {
         QueryTransformer{
-            views: views::Views::new(),
+            views: Views::new(),
             cfg: cfg.clone(),
             ghosts_map: ghosts_map::GhostsMap::new(),
             params: params.clone(),
@@ -671,16 +673,16 @@ impl QueryTransformer {
      * Convert all expressions to insert to primitive values
      */
     fn insert_source_query_to_rptrs(&mut self, q: &Query) 
-        -> Result<views::RowPtrs, mysql::Error> 
+        -> Result<RowPtrs, mysql::Error> 
     {
         let mut contains_ucol_id = false;
-        let mut vals_vec : views::RowPtrs = vec![];
+        let mut vals_vec : RowPtrs = vec![];
         match &q.body {
             SetExpr::Values(Values(expr_vals)) => {
                 // NOTE: only need to modify values if we're dealing with a DT,
                 // could perform check here rather than calling vals_vec
                 for row in expr_vals {
-                    let mut vals_row : views::Row = vec![];
+                    let mut vals_row : Row = vec![];
                     for val in row {
                         let value_expr = self.expr_to_value_expr(&val, &mut contains_ucol_id, &vec![])?;
                         match value_expr {
@@ -851,7 +853,7 @@ impl QueryTransformer {
         return Ok(qt_selection);
     }
     
-    fn issue_insert_datatable_stmt(&mut self, values: &views::RowPtrs, stmt: InsertStatement, db: &mut mysql::Conn) 
+    fn issue_insert_datatable_stmt(&mut self, values: &RowPtrs, stmt: InsertStatement, db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
         /* note that if the table is the users table,
@@ -1064,10 +1066,10 @@ impl QueryTransformer {
             &mut self, 
             stmt: &Statement,
             db: &mut mysql::Conn) 
-        -> Result<(Vec<views::TableColumnDef>, views::RowPtrs, Vec<usize>), mysql::Error>
+        -> Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), mysql::Error>
     {
         warn!("issue statement: {:?}", stmt);
-        let mut view_res : (Vec<views::TableColumnDef>, views::RowPtrs, Vec<usize>) = (vec![], vec![], vec![]);
+        let mut view_res : (Vec<TableColumnDef>, RowPtrs, Vec<usize>) = (vec![], vec![], vec![]);
         
         // TODO consistency?
         match stmt {
@@ -1253,7 +1255,7 @@ impl QueryTransformer {
         // check if already unsubscribed
         // get list of ghosts to return otherwise
         let gids : Vec<u64>;
-        let gid_values : views::RowPtrs;
+        let gid_values : RowPtrs;
         match self.ghosts_map.unsubscribe(uid, db)? {
             None => {
                 writer.error(msql_srv::ErrorKind::ER_BAD_SLAVE, format!("{:?}", "user already unsubscribed").as_bytes())?;
@@ -1319,12 +1321,15 @@ impl QueryTransformer {
 
             let (neg, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, None, None);
             if neg {
-                let mut all_rptrs : views::RowPtrs = view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
-                rptrs_to_update = view.minus_rptrs(&mut all_rptrs, &mut rptrs_to_update);
+                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
+                for rptr in rptrs_to_update {
+                    all_rptrs.remove(&rptr);
+                }
+                rptrs_to_update = all_rptrs;
             } 
             let mut updated_cis = vec![];
             for rptr in &rptrs_to_update {
-                let mut row = rptr.borrow_mut();
+                let mut row = rptr.0.borrow_mut();
                 for ci in &cis {
                     if row[*ci].to_string() == uid_val.to_string() {
                         assert!(gid_index < gid_values.len());
@@ -1338,9 +1343,9 @@ impl QueryTransformer {
             }
             for rptr in &rptrs_to_update {
                 for ci in &updated_cis {
-                    let val = &rptr.borrow()[*ci];
+                    let val = &rptr.0.borrow()[*ci];
                     warn!("UNSUB: updating {:?} with {}", rptr, val);
-                    view.update_index(rptr.clone(), *ci, Some(&val));
+                    view.update_index(rptr.0.clone(), *ci, Some(&val));
                 }
             }
         }
@@ -1441,12 +1446,15 @@ impl QueryTransformer {
 
             let (negated, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, None, None);
             if negated {
-                let mut all_rptrs : views::RowPtrs = view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
-                rptrs_to_update = view.minus_rptrs(&mut all_rptrs, &mut rptrs_to_update);
+                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
+                for rptr in rptrs_to_update {
+                    all_rptrs.remove(&rptr);
+                }
+                rptrs_to_update = all_rptrs;
             } 
             let mut updated_cis = vec![];
             for rptr in &rptrs_to_update {
-                let mut row = rptr.borrow_mut();
+                let mut row = rptr.0.borrow_mut();
                 for ci in &cis {
                     // update the columns to use the uid
                     if gids.iter().any(|g| g.to_string() == row[*ci].to_string()) {
@@ -1458,7 +1466,7 @@ impl QueryTransformer {
             for rptr in &rptrs_to_update {
                 for ci in &updated_cis {
                     warn!("RESUB: updating {:?} with {}", rptr, uid_val);
-                    view.update_index(rptr.clone(), *ci, Some(&uid_val));
+                    view.update_index(rptr.0.clone(), *ci, Some(&uid_val));
                 }
             }
         }

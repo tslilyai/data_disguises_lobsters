@@ -1,7 +1,7 @@
-use crate::views::{View, TableColumnDef, RowPtrs, ViewIndex};
+use crate::views::{View, TableColumnDef, RowPtrs, ViewIndex, HashedRowPtr};
 use crate::helpers;
 use log::warn;
-use std::collections::{HashMap};
+use std::collections::{HashMap, HashSet};
 use std::cmp::Ordering;
 use std::io::{Error, ErrorKind};
 use std::str::FromStr;
@@ -435,9 +435,9 @@ fn get_col_index_with_aliases(col: &str, columns: &Vec<TableColumnDef>, aliases:
 pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, 
                                     aliases: Option<&HashMap<String, usize>>, 
                                     computed: Option<&HashMap<String, &Expr>>)
-    -> (bool, RowPtrs)
+    -> (bool, HashSet<HashedRowPtr>)
 {
-    let mut matching_rows = vec![];
+    let mut matching_rows = HashSet::new(); 
     warn!("getting rptrs of constraint {:?}", e);
     match e {
         Expr::Value(Value::Boolean(b)) => {
@@ -454,7 +454,10 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
               
             if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
                 for lv in &list_vals {
-                    matching_rows.append(&mut v.get_rptrs_of_col(ci, &lv.to_string()));
+                    let rptrs_of_val = v.get_rptrs_of_col(ci, &lv.to_string());
+                    for rptr in &rptrs_of_val {
+                        matching_rows.insert(HashedRowPtr(rptr.clone()));
+                    }
                 }
             } else if let Some(computed) = computed {
                 // if this col is a computed col, check member in list and return
@@ -464,7 +467,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                         let ccval = ccval_func(&row.borrow());
                         let in_list = list_vals.iter().any(|lv| helpers::parser_vals_cmp(&ccval, &lv) == Ordering::Equal);
                         if in_list {
-                            matching_rows.push(row.clone());
+                            matching_rows.insert(HashedRowPtr(row.clone()));
                         }
                     }
                 }
@@ -474,7 +477,10 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
         Expr::IsNull { expr, negated } => {
             let (_tab, col) = expr_to_col(&expr);
             if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
-                matching_rows.append(&mut v.get_rptrs_of_col(ci, &Value::Null.to_string()));
+                let rptrs_of_val = v.get_rptrs_of_col(ci, &Value::Null.to_string());
+                for rptr in &rptrs_of_val {
+                    matching_rows.insert(HashedRowPtr(rptr.clone()));
+                }
             } else if let Some(computed) = computed {
                 // if this col is a computed col, check if null and return
                 if let Some(e) = computed.get(&col) {
@@ -482,7 +488,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                     for (_ri, row) in v.rows.borrow().iter() {
                         let ccval = ccval_func(&row.borrow());
                         if ccval.to_string() == Value::Null.to_string() {
-                            matching_rows.push(row.clone());
+                            matching_rows.insert(HashedRowPtr(row.clone()));
                         }
                     }
                 }
@@ -496,15 +502,25 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                     let (rnegated, mut rptrs) = get_rptrs_matching_constraint(right, v, aliases, computed);
                     // if both are negated or not negated, return (negated?, combo of ptrs)
                     if lnegated == rnegated {
-                        matching_rows = v.intersect_rptrs(&mut lptrs, &mut rptrs);
+                        for lptr in lptrs {
+                            if rptrs.get(&lptr).is_some() {
+                                matching_rows.insert(lptr);
+                            }
+                        }
                         return (lnegated, matching_rows);
                     } else {
                         if lnegated {
                             // only lefthandside negated, return (false, all rptrs - lptrs)
-                            matching_rows = v.minus_rptrs(&mut rptrs, &mut lptrs);
+                            for lptr in lptrs {
+                                rptrs.remove(&lptr);
+                            }
+                            matching_rows = rptrs;
                         } else {
                             // only right negated, return (false, all lptrs - rptrs)
-                            matching_rows = v.minus_rptrs(&mut lptrs, &mut rptrs);
+                            for rptr in rptrs {
+                                lptrs.remove(&rptr);
+                            }
+                            matching_rows = lptrs;
                         } 
                         return (false, matching_rows);
                     }
@@ -513,20 +529,21 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                     let (lnegated, mut lptrs) = get_rptrs_matching_constraint(left, v, aliases, computed);
                     let (rnegated, mut rptrs) = get_rptrs_matching_constraint(right, v, aliases, computed);
                     if lnegated == rnegated {
-                        matching_rows.append(&mut lptrs);
-                        matching_rows.append(&mut rptrs);
-                        matching_rows.sort_by(|r1, r2| helpers::parser_vals_cmp(
-                                &r1.borrow()[v.primary_index], 
-                                &r2.borrow()[v.primary_index]));
-                        matching_rows.dedup();
-                        return (lnegated, matching_rows);
+                        lptrs.extend(rptrs);
+                        return (lnegated, lptrs);
                     } else {
                         if lnegated {
                             // only lefthandside negated, return (true, lptrs - rptrs)
-                            matching_rows = v.minus_rptrs(&mut lptrs, &mut rptrs);
+                            for rptr in rptrs {
+                                lptrs.remove(&rptr);
+                            }
+                            matching_rows = lptrs;
                         } else {
                             // only righthandside negated, return (left, all rptrs - lptrs)
-                            matching_rows = v.minus_rptrs(&mut rptrs, &mut lptrs);
+                            for lptr in lptrs {
+                                rptrs.remove(&lptr);
+                            }
+                            matching_rows = rptrs;
                         }
                         return (true, matching_rows);
                     }
@@ -542,7 +559,10 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                                 
                                 if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
                                     warn!("fastpath equal expression: {} =? {}", col, val);
-                                    matching_rows.append(&mut v.get_rptrs_of_col(ci, &val.to_string()));
+                                    let rptrs_of_col = v.get_rptrs_of_col(ci, &val.to_string());
+                                    for rptr in rptrs_of_col {
+                                        matching_rows.insert(HashedRowPtr(rptr.clone()));
+                                    }
                                     return (*op == BinaryOperator::NotEq, matching_rows);
                                 } else {
                                     warn!("fastpath equal expression: checking if computed col {} =? {}", col, val);
@@ -555,7 +575,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                                                 let cmp = helpers::parser_vals_cmp(&ccval, &val);
                                                 if (*op == BinaryOperator::NotEq && cmp != Ordering::Equal) ||
                                                     (*op == BinaryOperator::Eq && cmp == Ordering::Equal) {
-                                                    matching_rows.push(row.clone());
+                                                    matching_rows.insert(HashedRowPtr(row.clone()));
                                                 }
                                             }
                                             return (false, matching_rows);
@@ -576,32 +596,32 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                         match op {
                             BinaryOperator::Eq => {
                                 if cmp == Ordering::Equal {
-                                    matching_rows.push(row.clone());
+                                    matching_rows.insert(HashedRowPtr(row.clone()));
                                 }
                             }
                             BinaryOperator::NotEq => {
                                 if cmp != Ordering::Equal {
-                                    matching_rows.push(row.clone());
+                                    matching_rows.insert(HashedRowPtr(row.clone()));
                                 }
                             }
                             BinaryOperator::Lt => {
                                 if cmp == Ordering::Less {
-                                    matching_rows.push(row.clone());
+                                    matching_rows.insert(HashedRowPtr(row.clone()));
                                 }
                             }
                             BinaryOperator::Gt => {
                                 if cmp == Ordering::Greater {
-                                    matching_rows.push(row.clone());
+                                    matching_rows.insert(HashedRowPtr(row.clone()));
                                 }
                             }
                             BinaryOperator::LtEq => {
                                 if cmp != Ordering::Greater {
-                                    matching_rows.push(row.clone());
+                                    matching_rows.insert(HashedRowPtr(row.clone()));
                                 }
                             }
                             BinaryOperator::GtEq => {
                                 if cmp != Ordering::Less {
-                                    matching_rows.push(row.clone());
+                                    matching_rows.insert(HashedRowPtr(row.clone()));
                                 }
                             }
                             _ => unimplemented!("binop constraint not supported {:?}", e),
@@ -619,7 +639,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
  * Return vectors of columns, rows, and additional computed columns/values
  */
 fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr, order_by: &Vec<OrderByExpr>) 
-    -> Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), std::io::Error> {
+    -> Result<(Vec<TableColumnDef>, HashSet<HashedRowPtr>, Vec<usize>), std::io::Error> {
     match se {
         SetExpr::Select(s) => {
             if s.having != None {
@@ -713,25 +733,29 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             }
 
             // filter out rows by where clause
-            let mut rptrs_to_keep : RowPtrs;
+            let rptrs_to_keep : HashSet<HashedRowPtr>;
             if let Some(selection) = &s.selection {
                 let (negated, mut matching_rptrs) = 
                     get_rptrs_matching_constraint(&selection, &from_view, Some(&column_aliases), Some(&computed_columns));
                 if negated {
-                    let mut all_rptrs : RowPtrs = from_view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
-                    matching_rptrs = from_view.minus_rptrs(&mut all_rptrs, &mut matching_rptrs);
+                    let mut all_rptrs : HashSet<HashedRowPtr> = from_view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
+                    for rptr in matching_rptrs {
+                        all_rptrs.remove(&rptr);
+                    }
+                    matching_rptrs = all_rptrs;
                 }
                 rptrs_to_keep = matching_rptrs;
                 warn!("Where: Keeping rows {:?} {:?}", selection, rptrs_to_keep);
             } else {
-                rptrs_to_keep = from_view.rows.borrow().iter().map(|(_pk, rptr)| rptr.clone()).collect();
+                rptrs_to_keep = from_view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
             }
 
             // fast path: return val if select val was issued
             if let Some(val) = select_val {
-                let rows : RowPtrs;
-                let val_row = Rc::new(RefCell::new(vec![val.clone()]));
-                rows = vec![val_row; rptrs_to_keep.len()];
+                let mut rows : HashSet<HashedRowPtr> = HashSet::new();
+                let val_row = HashedRowPtr(Rc::new(RefCell::new(vec![val.clone()])));
+                // TODO this inserts the value only once?
+                rows.insert(val_row);
                 
                 // not sure what to put for column in this case but it's probably ok?
                 columns = vec![TableColumnDef{
@@ -774,7 +798,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 let val_func = get_value_for_row_closure(expr, &columns, None, None);
                 // XXX NOTE: WE'RE ACTUALLY MODIFYING THE ROW HERE???
                 for rptr in &rptrs_to_keep {
-                    let mut row = rptr.borrow_mut();
+                    let mut row = rptr.0.borrow_mut();
                     let val = val_func(&row);
                     if row.len() > newcol_index {
                         row[newcol_index] = val;
@@ -801,7 +825,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
 
                 let num = Value::Number(rptrs_to_keep.len().to_string());
                 for rptr in &rptrs_to_keep {
-                    let mut row = rptr.borrow_mut();
+                    let mut row = rptr.0.borrow_mut();
                     if row.len() > newcol_index {
                         row[newcol_index] = num.clone();
                     } else {
@@ -809,73 +833,12 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                     }
                 }
             }
-
-            // order rows if necessary
-            // do before performing projection because column ordering by may not be selected
-            if order_by.len() > 0 {
-                
-                // TODO only support at most two order by constraints for now
-                assert!(order_by.len() < 3); 
-                let orderby1 = &order_by[0];
-                let (_tab, col1) = expr_to_col(&orderby1.expr);
-                let ci1 = columns.iter().position(|c| tablecolumn_matches_col(c, &col1)).unwrap();
-               
-                if order_by.len() == 2 {
-                    let orderby2 = &order_by[1];
-                    let (_tab, col2) = expr_to_col(&orderby2.expr);
-                    let ci2 = columns.iter().position(|c| tablecolumn_matches_col(c, &col2)).unwrap();
-                    match orderby1.asc {
-                        Some(false) => {
-                            rptrs_to_keep.sort_by(|r1, r2| {
-                                let res = helpers::parser_vals_cmp(&r2.borrow()[ci1], &r1.borrow()[ci1]);
-                                if res == Ordering::Equal {
-                                    match orderby2.asc {
-                                        Some(false) => helpers::parser_vals_cmp(&r2.borrow()[ci2], &r1.borrow()[ci2]),
-                                        Some(true) | None => helpers::parser_vals_cmp(&r1.borrow()[ci2], &r2.borrow()[ci2]),
-                                    }
-                                } else {
-                                    res
-                                }
-                            });
-                        }
-                        Some(true) | None => {
-                            rptrs_to_keep.sort_by(|r1, r2| {
-                                let res = helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1]);
-                                if res == Ordering::Equal {
-                                    match orderby2.asc {
-                                        Some(false) => helpers::parser_vals_cmp(&r2.borrow()[ci2], &r1.borrow()[ci2]),
-                                        Some(true) | None => helpers::parser_vals_cmp(&r1.borrow()[ci2], &r2.borrow()[ci2]),
-                                    }
-                                } else {
-                                    res
-                                }
-                            });
-                        }
-                    }
-                } else {
-                    match orderby1.asc {
-                        Some(false) => {
-                            rptrs_to_keep.sort_by(|r1, r2| {
-                                helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])
-                            });
-                            warn!("order by desc! {:?}", rptrs_to_keep);
-                        }
-                        Some(true) | None => {
-                            warn!("before sort: order by asc! {:?}", rptrs_to_keep);
-                            rptrs_to_keep.sort_by(|r1, r2| {
-                                helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])
-                            });
-                            warn!("order by asc! {:?}", rptrs_to_keep);
-                        }
-                    }
-                }
-            }
             warn!("setexpr select: returning {:?}", rptrs_to_keep);
             Ok((columns, rptrs_to_keep, cols_to_keep))
         }
-        SetExpr::Query(q) => {
+        /*SetExpr::Query(q) => {
             return get_query_results(views, &q);
-        }
+        }*/
         SetExpr::SetOperation {
             op,
             left,
@@ -883,15 +846,16 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             ..
         } => {
             let (mut lcols, mut left_rows, mut lcols_to_keep) = get_setexpr_results(views, &left, order_by)?;
-            let (mut rcols, mut right_rows, mut rcols_to_keep) = get_setexpr_results(views, &right, order_by)?;
+            let (mut rcols, right_rows, mut rcols_to_keep) = get_setexpr_results(views, &right, order_by)?;
             lcols.append(&mut rcols);
             match op {
                 // TODO primary keys / unique keys 
                 SetOperator::Union => {
                     // TODO currently allowing for duplicates regardless of ALL...
-                    rcols_to_keep = rcols_to_keep.iter().map(|ci| lcols_to_keep.len() + ci).collect();
+                    rcols_to_keep = rcols_to_keep.iter().map(|ci| lcols.len() + ci).collect();
                     lcols_to_keep.append(&mut rcols_to_keep);
-                    left_rows.append(&mut right_rows);
+                    left_rows.extend(right_rows);
+                    lcols.append(&mut rcols);
 
                     return Ok((lcols, left_rows, lcols_to_keep));
                 }
@@ -901,23 +865,86 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
         SetExpr::Values(_vals) => {
             unimplemented!("Shouldn't be getting values when looking up results: {}", se); 
         }
+        _ => unimplemented!("Don't support select queries yet {}", se),
     }
 }
 
-pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) -> Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), Error> {
-    let (all_cols, mut rptrs, cols_to_keep) = get_setexpr_results(views, &q.body, &q.order_by)?;
+pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) -> 
+    Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), Error> {
+    let (all_cols, rptrs, cols_to_keep) = get_setexpr_results(views, &q.body, &q.order_by)?;
     // don't support OFFSET or fetches yet
     assert!(q.offset.is_none() && q.fetch.is_none());
+
+    let mut rptrs_vec : RowPtrs = rptrs.iter().map(|rptr| rptr.0.clone()).collect();
+
+    // order rows if necessary
+    if q.order_by.len() > 0 {
+        // TODO only support at most two order by constraints for now
+        assert!(q.order_by.len() < 3); 
+        let orderby1 = &q.order_by[0];
+        let (_tab, col1) = expr_to_col(&orderby1.expr);
+        let ci1 = all_cols.iter().position(|c| tablecolumn_matches_col(c, &col1)).unwrap();
+       
+        if q.order_by.len() == 2 {
+            let orderby2 = &q.order_by[1];
+            let (_tab, col2) = expr_to_col(&orderby2.expr);
+            let ci2 = all_cols.iter().position(|c| tablecolumn_matches_col(c, &col2)).unwrap();
+            match orderby1.asc {
+                Some(false) => {
+                    rptrs_vec.sort_by(|r1, r2| {
+                        let res = helpers::parser_vals_cmp(&r2.borrow()[ci1], &r1.borrow()[ci1]);
+                        if res == Ordering::Equal {
+                            match orderby2.asc {
+                                Some(false) => helpers::parser_vals_cmp(&r2.borrow()[ci2], &r1.borrow()[ci2]),
+                                Some(true) | None => helpers::parser_vals_cmp(&r1.borrow()[ci2], &r2.borrow()[ci2]),
+                            }
+                        } else {
+                            res
+                        }
+                    });
+                }
+                Some(true) | None => {
+                    rptrs_vec.sort_by(|r1, r2| {
+                        let res = helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1]);
+                        if res == Ordering::Equal {
+                            match orderby2.asc {
+                                Some(false) => helpers::parser_vals_cmp(&r2.borrow()[ci2], &r1.borrow()[ci2]),
+                                Some(true) | None => helpers::parser_vals_cmp(&r1.borrow()[ci2], &r2.borrow()[ci2]),
+                            }
+                        } else {
+                            res
+                        }
+                    });
+                }
+            }
+        } else {
+            match orderby1.asc {
+                Some(false) => {
+                    rptrs_vec.sort_by(|r1, r2| {
+                        helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])
+                    });
+                    warn!("order by desc! {:?}", rptrs);
+                }
+                Some(true) | None => {
+                    warn!("before sort: order by asc! {:?}", rptrs);
+                    rptrs_vec.sort_by(|r1, r2| {
+                        helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])
+                    });
+                    warn!("order by asc! {:?}", rptrs);
+                }
+            }
+        }
+    }
 
     // limit
     if q.limit.is_some() {
         if let Some(Expr::Value(Value::Number(n))) = &q.limit {
             let limit = usize::from_str(n).unwrap();
-            rptrs.truncate(limit);
+            rptrs_vec.truncate(limit);
         } else {
             unimplemented!("bad limit! {}", q);
         }
     }
 
-    Ok((all_cols, rptrs, cols_to_keep))
+    Ok((all_cols, rptrs_vec, cols_to_keep))
 }
