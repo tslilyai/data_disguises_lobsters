@@ -292,7 +292,7 @@ impl View {
             }
         } else if let Some(index) = self.indexes.get(&self.columns[col_index].column.name.to_string()) {
             if let Some(rptrs) = index.borrow().get(col_val) {
-                warn!("get rptrs of col: found rows for col {} val {}!", self.columns[col_index].fullname, col_val);
+                warn!("get rptrs of col: found {} rows for col {} val {}!", rptrs.len(), self.columns[col_index].fullname, col_val);
                 all_rptrs.extend(rptrs.clone());
             } 
         } else {

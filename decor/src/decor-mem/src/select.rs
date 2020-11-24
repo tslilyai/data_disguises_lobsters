@@ -899,6 +899,7 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
 
     let mut rptrs_vec : RowPtrs = rptrs.iter().map(|rptr| rptr.0.clone()).collect();
 
+    /*let start = time::Instant::now();
     // order rows if necessary
     if q.order_by.len() > 0 {
         // TODO only support at most two order by constraints for now
@@ -957,6 +958,8 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
             }
         }
     }
+    let dur = start.elapsed();
+    warn!("order by took {}us", dur.as_micros());*/
 
     // limit
     if q.limit.is_some() {
