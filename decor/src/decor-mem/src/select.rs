@@ -114,7 +114,7 @@ fn get_join_on_indexes(e: &Expr, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
 
 
 fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -> Result<Rc<RefCell<View>>, Error> {
-    let start = time::Instant::now();
+    //let start = time::Instant::now();
 
     let mut new_cols : Vec<TableColumnDef> = v1.borrow().columns.clone();
     new_cols.append(&mut v2.borrow().columns.clone());
@@ -292,8 +292,8 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
         }
         _ => unimplemented!("No support for join type {:?}", jo),
     }
-    let dur = start.elapsed();
-    warn!("Join views took: {}us", dur.as_micros());
+    //let dur = start.elapsed();
+    //warn!("Join views took: {}us", dur.as_micros());
 
     Ok(Rc::new(RefCell::new(new_view)))
 }
@@ -317,7 +317,7 @@ pub fn get_value_for_row_closure(e: &Expr,
                          computed_opt: Option<&HashMap<String, &Expr>>)
 -> Box<dyn Fn(&Vec<Value>) -> Value> {
     let mut closure: Option<Box<dyn Fn(&Vec<Value>) -> Value>> = None;
-    let start = time::Instant::now();
+    //let start = time::Instant::now();
     match &e {
         Expr::Identifier(_) => {
             let (_tab, col) = expr_to_col(&e);
@@ -421,8 +421,8 @@ pub fn get_value_for_row_closure(e: &Expr,
         }
         _ => unimplemented!("get value not supported {}", e),
     }
-    let dur = start.elapsed();
-    warn!("Get closure for expr {} took: {}us", e, dur.as_micros());
+    //let dur = start.elapsed();
+    //warn!("Get closure for expr {} took: {}us", e, dur.as_micros());
     closure.unwrap()
 }
 
@@ -448,7 +448,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                                     computed: Option<&HashMap<String, &Expr>>)
     -> (bool, HashSet<HashedRowPtr>)
 {
-    let start = time::Instant::now();
+    //let start = time::Instant::now();
     let mut matching_rows = HashSet::new(); 
     let mut negated_res = false;
     debug!("getting rptrs of constraint {:?}", e);
@@ -567,7 +567,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                                 if let Some(ci) = get_col_index_with_aliases(&col, &v.columns, aliases) {
                                     debug!("fastpath equal expression: {} =? {}", col, val);
                                     v.get_rptrs_of_col(ci, &val.to_string(), &mut matching_rows);
-                                    negated_res = (*op == BinaryOperator::NotEq);
+                                    negated_res = *op == BinaryOperator::NotEq;
                                 } else {
                                     debug!("fastpath equal expression: checking if computed col {} =? {}", col, val);
                                     // if this col is a computed col, check if null and return
@@ -639,8 +639,8 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
         }
         _ => unimplemented!("Constraint not supported {:?}", e),
     }
-    let dur = start.elapsed();
-    warn!("get rptrs matching constraint {} duration {}us", e, dur.as_micros());
+    //let dur = start.elapsed();
+    //warn!("get rptrs matching constraint {} duration {}us", e, dur.as_micros());
     (negated_res, matching_rows)
 }
 

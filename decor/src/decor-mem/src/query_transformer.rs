@@ -1116,7 +1116,7 @@ impl QueryTransformer {
                 assignments,
                 selection,
             }) => {
-                let start = time::Instant::now();
+                //let start = time::Instant::now();
                 let is_dt_write = helpers::is_datatable(&self.cfg, &table_name);
 
                 let mut assign_vals = vec![];
@@ -1126,8 +1126,8 @@ impl QueryTransformer {
                         assign_vals.push(self.expr_to_value_expr(&a.value, &mut contains_ucol_id, &vec![])?);
                     }
                 }
-                let dur = start.elapsed();
-                warn!("update mysql time get_assign_values: {}us", dur.as_micros());
+                //let dur = start.elapsed();
+                //warn!("update mysql time get_assign_values: {}us", dur.as_micros());
 
                 if is_dt_write {
                     self.issue_update_datatable_stmt(
@@ -1138,13 +1138,13 @@ impl QueryTransformer {
                             selection: selection.clone()
                         }, 
                         db)?;
-                    let dur = start.elapsed();
-                    warn!("update mysql time issue update datatable: {}us", dur.as_micros());
+                    //let dur = start.elapsed();
+                    //warn!("update mysql time issue update datatable: {}us", dur.as_micros());
                 } else {
                     db.query_drop(stmt.to_string())?;
                     self.cur_stat.nqueries+=1;
-                    let dur = start.elapsed();
-                    warn!("update mysql time issue update not datatable: {}us", dur.as_micros());
+                    //let dur = start.elapsed();
+                    //warn!("update mysql time issue update not datatable: {}us", dur.as_micros());
                 }
                 // update views
                 self.views.update(&table_name, &assignments, &selection, &assign_vals)?;
