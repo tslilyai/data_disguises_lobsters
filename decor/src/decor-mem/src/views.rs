@@ -6,36 +6,37 @@ use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::io::{Error, Write};
 use std::rc::Rc;
-use log::{warn, error};
+use std::*;
+use log::{warn, error, debug};
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 
 pub type Row = Vec<Value>;
 pub type RowPtrs = Vec<Rc<RefCell<Row>>>;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
-pub struct HashedRowPtr(pub Rc<RefCell<Row>>);
+pub struct HashedRowPtr(pub Rc<RefCell<Row>>, pub usize);
 impl Hash for HashedRowPtr {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.borrow().hash(state);
+        self.0.borrow()[self.1].hash(state);
     }
 }
 pub type HashedRowPtrs = HashSet<HashedRowPtr>;
 
 #[derive(Debug, Clone)]
 pub enum ViewIndex { 
-    Primary(Rc<RefCell<HashMap<String, Rc<RefCell<Row>>>>>),
+    Primary(Rc<RefCell<HashMap<String, Rc<RefCell<Row>>>>>, usize),
     Secondary(Rc<RefCell<HashMap<String, HashedRowPtrs>>>),
 }
 
 impl ViewIndex {
     pub fn get_index_rows_of_val(&self, val: &str) -> Option<HashedRowPtrs> {
         match self {
-            ViewIndex::Primary(index) => {
+            ViewIndex::Primary(index, pki) => {
                 let index = index.borrow();
                 match index.get(val) {
                     Some(r) => {
                         let mut rows = HashSet::new();
-                        rows.insert(HashedRowPtr(r.clone()));
+                        rows.insert(HashedRowPtr(r.clone(), *pki));
                         Some(rows)
                     }
                     None => None,
@@ -55,16 +56,9 @@ impl ViewIndex {
 #[derive(Debug, Clone)]
 pub struct TableColumnDef {
     pub table: String,
+    pub colname: String,
+    pub fullname: String,
     pub column: ColumnDef,
-}
-impl TableColumnDef {
-    pub fn name(&self) -> String {
-        if !self.table.is_empty() {
-            format!("{}.{}", self.table, self.column.name)
-        } else {
-            self.column.name.to_string()
-        }
-    } 
 }
 
 #[derive(Debug, Clone)]
@@ -87,6 +81,7 @@ pub fn view_cols_rows_to_answer_rows<W: Write>(cols: &Vec<TableColumnDef>, rows:
                                                results: QueryResultWriter<W>)
     -> Result<(), mysql::Error> 
 {
+    let start = time::Instant::now();
     let cols : Vec<_> = cols_to_keep.iter()
         .map(|&ci| {
             let c = &cols[ci];
@@ -122,6 +117,8 @@ pub fn view_cols_rows_to_answer_rows<W: Write>(cols: &Vec<TableColumnDef>, rows:
         writer.end_row()?;
     }
     writer.finish()?;
+    let dur = start.elapsed();
+    warn!("view_cols_to_answer_rows: {}us", dur.as_micros());
     Ok(())
 }
 
@@ -217,7 +214,7 @@ impl View {
                     // TODO just create a separate index for each key part for now rather than
                     // nesting
                     indexes_map.insert(key.to_string(), Rc::new(RefCell::new(HashMap::new())));
-                    warn!("{}: Created index for column {}", name, key.to_string());
+                    debug!("{}: Created index for column {}", name, key.to_string());
                 }
             }
         }; 
@@ -231,7 +228,7 @@ impl View {
                         primary_index = Some(ci);
                     } else {
                         indexes_map.insert(c.name.to_string(), Rc::new(RefCell::new(HashMap::new())));
-                        warn!("{}: Created unique index for column {}", name, c.name.to_string());
+                        debug!("{}: Created unique index for column {}", name, c.name);
                     }
                     break;
                 }
@@ -247,7 +244,7 @@ impl View {
                     } else {
                         for c in columns {
                             indexes_map.insert(c.to_string(), Rc::new(RefCell::new(HashMap::new())));
-                            warn!("{}: Created unique index for column {}", name, c.to_string());
+                            debug!("{}: Created unique index for column {}", name, c.to_string());
                         }
                     }
                 }
@@ -257,100 +254,131 @@ impl View {
         let view = View {
             name: name.clone(),
             columns: view_columns.iter()
-                .map(|c| TableColumnDef{ table: name.clone(), column: c.clone() })
+                .map(|c| TableColumnDef{ 
+                    table: name.clone(), 
+                    colname: c.name.to_string(),
+                    fullname: format!("{}.{}", name, c.name),
+                    column: c.clone() })
                 .collect(),
             rows: Rc::new(RefCell::new(HashMap::new())),
             indexes: indexes_map,
             primary_index: primary_index.unwrap(),
             autoinc_col: autoinc_col,
         };
-        warn!("created new view {:?}", view);
+        debug!("created new view {:?}", view);
         view
     }
 
     pub fn get_index_of_view(&self, col_name: &str) -> Option<ViewIndex> {
         if let Some(i) = self.indexes.get(col_name) {
-            warn!("Found index of view {} for col {}", self.name, col_name);
+            debug!("Found index of view {} for col {}", self.name, col_name);
             return Some(ViewIndex::Secondary(i.clone()));
         } else if select::tablecolumn_matches_col(&self.columns[self.primary_index], col_name) {
-            warn!("Found primary index of view {} for col {}", self.name, col_name);
-            return Some(ViewIndex::Primary(self.rows.clone()));
+            debug!("Found primary index of view {} for col {}", self.name, col_name);
+            return Some(ViewIndex::Primary(self.rows.clone(), self.primary_index));
         }
-        warn!("No index of view {} for col {}", self.name, col_name);
+        debug!("No index of view {} for col {}", self.name, col_name);
         None
     }
 
-    pub fn get_rptrs_of_col(&self, col_index: usize, col_val: &str) -> HashSet<HashedRowPtr> {
-        let mut rptrs = HashSet::new();
+    pub fn get_rptrs_of_col(&self, col_index: usize, col_val: &str, all_rptrs: &mut HashSet<HashedRowPtr>) {
+        let start = time::Instant::now();
         if col_index == self.primary_index {
             match self.rows.borrow().get(col_val) {
                 Some(r) => {
-                    rptrs.insert(HashedRowPtr(r.clone()));
-                    return rptrs;
+                    all_rptrs.insert(HashedRowPtr(r.clone(), self.primary_index));
                 }
-                None => return rptrs,
+                None => (),
             }
-        }
-        if let Some(index) = self.indexes.get(&self.columns[col_index].column.name.to_string()) {
+        } else if let Some(index) = self.indexes.get(&self.columns[col_index].column.name.to_string()) {
             if let Some(rptrs) = index.borrow().get(col_val) {
-                warn!("get_rows: found rows for col {} val {}!", self.columns[col_index].name(), col_val);
-                return rptrs.clone();
+                warn!("get rptrs of col: found rows for col {} val {}!", self.columns[col_index].fullname, col_val);
+                for rptr in rptrs {
+                    all_rptrs.extend(rptrs.clone());
+                }
             } 
-            return rptrs;
-        }
-        error!("get_rows: no index for col {} val {}!", self.columns[col_index].name(), col_val);
-        for (_pk, row) in self.rows.borrow().iter() {
-            if row.borrow()[col_index].to_string() == col_val {
-                rptrs.insert(HashedRowPtr(row.clone()));
+        } else {
+            warn!("get rptrs of col: no index for col {} val {}!", self.columns[col_index].fullname, col_val);
+            for (_pk, row) in self.rows.borrow().iter() {
+                if row.borrow()[col_index].to_string() == col_val {
+                    all_rptrs.insert(HashedRowPtr(row.clone(), self.primary_index));
+                }
             }
         }
-        warn!("get_rows: {} returns {:?}", self.name, rptrs);
-        rptrs
+        debug!("get_rows: {} returns {:?}", self.name, all_rptrs);
+        let dur = start.elapsed();
+        warn!("get rptrs of col {} took: {}us", col_val, dur.as_micros());
     }
     
     pub fn insert_into_index(&mut self, row: Rc<RefCell<Row>>, col_index: usize) {
+        let start = time::Instant::now();
         if let Some(index) = self.indexes.get_mut(&self.columns[col_index].column.name.to_string()) {
-            let col_val = &row.borrow()[col_index];
-            warn!("INDEX {}: inserting {}) into index", self.columns[col_index].name(), col_val);
+            let col_val = row.borrow()[col_index].to_string();
+            debug!("INDEX {}: inserting {}) into index", self.columns[col_index].fullname, col_val);
             // insert into the new indexed ris 
             let mut index = index.borrow_mut();
-            if let Some(rptrs) = index.get_mut(&col_val.to_string()) {
-                rptrs.insert(HashedRowPtr(row.clone()));
+            if let Some(rptrs) = index.get_mut(&col_val) {
+                rptrs.insert(HashedRowPtr(row.clone(), self.primary_index));
             } else {
                 let mut rptrs = HashSet::new();
-                rptrs.insert(HashedRowPtr(row.clone()));
-                index.insert(col_val.to_string(), rptrs);
+                rptrs.insert(HashedRowPtr(row.clone(), self.primary_index));
+                index.insert(col_val, rptrs);
             }
         }
+        let dur = start.elapsed();
+        warn!("insert into index {} took: {}us", self.columns[col_index].fullname, dur.as_micros());
     }
  
     pub fn update_index(&mut self, rptr: Rc<RefCell<Row>>, col_index: usize, col_val: Option<&Value>) {
+        let start = time::Instant::now();
         let row = rptr.borrow();
-        let old_val = &row[col_index];
-        //let pk = self.primary_index;
-        warn!("{}: updating {:?} from {:?}", self.columns[col_index].name(), col_val, old_val);
+        let old_val = row[col_index].to_string();
+        let mut index_len = 0;
+        let pk = self.primary_index;
+        warn!("{}: updating {:?} from {:?}", self.columns[col_index].fullname, col_val, old_val);
+
+        // don't actually do anything if we're just updating to the same value!
+        let mut col_val_str = String::new(); 
+        if let Some(v) = col_val {
+            col_val_str = v.to_string();
+            if col_val_str == old_val {
+                let dur = start.elapsed();
+                warn!("Update index {}, equal val took: {}us", self.columns[col_index].fullname, dur.as_micros());
+                return;
+            }
+        }
 
         if let Some(index) = self.indexes.get_mut(&self.columns[col_index].column.name.to_string()) {
+            let mut index = index.borrow_mut();
             // get the old indexed row_indexes if they existed for this column value
             // remove this row!
-            if let Some(old_ris) = index.borrow_mut().get_mut(&old_val.to_string()) {
-                warn!("{}: removing {:?} (row {:?})", self.columns[col_index].name(), old_val, rptr);
-                old_ris.remove(&HashedRowPtr(rptr.clone()));
-                //old_ris.retain(|oldrp| oldrp.0.borrow()[pk] != rptr.borrow()[pk]);
+            if let Some(old_ris) = index.get_mut(&old_val) {
+                let innerstart = time::Instant::now();
+                old_ris.remove(&HashedRowPtr(rptr.clone(), self.primary_index));
+                let durinner = innerstart.elapsed();
+                warn!("{}: removing {:?} (indexlen {:?}) took {}us", 
+                      self.columns[col_index].fullname, old_val, old_ris.len(), durinner.as_micros());
             }
             // insert into the new indexed ris but only if we are updating to a new
             // value (otherwise we're just deleting)
-            if let Some(col_val) = col_val {
-                let mut index = index.borrow_mut();
-                if let Some(new_ris) = index.get_mut(&col_val.to_string()) {
-                    new_ris.insert(HashedRowPtr(rptr.clone()));
+            if col_val.is_some() {
+                let innerstart = time::Instant::now();
+                if let Some(new_ris) = index.get_mut(&col_val_str) {
+                    warn!("{}: inserting {:?} (indexlen {:?})", self.columns[col_index].fullname, col_val_str, new_ris.len());
+                    new_ris.insert(HashedRowPtr(rptr.clone(), self.primary_index));
                 } else {
+                    warn!("{}: new hashset {}", self.columns[col_index].fullname, col_val_str);
                     let mut rptrs = HashSet::new();
-                    rptrs.insert(HashedRowPtr(rptr.clone()));
-                    index.insert(col_val.to_string(), rptrs);
+                    rptrs.insert(HashedRowPtr(rptr.clone(), self.primary_index));
+                    index.insert(col_val_str, rptrs);
                 }
+                let durinner = innerstart.elapsed();
+                warn!("{}: inserting {:?} {}us", self.columns[col_index].fullname, col_val, durinner.as_micros());
             }
+            index_len = index.len();
         }
+        let dur = start.elapsed();
+        warn!("Update index {} with {} elements took: {}us", self.columns[col_index].fullname, index_len, dur.as_micros());
     }
 }
 
@@ -390,7 +418,7 @@ impl Views {
     pub fn insert(&mut self, table_name: &ObjectName, columns: &Vec<Ident>, val_rows: &RowPtrs) -> Result<(), Error> {
         let mut view = self.views.get(&table_name.to_string()).unwrap().borrow_mut();
 
-        warn!("{}: insert rows {:?} into {}", view.name, val_rows, table_name);
+        debug!("{}: insert rows {:?} into {}", view.name, val_rows, table_name);
         // initialize the rows to insert
         // insert rows with non-specified columns set as NULL for now (TODO)
         let mut insert_rows = vec![];
@@ -461,24 +489,24 @@ impl Views {
         // update with the values to insert
         for (i, row) in val_rows.iter().enumerate() {
             let mut irow = insert_rows[i].borrow_mut();
-            warn!("views::insert: insert_rows {} is {:?}", i, irow);
+            debug!("views::insert: insert_rows {} is {:?}", i, irow);
             let row = row.borrow();
             for (val_index, ci) in cis.iter().enumerate() {
                 // update the right column ci with the value corresponding 
                 // to that column to update
-                warn!("views::insert: setting insert_row col {} to {}", ci, row[val_index]);
+                debug!("views::insert: setting insert_row col {} to {}", ci, row[val_index]);
                 irow[*ci] = row[val_index].clone();
             }
-            warn!("views::insert: insert_rows {} is {:?}", i, irow);
+            debug!("views::insert: insert_rows {} is {:?}", i, irow);
         }
-        warn!("views::insert: insert_rows are {:?}", insert_rows);
+        debug!("views::insert: insert_rows are {:?}", insert_rows);
 
         for row in &insert_rows {
             for ci in 0..view.columns.len() {
                 // update with default (not null) values
                 for opt in &view.columns[ci].column.options {
                     if let ColumnOption::Default(Expr::Value(v)) = &opt.option {
-                        warn!("views::insert: Updating col {} with default value {}", view.columns[ci].name(), v);
+                        debug!("views::insert: Updating col {} with default value {}", view.columns[ci].fullname, v);
                         if row.borrow()[ci] == Value::Null {
                             row.borrow_mut()[ci] = v.clone();
                         } 
@@ -489,13 +517,13 @@ impl Views {
                 }
 
                 // insert all values (even if null) into indices
-                warn!("views::insert: Attempt insert into index: col {} with value {}", view.columns[ci].name(), row.borrow()[ci]);
+                debug!("views::insert: Attempt insert into index: col {} with value {}", view.columns[ci].fullname, row.borrow()[ci]);
                 // make sure to actually insert into the right index!!!
                 view.insert_into_index(row.clone(), ci);
             }
         }
 
-        warn!("views::insert {}: Appending rows: {:?}", view.name, insert_rows);
+        debug!("views::insert {}: Appending rows: {:?}", view.name, insert_rows);
         for row in insert_rows {
             view.insert_row(row);
         }
@@ -509,8 +537,9 @@ impl Views {
           assign_vals: &Vec<Expr>) 
         -> Result<(), Error> 
     {
+        let start = time::Instant::now();
         let mut view = self.views.get_mut(&table_name.to_string()).unwrap().borrow_mut();
-        warn!("{}: update {:?} with vals {:?}", view.name, assignments, assign_vals);
+        debug!("{}: update {:?} with vals {:?}", view.name, assignments, assign_vals);
 
         // if the table has an autoincrement column, we should 
         // (1) see if the table is actually updating a value for that column and
@@ -547,8 +576,9 @@ impl Views {
             let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, None, None);
             // we should do the inverse here, I guess...
             if neg {
-                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
-                error!("update view: get all ptrs for selection {}", s);
+                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
+                    |(_pk, rptr)| HashedRowPtr(rptr.clone(), view.primary_index)).collect();
+                warn!("update view: get all ptrs for selection {}", s);
                 for rptr in matching {
                     all_rptrs.remove(&rptr);
                 }
@@ -558,7 +588,7 @@ impl Views {
             }
         }
 
-        warn!("{}: update columns of indices {:?}", view.name, cis);
+        debug!("{}: update columns of indices {:?}", view.name, cis);
         // update the rows!
         for (assign_index, ci) in cis.iter().enumerate() {
             match &assign_vals[assign_index] {
@@ -581,6 +611,7 @@ impl Views {
                 }
                 _ => {
                     let assign_vals_fn = select::get_value_for_row_closure(&assign_vals[assign_index], &view.columns, None, None);
+                    let innerstart = time::Instant::now();
                     if let Some(ref rptrs) = rptrs {
                         for rptr in rptrs {
                             let v = assign_vals_fn(&rptr.0.borrow());
@@ -601,6 +632,8 @@ impl Views {
                 }
             }
         }
+        let dur = start.elapsed();
+        warn!("Update view {} took: {}us", view.name, dur.as_micros());
         Ok(())
     }
 
@@ -615,8 +648,9 @@ impl Views {
         if let Some(s) = selection {
             let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, None, None);
             if neg {
-                error!("delete from view: get all ptrs for selection {}", s);
-                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
+                warn!("delete from view: get all ptrs for selection {}", s);
+                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
+                    |(_pk, rptr)| HashedRowPtr(rptr.clone(), view.primary_index)).collect();
                 for rptr in matching {
                     all_rptrs.remove(&rptr);
                 }

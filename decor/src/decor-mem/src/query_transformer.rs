@@ -8,7 +8,7 @@ use std::rc::Rc;
 use std::time::Duration;
 use std::*;
 use msql_srv::{QueryResultWriter};
-use log::{warn, debug};
+use log::{warn, debug, error};
 
 pub struct QueryTransformer {
     pub cfg: config::Config,
@@ -778,7 +778,7 @@ impl QueryTransformer {
                         let row = rptr.borrow();
                         for ci in 0..cols.len() {
                             // if it's a user column, add restriction on GID
-                            let colname = cols[ci].name();
+                            let colname = &cols[ci].fullname;
      
                             // Add condition on user column to be within relevant GIDs mapped
                             // to by the UID value
@@ -805,7 +805,7 @@ impl QueryTransformer {
                             // Add condition on user column to be within relevant GIDs mapped
                             // to by the UID value
                             // However, only update with GIDs if UID value is NOT NULL
-                            let colname = cols[ci].name();
+                            let colname = &cols[ci].fullname;
                             if ucols.iter().any(|uc| helpers::str_ident_match(&colname, uc)) 
                                 && row[ci] != Value::Null
                             {
@@ -905,7 +905,7 @@ impl QueryTransformer {
             source : qt_source, 
         });
  
-        warn!("issue_insert_dt_stmt: {}", dt_stmt);
+        debug!("issue_insert_dt_stmt: {}", dt_stmt);
         db.query_drop(dt_stmt.to_string())?;
         self.cur_stat.nqueries+=1;
 
@@ -973,7 +973,7 @@ impl QueryTransformer {
                 as_of: None,
             });
             // get the user_col GIDs from the datatable
-            warn!("issue_update_datatable_stmt: {}", get_gids_stmt_from_dt);
+            debug!("issue_update_datatable_stmt: {}", get_gids_stmt_from_dt);
             let res = db.query_iter(format!("{}", get_gids_stmt_from_dt.to_string()))?;
             self.cur_stat.nqueries+=1;
 
@@ -997,7 +997,7 @@ impl QueryTransformer {
             assignments : qt_assn,
             selection : qt_selection,
         });
-        warn!("issue_update_dt_stmt: {}", update_stmt);
+        debug!("issue_update_dt_stmt: {}", update_stmt);
         db.query_drop(update_stmt.to_string())?;
         self.cur_stat.nqueries+=1;
         Ok(())
@@ -1034,7 +1034,7 @@ impl QueryTransformer {
                     })),        
                 as_of: None,
         });
-        warn!("issue_delete_dt_stmt: {}", select_gids_stmt);
+        debug!("issue_delete_dt_stmt: {}", select_gids_stmt);
         let res = db.query_iter(format!("{}", select_gids_stmt.to_string()))?;
         self.cur_stat.nqueries+=1;
 
@@ -1056,7 +1056,7 @@ impl QueryTransformer {
             table_name: stmt.table_name.clone(),
             selection : qt_selection,
         });
-        warn!("issue_delete_dt_stmt: {}", delete_stmt);
+        debug!("issue_delete_dt_stmt: {}", delete_stmt);
         db.query_drop(delete_stmt.to_string())?;
         self.cur_stat.nqueries+=1;
         Ok(())
@@ -1068,7 +1068,7 @@ impl QueryTransformer {
             db: &mut mysql::Conn) 
         -> Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), mysql::Error>
     {
-        warn!("issue statement: {}", stmt);
+        debug!("issue statement: {}", stmt);
         let mut view_res : (Vec<TableColumnDef>, RowPtrs, Vec<usize>) = (vec![], vec![], vec![]);
         
         // TODO consistency?
@@ -1116,6 +1116,7 @@ impl QueryTransformer {
                 assignments,
                 selection,
             }) => {
+                let start = time::Instant::now();
                 let is_dt_write = helpers::is_datatable(&self.cfg, &table_name);
 
                 let mut assign_vals = vec![];
@@ -1125,6 +1126,8 @@ impl QueryTransformer {
                         assign_vals.push(self.expr_to_value_expr(&a.value, &mut contains_ucol_id, &vec![])?);
                     }
                 }
+                let dur = start.elapsed();
+                warn!("update mysql time get_assign_values: {}us", dur.as_micros());
 
                 if is_dt_write {
                     self.issue_update_datatable_stmt(
@@ -1135,11 +1138,14 @@ impl QueryTransformer {
                             selection: selection.clone()
                         }, 
                         db)?;
+                    let dur = start.elapsed();
+                    warn!("update mysql time issue update datatable: {}us", dur.as_micros());
                 } else {
                     db.query_drop(stmt.to_string())?;
                     self.cur_stat.nqueries+=1;
+                    let dur = start.elapsed();
+                    warn!("update mysql time issue update not datatable: {}us", dur.as_micros());
                 }
-
                 // update views
                 self.views.update(&table_name, &assignments, &selection, &assign_vals)?;
             }
@@ -1246,7 +1252,7 @@ impl QueryTransformer {
     }
 
     pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) -> Result<(), mysql::Error> {
-        warn!("Unsubscribing {}", uid);
+        debug!("Unsubscribing {}", uid);
         self.cur_stat.qtype = stats::QueryType::Unsub;
 
         let uid_val = Value::Number(uid.to_string());
@@ -1270,7 +1276,7 @@ impl QueryTransformer {
         /* 
          * 1. update the users MV to have an entry for all the users' GIDs
          */
-        warn!("UNSUB: inserting into user view {:?}", gid_values);
+        debug!("UNSUB: inserting into user view {:?}", gid_values);
         self.views.insert(&user_table_name, &vec![Ident::new(&self.cfg.user_table.id_col)], &gid_values)?;
         
         /*
@@ -1283,14 +1289,14 @@ impl QueryTransformer {
                 right: Box::new(Expr::Value(uid_val.clone())), 
         });
         // delete from user mv  
-        warn!("UNSUB: deleting from user view {:?}", selection);
+        debug!("UNSUB: deleting from user view {:?}", selection);
         self.views.delete(&user_table_name, &selection)?;
 
         let delete_uid_from_users = Statement::Delete(DeleteStatement {
             table_name: user_table_name.clone(),
             selection: selection.clone(),
         });
-        warn!("UNSUB: {}", delete_uid_from_users);
+        debug!("UNSUB: {}", delete_uid_from_users);
         db.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
         self.cur_stat.nqueries+=1;
  
@@ -1321,7 +1327,8 @@ impl QueryTransformer {
 
             let (neg, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, None, None);
             if neg {
-                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
+                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
+                    |(_pk, rptr)| HashedRowPtr(rptr.clone(), view.primary_index)).collect();
                 for rptr in rptrs_to_update {
                     all_rptrs.remove(&rptr);
                 }
@@ -1334,7 +1341,7 @@ impl QueryTransformer {
                     if row[*ci].to_string() == uid_val.to_string() {
                         assert!(gid_index < gid_values.len());
                         let val = &gid_values[gid_index].borrow()[0];
-                        warn!("UNSUB: updating {:?} with {}", row, val);
+                        debug!("UNSUB: updating {:?} with {}", row, val);
                         row[*ci] = val.clone();
                         updated_cis.push(*ci);
                         gid_index += 1;
@@ -1344,12 +1351,12 @@ impl QueryTransformer {
             for rptr in &rptrs_to_update {
                 for ci in &updated_cis {
                     let val = &rptr.0.borrow()[*ci];
-                    warn!("UNSUB: updating {:?} with {}", rptr, val);
+                    debug!("UNSUB: updating {:?} with {}", rptr, val);
                     view.update_index(rptr.0.clone(), *ci, Some(&val));
                 }
             }
         }
-        warn!("gid_index is {}, gid_values has len {}", gid_index, gid_values.len());
+        debug!("gid_index is {}, gid_values has len {}", gid_index, gid_values.len());
         assert!(gid_index == gid_values.len());  
         ghosts_map::answer_rows(writer, &gids)
     }
@@ -1391,7 +1398,7 @@ impl QueryTransformer {
             table_name: user_table_name.clone(),
             selection: selection.clone(),
         });
-        warn!("resub: {}", delete_gids_as_users_stmt);
+        debug!("resub: {}", delete_gids_as_users_stmt);
         db.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
         self.cur_stat.nqueries+=1;
 
@@ -1414,7 +1421,7 @@ impl QueryTransformer {
                 fetch: None,
             })),
         });
-        warn!("resub: {}", insert_uid_as_user_stmt.to_string());
+        debug!("resub: {}", insert_uid_as_user_stmt.to_string());
         db.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
         self.cur_stat.nqueries+=1;
         
@@ -1446,7 +1453,8 @@ impl QueryTransformer {
 
             let (negated, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, None, None);
             if negated {
-                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
+                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
+                    |(_pk, rptr)| HashedRowPtr(rptr.clone(), view.primary_index)).collect();
                 for rptr in rptrs_to_update {
                     all_rptrs.remove(&rptr);
                 }
@@ -1465,7 +1473,7 @@ impl QueryTransformer {
             }
             for rptr in &rptrs_to_update {
                 for ci in &updated_cis {
-                    warn!("RESUB: updating {:?} with {}", rptr, uid_val);
+                    debug!("RESUB: updating {:?} with {}", rptr, uid_val);
                     view.update_index(rptr.0.clone(), *ci, Some(&uid_val));
                 }
             }

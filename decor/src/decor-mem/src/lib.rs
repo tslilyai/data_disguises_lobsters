@@ -184,25 +184,32 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     fn on_query(&mut self, query: &str, results: QueryResultWriter<W>) -> Result<(), Self::Error> {
         let res : Result<(), Self::Error>;
         let start = time::Instant::now();
+        let dur: time::Duration;
+        
         if !self.test_params.parse {
-            warn!("on_query: {}", query);
             self.qtrans.cur_stat.nqueries+=1;
             res = helpers::answer_rows(results, self.db.query_iter(query));
+            dur = start.elapsed();
         } else {
+        
+            let parsestart = time::Instant::now();
             let stmt_ast = self.sqlcache.get_single_parsed_stmt(&query.to_string())?;
+            let parsedur = parsestart.elapsed();
+            warn!("parse {} duration is {}", query, parsedur.as_micros());
+            
             if !self.test_params.translate {
-                warn!("on_query: {}", stmt_ast);
                 self.qtrans.cur_stat.nqueries+=1;
                 res = helpers::answer_rows(results, self.db.query_iter(stmt_ast.to_string()));
+                dur = start.elapsed();
             } else {
                 res = self.qtrans.query(results, &stmt_ast, &mut self.db);
+                dur = start.elapsed();
             }
         }
-        let dur = start.elapsed();
-        let qtype = stats::get_qtype(query)?;
         if dur.as_micros() > 300 {
             error!("Long query: {}: {}us", query, dur.as_micros());
         }
+        let qtype = stats::get_qtype(query)?;
         self.qtrans.record_query_stats(qtype, dur);
         res
     }
