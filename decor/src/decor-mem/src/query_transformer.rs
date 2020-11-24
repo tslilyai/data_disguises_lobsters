@@ -1068,7 +1068,7 @@ impl QueryTransformer {
             db: &mut mysql::Conn) 
         -> Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), mysql::Error>
     {
-        warn!("issue statement: {:?}", stmt);
+        warn!("issue statement: {}", stmt);
         let mut view_res : (Vec<TableColumnDef>, RowPtrs, Vec<usize>) = (vec![], vec![], vec![]);
         
         // TODO consistency?

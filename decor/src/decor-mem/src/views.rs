@@ -282,6 +282,15 @@ impl View {
 
     pub fn get_rptrs_of_col(&self, col_index: usize, col_val: &str) -> HashSet<HashedRowPtr> {
         let mut rptrs = HashSet::new();
+        if col_index == self.primary_index {
+            match self.rows.borrow().get(col_val) {
+                Some(r) => {
+                    rptrs.insert(HashedRowPtr(r.clone()));
+                    return rptrs;
+                }
+                None => return rptrs,
+            }
+        }
         if let Some(index) = self.indexes.get(&self.columns[col_index].column.name.to_string()) {
             if let Some(rptrs) = index.borrow().get(col_val) {
                 warn!("get_rows: found rows for col {} val {}!", self.columns[col_index].name(), col_val);
@@ -325,7 +334,7 @@ impl View {
             // get the old indexed row_indexes if they existed for this column value
             // remove this row!
             if let Some(old_ris) = index.borrow_mut().get_mut(&old_val.to_string()) {
-                warn!("{}: removing {:?} (row {:?}) from ris {:?}", self.columns[col_index].name(), old_val, rptr, old_ris);
+                warn!("{}: removing {:?} (row {:?})", self.columns[col_index].name(), old_val, rptr);
                 old_ris.remove(&HashedRowPtr(rptr.clone()));
                 //old_ris.retain(|oldrp| oldrp.0.borrow()[pk] != rptr.borrow()[pk]);
             }

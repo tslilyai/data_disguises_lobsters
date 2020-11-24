@@ -97,12 +97,13 @@ pub fn vote_on_story(db: &mut mysql::Conn, acting_as: Option<u64>, story_id: u64
             true => "+ 0",
             false => "+ 1",
         },
-        score
+        10.0
+        //score
             - match pos {
                 true => 1.0,
                 false => -1.0,
             },
-        story,
+        story_id,
     ))?;
     Ok(())
 }
