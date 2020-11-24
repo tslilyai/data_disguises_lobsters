@@ -303,9 +303,11 @@ impl GhostsMap{
         // user ids are always ints
         let insert_query = &format!("INSERT INTO {} ({}) VALUES ({});", 
                             GHOST_TABLE_NAME, GHOST_USER_COL, uid);
-        warn!("insert_gid_for_uid: {}", insert_query);
+        let start = time::Instant::now();
         let res = db.query_iter(insert_query)?;
         self.nqueries+=1;
+        let dur = start.elapsed();
+        warn!("insert_gid_for_uid: {}us", dur.as_millis());
         
         // we want to insert the GID in place of the UID
         let gid = res.last_insert_id().ok_or_else(|| 
@@ -321,6 +323,7 @@ impl GhostsMap{
     pub fn insert_uid2gids_for_values(&mut self, values: &views::RowPtrs, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
         -> Result<Vec<Vec<Expr>>, mysql::Error>
     {
+        let start = time::Instant::now();
         let mut gid_rows = vec![];
         if !ucol_indices.is_empty() {
             for row in 0..values.len() {
@@ -345,6 +348,8 @@ impl GhostsMap{
                 gid_rows.push(gid_vals);
             }
         }
+        let dur = start.elapsed();
+        warn!("insert_uid2gids_for_values: {}us", dur.as_micros());
         Ok(gid_rows)
     }
 }

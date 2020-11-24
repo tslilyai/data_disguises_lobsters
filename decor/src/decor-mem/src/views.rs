@@ -81,7 +81,7 @@ pub fn view_cols_rows_to_answer_rows<W: Write>(cols: &Vec<TableColumnDef>, rows:
                                                results: QueryResultWriter<W>)
     -> Result<(), mysql::Error> 
 {
-    //let start = time::Instant::now();
+    let start = time::Instant::now();
     let cols : Vec<_> = cols_to_keep.iter()
         .map(|&ci| {
             let c = &cols[ci];
@@ -117,8 +117,8 @@ pub fn view_cols_rows_to_answer_rows<W: Write>(cols: &Vec<TableColumnDef>, rows:
         writer.end_row()?;
     }
     writer.finish()?;
-    //let dur = start.elapsed();
-    //warn!("view_cols_to_answer_rows: {}us", dur.as_micros());
+    let dur = start.elapsed();
+    warn!("view_cols_to_answer_rows: {}us", dur.as_micros());
     Ok(())
 }
 
@@ -282,7 +282,7 @@ impl View {
     }
 
     pub fn get_rptrs_of_col(&self, col_index: usize, col_val: &str, all_rptrs: &mut HashSet<HashedRowPtr>) {
-        //let start = time::Instant::now();
+        let start = time::Instant::now();
         if col_index == self.primary_index {
             match self.rows.borrow().get(col_val) {
                 Some(r) => {
@@ -304,12 +304,12 @@ impl View {
             }
         }
         debug!("get_rows: {} returns {:?}", self.name, all_rptrs);
-        //let dur = start.elapsed();
-        //warn!("get rptrs of col {} took: {}us", col_val, dur.as_micros());
+        let dur = start.elapsed();
+        warn!("get rptrs of col {} took: {}us", col_val, dur.as_micros());
     }
     
     pub fn insert_into_index(&mut self, row: Rc<RefCell<Row>>, col_index: usize) {
-        //let start = time::Instant::now();
+        let start = time::Instant::now();
         if let Some(index) = self.indexes.get_mut(&self.columns[col_index].column.name.to_string()) {
             let col_val = row.borrow()[col_index].to_string();
             debug!("INDEX {}: inserting {}) into index", self.columns[col_index].fullname, col_val);
@@ -317,18 +317,23 @@ impl View {
             let mut index = index.borrow_mut();
             if let Some(rptrs) = index.get_mut(&col_val) {
                 rptrs.insert(HashedRowPtr(row.clone(), self.primary_index));
+                let dur = start.elapsed();
+                warn!("insert into index {} size {} took: {}us", self.columns[col_index].fullname, index.len(), dur.as_micros());
             } else {
                 let mut rptrs = HashSet::new();
                 rptrs.insert(HashedRowPtr(row.clone(), self.primary_index));
                 index.insert(col_val, rptrs);
+                let dur = start.elapsed();
+                warn!("insert new hashmap index {} took: {}us", self.columns[col_index].fullname, dur.as_micros());
             }
+        } else {
+            let dur = start.elapsed();
+            warn!("no insert index {} took: {}us", self.columns[col_index].fullname, dur.as_micros());
         }
-        //let dur = start.elapsed();
-        //warn!("insert into index {} took: {}us", self.columns[col_index].fullname, dur.as_micros());
     }
  
     pub fn update_index(&mut self, rptr: Rc<RefCell<Row>>, col_index: usize, col_val: Option<&Value>) {
-        //let start = time::Instant::now();
+        let start = time::Instant::now();
         let row = rptr.borrow();
         let old_val = row[col_index].to_string();
         let mut index_len = 0;
@@ -340,8 +345,8 @@ impl View {
         if let Some(v) = col_val {
             col_val_str = v.to_string();
             if col_val_str == old_val {
-                //let dur = start.elapsed();
-                //warn!("Update index {}, equal val took: {}us", self.columns[col_index].fullname, dur.as_micros());
+                let dur = start.elapsed();
+                warn!("Update index {}, equal val took: {}us", self.columns[col_index].fullname, dur.as_micros());
                 return;
             }
         }
@@ -351,16 +356,16 @@ impl View {
             // get the old indexed row_indexes if they existed for this column value
             // remove this row!
             if let Some(old_ris) = index.get_mut(&old_val) {
-                //let innerstart = time::Instant::now();
+                let innerstart = time::Instant::now();
                 old_ris.remove(&HashedRowPtr(rptr.clone(), self.primary_index));
-                //let durinner = innerstart.elapsed();
-                //warn!("{}: removing {:?} (indexlen {:?}) took {}us", 
-                      //self.columns[col_index].fullname, old_val, old_ris.len(), durinner.as_micros());
+                let durinner = innerstart.elapsed();
+                warn!("{}: removing {:?} (indexlen {:?}) took {}us", 
+                      self.columns[col_index].fullname, old_val, old_ris.len(), durinner.as_micros());
             }
             // insert into the new indexed ris but only if we are updating to a new
             // value (otherwise we're just deleting)
             if col_val.is_some() {
-                //let innerstart = time::Instant::now();
+                let innerstart = time::Instant::now();
                 if let Some(new_ris) = index.get_mut(&col_val_str) {
                     warn!("{}: inserting {:?} (indexlen {:?})", self.columns[col_index].fullname, col_val_str, new_ris.len());
                     new_ris.insert(HashedRowPtr(rptr.clone(), self.primary_index));
@@ -370,13 +375,13 @@ impl View {
                     rptrs.insert(HashedRowPtr(rptr.clone(), self.primary_index));
                     index.insert(col_val_str, rptrs);
                 }
-                //let durinner = innerstart.elapsed();
-                //warn!("{}: inserting {:?} {}us", self.columns[col_index].fullname, col_val, durinner.as_micros());
+                let durinner = innerstart.elapsed();
+                warn!("{}: inserting {:?} {}us", self.columns[col_index].fullname, col_val, durinner.as_micros());
             }
             index_len = index.len();
         }
-        //let dur = start.elapsed();
-        //warn!("Update index {} with {} elements took: {}us", self.columns[col_index].fullname, index_len, dur.as_micros());
+        let dur = start.elapsed();
+        warn!("Update index {} with {} elements took: {}us", self.columns[col_index].fullname, index_len, dur.as_micros());
     }
 }
 
@@ -535,7 +540,7 @@ impl Views {
           assign_vals: &Vec<Expr>) 
         -> Result<(), Error> 
     {
-        //let start = time::Instant::now();
+        let start = time::Instant::now();
         let mut view = self.views.get_mut(&table_name.to_string()).unwrap().borrow_mut();
         debug!("{}: update {:?} with vals {:?}", view.name, assignments, assign_vals);
 
@@ -630,8 +635,8 @@ impl Views {
                 }
             }
         }
-        //let dur = start.elapsed();
-        //warn!("Update view {} took: {}us", view.name, dur.as_micros());
+        let dur = start.elapsed();
+        warn!("Update view {} took: {}us", view.name, dur.as_micros());
         Ok(())
     }
 

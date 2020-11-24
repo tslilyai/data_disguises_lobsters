@@ -856,6 +856,7 @@ impl QueryTransformer {
     fn issue_insert_datatable_stmt(&mut self, values: &RowPtrs, stmt: InsertStatement, db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
+        let start = time::Instant::now();
         /* note that if the table is the users table,
          * we just want to insert like usual; we only care about
          * adding ghost ids for data tables, but we don't add ghosts to
@@ -879,7 +880,6 @@ impl QueryTransformer {
                 }
             }
         }
-
         // update sources
         let mut qt_source = stmt.source.clone();
         
@@ -906,15 +906,22 @@ impl QueryTransformer {
         });
  
         debug!("issue_insert_dt_stmt: {}", dt_stmt);
+        let dur = start.elapsed();
+        warn!("issue_insert_datatable_stmt prepare {}", dur.as_micros());
+
+
         db.query_drop(dt_stmt.to_string())?;
         self.cur_stat.nqueries+=1;
-
+        
+        let dur = start.elapsed();
+        warn!("issue_insert_datatable_stmt issued {}, {}", dt_stmt, dur.as_micros());
         Ok(())
     }
        
     fn issue_update_datatable_stmt(&mut self, assign_vals: &Vec<Expr>, stmt: UpdateStatement, db: &mut mysql::Conn)
         -> Result<(), mysql::Error> 
     {
+        let start = time::Instant::now();
         let ucols = helpers::get_user_cols_of_datatable(&self.cfg, &stmt.table_name);
         let mut ucol_assigns = vec![];
         let mut ucol_selectitems_assn = vec![];
@@ -948,10 +955,14 @@ impl QueryTransformer {
                 });
             }
         }
-
+        let dur = start.elapsed();
+        warn!("issue_insert_datatable_stmt assigns {}", dur.as_micros());
+ 
         let qt_selection = self.selection_to_datatable_selection(
             &stmt.selection, &stmt.table_name, &ucols)?;
-     
+        let dur = start.elapsed();
+        warn!("issue_insert_datatable_stmt selection {}", dur.as_micros());
+ 
         // if usercols are being updated, query DT to get the relevant
         // GIDs and update these GID->UID mappings in the ghosts table
         if !ucol_assigns.is_empty() {
@@ -976,6 +987,9 @@ impl QueryTransformer {
             debug!("issue_update_datatable_stmt: {}", get_gids_stmt_from_dt);
             let res = db.query_iter(format!("{}", get_gids_stmt_from_dt.to_string()))?;
             self.cur_stat.nqueries+=1;
+            
+            let dur = start.elapsed();
+            warn!("update datatable stmt getgids {}", dur.as_micros());
 
             let mut ghost_update_pairs = vec![];
             for row in res {
@@ -991,6 +1005,8 @@ impl QueryTransformer {
                 }
             }
             self.ghosts_map.update_uid2gids_with(&ghost_update_pairs, db)?;
+            let dur = start.elapsed();
+            warn!("issue_insert_datatable_stmt ghosts {}", dur.as_micros());
         }
         let update_stmt = Statement::Update(UpdateStatement{
             table_name: stmt.table_name.clone(),
@@ -1000,6 +1016,9 @@ impl QueryTransformer {
         debug!("issue_update_dt_stmt: {}", update_stmt);
         db.query_drop(update_stmt.to_string())?;
         self.cur_stat.nqueries+=1;
+        
+        let dur = start.elapsed();
+        warn!("issue_insert_datatable_stmt done {}", dur.as_micros());
         Ok(())
     }
     
@@ -1116,7 +1135,7 @@ impl QueryTransformer {
                 assignments,
                 selection,
             }) => {
-                //let start = time::Instant::now();
+                let start = time::Instant::now();
                 let is_dt_write = helpers::is_datatable(&self.cfg, &table_name);
 
                 let mut assign_vals = vec![];
@@ -1126,8 +1145,8 @@ impl QueryTransformer {
                         assign_vals.push(self.expr_to_value_expr(&a.value, &mut contains_ucol_id, &vec![])?);
                     }
                 }
-                //let dur = start.elapsed();
-                //warn!("update mysql time get_assign_values: {}us", dur.as_micros());
+                let dur = start.elapsed();
+                warn!("update mysql time get_assign_values: {}us", dur.as_micros());
 
                 if is_dt_write {
                     self.issue_update_datatable_stmt(
@@ -1138,13 +1157,13 @@ impl QueryTransformer {
                             selection: selection.clone()
                         }, 
                         db)?;
-                    //let dur = start.elapsed();
-                    //warn!("update mysql time issue update datatable: {}us", dur.as_micros());
+                    let dur = start.elapsed();
+                    warn!("update mysql time issue update datatable: {}us", dur.as_micros());
                 } else {
                     db.query_drop(stmt.to_string())?;
                     self.cur_stat.nqueries+=1;
-                    //let dur = start.elapsed();
-                    //warn!("update mysql time issue update not datatable: {}us", dur.as_micros());
+                    let dur = start.elapsed();
+                    warn!("update mysql time issue update not datatable: {}us", dur.as_micros());
                 }
                 // update views
                 self.views.update(&table_name, &assignments, &selection, &assign_vals)?;

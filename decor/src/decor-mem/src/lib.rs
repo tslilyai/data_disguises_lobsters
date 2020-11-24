@@ -192,10 +192,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             dur = start.elapsed();
         } else {
         
-            //let parsestart = time::Instant::now();
+            let parsestart = time::Instant::now();
             let stmt_ast = self.sqlcache.get_single_parsed_stmt(&query.to_string())?;
-            //let parsedur = parsestart.elapsed();
-            //warn!("parse {} duration is {}", query, parsedur.as_micros());
+            let parsedur = parsestart.elapsed();
+            warn!("parse {} duration is {}", query, parsedur.as_micros());
             
             if !self.test_params.translate {
                 self.qtrans.cur_stat.nqueries+=1;
@@ -206,7 +206,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 dur = start.elapsed();
             }
         }
-        if dur.as_micros() > 1000 {
+        if dur.as_micros() > 400 {
             error!("Long query: {}: {}us", query, dur.as_micros());
         }
         let qtype = stats::get_qtype(query)?;

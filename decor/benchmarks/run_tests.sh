@@ -3,8 +3,8 @@
 #set -x
 
 trials=1
-#tests=( "shim_only" "shim_parse" "decor" )
-tests=( "decor" )
+tests=( "shim_only" "shim_parse" "decor" )
+#tests=( "decor" )
 
 cargo build --release
 

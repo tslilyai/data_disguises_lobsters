@@ -267,23 +267,25 @@ fn main() {
     for i in 0..nqueries {
         let user = users[((i % nusers) as usize)];
         let story= stories[((i+1)%nstories) as usize];
-        match rng.gen_range(0, 10) {
-            0..=5 => queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
-            6 => {
+        match rng.gen_range(0, 11) {
+            0..=3 => queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
+            4..=5 => {
                 queriers::post_story::post_story(&mut db, Some(user), total_stories + 1, "Dummy title".to_string()).unwrap();
                 total_stories += 1;
             }
-            7 => queriers::vote::vote_on_story(&mut db, Some(user), story, true).unwrap(),
+            6..=7 => queriers::vote::vote_on_story(&mut db, Some(user), story, true).unwrap(),
             8 => queriers::user::get_profile(&mut db, user).unwrap(),
-            0..=9 => {
+            _ => {
                 queriers::comment::post_comment(&mut db, Some(user), total_comments + 1, story, None).unwrap();
                 total_comments += 1;
             }
-            _ => (),
         }
         //queriers::vote::vote_on_story(&mut db, Some(user), story, true).unwrap();
         //queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap();
-        //queriers::expensive_queries::post_comment(&mut db, Some(user), total_comments + 1, story, None).unwrap();
+        /*queriers::expensive_queries::insert(&mut db, Some(user), total_comments).unwrap();
+        total_comments += 1;
+        queriers::expensive_queries::update(&mut db, Some(user), story).unwrap();
+        queriers::expensive_queries::select(&mut db, Some(user), story).unwrap();*/
     }
     let dur = start.elapsed();
     println!("Time to do {} queries: {}s", nqueries, dur.as_secs());
