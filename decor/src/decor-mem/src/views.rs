@@ -298,7 +298,7 @@ impl View {
             } 
             return rptrs;
         }
-        warn!("get_rows: no index for col {} val {}!", self.columns[col_index].name(), col_val);
+        error!("get_rows: no index for col {} val {}!", self.columns[col_index].name(), col_val);
         for (_pk, row) in self.rows.borrow().iter() {
             if row.borrow()[col_index].to_string() == col_val {
                 rptrs.insert(HashedRowPtr(row.clone()));
@@ -548,7 +548,7 @@ impl Views {
             // we should do the inverse here, I guess...
             if neg {
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
-                warn!("update view: get all ptrs for selection {}", s);
+                error!("update view: get all ptrs for selection {}", s);
                 for rptr in matching {
                     all_rptrs.remove(&rptr);
                 }
@@ -615,7 +615,7 @@ impl Views {
         if let Some(s) = selection {
             let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, None, None);
             if neg {
-                warn!("delete from view: get all ptrs for selection {}", s);
+                error!("delete from view: get all ptrs for selection {}", s);
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
                 for rptr in matching {
                     all_rptrs.remove(&rptr);

@@ -7,7 +7,7 @@ use std::*;
 
 pub fn vote_on_story(db: &mut mysql::Conn, acting_as: Option<u64>, story_id: u64, pos: bool) -> Result<(), mysql::Error> {
     let user = acting_as.unwrap();
-    let (author, score, story) : (u64, f64, u64) = db.query(format!(
+    /*let (author, score, story) : (u64, f64, u64) = db.query(format!(
                 "SELECT `stories`.user_id, stories.hotness, stories.id \
                  FROM `stories` \
                  WHERE `stories`.`short_id` = {}",
@@ -76,7 +76,7 @@ pub fn vote_on_story(db: &mut mysql::Conn, acting_as: Option<u64>, story_id: u64
          FROM `stories` \
          WHERE `stories`.`merged_story_id` = {}",
         story,),
-    )?;
+    )?;*/
 
     // the *actual* algorithm for computing hotness isn't all
     // that interesting to us. it does affect what's on the
@@ -97,7 +97,8 @@ pub fn vote_on_story(db: &mut mysql::Conn, acting_as: Option<u64>, story_id: u64
             true => "+ 0",
             false => "+ 1",
         },
-        10.0
+        user as f64
+        //10.0
         //score
             - match pos {
                 true => 1.0,

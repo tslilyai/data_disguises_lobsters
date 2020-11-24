@@ -200,7 +200,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         }
         let dur = start.elapsed();
         let qtype = stats::get_qtype(query)?;
-        if dur.as_micros() > 3000 {
+        if dur.as_micros() > 300 {
             error!("Long query: {}: {}us", query, dur.as_micros());
         }
         self.qtrans.record_query_stats(qtype, dur);
