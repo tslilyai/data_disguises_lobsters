@@ -1,6 +1,6 @@
 use crate::views::{View, TableColumnDef, RowPtrs, ViewIndex, HashedRowPtr};
 use crate::helpers;
-use log::warn;
+use log::{warn, error};
 use std::collections::{HashMap, HashSet};
 use std::cmp::Ordering;
 use std::io::{Error, ErrorKind};
@@ -461,6 +461,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                 if let Some(e) = computed.get(&col) {
                     let ccval_func = get_value_for_row_closure(&e, &v.columns, aliases, Some(&computed));
                     for (_pk, row) in v.rows.borrow().iter() {
+                        warn!("get_rptrs_matching_constraint in_list: full iter over rows of {} to get computed val {}", v.name, e); 
                         let ccval = ccval_func(&row.borrow());
                         let in_list = list_vals.iter().any(|lv| helpers::parser_vals_cmp(&ccval, &lv) == Ordering::Equal);
                         if in_list {
@@ -480,6 +481,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                 if let Some(e) = computed.get(&col) {
                     let ccval_func = get_value_for_row_closure(&e, &v.columns, aliases, Some(&computed));
                     for (_ri, row) in v.rows.borrow().iter() {
+                        warn!("get_rptrs_matching_constraint is_null: full iter over rows of {} to get computed val {}", v.name, e); 
                         let ccval = ccval_func(&row.borrow());
                         if ccval.to_string() == Value::Null.to_string() {
                             matching_rows.insert(HashedRowPtr(row.clone()));
@@ -558,6 +560,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                                         if let Some(e) = computed.get(&col) {
                                             let ccval_func = get_value_for_row_closure(&e, &v.columns, aliases, Some(&computed));
                                             for (_pk, row) in v.rows.borrow().iter() {
+                                                warn!("get_rptrs_matching_constraint left=val: full iter over rows of {} to get computed val {}", v.name, e); 
                                                 let ccval = ccval_func(&row.borrow());
                                                 let cmp = helpers::parser_vals_cmp(&ccval, &val);
                                                 if (*op == BinaryOperator::NotEq && cmp != Ordering::Equal) ||
@@ -572,7 +575,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                             }
                         }
                     }
-                    warn!("getting rptrs of constraint: Slow path {:?}", e);
+                    warn!("get_rptrs_matching_constraint: Slow path {:?}", e);
                     let left_fn = get_value_for_row_closure(&left, &v.columns, aliases, computed);
                     let right_fn = get_value_for_row_closure(&right, &v.columns, aliases, computed);
 
@@ -726,6 +729,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                     get_rptrs_matching_constraint(&selection, &from_view, Some(&column_aliases), Some(&computed_columns));
                 if negated {
                     let mut all_rptrs : HashSet<HashedRowPtr> = from_view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
+                    warn!("get all ptrs for selection {}", selection);
                     for rptr in matching_rptrs {
                         all_rptrs.remove(&rptr);
                     }
@@ -735,6 +739,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 warn!("Where: Keeping rows {:?} {:?}", selection, rptrs_to_keep);
             } else {
                 rptrs_to_keep = from_view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
+                warn!("get all ptrs for NONE selection {}", se);
             }
 
             // fast path: return val if select val was issued

@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::io::{Error, Write};
 use std::rc::Rc;
-use log::{warn};
+use log::{warn, error};
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 
 pub type Row = Vec<Value>;
@@ -548,6 +548,7 @@ impl Views {
             // we should do the inverse here, I guess...
             if neg {
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
+                warn!("update view: get all ptrs for selection {}", s);
                 for rptr in matching {
                     all_rptrs.remove(&rptr);
                 }
@@ -614,6 +615,7 @@ impl Views {
         if let Some(s) = selection {
             let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, None, None);
             if neg {
+                warn!("delete from view: get all ptrs for selection {}", s);
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(|(_pk, rptr)| HashedRowPtr(rptr.clone())).collect();
                 for rptr in matching {
                     all_rptrs.remove(&rptr);
