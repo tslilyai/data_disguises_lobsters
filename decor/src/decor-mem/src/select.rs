@@ -937,7 +937,7 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
                         }});
                 }
                 Some(true) | None => {
-                    for rptr in rptrs_vec.sort_by(|r1, r2| {
+                    rptrs_vec.sort_by(|r1, r2| {
                         let res = helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1]);
                         if res == Ordering::Equal {
                             match orderby2.asc {
@@ -952,20 +952,20 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
         } else {
             match orderby1.asc {
                 Some(false) => {
-                    for rptr in rptrs_vec.sort_by(|r1, r2| {
+                    rptrs_vec.sort_by(|r1, r2| {
                         helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])});
                     debug!("order by desc! {:?}", rptrs);
                 }
                 Some(true) | None => {
                     debug!("before sort: order by asc! {:?}", rptrs);
-                    for rptr in rptrs_vec.sort_by(|r1, r2| {
+                    rptrs_vec.sort_by(|r1, r2| {
                         helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])});
                     debug!("order by asc! {:?}", rptrs);
                 }
             }
         }
     }
-    rptrs_vec.truncate(limit)
+    rptrs_vec.truncate(limit);
     let dur = start.elapsed();
     warn!("order by took {}us", dur.as_micros());
 
