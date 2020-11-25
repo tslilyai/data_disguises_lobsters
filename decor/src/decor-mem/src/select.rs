@@ -903,24 +903,20 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
     if q.limit.is_some() {
         if let Some(Expr::Value(Value::Number(n))) = &q.limit {
             limit = usize::from_str(n).unwrap();
-            //rptrs_vec.truncate(limit);
         } else {
             unimplemented!("bad limit! {}", q);
         }
     }
 
     let start = time::Instant::now();
-    let mut rptrs_vec: RowPtrs = vec![];
-        // order rows if necessary
+    let mut rptrs_vec: RowPtrs = rptrs.iter().map(|r| r.0.clone()).collect();
     if q.order_by.len() == 0 {
-        for rptr in rptrs.iter() {
-            if rptrs_vec.len() < limit {
-                rptrs_vec.push(rptr.0.clone());
-            }
-        }
+        let mut rptrs_vec: RowPtrs = rptrs.iter().map(|r| r.0.clone()).collect();
+        rptrs_vec.truncate(limit);
         let dur = start.elapsed();
         warn!("Collecting hashset of {} rptrs to vec: {}us", rptrs_vec.len(), dur.as_micros());
     } else {
+        let mut sorted_rptrs_vec: RowPtrs = vec![];
         // TODO only support at most two order by constraints for now
         assert!(q.order_by.len() < 3); 
         let orderby1 = &q.order_by[0];
@@ -933,36 +929,36 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
             let ci2 = all_cols.iter().position(|c| tablecolumn_matches_col(c, &col2)).unwrap();
             match orderby1.asc {
                 Some(false) => {
-                    for rptr in rptrs.iter().sorted_by(|r1, r2| {
-                        let res = helpers::parser_vals_cmp(&r2.0.borrow()[ci1], &r1.0.borrow()[ci1]);
+                    for rptr in rptrs_vec.iter().sorted_by(|r1, r2| {
+                        let res = helpers::parser_vals_cmp(&r2.borrow()[ci1], &r1.borrow()[ci1]);
                         if res == Ordering::Equal {
                             match orderby2.asc {
-                                Some(false) => helpers::parser_vals_cmp(&r2.0.borrow()[ci2], &r1.0.borrow()[ci2]),
-                                Some(true) | None => helpers::parser_vals_cmp(&r1.0.borrow()[ci2], &r2.0.borrow()[ci2]),
+                                Some(false) => helpers::parser_vals_cmp(&r2.borrow()[ci2], &r1.borrow()[ci2]),
+                                Some(true) | None => helpers::parser_vals_cmp(&r1.borrow()[ci2], &r2.borrow()[ci2]),
                             }
                         } else {
                             res
                         }}) 
                     {
-                        if rptrs_vec.len() < limit {
-                            rptrs_vec.push(rptr.0.clone());
+                        if sorted_rptrs_vec.len() < limit {
+                            sorted_rptrs_vec.push(rptr.clone());
                         }
                     }
                 }
                 Some(true) | None => {
-                    for rptr in rptrs.iter().sorted_by(|r1, r2| {
-                        let res = helpers::parser_vals_cmp(&r1.0.borrow()[ci1], &r2.0.borrow()[ci1]);
+                    for rptr in rptrs_vec.iter().sorted_by(|r1, r2| {
+                        let res = helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1]);
                         if res == Ordering::Equal {
                             match orderby2.asc {
-                                Some(false) => helpers::parser_vals_cmp(&r2.0.borrow()[ci2], &r1.0.borrow()[ci2]),
-                                Some(true) | None => helpers::parser_vals_cmp(&r1.0.borrow()[ci2], &r2.0.borrow()[ci2]),
+                                Some(false) => helpers::parser_vals_cmp(&r2.borrow()[ci2], &r1.borrow()[ci2]),
+                                Some(true) | None => helpers::parser_vals_cmp(&r1.borrow()[ci2], &r2.borrow()[ci2]),
                             }
                         } else {
                             res
                         }}) 
                     {
-                        if rptrs_vec.len() < limit {
-                            rptrs_vec.push(rptr.0.clone());
+                        if sorted_rptrs_vec.len() < limit {
+                            sorted_rptrs_vec.push(rptr.clone());
                         }
                     }
                 }
@@ -970,28 +966,29 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
         } else {
             match orderby1.asc {
                 Some(false) => {
-                    for rptr in rptrs.iter().sorted_by(|r1, r2| {
-                        helpers::parser_vals_cmp(&r1.0.borrow()[ci1], &r2.0.borrow()[ci1])})
+                    for rptr in rptrs_vec.iter().sorted_by(|r1, r2| {
+                        helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])})
                     {
-                        if rptrs_vec.len() < limit {
-                            rptrs_vec.push(rptr.0.clone());
+                        if sorted_rptrs_vec.len() < limit {
+                            sorted_rptrs_vec.push(rptr.clone());
                         }
                     }
                     debug!("order by desc! {:?}", rptrs);
                 }
                 Some(true) | None => {
                     debug!("before sort: order by asc! {:?}", rptrs);
-                    for rptr in rptrs.iter().sorted_by(|r1, r2| {
-                        helpers::parser_vals_cmp(&r1.0.borrow()[ci1], &r2.0.borrow()[ci1])})
+                    for rptr in rptrs_vec.iter().sorted_by(|r1, r2| {
+                        helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])})
                     {
-                        if rptrs_vec.len() < limit {
-                            rptrs_vec.push(rptr.0.clone());
+                        if sorted_rptrs_vec.len() < limit {
+                            sorted_rptrs_vec.push(rptr.clone());
                         }
                     }
                     debug!("order by asc! {:?}", rptrs);
                 }
             }
         }
+        rptrs_vec = sorted_rptrs_vec;
     }
     let dur = start.elapsed();
     warn!("order by took {}us", dur.as_micros());
