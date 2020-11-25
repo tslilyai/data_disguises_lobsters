@@ -9,7 +9,6 @@ use std::time;
 use sql_parser::ast::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use lazysort::{SortedBy};
 
 /*
  * return table name and optionally column if not wildcard
@@ -910,12 +909,9 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
 
     let start = time::Instant::now();
     let mut rptrs_vec: RowPtrs = rptrs.iter().map(|r| r.0.clone()).collect();
-    if q.order_by.len() == 0 {
-        let mut rptrs_vec: RowPtrs = rptrs.iter().map(|r| r.0.clone()).collect();
-        rptrs_vec.truncate(limit);
-        let dur = start.elapsed();
-        warn!("Collecting hashset of {} rptrs to vec: {}us", rptrs_vec.len(), dur.as_micros());
-    } else {
+    let dur = start.elapsed();
+    warn!("Collecting hashset of {} rptrs to vec: {}us", rptrs_vec.len(), dur.as_micros());
+    if q.order_by.len() > 0 {
         let mut sorted_rptrs_vec: RowPtrs = vec![];
         // TODO only support at most two order by constraints for now
         assert!(q.order_by.len() < 3); 
@@ -929,7 +925,7 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
             let ci2 = all_cols.iter().position(|c| tablecolumn_matches_col(c, &col2)).unwrap();
             match orderby1.asc {
                 Some(false) => {
-                    for rptr in rptrs_vec.iter().sorted_by(|r1, r2| {
+                    rptrs_vec.sort_by(|r1, r2| {
                         let res = helpers::parser_vals_cmp(&r2.borrow()[ci1], &r1.borrow()[ci1]);
                         if res == Ordering::Equal {
                             match orderby2.asc {
@@ -938,16 +934,10 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
                             }
                         } else {
                             res
-                        }}) 
-                    {
-                        if sorted_rptrs_vec.len() >= limit {
-                            break;
-                        } 
-                        sorted_rptrs_vec.push(rptr.clone());
-                    }
+                        }});
                 }
                 Some(true) | None => {
-                    for rptr in rptrs_vec.iter().sorted_by(|r1, r2| {
+                    for rptr in rptrs_vec.sort_by(|r1, r2| {
                         let res = helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1]);
                         if res == Ordering::Equal {
                             match orderby2.asc {
@@ -956,44 +946,26 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
                             }
                         } else {
                             res
-                        }}) 
-                    {
-                        if sorted_rptrs_vec.len() >= limit {
-                            break;
-                        } 
-                        sorted_rptrs_vec.push(rptr.clone());
-                    }
+                        }});
                 }
             }
         } else {
             match orderby1.asc {
                 Some(false) => {
-                    for rptr in rptrs_vec.iter().sorted_by(|r1, r2| {
-                        helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])})
-                    {
-                        if sorted_rptrs_vec.len() >= limit {
-                            break;
-                        } 
-                        sorted_rptrs_vec.push(rptr.clone());
-                    }
+                    for rptr in rptrs_vec.sort_by(|r1, r2| {
+                        helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])});
                     debug!("order by desc! {:?}", rptrs);
                 }
                 Some(true) | None => {
                     debug!("before sort: order by asc! {:?}", rptrs);
-                    for rptr in rptrs_vec.iter().sorted_by(|r1, r2| {
-                        helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])})
-                    {
-                        if sorted_rptrs_vec.len() >= limit {
-                            break;
-                        } 
-                        sorted_rptrs_vec.push(rptr.clone());
-                    }
+                    for rptr in rptrs_vec.sort_by(|r1, r2| {
+                        helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])});
                     debug!("order by asc! {:?}", rptrs);
                 }
             }
         }
-        rptrs_vec = sorted_rptrs_vec;
     }
+    rptrs_vec.truncate(limit)
     let dur = start.elapsed();
     warn!("order by took {}us", dur.as_micros());
 
