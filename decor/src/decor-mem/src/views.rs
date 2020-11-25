@@ -337,7 +337,6 @@ impl View {
         let row = rptr.borrow();
         let old_val = row[col_index].to_string();
         let mut index_len = 0;
-        let pk = self.primary_index;
         warn!("{}: updating {:?} from {:?}", self.columns[col_index].fullname, col_val, old_val);
 
         // don't actually do anything if we're just updating to the same value!
