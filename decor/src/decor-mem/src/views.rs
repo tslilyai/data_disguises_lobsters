@@ -35,7 +35,7 @@ impl ViewIndex {
                 let index = index.borrow();
                 match index.get(val) {
                     Some(r) => {
-                        let mut rows = HashSet::new();
+                        let mut rows = HashSet::with_capacity(1000);
                         rows.insert(HashedRowPtr(r.clone(), *pki));
                         Some(rows)
                     }
@@ -186,8 +186,8 @@ impl View {
         View {
             name: String::new(),
             columns: columns,
-            rows: Rc::new(RefCell::new(HashMap::new())),
-            indexes: HashMap::new(),
+            rows: Rc::new(RefCell::new(HashMap::with_capacity(1000))),
+            indexes: HashMap::with_capacity(1000),
             primary_index: 0,
             autoinc_col: None,
         }
@@ -207,13 +207,13 @@ impl View {
         // save where the primary index is
         let mut primary_index = None;
         // create indexes for any explicit indexes
-        let mut indexes_map = HashMap::new();
+        let mut indexes_map = HashMap::with_capacity(1000);
         if !indexes.is_empty() {
             for i in indexes {
                 for key in &i.key_parts {
                     // TODO just create a separate index for each key part for now rather than
                     // nesting
-                    indexes_map.insert(key.to_string(), Rc::new(RefCell::new(HashMap::new())));
+                    indexes_map.insert(key.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(1000))));
                     debug!("{}: Created index for column {}", name, key.to_string());
                 }
             }
@@ -227,7 +227,7 @@ impl View {
                     if is_primary {
                         primary_index = Some(ci);
                     } else {
-                        indexes_map.insert(c.name.to_string(), Rc::new(RefCell::new(HashMap::new())));
+                        indexes_map.insert(c.name.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(1000))));
                         debug!("{}: Created unique index for column {}", name, c.name);
                     }
                     break;
@@ -243,7 +243,7 @@ impl View {
                         primary_index = Some(ci);
                     } else {
                         for c in columns {
-                            indexes_map.insert(c.to_string(), Rc::new(RefCell::new(HashMap::new())));
+                            indexes_map.insert(c.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(1000))));
                             debug!("{}: Created unique index for column {}", name, c.to_string());
                         }
                     }
@@ -260,7 +260,7 @@ impl View {
                     fullname: format!("{}.{}", name, c.name),
                     column: c.clone() })
                 .collect(),
-            rows: Rc::new(RefCell::new(HashMap::new())),
+            rows: Rc::new(RefCell::new(HashMap::with_capacity(1000))),
             indexes: indexes_map,
             primary_index: primary_index.unwrap(),
             autoinc_col: autoinc_col,
@@ -286,15 +286,20 @@ impl View {
         if col_index == self.primary_index {
             match self.rows.borrow().get(col_val) {
                 Some(r) => {
+                    debug!("get rptrs of col: found 1 primary row for col {} val {}!", self.columns[col_index].fullname, col_val);
                     all_rptrs.insert(HashedRowPtr(r.clone(), self.primary_index));
                 }
-                None => (),
+                None => {
+                    debug!("get rptrs of primary: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
+                }
             }
         } else if let Some(index) = self.indexes.get(&self.columns[col_index].column.name.to_string()) {
             if let Some(rptrs) = index.borrow().get(col_val) {
-                warn!("get rptrs of col: found {} rows for col {} val {}!", rptrs.len(), self.columns[col_index].fullname, col_val);
+                debug!("get rptrs of col: found {} rows for col {} val {}!", rptrs.len(), self.columns[col_index].fullname, col_val);
                 all_rptrs.extend(rptrs.clone());
-            } 
+            } else {
+                debug!("get rptrs of col: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
+            }
         } else {
             warn!("get rptrs of col: no index for col {} val {}!", self.columns[col_index].fullname, col_val);
             for (_pk, row) in self.rows.borrow().iter() {
@@ -303,7 +308,7 @@ impl View {
                 }
             }
         }
-        debug!("get_rows: {} returns {:?}", self.name, all_rptrs);
+        debug!("get_rptrs_of_col: {} returns {:?}", self.name, all_rptrs);
         let dur = start.elapsed();
         warn!("get rptrs of col {} took: {}us", col_val, dur.as_micros());
     }
@@ -320,7 +325,7 @@ impl View {
                 let dur = start.elapsed();
                 warn!("insert into index {} size {} took: {}us", self.columns[col_index].fullname, index.len(), dur.as_micros());
             } else {
-                let mut rptrs = HashSet::new();
+                let mut rptrs = HashSet::with_capacity(1000);
                 rptrs.insert(HashedRowPtr(row.clone(), self.primary_index));
                 index.insert(col_val, rptrs);
                 let dur = start.elapsed();
@@ -370,7 +375,7 @@ impl View {
                     new_ris.insert(HashedRowPtr(rptr.clone(), self.primary_index));
                 } else {
                     warn!("{}: new hashset {}", self.columns[col_index].fullname, col_val_str);
-                    let mut rptrs = HashSet::new();
+                    let mut rptrs = HashSet::with_capacity(1000);
                     rptrs.insert(HashedRowPtr(rptr.clone(), self.primary_index));
                     index.insert(col_val_str, rptrs);
                 }
@@ -392,7 +397,7 @@ pub struct Views {
 impl Views {
     pub fn new() -> Self {
         Views {
-            views: HashMap::new(),
+            views: HashMap::with_capacity(1000),
         }
     }
     
@@ -575,7 +580,7 @@ impl Views {
 
         let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, None, None);
+            let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, &view.columns, None);
             // we should do the inverse here, I guess...
             if neg {
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
@@ -612,7 +617,7 @@ impl Views {
                     }
                 }
                 _ => {
-                    let assign_vals_fn = select::get_value_for_row_closure(&assign_vals[assign_index], &view.columns, None, None);
+                    let assign_vals_fn = select::get_value_for_row_closure(&assign_vals[assign_index], &view.columns, None);
                     //let innerstart = time::Instant::now();
                     if let Some(ref rptrs) = rptrs {
                         for rptr in rptrs {
@@ -648,7 +653,7 @@ impl Views {
 
         let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, None, None);
+            let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, &view.columns, None);
             if neg {
                 warn!("delete from view: get all ptrs for selection {}", s);
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
