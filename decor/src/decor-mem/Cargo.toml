@@ -10,6 +10,7 @@ exclude = ["tests/testdata"]
 env_logger = "0.7.1"
 rust-crypto = "^0.2"
 hex = "0.4.2"
+lazysort = "0.2.1"
 log = "0.4"
 msql-srv = { path = "../msql-srv" }
 mysql = "*"

@@ -1,6 +1,7 @@
 extern crate mysql;
 extern crate crypto;
 extern crate hex;
+extern crate lazysort;
 use msql_srv::*;
 use mysql::prelude::*;
 use std::collections::HashMap;

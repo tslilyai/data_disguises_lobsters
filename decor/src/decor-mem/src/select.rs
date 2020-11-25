@@ -9,6 +9,7 @@ use std::time;
 use sql_parser::ast::*;
 use std::cell::RefCell;
 use std::rc::Rc;
+use lazysort::{Sorted, SortedBy, SortedPartial};
 
 /*
  * return table name and optionally column if not wildcard
@@ -897,11 +898,27 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
     // don't support OFFSET or fetches yet
     assert!(q.offset.is_none() && q.fetch.is_none());
 
-    let mut rptrs_vec : RowPtrs = rptrs.iter().map(|rptr| rptr.0.clone()).collect();
+    // limit
+    let mut limit = rptrs.len();
+    if q.limit.is_some() {
+        if let Some(Expr::Value(Value::Number(n))) = &q.limit {
+            limit = usize::from_str(n).unwrap();
+            //rptrs_vec.truncate(limit);
+        } else {
+            unimplemented!("bad limit! {}", q);
+        }
+    }
 
-    /*let start = time::Instant::now();
-    // order rows if necessary
-    if q.order_by.len() > 0 {
+    let start = time::Instant::now();
+    let mut rptrs_vec: RowPtrs = vec![];
+        // order rows if necessary
+    if q.order_by.len() == 0 {
+        rptrs_vec = rptrs.iter().map(|rptr| rptr.0.clone()).collect();
+        let dur = start.elapsed();
+        warn!("Collecting hashset of {} rptrs to vec: {}us", rptrs_vec.len(), dur.as_micros());
+    } else {
+        let mut rptrs_iter: SortedBy::LazySortIteratorBy;
+
         // TODO only support at most two order by constraints for now
         assert!(q.order_by.len() < 3); 
         let orderby1 = &q.order_by[0];
@@ -914,12 +931,12 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
             let ci2 = all_cols.iter().position(|c| tablecolumn_matches_col(c, &col2)).unwrap();
             match orderby1.asc {
                 Some(false) => {
-                    rptrs_vec.sort_by(|r1, r2| {
-                        let res = helpers::parser_vals_cmp(&r2.borrow()[ci1], &r1.borrow()[ci1]);
+                    rptrs_iter = rptrs.iter().sorted_by(|r1, r2| {
+                        let res = helpers::parser_vals_cmp(&r2.0.borrow()[ci1], &r1.0.borrow()[ci1]);
                         if res == Ordering::Equal {
                             match orderby2.asc {
-                                Some(false) => helpers::parser_vals_cmp(&r2.borrow()[ci2], &r1.borrow()[ci2]),
-                                Some(true) | None => helpers::parser_vals_cmp(&r1.borrow()[ci2], &r2.borrow()[ci2]),
+                                Some(false) => helpers::parser_vals_cmp(&r2.0.borrow()[ci2], &r1.0.borrow()[ci2]),
+                                Some(true) | None => helpers::parser_vals_cmp(&r1.0.borrow()[ci2], &r2.0.borrow()[ci2]),
                             }
                         } else {
                             res
@@ -927,12 +944,12 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
                     });
                 }
                 Some(true) | None => {
-                    rptrs_vec.sort_by(|r1, r2| {
-                        let res = helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1]);
+                    rptrs_iter = rptrs.iter().sorted_by(|r1, r2| {
+                        let res = helpers::parser_vals_cmp(&r1.0.borrow()[ci1], &r2.0.borrow()[ci1]);
                         if res == Ordering::Equal {
                             match orderby2.asc {
-                                Some(false) => helpers::parser_vals_cmp(&r2.borrow()[ci2], &r1.borrow()[ci2]),
-                                Some(true) | None => helpers::parser_vals_cmp(&r1.borrow()[ci2], &r2.borrow()[ci2]),
+                                Some(false) => helpers::parser_vals_cmp(&r2.0.borrow()[ci2], &r1.0.borrow()[ci2]),
+                                Some(true) | None => helpers::parser_vals_cmp(&r1.0.borrow()[ci2], &r2.0.borrow()[ci2]),
                             }
                         } else {
                             res
@@ -943,33 +960,29 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
         } else {
             match orderby1.asc {
                 Some(false) => {
-                    rptrs_vec.sort_by(|r1, r2| {
-                        helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])
+                    rptrs_iter = rptrs.iter().sorted_by(|r1, r2| {
+                        helpers::parser_vals_cmp(&r1.0.borrow()[ci1], &r2.0.borrow()[ci1])
                     });
                     debug!("order by desc! {:?}", rptrs);
                 }
                 Some(true) | None => {
                     debug!("before sort: order by asc! {:?}", rptrs);
-                    rptrs_vec.sort_by(|r1, r2| {
-                        helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])
+                    rptrs_iter = rptrs.iter().sorted_by(|r1, r2| {
+                        helpers::parser_vals_cmp(&r1.0.borrow()[ci1], &r2.0.borrow()[ci1])
                     });
                     debug!("order by asc! {:?}", rptrs);
                 }
             }
         }
-    }
-    let dur = start.elapsed();
-    warn!("order by took {}us", dur.as_micros());*/
 
-    // limit
-    if q.limit.is_some() {
-        if let Some(Expr::Value(Value::Number(n))) = &q.limit {
-            let limit = usize::from_str(n).unwrap();
-            rptrs_vec.truncate(limit);
-        } else {
-            unimplemented!("bad limit! {}", q);
+        for rptr in rptrs_iter {
+            if rptrs_vec.len() < limit {
+                rptrs_vec.push(rptr.0.clone());
+            }
         }
     }
+    let dur = start.elapsed();
+    warn!("order by took {}us", dur.as_micros());
 
     Ok((all_cols, rptrs_vec, cols_to_keep))
 }
