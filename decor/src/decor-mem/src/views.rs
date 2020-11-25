@@ -13,13 +13,37 @@ use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 pub type Row = Vec<Value>;
 pub type RowPtrs = Vec<Rc<RefCell<Row>>>;
 
-#[derive(Eq, PartialEq, Debug, Clone)]
-pub struct HashedRowPtr(pub Rc<RefCell<Row>>, pub usize);
+#[derive(Debug, Clone, Eq)]
+pub struct HashedRowPtr(Rc<RefCell<Row>>, usize);
 impl Hash for HashedRowPtr {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.borrow()[self.1].hash(state);
     }
 }
+impl Ord for HashedRowPtr {
+    fn cmp(&self, other: &Self) -> Ordering {
+        helpers::parser_vals_cmp(&self.0.borrow()[self.1], &other.0.borrow()[other.1])
+    }
+}
+impl PartialOrd for HashedRowPtr {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl PartialEq for HashedRowPtr {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.borrow()[self.1] == other.0.borrow()[other.1]
+    }
+}
+impl HashedRowPtr {
+    pub fn row(&self) -> &Rc<RefCell<Row>> {
+        &self.0
+    }
+    pub fn new(row: Rc<RefCell<Row>>, pki: usize) -> Self {
+        HashedRowPtr(row.clone(), pki)
+    }
+}
+
 pub type HashedRowPtrs = HashSet<HashedRowPtr>;
 
 #[derive(Debug, Clone)]
@@ -36,7 +60,7 @@ impl ViewIndex {
                 match index.get(val) {
                     Some(r) => {
                         let mut rows = HashSet::with_capacity(1000);
-                        rows.insert(HashedRowPtr(r.clone(), *pki));
+                        rows.insert(HashedRowPtr::new(r.clone(), *pki));
                         Some(rows)
                     }
                     None => None,
@@ -287,7 +311,7 @@ impl View {
             match self.rows.borrow().get(col_val) {
                 Some(r) => {
                     debug!("get rptrs of col: found 1 primary row for col {} val {}!", self.columns[col_index].fullname, col_val);
-                    all_rptrs.insert(HashedRowPtr(r.clone(), self.primary_index));
+                    all_rptrs.insert(HashedRowPtr::new(r.clone(), self.primary_index));
                 }
                 None => {
                     debug!("get rptrs of primary: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
@@ -304,7 +328,7 @@ impl View {
             warn!("get rptrs of col: no index for col {} val {}!", self.columns[col_index].fullname, col_val);
             for (_pk, row) in self.rows.borrow().iter() {
                 if row.borrow()[col_index].to_string() == col_val {
-                    all_rptrs.insert(HashedRowPtr(row.clone(), self.primary_index));
+                    all_rptrs.insert(HashedRowPtr::new(row.clone(), self.primary_index));
                 }
             }
         }
@@ -321,12 +345,12 @@ impl View {
             // insert into the new indexed ris 
             let mut index = index.borrow_mut();
             if let Some(rptrs) = index.get_mut(&col_val) {
-                rptrs.insert(HashedRowPtr(row.clone(), self.primary_index));
+                rptrs.insert(HashedRowPtr::new(row.clone(), self.primary_index));
                 let dur = start.elapsed();
                 warn!("insert into index {} size {} took: {}us", self.columns[col_index].fullname, index.len(), dur.as_micros());
             } else {
                 let mut rptrs = HashSet::with_capacity(1000);
-                rptrs.insert(HashedRowPtr(row.clone(), self.primary_index));
+                rptrs.insert(HashedRowPtr::new(row.clone(), self.primary_index));
                 index.insert(col_val, rptrs);
                 let dur = start.elapsed();
                 warn!("insert new hashmap index {} took: {}us", self.columns[col_index].fullname, dur.as_micros());
@@ -367,7 +391,7 @@ impl View {
             // remove this row!
             if let Some(old_ris) = index.get_mut(&old_val) {
                 let innerstart = time::Instant::now();
-                old_ris.remove(&HashedRowPtr(rptr.clone(), self.primary_index));
+                old_ris.remove(&HashedRowPtr::new(rptr.clone(), self.primary_index));
                 let durinner = innerstart.elapsed();
                 warn!("{}: removing {:?} (indexlen {:?}) took {}us", 
                       self.columns[col_index].fullname, old_val, old_ris.len(), durinner.as_micros());
@@ -378,11 +402,11 @@ impl View {
                 let innerstart = time::Instant::now();
                 if let Some(new_ris) = index.get_mut(&col_val_str) {
                     warn!("{}: inserting {:?} (indexlen {:?})", self.columns[col_index].fullname, col_val_str, new_ris.len());
-                    new_ris.insert(HashedRowPtr(rptr.clone(), self.primary_index));
+                    new_ris.insert(HashedRowPtr::new(rptr.clone(), self.primary_index));
                 } else {
                     warn!("{}: new hashset {}", self.columns[col_index].fullname, col_val_str);
                     let mut rptrs = HashSet::with_capacity(1000);
-                    rptrs.insert(HashedRowPtr(rptr.clone(), self.primary_index));
+                    rptrs.insert(HashedRowPtr::new(rptr.clone(), self.primary_index));
                     index.insert(col_val_str, rptrs);
                 }
                 let durinner = innerstart.elapsed();
@@ -590,7 +614,7 @@ impl Views {
             // we should do the inverse here, I guess...
             if neg {
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
-                    |(_pk, rptr)| HashedRowPtr(rptr.clone(), view.primary_index)).collect();
+                    |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), view.primary_index)).collect();
                 warn!("update view: get all ptrs for selection {}", s);
                 for rptr in matching {
                     all_rptrs.remove(&rptr);
@@ -608,7 +632,7 @@ impl Views {
                 Expr::Value(v) => {
                     if let Some(ref rptrs) = rptrs {
                         for rptr in rptrs {
-                            view.update_index_and_row(rptr.0.clone(), *ci, Some(&v));
+                            view.update_index_and_row(rptr.row().clone(), *ci, Some(&v));
                         }
                     } else {
                         let mut rptrs = vec![];
@@ -625,8 +649,8 @@ impl Views {
                     //let innerstart = time::Instant::now();
                     if let Some(ref rptrs) = rptrs {
                         for rptr in rptrs {
-                            let v = assign_vals_fn(&rptr.0.borrow());
-                            view.update_index_and_row(rptr.0.clone(), *ci, Some(&v));
+                            let v = assign_vals_fn(&rptr.row().borrow());
+                            view.update_index_and_row(rptr.row().clone(), *ci, Some(&v));
                         }
                     } else {
                         let mut rptrs = vec![];
@@ -659,7 +683,7 @@ impl Views {
             if neg {
                 warn!("delete from view: get all ptrs for selection {}", s);
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
-                    |(_pk, rptr)| HashedRowPtr(rptr.clone(), view.primary_index)).collect();
+                    |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), view.primary_index)).collect();
                 for rptr in matching {
                     all_rptrs.remove(&rptr);
                 }
@@ -674,7 +698,7 @@ impl Views {
             for rptr in rptrs {
                 for ci in 0..len {
                     // all the row indices have to change too..
-                    view.update_index_and_row(rptr.0.clone(), ci, None);
+                    view.update_index_and_row(rptr.row().clone(), ci, None);
                 }
             }
         } else {

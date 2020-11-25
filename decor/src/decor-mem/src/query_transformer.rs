@@ -1347,7 +1347,7 @@ impl QueryTransformer {
             let (neg, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns, None);
             if neg {
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
-                    |(_pk, rptr)| HashedRowPtr(rptr.clone(), view.primary_index)).collect();
+                    |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), view.primary_index)).collect();
                 for rptr in rptrs_to_update {
                     all_rptrs.remove(&rptr);
                 }
@@ -1355,12 +1355,12 @@ impl QueryTransformer {
             } 
             for rptr in &rptrs_to_update {
                 for ci in &cis {
-                    if rptr.0.borrow()[*ci].to_string() == uid_val.to_string() {
+                    if rptr.row().borrow()[*ci].to_string() == uid_val.to_string() {
                         assert!(gid_index < gid_values.len());
                         let val = &gid_values[gid_index].borrow()[0];
                         debug!("UNSUB: updating {:?} with {}", rptr, val);
 
-                        view.update_index_and_row(rptr.0.clone(), *ci, Some(&val));
+                        view.update_index_and_row(rptr.row().clone(), *ci, Some(&val));
                         gid_index += 1;
                     }
                 }
@@ -1464,7 +1464,7 @@ impl QueryTransformer {
             let (negated, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns, None);
             if negated {
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
-                    |(_pk, rptr)| HashedRowPtr(rptr.clone(), view.primary_index)).collect();
+                    |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), view.primary_index)).collect();
                 for rptr in rptrs_to_update {
                     all_rptrs.remove(&rptr);
                 }
@@ -1474,8 +1474,8 @@ impl QueryTransformer {
                 for ci in &cis {
                     debug!("RESUB: updating {:?} with {}", rptr, uid_val);
                     // update the columns to use the uid
-                    if gids.iter().any(|g| g.to_string() == rptr.0.borrow()[*ci].to_string()) {
-                        view.update_index_and_row(rptr.0.clone(), *ci, Some(&uid_val));
+                    if gids.iter().any(|g| g.to_string() == rptr.row().borrow()[*ci].to_string()) {
+                        view.update_index_and_row(rptr.row().clone(), *ci, Some(&uid_val));
                     }
                 }
             }

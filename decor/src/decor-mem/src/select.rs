@@ -135,7 +135,7 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
                             for row2 in rows2 {
                                 let mut new_row = row1.borrow().clone();
-                                new_row.append(&mut row2.0.borrow().clone());
+                                new_row.append(&mut row2.row().borrow().clone());
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
                         }
@@ -146,8 +146,8 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         for row1 in rows1 {
                             if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
                                 for row2 in rows2 {
-                                    let mut new_row = row1.0.borrow().clone();
-                                    new_row.append(&mut row2.0.borrow().clone());
+                                    let mut new_row = row1.row().borrow().clone();
+                                    new_row.append(&mut row2.row().borrow().clone());
                                     new_view.insert_row(Rc::new(RefCell::new(new_row)));
                                 }
                             }
@@ -164,7 +164,7 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
                             for row2 in rows2 {
                                 let mut new_row = row1.borrow().clone();
-                                new_row.append(&mut row2.0.borrow().clone());
+                                new_row.append(&mut row2.row().borrow().clone());
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
                         } else {
@@ -179,12 +179,12 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         for row1 in rows1 {
                             if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
                                 for row2 in rows2 {
-                                    let mut new_row = row1.0.borrow().clone();
-                                    new_row.append(&mut row2.0.borrow().clone());
+                                    let mut new_row = row1.row().borrow().clone();
+                                    new_row.append(&mut row2.row().borrow().clone());
                                     new_view.insert_row(Rc::new(RefCell::new(new_row)));
                                 }
                             } else {
-                                let mut new_row = row1.0.borrow().clone();
+                                let mut new_row = row1.row().borrow().clone();
                                 new_row.append(&mut vec![Value::Null; r2len]);
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
@@ -201,7 +201,7 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         if let Some(rows1) = i1.get_index_rows_of_val(&id2) {
                             for row1 in rows1 {
                                 let mut new_row = row2.borrow().clone();
-                                new_row.append(&mut row1.0.borrow().clone());
+                                new_row.append(&mut row1.row().borrow().clone());
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
                         } else {
@@ -216,12 +216,12 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         for row2 in rows2 {
                             if let Some(rows1) = i1.get_index_rows_of_val(&id2) {
                                 for row1 in rows1 {
-                                    let mut new_row = row2.0.borrow().clone();
-                                    new_row.append(&mut row1.0.borrow().clone());
+                                    let mut new_row = row2.row().borrow().clone();
+                                    new_row.append(&mut row1.row().borrow().clone());
                                     new_view.insert_row(Rc::new(RefCell::new(new_row)));
                                 }
                             } else {
-                                let mut new_row = row2.0.borrow().clone();
+                                let mut new_row = row2.row().borrow().clone();
                                 new_row.append(&mut vec![Value::Null; r1len]);
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
@@ -238,7 +238,7 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
                             for row2 in rows2 {
                                 let mut new_row = row1.borrow().clone();
-                                new_row.append(&mut row2.0.borrow().clone());
+                                new_row.append(&mut row2.row().borrow().clone());
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
                         } else {
@@ -253,12 +253,12 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                         for row1 in rows1 {
                             if let Some(rows2) = i2.get_index_rows_of_val(&id1) {
                                 for row2 in rows2 {
-                                    let mut new_row = row1.0.borrow().clone();
-                                    new_row.append(&mut row2.0.borrow().clone());
+                                    let mut new_row = row1.row().borrow().clone();
+                                    new_row.append(&mut row2.row().borrow().clone());
                                     new_view.insert_row(Rc::new(RefCell::new(new_row)));
                                 }
                             } else {
-                                let mut new_row = row1.0.borrow().clone();
+                                let mut new_row = row1.row().borrow().clone();
                                 new_row.append(&mut vec![Value::Null; r2len]);
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
@@ -281,7 +281,7 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) -
                     for (id2, rows2) in i2.borrow().iter() {
                         for row2 in rows2 {
                             if i1.get_index_rows_of_val(&id2).is_none() {
-                                let mut new_row = row2.0.borrow().clone();
+                                let mut new_row = row2.row().borrow().clone();
                                 new_row.append(&mut vec![Value::Null; r1len]);
                                 new_view.insert_row(Rc::new(RefCell::new(new_row)));
                             }
@@ -459,7 +459,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                         let ccval = ccval_func(&row.borrow());
                         let in_list = list_vals.iter().any(|lv| helpers::parser_vals_cmp(&ccval, &lv) == Ordering::Equal);
                         if in_list {
-                            matching_rows.insert(HashedRowPtr(row.clone(), v.primary_index));
+                            matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
                         }
                     }
                 }
@@ -478,7 +478,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                         warn!("get_rptrs_matching_constraint is_null: full iter over rows of {} to get computed val {}", v.name, e); 
                         let ccval = ccval_func(&row.borrow());
                         if ccval.to_string() == Value::Null.to_string() {
-                            matching_rows.insert(HashedRowPtr(row.clone(), v.primary_index));
+                            matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
                         }
                     }
                 }
@@ -560,7 +560,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                                                 let cmp = helpers::parser_vals_cmp(&ccval, &val);
                                                 if (*op == BinaryOperator::NotEq && cmp != Ordering::Equal) ||
                                                     (*op == BinaryOperator::Eq && cmp == Ordering::Equal) {
-                                                        matching_rows.insert(HashedRowPtr(row.clone(), v.primary_index));
+                                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
                                                 }
                                             }
                                             negated_res = false;
@@ -582,32 +582,32 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                             match op {
                                 BinaryOperator::Eq => {
                                     if cmp == Ordering::Equal {
-                                        matching_rows.insert(HashedRowPtr(row.clone(), v.primary_index));
+                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
                                     }
                                 }
                                 BinaryOperator::NotEq => {
                                     if cmp != Ordering::Equal {
-                                        matching_rows.insert(HashedRowPtr(row.clone(), v.primary_index));
+                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
                                     }
                                 }
                                 BinaryOperator::Lt => {
                                     if cmp == Ordering::Less {
-                                        matching_rows.insert(HashedRowPtr(row.clone(), v.primary_index));
+                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
                                     }
                                 }
                                 BinaryOperator::Gt => {
                                     if cmp == Ordering::Greater {
-                                        matching_rows.insert(HashedRowPtr(row.clone(), v.primary_index));
+                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
                                     }
                                 }
                                 BinaryOperator::LtEq => {
                                     if cmp != Ordering::Greater {
-                                        matching_rows.insert(HashedRowPtr(row.clone(), v.primary_index));
+                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
                                     }
                                 }
                                 BinaryOperator::GtEq => {
                                     if cmp != Ordering::Less {
-                                        matching_rows.insert(HashedRowPtr(row.clone(), v.primary_index));
+                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
                                     }
                                 }
                                 _ => unimplemented!("binop constraint not supported {:?}", e),
@@ -744,7 +744,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             // fast path: return val if select val was issued
             if let Some(val) = select_val {
                 let mut rows : HashSet<HashedRowPtr> = HashSet::with_capacity(1000);
-                let val_row = HashedRowPtr(Rc::new(RefCell::new(vec![val.clone()])), 0);
+                let val_row = HashedRowPtr::new(Rc::new(RefCell::new(vec![val.clone()])), 0);
                 // TODO this inserts the value only once?
                 rows.insert(val_row);
                 
@@ -772,7 +772,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                     get_rptrs_matching_constraint(&selection, &from_view, &columns, Some(&computed_columns));
                 if negated {
                     let mut all_rptrs : HashSet<HashedRowPtr> = from_view.rows.borrow().iter().map(
-                        |(_pk, rptr)| HashedRowPtr(rptr.clone(), from_view.primary_index)).collect();
+                        |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), from_view.primary_index)).collect();
                     warn!("get all ptrs for selection {}", selection);
                     for rptr in matching_rptrs {
                         all_rptrs.remove(&rptr);
@@ -783,7 +783,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 debug!("Where: Keeping rows {:?} {:?}", selection, rptrs_to_keep);
             } else {
                 rptrs_to_keep = from_view.rows.borrow().iter().map(
-                    |(_pk, rptr)| HashedRowPtr(rptr.clone(), from_view.primary_index)).collect();
+                    |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), from_view.primary_index)).collect();
                 warn!("get all ptrs for NONE selection {}", se);
             }
 
@@ -793,7 +793,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 let ccval_func = get_value_for_row_closure(&expr, &columns, Some(&computed_columns));
                 let newcol_index = columns.len() - computed_columns.len() + i;
                 for rptr in &rptrs_to_keep {
-                    let mut row = rptr.0.borrow_mut();
+                    let mut row = rptr.row().borrow_mut();
                     let val = ccval_func(&row);
                     if row.len() > newcol_index {
                         row[newcol_index] = val;
@@ -822,7 +822,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
 
                 let num = Value::Number(rptrs_to_keep.len().to_string());
                 for rptr in &rptrs_to_keep {
-                    let mut row = rptr.0.borrow_mut();
+                    let mut row = rptr.row().borrow_mut();
                     if row.len() > newcol_index {
                         row[newcol_index] = num.clone();
                     } else {
@@ -883,7 +883,7 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
     }
 
     let start = time::Instant::now();
-    let mut rptrs_vec: RowPtrs = rptrs.iter().map(|r| r.0.clone()).collect();
+    let mut rptrs_vec: RowPtrs = rptrs.iter().map(|r| r.row().clone()).collect();
     let dur = start.elapsed();
     warn!("Collecting hashset of {} rptrs to vec: {}us", rptrs_vec.len(), dur.as_micros());
     if q.order_by.len() > 0 {
