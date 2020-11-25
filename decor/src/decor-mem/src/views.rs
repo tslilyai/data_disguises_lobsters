@@ -1,7 +1,7 @@
 use sql_parser::ast::*;
 use std::collections::{HashSet, HashMap};
 use std::cmp::Ordering;
-use crate::{select, helpers, ghosts_map};
+use crate::{select, helpers, ghosts_map, INIT_CAPACITY};
 use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::io::{Error, Write};
@@ -59,7 +59,7 @@ impl ViewIndex {
                 let index = index.borrow();
                 match index.get(val) {
                     Some(r) => {
-                        let mut rows = HashSet::with_capacity(1000);
+                        let mut rows = HashSet::with_capacity(INIT_CAPACITY);
                         rows.insert(HashedRowPtr::new(r.clone(), *pki));
                         Some(rows)
                     }
@@ -210,8 +210,8 @@ impl View {
         View {
             name: String::new(),
             columns: columns,
-            rows: Rc::new(RefCell::new(HashMap::with_capacity(1000))),
-            indexes: HashMap::with_capacity(1000),
+            rows: Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))),
+            indexes: HashMap::with_capacity(INIT_CAPACITY),
             primary_index: 0,
             autoinc_col: None,
         }
@@ -231,13 +231,13 @@ impl View {
         // save where the primary index is
         let mut primary_index = None;
         // create indexes for any explicit indexes
-        let mut indexes_map = HashMap::with_capacity(1000);
+        let mut indexes_map = HashMap::with_capacity(INIT_CAPACITY);
         if !indexes.is_empty() {
             for i in indexes {
                 for key in &i.key_parts {
                     // TODO just create a separate index for each key part for now rather than
                     // nesting
-                    indexes_map.insert(key.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(1000))));
+                    indexes_map.insert(key.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))));
                     debug!("{}: Created index for column {}", name, key.to_string());
                 }
             }
@@ -251,7 +251,7 @@ impl View {
                     if is_primary {
                         primary_index = Some(ci);
                     } else {
-                        indexes_map.insert(c.name.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(1000))));
+                        indexes_map.insert(c.name.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))));
                         debug!("{}: Created unique index for column {}", name, c.name);
                     }
                     break;
@@ -267,7 +267,7 @@ impl View {
                         primary_index = Some(ci);
                     } else {
                         for c in columns {
-                            indexes_map.insert(c.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(1000))));
+                            indexes_map.insert(c.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))));
                             debug!("{}: Created unique index for column {}", name, c.to_string());
                         }
                     }
@@ -284,7 +284,7 @@ impl View {
                     fullname: format!("{}.{}", name, c.name),
                     column: c.clone() })
                 .collect(),
-            rows: Rc::new(RefCell::new(HashMap::with_capacity(1000))),
+            rows: Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))),
             indexes: indexes_map,
             primary_index: primary_index.unwrap(),
             autoinc_col: autoinc_col,
@@ -349,7 +349,7 @@ impl View {
                 let dur = start.elapsed();
                 warn!("insert into index {} size {} took: {}us", self.columns[col_index].fullname, index.len(), dur.as_micros());
             } else {
-                let mut rptrs = HashSet::with_capacity(1000);
+                let mut rptrs = HashSet::with_capacity(INIT_CAPACITY);
                 rptrs.insert(HashedRowPtr::new(row.clone(), self.primary_index));
                 index.insert(col_val, rptrs);
                 let dur = start.elapsed();
@@ -405,7 +405,7 @@ impl View {
                     new_ris.insert(HashedRowPtr::new(rptr.clone(), self.primary_index));
                 } else {
                     warn!("{}: new hashset {}", self.columns[col_index].fullname, col_val_str);
-                    let mut rptrs = HashSet::with_capacity(1000);
+                    let mut rptrs = HashSet::with_capacity(INIT_CAPACITY);
                     rptrs.insert(HashedRowPtr::new(rptr.clone(), self.primary_index));
                     index.insert(col_val_str, rptrs);
                 }
@@ -427,7 +427,7 @@ pub struct Views {
 impl Views {
     pub fn new() -> Self {
         Views {
-            views: HashMap::with_capacity(1000),
+            views: HashMap::with_capacity(INIT_CAPACITY),
         }
     }
     

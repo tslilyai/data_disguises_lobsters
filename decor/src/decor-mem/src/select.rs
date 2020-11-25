@@ -1,5 +1,5 @@
 use crate::views::{View, TableColumnDef, RowPtrs, ViewIndex, HashedRowPtr};
-use crate::helpers;
+use crate::{helpers, INIT_CAPACITY};
 use log::{warn, error, debug};
 use std::collections::{HashMap, HashSet};
 use std::cmp::Ordering;
@@ -430,7 +430,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
     -> (bool, HashSet<HashedRowPtr>)
 {
     let start = time::Instant::now();
-    let mut matching_rows = HashSet::with_capacity(1000); //BTreeSet::new(); 
+    let mut matching_rows = HashSet::with_capacity(INIT_CAPACITY); //BTreeSet::new(); 
     let mut negated_res = false;
     debug!("getting rptrs of constraint {:?}", e);
     match e {
@@ -637,7 +637,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             }
 
             // additional columns and their values
-            let mut computed_columns : HashMap<String, &Expr> = HashMap::with_capacity(1000);
+            let mut computed_columns : HashMap<String, &Expr> = HashMap::with_capacity(INIT_CAPACITY);
             // TODO don't need to init?
             let mut from_view: Rc<RefCell<View>> = Rc::new(RefCell::new(View::new_with_cols(vec![])));
             
@@ -743,7 +743,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
 
             // fast path: return val if select val was issued
             if let Some(val) = select_val {
-                let mut rows : HashSet<HashedRowPtr> = HashSet::with_capacity(1000);
+                let mut rows : HashSet<HashedRowPtr> = HashSet::with_capacity(INIT_CAPACITY);
                 let val_row = HashedRowPtr::new(Rc::new(RefCell::new(vec![val.clone()])), 0);
                 // TODO this inserts the value only once?
                 rows.insert(val_row);

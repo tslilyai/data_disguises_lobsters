@@ -16,6 +16,8 @@ pub mod sqlparser_cache;
 pub mod stats;
 pub mod select;
 
+pub const INIT_CAPACITY: usize = 1000;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
     pub testname: String,
