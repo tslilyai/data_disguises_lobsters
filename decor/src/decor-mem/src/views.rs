@@ -337,10 +337,9 @@ impl View {
         }
     }
  
-    pub fn update_index(&mut self, rptr: Rc<RefCell<Row>>, col_index: usize, col_val: Option<&Value>) {
+    pub fn update_index_and_row(&mut self, rptr: Rc<RefCell<Row>>, col_index: usize, col_val: Option<&Value>) {
         let start = time::Instant::now();
-        let row = rptr.borrow();
-        let old_val = row[col_index].to_string();
+        let old_val = rptr.borrow()[col_index].to_string();
         let mut index_len = 0;
         warn!("{}: updating {:?} from {:?}", self.columns[col_index].fullname, col_val, old_val);
 
@@ -352,7 +351,14 @@ impl View {
                 let dur = start.elapsed();
                 warn!("Update index {}, equal val took: {}us", self.columns[col_index].fullname, dur.as_micros());
                 return;
+            } else {
+                // actually update row if we're changing
+                rptr.borrow_mut()[col_index] = v.clone();
             }
+        } else {
+            // delete if we're not updating the value to anything
+            let pk = self.primary_index;
+            self.rows.borrow_mut().remove(&rptr.borrow()[pk].to_string());
         }
 
         if let Some(index) = self.indexes.get_mut(&self.columns[col_index].column.name.to_string()) {
@@ -602,8 +608,7 @@ impl Views {
                 Expr::Value(v) => {
                     if let Some(ref rptrs) = rptrs {
                         for rptr in rptrs {
-                            view.update_index(rptr.0.clone(), *ci, Some(&v));
-                            rptr.0.borrow_mut()[*ci] = v.clone();
+                            view.update_index_and_row(rptr.0.clone(), *ci, Some(&v));
                         }
                     } else {
                         let mut rptrs = vec![];
@@ -611,8 +616,7 @@ impl Views {
                             rptrs.push(rptr.clone()); 
                         };
                         for rptr in &rptrs {
-                            view.update_index(rptr.clone(), *ci, Some(&v));
-                            rptr.borrow_mut()[*ci] = v.clone();
+                            view.update_index_and_row(rptr.clone(), *ci, Some(&v));
                         }
                     }
                 }
@@ -622,8 +626,7 @@ impl Views {
                     if let Some(ref rptrs) = rptrs {
                         for rptr in rptrs {
                             let v = assign_vals_fn(&rptr.0.borrow());
-                            view.update_index(rptr.0.clone(), *ci, Some(&v));
-                            rptr.0.borrow_mut()[*ci] = v.clone();
+                            view.update_index_and_row(rptr.0.clone(), *ci, Some(&v));
                         }
                     } else {
                         let mut rptrs = vec![];
@@ -632,8 +635,7 @@ impl Views {
                         };
                         for rptr in &rptrs {
                             let v = assign_vals_fn(&rptr.borrow());
-                            view.update_index(rptr.clone(), *ci, Some(&v));
-                            rptr.borrow_mut()[*ci] = v.clone();
+                            view.update_index_and_row(rptr.clone(), *ci, Some(&v));
                         }
                     }
                 }
@@ -667,30 +669,24 @@ impl Views {
             }
         }
 
+        let len = view.columns.len();
         if let Some(ref rptrs) = rptrs {
             for rptr in rptrs {
-                for ci in 0..view.columns.len() {
+                for ci in 0..len {
                     // all the row indices have to change too..
-                    view.update_index(rptr.0.clone(), ci, None);
+                    view.update_index_and_row(rptr.0.clone(), ci, None);
                 }
-                let pk = view.primary_index;
-                view.rows.borrow_mut().remove(&rptr.0.borrow()[pk].to_string());
             }
         } else {
-            let mut pks = vec![];
             let mut rptrs = vec![];
-            for (pk, rptr) in view.rows.borrow().iter() {
-                rptrs.push(rptr.clone()); 
-                pks.push(pk.clone()); 
-            };
+            for (_pk, rptr) in view.rows.borrow().iter() {
+                rptrs.push(rptr.clone());
+            }
             for rptr in rptrs {
-                for ci in 0..view.columns.len() {
-                    view.update_index(rptr.clone(), ci, None);
+                for ci in 0..len {
+                    view.update_index_and_row(rptr.clone(), ci, None);
                 }
-            }
-            for pk in pks {
-                view.rows.borrow_mut().remove(&pk);
-            }
+            };
         }
         Ok(())
     }
