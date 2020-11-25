@@ -312,8 +312,7 @@ fn tablewithjoins_to_view(views: &HashMap<String, Rc<RefCell<View>>>, twj: &Tabl
  * Turn expression into a value for row
  */
 pub fn get_value_for_row_closure(e: &Expr, 
-                         columns: &Vec<TableColumnDef>,
-                         computed_opt: Option<&HashMap<String, &Expr>>)
+                         columns: &Vec<TableColumnDef>)
 -> Box<dyn Fn(&Vec<Value>) -> Value> {
     let mut closure: Option<Box<dyn Fn(&Vec<Value>) -> Value>> = None;
     let start = time::Instant::now();
@@ -325,12 +324,6 @@ pub fn get_value_for_row_closure(e: &Expr,
             let ci = get_col_index(&col, &columns);
             if let Some(ci) = ci {
                 closure = Some(Box::new(move |row| row[ci].clone()));
-            } else if let Some(computed) = computed_opt {
-                // if this col is a computed col, check member in list and return
-                if let Some(e) = computed.get(&col) {
-                    let computed_func = get_value_for_row_closure(&e, columns, Some(computed));
-                    closure = Some(Box::new(move |row| computed_func(row)));
-                }
             } else {
                 unimplemented!("No value?");
             }
@@ -361,13 +354,6 @@ pub fn get_value_for_row_closure(e: &Expr,
                 Expr::Identifier(_) => {
                     let (_ltab, lcol) = expr_to_col(&left);
                     lindex = get_col_index(&lcol, columns);
-                    if lindex.is_none() {
-                        if let Some(computed) = computed_opt {
-                            if let Some(e) = computed.get(&lcol) {
-                                lval = get_value_for_row_closure(e, columns, Some(computed));
-                            }
-                        }
-                    }
                 }
                 Expr::Value(val) => {
                     let newv = val.clone();
@@ -379,13 +365,6 @@ pub fn get_value_for_row_closure(e: &Expr,
                 Expr::Identifier(_) => {
                     let (_rtab, rcol) = expr_to_col(&right);
                     rindex = get_col_index(&rcol, columns);
-                    if rindex.is_none() {
-                        if let Some(computed) = computed_opt {
-                            if let Some(e) = computed.get(&rcol) {
-                                rval = get_value_for_row_closure(e, columns, Some(computed));
-                            }
-                        }
-                    }
                 }
                 Expr::Value(val) => {
                     let newv = val.clone();
@@ -425,8 +404,7 @@ pub fn get_col_index(col: &str, columns: &Vec<TableColumnDef>) -> Option<usize> 
  * 
  * */
 pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, 
-                                    columns: &Vec<TableColumnDef>, 
-                                    computed: Option<&HashMap<String, &Expr>>)
+                                    columns: &Vec<TableColumnDef>)
     -> (bool, HashSet<HashedRowPtr>)
 {
     let start = time::Instant::now();
@@ -450,19 +428,6 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                 for lv in &list_vals {
                     v.get_rptrs_of_col(ci, &lv.to_string(), &mut matching_rows);
                 }
-            } else if let Some(computed) = computed {
-                // if this col is a computed col, check member in list and return
-                if let Some(e) = computed.get(&col) {
-                    let ccval_func = get_value_for_row_closure(&e, columns, Some(&computed));
-                    for (_pk, row) in v.rows.borrow().iter() {
-                        warn!("get_rptrs_matching_constraint in_list: full iter over rows of {} to get computed val {}", v.name, e); 
-                        let ccval = ccval_func(&row.borrow());
-                        let in_list = list_vals.iter().any(|lv| helpers::parser_vals_cmp(&ccval, &lv) == Ordering::Equal);
-                        if in_list {
-                            matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
-                        }
-                    }
-                }
             }
             negated_res = *negated;
         }
@@ -470,26 +435,14 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
             let (_tab, col) = expr_to_col(&expr);
             if let Some(ci) = get_col_index(&col, columns) {
                 v.get_rptrs_of_col(ci, &Value::Null.to_string(), &mut matching_rows);
-            } else if let Some(computed) = computed {
-                // if this col is a computed col, check if null and return
-                if let Some(e) = computed.get(&col) {
-                    let ccval_func = get_value_for_row_closure(&e, columns, Some(&computed));
-                    for (_ri, row) in v.rows.borrow().iter() {
-                        warn!("get_rptrs_matching_constraint is_null: full iter over rows of {} to get computed val {}", v.name, e); 
-                        let ccval = ccval_func(&row.borrow());
-                        if ccval.to_string() == Value::Null.to_string() {
-                            matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
-                        }
-                    }
-                }
             }
             negated_res = *negated;
         }
         Expr::BinaryOp {left, op, right} => {
             match op {
                 BinaryOperator::And => {
-                    let (lnegated, mut lptrs) = get_rptrs_matching_constraint(left, v, columns, computed);
-                    let (rnegated, mut rptrs) = get_rptrs_matching_constraint(right, v, columns, computed);
+                    let (lnegated, mut lptrs) = get_rptrs_matching_constraint(left, v, columns);
+                    let (rnegated, mut rptrs) = get_rptrs_matching_constraint(right, v, columns);
                     // if both are negated or not negated, return (negated?, combo of ptrs)
                     if lnegated == rnegated {
                         lptrs.retain(|lptr| rptrs.get(&lptr).is_some());
@@ -513,8 +466,8 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                     }
                 }
                 BinaryOperator::Or => {
-                    let (lnegated, mut lptrs) = get_rptrs_matching_constraint(left, v, columns, computed);
-                    let (rnegated, mut rptrs) = get_rptrs_matching_constraint(right, v, columns, computed);
+                    let (lnegated, mut lptrs) = get_rptrs_matching_constraint(left, v, columns);
+                    let (rnegated, mut rptrs) = get_rptrs_matching_constraint(right, v, columns);
                     if lnegated == rnegated {
                         lptrs.extend(rptrs);
                         negated_res = lnegated;
@@ -549,31 +502,14 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View,
                                 if let Some(ci) = get_col_index(&col, columns) {
                                     v.get_rptrs_of_col(ci, &val.to_string(), &mut matching_rows);
                                     negated_res = *op == BinaryOperator::NotEq;
-                                } else {
-                                    // if this col is a computed col, check if null and return
-                                    if let Some(computed) = computed {
-                                        if let Some(e) = computed.get(&col) {
-                                            warn!("get_rptrs_matching_constraint left=val: full iter over rows of {} to get computed val {}", v.name, e); 
-                                            let ccval_func = get_value_for_row_closure(&e, columns, Some(&computed));
-                                            for (_pk, row) in v.rows.borrow().iter() {
-                                                let ccval = ccval_func(&row.borrow());
-                                                let cmp = helpers::parser_vals_cmp(&ccval, &val);
-                                                if (*op == BinaryOperator::NotEq && cmp != Ordering::Equal) ||
-                                                    (*op == BinaryOperator::Eq && cmp == Ordering::Equal) {
-                                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
-                                                }
-                                            }
-                                            negated_res = false;
-                                        }
-                                    }
                                 } 
                             }
                         }
                     } 
                     if !fastpath {
                         warn!("get_rptrs_matching_constraint: Slow path {:?}", e);
-                        let left_fn = get_value_for_row_closure(&left, columns, computed);
-                        let right_fn = get_value_for_row_closure(&right, columns, computed);
+                        let left_fn = get_value_for_row_closure(&left, columns);
+                        let right_fn = get_value_for_row_closure(&right, columns);
 
                         for (_pk, row) in v.rows.borrow().iter() {
                             let left_val = left_fn(&row.borrow());
@@ -636,8 +572,6 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 unimplemented!("No support for having queries");
             }
 
-            // additional columns and their values
-            let mut computed_columns : HashMap<String, &Expr> = HashMap::with_capacity(INIT_CAPACITY);
             // TODO don't need to init?
             let mut from_view: Rc<RefCell<View>> = Rc::new(RefCell::new(View::new_with_cols(vec![])));
             
@@ -707,7 +641,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                             assert!(alias.is_some());
                             let a = alias.as_ref().unwrap();
                             let colname = a.to_string();
-                            computed_columns.insert(colname.clone(), expr);
+                            debug!("Adding to computed columns {:?}", colname);
                             
                             let newcol_index = columns.len();
                             cols_to_keep.push(newcol_index);
@@ -723,8 +657,18 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
 
                                 },
                             });
-                            debug!("Adding to computed columns {:?}", computed_columns)
                 
+                            // XXX NOTE: WE'RE ACTUALLY MODIFYING THE ROW HERE???
+                            let ccval_func = get_value_for_row_closure(&expr, &columns);
+                            for (_, rptr) in from_view.rows.borrow().iter() {
+                                let mut row = rptr.borrow_mut();
+                                let val = ccval_func(&row);
+                                if row.len() > newcol_index {
+                                    row[newcol_index] = val;
+                                } else {
+                                    row.push(val);
+                                }
+                            }
                         } else if let Expr::Function(f) = expr {
                             if f.name.to_string() == "count" && f.args == FunctionArgs::Star {
                                 count = true;
@@ -769,7 +713,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             let rptrs_to_keep : HashSet<HashedRowPtr>;
             if let Some(selection) = &s.selection {
                 let (negated, mut matching_rptrs) = 
-                    get_rptrs_matching_constraint(&selection, &from_view, &columns, Some(&computed_columns));
+                    get_rptrs_matching_constraint(&selection, &from_view, &columns);
                 if negated {
                     let mut all_rptrs : HashSet<HashedRowPtr> = from_view.rows.borrow().iter().map(
                         |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), from_view.primary_index)).collect();
@@ -785,22 +729,6 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 rptrs_to_keep = from_view.rows.borrow().iter().map(
                     |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), from_view.primary_index)).collect();
                 warn!("get all ptrs for NONE selection {}", se);
-            }
-
-            // add the computed values to the rows with the appropriate aliases
-            for (i, (colname, expr)) in computed_columns.iter().enumerate() {
-               // XXX NOTE: WE'RE ACTUALLY MODIFYING THE ROW HERE???
-                let ccval_func = get_value_for_row_closure(&expr, &columns, Some(&computed_columns));
-                let newcol_index = columns.len() - computed_columns.len() + i;
-                for rptr in &rptrs_to_keep {
-                    let mut row = rptr.row().borrow_mut();
-                    let val = ccval_func(&row);
-                    if row.len() > newcol_index {
-                        row[newcol_index] = val;
-                    } else {
-                        row.push(val);
-                    }
-                }
             }
           
             // add the count of selected columns as an extra column if it were projected

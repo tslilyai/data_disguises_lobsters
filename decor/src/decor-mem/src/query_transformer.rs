@@ -1344,7 +1344,7 @@ impl QueryTransformer {
                 };
             }            
 
-            let (neg, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns, None);
+            let (neg, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
             if neg {
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
                     |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), view.primary_index)).collect();
@@ -1461,7 +1461,7 @@ impl QueryTransformer {
                 };
             }            
 
-            let (negated, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns, None);
+            let (negated, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
             if negated {
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
                     |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), view.primary_index)).collect();

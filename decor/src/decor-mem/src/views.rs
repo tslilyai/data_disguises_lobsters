@@ -610,7 +610,7 @@ impl Views {
 
         let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, &view.columns, None);
+            let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, &view.columns);
             // we should do the inverse here, I guess...
             if neg {
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
@@ -645,7 +645,7 @@ impl Views {
                     }
                 }
                 _ => {
-                    let assign_vals_fn = select::get_value_for_row_closure(&assign_vals[assign_index], &view.columns, None);
+                    let assign_vals_fn = select::get_value_for_row_closure(&assign_vals[assign_index], &view.columns);
                     //let innerstart = time::Instant::now();
                     if let Some(ref rptrs) = rptrs {
                         for rptr in rptrs {
@@ -679,7 +679,7 @@ impl Views {
 
         let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, &view.columns, None);
+            let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, &view.columns);
             if neg {
                 warn!("delete from view: get all ptrs for selection {}", s);
                 let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
