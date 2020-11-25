@@ -940,9 +940,10 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
                             res
                         }}) 
                     {
-                        if sorted_rptrs_vec.len() < limit {
-                            sorted_rptrs_vec.push(rptr.clone());
-                        }
+                        if sorted_rptrs_vec.len() >= limit {
+                            break;
+                        } 
+                        sorted_rptrs_vec.push(rptr.clone());
                     }
                 }
                 Some(true) | None => {
@@ -957,9 +958,10 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
                             res
                         }}) 
                     {
-                        if sorted_rptrs_vec.len() < limit {
-                            sorted_rptrs_vec.push(rptr.clone());
-                        }
+                        if sorted_rptrs_vec.len() >= limit {
+                            break;
+                        } 
+                        sorted_rptrs_vec.push(rptr.clone());
                     }
                 }
             }
@@ -969,9 +971,10 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
                     for rptr in rptrs_vec.iter().sorted_by(|r1, r2| {
                         helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])})
                     {
-                        if sorted_rptrs_vec.len() < limit {
-                            sorted_rptrs_vec.push(rptr.clone());
-                        }
+                        if sorted_rptrs_vec.len() >= limit {
+                            break;
+                        } 
+                        sorted_rptrs_vec.push(rptr.clone());
                     }
                     debug!("order by desc! {:?}", rptrs);
                 }
@@ -980,9 +983,10 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
                     for rptr in rptrs_vec.iter().sorted_by(|r1, r2| {
                         helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])})
                     {
-                        if sorted_rptrs_vec.len() < limit {
-                            sorted_rptrs_vec.push(rptr.clone());
-                        }
+                        if sorted_rptrs_vec.len() >= limit {
+                            break;
+                        } 
+                        sorted_rptrs_vec.push(rptr.clone());
                     }
                     debug!("order by asc! {:?}", rptrs);
                 }
