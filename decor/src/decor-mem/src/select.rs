@@ -1,4 +1,4 @@
-use crate::views::{View, TableColumnDef, RowPtrs, ViewIndex, HashedRowPtr};
+use crate::views::{View, TableColumnDef, RowPtrs, ViewIndex, HashedRowPtr, HashedRowPtrs};
 use crate::{helpers, INIT_CAPACITY, predicates};
 use log::{warn, error, debug};
 use std::collections::{HashMap, HashSet};
@@ -289,14 +289,14 @@ fn tablewithjoins_to_view(views: &HashMap<String, Rc<RefCell<View>>>, twj: &Tabl
 pub fn get_value_for_row_closure(e: &Expr, 
                          columns: &Vec<TableColumnDef>)
 -> Box<dyn Fn(&Vec<Value>) -> Value> {
-    let mut closure: Option<Box<dyn Fn(&Vec<Value>) -> Value>> = None;
+    let closure: Option<Box<dyn Fn(&Vec<Value>) -> Value>>;
     let start = time::Instant::now();
     match &e {
         Expr::Identifier(_) => {
             let (_tab, col) = helpers::expr_to_col(&e);
             debug!("Identifier column {}", col);
 
-            let ci = get_col_index(&col, &columns);
+            let ci = helpers::get_col_index(&col, &columns);
             if let Some(ci) = ci {
                 closure = Some(Box::new(move |row| row[ci].clone()));
             } else {
@@ -328,7 +328,7 @@ pub fn get_value_for_row_closure(e: &Expr,
             match &**left {
                 Expr::Identifier(_) => {
                     let (_ltab, lcol) = helpers::expr_to_col(&left);
-                    lindex = get_col_index(&lcol, columns);
+                    lindex = helpers::get_col_index(&lcol, columns);
                 }
                 Expr::Value(val) => {
                     let newv = val.clone();
@@ -339,7 +339,7 @@ pub fn get_value_for_row_closure(e: &Expr,
             match &**right {
                 Expr::Identifier(_) => {
                     let (_rtab, rcol) = helpers::expr_to_col(&right);
-                    rindex = get_col_index(&rcol, columns);
+                    rindex = helpers::get_col_index(&rcol, columns);
                 }
                 Expr::Value(val) => {
                     let newv = val.clone();
@@ -368,10 +368,6 @@ pub fn get_value_for_row_closure(e: &Expr,
     let dur = start.elapsed();
     warn!("Get closure for expr {} took: {}us", e, dur.as_micros());
     closure.unwrap()
-}
-
-pub fn get_col_index(col: &str, columns: &Vec<TableColumnDef>) -> Option<usize> {
-    columns.iter().position(|c| helpers::tablecolumn_matches_col(c, col))
 }
 
 
@@ -441,7 +437,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                             
                             let (_tab, col) = helpers::expr_to_col(expr);
                             debug!("{}: selecting {}", s, col);
-                            let ci = get_col_index(&col, &columns).unwrap();
+                            let ci = helpers::get_col_index(&col, &columns).unwrap();
                             cols_to_keep.push(ci);
                             
                             // alias; use in WHERE will match against this alias
@@ -522,19 +518,9 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             }
 
             // filter out rows by where clause
-            let rptrs_to_keep : HashSet<HashedRowPtr>;
+            let rptrs_to_keep : HashedRowPtrs;
             if let Some(selection) = &s.selection {
-                let (negated, mut matching_rptrs) = predicates::get_rptrs_matching_constraint(&selection, &from_view, &columns);
-                if negated {
-                    let mut all_rptrs : HashSet<HashedRowPtr> = from_view.rows.borrow().iter().map(
-                        |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), from_view.primary_index)).collect();
-                    warn!("get all ptrs for selection {}", selection);
-                    for rptr in matching_rptrs {
-                        all_rptrs.remove(&rptr);
-                    }
-                    matching_rptrs = all_rptrs;
-                }
-                rptrs_to_keep = matching_rptrs;
+                rptrs_to_keep = predicates::get_rptrs_matching_constraint(&selection, &from_view, &columns);
                 debug!("Where: Keeping rows {:?} {:?}", selection, rptrs_to_keep);
             } else {
                 rptrs_to_keep = from_view.rows.borrow().iter().map(
@@ -626,17 +612,16 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
     let dur = start.elapsed();
     warn!("Collecting hashset of {} rptrs to vec: {}us", rptrs_vec.len(), dur.as_micros());
     if q.order_by.len() > 0 {
-        let mut sorted_rptrs_vec: RowPtrs = vec![];
         // TODO only support at most two order by constraints for now
         assert!(q.order_by.len() < 3); 
         let orderby1 = &q.order_by[0];
         let (_tab, col1) = helpers::expr_to_col(&orderby1.expr);
-        let ci1 = get_col_index(&col1, &all_cols).unwrap();
+        let ci1 = helpers::get_col_index(&col1, &all_cols).unwrap();
        
         if q.order_by.len() == 2 {
             let orderby2 = &q.order_by[1];
             let (_tab, col2) = helpers::expr_to_col(&orderby2.expr);
-            let ci2 = get_col_index(&col2, &all_cols).unwrap();
+            let ci2 = helpers::get_col_index(&col2, &all_cols).unwrap();
             match orderby1.asc {
                 Some(false) => {
                     rptrs_vec.sort_by(|r1, r2| {

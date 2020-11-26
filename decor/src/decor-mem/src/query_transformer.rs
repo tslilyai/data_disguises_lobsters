@@ -1,14 +1,13 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{helpers, ghosts_map, config, stats, views, select};
-use crate::views::{TableColumnDef, Views, Row, RowPtrs, HashedRowPtr};
-use std::collections::{HashSet};
+use crate::{helpers, ghosts_map, config, stats, views, predicates};
+use crate::views::{TableColumnDef, Views, Row, RowPtrs};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 use std::*;
 use msql_srv::{QueryResultWriter};
-use log::{warn, debug, error};
+use log::{warn, debug};
 
 pub struct QueryTransformer {
     pub cfg: config::Config,
@@ -1332,7 +1331,7 @@ impl QueryTransformer {
             let mut select_constraint = Expr::Value(Value::Boolean(false));
             let mut cis = vec![];
             for col in &ucols {
-                cis.push(select::get_col_index(&col, &view.columns).unwrap());
+                cis.push(helpers::get_col_index(&col, &view.columns).unwrap());
                 select_constraint = Expr::BinaryOp {
                     left: Box::new(select_constraint),
                     op: BinaryOperator::Or,
@@ -1344,15 +1343,7 @@ impl QueryTransformer {
                 };
             }            
 
-            let (neg, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
-            if neg {
-                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
-                    |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), view.primary_index)).collect();
-                for rptr in rptrs_to_update {
-                    all_rptrs.remove(&rptr);
-                }
-                rptrs_to_update = all_rptrs;
-            } 
+            let rptrs_to_update = predicates::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
             for rptr in &rptrs_to_update {
                 for ci in &cis {
                     if rptr.row().borrow()[*ci].to_string() == uid_val.to_string() {
@@ -1449,7 +1440,7 @@ impl QueryTransformer {
             let mut cis = vec![];
             for col in &ucols {
                 // push all user columns, even if some of them might not "belong" to us
-                cis.push(view.columns.iter().position(|c| select::tablecolumn_matches_col(c, &col)).unwrap());
+                cis.push(view.columns.iter().position(|c| helpers::tablecolumn_matches_col(c, &col)).unwrap());
                 select_constraint = Expr::BinaryOp {
                     left: Box::new(select_constraint),
                     op: BinaryOperator::Or,
@@ -1461,15 +1452,7 @@ impl QueryTransformer {
                 };
             }            
 
-            let (negated, mut rptrs_to_update) = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
-            if negated {
-                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
-                    |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), view.primary_index)).collect();
-                for rptr in rptrs_to_update {
-                    all_rptrs.remove(&rptr);
-                }
-                rptrs_to_update = all_rptrs;
-            } 
+            let rptrs_to_update = predicates::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
             for rptr in &rptrs_to_update {
                 for ci in &cis {
                     debug!("RESUB: updating {:?} with {}", rptr, uid_val);

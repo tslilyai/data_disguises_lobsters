@@ -1,20 +1,24 @@
 use sql_parser::ast::{Expr, Ident, ObjectName, DataType};
 use std::*;
 use std::cmp::Ordering;
-use super::{config};
+use crate::{config, views};
 use std::str::FromStr;
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
-use log::{debug, warn};
+use log::{debug};
 
-pub fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
+pub fn tablecolumn_matches_col(c: &views::TableColumnDef, col: &str) -> bool {
     debug!("matching {} to {}", c.column.name, col);
     c.colname == col || c.fullname == col
+}
+
+pub fn get_col_index(col: &str, columns: &Vec<views::TableColumnDef>) -> Option<usize> {
+    columns.iter().position(|c| tablecolumn_matches_col(c, col))
 }
 
 /*
  * return table name and optionally column if not wildcard
  */
-fn expr_to_col(e: &Expr) -> (String, String) {
+pub fn expr_to_col(e: &Expr) -> (String, String) {
     //debug!("expr_to_col: {:?}", e);
     match e {
         // only support form column or table.column

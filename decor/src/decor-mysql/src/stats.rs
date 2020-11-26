@@ -4,7 +4,6 @@ use std::time::Duration;
 use sql_parser::ast::*;
 use sql_parser::parser::*;
 use std::*;
-use log::{warn};
 
 #[derive(Debug, Clone)]
 pub enum QueryType {

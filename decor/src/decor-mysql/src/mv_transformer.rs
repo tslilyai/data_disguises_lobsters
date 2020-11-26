@@ -1,10 +1,8 @@
 use sql_parser::ast::*;
-use super::{helpers, config, stats};
+use super::{helpers, config};
 use std::*;
 //use lru::LruCache;
 use std::collections::HashMap;
-
-const CACHE_SZ : usize = 64;
 
 pub struct MVTransformer {
     pub cfg: config::Config,
@@ -20,7 +18,6 @@ impl MVTransformer {
         MVTransformer{
             cfg: cfg.clone(),
             q2mvq: HashMap::new(),
-            //q2mvq: LruCache::new(CACHE_SZ),
         }
     }   
     pub fn objname_to_mv_string(&self, obj: &ObjectName) -> String {

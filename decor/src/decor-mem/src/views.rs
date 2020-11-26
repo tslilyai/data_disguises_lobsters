@@ -1,13 +1,13 @@
 use sql_parser::ast::*;
 use std::collections::{HashSet, HashMap};
 use std::cmp::Ordering;
-use crate::{select, helpers, ghosts_map, INIT_CAPACITY};
+use crate::{select, helpers, ghosts_map, predicates, INIT_CAPACITY};
 use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::io::{Error, Write};
 use std::rc::Rc;
 use std::*;
-use log::{warn, error, debug};
+use log::{warn, debug};
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 
 pub type Row = Vec<Value>;
@@ -634,19 +634,7 @@ impl Views {
 
         let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, &view.columns);
-            // we should do the inverse here, I guess...
-            if neg {
-                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
-                    |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), view.primary_index)).collect();
-                warn!("update view: get all ptrs for selection {}", s);
-                for rptr in matching {
-                    all_rptrs.remove(&rptr);
-                }
-                rptrs = Some(all_rptrs);
-            } else {
-                rptrs = Some(matching);
-            }
+            rptrs = Some(predicates::get_rptrs_matching_constraint(s, &view, &view.columns));
         }
 
         debug!("{}: update columns of indices {:?}", view.name, cis);
@@ -703,18 +691,7 @@ impl Views {
 
         let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            let (neg, matching) = select::get_rptrs_matching_constraint(s, &view, &view.columns);
-            if neg {
-                warn!("delete from view: get all ptrs for selection {}", s);
-                let mut all_rptrs : HashSet<HashedRowPtr> = view.rows.borrow().iter().map(
-                    |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), view.primary_index)).collect();
-                for rptr in matching {
-                    all_rptrs.remove(&rptr);
-                }
-                rptrs = Some(all_rptrs);
-            } else {
-                rptrs = Some(matching);
-            }
+            rptrs = Some(predicates::get_rptrs_matching_constraint(s, &view, &view.columns));
         }
 
         let len = view.columns.len();
