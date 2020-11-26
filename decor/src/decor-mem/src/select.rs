@@ -406,6 +406,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             let table_name = from_view.name.clone();
             let mut columns: Vec<TableColumnDef> = from_view.columns.clone(); 
             let mut cols_to_keep = vec![];
+            let mut computed_cols = vec![];
             let mut select_val = None;
             let mut count = false;
             let mut count_alias = Ident::new("count");
@@ -451,34 +452,8 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                             assert!(alias.is_some());
                             let a = alias.as_ref().unwrap();
                             let colname = a.to_string();
-                            debug!("Adding to computed columns {:?}", colname);
-                            
-                            let newcol_index = columns.len();
-                            cols_to_keep.push(newcol_index);
-                            columns.push(TableColumnDef{
-                                table: table_name.clone(),
-                                colname: colname.clone(),
-                                fullname: "".to_string(),
-                                column: ColumnDef{
-                                    name: Ident::new(colname),
-                                    data_type: DataType::Int,
-                                    collation: None,
-                                    options: vec![],
-
-                                },
-                            });
-                
-                            // XXX NOTE: WE'RE ACTUALLY MODIFYING THE ROW HERE???
-                            let ccval_func = get_value_for_row_closure(&expr, &columns);
-                            for (_, rptr) in from_view.rows.borrow().iter() {
-                                let mut row = rptr.borrow_mut();
-                                let val = ccval_func(&row);
-                                if row.len() > newcol_index {
-                                    row[newcol_index] = val;
-                                } else {
-                                    row.push(val);
-                                }
-                            }
+                            debug!("Adding to computed columns {}: {}", colname, expr);
+                            computed_cols.push((colname, expr));
                         } else if let Expr::Function(f) = expr {
                             if f.name.to_string() == "count" && f.args == FunctionArgs::Star {
                                 count = true;
@@ -528,6 +503,36 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 warn!("get all ptrs for NONE selection {}", se);
             }
           
+            // add computed cols 
+            for (col, expr) in computed_cols.iter() {
+                let newcol_index = columns.len();
+                cols_to_keep.push(newcol_index);
+                columns.push(TableColumnDef{
+                    table: table_name.clone(),
+                    colname: col.clone(),
+                    fullname: "".to_string(),
+                    column: ColumnDef{
+                        name: Ident::new(col.clone()),
+                        data_type: DataType::Int,
+                        collation: None,
+                        options: vec![],
+
+                    },
+                });
+
+                // XXX NOTE: WE'RE ACTUALLY MODIFYING THE ROW HERE???
+                let ccval_func = get_value_for_row_closure(&expr, &columns);
+                for rptr in rptrs_to_keep.iter() {
+                    let mut row = rptr.row().borrow_mut();
+                    let val = ccval_func(&row);
+                    if row.len() > newcol_index {
+                        row[newcol_index] = val;
+                    } else {
+                        row.push(val);
+                    }
+                }
+            }
+
             // add the count of selected columns as an extra column if it were projected
             if count {
                 let newcol_index = columns.len();
@@ -555,6 +560,8 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                     }
                 }
             }
+
+
             debug!("setexpr select: returning {:?}", rptrs_to_keep);
             Ok((columns, rptrs_to_keep, cols_to_keep))
         }
