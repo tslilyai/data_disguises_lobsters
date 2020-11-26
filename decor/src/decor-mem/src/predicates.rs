@@ -307,6 +307,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColu
         Expr::BinaryOp{left, op, right} => {
             match op {
                 BinaryOperator::Or => {
+                    // NOTE: this could inefficiently linearly scan twice. oh well...
                     matching.extend(get_rptrs_matching_constraint(&left, v, columns));
                     matching.extend(get_rptrs_matching_constraint(&right, v, columns));
                     is_or = true;
