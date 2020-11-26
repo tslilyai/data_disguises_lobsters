@@ -305,25 +305,30 @@ impl View {
         None
     }
 
+    pub fn is_indexed_col(&self, col_index: usize) -> bool {
+        col_index == self.primary_index || self.indexes.get(&self.columns[col_index].column.name.to_string()).is_some()
+    }
+
     pub fn get_indexed_rptrs_of_col(&self, col_index: usize, col_val: &str) -> Option<HashedRowPtrs> {
+        let mut hs = HashSet::with_capacity(1);
         if col_index == self.primary_index {
             match self.rows.borrow().get(col_val) {
                 Some(r) => {
                     debug!("get rptrs of col: found 1 primary row for col {} val {}!", self.columns[col_index].fullname, col_val);
-                    let mut hs = HashSet::with_capacity(1);
                     hs.insert(HashedRowPtr::new(r.clone(), self.primary_index));
-                    return Some(hs);
                 }
                 None => {
                     debug!("get rptrs of primary: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
                 }
             }
+            return Some(hs);
         } else if let Some(index) = self.indexes.get(&self.columns[col_index].column.name.to_string()) {
             if let Some(rptrs) = index.borrow().get(col_val) {
                 debug!("get rptrs of col: found {} rows for col {} val {}!", rptrs.len(), self.columns[col_index].fullname, col_val);
                 return Some(rptrs.clone());
             } else {
                 debug!("get rptrs of col: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
+                return Some(hs);
             }
         } 
         None

@@ -1,4 +1,4 @@
-use crate::views::{View, TableColumnDef, HashedRowPtrs, HashedRowPtr};
+use crate::views::{View, TableColumnDef, HashedRowPtrs, HashedRowPtr, Row};
 use crate::{helpers};
 use log::{warn, debug};
 use std::collections::{HashSet};
@@ -6,15 +6,6 @@ use std::cmp::Ordering;
 use std::time;
 use sql_parser::ast::*;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ColComputation {
-    index1: usize,
-    index2: Option<usize>, 
-    val: Option<Value>, 
-    binop: BinaryOperator,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Predicate {
     ColValEq {
         index: usize, 
@@ -36,7 +27,7 @@ pub enum Predicate {
     },
 
     ComputeValCmp {
-        computation: ColComputation,
+        comp_func: Box<dyn Fn(&Vec<Value>) -> Value>,
         val: Value, 
         op: BinaryOperator,
     },
@@ -87,35 +78,34 @@ fn rhs_expr_to_index_or_value(right: &Expr, columns: &Vec<TableColumnDef>) -> (O
 /*
  * Turn predicate into a value for row
  */
-pub fn get_compute_closure_for_row(computation: &ColComputation)
+pub fn get_compute_closure_for_row(index1: usize, index2: Option<usize>, val: Option<Value>, op: BinaryOperator)
     -> Box<dyn Fn(&Vec<Value>) -> Value> 
 {
     let closure: Option<Box<dyn Fn(&Vec<Value>) -> Value>>;
     let start = time::Instant::now();
-    let i1 = computation.index1;
-    match computation.binop {
+    match op {
         BinaryOperator::Plus => {
-            if let Some(v) = &computation.val {
+            if let Some(v) = &val {
                 let v = v.clone();
-                closure = Some(Box::new(move |row| helpers::plus_parser_vals(&row[i1].clone(), &v)));
+                closure = Some(Box::new(move |row| helpers::plus_parser_vals(&row[index1].clone(), &v)));
             } else {
-                let i2 = computation.index2.unwrap();
-                closure = Some(Box::new(move |row| helpers::plus_parser_vals(&row[i1], &row[i2])));
+                let i2 = index2.unwrap();
+                closure = Some(Box::new(move |row| helpers::plus_parser_vals(&row[index1], &row[i2])));
             }
         }
         BinaryOperator::Minus => {
-            if let Some(v) = &computation.val {
+            if let Some(v) = &val {
                 let v = v.clone();
-                closure = Some(Box::new(move |row| helpers::minus_parser_vals(&row[i1].clone(), &v)));
+                closure = Some(Box::new(move |row| helpers::minus_parser_vals(&row[index1].clone(), &v)));
             } else {
-                let i2 = computation.index2.unwrap();
-                closure = Some(Box::new(move |row| helpers::minus_parser_vals(&row[i1], &row[i2])));
+                let i2 = index2.unwrap();
+                closure = Some(Box::new(move |row| helpers::minus_parser_vals(&row[index1], &row[i2])));
             }
         }
-        _ => unimplemented!("op {} not supported to get value", computation.binop),
+        _ => unimplemented!("op {} not supported to get value", op),
     }
     let dur = start.elapsed();
-    warn!("Get closure for expr {:?} took: {}us", computation, dur.as_micros());
+    warn!("Get closure for expr {:?} took: {}us", op, dur.as_micros());
     closure.unwrap()
 }
 
@@ -144,113 +134,59 @@ pub fn vals_satisfy_cmp(lval: &Value, rval: &Value, op: &BinaryOperator) -> bool
     }
 }
 
-// OR
-pub fn get_predicated_rptrs_from_view(p: &Predicate, v: &View, matching_rows: &mut HashSet<HashedRowPtr>)
+pub fn get_predicated_rptrs_from_view(preds: &Vec<Predicate>, v: &View) -> HashedRowPtrs
 {
-    use Predicate::*;
-    let mut negate = false;
-    match p {
-        Bool(b) => {
-            // we want to take all rows if b is true
-            negate = *b;
-        }
-        ColValEq{index, val, neg} => {
-            v.get_rptrs_of_col(*index, &val.to_string(), matching_rows);
-            negate = *neg;
-        }
-        ColValsEq{index, vals, neg} => {
-            for lv in vals{
-                v.get_rptrs_of_col(*index, &lv.to_string(), matching_rows);
-            }
-            negate = *neg;
-        }
-        ColCmp{index1, index2, val, op} => {
-            for (_, rptr) in v.rows.borrow().iter() {
-                let row = rptr.borrow();
-                let left_val = &row[*index1];
-                let right_val : &Value;
-                if let Some(i2) = index2 {
-                    right_val = &row[*i2];
-                } else {
-                    right_val = &val.as_ref().unwrap();
-                }
-                if vals_satisfy_cmp(left_val, right_val, op) {
-                    matching_rows.insert(HashedRowPtr::new(rptr.clone(), v.primary_index));
-                }
+    let mut matching_rptrs = HashSet::new();
+    'rowloop: for (_, rptr) in v.rows.borrow().iter() {
+        let row = rptr.borrow();
+        for p in preds {
+            if !pred_matches_row(&row, p) {
+                continue 'rowloop;
             }
         }
-        ComputeValCmp{computation, val, op} => {
-            let comp_func = get_compute_closure_for_row(&computation);
-            for (_, rptr) in v.rows.borrow().iter() {
-                let left_val = comp_func(&rptr.borrow());
-                if vals_satisfy_cmp(&left_val, val, op) {
-                    matching_rows.insert(HashedRowPtr::new(rptr.clone(), v.primary_index));
-                }
-            }
-        }
+        matching_rptrs.insert(HashedRowPtr::new(rptr.clone(), v.primary_index));
     }
-    if negate {
-        let mut all_rptrs : HashSet<HashedRowPtr> = v.rows.borrow().iter().map(
-            |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), v.primary_index)).collect();
-        warn!("get all ptrs for selection {:?}", p);
-        for rptr in matching_rows.iter() {
-            all_rptrs.remove(&rptr);
-        }
-        *matching_rows = all_rptrs;
-    }
+    matching_rptrs
 }
 
-// AND 
-pub fn get_predicated_rptrs_from_matching(p: &Predicate, v: &View, matching_rows: &mut HashSet<HashedRowPtr>)
+pub fn get_predicated_rptrs_from_matching(preds: &Vec<Predicate>, v: &View, matching: &mut HashedRowPtrs) 
 {
+    matching.retain(|hrp| {
+        let row = hrp.row().borrow();
+        let mut matches = true;
+        for p in preds {
+            matches &= pred_matches_row(&row, p);
+        }
+        matches
+    });
+}
+
+fn pred_matches_row(row: &Row, p: &Predicate) -> bool {
     use Predicate::*;
     match p {
-        Bool(b) => {
-            if !b {
-                matching_rows.clear();
-            }
-        }
-        ColValEq{index, val, neg} => {
-            if let Some(hs) = v.get_indexed_rptrs_of_col(*index, &val.to_string()){
-                matching_rows.retain(|r| !neg == hs.get(r).is_some());
-            } else {
-                matching_rows.retain(|hrp| {
-                    let cmp_eq = helpers::parser_vals_cmp(&hrp.row().borrow()[*index], &val) == Ordering::Equal;
-                    cmp_eq == !neg
-                });
-            }
-        }
+        Bool(b) => *b,
+        ColValEq{index, val, neg} => !neg == (helpers::parser_vals_cmp(&row[*index], &val) == Ordering::Equal),
         ColValsEq{index, vals, neg} => {
-            for lv in vals{
-                if let Some(hs) = v.get_indexed_rptrs_of_col(*index, &lv.to_string()){
-                    matching_rows.retain(|r| !neg == hs.get(r).is_some());
-                } else {
-                    matching_rows.retain(|hrp| {
-                        let cmp_eq = helpers::parser_vals_cmp(&hrp.row().borrow()[*index], &lv) == Ordering::Equal;
-                        cmp_eq == !neg
-                    });
+            for lv in vals {
+                if !neg == (helpers::parser_vals_cmp(&row[*index], &lv) == Ordering::Equal) {
+                    return true
                 }
             }
+            false
         }
         ColCmp{index1, index2, val, op} => {
-            matching_rows.retain(|hrp| {
-                let row = hrp.row().borrow();
-                let left_val = &row[*index1];
-                let right_val : &Value;
-                if let Some(i2) = index2 {
-                    right_val = &row[*i2];
-                } else {
-                    right_val = &val.as_ref().unwrap();
-                }
-                vals_satisfy_cmp(left_val, right_val, op)
-            });
+            let left_val = &row[*index1];
+            let right_val : &Value;
+            if let Some(i2) = index2 {
+                right_val = &row[*i2];
+            } else {
+                right_val = &val.as_ref().unwrap();
+            }
+            vals_satisfy_cmp(left_val, right_val, op)
         }
-        ComputeValCmp{computation, val, op} => {
-            let comp_func = get_compute_closure_for_row(&computation);
-            matching_rows.retain(|hrp| {
-                let left_val = comp_func(&hrp.row().borrow());
-                vals_satisfy_cmp(&left_val, val, op)
-            });
+        ComputeValCmp{comp_func, val, op} => {
+            let left_val = comp_func(&row);
+            vals_satisfy_cmp(&left_val, val, op)
         }
     }
 }
@@ -337,14 +273,14 @@ pub fn get_predicates_of_constraint(e: &Expr, v: &View, columns: &Vec<TableColum
                             Expr::BinaryOp{left, op, right} => {
                                 let innerlindex = lhs_expr_to_index(&left, &columns);
                                 let (innerrindex, innerrval) = rhs_expr_to_index_or_value(&right, &columns);
-                                let comp = ColComputation {
-                                    index1: innerlindex,
-                                    index2: innerrindex,
-                                    val: innerrval,
-                                    binop: op.clone(),
-                                };
+                                let comp_func = get_compute_closure_for_row(
+                                    innerlindex,
+                                    innerrindex,
+                                    innerrval,
+                                    op.clone(),
+                                );
                                 preds.push(Predicate::ComputeValCmp {
-                                    computation: comp, 
+                                    comp_func: comp_func, 
                                     val: rval.unwrap().clone(), 
                                     op: cmp_op,
                                 });
@@ -383,16 +319,17 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColu
     if !is_or {
         let mut preds : Vec<Predicate> = vec![];
         get_predicates_of_constraint(&e, v, columns, &mut preds);
-        matching = get_predicated_rptrs(&mut preds, v);
+        matching = get_predicated_rptrs(&preds, v);
     }
     let dur = start.elapsed();
     warn!("get rptrs matching constraint {} duration {}us", e, dur.as_micros());
     matching
 }
 
-pub fn get_predicated_rptrs(preds: &mut Vec<Predicate>, v: &View) -> HashedRowPtrs {
+pub fn get_predicated_rptrs(preds: &Vec<Predicate>, v: &View) -> HashedRowPtrs {
     use Predicate::*;
-    preds.sort_by(|p1, p2| match p1 {
+
+    /*preds.sort_by(|p1, p2| match p1 {
         ColValEq {..} => Ordering::Less,
         ColValsEq {..} => Ordering::Less,
         _ => match p2 {
@@ -400,11 +337,36 @@ pub fn get_predicated_rptrs(preds: &mut Vec<Predicate>, v: &View) -> HashedRowPt
             ColValsEq {..} => Ordering::Greater,
             _ => Ordering::Less,
         }
-    });
-    let mut matching_rptrs = HashSet::new();
-    get_predicated_rptrs_from_view(&preds[0], v, &mut matching_rptrs);
-    for i in 1..preds.len() {
-        get_predicated_rptrs_from_matching(&preds[i], v, &mut matching_rptrs);
+    });*/
+   
+    let mut matching = None;
+    for pred in preds {
+        if let ColValEq{index, val, neg} = pred {
+            // we scan all pointers if it's negated anyway...
+            if *neg {
+                continue;
+            }
+            if let Some(hrptrs) = v.get_indexed_rptrs_of_col(*index, &val.to_string()) {
+                matching = Some(hrptrs);
+            } 
+        } else if let ColValsEq{index, vals, neg} = pred {
+            if *neg {
+                continue;
+            }
+            if v.is_indexed_col(*index) {
+                let mut hrptrs = HashSet::new();
+                for lv in vals {
+                    hrptrs.extend(v.get_indexed_rptrs_of_col(*index, &lv.to_string()).unwrap());
+                }
+                matching = Some(hrptrs);
+            } 
+        }
     }
-    matching_rptrs
+    if let Some(mut matching) = matching {
+        get_predicated_rptrs_from_matching(preds, v, &mut matching);
+        return matching;
+    } else {
+        // if we got to this point we have to linear scan and apply all predicates :\
+        return get_predicated_rptrs_from_view(preds, v);
+    }
 }
