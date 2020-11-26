@@ -297,11 +297,35 @@ impl View {
         if let Some(i) = self.indexes.get(col_name) {
             debug!("Found index of view {} for col {}", self.name, col_name);
             return Some(ViewIndex::Secondary(i.clone()));
-        } else if select::tablecolumn_matches_col(&self.columns[self.primary_index], col_name) {
+        } else if helpers::tablecolumn_matches_col(&self.columns[self.primary_index], col_name) {
             debug!("Found primary index of view {} for col {}", self.name, col_name);
             return Some(ViewIndex::Primary(self.rows.clone(), self.primary_index));
         }
         debug!("No index of view {} for col {}", self.name, col_name);
+        None
+    }
+
+    pub fn get_indexed_rptrs_of_col(&self, col_index: usize, col_val: &str) -> Option<HashedRowPtrs> {
+        if col_index == self.primary_index {
+            match self.rows.borrow().get(col_val) {
+                Some(r) => {
+                    debug!("get rptrs of col: found 1 primary row for col {} val {}!", self.columns[col_index].fullname, col_val);
+                    let mut hs = HashSet::with_capacity(1);
+                    hs.insert(HashedRowPtr::new(r.clone(), self.primary_index));
+                    return Some(hs);
+                }
+                None => {
+                    debug!("get rptrs of primary: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
+                }
+            }
+        } else if let Some(index) = self.indexes.get(&self.columns[col_index].column.name.to_string()) {
+            if let Some(rptrs) = index.borrow().get(col_val) {
+                debug!("get rptrs of col: found {} rows for col {} val {}!", rptrs.len(), self.columns[col_index].fullname, col_val);
+                return Some(rptrs.clone());
+            } else {
+                debug!("get rptrs of col: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
+            }
+        } 
         None
     }
 

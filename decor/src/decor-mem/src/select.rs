@@ -1,5 +1,5 @@
 use crate::views::{View, TableColumnDef, RowPtrs, ViewIndex, HashedRowPtr};
-use crate::{helpers, INIT_CAPACITY};
+use crate::{helpers, INIT_CAPACITY, predicates};
 use log::{warn, error, debug};
 use std::collections::{HashMap, HashSet};
 use std::cmp::Ordering;
@@ -9,31 +9,6 @@ use std::time;
 use sql_parser::ast::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-
-/*
- * return table name and optionally column if not wildcard
- */
-fn expr_to_col(e: &Expr) -> (String, String) {
-    //debug!("expr_to_col: {:?}", e);
-    match e {
-        // only support form column or table.column
-        Expr::Identifier(ids) => {
-            if ids.len() > 2 || ids.len() < 1 {
-                unimplemented!("expr needs to be of form table.column {}", e);
-            }
-            if ids.len() == 2 {
-                return (ids[0].to_string(), ids[1].to_string());
-            }
-            return ("".to_string(), ids[0].to_string());
-        }
-        _ => unimplemented!("expr_to_col {} not supported", e),
-    }
-}
-
-pub fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
-    debug!("matching {} to {}", c.column.name, col);
-    c.colname == col || c.fullname == col
-}
 
 /*
  * Convert table name (with optional alias) to current view
@@ -71,8 +46,8 @@ fn get_binop_indexes(e: &Expr, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>)
     let i2: Option<ViewIndex>; 
     if let Expr::BinaryOp{left, op, right} = e {
         if let BinaryOperator::Eq = op {
-            let (tab1, col1) = expr_to_col(left);
-            let (tab2, col2) = expr_to_col(right);
+            let (tab1, col1) = helpers::expr_to_col(left);
+            let (tab2, col2) = helpers::expr_to_col(right);
             debug!("Join got tables and columns {}.{} and {}.{} from expr {:?}", tab1, col1, tab2, col2, e);
             
             let v1 = v1.borrow();
@@ -318,7 +293,7 @@ pub fn get_value_for_row_closure(e: &Expr,
     let start = time::Instant::now();
     match &e {
         Expr::Identifier(_) => {
-            let (_tab, col) = expr_to_col(&e);
+            let (_tab, col) = helpers::expr_to_col(&e);
             debug!("Identifier column {}", col);
 
             let ci = get_col_index(&col, &columns);
@@ -352,7 +327,7 @@ pub fn get_value_for_row_closure(e: &Expr,
             let mut rval : Box<dyn Fn(&Vec<Value>) -> Value> = Box::new(|_row| Value::Null);
             match &**left {
                 Expr::Identifier(_) => {
-                    let (_ltab, lcol) = expr_to_col(&left);
+                    let (_ltab, lcol) = helpers::expr_to_col(&left);
                     lindex = get_col_index(&lcol, columns);
                 }
                 Expr::Value(val) => {
@@ -363,7 +338,7 @@ pub fn get_value_for_row_closure(e: &Expr,
             }
             match &**right {
                 Expr::Identifier(_) => {
-                    let (_rtab, rcol) = expr_to_col(&right);
+                    let (_rtab, rcol) = helpers::expr_to_col(&right);
                     rindex = get_col_index(&rcol, columns);
                 }
                 Expr::Value(val) => {
@@ -396,170 +371,9 @@ pub fn get_value_for_row_closure(e: &Expr,
 }
 
 pub fn get_col_index(col: &str, columns: &Vec<TableColumnDef>) -> Option<usize> {
-    columns.iter().position(|c| tablecolumn_matches_col(c, col))
+    columns.iter().position(|c| helpers::tablecolumn_matches_col(c, col))
 }
 
-/* 
- * returns (negated, MatchingPtrs) 
- * 
- * */
-pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, 
-                                    columns: &Vec<TableColumnDef>)
-    -> (bool, HashSet<HashedRowPtr>)
-{
-    let start = time::Instant::now();
-    let mut matching_rows = HashSet::with_capacity(INIT_CAPACITY); //BTreeSet::new(); 
-    let mut negated_res = false;
-    debug!("getting rptrs of constraint {:?}", e);
-    match e {
-        Expr::Value(Value::Boolean(b)) => {
-            negated_res = *b;
-        } 
-        Expr::InList { expr, list, negated } => {
-            let list_vals : Vec<Value> = list.iter()
-                .map(|e| match e {
-                    Expr::Value(v) => v.clone(),
-                    _ => unimplemented!("list can only contain values: {:?}", list),
-                })
-                .collect();
-            let (_tab, col) = expr_to_col(&expr);
-              
-            if let Some(ci) = get_col_index(&col, &columns) {
-                for lv in &list_vals {
-                    v.get_rptrs_of_col(ci, &lv.to_string(), &mut matching_rows);
-                }
-            }
-            negated_res = *negated;
-        }
-        Expr::IsNull { expr, negated } => {
-            let (_tab, col) = expr_to_col(&expr);
-            if let Some(ci) = get_col_index(&col, columns) {
-                v.get_rptrs_of_col(ci, &Value::Null.to_string(), &mut matching_rows);
-            }
-            negated_res = *negated;
-        }
-        Expr::BinaryOp {left, op, right} => {
-            match op {
-                BinaryOperator::And => {
-                    let (lnegated, mut lptrs) = get_rptrs_matching_constraint(left, v, columns);
-                    let (rnegated, mut rptrs) = get_rptrs_matching_constraint(right, v, columns);
-                    // if both are negated or not negated, return (negated?, combo of ptrs)
-                    if lnegated == rnegated {
-                        lptrs.retain(|lptr| rptrs.get(&lptr).is_some());
-                        negated_res = lnegated;
-                        matching_rows = lptrs;
-                    } else {
-                        if lnegated {
-                            // only lefthandside negated, return (false, rptrs - lptrs)
-                            for lptr in lptrs {
-                                rptrs.remove(&lptr);
-                            }
-                            matching_rows = rptrs;
-                        } else {
-                            // only right negated, return (false, lptrs - rptrs)
-                            for rptr in rptrs {
-                                lptrs.remove(&rptr);
-                            }
-                            matching_rows = lptrs;
-                        } 
-                        negated_res = false;
-                    }
-                }
-                BinaryOperator::Or => {
-                    let (lnegated, mut lptrs) = get_rptrs_matching_constraint(left, v, columns);
-                    let (rnegated, mut rptrs) = get_rptrs_matching_constraint(right, v, columns);
-                    if lnegated == rnegated {
-                        lptrs.extend(rptrs);
-                        negated_res = lnegated;
-                        matching_rows = lptrs;
-                    } else {
-                        if lnegated {
-                            // only lefthandside negated, return (true, lptrs - rptrs)
-                            for rptr in rptrs {
-                                lptrs.remove(&rptr);
-                            }
-                            matching_rows = lptrs;
-                        } else {
-                            // only righthandside negated, return (left, all rptrs - lptrs)
-                            for lptr in lptrs {
-                                rptrs.remove(&lptr);
-                            }
-                            matching_rows = rptrs;
-                        }
-                        negated_res = true;
-                    }
-                }
-                _ => {
-                    // special case: use index to perform comparisons against 
-                    // fixed value on the RHS
-                    let mut fastpath = false;
-                    if let Expr::Identifier(_) = **left {
-                        if let Expr::Value(ref val) = **right {
-                            debug!("getting rptrs of constraint: Fast path {:?}", e);
-                            if *op == BinaryOperator::Eq || *op == BinaryOperator::NotEq {
-                                fastpath = true;
-                                let (_tab, col) = expr_to_col(&left);
-                                if let Some(ci) = get_col_index(&col, columns) {
-                                    v.get_rptrs_of_col(ci, &val.to_string(), &mut matching_rows);
-                                    negated_res = *op == BinaryOperator::NotEq;
-                                } 
-                            }
-                        }
-                    } 
-                    if !fastpath {
-                        warn!("get_rptrs_matching_constraint: Slow path {:?}", e);
-                        let left_fn = get_value_for_row_closure(&left, columns);
-                        let right_fn = get_value_for_row_closure(&right, columns);
-
-                        for (_pk, row) in v.rows.borrow().iter() {
-                            let left_val = left_fn(&row.borrow());
-                            let right_val = right_fn(&row.borrow());
-                            let cmp = helpers::parser_vals_cmp(&left_val, &right_val);
-                            match op {
-                                BinaryOperator::Eq => {
-                                    if cmp == Ordering::Equal {
-                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
-                                    }
-                                }
-                                BinaryOperator::NotEq => {
-                                    if cmp != Ordering::Equal {
-                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
-                                    }
-                                }
-                                BinaryOperator::Lt => {
-                                    if cmp == Ordering::Less {
-                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
-                                    }
-                                }
-                                BinaryOperator::Gt => {
-                                    if cmp == Ordering::Greater {
-                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
-                                    }
-                                }
-                                BinaryOperator::LtEq => {
-                                    if cmp != Ordering::Greater {
-                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
-                                    }
-                                }
-                                BinaryOperator::GtEq => {
-                                    if cmp != Ordering::Less {
-                                        matching_rows.insert(HashedRowPtr::new(row.clone(), v.primary_index));
-                                    }
-                                }
-                                _ => unimplemented!("binop constraint not supported {:?}", e),
-                            }
-                        }
-                        negated_res = false;
-                    }
-                }
-            }
-        }
-        _ => unimplemented!("Constraint not supported {:?}", e),
-    }
-    let dur = start.elapsed();
-    warn!("get rptrs matching constraint {} duration {}us", e, dur.as_micros());
-    (negated_res, matching_rows)
-}
 
 /* 
  * Return vectors of columns, rows, and additional computed columns/values
@@ -625,7 +439,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                         } else if let Expr::Identifier(_ids) = expr {
                             // SELECT `tablename.columname` 
                             
-                            let (_tab, col) = expr_to_col(expr);
+                            let (_tab, col) = helpers::expr_to_col(expr);
                             debug!("{}: selecting {}", s, col);
                             let ci = get_col_index(&col, &columns).unwrap();
                             cols_to_keep.push(ci);
@@ -682,8 +496,6 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                     }
                 }
             }
-            //let mut order_by = None;
-            // TODO get columns by which to add the rows to the rows_to_keep
 
             // fast path: return val if select val was issued
             if let Some(val) = select_val {
@@ -712,8 +524,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             // filter out rows by where clause
             let rptrs_to_keep : HashSet<HashedRowPtr>;
             if let Some(selection) = &s.selection {
-                let (negated, mut matching_rptrs) = 
-                    get_rptrs_matching_constraint(&selection, &from_view, &columns);
+                let (negated, mut matching_rptrs) = predicates::get_rptrs_matching_constraint(&selection, &from_view, &columns);
                 if negated {
                     let mut all_rptrs : HashSet<HashedRowPtr> = from_view.rows.borrow().iter().map(
                         |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), from_view.primary_index)).collect();
@@ -819,12 +630,12 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
         // TODO only support at most two order by constraints for now
         assert!(q.order_by.len() < 3); 
         let orderby1 = &q.order_by[0];
-        let (_tab, col1) = expr_to_col(&orderby1.expr);
+        let (_tab, col1) = helpers::expr_to_col(&orderby1.expr);
         let ci1 = get_col_index(&col1, &all_cols).unwrap();
        
         if q.order_by.len() == 2 {
             let orderby2 = &q.order_by[1];
-            let (_tab, col2) = expr_to_col(&orderby2.expr);
+            let (_tab, col2) = helpers::expr_to_col(&orderby2.expr);
             let ci2 = get_col_index(&col2, &all_cols).unwrap();
             match orderby1.asc {
                 Some(false) => {

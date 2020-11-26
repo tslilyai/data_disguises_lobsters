@@ -6,6 +6,32 @@ use std::str::FromStr;
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 use log::{debug, warn};
 
+pub fn tablecolumn_matches_col(c: &TableColumnDef, col: &str) -> bool {
+    debug!("matching {} to {}", c.column.name, col);
+    c.colname == col || c.fullname == col
+}
+
+/*
+ * return table name and optionally column if not wildcard
+ */
+fn expr_to_col(e: &Expr) -> (String, String) {
+    //debug!("expr_to_col: {:?}", e);
+    match e {
+        // only support form column or table.column
+        Expr::Identifier(ids) => {
+            if ids.len() > 2 || ids.len() < 1 {
+                unimplemented!("expr needs to be of form table.column {}", e);
+            }
+            if ids.len() == 2 {
+                return (ids[0].to_string(), ids[1].to_string());
+            }
+            return ("".to_string(), ids[0].to_string());
+        }
+        _ => unimplemented!("expr_to_col {} not supported", e),
+    }
+}
+
+
 pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName) -> Vec<String> {
     let mut res : Vec<String> = vec![];
     let table_str = table_name.to_string();

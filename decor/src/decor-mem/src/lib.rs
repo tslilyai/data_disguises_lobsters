@@ -15,6 +15,7 @@ pub mod views;
 pub mod sqlparser_cache;
 pub mod stats;
 pub mod select;
+pub mod predicates;
 
 pub const INIT_CAPACITY: usize = 1000;
 
