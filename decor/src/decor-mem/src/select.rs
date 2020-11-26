@@ -1,6 +1,6 @@
 use crate::views::{View, TableColumnDef, RowPtrs, ViewIndex, HashedRowPtr, HashedRowPtrs};
 use crate::{helpers, INIT_CAPACITY, predicates};
-use log::{warn, error, debug};
+use log::{warn, debug};
 use std::collections::{HashMap, HashSet};
 use std::cmp::Ordering;
 use std::io::{Error, ErrorKind};
@@ -521,7 +521,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             let rptrs_to_keep : HashedRowPtrs;
             if let Some(selection) = &s.selection {
                 rptrs_to_keep = predicates::get_rptrs_matching_constraint(&selection, &from_view, &columns);
-                debug!("Where: Keeping rows {:?} {:?}", selection, rptrs_to_keep);
+                debug!("Where: Keeping rows {}: \n\t{:?}", selection, rptrs_to_keep);
             } else {
                 rptrs_to_keep = from_view.rows.borrow().iter().map(
                     |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), from_view.primary_index)).collect();

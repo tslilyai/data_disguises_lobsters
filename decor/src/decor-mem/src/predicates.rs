@@ -261,7 +261,7 @@ pub fn get_predicated_rptrs_from_matching(p: &Predicate, v: &View, matching_rows
 pub fn get_predicates_of_constraint(e: &Expr, v: &View, columns: &Vec<TableColumnDef>, preds: &mut Vec<Predicate>)
 {
     let start = time::Instant::now();
-    debug!("getting predicates of constraint {:?}", e);
+    debug!("getting predicates of constraint {}", e);
     match e {
         Expr::Value(Value::Boolean(b)) => {
             preds.push(Predicate::Bool(*b));
@@ -307,14 +307,14 @@ pub fn get_predicates_of_constraint(e: &Expr, v: &View, columns: &Vec<TableColum
                     if let Expr::Identifier(_) = **left {
                         if let Expr::Value(ref val) = **right {
                             if *op == BinaryOperator::Eq || *op == BinaryOperator::NotEq {
-                                debug!("getting rptrs of constraint: Fast path {:?}", e);
+                                debug!("getting rptrs of constraint: Fast path {}", e);
                                 fastpath = true;
                                 let (_tab, col) = helpers::expr_to_col(&left);
                                 if let Some(ci) = helpers::get_col_index(&col, columns) {
                                     preds.push(Predicate::ColValEq {
                                         index: ci, 
                                         val: val.clone(),
-                                        neg: *op == BinaryOperator::Eq,
+                                        neg: *op != BinaryOperator::Eq,
                                     });
                                 } 
                             }
@@ -363,35 +363,28 @@ pub fn get_predicates_of_constraint(e: &Expr, v: &View, columns: &Vec<TableColum
 
 pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColumnDef>) -> HashedRowPtrs
 {
-    debug!("getting rptrs of constraint {:?}", e);
+    debug!("getting rptrs of constraint {}", e);
     let start = time::Instant::now();
-    let mut disjoint_preds : Vec<Vec<Predicate>> = vec![];
     let mut is_or = false;
+    let mut matching = HashSet::new();
     match e {
         Expr::BinaryOp{left, op, right} => {
-            if *op == BinaryOperator::Or{
-                let mut left_preds : Vec<Predicate> = vec![];
-                let mut right_preds : Vec<Predicate> = vec![];
-                get_predicates_of_constraint(&left, v, columns, &mut left_preds);
-                get_predicates_of_constraint(&right, v, columns, &mut right_preds);
-                disjoint_preds.push(left_preds);
-                disjoint_preds.push(right_preds);
-                is_or = true;
-            } 
+            match op {
+                BinaryOperator::Or => {
+                    matching.extend(get_rptrs_matching_constraint(&left, v, columns));
+                    matching.extend(get_rptrs_matching_constraint(&right, v, columns));
+                    is_or = true;
+                }  
+                _ => (),
+            }
         }
         _ => (),
     } 
     if !is_or {
         let mut preds : Vec<Predicate> = vec![];
         get_predicates_of_constraint(&e, v, columns, &mut preds);
-        disjoint_preds.push(preds);
+        matching = get_predicated_rptrs(&mut preds, v);
     }
-
-    let mut matching = HashSet::new();
-    for mut preds in disjoint_preds {
-        matching.extend(get_predicated_rptrs(&mut preds, v));
-    }
-
     let dur = start.elapsed();
     warn!("get rptrs matching constraint {} duration {}us", e, dur.as_micros());
     matching
