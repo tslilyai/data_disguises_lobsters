@@ -6,7 +6,39 @@ use std::cmp::Ordering;
 use std::time;
 use sql_parser::ast::*;
 
-pub enum Predicate {
+pub enum NamedPredicate {
+    ColValEq {
+        name: String, 
+        val: Value,
+        neg: bool,
+    },
+
+    ColValsEq {
+        name: String, 
+        vals: Vec<Value>, 
+        neg: bool,
+    },
+
+    ColCmp {
+        name1: String, 
+        name2: Option<String>, 
+        val: Option<Value>, 
+        op: BinaryOperator,
+    },
+
+    ComputeValCmp {
+        name1: String, 
+        name2: Option<String>, 
+        innerval: Option<Value>, 
+        innerop: BinaryOperator,
+        val: Value, 
+        op: BinaryOperator,
+    },
+    
+    Bool(bool),
+}
+
+pub enum IndexedPredicate {
     ColValEq {
         index: usize, 
         val: Value,
@@ -34,9 +66,10 @@ pub enum Predicate {
     
     Bool(bool),
 }
-impl std::fmt::Debug for Predicate {
+
+impl std::fmt::Debug for IndexedPredicate {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
-        use Predicate::*;
+        use IndexedPredicate::*;
         match self {
             Bool(b) => f.debug_struct("Bool").field("b", b).finish(),
             ColValEq{index, val, neg} => f.debug_struct("ColValEq")
@@ -63,24 +96,71 @@ impl std::fmt::Debug for Predicate {
     }
 }
 
-fn lhs_expr_to_index(left: &Expr, columns: &Vec<TableColumnDef>) -> usize {
+impl NamedPredicate {
+    pub fn to_indexed_predicate(&self, columns: &Vec<TableColumnDef>) -> IndexedPredicate {
+        use NamedPredicate::*;
+        match self {
+            Bool(b) => IndexedPredicate::Bool(*b),
+            ColValEq {name, val, neg} => {
+                IndexedPredicate::ColValEq {
+                    index: helpers::get_col_index(&name, columns).unwrap(),
+                    val: val.clone(),
+                    neg: *neg,
+                }
+            }
+            ColValsEq {name, vals, neg} => {
+                IndexedPredicate::ColValsEq {
+                    index: helpers::get_col_index(&name, columns).unwrap(),
+                    vals: vals.clone(),
+                    neg: *neg,
+                }
+            } 
+            ColCmp {name1, name2, val, op} => {
+                let i2 = match name2 {
+                    Some(n) => Some(helpers::get_col_index(&n, columns).unwrap()),
+                    None => None
+                };
+                IndexedPredicate::ColCmp{
+                    index1: helpers::get_col_index(&name1, columns).unwrap(),
+                    index2: i2, 
+                    val: val.clone(),
+                    op: op.clone(),
+                }
+            } 
+            ComputeValCmp {name1, name2, innerval, innerop, val, op} => {
+                let i1 = helpers::get_col_index(name1, columns).unwrap();
+                let i2 = match name2 {
+                    Some(n) => Some(helpers::get_col_index(&n, columns).unwrap()),
+                    None => None,
+                };
+                let comp_func = get_compute_closure_for_row(i1, i2, innerval, innerop);
+                IndexedPredicate::ComputeValCmp{
+                    comp_func: comp_func,
+                    val: val.clone(),
+                    op: op.clone(),
+                }
+            }
+        }
+    }
+}
+
+fn lhs_expr_to_name(left: &Expr) -> String {
     match left {
         Expr::Identifier(_) => {
             let (_tab, col) = helpers::expr_to_col(&left);
-            let ci = helpers::get_col_index(&col, &columns).unwrap();
-            ci
+            col
         }
         _ => unimplemented!("Bad lhs {}", left),
     }
 }
 
-fn rhs_expr_to_index_or_value(right: &Expr, columns: &Vec<TableColumnDef>) -> (Option<usize>, Option<Value>) {
+fn rhs_expr_to_name_or_value(right: &Expr) -> (Option<String>, Option<Value>) {
     let mut rval = None;
-    let mut rindex = None;
+    let mut rname = None;
     match right {
         Expr::Identifier(_) => {
             let (_tab, col) = helpers::expr_to_col(&right);
-            rindex = Some(helpers::get_col_index(&col, &columns).unwrap());
+            rname = Some(col);
         }
         Expr::Value(val) => {
             rval = Some(val.clone());
@@ -100,20 +180,20 @@ fn rhs_expr_to_index_or_value(right: &Expr, columns: &Vec<TableColumnDef>) -> (O
         }
         _ => unimplemented!("Bad rhs? {}", right),
     }
-    (rindex, rval)
+    (rname, rval)
 }
 
 /*
  * Turn predicate into a value for row
  */
-pub fn get_compute_closure_for_row(index1: usize, index2: Option<usize>, val: Option<Value>, op: BinaryOperator)
+pub fn get_compute_closure_for_row(index1: usize, index2: Option<usize>, val: &Option<Value>, op: &BinaryOperator)
     -> Box<dyn Fn(&Vec<Value>) -> Value> 
 {
     let closure: Option<Box<dyn Fn(&Vec<Value>) -> Value>>;
     let start = time::Instant::now();
-    match op {
+    match *op {
         BinaryOperator::Plus => {
-            if let Some(v) = &val {
+            if let Some(v) = val {
                 let v = v.clone();
                 closure = Some(Box::new(move |row| helpers::plus_parser_vals(&row[index1].clone(), &v)));
             } else {
@@ -122,7 +202,7 @@ pub fn get_compute_closure_for_row(index1: usize, index2: Option<usize>, val: Op
             }
         }
         BinaryOperator::Minus => {
-            if let Some(v) = &val {
+            if let Some(v) = val {
                 let v = v.clone();
                 closure = Some(Box::new(move |row| helpers::minus_parser_vals(&row[index1].clone(), &v)));
             } else {
@@ -162,76 +242,16 @@ pub fn vals_satisfy_cmp(lval: &Value, rval: &Value, op: &BinaryOperator) -> bool
     }
 }
 
-pub fn get_predicated_rptrs_from_view(preds: &Vec<&Predicate>, v: &View) -> HashedRowPtrs
-{
-    let mut matching_rptrs = HashSet::new();
-    warn!("Applying predicates {:?} to all view rows", preds);
-    'rowloop: for (_, rptr) in v.rows.borrow().iter() {
-        let row = rptr.borrow();
-        for p in preds {
-            if !pred_matches_row(&row, p) {
-                continue 'rowloop;
-            }
-        }
-        matching_rptrs.insert(HashedRowPtr::new(rptr.clone(), v.primary_index));
-    }
-    matching_rptrs
-}
-
-pub fn get_predicated_rptrs_from_matching(preds: &Vec<&Predicate>, matching: &mut HashedRowPtrs) 
-{
-    warn!("Applying predicates {:?} to {} matching rows", preds, matching.len());
-    matching.retain(|hrp| {
-        let row = hrp.row().borrow();
-        let mut matches = true;
-        for p in preds {
-            matches &= pred_matches_row(&row, p);
-        }
-        matches
-    });
-    warn!("Post-application len: {}", matching.len());
-}
-
-fn pred_matches_row(row: &Row, p: &Predicate) -> bool {
-    use Predicate::*;
-    match p {
-        Bool(b) => *b,
-        ColValEq{index, val, neg} => !neg == (helpers::parser_vals_cmp(&row[*index], &val) == Ordering::Equal),
-        ColValsEq{index, vals, neg} => {
-            for lv in vals {
-                if !neg == (helpers::parser_vals_cmp(&row[*index], &lv) == Ordering::Equal) {
-                    return true
-                }
-            }
-            false
-        }
-        ColCmp{index1, index2, val, op} => {
-            let left_val = &row[*index1];
-            let right_val : &Value;
-            if let Some(i2) = index2 {
-                right_val = &row[*i2];
-            } else {
-                right_val = &val.as_ref().unwrap();
-            }
-            vals_satisfy_cmp(left_val, right_val, op)
-        }
-        ComputeValCmp{comp_func, val, op} => {
-            let left_val = comp_func(&row);
-            vals_satisfy_cmp(&left_val, val, op)
-        }
-    }
-}
-
 /* 
  * returns lists of predicates  
  */
-pub fn get_predicates_of_constraint(e: &Expr, v: &View, columns: &Vec<TableColumnDef>, preds: &mut Vec<Predicate>)
+pub fn get_predicates_of_constraint(e: &Expr, preds: &mut Vec<NamedPredicate>)
 {
     let start = time::Instant::now();
     debug!("getting predicates of constraint {}", e);
     match e {
         Expr::Value(Value::Boolean(b)) => {
-            preds.push(Predicate::Bool(*b));
+            preds.push(NamedPredicate::Bool(*b));
         } 
         Expr::InList { expr, list, negated } => {
             let list_vals : Vec<Value> = list.iter()
@@ -241,29 +261,25 @@ pub fn get_predicates_of_constraint(e: &Expr, v: &View, columns: &Vec<TableColum
                 })
                 .collect();
             let (_tab, col) = helpers::expr_to_col(&expr);
-            if let Some(ci) = helpers::get_col_index(&col, &columns) {
-                preds.push(Predicate::ColValsEq {
-                    index: ci, 
-                    vals: list_vals,
-                    neg: *negated,
-                });
-            } 
+            preds.push(NamedPredicate::ColValsEq {
+                name: col, 
+                vals: list_vals,
+                neg: *negated,
+            });
         }
         Expr::IsNull { expr, negated } => {
             let (_tab, col) = helpers::expr_to_col(&expr);
-            if let Some(ci) = helpers::get_col_index(&col, columns) {
-                preds.push(Predicate::ColValEq {
-                    index: ci, 
-                    val: Value::Null,
-                    neg: *negated,
-                });
-            }
+            preds.push(NamedPredicate::ColValEq {
+                name: col, 
+                val: Value::Null,
+                neg: *negated,
+            });
         }
         Expr::BinaryOp {left, op, right} => {
             match op {
                 BinaryOperator::And => {
-                    get_predicates_of_constraint(left, v, columns, preds);
-                    get_predicates_of_constraint(right, v, columns, preds);
+                    get_predicates_of_constraint(left, preds);
+                    get_predicates_of_constraint(right, preds);
                 }
                 BinaryOperator::Or => {
                     unimplemented!("No nested ORs yet");
@@ -277,41 +293,36 @@ pub fn get_predicates_of_constraint(e: &Expr, v: &View, columns: &Vec<TableColum
                                 debug!("getting rptrs of constraint: Fast path {}", e);
                                 fastpath = true;
                                 let (_tab, col) = helpers::expr_to_col(&left);
-                                if let Some(ci) = helpers::get_col_index(&col, columns) {
-                                    preds.push(Predicate::ColValEq {
-                                        index: ci, 
-                                        val: val.clone(),
-                                        neg: *op != BinaryOperator::Eq,
-                                    });
-                                } 
+                                preds.push(NamedPredicate::ColValEq {
+                                    name: col, 
+                                    val: val.clone(),
+                                    neg: *op != BinaryOperator::Eq,
+                                });
                             }
                         }
                     }
                     if !fastpath {
                         warn!("get_rptrs_matching_constraint: Slow path {:?}", e);
                         let cmp_op = op.clone();
-                        let (rindex, rval) = rhs_expr_to_index_or_value(&right, &columns);
+                        let (rname, rval) = rhs_expr_to_name_or_value(&right);
                         match &**left {
                             Expr::Identifier(_) =>  {
-                                let lindex = lhs_expr_to_index(&left, &columns);
-                                preds.push(Predicate::ColCmp{
-                                    index1: lindex, 
-                                    index2: rindex, 
+                                let lname = lhs_expr_to_name(&left);
+                                preds.push(NamedPredicate::ColCmp{
+                                    name1: lname, 
+                                    name2: rname, 
                                     val: rval,
                                     op: cmp_op,
                                 });
                             }
                             Expr::BinaryOp{left, op, right} => {
-                                let innerlindex = lhs_expr_to_index(&left, &columns);
-                                let (innerrindex, innerrval) = rhs_expr_to_index_or_value(&right, &columns);
-                                let comp_func = get_compute_closure_for_row(
-                                    innerlindex,
-                                    innerrindex,
-                                    innerrval,
-                                    op.clone(),
-                                );
-                                preds.push(Predicate::ComputeValCmp {
-                                    comp_func: comp_func, 
+                                let innerlname = lhs_expr_to_name(&left);
+                                let (innerrname, innerrval) = rhs_expr_to_name_or_value(&right);
+                                preds.push(NamedPredicate::ComputeValCmp {
+                                    name1: innerlname,
+                                    name2: innerrname,
+                                    innerval: innerrval,
+                                    innerop: op.clone(),
                                     val: rval.unwrap().clone(), 
                                     op: cmp_op,
                                 });
@@ -328,19 +339,19 @@ pub fn get_predicates_of_constraint(e: &Expr, v: &View, columns: &Vec<TableColum
     warn!("get predicates of constraint {} duration {}us", e, dur.as_micros());
 }
 
-pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColumnDef>) -> HashedRowPtrs
+pub fn get_predicate_sets_of_constraint(e: &Expr) -> Vec<Vec<NamedPredicate>>
 {
     debug!("getting rptrs of constraint {}", e);
     let start = time::Instant::now();
     let mut is_or = false;
-    let mut matching = HashSet::new();
+    let mut pred_sets = Vec::new();
     match e {
         Expr::BinaryOp{left, op, right} => {
             match op {
                 BinaryOperator::Or => {
                     // NOTE: this could inefficiently linearly scan twice. oh well...
-                    matching.extend(get_rptrs_matching_constraint(&left, v, columns));
-                    matching.extend(get_rptrs_matching_constraint(&right, v, columns));
+                    pred_sets.append(&mut get_predicate_sets_of_constraint(&left));
+                    pred_sets.append(&mut get_predicate_sets_of_constraint(&right));
                     is_or = true;
                 }  
                 _ => (),
@@ -349,17 +360,33 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColu
         _ => (),
     } 
     if !is_or {
-        let mut preds : Vec<Predicate> = vec![];
-        get_predicates_of_constraint(&e, v, columns, &mut preds);
-        matching = get_predicated_rptrs(&preds, v);
+        let mut preds = vec![];
+        get_predicates_of_constraint(&e, &mut preds);
+        pred_sets.push(preds);
+    }
+    let dur = start.elapsed();
+    warn!("get predicate sets of constraint {} duration {}us", e, dur.as_micros());
+    pred_sets
+}
+
+pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColumnDef>) -> HashedRowPtrs
+{
+    debug!("getting rptrs of constraint {}", e);
+    let start = time::Instant::now();
+    let mut matching = HashSet::new();
+
+    let pred_sets = get_predicate_sets_of_constraint(&e);
+    for preds in &pred_sets {
+        let indexed_preds = preds.iter().map(|p| p.to_indexed_predicate(columns)).collect();
+        matching.extend(get_predicated_rptrs(&indexed_preds, v));
     }
     let dur = start.elapsed();
     warn!("get rptrs matching constraint {} duration {}us", e, dur.as_micros());
     matching
 }
 
-pub fn get_predicated_rptrs(preds: &Vec<Predicate>, v: &View) -> HashedRowPtrs {
-    use Predicate::*;
+pub fn get_predicated_rptrs(preds: &Vec<IndexedPredicate>, v: &View) -> HashedRowPtrs {
+    use IndexedPredicate::*;
 
     let mut matching : Option<HashedRowPtrs> = None;
     let mut not_applied = vec![];
@@ -409,3 +436,64 @@ pub fn get_predicated_rptrs(preds: &Vec<Predicate>, v: &View) -> HashedRowPtrs {
         return get_predicated_rptrs_from_view(&not_applied, v);
     }
 }
+
+pub fn get_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View) -> HashedRowPtrs
+{
+    let mut matching_rptrs = HashSet::new();
+    warn!("Applying predicates {:?} to all view rows", preds);
+    'rowloop: for (_, rptr) in v.rows.borrow().iter() {
+        let row = rptr.borrow();
+        for p in preds {
+            if !pred_matches_row(&row, p) {
+                continue 'rowloop;
+            }
+        }
+        matching_rptrs.insert(HashedRowPtr::new(rptr.clone(), v.primary_index));
+    }
+    matching_rptrs
+}
+
+pub fn get_predicated_rptrs_from_matching(preds: &Vec<&IndexedPredicate>, matching: &mut HashedRowPtrs) 
+{
+    warn!("Applying predicates {:?} to {} matching rows", preds, matching.len());
+    matching.retain(|hrp| {
+        let row = hrp.row().borrow();
+        let mut matches = true;
+        for p in preds {
+            matches &= pred_matches_row(&row, p);
+        }
+        matches
+    });
+    warn!("Post-application len: {}", matching.len());
+}
+
+fn pred_matches_row(row: &Row, p: &IndexedPredicate) -> bool {
+    use IndexedPredicate::*;
+    match p {
+        Bool(b) => *b,
+        ColValEq{index, val, neg} => !neg == (helpers::parser_vals_cmp(&row[*index], &val) == Ordering::Equal),
+        ColValsEq{index, vals, neg} => {
+            for lv in vals {
+                if !neg == (helpers::parser_vals_cmp(&row[*index], &lv) == Ordering::Equal) {
+                    return true
+                }
+            }
+            false
+        }
+        ColCmp{index1, index2, val, op} => {
+            let left_val = &row[*index1];
+            let right_val : &Value;
+            if let Some(i2) = index2 {
+                right_val = &row[*i2];
+            } else {
+                right_val = &val.as_ref().unwrap();
+            }
+            vals_satisfy_cmp(left_val, right_val, op)
+        }
+        ComputeValCmp{comp_func, val, op} => {
+            let left_val = comp_func(&row);
+            vals_satisfy_cmp(&left_val, val, op)
+        }
+    }
+}
+

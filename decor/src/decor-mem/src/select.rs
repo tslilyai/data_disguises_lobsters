@@ -382,6 +382,13 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 unimplemented!("No support for having queries");
             }
 
+            /*let mut preds = vec![];
+            if let Some(selection) = &s.selection {
+                preds = predicates::get_predicate_sets_of_constraint(&selection);
+            } else {
+                preds = vec![vec![predicates::NamedPredicate::Bool(true)]]
+            }*/
+
             // TODO don't need to init?
             let mut from_view: Rc<RefCell<View>> = Rc::new(RefCell::new(View::new_with_cols(vec![])));
             
