@@ -372,7 +372,7 @@ pub fn get_predicates_of_constraint(e: &Expr, preds: &mut Vec<NamedPredicate>)
         _ => unimplemented!("Constraint not supported {:?}", e),
     }
     let dur = start.elapsed();
-    warn!("get predicates of constraint {} duration {}us", e, dur.as_micros());
+    warn!("get predicates of constraint {} duration {}us: {:?}", e, dur.as_micros(), preds);
 }
 
 pub fn get_predicate_sets_of_constraint(e: &Expr) -> Vec<Vec<NamedPredicate>>
@@ -497,8 +497,11 @@ pub fn get_predicated_rptrs(preds: &Vec<IndexedPredicate>, v: &View) -> HashedRo
 
 pub fn get_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View) -> HashedRowPtrs
 {
-    let mut matching_rptrs = HashSet::new();
     warn!("Applying predicates {:?} to all view rows", preds);
+    let mut matching_rptrs = HashSet::new();
+    if preds.is_empty() {
+        return matching_rptrs;
+    }
     'rowloop: for (_, rptr) in v.rows.borrow().iter() {
         let row = rptr.borrow();
         for p in preds {
@@ -514,6 +517,9 @@ pub fn get_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View) 
 pub fn get_predicated_rptrs_from_matching(preds: &Vec<&IndexedPredicate>, matching: &mut HashedRowPtrs) 
 {
     warn!("Applying predicates {:?} to {} matching rows", preds, matching.len());
+    if preds.is_empty() {
+        return;
+    }
     matching.retain(|hrp| {
         let row = hrp.row().borrow();
         let mut matches = true;

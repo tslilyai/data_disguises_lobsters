@@ -344,8 +344,11 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>, p
         let (i1, i2) = get_join_on_indexes(jo, v1.clone(), v2.clone());
         join_using_indexes(jo, &i1, &i2, r1len, r2len, &mut new_view);
     } else {
+        warn!("Applying predicates {:?} to v1", preds);
         let (v1rptrs, remainder) = predicates::get_rptrs_matching_preds(&v1.borrow(), &v1.borrow().columns, preds);
+        warn!("Applying predicates {:?} to v1", remainder);
         let (v2rptrs, remainder) = predicates::get_rptrs_matching_preds(&v2.borrow(), &v2.borrow().columns, &remainder);
+        warn!("Applying predicates {:?} to rest", remainder);
         // if we can apply all predicates (and there is no lingering OR that could evaluate to TRUE for
         // rows not yet constrained), then we just join these selected predicates and set them as the
         // new_view rows

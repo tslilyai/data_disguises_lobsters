@@ -3,7 +3,7 @@ use crate::{helpers, INIT_CAPACITY, predicates, joins};
 use log::{warn, debug};
 use std::collections::{HashMap, HashSet};
 use std::cmp::Ordering;
-use std::io::{Error, ErrorKind};
+use std::io::{Error};
 use std::str::FromStr;
 use std::time;
 use sql_parser::ast::*;
