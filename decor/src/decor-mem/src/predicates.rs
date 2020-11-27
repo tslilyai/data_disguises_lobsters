@@ -317,7 +317,6 @@ pub fn get_predicates_of_constraint(e: &Expr, preds: &mut Vec<NamedPredicate>)
                         }
                     }
                     if !fastpath {
-                        warn!("get_rptrs_matching_constraint: Slow path {:?}", e);
                         let cmp_op = op.clone();
                         let (rname, rval) = rhs_expr_to_name_or_value(&right);
                         match &**left {
@@ -384,19 +383,41 @@ pub fn get_predicate_sets_of_constraint(e: &Expr) -> Vec<Vec<NamedPredicate>>
     pred_sets
 }
 
-pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColumnDef>) -> HashedRowPtrs
+/*
+ * Returns matching rows and any predicates which have not yet been applied
+ */
+pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicates>>) -> (HashedRowPtrs, Vec<Vec<NamedPredicates>>)
 {
     debug!("getting rptrs of constraint {}", e);
     let start = time::Instant::now();
     let mut matching = HashSet::new();
 
-    let pred_sets = get_predicate_sets_of_constraint(&e);
-    for preds in &pred_sets {
-        let indexed_preds = preds.iter().map(|p| p.to_indexed_predicate(columns)).collect();
+    let mut failed_predsets = vec![];
+    for preds in &predsets{
+        let mut failed = vec![];
+        let mut indexed_preds = vec![]; 
+        for p in preds {
+            if let Some(ip) = p.to_indexed_predicate(columns) {
+                indexed_preds.push(ip);
+            } else {
+                failed.push(p);
+            }
+        }
+        if !(failed.is_empty()) {
+            failed_predsets.push(failed);Q
+        }
         matching.extend(get_predicated_rptrs(&indexed_preds, v));
     }
     let dur = start.elapsed();
-    warn!("get rptrs matching constraint {} duration {}us", e, dur.as_micros());
+    warn!("get rptrs matching preds duration {}us", dur.as_micros());
+    (matching, failed_predsets)
+}
+
+pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColumnDef>) -> HashedRowPtrs
+{
+    let predsets = get_predicate_sets_of_constraint(&e);
+    let (matching, failed_predsets) = get_rptrs_matching_preds(v, columns, &predsets);
+    assert!(failed_predsets.is_empty());
     matching
 }
 
