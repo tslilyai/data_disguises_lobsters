@@ -6,6 +6,7 @@ use std::cmp::Ordering;
 use std::time;
 use sql_parser::ast::*;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NamedPredicate {
     ColValEq {
         name: String, 
@@ -97,22 +98,30 @@ impl std::fmt::Debug for IndexedPredicate {
 }
 
 impl NamedPredicate {
-    pub fn to_indexed_predicate(&self, columns: &Vec<TableColumnDef>) -> IndexedPredicate {
+    pub fn to_indexed_predicate(&self, columns: &Vec<TableColumnDef>) -> Option<IndexedPredicate> {
         use NamedPredicate::*;
         match self {
-            Bool(b) => IndexedPredicate::Bool(*b),
+            Bool(b) => Some(IndexedPredicate::Bool(*b)),
             ColValEq {name, val, neg} => {
-                IndexedPredicate::ColValEq {
-                    index: helpers::get_col_index(&name, columns).unwrap(),
-                    val: val.clone(),
-                    neg: *neg,
+                if let Some(ci) = helpers::get_col_index(&name, columns) {
+                    Some(IndexedPredicate::ColValEq {
+                        index: ci,
+                        val: val.clone(),
+                        neg: *neg,
+                    })
+                } else {
+                    None
                 }
             }
             ColValsEq {name, vals, neg} => {
-                IndexedPredicate::ColValsEq {
-                    index: helpers::get_col_index(&name, columns).unwrap(),
-                    vals: vals.clone(),
-                    neg: *neg,
+                if let Some(ci) = helpers::get_col_index(&name, columns) {
+                    Some(IndexedPredicate::ColValsEq {
+                        index: ci,
+                        vals: vals.clone(),
+                        neg: *neg,
+                    })
+                } else {
+                    None
                 }
             } 
             ColCmp {name1, name2, val, op} => {
@@ -120,24 +129,37 @@ impl NamedPredicate {
                     Some(n) => Some(helpers::get_col_index(&n, columns).unwrap()),
                     None => None
                 };
-                IndexedPredicate::ColCmp{
-                    index1: helpers::get_col_index(&name1, columns).unwrap(),
-                    index2: i2, 
-                    val: val.clone(),
-                    op: op.clone(),
+                if i2.is_none() && val.is_none() {
+                    return None;
+                }
+                if let Some(ci) = helpers::get_col_index(&name1, columns) {
+                    Some(IndexedPredicate::ColCmp{
+                        index1: ci,
+                        index2: i2, 
+                        val: val.clone(),
+                        op: op.clone(),
+                    })
+                } else {
+                    None
                 }
             } 
             ComputeValCmp {name1, name2, innerval, innerop, val, op} => {
-                let i1 = helpers::get_col_index(name1, columns).unwrap();
                 let i2 = match name2 {
                     Some(n) => Some(helpers::get_col_index(&n, columns).unwrap()),
                     None => None,
                 };
-                let comp_func = get_compute_closure_for_row(i1, i2, innerval, innerop);
-                IndexedPredicate::ComputeValCmp{
-                    comp_func: comp_func,
-                    val: val.clone(),
-                    op: op.clone(),
+                if i2.is_none() && innerval.is_none() {
+                    return None;
+                }
+                if let Some(i1) = helpers::get_col_index(name1, columns) {
+                    let comp_func = get_compute_closure_for_row(i1, i2, innerval, innerop);
+                    Some(IndexedPredicate::ComputeValCmp{
+                        comp_func: comp_func,
+                        val: val.clone(),
+                        op: op.clone(),
+                    })
+                } else {
+                    None
                 }
             }
         }
@@ -386,25 +408,25 @@ pub fn get_predicate_sets_of_constraint(e: &Expr) -> Vec<Vec<NamedPredicate>>
 /*
  * Returns matching rows and any predicates which have not yet been applied
  */
-pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicates>>) -> (HashedRowPtrs, Vec<Vec<NamedPredicates>>)
+pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>) -> (HashedRowPtrs, Vec<Vec<NamedPredicate>>)
 {
-    debug!("getting rptrs of constraint {}", e);
+    debug!("{}: getting rptrs of preds {:?}", v.name, predsets);
     let start = time::Instant::now();
     let mut matching = HashSet::new();
 
     let mut failed_predsets = vec![];
-    for preds in &predsets{
+    for preds in predsets {
         let mut failed = vec![];
         let mut indexed_preds = vec![]; 
         for p in preds {
             if let Some(ip) = p.to_indexed_predicate(columns) {
                 indexed_preds.push(ip);
             } else {
-                failed.push(p);
+                failed.push(p.clone());
             }
         }
         if !(failed.is_empty()) {
-            failed_predsets.push(failed);Q
+            failed_predsets.push(failed);
         }
         matching.extend(get_predicated_rptrs(&indexed_preds, v));
     }

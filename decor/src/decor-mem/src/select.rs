@@ -1,4 +1,4 @@
-use crate::views::{View, TableColumnDef, RowPtrs, ViewIndex, HashedRowPtr, HashedRowPtrs};
+use crate::views::{View, TableColumnDef, RowPtrs, HashedRowPtr};
 use crate::{helpers, INIT_CAPACITY, predicates, joins};
 use log::{warn, debug};
 use std::collections::{HashMap, HashSet};
@@ -10,34 +10,7 @@ use sql_parser::ast::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-/*
- * Convert table name (with optional alias) to current view
- */
-fn tablefactor_to_view(views: &HashMap<String, Rc<RefCell<View>>>, tf: &TableFactor) -> Result<Rc<RefCell<View>>, Error> {
-    match tf {
-        TableFactor::Table {
-            name,
-            alias,
-        } => {
-            let tab = views.get(&name.to_string());
-            match tab {
-                None => Err(Error::new(ErrorKind::Other, format!("table {:?} does not exist", tf))),
-                Some(t) => {
-                    if alias.is_some() {
-                        unimplemented!("No aliasing of tables for now {}", tf);
-                    }
-                    /*if let Some(a) = alias {
-                        // alias column table names too?
-                        assert!(a.columns.is_empty());
-                        view.name = a.name.to_string();
-                    }*/
-                    Ok(t.clone())
-                }
-            }
-        }
-        _ => unimplemented!("no derived joins {:?}", tf),
-    }
-}
+
 
 /*
  * Turn expression into a value for row
@@ -149,7 +122,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             // special case: we're getting results from only this view
             assert!(s.from.len() <= 1);
             for twj in &s.from {
-                from_view = tablewithjoins_to_view(views, &twj, &preds)?;
+                from_view = joins::tablewithjoins_to_view(views, &twj, &mut preds);
                 // TODO correctly update primary index---right now there can be duplicates from
                 // different tables
                 // TODO support multiple joins
@@ -253,16 +226,9 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             }
 
             // filter out rows by where clause
-            let rptrs_to_keep : HashedRowPtrs;
-            if let Some(selection) = &s.selection {
-                rptrs_to_keep = predicates::get_rptrs_matching_constraint(&selection, &from_view, &columns);
-                debug!("Where: Keeping rows {}: \n\t{:?}", selection, rptrs_to_keep);
-            } else {
-                rptrs_to_keep = from_view.rows.borrow().iter().map(
-                    |(_pk, rptr)| HashedRowPtr::new(rptr.clone(), from_view.primary_index)).collect();
-                warn!("get all ptrs for NONE selection {}", se);
-            }
-          
+            let (rptrs_to_keep, remainder) = predicates::get_rptrs_matching_preds(&from_view, &columns, &mut preds);
+            assert!(remainder.is_empty());
+            
             // add computed cols 
             for (col, expr) in computed_cols.iter() {
                 let newcol_index = columns.len();
