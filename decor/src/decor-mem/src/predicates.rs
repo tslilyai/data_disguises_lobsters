@@ -126,7 +126,7 @@ impl NamedPredicate {
             } 
             ColCmp {name1, name2, val, op} => {
                 let i2 = match name2 {
-                    Some(n) => Some(helpers::get_col_index(&n, columns).unwrap()),
+                    Some(n) => helpers::get_col_index(&n, columns),
                     None => None
                 };
                 if i2.is_none() && val.is_none() {
@@ -145,7 +145,7 @@ impl NamedPredicate {
             } 
             ComputeValCmp {name1, name2, innerval, innerop, val, op} => {
                 let i2 = match name2 {
-                    Some(n) => Some(helpers::get_col_index(&n, columns).unwrap()),
+                    Some(n) => helpers::get_col_index(&n, columns),
                     None => None,
                 };
                 if i2.is_none() && innerval.is_none() {

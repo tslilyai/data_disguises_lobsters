@@ -123,9 +123,6 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             assert!(s.from.len() <= 1);
             for twj in &s.from {
                 from_view = joins::tablewithjoins_to_view(views, &twj, &mut preds);
-                // TODO correctly update primary index---right now there can be duplicates from
-                // different tables
-                // TODO support multiple joins
             }
             debug!("Joined new view is {:?}", from_view);
 
@@ -327,8 +324,11 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
 pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) -> 
     Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), Error> {
     let (all_cols, rptrs, cols_to_keep) = get_setexpr_results(views, &q.body, &q.order_by)?;
+    
     // don't support OFFSET or fetches yet
     assert!(q.offset.is_none() && q.fetch.is_none());
+
+    // TODO support GROUP BY
 
     // limit
     let mut limit = rptrs.len();
