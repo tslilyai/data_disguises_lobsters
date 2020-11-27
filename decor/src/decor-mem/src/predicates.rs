@@ -34,6 +34,34 @@ pub enum Predicate {
     
     Bool(bool),
 }
+impl std::fmt::Debug for Predicate {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+        use Predicate::*;
+        match self {
+            Bool(b) => f.debug_struct("Bool").field("b", b).finish(),
+            ColValEq{index, val, neg} => f.debug_struct("ColValEq")
+                .field("index", index)
+                .field("val", val)
+                .field("neg", neg)
+                .finish(),
+            ColValsEq{index, vals, neg} => f.debug_struct("ColValsEq")
+                .field("index", index)
+                .field("vals", vals)
+                .field("neg", neg)
+                .finish(),
+            ColCmp{index1, index2, val, op} => f.debug_struct("ColCmp")
+                .field("index1", index1)
+                .field("index2", index2)
+                .field("val", val)
+                .field("op", op)
+                .finish(),
+            ComputeValCmp{val, op, ..} => f.debug_struct("ComputeValCmp")
+                .field("val", val)
+                .field("op", op)
+                .finish(),
+        }
+    }
+}
 
 fn lhs_expr_to_index(left: &Expr, columns: &Vec<TableColumnDef>) -> usize {
     match left {
@@ -134,9 +162,10 @@ pub fn vals_satisfy_cmp(lval: &Value, rval: &Value, op: &BinaryOperator) -> bool
     }
 }
 
-pub fn get_predicated_rptrs_from_view(preds: &Vec<Predicate>, v: &View) -> HashedRowPtrs
+pub fn get_predicated_rptrs_from_view(preds: &Vec<&Predicate>, v: &View) -> HashedRowPtrs
 {
     let mut matching_rptrs = HashSet::new();
+    warn!("Applying predicates {:?} to all view rows", preds);
     'rowloop: for (_, rptr) in v.rows.borrow().iter() {
         let row = rptr.borrow();
         for p in preds {
@@ -149,8 +178,9 @@ pub fn get_predicated_rptrs_from_view(preds: &Vec<Predicate>, v: &View) -> Hashe
     matching_rptrs
 }
 
-pub fn get_predicated_rptrs_from_matching(preds: &Vec<Predicate>, v: &View, matching: &mut HashedRowPtrs) 
+pub fn get_predicated_rptrs_from_matching(preds: &Vec<&Predicate>, matching: &mut HashedRowPtrs) 
 {
+    warn!("Applying predicates {:?} to {} matching rows", preds, matching.len());
     matching.retain(|hrp| {
         let row = hrp.row().borrow();
         let mut matches = true;
@@ -159,6 +189,7 @@ pub fn get_predicated_rptrs_from_matching(preds: &Vec<Predicate>, v: &View, matc
         }
         matches
     });
+    warn!("Post-application len: {}", matching.len());
 }
 
 fn pred_matches_row(row: &Row, p: &Predicate) -> bool {
@@ -330,44 +361,51 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColu
 pub fn get_predicated_rptrs(preds: &Vec<Predicate>, v: &View) -> HashedRowPtrs {
     use Predicate::*;
 
-    /*preds.sort_by(|p1, p2| match p1 {
-        ColValEq {..} => Ordering::Less,
-        ColValsEq {..} => Ordering::Less,
-        _ => match p2 {
-            ColValEq {..} => Ordering::Greater,
-            ColValsEq {..} => Ordering::Greater,
-            _ => Ordering::Less,
-        }
-    });*/
-   
-    let mut matching = None;
+    let mut matching : Option<HashedRowPtrs> = None;
+    let mut not_applied = vec![];
+
+    // first try to narrow down by a single index select
     for pred in preds {
         if let ColValEq{index, val, neg} = pred {
             // we scan all pointers if it's negated anyway...
-            if *neg {
+            // don't do more than one intiial select at first
+            if *neg || matching.is_some() {
+                not_applied.push(pred);
                 continue;
-            }
+            } 
             if let Some(hrptrs) = v.get_indexed_rptrs_of_col(*index, &val.to_string()) {
                 matching = Some(hrptrs);
-            } 
-        } else if let ColValsEq{index, vals, neg} = pred {
-            if *neg {
                 continue;
-            }
-            if v.is_indexed_col(*index) {
-                let mut hrptrs = HashSet::new();
-                for lv in vals {
-                    hrptrs.extend(v.get_indexed_rptrs_of_col(*index, &lv.to_string()).unwrap());
-                }
-                matching = Some(hrptrs);
             } 
+        }
+        not_applied.push(pred);
+    }
+    // next narrow down by InList select
+    if matching.is_none() {
+        not_applied.clear();
+        for pred in preds {
+            if let ColValsEq{index, vals, neg} = pred {
+                if *neg || matching.is_some() {
+                    not_applied.push(pred);
+                    continue;
+                } 
+                if v.is_indexed_col(*index) {
+                    let mut hrptrs = HashSet::new();
+                    for lv in vals {
+                        hrptrs.extend(v.get_indexed_rptrs_of_col(*index, &lv.to_string()).unwrap());
+                    }
+                    matching = Some(hrptrs);
+                    continue;
+                } 
+            } 
+            not_applied.push(pred);
         }
     }
     if let Some(mut matching) = matching {
-        get_predicated_rptrs_from_matching(preds, v, &mut matching);
+        get_predicated_rptrs_from_matching(&not_applied, &mut matching);
         return matching;
     } else {
         // if we got to this point we have to linear scan and apply all predicates :\
-        return get_predicated_rptrs_from_view(preds, v);
+        return get_predicated_rptrs_from_view(&not_applied, v);
     }
 }
