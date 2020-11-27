@@ -147,7 +147,10 @@ impl NamedPredicate {
 fn lhs_expr_to_name(left: &Expr) -> String {
     match left {
         Expr::Identifier(_) => {
-            let (_tab, col) = helpers::expr_to_col(&left);
+            let (tab, mut col) = helpers::expr_to_col(&left);
+            if !tab.is_empty() {
+                col = format!("{}.{}", tab, col);
+            }
             col
         }
         _ => unimplemented!("Bad lhs {}", left),
@@ -159,7 +162,10 @@ fn rhs_expr_to_name_or_value(right: &Expr) -> (Option<String>, Option<Value>) {
     let mut rname = None;
     match right {
         Expr::Identifier(_) => {
-            let (_tab, col) = helpers::expr_to_col(&right);
+            let (tab, mut col) = helpers::expr_to_col(&right);
+            if !tab.is_empty() {
+                col = format!("{}.{}", tab, col);
+            }
             rname = Some(col);
         }
         Expr::Value(val) => {
@@ -260,15 +266,21 @@ pub fn get_predicates_of_constraint(e: &Expr, preds: &mut Vec<NamedPredicate>)
                     _ => unimplemented!("list can only contain values: {:?}", list),
                 })
                 .collect();
-            let (_tab, col) = helpers::expr_to_col(&expr);
+            let (tab, mut col) = helpers::expr_to_col(&expr);
+            if !tab.is_empty() {
+                col = format!("{}.{}", tab, col);
+            }
             preds.push(NamedPredicate::ColValsEq {
-                name: col, 
+                name: col,
                 vals: list_vals,
                 neg: *negated,
             });
         }
         Expr::IsNull { expr, negated } => {
-            let (_tab, col) = helpers::expr_to_col(&expr);
+            let (tab, mut col) = helpers::expr_to_col(&expr);
+            if !tab.is_empty() {
+                col = format!("{}.{}", tab, col);
+            }
             preds.push(NamedPredicate::ColValEq {
                 name: col, 
                 val: Value::Null,
@@ -292,7 +304,10 @@ pub fn get_predicates_of_constraint(e: &Expr, preds: &mut Vec<NamedPredicate>)
                             if *op == BinaryOperator::Eq || *op == BinaryOperator::NotEq {
                                 debug!("getting rptrs of constraint: Fast path {}", e);
                                 fastpath = true;
-                                let (_tab, col) = helpers::expr_to_col(&left);
+                                let (tab, mut col) = helpers::expr_to_col(&left);
+                                if !tab.is_empty() {
+                                    col = format!("{}.{}", tab, col);
+                                }
                                 preds.push(NamedPredicate::ColValEq {
                                     name: col, 
                                     val: val.clone(),
