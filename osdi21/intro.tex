@@ -245,8 +245,10 @@ cluster threshold"; not sure if it's really that useful.}
      CloneOne(gp: GeneratePolicy),
      Generate(gp: GeneratePolicy),
  }
- pub type GhostPolicy = HashMap<Column, GhostColumnPolicy>;
- pub type AttributeGhostPolicies = HashMap<Attribute, GhostPolicy>;
+ pub type GhostPolicy = 
+    HashMap<Column, GhostColumnPolicy>;
+ pub type AttributeGhostPolicies = 
+    HashMap<Attribute, GhostPolicy>;
 
  pub struct Cluster {
      cluster_entity: Entity,
