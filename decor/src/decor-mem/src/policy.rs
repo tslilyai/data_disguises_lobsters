@@ -22,6 +22,12 @@ pub enum ClusterPolicy {
         identifier_entity: Entity,
     }
 
+    // The entities in the cluster are kept, without adding any noise
+    NoDecorRetain{
+        cluster_entity: Entity,
+        identifier_entity: Entity,
+    }
+
     // Do not break up these clusters, and add ghosts to the cluster.
     // Must specify a cluster ghost generation policy so that we can 
     // add ghosts.
