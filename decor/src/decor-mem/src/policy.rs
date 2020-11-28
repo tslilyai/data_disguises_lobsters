@@ -1,3 +1,7 @@
+pub type Column: String; // column name
+pub type Entity: String; // table name, or foreign key
+pub type IdentifierEntity: String; // foreign key column name
+
 pub enum GeneratePolicy {
     Random,
     Default,
@@ -23,7 +27,7 @@ pub enum ClusterPolicy {
     // add ghosts.
     NoDecorThreshold {
         cluster_entity: Entity,
-        identifier_entity: Entity,
+        identifier_entity: IdentifierEntity,
         cluster_threshold: f64,
         cluster_ghost_policy: EntityGhostPolicy,
     }
@@ -34,7 +38,7 @@ pub enum ClusterPolicy {
     // add ghosts.
     Decor {
         cluster_entity: Entity,
-        identifier_entity: Entity,
+        identifier_entity: IdentifierEntity,
         identifier_ghosts_policy: EntityGhostPolicy,
     }
 }
