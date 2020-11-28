@@ -84,12 +84,13 @@ i.e.,\ can access the application only via its public interface.
 \end{itemize}
 
 \subsubsection{Modeling perfect decorrelation}
-Application data is structured as tables, each containing a different \emph{data entity}, e.g.,\ a
-story, user, or vote. Queries write, read from, and compute over entities.  All entities (e.g.,\
+Application data is structured as tables, each representing a different \emph{data entity}, e.g.,\ a
+story, user, or vote. Each entity type has a set of attributes, some of which are foreign keys to
+other entities, and some of which are primitive column values.
+Queries write, read from, and compute over entities.  All entities (e.g.,\
 posts) that are correlated with the same attribute form a \emph{cluster}
-In database terms, entities in the same cluster belong to the same table,
-and attributes may be another entity such as a user (a foreign key column), or a non-referencing
-column value.
+In database terms, entities in the same cluster belong to the same table, and the cluster is
+identified by a shared foreign key or non-referencing column value.
 
 Decorrelation of a user breaks any clusters identified by the user into singleton clusters, each
 identified by a unique ghost user. In essence, the user is exploded into many ghost users, each
