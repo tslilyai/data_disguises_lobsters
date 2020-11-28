@@ -6,7 +6,7 @@ plt.style.use('seaborn-deep')
 
 tests = ["decor", "shim_only", "shim_parse"]
 names = ["Read", "Update", "Insert", "Other"]
-ybounds = [15000, 2000, 1400, 600]
+ybounds = [25000, 3000, 3000, 15000]
 bins = [np.linspace(0, 14000, 200),
     np.linspace(0, 800, 200),
     np.linspace(0, 800, 200),
@@ -36,8 +36,8 @@ for test in tests:
                     label=[str(i) + "x Query Mult." for i in range(len(q2lats))])
             axes_flat[i].legend(loc='upper right')
             axes_flat[i].set_title(names[i]+" Queries Latency Histogram")
-            axes_flat[i].set_ybound(lower=0, upper=ybounds[i])
             axes_flat[i].set_yscale('log')
+            axes_flat[i].set_ylim(ymax = ybounds[i])
             axes_flat[i].set_xlabel('Per-Query Latency (us)')
             axes_flat[i].set_ylabel('Number of Queries')
     fig.tight_layout(h_pad=4)

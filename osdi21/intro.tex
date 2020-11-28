@@ -173,8 +173,8 @@ Decorrelation policies consist of two parts:
 \begin{enumerate}
     \item Ghost entity generation annotations on entity types
 (tables) for types which can be ghosted, and 
-    \item Edge policy annotations on links (foreign-key
-relations) between two types of entities (e.g.,\ story$\to$user)
+    \item Cluster policy annotations specifying how a cluster of one entity type identified (via
+        foreign-key relations) by another entity type can be broken (e.g.,\ a cluster of stories $\to$ user)
 \end{enumerate}
 
 \subsubsection{Ghost Entity Generation}
@@ -194,21 +194,21 @@ chosen to be random, a default value, or generated from the original value via a
         entity; all other ghosts have generated values. Recorrelation returns an entity with the original value.
 \end{itemize}
 
-\subsubsection{Entity Edge Policies}
+\subsubsection{Cluster Policies}
 
 \paragraph{Policy 1: Do not decorrelate.}
 
-Application developers specify (via an annotation on a foreign key) that edges between entity types
-cannot be removed, thus preventing clusters from being broken during decorrelation and preventing
-recursive decorrelation via that edge. For example, tags or categories may play an essential role
-for the application, and cannot be split into ghosts. Developers thus annotate the foreign key in
-the stories table to \texttt{tag\_id} with this policy.
+Application developers specify that specific types of clusters cannot be broken, thus retaining the edges between the cluster entities and the cluster's identifier entity.
+Recursive decorrelation does not propagate down the cluster edges. 
+For example, tags or categories may play an essential role
+for the application, and cannot be split into ghosts. Developers thus specify that clusters of stories 
+identified by tag cannot be broken up, and the tag is not recursively decorrelated from its data.
 
 \vspace{12pt}
 \noindent Policy options:
 \begin{itemize}
-    \item \textbf{Remove user entity}: If decorrelation cannot propagate down an edge from
-        entity $a$ to entity $b$, then entity $a$ and all of $a$'s dependees are removed.
+    \item \textbf{Remove user-related entities}: If decorrelation cannot break a cluster, then all
+        cluster entities and their dependencies are removed.
 
     \item \textbf{Achieve cluster threshold $t$}: This indicates that it is acceptable to \emph{add}
         ghost entities to clusters that cannot be broken up.  At a high level, the cluster threshold
@@ -225,10 +225,10 @@ the stories table to \texttt{tag\_id} with this policy.
 
 \paragraph{Policy 2: Decorrelate.}
 
-Application developers specify that edges between entity types
-can be removed, and decorrelation can propagate down these edges.
-For example, all edges emanating from a user can be removed: clusters of any type of entity
-identified by user may be broken, and ghost users created for each entity.
+Application developers specify that a cluster may be broken, and decorrelation can propagate down
+these cluster edges.
+For example, all clusters identified by a user (regardless of cluster type) can be removed: ghost
+users are created for each cluster entity.
 
 Resubscription (and recorrelation) removes any created ghost entities and restores any broken links.
 
