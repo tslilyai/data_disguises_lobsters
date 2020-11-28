@@ -171,8 +171,7 @@ application correctness (e.g.,\ votes correlated with a story).
 
 Decorrelation policies consist of two parts: 
 \begin{enumerate}
-    \item Ghost entity generation annotations on entity types
-(tables) for types which can be ghosted, and 
+    \item Ghost entity generation annotations on entity types (tables) for types which can be ghosted, and 
     \item Cluster policy annotations specifying how a cluster of one entity type identified (via
         foreign-key relations) by another entity type can be broken (e.g.,\ a cluster of stories
         identified by user).
@@ -191,6 +190,11 @@ chosen to be random, a default value, or generated from the original value via a
         with a user-specific key), then the original value is restored upon
         recorrelation; otherwise, recorrelation returns a generated value in place of the original.
 
+        If a generated value is a foreign key into another table, either that table must 
+        have a ghost generation policy, or the foreign key is set to an existing entity or placeholder ghost (e.g.,
+        the foreign key is set to point to ``deleted story''). It is up to the developer to ensure
+        referential integrity.
+
 \item \textbf{Single Clone, Generated Remainder:} One ghost has the same value as the original
         entity; all other ghosts have generated values. Recorrelation returns an entity with the original value.
 \end{itemize}
@@ -200,31 +204,34 @@ chosen to be random, a default value, or generated from the original value via a
 \paragraph{Policy 1: Do not decorrelate.}
 
 Application developers specify that specific types of clusters cannot be broken, thus retaining the edges between the cluster entities and the cluster's identifier entity.
-Recursive decorrelation does not propagate down the cluster edges. 
-For example, tags or categories may play an essential role
-for the application, and cannot be split into ghosts. Developers thus specify that clusters of stories 
-identified by tag cannot be broken up, and the tag is not recursively decorrelated from its data.
+Recursive decorrelation still propagates through the cluster entities. 
+For example, perhaps only the sum of votes per story is ever queried by the application; clusters of
+votes around stories can therefore remain without leaking identifying information.
+%tags or categories may play an essential role
+%for the application, and cannot be split into ghosts. Developers thus specify that clusters of stories 
+%identified by tag cannot be broken up; However, if the tag is clustered around tag is not recursively decorrelated from its data.
 
 \vspace{12pt}
 \noindent Policy options:
 \begin{itemize}
     \item \textbf{Remove user-related entities}: If decorrelation cannot break a cluster, then all
         cluster entities and their dependencies are removed.
+    
+    \item \textbf{Retain user-related entities}: The cluster should remain as-is. This option should
+        only be selected if the developer knows that the cluster cannot leak information.
 
-    \item \textbf{Achieve cluster threshold $t$}:  At a high level, the cluster threshold
+    \item \textbf{Achieve cluster threshold $t$}: At a high level, the cluster threshold
         $t$ limits the ability of an adversary to use an identity proxy as an alias for a user's
         identity.  \sys{} calculates what proportion of entities in these clusters belong to the
         entity being decorrelated. If the proportion is below $t$, no further actions are needed;
         otherwise, \sys{} generates enough ghosts such that the proportion drops below the
-        threshold. It must therefore be acceptable to \emph{add} ghost entities to clusters that cannot be broken up. 
-
-        If the cluster threshold is set to 1, then the developer is specifying that the cluster
-        should remain as-is.
+        threshold. It must therefore be acceptable to \emph{add} ghost entities to clusters that
+        cannot be broken up in such a way that these ghosts are indistinguishable from the cluster
+        entities. 
 
         As an example, a reasonable cluster threshold might be 0.05 for clusters of stories identified by
         tag: less than 5\% of all stories identified by that tag should have been associated with an
         (unsubscribed) user. 
-
 \end{itemize}
 
 \paragraph{Policy 2: Decorrelate.}
