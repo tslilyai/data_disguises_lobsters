@@ -86,13 +86,14 @@ i.e.,\ can access the application only via its public interface.
 \subsubsection{Modeling perfect decorrelation}
 Application data is structured as tables, each containing a different \emph{data entity}, e.g.,\ a
 story, user, or vote. Queries write, read from, and compute over entities.  All entities (e.g.,\
-posts) that share a correlation with the same entity (e.g.,\ a user) form a \emph{cluster}
-identified by that entity. In database terms, entities in the same cluster belong to the same table,
-and have the same foreign key value (e.g.,\ a particular value for column \texttt{user\_id}). 
+posts) that are correlated with the same attribute form a \emph{cluster}
+In database terms, entities in the same cluster belong to the same table,
+and attributes may be another entity such as a user (a foreign key column), or a non-referencing
+column value.
 
-Decorrelation of a user breaks any clusters around the user into singleton clusters, each identified
-by a unique ghost user. In essence, the user is exploded into many ghost users, each correlated with
-only one of the user's data entities.
+Decorrelation of a user breaks any clusters identified by the user into singleton clusters, each
+identified by a unique ghost user. In essence, the user is exploded into many ghost users, each
+correlated with only one of the user's data entities.
 
 However, breaking up clusters around the user may not sufficiently decorrelate these entities from
 the user. For example, stories belonging to the user may also cluster around a particular tag. Or
@@ -102,10 +103,10 @@ to a single user, even when clusters around the user no longer exist.
 
 The key observation here is that two types of clusters can still leak identifying information about
 the user: (1) clusters identified by data entities owned by the users, and (2) clusters consisting
-of the user's data entities, identified by other entities. Decorrelation recursively breaks up any
-such clusters into singletons by introducing ghost entities (as was done with introducing ghost
-users), thus removing any identifying information leaked from correlations between user's data
-entities and other entities in the application.
+of the user's data entities, identified by other attributes (identity "proxies"). Decorrelation
+recursively breaks up any such clusters into singletons by introducing ghost entities or attributes (as was done
+with introducing ghost users), thus removing any identifying information leaked from correlations
+between user's data entities and other entities in the application.
 
 More generally, decorrelation continues to recursively break up any clusters that may recorrelate a
 data entity back to the identifier of a broken-up cluster. Let $A$ and $B$ be entity types. Let $a
@@ -117,11 +118,11 @@ Decorrelation on $a$ does the following:
             recurse.} $a$ splits into ghost entities $A_g \subseteq A$, one for each entity $b\in B_a$.
             Decorrelation then runs recursively on each cluster entity $b$.
             
-            Furthermore, if the $A_g$ are in a cluster identified by some entity $c$, $c$ is
+            Furthermore, if the $A_g$ are in a cluster identified by some entity or attribute $c$, $c$ is
             recursively decorrelated.
 
     \item \textbf{Break clusters around identity proxies and recurse.} If more than one of the
-        $b \in B_a$ is also in a cluster that is identified by an entity $c \in C$ (an identity
+        $b \in B_a$ is also in a cluster that is identified by an entity or attribute $c \in C$ (an identity
         ``proxy''), then we decorrelate $c$ from its data. 
         
 \end{enumerate}
@@ -132,10 +133,10 @@ decorrelated. The ghost stories would cluster by the ghost user, so this ghost u
 further decorrelate.
 
 Decorrelation step (2) may find that a particular tag $c$ identifies at least two of the users'
-stories (these stories belong in a cluster $B_c$ identified by $c$). The tag is then decorrelated to
-ensure that nothing related to the tag may reassociate these stories with the same tag.  This
-recursive decorrelation prevents any other correlations with the user's stories from leaking
-identifying information about the stories' author.
+stories (these stories belong in a cluster $B_c$ identified by $c$). This tag is a column value
+attribute, and not an entity specified by a foreign key. The tag is split into ghost tags, one per
+user story, and because the tag itself has no attributes, decorrelation does not continue beyond the
+tag.
 
 \subsubsection{Why perfect decorrelation doesn't work in practice}
 Perfect decorrelation takes decorrelation to the extreme, stripping any links to (real) application
