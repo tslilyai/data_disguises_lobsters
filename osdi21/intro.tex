@@ -225,9 +225,13 @@ votes around stories can therefore remain without leaking identifying informatio
         identity.  \sys{} calculates what proportion of entities in these clusters belong to the
         entity being decorrelated. If the proportion is below $t$, no further actions are needed;
         otherwise, \sys{} generates enough ghosts such that the proportion drops below the
-        threshold. It must therefore be acceptable to \emph{add} ghost entities to clusters that
-        cannot be broken up in such a way that these ghosts are indistinguishable from the cluster
-        entities. 
+        threshold; ghosts are generated using the specified ghost generation policy for that entity
+        type, using a randomly selected entity in the cluster as the original.
+        This option is only possible if the developer has specified a ghost entity policy for the
+        cluster entity type. 
+
+        Note that if the ghosts are easily distinguished from actual cluster entities, there is
+        little privacy benefit from this option.
 
         As an example, a reasonable cluster threshold might be 0.05 for clusters of stories identified by
         tag: less than 5\% of all stories identified by that tag should have been associated with an
