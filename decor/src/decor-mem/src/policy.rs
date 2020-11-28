@@ -1,4 +1,5 @@
 pub type Column: String; // column name
+pub type Attribute: String; // entity or column name
 pub type Entity: String; // table name, or foreign key
 
 pub enum GeneratePolicy {
@@ -12,13 +13,13 @@ pub enum GhostColumnPolicy {
     CloneOne(gp: GeneratePolicy),
     Generate(gp: GeneratePolicy),
 }
-pub type GhostPolicy = (GhostColumnPolicy, HashMap<Column, GhostColumnPolicy>);
-pub type EntityGhostPolicies = HashMap<Entity, GhostPolicy>;
+pub type GhostPolicy = HashMap<Column, GhostColumnPolicy>;
+pub type AttributeGhostPolicies = HashMap<Attribute, GhostPolicy>;
 
 pub struct Cluster {
     cluster_entity: Entity,
-    identifier_entity: Entity,
-    foreign_key: String,
+    identifier: Attribute,
+    column_name: String,
 }
 
 pub enum ClusterPolicy {
@@ -44,4 +45,4 @@ pub enum ClusterPolicy {
     Decor(Cluster),
 }
 
-pub type ApplicationPolicy = (EntityGhostPolicies, Vec<ClusterPolicy>);
+pub type ApplicationPolicy = (AttributeGhostPolicies, Vec<ClusterPolicy>);
