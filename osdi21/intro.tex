@@ -256,6 +256,7 @@ cluster threshold"; not sure if it's really that useful.}
      Random,
      Default,
      Custom<F>(f: F) // where F: FnMut(Column) -> Column,
+     ForeignKey, 
  }
  pub enum GhostColumnPolicy {
      CloneAll,
@@ -268,7 +269,7 @@ cluster threshold"; not sure if it's really that useful.}
  pub struct Cluster {
      cluster_entity: Entity,
      identifier_entity: Entity,
-     foreign_key_name: String,
+     foreign_key: String,
  }
  pub enum ClusterPolicy {
      NoDecorRemove(Cluster),
@@ -276,7 +277,7 @@ cluster threshold"; not sure if it's really that useful.}
      NoDecorThreshold {
          c: Cluster,
          threshold: f64,
-     }
+     },
      Decor(Cluster),
  }
  pub type ApplicationPolicy = 

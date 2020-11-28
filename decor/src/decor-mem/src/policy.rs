@@ -4,20 +4,21 @@ pub type Entity: String; // table name, or foreign key
 pub enum GeneratePolicy {
     Random,
     Default,
-    Custom<F>(f: F) // where F: FnMut(Column) -> Column,
+    Custom<F>(f: F), // where F: FnMut(Column) -> Column,
+    ForeignKey, // generate a foreign ghost and set value to the ID for this ghost
 }
 pub enum GhostColumnPolicy {
     CloneAll,
     CloneOne(gp: GeneratePolicy),
     Generate(gp: GeneratePolicy),
 }
-pub type GhostPolicy = HashMap<Column, GhostColumnPolicy>;
+pub type GhostPolicy = (GhostColumnPolicy, HashMap<Column, GhostColumnPolicy>);
 pub type EntityGhostPolicies = HashMap<Entity, GhostPolicy>;
 
 pub struct Cluster {
     cluster_entity: Entity,
     identifier_entity: Entity,
-    foreign_key_name: String,
+    foreign_key: String,
 }
 
 pub enum ClusterPolicy {
