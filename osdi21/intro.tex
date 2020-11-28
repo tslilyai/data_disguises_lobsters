@@ -235,6 +235,42 @@ Resubscription (and recorrelation) removes any created ghost entities and restor
 \lyt{There could also be an option here of "decorrelate the minimum amount possible to reach a
 cluster threshold"; not sure if it's really that useful.}
 
+\begin{figure}
+\begin{lstlisting}[language=Rust]
+ pub enum GeneratePolicy {
+     Random,
+     Default,
+     Custom<F>(f: F) // where F: FnMut(Column) -> Column,
+ }
+ pub enum GhostColumnPolicy {
+     CloneAll,
+     CloneOne(gp: GeneratePolicy),
+     Generate(gp: GeneratePolicy),
+ }
+ pub type EntityGhostPolicy = Vec<GhostColumnPolicy>;
+
+ pub enum ClusterPolicy {
+     NoDecorRemove {
+         cluster_entity: Entity,
+         identifier_entity: Entity,
+     }
+     NoDecorThreshold {
+         cluster_entity: Entity,
+         identifier_entity: Entity,
+         cluster_threshold: f64,
+         cluster_ghost_policy: EntityGhostPolicy,
+     }
+     Decor {
+         cluster_entity: Entity,
+         identifier_entity: Entity,
+         identifier_ghosts_policy: EntityGhostPolicy,
+     }
+ }
+pub type ApplicationPolicy = Vec<ClusterPolicy>;
+\end{lstlisting}
+    \caption{\sys{}-provided types to specify cluster and ghost generation policies.}
+\end{figure}
+
     %\textbf{Achieve cluster threshold $t$}: 
 %\sys{} generates ghost entities only enough to what proportion of entities in these clusters belong to the entity being
 %        decorrelated. If the proportion is below the specified cluster threshold $t$, no further actions are needed; otherwise, \sys{} generates enough ghosts such that the proportion drops below the threshold. 

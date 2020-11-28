@@ -11,6 +11,7 @@
 \usepackage{amsmath}
 \usepackage{hyperref}
 \usepackage[normalem]{ulem}
+\usepackage{listings, listings-rust}
 
 \newcommand{\sys}{DeCor} 
 \newcommand{\plinked}{$p_\text{linked}$} 
@@ -20,6 +21,31 @@
 \newcommand\lyt[1]{\textcolor{green!55!blue}{[lyt: {#1}]}}
 \newcommand{\tabitem}{~~\llap{\textbullet}~~}
 %\renewcommand\lyt[1]{}
+
+\definecolor{codegreen}{rgb}{0,0.4,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{rust}{
+    %backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\scriptsize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=3pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+\lstset{style=rust}
 
 %-------------------------------------------------------------------------------
 \begin{document}
