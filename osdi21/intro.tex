@@ -193,7 +193,7 @@ chosen to be random, a default value, or generated from the original value via a
         If a generated value is a foreign key into another table, either that table must 
         have a ghost generation policy, or the foreign key is set to an existing entity or placeholder ghost (e.g.,
         the foreign key is set to point to ``deleted story''). It is up to the developer to ensure
-        referential integrity.
+        referential integrity in the latter case.
 
 \item \textbf{Single Clone, Generated Remainder:} One ghost has the same value as the original
         entity; all other ghosts have generated values. Recorrelation returns an entity with the original value.
@@ -258,30 +258,25 @@ cluster threshold"; not sure if it's really that useful.}
      CloneOne(gp: GeneratePolicy),
      Generate(gp: GeneratePolicy),
  }
- pub type EntityGhostPolicy = Vec<GhostColumnPolicy>;
+ pub type GhostPolicy = HashMap<Column, GhostColumnPolicy>;
+ pub type EntityGhostPolicies = HashMap<Entity, GhostPolicy>;
 
- pub enum ClusterPolicy {
-     NoDecorRemove {
-         cluster_entity: Entity,
-         identifier_entity: Entity,
-     }
-     NoDecorRetain{
-         cluster_entity: Entity,
-         identifier_entity: Entity,
-     }
-     NoDecorThreshold {
-         cluster_entity: Entity,
-         identifier_entity: Entity,
-         cluster_threshold: f64,
-         cluster_ghost_policy: EntityGhostPolicy,
-     }
-     Decor {
-         cluster_entity: Entity,
-         identifier_entity: Entity,
-         identifier_ghosts_policy: EntityGhostPolicy,
-     }
+ pub struct Cluster {
+     cluster_entity: Entity,
+     identifier_entity: Entity,
+     foreign_key_name: String,
  }
-pub type ApplicationPolicy = Vec<ClusterPolicy>;
+ pub enum ClusterPolicy {
+     NoDecorRemove(Cluster),
+     NoDecorRetain(Cluster),
+     NoDecorThreshold {
+         c: Cluster,
+         threshold: f64,
+     }
+     Decor(Cluster),
+ }
+ pub type ApplicationPolicy = 
+    (EntityGhostPolicies, Vec<ClusterPolicy>);
 \end{lstlisting}
     \caption{\sys{}-provided types to specify cluster and ghost generation policies.}
 \end{figure}

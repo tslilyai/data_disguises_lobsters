@@ -1,6 +1,5 @@
 pub type Column: String; // column name
 pub type Entity: String; // table name, or foreign key
-pub type IdentifierEntity: String; // foreign key column name
 
 pub enum GeneratePolicy {
     Random,
@@ -12,41 +11,36 @@ pub enum GhostColumnPolicy {
     CloneOne(gp: GeneratePolicy),
     Generate(gp: GeneratePolicy),
 }
-pub type EntityGhostPolicy = Vec<GhostColumnPolicy>;
+pub type GhostPolicy = HashMap<Column, GhostColumnPolicy>;
+pub type EntityGhostPolicies = HashMap<Entity, GhostPolicy>;
+
+pub struct Cluster {
+    cluster_entity: Entity,
+    identifier_entity: Entity,
+    foreign_key_name: String,
+}
 
 pub enum ClusterPolicy {
     // Do not break up these clusters
     // The entities in the cluster and their dependencies are removed.
-    NoDecorRemove {
-        cluster_entity: Entity,
-        identifier_entity: Entity,
-    }
+    NoDecorRemove(Cluster),
 
     // The entities in the cluster are kept, without adding any noise
-    NoDecorRetain{
-        cluster_entity: Entity,
-        identifier_entity: Entity,
-    }
+    NoDecorRetain(Cluster),
 
     // Do not break up these clusters, and add ghosts to the cluster.
     // Must specify a cluster ghost generation policy so that we can 
     // add ghosts.
     NoDecorThreshold {
-        cluster_entity: Entity,
-        identifier_entity: IdentifierEntity,
-        cluster_threshold: f64,
-        cluster_ghost_policy: EntityGhostPolicy,
+        c: Cluster,
+        threshold: f64,
     }
     
     // Decorrelate these clusters from their identifier by breaking the
     // identifier into ghosts.
     // Must specify an identifier ghost generation policy so that we can 
     // add ghosts.
-    Decor {
-        cluster_entity: Entity,
-        identifier_entity: IdentifierEntity,
-        identifier_ghosts_policy: EntityGhostPolicy,
-    }
+    Decor(Cluster),
 }
 
-pub type ApplicationPolicy = Vec<ClusterPolicy>;
+pub type ApplicationPolicy = (EntityGhostPolicies, Vec<ClusterPolicy>);
