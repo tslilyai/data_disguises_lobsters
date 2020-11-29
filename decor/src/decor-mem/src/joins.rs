@@ -348,9 +348,15 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>, p
     } else {
         warn!("Applying predicates {:?} to v1", preds);
         // XXX no order by support for joins yet
-        let (v1rptrs, remainder) = predicates::get_rptrs_matching_preds(&v1.borrow(), &v1.borrow().columns, preds);
-        warn!("Applying predicates {:?} to v1", remainder);
+        let (v1rptrs, mut remainder) = predicates::get_rptrs_matching_preds(&v1.borrow(), &v1.borrow().columns, preds);
+      
+        if remainder.is_empty() {
+            // TODO could use index for second table here instead of getting all rows??
+            remainder = vec![vec![predicates::NamedPredicate::Bool(true)]];
+        }
+        warn!("Applying predicates {:?} to v2", remainder);
         let (v2rptrs, remainder) = predicates::get_rptrs_matching_preds(&v2.borrow(), &v2.borrow().columns, &remainder);
+        
         warn!("Applying predicates {:?} to rest", remainder);
         // if we can apply all predicates (and there is no lingering OR that could evaluate to TRUE for
         // rows not yet constrained), then we just join these selected predicates and set them as the

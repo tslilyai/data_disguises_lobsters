@@ -418,9 +418,10 @@ pub fn get_rptrs_matching_preds_vec(v: &View, columns: &Vec<TableColumnDef>, pre
 pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>) -> (HashedRowPtrs, Vec<Vec<NamedPredicate>>) 
 {
     debug!("{}: getting rptrs of preds {:?}", v.name, predsets);
+    assert!(!predsets.is_empty());
+
     let start = time::Instant::now();
     let mut matching = HashSet::new();
-
     let mut failed_predsets = vec![];
     for preds in predsets {
         let mut failed = vec![];
@@ -435,7 +436,12 @@ pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predset
         if !(failed.is_empty()) {
             failed_predsets.push(failed);
         }
-        matching.extend(get_predicated_rptrs(&indexed_preds, v));
+        // we failed to index
+        if indexed_preds.is_empty() {
+            continue;
+        } else {
+            matching.extend(get_predicated_rptrs(&indexed_preds, v));
+        }
     }
     let dur = start.elapsed();
     warn!("get rptrs matching preds duration {}us", dur.as_micros());
@@ -444,17 +450,24 @@ pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predset
 
 pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColumnDef>) -> HashedRowPtrs
 {
-    let predsets = get_predicate_sets_of_constraint(&e);
+    let mut predsets = get_predicate_sets_of_constraint(&e);
+    if predsets.is_empty() {
+        predsets.push(vec![NamedPredicate::Bool(true)]);
+    }
     let (matching, failed_predsets) = get_rptrs_matching_preds(v, columns, &predsets);
     assert!(failed_predsets.is_empty());
     matching
 }
 
+/*
+ * Invariant: preds is never empty
+ */
 pub fn get_predicated_rptrs(preds: &Vec<IndexedPredicate>, v: &View) -> HashedRowPtrs {
     use IndexedPredicate::*;
-
+    
     let mut matching : Option<HashedRowPtrs> = None;
     let mut not_applied = vec![];
+    assert!(!preds.is_empty());
 
     // first try to narrow down by a single index select
     for pred in preds {
@@ -493,6 +506,9 @@ pub fn get_predicated_rptrs(preds: &Vec<IndexedPredicate>, v: &View) -> HashedRo
             not_applied.push(pred);
         }
     }
+    if not_applied.is_empty() {
+        not_applied = vec![&IndexedPredicate::Bool(true)];
+    }
     if let Some(mut matching) = matching {
         get_predicated_rptrs_from_matching(&not_applied, &mut matching);
         return matching;
@@ -505,10 +521,8 @@ pub fn get_predicated_rptrs(preds: &Vec<IndexedPredicate>, v: &View) -> HashedRo
 pub fn get_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View) -> HashedRowPtrs
 {
     warn!("Applying predicates {:?} to all view rows", preds);
+    assert!(!preds.is_empty());
     let mut matching_rptrs = HashSet::new();
-    if preds.is_empty() {
-        return matching_rptrs;
-    }
     'rowloop: for (_, rptr) in v.rows.borrow().iter() {
         let row = rptr.borrow();
         for p in preds {
@@ -524,9 +538,7 @@ pub fn get_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View) 
 pub fn get_predicated_rptrs_from_matching(preds: &Vec<&IndexedPredicate>, matching: &mut HashedRowPtrs) 
 {
     warn!("Applying predicates {:?} to {} matching rows", preds, matching.len());
-    if preds.is_empty() {
-        return;
-    }
+    assert!(!preds.is_empty());
     matching.retain(|hrp| {
         let row = hrp.row().borrow();
         let mut matches = true;

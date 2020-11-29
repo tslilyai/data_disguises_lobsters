@@ -219,7 +219,6 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 } else {
                     order_by_added_col = true;
                     break;
-                    //unimplemented!("Order by nonexistent column!!!");
                 }
             }
 

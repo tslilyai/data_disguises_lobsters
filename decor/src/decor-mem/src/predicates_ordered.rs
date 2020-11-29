@@ -35,9 +35,9 @@ pub fn get_ordered_rptrs_of_view(v: &View, order_by_indices: &Vec<usize>) -> Row
                 Ordering::Equal
             });
         }
-        warn!("unhashed is {:?}", unhashed);
         rptrs.append(&mut unhashed);
     }
+    warn!("returning ordered rptrs {:?}", rptrs);
     rptrs
 }
 
@@ -47,7 +47,6 @@ pub fn get_ordered_rptrs_of_view(v: &View, order_by_indices: &Vec<usize>) -> Row
 pub fn get_ordered_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>, order_by_indices: &Vec<usize>) 
     -> RowPtrs
 {
-    debug!("{}: getting ordered rptrs of preds {:?}", v.name, predsets);
     let start = time::Instant::now();
 
     let mut matching = BTreeMap::new();
@@ -99,6 +98,7 @@ pub fn get_ordered_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>,
 
     let dur = start.elapsed();
     warn!("get ordered rptrs matching preds duration {}us", dur.as_micros());
+    warn!("returning ordered rptrs {:?}", rptrs);
     rptrs
 }
 
