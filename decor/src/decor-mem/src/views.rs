@@ -11,6 +11,7 @@ use log::{warn, debug};
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 
 pub type Row = Vec<Value>;
+pub type RowPtr = Rc<RefCell<Row>>;
 pub type RowPtrs = Vec<Rc<RefCell<Row>>>;
 
 #[derive(Debug, Clone, Eq)]
@@ -639,7 +640,7 @@ impl Views {
 
         let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            rptrs = Some(predicates::get_rptrs_matching_constraint(s, &view, &view.columns, None));
+            rptrs = Some(predicates::get_rptrs_matching_constraint(s, &view, &view.columns));
         }
 
         debug!("{}: update columns of indices {:?}", view.name, cis);
@@ -696,7 +697,7 @@ impl Views {
 
         let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            rptrs = Some(predicates::get_rptrs_matching_constraint(s, &view, &view.columns, None));
+            rptrs = Some(predicates::get_rptrs_matching_constraint(s, &view, &view.columns));
         }
 
         let len = view.columns.len();

@@ -1,4 +1,4 @@
-use crate::views::{View, TableColumnDef, RowPtrs, HashedRowPtr};
+use crate::views::{View, TableColumnDef, RowPtrs, HashedRowPtr, RowPtr};
 use crate::{helpers, INIT_CAPACITY, predicates, joins};
 use log::{warn, debug};
 use std::collections::{HashMap, HashSet};
@@ -102,7 +102,7 @@ pub fn get_value_for_row_closure(e: &Expr, columns: &Vec<TableColumnDef>) -> Box
  * Return vectors of columns, rows, and additional computed columns/values
  */
 fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr, order_by: &Vec<OrderByExpr>) 
-    -> Result<(Vec<TableColumnDef>, HashSet<HashedRowPtr>, Vec<usize>), std::io::Error> 
+    -> Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), std::io::Error> 
 {
     
 
@@ -114,27 +114,29 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             
             let mut order_by_col = None;
             // order by grouping if it exists
-            if order_by.len() > 0 {
+            if s.group_by.len() > 0 {
+                // support only one group by for now
+                assert!(s.group_by.len() == 1); 
+                let (tab, col) = helpers::expr_to_col(&s.group_by[0]);
+                order_by_col = Some(format!("{}.{}", tab, col));
+            } else if order_by.len() > 0 {
                 // otherwise, order by whatever column (note that this ignores ordering by the count---that
                 // will have to be done later)
                 let (tab, col) = helpers::expr_to_col(&order_by[0].expr);
                 order_by_col = Some(format!("{}.{}", tab, col));
             }
 
-            let mut preds = vec![];
+            let mut preds : Vec<Vec<predicates::NamedPredicate>> = vec![];
             if let Some(selection) = &s.selection {
                 preds = predicates::get_predicate_sets_of_constraint(&selection);
-            } else {
-                preds = vec![vec![predicates::NamedPredicate::Bool(true)]]
             }
-
             // TODO don't need to init?
             let mut from_view: Rc<RefCell<View>> = Rc::new(RefCell::new(View::new_with_cols(vec![])));
             
             // special case: we're getting results from only this view
             assert!(s.from.len() <= 1);
             for twj in &s.from {
-                from_view = joins::tablewithjoins_to_view(views, &twj, &mut preds, order_by_col.clone());
+                from_view = joins::tablewithjoins_to_view(views, &twj, &mut preds);
             }
             debug!("Joined new view is {:?}", from_view);
 
@@ -210,12 +212,25 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 }
             }
 
+            // filter out rows by where clause
+            let mut rptrs_to_keep: RowPtrs;
+            // keep all rows if there are no predicates! (join filtered them all out)
+            if preds.is_empty() {
+                rptrs_to_keep = from_view.rows.borrow()
+                    .iter()
+                    .map(|(_, rptr)| rptr.clone())
+                    .collect();
+            } else {
+                let (rptrs_to_keep_preds, remainder_preds) = predicates::get_rptrs_matching_preds(&from_view, &columns, &mut preds);
+                rptrs_to_keep = rptrs_to_keep_preds.iter().map(|hrptr| hrptr.row().clone()).collect();
+                assert!(remainder_preds.is_empty());
+            }
+
             // fast path: return val if select val was issued
             if let Some(val) = select_val {
-                let mut rows : HashSet<HashedRowPtr> = HashSet::with_capacity(INIT_CAPACITY);
-                let val_row = HashedRowPtr::new(Rc::new(RefCell::new(vec![val.clone()])), 0);
+                let val_row = Rc::new(RefCell::new(vec![val.clone()]));
                 // TODO this inserts the value only once?
-                rows.insert(val_row);
+                let rows : RowPtrs = vec![val_row.clone(); rptrs_to_keep.len()];
                 
                 // not sure what to put for column in this case but it's probably ok?
                 columns = vec![TableColumnDef{
@@ -230,14 +245,9 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                     }
                 }];
                 cols_to_keep = vec![0];
-
                 return Ok((columns, rows, cols_to_keep));
             }
-
-            // filter out rows by where clause
-            let (mut rptrs_to_keep, remainder) = predicates::get_rptrs_matching_preds(&from_view, &columns, &mut preds, order_by_col.clone());
-            assert!(remainder.is_empty());
-            
+                        
             // add computed cols 
             for (col, expr) in computed_cols.iter() {
                 let newcol_index = columns.len();
@@ -257,8 +267,8 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
 
                 // XXX NOTE: WE'RE ACTUALLY MODIFYING THE ROW HERE???
                 let ccval_func = get_value_for_row_closure(&expr, &columns);
-                for rptr in rptrs_to_keep.iter() {
-                    let mut row = rptr.row().borrow_mut();
+                for rptr in &rptrs_to_keep {
+                    let mut row = rptr.borrow_mut();
                     let val = ccval_func(&row);
                     if row.len() > newcol_index {
                         row[newcol_index] = val;
@@ -291,9 +301,9 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 let ci = helpers::get_col_index(&col, &columns).unwrap();
 
                 // get the counts, grouping rows by the specified value
-                let mut counts : HashMap<Value, (HashedRowPtr, usize)> = HashMap::new();
+                let mut counts : HashMap<Value, (RowPtr, usize)> = HashMap::new();
                 for rptr in &rptrs_to_keep {
-                    let row = rptr.row().borrow();
+                    let row = rptr.borrow();
                     if let Some(row_with_cnt) = counts.get_mut(&row[ci]) {
                         row_with_cnt.1 += 1;
                     } else {
@@ -303,13 +313,13 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 // new set of rows to keep!
                 rptrs_to_keep.clear(); 
                 for (_val, rowcnts) in counts {
-                    let mut row = rowcnts.0.row().borrow_mut();
+                    let mut row = rowcnts.0.borrow_mut();
                     if row.len() > newcol_index {
                         row[newcol_index] = Value::Number(rowcnts.1.to_string());
                     } else {
                         row[newcol_index] = Value::Number(rowcnts.1.to_string());
                     }
-                    rptrs_to_keep.insert(rowcnts.0.clone());
+                    rptrs_to_keep.push(rowcnts.0.clone());
                 }
             }
 
@@ -318,7 +328,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
         }
         /*SetExpr::Query(q) => {
             return get_query_results(views, &q);
-        }*/
+        }
         SetExpr::SetOperation {
             op,
             left,
@@ -341,7 +351,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 }
                 _ => unimplemented!("Not supported set operation {}", se),
             }
-        }
+        }*/
         SetExpr::Values(_vals) => {
             unimplemented!("Shouldn't be getting values when looking up results: {}", se); 
         }
@@ -351,13 +361,15 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
 
 pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) -> 
     Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), Error> {
-    let (all_cols, rptrs, cols_to_keep) = get_setexpr_results(views, &q.body, &q.order_by)?;
+    let (all_cols, mut rptrs_vec, cols_to_keep) = get_setexpr_results(views, &q.body, &q.order_by)?;
     
     // don't support OFFSET or fetches yet
     assert!(q.offset.is_none() && q.fetch.is_none());
+    
+    let start = time::Instant::now();
 
     // limit
-    let mut limit = rptrs.len();
+    let mut limit = rptrs_vec.len();
     if q.limit.is_some() {
         if let Some(Expr::Value(Value::Number(n))) = &q.limit {
             limit = usize::from_str(n).unwrap();
@@ -365,11 +377,6 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
             unimplemented!("bad limit! {}", q);
         }
     }
-
-    let start = time::Instant::now();
-    let mut rptrs_vec: RowPtrs = rptrs.iter().map(|r| r.row().clone()).collect();
-    let dur = start.elapsed();
-    warn!("Collecting hashset of {} rptrs to vec: {}us", rptrs_vec.len(), dur.as_micros());
     if q.order_by.len() > 0 {
         // TODO only support at most two order by constraints for now
         assert!(q.order_by.len() < 3); 
@@ -412,13 +419,13 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
                 Some(false) => {
                     rptrs_vec.sort_by(|r1, r2| {
                         helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])});
-                    debug!("order by desc! {:?}", rptrs);
+                    debug!("order by desc! {:?}", rptrs_vec);
                 }
                 Some(true) | None => {
-                    debug!("before sort: order by asc! {:?}", rptrs);
+                    debug!("before sort: order by asc! {:?}", rptrs_vec);
                     rptrs_vec.sort_by(|r1, r2| {
                         helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])});
-                    debug!("order by asc! {:?}", rptrs);
+                    debug!("order by asc! {:?}", rptrs_vec);
                 }
             }
         }

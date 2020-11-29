@@ -328,7 +328,7 @@ fn join_using_matches(jo: &JoinOperator, i1: usize, i2: usize, r1len: usize, r2l
     }
 }
 
-fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>, preds: &mut Vec<Vec<predicates::NamedPredicate>>, order_by: Option<String>) 
+fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>, preds: &mut Vec<Vec<predicates::NamedPredicate>>) 
         -> Rc<RefCell<View>> 
 {
     let start = time::Instant::now();
@@ -342,14 +342,15 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>, p
     set_primary_index_of_join(jo, v1.clone(), v2.clone(), &mut new_view);
 
     // select all predicate
-    if preds.len() > 0 && preds[0].len() > 0 && preds[0][0] == predicates::NamedPredicate::Bool(true) {
+    if preds.is_empty() {
         let (i1, i2) = get_join_on_indexes(jo, v1.clone(), v2.clone());
         join_using_indexes(jo, &i1, &i2, r1len, r2len, &mut new_view);
     } else {
         warn!("Applying predicates {:?} to v1", preds);
-        let (v1rptrs, remainder) = predicates::get_rptrs_matching_preds(&v1.borrow(), &v1.borrow().columns, preds, order_by.clone());
+        // XXX no order by support for joins yet
+        let (v1rptrs, remainder) = predicates::get_rptrs_matching_preds(&v1.borrow(), &v1.borrow().columns, preds);
         warn!("Applying predicates {:?} to v1", remainder);
-        let (v2rptrs, remainder) = predicates::get_rptrs_matching_preds(&v2.borrow(), &v2.borrow().columns, &remainder, order_by.clone());
+        let (v2rptrs, remainder) = predicates::get_rptrs_matching_preds(&v2.borrow(), &v2.borrow().columns, &remainder);
         warn!("Applying predicates {:?} to rest", remainder);
         // if we can apply all predicates (and there is no lingering OR that could evaluate to TRUE for
         // rows not yet constrained), then we just join these selected predicates and set them as the
@@ -375,14 +376,14 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>, p
  * Joins views, applying predicates when possible
  * Removes all prior applied predicates
  */
-pub fn tablewithjoins_to_view(views: &HashMap<String, Rc<RefCell<View>>>, twj: &TableWithJoins, preds: &mut Vec<Vec<predicates::NamedPredicate>>, order_by: Option<String>) 
+pub fn tablewithjoins_to_view(views: &HashMap<String, Rc<RefCell<View>>>, twj: &TableWithJoins, preds: &mut Vec<Vec<predicates::NamedPredicate>>) 
     -> Rc<RefCell<View>>
 {
     let mut joined_views = tablefactor_to_view(views, &twj.relation);
     
     for j in &twj.joins {
         let view2 = tablefactor_to_view(views, &j.relation);
-        joined_views = join_views(&j.join_operator, joined_views, view2, preds, order_by.clone());
+        joined_views = join_views(&j.join_operator, joined_views, view2, preds);
     }
     joined_views
 }
