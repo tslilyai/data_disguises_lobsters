@@ -7,7 +7,7 @@ use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 use log::{debug};
 
 pub fn tablecolumn_matches_col(c: &views::TableColumnDef, col: &str) -> bool {
-    debug!("matching {} to {}", c.column.name, col);
+    debug!("matching {} or {} to {}", c.column.name, c.fullname, col);
     c.colname == col || c.fullname == col
 }
 

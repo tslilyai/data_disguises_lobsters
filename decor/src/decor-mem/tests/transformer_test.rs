@@ -359,6 +359,7 @@ fn test_users() {
         results.push((id, mod_id, story_id, user_id, action));
     }
     assert_eq!(results.len(), 2);
+    warn!("results: {:?}", results);
     assert!(((results[1] == ("'2'".to_string(), 
                             "'2'".to_string(), 
                             "'0'".to_string(), 
@@ -383,7 +384,7 @@ fn test_users() {
 
     // users modified appropriately: ghosts added to users 
     let mut results = vec![];
-    let res = db.query_iter(r"SELECT id FROM users ORDER BY user.id;").unwrap();
+    let res = db.query_iter(r"SELECT id FROM users ORDER BY users.id;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 1);

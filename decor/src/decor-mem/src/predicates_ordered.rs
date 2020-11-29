@@ -5,21 +5,49 @@ use std::collections::{HashSet, BTreeMap};
 use std::cmp::Ordering;
 use std::time;
 
+pub fn get_ordered_rptrs_of_view(v: &View, order_by_indices: &Vec<usize>) -> RowPtrs {
+    debug!("{}: getting ordered rptrs of view {:?}", v.name, order_by_indices);
+    let mut rptrs = vec![];
+    let mut btree : BTreeMap<u64, HashedRowPtrs>  = BTreeMap::new();
+    for (_, rptr) in v.rows.borrow().iter() {
+        let hrptr = HashedRowPtr::new(rptr.clone(), v.primary_index);
+        let key = helpers::parser_val_to_u64(&rptr.borrow()[order_by_indices[0]]);
+        if let Some(treeptrs) = btree.get_mut(&key) {
+            treeptrs.insert(hrptr.clone());
+        } else {
+            let mut hs = HashSet::new();
+            hs.insert(hrptr.clone());
+            btree.insert(key, hs);
+        }
+    }
+    // TODO asc vs desc
+    for (_, hrptrs) in btree.iter() {
+        let mut unhashed : RowPtrs = hrptrs.iter().map(|rptr| rptr.row().clone()).collect();
+        if order_by_indices.len() > 1 {
+            unhashed.sort_by(|r1, r2| {
+                for obi in order_by_indices {
+                    match helpers::parser_vals_cmp(&r1.borrow()[*obi], &r2.borrow()[*obi]) {
+                        Ordering::Equal => continue,
+                        o => return o,
+                    }
+                }
+                Ordering::Equal
+            });
+        }
+        warn!("unhashed is {:?}", unhashed);
+        rptrs.append(&mut unhashed);
+    }
+    rptrs
+}
+
 /*
  * Returns matching rows and any predicates which have not yet been applied
  */
-pub fn get_ordered_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>, order_by: &Vec<String>) 
+pub fn get_ordered_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>, order_by_indices: &Vec<usize>) 
     -> RowPtrs
 {
-    debug!("{}: getting rptrs of preds {:?}", v.name, predsets);
+    debug!("{}: getting ordered rptrs of preds {:?}", v.name, predsets);
     let start = time::Instant::now();
-
-    let mut order_by_indices = vec![];
-    for obc in order_by {
-        if let Some(i) = helpers::get_col_index(&obc, &columns) {
-            order_by_indices.push(i);
-        }
-    }
 
     let mut matching = BTreeMap::new();
     let mut failed_predsets = vec![];
@@ -44,7 +72,7 @@ pub fn get_ordered_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>,
                 if let Some(treeptrs) = matching.get_mut(key) {
                     treeptrs.extend(hrptrs.clone());
                 } else {
-                    matching.insert(key.to_string(), hrptrs.clone());
+                    matching.insert(*key, hrptrs.clone());
                 }
             }
         }    
@@ -56,7 +84,7 @@ pub fn get_ordered_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>,
         let mut unhashed : RowPtrs = hrptrs.iter().map(|rptr| rptr.row().clone()).collect();
         if order_by_indices.len() > 1 {
             unhashed.sort_by(|r1, r2| {
-                for obi in &order_by_indices {
+                for obi in order_by_indices {
                     match helpers::parser_vals_cmp(&r1.borrow()[*obi], &r2.borrow()[*obi]) {
                         Ordering::Equal => continue,
                         o => return o,
@@ -73,7 +101,7 @@ pub fn get_ordered_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>,
     rptrs
 }
 
-pub fn get_predicated_rptrs(preds: &Vec<IndexedPredicate>, v: &View, order_by_index: usize) -> BTreeMap<String, HashedRowPtrs>
+pub fn get_predicated_rptrs(preds: &Vec<IndexedPredicate>, v: &View, order_by_index: usize) -> BTreeMap<u64, HashedRowPtrs>
 {
     use IndexedPredicate::*;
 
@@ -125,7 +153,7 @@ pub fn get_predicated_rptrs(preds: &Vec<IndexedPredicate>, v: &View, order_by_in
     }
 }
 
-pub fn get_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View, order_by_index: usize) -> BTreeMap<String, HashedRowPtrs> 
+pub fn get_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View, order_by_index: usize) -> BTreeMap<u64, HashedRowPtrs> 
 {
     warn!("Applying predicates {:?} to all view rows", preds);
     let mut btree = BTreeMap::new();
@@ -140,7 +168,7 @@ pub fn get_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View, 
             }
         } 
         let hrptr = HashedRowPtr::new(rptr.clone(), v.primary_index);
-        let key = row[order_by_index].to_string();
+        let key = helpers::parser_val_to_u64(&row[order_by_index]);
         if let Some(treeptrs) = btree.get_mut(&key) {
             treeptrs.insert(hrptr.clone());
         } else {
@@ -152,7 +180,7 @@ pub fn get_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View, 
     btree
 }
 
-pub fn get_predicated_rptrs_from_matching(preds: &Vec<&IndexedPredicate>, matching: &HashedRowPtrs, order_by_index: usize) -> BTreeMap<String, HashedRowPtrs>
+pub fn get_predicated_rptrs_from_matching(preds: &Vec<&IndexedPredicate>, matching: &HashedRowPtrs, order_by_index: usize) -> BTreeMap<u64, HashedRowPtrs>
 {
     warn!("Applying predicates {:?} to {} matching rows", preds, matching.len());
     let mut btree = BTreeMap::new();
@@ -166,7 +194,7 @@ pub fn get_predicated_rptrs_from_matching(preds: &Vec<&IndexedPredicate>, matchi
                 continue 'rowloop
             }
         }
-        let key = row[order_by_index].to_string();
+        let key = helpers::parser_val_to_u64(&row[order_by_index]);
         if let Some(treeptrs) = btree.get_mut(&key) {
             treeptrs.insert(hrp.clone());
         } else {

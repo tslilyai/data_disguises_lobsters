@@ -2,14 +2,12 @@ use crate::views::{View, TableColumnDef, RowPtrs, RowPtr};
 use crate::{helpers, predicates, joins, predicates_ordered};
 use log::{warn, debug};
 use std::collections::{HashMap};
-use std::cmp::Ordering;
 use std::io::{Error};
 use std::str::FromStr;
 use std::time;
 use sql_parser::ast::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-
 
 
 /*
@@ -212,15 +210,30 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
 
             // filter out rows by where clause
             let mut rptrs_to_keep: RowPtrs;
+            let mut order_by_indices = vec![];
+            for obc in &order_by_cols {
+                if let Some(i) = helpers::get_col_index(&obc, &columns) {
+                    order_by_indices.push(i);
+                } else {
+                    unimplemented!("Order by nonexistent column!!!");
+                }
+            }
+
             // keep all rows if there are no predicates! (select all, or join filtered them all out)
             if preds.is_empty() {
-                rptrs_to_keep = from_view.rows.borrow()
-                    .iter()
-                    .map(|(_, rptr)| rptr.clone())
-                    .collect();
+                if order_by_cols.is_empty() {
+                    rptrs_to_keep = from_view.rows.borrow()
+                        .iter()
+                        .map(|(_, rptr)| rptr.clone())
+                        .collect();
+                } else {
+                    rptrs_to_keep = predicates_ordered::get_ordered_rptrs_of_view(&from_view, &order_by_indices);
+                }
             } else {
                 if !order_by_cols.is_empty() {
-                    rptrs_to_keep = predicates_ordered::get_ordered_rptrs_matching_preds(&from_view, &columns, &preds, &order_by_cols);
+                    warn!("Ordering by cols {:?}", order_by_cols);
+                    rptrs_to_keep = predicates_ordered::get_ordered_rptrs_matching_preds(&from_view, &columns, &preds, &order_by_indices);
+                    warn!("ordered rptrs are {:?}", rptrs_to_keep);
                 } else {
                     rptrs_to_keep = predicates::get_rptrs_matching_preds_vec(&from_view, &columns, &mut preds);
                 }
@@ -334,32 +347,6 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             debug!("setexpr select: returning {:?}", rptrs_to_keep);
             Ok((columns, rptrs_to_keep, cols_to_keep))
         }
-        /*SetExpr::Query(q) => {
-            return get_query_results(views, &q);
-        }
-        SetExpr::SetOperation {
-            op,
-            left,
-            right,
-            ..
-        } => {
-            let (mut lcols, mut left_rows, mut lcols_to_keep) = get_setexpr_results(views, &left, order_by)?;
-            let (mut rcols, right_rows, mut rcols_to_keep) = get_setexpr_results(views, &right, order_by)?;
-            lcols.append(&mut rcols);
-            match op {
-                // TODO primary keys / unique keys 
-                SetOperator::Union => {
-                    // TODO currently allowing for duplicates regardless of ALL...
-                    rcols_to_keep = rcols_to_keep.iter().map(|ci| lcols.len() + ci).collect();
-                    lcols_to_keep.append(&mut rcols_to_keep);
-                    left_rows.extend(right_rows);
-                    lcols.append(&mut rcols);
-
-                    return Ok((lcols, left_rows, lcols_to_keep));
-                }
-                _ => unimplemented!("Not supported set operation {}", se),
-            }
-        }*/
         SetExpr::Values(_vals) => {
             unimplemented!("Shouldn't be getting values when looking up results: {}", se); 
         }
@@ -374,73 +361,15 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
     // don't support OFFSET or fetches yet
     assert!(q.offset.is_none() && q.fetch.is_none());
     
-    let start = time::Instant::now();
-
     // limit
-    let mut limit = rptrs_vec.len();
     if q.limit.is_some() {
         if let Some(Expr::Value(Value::Number(n))) = &q.limit {
-            limit = usize::from_str(n).unwrap();
+            let limit = usize::from_str(n).unwrap();
+            rptrs_vec.truncate(limit);
         } else {
             unimplemented!("bad limit! {}", q);
         }
     }
-    if q.order_by.len() > 0 {
-        // TODO only support at most two order by constraints for now
-        assert!(q.order_by.len() < 3); 
-        let orderby1 = &q.order_by[0];
-        let (_tab, col1) = helpers::expr_to_col(&orderby1.expr);
-        let ci1 = helpers::get_col_index(&col1, &all_cols).unwrap();
-       
-        if q.order_by.len() == 2 {
-            let orderby2 = &q.order_by[1];
-            let (_tab, col2) = helpers::expr_to_col(&orderby2.expr);
-            let ci2 = helpers::get_col_index(&col2, &all_cols).unwrap();
-            match orderby1.asc {
-                Some(false) => {
-                    rptrs_vec.sort_by(|r1, r2| {
-                        let res = helpers::parser_vals_cmp(&r2.borrow()[ci1], &r1.borrow()[ci1]);
-                        if res == Ordering::Equal {
-                            match orderby2.asc {
-                                Some(false) => helpers::parser_vals_cmp(&r2.borrow()[ci2], &r1.borrow()[ci2]),
-                                Some(true) | None => helpers::parser_vals_cmp(&r1.borrow()[ci2], &r2.borrow()[ci2]),
-                            }
-                        } else {
-                            res
-                        }});
-                }
-                Some(true) | None => {
-                    rptrs_vec.sort_by(|r1, r2| {
-                        let res = helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1]);
-                        if res == Ordering::Equal {
-                            match orderby2.asc {
-                                Some(false) => helpers::parser_vals_cmp(&r2.borrow()[ci2], &r1.borrow()[ci2]),
-                                Some(true) | None => helpers::parser_vals_cmp(&r1.borrow()[ci2], &r2.borrow()[ci2]),
-                            }
-                        } else {
-                            res
-                        }});
-                }
-            }
-        } else {
-            match orderby1.asc {
-                Some(false) => {
-                    rptrs_vec.sort_by(|r1, r2| {
-                        helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])});
-                    debug!("order by desc! {:?}", rptrs_vec);
-                }
-                Some(true) | None => {
-                    debug!("before sort: order by asc! {:?}", rptrs_vec);
-                    rptrs_vec.sort_by(|r1, r2| {
-                        helpers::parser_vals_cmp(&r1.borrow()[ci1], &r2.borrow()[ci1])});
-                    debug!("order by asc! {:?}", rptrs_vec);
-                }
-            }
-        }
-    }
-    rptrs_vec.truncate(limit);
-    let dur = start.elapsed();
-    warn!("order by took {}us", dur.as_micros());
 
     Ok((all_cols, rptrs_vec, cols_to_keep))
 }
