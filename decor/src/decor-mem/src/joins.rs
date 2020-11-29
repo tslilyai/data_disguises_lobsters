@@ -387,4 +387,3 @@ pub fn tablewithjoins_to_view(views: &HashMap<String, Rc<RefCell<View>>>, twj: &
     }
     joined_views
 }
-
