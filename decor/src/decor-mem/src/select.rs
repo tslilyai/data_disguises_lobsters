@@ -102,11 +102,23 @@ pub fn get_value_for_row_closure(e: &Expr, columns: &Vec<TableColumnDef>) -> Box
  * Return vectors of columns, rows, and additional computed columns/values
  */
 fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr, order_by: &Vec<OrderByExpr>) 
-    -> Result<(Vec<TableColumnDef>, HashSet<HashedRowPtr>, Vec<usize>), std::io::Error> {
+    -> Result<(Vec<TableColumnDef>, HashSet<HashedRowPtr>, Vec<usize>), std::io::Error> 
+{
+    
+
     match se {
         SetExpr::Select(s) => {
             if s.having != None {
                 unimplemented!("No support for having queries");
+            }
+            
+            let mut order_by_col = None;
+            // order by grouping if it exists
+            if order_by.len() > 0 {
+                // otherwise, order by whatever column (note that this ignores ordering by the count---that
+                // will have to be done later)
+                let (tab, col) = helpers::expr_to_col(&order_by[0].expr);
+                order_by_col = Some(format!("{}.{}", tab, col));
             }
 
             let mut preds = vec![];
@@ -122,7 +134,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             // special case: we're getting results from only this view
             assert!(s.from.len() <= 1);
             for twj in &s.from {
-                from_view = joins::tablewithjoins_to_view(views, &twj, &mut preds);
+                from_view = joins::tablewithjoins_to_view(views, &twj, &mut preds, order_by_col.clone());
             }
             debug!("Joined new view is {:?}", from_view);
 
@@ -223,7 +235,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             }
 
             // filter out rows by where clause
-            let (rptrs_to_keep, remainder) = predicates::get_rptrs_matching_preds(&from_view, &columns, &mut preds);
+            let (mut rptrs_to_keep, remainder) = predicates::get_rptrs_matching_preds(&from_view, &columns, &mut preds, order_by_col.clone());
             assert!(remainder.is_empty());
             
             // add computed cols 
@@ -258,6 +270,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
 
             // add the count of selected columns as an extra column if it were projected
             if count {
+                
                 let newcol_index = columns.len();
                 cols_to_keep.push(newcol_index);
 
@@ -273,17 +286,32 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                     }
                 });
 
-                let num = Value::Number(rptrs_to_keep.len().to_string());
+                assert!(s.group_by.len() == 1);
+                let (_tab, col) = helpers::expr_to_col(&s.group_by[0]);
+                let ci = helpers::get_col_index(&col, &columns).unwrap();
+
+                // get the counts, grouping rows by the specified value
+                let mut counts : HashMap<Value, (HashedRowPtr, usize)> = HashMap::new();
                 for rptr in &rptrs_to_keep {
-                    let mut row = rptr.row().borrow_mut();
-                    if row.len() > newcol_index {
-                        row[newcol_index] = num.clone();
+                    let row = rptr.row().borrow();
+                    if let Some(row_with_cnt) = counts.get_mut(&row[ci]) {
+                        row_with_cnt.1 += 1;
                     } else {
-                        row.push(num.clone());
+                        counts.insert(row[ci].clone(), (rptr.clone(), 1));
                     }
                 }
+                // new set of rows to keep!
+                rptrs_to_keep.clear(); 
+                for (_val, rowcnts) in counts {
+                    let mut row = rowcnts.0.row().borrow_mut();
+                    if row.len() > newcol_index {
+                        row[newcol_index] = Value::Number(rowcnts.1.to_string());
+                    } else {
+                        row[newcol_index] = Value::Number(rowcnts.1.to_string());
+                    }
+                    rptrs_to_keep.insert(rowcnts.0.clone());
+                }
             }
-
 
             debug!("setexpr select: returning {:?}", rptrs_to_keep);
             Ok((columns, rptrs_to_keep, cols_to_keep))
@@ -327,8 +355,6 @@ pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) 
     
     // don't support OFFSET or fetches yet
     assert!(q.offset.is_none() && q.fetch.is_none());
-
-    // TODO support GROUP BY
 
     // limit
     let mut limit = rptrs.len();

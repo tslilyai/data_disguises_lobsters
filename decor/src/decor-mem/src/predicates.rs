@@ -408,7 +408,8 @@ pub fn get_predicate_sets_of_constraint(e: &Expr) -> Vec<Vec<NamedPredicate>>
 /*
  * Returns matching rows and any predicates which have not yet been applied
  */
-pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>) -> (HashedRowPtrs, Vec<Vec<NamedPredicate>>)
+pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>, order_by: Option<String>) 
+    -> (HashedRowPtrs, Vec<Vec<NamedPredicate>>)
 {
     debug!("{}: getting rptrs of preds {:?}", v.name, predsets);
     let start = time::Instant::now();
@@ -435,10 +436,10 @@ pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predset
     (matching, failed_predsets)
 }
 
-pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColumnDef>) -> HashedRowPtrs
+pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColumnDef>, order_by: Option<String>) -> HashedRowPtrs
 {
     let predsets = get_predicate_sets_of_constraint(&e);
-    let (matching, failed_predsets) = get_rptrs_matching_preds(v, columns, &predsets);
+    let (matching, failed_predsets) = get_rptrs_matching_preds(v, columns, &predsets, order_by);
     assert!(failed_predsets.is_empty());
     matching
 }

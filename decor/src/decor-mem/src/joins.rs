@@ -328,7 +328,9 @@ fn join_using_matches(jo: &JoinOperator, i1: usize, i2: usize, r1len: usize, r2l
     }
 }
 
-fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>, preds: &mut Vec<Vec<predicates::NamedPredicate>>) -> Rc<RefCell<View>> {
+fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>, preds: &mut Vec<Vec<predicates::NamedPredicate>>, order_by: Option<String>) 
+        -> Rc<RefCell<View>> 
+{
     let start = time::Instant::now();
 
     let (r1len, r2len) = (v1.borrow().columns.len(), v2.borrow().columns.len());
@@ -345,9 +347,9 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>, p
         join_using_indexes(jo, &i1, &i2, r1len, r2len, &mut new_view);
     } else {
         warn!("Applying predicates {:?} to v1", preds);
-        let (v1rptrs, remainder) = predicates::get_rptrs_matching_preds(&v1.borrow(), &v1.borrow().columns, preds);
+        let (v1rptrs, remainder) = predicates::get_rptrs_matching_preds(&v1.borrow(), &v1.borrow().columns, preds, order_by.clone());
         warn!("Applying predicates {:?} to v1", remainder);
-        let (v2rptrs, remainder) = predicates::get_rptrs_matching_preds(&v2.borrow(), &v2.borrow().columns, &remainder);
+        let (v2rptrs, remainder) = predicates::get_rptrs_matching_preds(&v2.borrow(), &v2.borrow().columns, &remainder, order_by.clone());
         warn!("Applying predicates {:?} to rest", remainder);
         // if we can apply all predicates (and there is no lingering OR that could evaluate to TRUE for
         // rows not yet constrained), then we just join these selected predicates and set them as the
@@ -373,14 +375,14 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>, p
  * Joins views, applying predicates when possible
  * Removes all prior applied predicates
  */
-pub fn tablewithjoins_to_view(views: &HashMap<String, Rc<RefCell<View>>>, twj: &TableWithJoins, preds: &mut Vec<Vec<predicates::NamedPredicate>>) 
+pub fn tablewithjoins_to_view(views: &HashMap<String, Rc<RefCell<View>>>, twj: &TableWithJoins, preds: &mut Vec<Vec<predicates::NamedPredicate>>, order_by: Option<String>) 
     -> Rc<RefCell<View>>
 {
     let mut joined_views = tablefactor_to_view(views, &twj.relation);
     
     for j in &twj.joins {
         let view2 = tablefactor_to_view(views, &j.relation);
-        joined_views = join_views(&j.join_operator, joined_views, view2, preds);
+        joined_views = join_views(&j.join_operator, joined_views, view2, preds, order_by.clone());
     }
     joined_views
 }

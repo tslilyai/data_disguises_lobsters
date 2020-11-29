@@ -639,7 +639,7 @@ impl Views {
 
         let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            rptrs = Some(predicates::get_rptrs_matching_constraint(s, &view, &view.columns));
+            rptrs = Some(predicates::get_rptrs_matching_constraint(s, &view, &view.columns, None));
         }
 
         debug!("{}: update columns of indices {:?}", view.name, cis);
@@ -696,7 +696,7 @@ impl Views {
 
         let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            rptrs = Some(predicates::get_rptrs_matching_constraint(s, &view, &view.columns));
+            rptrs = Some(predicates::get_rptrs_matching_constraint(s, &view, &view.columns, None));
         }
 
         let len = view.columns.len();
