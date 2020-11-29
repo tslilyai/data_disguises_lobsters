@@ -1,7 +1,7 @@
-use crate::views::{View, TableColumnDef, RowPtrs, RowPtr};
-use crate::{helpers, predicates, joins, predicates_ordered};
+use crate::views::{View, TableColumnDef, RowPtrs, RowPtr, HashedRowPtrs, HashedRowPtr};
+use crate::{helpers, select::predicates, select::joins, select::predicates_ordered, select::predicates::NamedPredicate};
 use log::{warn, debug};
-use std::collections::{HashMap};
+use std::collections::{HashMap, BTreeMap, HashSet};
 use std::io::{Error};
 use std::str::FromStr;
 use std::time;
@@ -9,7 +9,53 @@ use sql_parser::ast::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::cmp::Ordering;
+use ordered_float::*;
 
+pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColumnDef>) -> HashedRowPtrs
+{
+    let mut predsets = predicates::get_predicate_sets_of_constraint(&e);
+    if predsets.is_empty() {
+        predsets.push(vec![NamedPredicate::Bool(true)]);
+    }
+    let (matching, failed_predsets) = predicates::get_rptrs_matching_preds(v, columns, &predsets);
+    assert!(failed_predsets.is_empty());
+    matching
+}
+
+pub fn get_ordered_rptrs_of_view(v: &View, order_by_indices: &Vec<usize>) -> RowPtrs {
+    debug!("{}: getting ordered rptrs of view {:?}", v.name, order_by_indices);
+    let mut rptrs = vec![];
+    let mut btree : BTreeMap<OrderedFloat<f64>, HashedRowPtrs>  = BTreeMap::new();
+    for (_, rptr) in v.rows.borrow().iter() {
+        let hrptr = HashedRowPtr::new(rptr.clone(), v.primary_index);
+        let key = OrderedFloat(helpers::parser_val_to_f64(&rptr.borrow()[order_by_indices[0]]));
+        if let Some(treeptrs) = btree.get_mut(&key) {
+            treeptrs.insert(hrptr.clone());
+        } else {
+            let mut hs = HashSet::new();
+            hs.insert(hrptr.clone());
+            btree.insert(key, hs);
+        }
+    }
+    // TODO asc vs desc
+    for (_, hrptrs) in btree.iter() {
+        let mut unhashed : RowPtrs = hrptrs.iter().map(|rptr| rptr.row().clone()).collect();
+        if order_by_indices.len() > 1 {
+            unhashed.sort_by(|r1, r2| {
+                for obi in order_by_indices {
+                    match helpers::parser_vals_cmp(&r1.borrow()[*obi], &r2.borrow()[*obi]) {
+                        Ordering::Equal => continue,
+                        o => return o,
+                    }
+                }
+                Ordering::Equal
+            });
+        }
+        rptrs.append(&mut unhashed);
+    }
+    warn!("returning ordered rptrs {:?}", rptrs);
+    rptrs
+}
 
 /*
  * Turn expression into a value for row
@@ -96,15 +142,12 @@ pub fn get_value_for_row_closure(e: &Expr, columns: &Vec<TableColumnDef>) -> Box
     closure.unwrap()
 }
 
-
 /* 
  * Return vectors of columns, rows, and additional computed columns/values
  */
 fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr, order_by: &Vec<OrderByExpr>) 
     -> Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), std::io::Error> 
 {
-    
-
     match se {
         SetExpr::Select(s) => {
             if s.having != None {
@@ -230,13 +273,13 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                         .map(|(_, rptr)| rptr.clone())
                         .collect();
                 } else {
-                    rptrs_to_keep = predicates_ordered::get_ordered_rptrs_of_view(&from_view, &order_by_indices);
+                    rptrs_to_keep = get_ordered_rptrs_of_view(&from_view, &order_by_indices);
+                    warn!("ordered rptrs are {:?}", rptrs_to_keep);  
                 }
             } else {
                 if order_by_cols.is_empty() || order_by_added_col {
                     rptrs_to_keep = predicates::get_rptrs_matching_preds_vec(&from_view, &columns, &mut preds);
                 } else {
-                    warn!("Ordering by cols {:?}", order_by_cols);
                     rptrs_to_keep = predicates_ordered::get_ordered_rptrs_matching_preds(&from_view, &columns, &preds, &order_by_indices);
                     warn!("ordered rptrs are {:?}", rptrs_to_keep);  
                 }
@@ -370,7 +413,8 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
 }
 
 pub fn get_query_results(views: &HashMap<String, Rc<RefCell<View>>>, q: &Query) -> 
-    Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), Error> {
+    Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), Error> 
+{
     let (all_cols, mut rptrs_vec, cols_to_keep) = get_setexpr_results(views, &q.body, &q.order_by)?;
     
     // don't support OFFSET or fetches yet

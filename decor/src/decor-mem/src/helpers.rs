@@ -1,4 +1,4 @@
-use sql_parser::ast::{Expr, Ident, ObjectName, DataType};
+use sql_parser::ast::{Expr, Ident, ObjectName, DataType, UnaryOperator, Value};
 use std::*;
 use std::cmp::Ordering;
 use crate::{config, views};
@@ -15,6 +15,50 @@ pub fn get_col_index(col: &str, columns: &Vec<views::TableColumnDef>) -> Option<
     columns.iter().position(|c| tablecolumn_matches_col(c, col))
 }
 
+pub fn lhs_expr_to_name(left: &Expr) -> String {
+    match left {
+        Expr::Identifier(_) => {
+            let (tab, mut col) = expr_to_col(&left);
+            if !tab.is_empty() {
+                col = format!("{}.{}", tab, col);
+            }
+            col
+        }
+        _ => unimplemented!("Bad lhs {}", left),
+    }
+}
+
+pub fn rhs_expr_to_name_or_value(right: &Expr) -> (Option<String>, Option<Value>) {
+    let mut rval = None;
+    let mut rname = None;
+    match right {
+        Expr::Identifier(_) => {
+            let (tab, mut col) = expr_to_col(&right);
+            if !tab.is_empty() {
+                col = format!("{}.{}", tab, col);
+            }
+            rname = Some(col);
+        }
+        Expr::Value(val) => {
+            rval = Some(val.clone());
+        }
+        Expr::UnaryOp{op, expr} => {
+            if let Expr::Value(ref val) = **expr {
+                match op {
+                    UnaryOperator::Minus => {
+                        let n = -1.0 * parser_val_to_f64(&val);
+                        rval = Some(Value::Number(n.to_string()));
+                    }
+                    _ => unimplemented!("Unary op not supported! {:?}", expr),
+                }
+            } else {
+                unimplemented!("Unary op not supported! {:?}", expr);
+            }
+        }
+        _ => unimplemented!("Bad rhs? {}", right),
+    }
+    (rname, rval)
+}
 /*
  * return table name and optionally column if not wildcard
  */
@@ -220,7 +264,6 @@ pub fn idents_subset_of_idents(id1: &Vec<Ident>, id2: &Vec<Ident>) -> Option<(us
  ****************************************/
 // returns if the first value is larger than the second
 pub fn parser_vals_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> cmp::Ordering {
-    use sql_parser::ast::Value as Value;
     let res : cmp::Ordering;
     debug!("comparing {:?} =? {:?}", v1, v2);
     match (v1, v2) {
@@ -238,17 +281,14 @@ pub fn parser_vals_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value)
 }
 
 pub fn plus_parser_vals(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> sql_parser::ast::Value {
-    use sql_parser::ast::Value as Value;
     Value::Number((parser_val_to_f64(v1) + parser_val_to_f64(v2)).to_string())
 }
 
 pub fn minus_parser_vals(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> sql_parser::ast::Value {
-    use sql_parser::ast::Value as Value;
     Value::Number((parser_val_to_f64(v1) - parser_val_to_f64(v2)).to_string())
 }
 
 pub fn parser_val_to_f64(val: &sql_parser::ast::Value) -> f64 {
-    use sql_parser::ast::Value as Value;
     match val {
         Value::Number(i) => f64::from_str(i).unwrap(),
         Value::String(i) => f64::from_str(i).unwrap(),
@@ -257,7 +297,6 @@ pub fn parser_val_to_f64(val: &sql_parser::ast::Value) -> f64 {
 }
 
 pub fn parser_val_to_u64(val: &sql_parser::ast::Value) -> u64 {
-    use sql_parser::ast::Value as Value;
     match val {
         Value::Number(i) => u64::from_str(i).unwrap(),
         Value::String(i) => u64::from_str(i).unwrap(),
@@ -266,7 +305,6 @@ pub fn parser_val_to_u64(val: &sql_parser::ast::Value) -> u64 {
 }
 
 pub fn parser_expr_to_u64(val: &Expr) -> Result<u64, mysql::Error> {
-    use sql_parser::ast::Value as Value;
     match val {
         Expr::Value(Value::Number(i)) => Ok(u64::from_str(i).unwrap()),
         Expr::Value(Value::String(i)) => {
@@ -307,7 +345,6 @@ pub fn get_parser_coltype(t: &DataType) -> msql_srv::ColumnType {
 }
 
 pub fn parser_val_to_common_val(val: &sql_parser::ast::Value) -> mysql_common::value::Value {
-    use sql_parser::ast::Value as Value;
     match val {
         Value::Null => mysql_common::value::Value::NULL,
         Value::String(s) => mysql_common::value::Value::Bytes(s.as_bytes().to_vec()),
@@ -422,7 +459,6 @@ pub fn mysql_val_to_common_val(val: &mysql::Value) -> mysql_common::value::Value
 }
 
 pub fn mysql_val_to_parser_val(val: &mysql::Value) -> sql_parser::ast::Value {
-    use sql_parser::ast::Value as Value;
     match val {
         mysql::Value::NULL => Value::Null,
         mysql::Value::Bytes(bs) => {

@@ -166,50 +166,7 @@ impl NamedPredicate {
     }
 }
 
-fn lhs_expr_to_name(left: &Expr) -> String {
-    match left {
-        Expr::Identifier(_) => {
-            let (tab, mut col) = helpers::expr_to_col(&left);
-            if !tab.is_empty() {
-                col = format!("{}.{}", tab, col);
-            }
-            col
-        }
-        _ => unimplemented!("Bad lhs {}", left),
-    }
-}
 
-fn rhs_expr_to_name_or_value(right: &Expr) -> (Option<String>, Option<Value>) {
-    let mut rval = None;
-    let mut rname = None;
-    match right {
-        Expr::Identifier(_) => {
-            let (tab, mut col) = helpers::expr_to_col(&right);
-            if !tab.is_empty() {
-                col = format!("{}.{}", tab, col);
-            }
-            rname = Some(col);
-        }
-        Expr::Value(val) => {
-            rval = Some(val.clone());
-        }
-        Expr::UnaryOp{op, expr} => {
-            if let Expr::Value(ref val) = **expr {
-                match op {
-                    UnaryOperator::Minus => {
-                        let n = -1.0 * helpers::parser_val_to_f64(&val);
-                        rval = Some(Value::Number(n.to_string()));
-                    }
-                    _ => unimplemented!("Unary op not supported! {:?}", expr),
-                }
-            } else {
-                unimplemented!("Unary op not supported! {:?}", expr);
-            }
-        }
-        _ => unimplemented!("Bad rhs? {}", right),
-    }
-    (rname, rval)
-}
 
 /*
  * Turn predicate into a value for row
@@ -340,10 +297,10 @@ pub fn get_predicates_of_constraint(e: &Expr, preds: &mut Vec<NamedPredicate>)
                     }
                     if !fastpath {
                         let cmp_op = op.clone();
-                        let (rname, rval) = rhs_expr_to_name_or_value(&right);
+                        let (rname, rval) = helpers::rhs_expr_to_name_or_value(&right);
                         match &**left {
                             Expr::Identifier(_) =>  {
-                                let lname = lhs_expr_to_name(&left);
+                                let lname = helpers::lhs_expr_to_name(&left);
                                 preds.push(NamedPredicate::ColCmp{
                                     name1: lname, 
                                     name2: rname, 
@@ -352,8 +309,8 @@ pub fn get_predicates_of_constraint(e: &Expr, preds: &mut Vec<NamedPredicate>)
                                 });
                             }
                             Expr::BinaryOp{left, op, right} => {
-                                let innerlname = lhs_expr_to_name(&left);
-                                let (innerrname, innerrval) = rhs_expr_to_name_or_value(&right);
+                                let innerlname = helpers::lhs_expr_to_name(&left);
+                                let (innerrname, innerrval) = helpers::rhs_expr_to_name_or_value(&right);
                                 preds.push(NamedPredicate::ComputeValCmp {
                                     name1: innerlname,
                                     name2: innerrname,
@@ -446,17 +403,6 @@ pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predset
     let dur = start.elapsed();
     warn!("get rptrs matching preds duration {}us", dur.as_micros());
     (matching, failed_predsets)
-}
-
-pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColumnDef>) -> HashedRowPtrs
-{
-    let mut predsets = get_predicate_sets_of_constraint(&e);
-    if predsets.is_empty() {
-        predsets.push(vec![NamedPredicate::Bool(true)]);
-    }
-    let (matching, failed_predsets) = get_rptrs_matching_preds(v, columns, &predsets);
-    assert!(failed_predsets.is_empty());
-    matching
 }
 
 /*

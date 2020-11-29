@@ -1,5 +1,5 @@
 use crate::views::{View, TableColumnDef, ViewIndex, HashedRowPtrs};
-use crate::{helpers, predicates};
+use crate::{helpers, select::predicates};
 use log::{warn, debug};
 use std::collections::{HashMap};
 use std::cmp::Ordering;

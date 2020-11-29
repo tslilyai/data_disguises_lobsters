@@ -1,6 +1,6 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{helpers, ghosts_map, config, stats, views, predicates};
+use crate::{select, helpers, ghosts_map, config, stats, views};
 use crate::views::{TableColumnDef, Views, Row, RowPtrs};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -1343,7 +1343,7 @@ impl QueryTransformer {
                 };
             }            
 
-            let rptrs_to_update = predicates::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
+            let rptrs_to_update = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
             for rptr in &rptrs_to_update {
                 for ci in &cis {
                     if rptr.row().borrow()[*ci].to_string() == uid_val.to_string() {
@@ -1452,7 +1452,7 @@ impl QueryTransformer {
                 };
             }            
 
-            let rptrs_to_update = predicates::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
+            let rptrs_to_update = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
             for rptr in &rptrs_to_update {
                 for ci in &cis {
                     debug!("RESUB: updating {:?} with {}", rptr, uid_val);

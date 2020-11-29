@@ -1,7 +1,7 @@
 use sql_parser::ast::*;
 use std::collections::{HashSet, HashMap};
 use std::cmp::Ordering;
-use crate::{select, helpers, ghosts_map, predicates, INIT_CAPACITY};
+use crate::{select, helpers, ghosts_map, INIT_CAPACITY};
 use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::io::{Error, Write};
@@ -640,7 +640,7 @@ impl Views {
 
         let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            rptrs = Some(predicates::get_rptrs_matching_constraint(s, &view, &view.columns));
+            rptrs = Some(select::get_rptrs_matching_constraint(s, &view, &view.columns));
         }
 
         debug!("{}: update columns of indices {:?}", view.name, cis);
@@ -697,7 +697,7 @@ impl Views {
 
         let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {
-            rptrs = Some(predicates::get_rptrs_matching_constraint(s, &view, &view.columns));
+            rptrs = Some(select::get_rptrs_matching_constraint(s, &view, &view.columns));
         }
 
         let len = view.columns.len();
