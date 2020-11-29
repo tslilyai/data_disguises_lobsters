@@ -83,7 +83,7 @@ let lobsters_policy : policy::ApplicationPolicy = (
             attribute: "users",
             column_name: "recipient_user_id",
         }),
-        ClusterPolicy::Decor({Cluster{
+        ClusterPolicy::Decor(Cluster{
             cluster_entity: "votes",
             attribute: "users",
             column_name: "user_id",
@@ -97,7 +97,7 @@ let lobsters_policy : policy::ApplicationPolicy = (
             attribute: "stories",
             column_name: "story_id",
         }),
-        ClusterPolicy::NoDecorRetain{Cluster(
+        ClusterPolicy::NoDecorRetain(Cluster{
             cluster_entity: "moderations",
             attribute: "comments",
             column_name: "comment_id",
