@@ -8,6 +8,7 @@ use std::time;
 use sql_parser::ast::*;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::cmp::Ordering;
 
 
 /*
@@ -211,17 +212,20 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             // filter out rows by where clause
             let mut rptrs_to_keep: RowPtrs;
             let mut order_by_indices = vec![];
+            let mut order_by_added_col = false;
             for obc in &order_by_cols {
                 if let Some(i) = helpers::get_col_index(&obc, &columns) {
                     order_by_indices.push(i);
                 } else {
-                    unimplemented!("Order by nonexistent column!!!");
+                    order_by_added_col = true;
+                    break;
+                    //unimplemented!("Order by nonexistent column!!!");
                 }
             }
 
             // keep all rows if there are no predicates! (select all, or join filtered them all out)
             if preds.is_empty() {
-                if order_by_cols.is_empty() {
+                if order_by_cols.is_empty() || order_by_added_col {
                     rptrs_to_keep = from_view.rows.borrow()
                         .iter()
                         .map(|(_, rptr)| rptr.clone())
@@ -230,7 +234,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                     rptrs_to_keep = predicates_ordered::get_ordered_rptrs_of_view(&from_view, &order_by_indices);
                 }
             } else {
-                if !order_by_cols.is_empty() {
+                if !order_by_cols.is_empty() || order_by_added_col {
                     warn!("Ordering by cols {:?}", order_by_cols);
                     rptrs_to_keep = predicates_ordered::get_ordered_rptrs_matching_preds(&from_view, &columns, &preds, &order_by_indices);
                     warn!("ordered rptrs are {:?}", rptrs_to_keep);
@@ -342,6 +346,18 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 } else {
                     assert!(order_by_cols.is_empty());
                 }
+            }
+
+            if order_by_added_col {
+                rptrs_to_keep.sort_by(|r1, r2| {
+                    for obi in &order_by_indices {
+                        match helpers::parser_vals_cmp(&r1.borrow()[*obi], &r2.borrow()[*obi]) {
+                            Ordering::Equal => continue,
+                            o => return o,
+                        }
+                    }
+                    Ordering::Equal
+                });
             }
 
             debug!("setexpr select: returning {:?}", rptrs_to_keep);
