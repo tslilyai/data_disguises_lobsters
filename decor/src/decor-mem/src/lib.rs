@@ -212,11 +212,11 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 dur = start.elapsed();
             }
         }
-        if dur.as_micros() > 400 {
+        /*if dur.as_micros() > 400 {
             error!("Long query: {}: {}us", query, dur.as_micros());
         }
         let qtype = stats::get_qtype(query)?;
-        self.qtrans.record_query_stats(qtype, dur);
+        self.qtrans.record_query_stats(qtype, dur);*/
         res
     }
 }
