@@ -234,12 +234,12 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                     rptrs_to_keep = predicates_ordered::get_ordered_rptrs_of_view(&from_view, &order_by_indices);
                 }
             } else {
-                if !order_by_cols.is_empty() || order_by_added_col {
+                if order_by_cols.is_empty() || order_by_added_col {
+                    rptrs_to_keep = predicates::get_rptrs_matching_preds_vec(&from_view, &columns, &mut preds);
+                } else {
                     warn!("Ordering by cols {:?}", order_by_cols);
                     rptrs_to_keep = predicates_ordered::get_ordered_rptrs_matching_preds(&from_view, &columns, &preds, &order_by_indices);
-                    warn!("ordered rptrs are {:?}", rptrs_to_keep);
-                } else {
-                    rptrs_to_keep = predicates::get_rptrs_matching_preds_vec(&from_view, &columns, &mut preds);
+                    warn!("ordered rptrs are {:?}", rptrs_to_keep);  
                 }
             }
 

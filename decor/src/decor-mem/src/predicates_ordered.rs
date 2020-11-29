@@ -4,14 +4,15 @@ use log::{warn, debug};
 use std::collections::{HashSet, BTreeMap};
 use std::cmp::Ordering;
 use std::time;
+use ordered_float::*;
 
 pub fn get_ordered_rptrs_of_view(v: &View, order_by_indices: &Vec<usize>) -> RowPtrs {
     debug!("{}: getting ordered rptrs of view {:?}", v.name, order_by_indices);
     let mut rptrs = vec![];
-    let mut btree : BTreeMap<u64, HashedRowPtrs>  = BTreeMap::new();
+    let mut btree : BTreeMap<OrderedFloat<f64>, HashedRowPtrs>  = BTreeMap::new();
     for (_, rptr) in v.rows.borrow().iter() {
         let hrptr = HashedRowPtr::new(rptr.clone(), v.primary_index);
-        let key = helpers::parser_val_to_u64(&rptr.borrow()[order_by_indices[0]]);
+        let key = OrderedFloat(helpers::parser_val_to_f64(&rptr.borrow()[order_by_indices[0]]));
         if let Some(treeptrs) = btree.get_mut(&key) {
             treeptrs.insert(hrptr.clone());
         } else {
@@ -101,7 +102,7 @@ pub fn get_ordered_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>,
     rptrs
 }
 
-pub fn get_predicated_rptrs(preds: &Vec<IndexedPredicate>, v: &View, order_by_index: usize) -> BTreeMap<u64, HashedRowPtrs>
+pub fn get_predicated_rptrs(preds: &Vec<IndexedPredicate>, v: &View, order_by_index: usize) -> BTreeMap<OrderedFloat<f64>, HashedRowPtrs>
 {
     use IndexedPredicate::*;
 
@@ -153,7 +154,7 @@ pub fn get_predicated_rptrs(preds: &Vec<IndexedPredicate>, v: &View, order_by_in
     }
 }
 
-pub fn get_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View, order_by_index: usize) -> BTreeMap<u64, HashedRowPtrs> 
+pub fn get_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View, order_by_index: usize) -> BTreeMap<OrderedFloat<f64>, HashedRowPtrs> 
 {
     warn!("Applying predicates {:?} to all view rows", preds);
     let mut btree = BTreeMap::new();
@@ -168,7 +169,7 @@ pub fn get_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View, 
             }
         } 
         let hrptr = HashedRowPtr::new(rptr.clone(), v.primary_index);
-        let key = helpers::parser_val_to_u64(&row[order_by_index]);
+        let key = OrderedFloat(helpers::parser_val_to_f64(&row[order_by_index]));
         if let Some(treeptrs) = btree.get_mut(&key) {
             treeptrs.insert(hrptr.clone());
         } else {
@@ -180,7 +181,7 @@ pub fn get_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View, 
     btree
 }
 
-pub fn get_predicated_rptrs_from_matching(preds: &Vec<&IndexedPredicate>, matching: &HashedRowPtrs, order_by_index: usize) -> BTreeMap<u64, HashedRowPtrs>
+pub fn get_predicated_rptrs_from_matching(preds: &Vec<&IndexedPredicate>, matching: &HashedRowPtrs, order_by_index: usize) -> BTreeMap<OrderedFloat<f64>, HashedRowPtrs>
 {
     warn!("Applying predicates {:?} to {} matching rows", preds, matching.len());
     let mut btree = BTreeMap::new();
@@ -194,7 +195,7 @@ pub fn get_predicated_rptrs_from_matching(preds: &Vec<&IndexedPredicate>, matchi
                 continue 'rowloop
             }
         }
-        let key = helpers::parser_val_to_u64(&row[order_by_index]);
+        let key = OrderedFloat(helpers::parser_val_to_f64(&row[order_by_index]));
         if let Some(treeptrs) = btree.get_mut(&key) {
             treeptrs.insert(hrp.clone());
         } else {

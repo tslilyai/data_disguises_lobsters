@@ -251,6 +251,7 @@ pub fn parser_val_to_f64(val: &sql_parser::ast::Value) -> f64 {
     use sql_parser::ast::Value as Value;
     match val {
         Value::Number(i) => f64::from_str(i).unwrap(),
+        Value::String(i) => f64::from_str(i).unwrap(),
         _ => unimplemented!("value not a number! {}", val),
     }
 }

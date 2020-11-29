@@ -1,3 +1,4 @@
+extern crate ordered_float;
 extern crate mysql;
 extern crate crypto;
 extern crate hex;
