@@ -16,6 +16,7 @@ pub mod sqlparser_cache;
 pub mod stats;
 pub mod select;
 pub mod predicates;
+pub mod predicates_ordered;
 pub mod joins;
 
 pub const INIT_CAPACITY: usize = 1000;

@@ -1,7 +1,7 @@
-use crate::views::{View, TableColumnDef, RowPtrs, HashedRowPtr, RowPtr};
-use crate::{helpers, INIT_CAPACITY, predicates, joins};
+use crate::views::{View, TableColumnDef, RowPtrs, RowPtr};
+use crate::{helpers, predicates, joins, predicates_ordered};
 use log::{warn, debug};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::cmp::Ordering;
 use std::io::{Error};
 use std::str::FromStr;
@@ -112,18 +112,16 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 unimplemented!("No support for having queries");
             }
             
-            let mut order_by_col = None;
-            // order by grouping if it exists
-            if s.group_by.len() > 0 {
-                // support only one group by for now
-                assert!(s.group_by.len() == 1); 
-                let (tab, col) = helpers::expr_to_col(&s.group_by[0]);
-                order_by_col = Some(format!("{}.{}", tab, col));
-            } else if order_by.len() > 0 {
-                // otherwise, order by whatever column (note that this ignores ordering by the count---that
+            let mut order_by_cols = vec![];
+            if order_by.len() > 0 {
+                // order by whatever columns (note that this ignores ordering by the count---that
                 // will have to be done later)
                 let (tab, col) = helpers::expr_to_col(&order_by[0].expr);
-                order_by_col = Some(format!("{}.{}", tab, col));
+                if tab.is_empty() {
+                    order_by_cols.push(format!("{}", col));
+                } else {
+                    order_by_cols.push(format!("{}.{}", tab, col));
+                }
             }
 
             let mut preds : Vec<Vec<predicates::NamedPredicate>> = vec![];
@@ -214,16 +212,18 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
 
             // filter out rows by where clause
             let mut rptrs_to_keep: RowPtrs;
-            // keep all rows if there are no predicates! (join filtered them all out)
+            // keep all rows if there are no predicates! (select all, or join filtered them all out)
             if preds.is_empty() {
                 rptrs_to_keep = from_view.rows.borrow()
                     .iter()
                     .map(|(_, rptr)| rptr.clone())
                     .collect();
             } else {
-                let (rptrs_to_keep_preds, remainder_preds) = predicates::get_rptrs_matching_preds(&from_view, &columns, &mut preds);
-                rptrs_to_keep = rptrs_to_keep_preds.iter().map(|hrptr| hrptr.row().clone()).collect();
-                assert!(remainder_preds.is_empty());
+                if !order_by_cols.is_empty() {
+                    rptrs_to_keep = predicates_ordered::get_ordered_rptrs_matching_preds(&from_view, &columns, &preds, &order_by_cols);
+                } else {
+                    rptrs_to_keep = predicates::get_rptrs_matching_preds_vec(&from_view, &columns, &mut preds);
+                }
             }
 
             // fast path: return val if select val was issued
@@ -280,14 +280,14 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
 
             // add the count of selected columns as an extra column if it were projected
             if count {
-                
                 let newcol_index = columns.len();
                 cols_to_keep.push(newcol_index);
+                let count_alias_str = count_alias.to_string();
 
                 columns.push(TableColumnDef{
                     table: table_name.clone(),
-                    colname: count_alias.to_string(),
-                    fullname: count_alias.to_string(),
+                    colname: count_alias_str.clone(),
+                    fullname: count_alias_str.clone(),
                     column: ColumnDef {
                         name: count_alias,
                         data_type: DataType::Int,
@@ -320,6 +320,14 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                         row[newcol_index] = Value::Number(rowcnts.1.to_string());
                     }
                     rptrs_to_keep.push(rowcnts.0.clone());
+                }
+
+                if !order_by_cols.is_empty() && order_by_cols[0] == count_alias_str {
+                    // order by count
+                    rptrs_to_keep.sort_by(|r1, r2| {
+                        helpers::parser_vals_cmp(&r1.borrow()[newcol_index], &r2.borrow()[newcol_index])});
+                } else {
+                    assert!(order_by_cols.is_empty());
                 }
             }
 

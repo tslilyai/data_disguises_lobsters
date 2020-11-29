@@ -409,10 +409,10 @@ pub fn get_predicate_sets_of_constraint(e: &Expr) -> Vec<Vec<NamedPredicate>>
  * Returns matching rows and any predicates which have not yet been applied
  */
 pub fn get_rptrs_matching_preds_vec(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>) 
-    -> (RowPtrs, Vec<Vec<NamedPredicate>>) 
+    -> RowPtrs
 {
-    let (rptrs, remainder) = get_rptrs_matching_preds(v, columns, predsets); 
-    (rptrs.iter().map(|r| r.row().clone()).collect(), remainder)
+    let (rptrs, _remainder) = get_rptrs_matching_preds(v, columns, predsets); 
+    rptrs.iter().map(|r| r.row().clone()).collect()
 }
 
 pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>) -> (HashedRowPtrs, Vec<Vec<NamedPredicate>>) 
@@ -538,7 +538,7 @@ pub fn get_predicated_rptrs_from_matching(preds: &Vec<&IndexedPredicate>, matchi
     warn!("Post-application len: {}", matching.len());
 }
 
-fn pred_matches_row(row: &Row, p: &IndexedPredicate) -> bool {
+pub fn pred_matches_row(row: &Row, p: &IndexedPredicate) -> bool {
     use IndexedPredicate::*;
     match p {
         Bool(b) => *b,
