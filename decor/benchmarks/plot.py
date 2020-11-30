@@ -6,21 +6,20 @@ plt.style.use('seaborn-deep')
 
 tests = ["decor", "shim_only", "shim_parse"]
 names = ["Read", "Update", "Insert", "Unsub", "Resub", "Delete"]
-ybounds = [25000, 3000, 3000, 3000, 3000, 3000]
-bins = [np.linspace(0, 14000, 200),
+ybounds = [30000, 3000, 3000, 3000, 3000, 3000]
+bins = [np.linspace(0, 10000, 200),
     np.linspace(0, 800, 200),
     np.linspace(0, 800, 200),
     np.linspace(0, 4000, 200),
     np.linspace(0, 4000, 200),
-    np.linspace(0, 600, 200),
+    np.linspace(0, 4000, 200),
 ]
 
 for test in tests:
     with open('{}1.csv'.format(test),'r') as csvfile:
         rows = csvfile.readlines()
-        fig, axes = plt.subplots(nrows=len(rows), ncols=1, figsize=(6,18))
-        axes_flat = axes.flatten()
-        ai = 0
+
+        q2lats_all = []
         for (i, row) in enumerate(rows):
             q2lats = [[] for _ in range(4)]
             pairs = row.split(';')[:-1]
@@ -35,7 +34,12 @@ for test in tests:
                 if qs > 5:
                     continue
                 q2lats[qs].append(latency)
-            axes_flat[ai].hist(q2lats,
+            q2lats_all.append((q2lats, i))
+        fig, axes = plt.subplots(nrows=len(q2lats_all), ncols=1, figsize=(8,len(q2lats_all)*3))
+        axes_flat = axes.flatten()
+        for ai in range(len(q2lats_all)):
+            i = q2lats_all[ai][1]
+            axes_flat[ai].hist(q2lats_all[ai][0],
                     bins[i],
                     stacked=True,
                     label=[str(i) + "x Query Mult." for i in range(len(q2lats))])
@@ -45,6 +49,5 @@ for test in tests:
             axes_flat[ai].set_ylim(ymax = ybounds[i])
             axes_flat[ai].set_xlabel('Per-Query Latency (us)')
             axes_flat[ai].set_ylabel('Number of Queries')
-            ai += 1
     fig.tight_layout(h_pad=4)
     plt.savefig('{}.png'.format(test), dpi=300)
