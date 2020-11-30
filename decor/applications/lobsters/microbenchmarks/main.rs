@@ -256,58 +256,51 @@ fn main() {
     let (mut db, jh) = init_db(topo.clone(), test.clone(), testname, nusers, nstories, ncomments);
 
     let mut rng = rand::thread_rng();
-    // all autoinc ids start at 1..
-    let mut users: Vec<u64> = (1..nusers+1).collect();
-    let mut stories: Vec<u64> = (1..nstories+1).collect();
-    let mut comments: Vec<u64> = (1..ncomments+1).collect();
-    users.shuffle(&mut rng);
-    stories.shuffle(&mut rng);
-    comments.shuffle(&mut rng);
-
     let mut total_stories = nstories;
     let mut total_comments = ncomments;
     let mut unsubbed_users = HashMap::new(); 
+    let mut nunsub = 0;
+    let mut nresub = 0;
     let start = time::Instant::now();
     for i in 0..nqueries {
-        let user = users[((i % nusers) as usize)];
-        let story= stories[((i+1)%nstories) as usize];
+        // all autoinc ids start at 1..
+        let user = rng.gen_range(1, nusers+1);
+        let story= rng.gen_range(0, nstories);
+        if let Some(gids) = unsubbed_users.remove(&user) {
+            nresub += 1;
+            if test == TestType::TestDecor {
+                queriers::user::resubscribe_user(user, gids, &mut db);
+            } else {
+                db.query_drop(&format!("INSERT INTO `users` (id, username) VALUES ({}, 'user{}')", user, user-1)).unwrap();
+            }
+        }
         match rng.gen_range(0, 24) {
-            0..=10 => queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
-            11..=13 => {
+            0..=8=> queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
+            9..=11 => {
                 queriers::post_story::post_story(&mut db, Some(user), total_stories + 1, "Dummy title".to_string()).unwrap();
                 total_stories += 1;
             }
-            14..=16 => queriers::vote::vote_on_story(&mut db, Some(user), story, true).unwrap(),
-            17..=19 => queriers::user::get_profile(&mut db, user).unwrap(),
-            20..=22 => {
+            12..=14 => queriers::vote::vote_on_story(&mut db, Some(user), story, true).unwrap(),
+            15..=17 => queriers::user::get_profile(&mut db, user).unwrap(),
+            18..=20 => {
                 queriers::comment::post_comment(&mut db, Some(user), total_comments + 1, story, None).unwrap();
                 total_comments += 1;
             }
             _ => {
+                nunsub += 1;
                 if test == TestType::TestDecor {
-                    if let Some(gids) = unsubbed_users.remove(&user) {
-                        queriers::user::resubscribe_user(user, gids, &mut db);
-                        warn!("post-resubscribe {} unsubbed users: {:?}", user, unsubbed_users);
-                    } else {
-                        warn!("pre-unsubscribe {} unsubbed users: {:?}", user, unsubbed_users);
-                        let gids = queriers::user::unsubscribe_user(user, &mut db);
-                        unsubbed_users.insert(user, gids);
-                        warn!("post-unsubscribe {} unsubbed users: {:?}", user, unsubbed_users);
-                    }
+                    let gids = queriers::user::unsubscribe_user(user, &mut db);
+                    unsubbed_users.insert(user, gids);
+                    warn!("post-unsubscribe {} unsubbed users: {:?}", user, unsubbed_users);
                 } else {
-                    if let Some(_gids) = unsubbed_users.remove(&user) {
-                        // assume that baselines just delete the user when the user unsubscribes
-                        db.query_drop(&format!("INSERT INTO `users` (id, username) VALUES ({}, 'user{}')", user, user)).unwrap();
-                    } else {
-                        db.query_drop(&format!("DELETE FROM `users` WHERE `user`.`id` = {}", user)).unwrap();
-                        unsubbed_users.insert(user, vec![]);
-                    }
+                    db.query_drop(&format!("DELETE FROM `users` WHERE `users`.`id` = {}", user)).unwrap();
+                    unsubbed_users.insert(user, vec![]);
                 }
             }
         }
     }
     let dur = start.elapsed();
-    println!("Time to do {} queries: {}s", nqueries, dur.as_secs());
+    println!("Time to do {} queries ({}/{} un/resubs): {}s", nqueries, nunsub, nresub, dur.as_secs());
     //println!("{:.2}", nqueries as f64/duration.as_millis() as f64 * 1000f64);
     
     drop(db);

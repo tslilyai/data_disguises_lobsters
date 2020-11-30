@@ -163,6 +163,7 @@ impl GhostsMap{
         // no mappings should exist!
         if let Some(gids) = self.uid2gids.insert(uid, gids.clone()) {
             warn!("GIDS for {} are not empty???: {:?}", uid, gids);
+            // XXX This can happen if we're still allow this "user" to insert stories/comments...
             assert!(gids.is_empty());
         }
         for i in 0..gids.len() {
