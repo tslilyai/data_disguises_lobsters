@@ -1273,7 +1273,6 @@ impl QueryTransformer {
 
     pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) -> Result<(), mysql::Error> {
         warn!("Unsubscribing {}", uid);
-        self.cur_stat.qtype = stats::QueryType::Unsub;
 
         let uid_val = Value::Number(uid.to_string());
         let user_table_name = helpers::string_to_objname(&self.cfg.user_table.name);
@@ -1375,7 +1374,6 @@ impl QueryTransformer {
      */
     pub fn resubscribe(&mut self, uid: u64, gids: &Vec<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         // TODO check auth token?
-        self.cur_stat.qtype = stats::QueryType::Resub;
 
         if !self.ghosts_map.resubscribe(uid, gids, db)? {
             warn!("Resubscribing {} failed", uid);

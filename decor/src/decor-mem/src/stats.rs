@@ -100,7 +100,7 @@ pub fn get_qtype(query: &str) -> Result<QueryType, mysql::Error> {
                  *
                  * XXX: SHOW * from users will not return any ghost users in ghostusersMV
                  * */
-                _ =>Ok(QueryType::Read)
+                _ => Ok(QueryType::Read)
             }
         }
     }
@@ -110,6 +110,8 @@ pub fn print_stats(stats: &Vec<QueryStat>, filename: String) {
     let mut read_latencies = vec![];
     let mut insert_latencies = vec![];
     let mut update_latencies = vec![];
+    let mut unsub_latencies = vec![];
+    let mut resub_latencies = vec![];
     let mut other_latencies = vec![];
     let mut max = 0;
     for stat in stats {
@@ -125,6 +127,12 @@ pub fn print_stats(stats: &Vec<QueryStat>, filename: String) {
             }
             QueryType::Insert => {
                 insert_latencies.push((stat.nqueries, stat.duration.as_micros()));
+            }
+            QueryType::Unsub => {
+                unsub_latencies.push((stat.nqueries, stat.duration.as_micros()));
+            }
+            QueryType::Resub => {
+                resub_latencies.push((stat.nqueries, stat.duration.as_micros()));
             }
             _ => {
                 other_latencies.push((stat.nqueries, stat.duration.as_micros()));
@@ -144,6 +152,15 @@ pub fn print_stats(stats: &Vec<QueryStat>, filename: String) {
     for v in insert_latencies {
         file.write(format!("{},{}; ", v.0, v.1).as_bytes()).unwrap();
     }
+    file.write(b"\n").unwrap();
+    for v in unsub_latencies {
+        file.write(format!("{},{}; ", v.0, v.1).as_bytes()).unwrap();
+    }
+    file.write(b"\n").unwrap();
+    for v in resub_latencies {
+        file.write(format!("{},{}; ", v.0, v.1).as_bytes()).unwrap();
+    }
+
     file.write(b"\n").unwrap();
     for v in other_latencies {
         file.write(format!("{},{}; ", v.0, v.1).as_bytes()).unwrap();

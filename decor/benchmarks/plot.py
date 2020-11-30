@@ -5,9 +5,11 @@ import csv
 plt.style.use('seaborn-deep')
 
 tests = ["decor", "shim_only", "shim_parse"]
-names = ["Read", "Update", "Insert", "Other"]
-ybounds = [25000, 3000, 3000, 15000]
+names = ["Read", "Update", "Insert", "Unsub", "Resub", "Other"]
+ybounds = [25000, 3000, 3000, 3000, 3000, 3000]
 bins = [np.linspace(0, 14000, 200),
+    np.linspace(0, 800, 200),
+    np.linspace(0, 800, 200),
     np.linspace(0, 800, 200),
     np.linspace(0, 800, 200),
     np.linspace(0, 600, 200),

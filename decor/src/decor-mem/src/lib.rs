@@ -120,7 +120,11 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO actually delete entries? 
      */
     fn on_unsubscribe(&mut self, uid: u64, w: QueryResultWriter<W>) -> Result<(), mysql::Error> {
-        self.qtrans.unsubscribe(uid, &mut self.db, w)
+        let start = time::Instant::now();
+        let res = self.qtrans.unsubscribe(uid, &mut self.db, w);
+        let dur = start.elapsed();
+        self.qtrans.record_query_stats(stats::QueryType::Unsub, dur);
+        res
     }
 
     /* 
@@ -130,9 +134,16 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO check that user doesn't already exist
      */
     fn on_resubscribe(&mut self, uid: u64, gids: Vec<u64>, w: QueryResultWriter<W>) -> Result<(), Self::Error> {
+        let start = time::Instant::now();
         match self.qtrans.resubscribe(uid, &gids, &mut self.db) {
-            Ok(()) => Ok(w.completed(gids.len() as u64, 0)?),
+            Ok(()) => {
+                let dur = start.elapsed();
+                self.qtrans.record_query_stats(stats::QueryType::Resub, dur);
+                Ok(w.completed(gids.len() as u64, 0)?)
+            }
             Err(e) => {
+                let dur = start.elapsed();
+                self.qtrans.record_query_stats(stats::QueryType::Resub, dur);
                 w.error(ErrorKind::ER_BAD_DB_ERROR, format!("b{}", e).as_bytes())?;
                 Ok(())
             }
