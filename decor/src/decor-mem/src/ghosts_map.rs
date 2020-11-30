@@ -91,6 +91,7 @@ impl GhostsMap{
      * else None if the user is already unsubscribed
      */
     pub fn unsubscribe(&mut self, uid:u64, db: &mut mysql::Conn) -> Result<Option<Vec<u64>>, mysql::Error> {
+        warn!("Unsubscribing {}", uid);
         if self.unsubscribed.get(&uid).is_none() {
             self.cache_uid2gids_for_uids(&vec![uid])?;
             if let Some(gids) = self.uid2gids.remove(&uid) {
@@ -127,6 +128,8 @@ impl GhostsMap{
                 self.unsubscribed.insert(uid, String::new()); 
                 return Ok(Some(vec![]));
             }
+        } else {
+            warn!("{} already unsubscribed", uid);
         }
         Ok(None)
     }
@@ -138,11 +141,14 @@ impl GhostsMap{
     pub fn resubscribe(&mut self, uid:u64, gids: &Vec<u64>, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
         // check hash and ensure that user has been unsubscribed
         // TODO could also use MAC to authenticate user
+        warn!("Resubscribing {}", uid);
         match self.unsubscribed.get(&uid) {
             Some(gidshash) => {
                 let serialized = serde_json::to_string(&gids).unwrap();
                 self.hasher.input_str(&serialized);
-                if *gidshash != self.hasher.result_str() {
+                let hashed = self.hasher.result_str();
+                if *gidshash != hashed {
+                    warn!("Resubscribing {} hash mismatch {}, {}", uid, gidshash, hashed);
                     return Ok(false);
                 }
                 self.hasher.reset();
@@ -155,7 +161,10 @@ impl GhostsMap{
 
         // insert mappings
         // no mappings should exist!
-        assert!(self.uid2gids.insert(uid, gids.clone()).is_none());
+        if let Some(gids) = self.uid2gids.insert(uid, gids.clone()) {
+            warn!("GIDS for {} are not empty???: {:?}", uid, gids);
+            assert!(gids.is_empty());
+        }
         for i in 0..gids.len() {
             self.gid2uid.insert(gids[i], uid);
             
@@ -169,7 +178,7 @@ impl GhostsMap{
         // insert into ghost table
         let insert_query = &format!("INSERT INTO {} ({}, {}) VALUES {};", 
                             GHOST_TABLE_NAME, GHOST_ID_COL, GHOST_USER_COL, pairs);
-        warn!("insert_gid_for_uid: {}", insert_query);
+        warn!("insert_gid_for_uid {}: {}", uid, insert_query);
         db.query_iter(insert_query)?;
         self.nqueries+=1;
 
@@ -307,7 +316,7 @@ impl GhostsMap{
         let res = db.query_iter(insert_query)?;
         self.nqueries+=1;
         let dur = start.elapsed();
-        warn!("insert_gid_for_uid: {}us", dur.as_millis());
+        warn!("insert_gid_for_uid {}: {}us", uid, dur.as_millis());
         
         // we want to insert the GID in place of the UID
         let gid = res.last_insert_id().ok_or_else(|| 

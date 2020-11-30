@@ -7,7 +7,7 @@ use std::rc::Rc;
 use std::time::Duration;
 use std::*;
 use msql_srv::{QueryResultWriter};
-use log::{warn, debug};
+use log::{debug, warn};
 
 pub struct QueryTransformer {
     pub cfg: config::Config,
@@ -904,16 +904,14 @@ impl QueryTransformer {
             source : qt_source, 
         });
  
-        debug!("issue_insert_dt_stmt: {}", dt_stmt);
+        warn!("issue_insert_dt_stmt: {}", dt_stmt);
         let dur = start.elapsed();
-        warn!("issue_insert_datatable_stmt prepare {}", dur.as_micros());
-
-
+        debug!("issue_insert_datatable_stmt prepare {}", dur.as_micros());
         db.query_drop(dt_stmt.to_string())?;
         self.cur_stat.nqueries+=1;
         
         let dur = start.elapsed();
-        warn!("issue_insert_datatable_stmt issued {}, {}", dt_stmt, dur.as_micros());
+        debug!("issue_insert_datatable_stmt issued {}, {}", dt_stmt, dur.as_micros());
         Ok(())
     }
        
@@ -955,12 +953,12 @@ impl QueryTransformer {
             }
         }
         let dur = start.elapsed();
-        warn!("issue_insert_datatable_stmt assigns {}", dur.as_micros());
+        warn!("issue_update_datatable_stmt assigns {}", dur.as_micros());
  
         let qt_selection = self.selection_to_datatable_selection(
             &stmt.selection, &stmt.table_name, &ucols)?;
         let dur = start.elapsed();
-        warn!("issue_insert_datatable_stmt selection {}", dur.as_micros());
+        warn!("issue_update_datatable_stmt selection {}", dur.as_micros());
  
         // if usercols are being updated, query DT to get the relevant
         // GIDs and update these GID->UID mappings in the ghosts table
@@ -983,7 +981,7 @@ impl QueryTransformer {
                 as_of: None,
             });
             // get the user_col GIDs from the datatable
-            debug!("issue_update_datatable_stmt: {}", get_gids_stmt_from_dt);
+            warn!("issue_update_datatable_stmt: {}", get_gids_stmt_from_dt);
             let res = db.query_iter(format!("{}", get_gids_stmt_from_dt.to_string()))?;
             self.cur_stat.nqueries+=1;
             
@@ -1012,7 +1010,7 @@ impl QueryTransformer {
             assignments : qt_assn,
             selection : qt_selection,
         });
-        debug!("issue_update_dt_stmt: {}", update_stmt);
+        warn!("issue_update_dt_stmt: {}", update_stmt);
         db.query_drop(update_stmt.to_string())?;
         self.cur_stat.nqueries+=1;
         
@@ -1052,7 +1050,7 @@ impl QueryTransformer {
                     })),        
                 as_of: None,
         });
-        debug!("issue_delete_dt_stmt: {}", select_gids_stmt);
+        warn!("issue_delete_dt_stmt: {}", select_gids_stmt);
         let res = db.query_iter(format!("{}", select_gids_stmt.to_string()))?;
         self.cur_stat.nqueries+=1;
 
@@ -1074,7 +1072,7 @@ impl QueryTransformer {
             table_name: stmt.table_name.clone(),
             selection : qt_selection,
         });
-        debug!("issue_delete_dt_stmt: {}", delete_stmt);
+        warn!("issue_delete_dt_stmt: {}", delete_stmt);
         db.query_drop(delete_stmt.to_string())?;
         self.cur_stat.nqueries+=1;
         Ok(())
@@ -1086,7 +1084,7 @@ impl QueryTransformer {
             db: &mut mysql::Conn) 
         -> Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), mysql::Error>
     {
-        debug!("issue statement: {}", stmt);
+        warn!("issue statement: {}", stmt);
         let mut view_res : (Vec<TableColumnDef>, RowPtrs, Vec<usize>) = (vec![], vec![], vec![]);
         
         // TODO consistency?
@@ -1099,11 +1097,11 @@ impl QueryTransformer {
                 columns, 
                 source,
             }) => {
-                let is_dt_write = helpers::is_datatable(&self.cfg, &table_name);
+                let writing_gids = helpers::is_datatable(&self.cfg, &table_name);
                 
                 // update sources if is a datatable
                 let mut values = vec![];
-                if is_dt_write || table_name.to_string() == self.cfg.user_table.name {
+                if writing_gids || table_name.to_string() == self.cfg.user_table.name {
                     match source {
                         InsertSource::Query(q) => {
                             values = self.insert_source_query_to_rptrs(&q)?;
@@ -1114,7 +1112,7 @@ impl QueryTransformer {
 
                 // issue to datatable with vals_vec BEFORE we modify vals_vec to include the
                 // user_id column
-                if is_dt_write {
+                if writing_gids {
                     self.issue_insert_datatable_stmt(
                         &values, 
                         InsertStatement{
@@ -1124,6 +1122,10 @@ impl QueryTransformer {
                         },
                         db
                     )?;
+                } else {
+                    warn!("Issuing {}", stmt);
+                    db.query_drop(stmt.to_string())?;
+                    self.cur_stat.nqueries+=1;
                 }
 
                 // insert into views
@@ -1135,11 +1137,11 @@ impl QueryTransformer {
                 selection,
             }) => {
                 let start = time::Instant::now();
-                let is_dt_write = helpers::is_datatable(&self.cfg, &table_name);
+                let writing_gids = helpers::is_datatable(&self.cfg, &table_name);
 
                 let mut assign_vals = vec![];
                 let mut contains_ucol_id = false;
-                if is_dt_write || table_name.to_string() == self.cfg.user_table.name {
+                if writing_gids || table_name.to_string() == self.cfg.user_table.name {
                     for a in assignments {
                         assign_vals.push(self.expr_to_value_expr(&a.value, &mut contains_ucol_id, &vec![])?);
                     }
@@ -1147,7 +1149,7 @@ impl QueryTransformer {
                 let dur = start.elapsed();
                 warn!("update mysql time get_assign_values: {}us", dur.as_micros());
 
-                if is_dt_write {
+                if writing_gids {
                     self.issue_update_datatable_stmt(
                         &assign_vals,
                         UpdateStatement{
@@ -1171,8 +1173,8 @@ impl QueryTransformer {
                 table_name,
                 selection,
             }) => {
-                let is_dt_write = helpers::is_datatable(&self.cfg, &table_name);
-                if is_dt_write {
+                let writing_gids = helpers::is_datatable(&self.cfg, &table_name);
+                if writing_gids {
                     self.issue_delete_datatable_stmt(DeleteStatement{
                         table_name: table_name.clone(), 
                         selection: selection.clone(),
@@ -1270,7 +1272,7 @@ impl QueryTransformer {
     }
 
     pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) -> Result<(), mysql::Error> {
-        debug!("Unsubscribing {}", uid);
+        warn!("Unsubscribing {}", uid);
         self.cur_stat.qtype = stats::QueryType::Unsub;
 
         let uid_val = Value::Number(uid.to_string());
@@ -1294,7 +1296,7 @@ impl QueryTransformer {
         /* 
          * 1. update the users MV to have an entry for all the users' GIDs
          */
-        debug!("UNSUB: inserting into user view {:?}", gid_values);
+        warn!("UNSUB: inserting into user view {:?}", gid_values);
         self.views.insert(&user_table_name, &vec![Ident::new(&self.cfg.user_table.id_col)], &gid_values)?;
         
         /*
@@ -1307,15 +1309,18 @@ impl QueryTransformer {
                 right: Box::new(Expr::Value(uid_val.clone())), 
         });
         // delete from user mv  
-        debug!("UNSUB: deleting from user view {:?}", selection);
+        warn!("UNSUB: deleting from user view {:?}", selection);
         self.views.delete(&user_table_name, &selection)?;
 
+        // NOTE: users are special because they're actually existing in underlying datatables
+        // (they're not a ghost)
         let delete_uid_from_users = Statement::Delete(DeleteStatement {
             table_name: user_table_name.clone(),
             selection: selection.clone(),
         });
-        debug!("UNSUB: {}", delete_uid_from_users);
+        warn!("UNSUB: {}", delete_uid_from_users);
         db.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
+        //assert!(res.affected_rows() == 1);
         self.cur_stat.nqueries+=1;
  
         /* 
@@ -1349,7 +1354,7 @@ impl QueryTransformer {
                     if rptr.row().borrow()[*ci].to_string() == uid_val.to_string() {
                         assert!(gid_index < gid_values.len());
                         let val = &gid_values[gid_index].borrow()[0];
-                        debug!("UNSUB: updating {:?} with {}", rptr, val);
+                        warn!("UNSUB: updating {:?} with {}", rptr, val);
 
                         view.update_index_and_row(rptr.row().clone(), *ci, Some(&val));
                         gid_index += 1;
@@ -1357,7 +1362,7 @@ impl QueryTransformer {
                 }
             }
         }
-        debug!("gid_index is {}, gid_values has len {}", gid_index, gid_values.len());
+        warn!("gid_index is {}, gid_values has len {}", gid_index, gid_values.len());
         assert!(gid_index == gid_values.len());  
         ghosts_map::answer_rows(writer, &gids)
     }
@@ -1373,6 +1378,7 @@ impl QueryTransformer {
         self.cur_stat.qtype = stats::QueryType::Resub;
 
         if !self.ghosts_map.resubscribe(uid, gids, db)? {
+            warn!("Resubscribing {} failed", uid);
             return Ok(());
         }
 
@@ -1399,7 +1405,7 @@ impl QueryTransformer {
             table_name: user_table_name.clone(),
             selection: selection.clone(),
         });
-        debug!("resub: {}", delete_gids_as_users_stmt);
+        warn!("resub: {}", delete_gids_as_users_stmt);
         db.query_drop(format!("{}", delete_gids_as_users_stmt.to_string()))?;
         self.cur_stat.nqueries+=1;
 
@@ -1422,11 +1428,10 @@ impl QueryTransformer {
                 fetch: None,
             })),
         });
-        debug!("resub: {}", insert_uid_as_user_stmt.to_string());
+        warn!("resub: {}", insert_uid_as_user_stmt.to_string());
         db.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
         self.cur_stat.nqueries+=1;
         
- 
         /* 
          * 3. update assignments in MV to use UID again
          */
@@ -1455,7 +1460,7 @@ impl QueryTransformer {
             let rptrs_to_update = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
             for rptr in &rptrs_to_update {
                 for ci in &cis {
-                    debug!("RESUB: updating {:?} with {}", rptr, uid_val);
+                    warn!("RESUB: updating {:?} with {}", rptr, uid_val);
                     // update the columns to use the uid
                     if gids.iter().any(|g| g.to_string() == rptr.row().borrow()[*ci].to_string()) {
                         view.update_index_and_row(rptr.row().clone(), *ci, Some(&uid_val));

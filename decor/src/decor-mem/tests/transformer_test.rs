@@ -343,8 +343,7 @@ fn test_users() {
         results.push(gid);
     }
     assert_eq!(results.len(), 2);
-    assert!((results[0].clone(), results[1].clone()) == (format!("'{}'", GHOST_ID_START), format!("'{}'", GHOST_ID_START+3))
-        || (results[0].clone(), results[1].clone()) == (format!("'{}'", GHOST_ID_START), format!("'{}'", GHOST_ID_START+3)));
+    assert_eq!((results[0].clone(), results[1].clone()), (format!("'{}'", GHOST_ID_START), format!("'{}'", GHOST_ID_START+3)));
 
     let mut results = vec![];
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.user_id;").unwrap();

@@ -27,11 +27,12 @@ extern crate libc;
 use mysql::prelude::*;
 use rand::prelude::*;
 use std::*;
+use std::collections::HashMap;
 use std::thread;
 use structopt::StructOpt;
 use hwloc::{Topology, ObjectType, CPUBIND_THREAD, CPUBIND_PROCESS, CpuSet};
 use std::sync::{Arc, Mutex};
-use log::{warn, debug};
+use log::warn;
 
 mod queriers;
 use decor::*;
@@ -96,10 +97,11 @@ fn init_database(db: &mut mysql::Conn, nusers: u64, nstories: u64, ncomments: u6
         if user != 0 {
             user_ids.push_str(",");
         }
-        user_ids.push_str(&format!("({}, 'user{}')", user+1, user));
+        user_ids.push_str(&format!("('user{}')", user));
     }
     db.query_drop(&format!(
-            "INSERT INTO users (id, username) VALUES {};", 
+            //"INSERT INTO users (id, username) VALUES {};", 
+            "INSERT INTO users (username) VALUES {};", 
             user_ids)).unwrap();
     
     // stories
@@ -108,7 +110,7 @@ fn init_database(db: &mut mysql::Conn, nusers: u64, nstories: u64, ncomments: u6
         if i != 0 {
             story_vals.push_str(",");
         }
-        story_vals.push_str(&format!("({}, {}, 'story{}')", i % nusers , i, i));
+        story_vals.push_str(&format!("({}, {}, 'story{}')", i % nusers +1, i, i));
     }
     db.query_drop(&format!(
             "INSERT INTO stories (user_id, short_id, title) VALUES {};", 
@@ -122,11 +124,11 @@ fn init_database(db: &mut mysql::Conn, nusers: u64, nstories: u64, ncomments: u6
         }
         comment_vals.push_str(&format!(
                 "({}, {}, '{}', 'comment{}', {})", 
-                i % nusers, i % nstories, "2004-05-23T14:25:00", i, i));
+                i % nusers + 1, i % nstories + 1, "2004-05-23T14:25:00", i, i));
     }
     db.query_drop(&format!(
-            "INSERT INTO comments (user_id, story_id, created_at, comment, short_id) VALUES {};",
-            comment_vals)).unwrap();
+        "INSERT INTO comments (user_id, story_id, created_at, comment, short_id) VALUES {};",
+        comment_vals)).unwrap();
 }
 
 fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
@@ -237,7 +239,7 @@ fn main() {
     let nqueries = args.nqueries;
     let nstories = args.nstories;
     let nusers = args.nusers;
-    let nthreads = args.nthreads;
+    //let nthreads = args.nthreads;
     let testname = args.testname;
 
     // bind each thread to a particular cpu to avoid non-local memory accesses
@@ -254,38 +256,55 @@ fn main() {
     let (mut db, jh) = init_db(topo.clone(), test.clone(), testname, nusers, nstories, ncomments);
 
     let mut rng = rand::thread_rng();
-    let mut users: Vec<u64> = (0..nusers).collect();
-    let mut stories: Vec<u64> = (0..nstories).collect();
-    let mut comments: Vec<u64> = (0..ncomments).collect();
+    // all autoinc ids start at 1..
+    let mut users: Vec<u64> = (1..nusers+1).collect();
+    let mut stories: Vec<u64> = (1..nstories+1).collect();
+    let mut comments: Vec<u64> = (1..ncomments+1).collect();
     users.shuffle(&mut rng);
     stories.shuffle(&mut rng);
     comments.shuffle(&mut rng);
 
     let mut total_stories = nstories;
     let mut total_comments = ncomments;
+    let mut unsubbed_users = HashMap::new(); 
     let start = time::Instant::now();
     for i in 0..nqueries {
         let user = users[((i % nusers) as usize)];
         let story= stories[((i+1)%nstories) as usize];
-        match rng.gen_range(0, 11) {
-            0..=3 => queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
-            4..=5 => {
+        match rng.gen_range(0, 24) {
+            0..=10 => queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
+            11..=13 => {
                 queriers::post_story::post_story(&mut db, Some(user), total_stories + 1, "Dummy title".to_string()).unwrap();
                 total_stories += 1;
             }
-            6..=7 => queriers::vote::vote_on_story(&mut db, Some(user), story, true).unwrap(),
-            8 => queriers::user::get_profile(&mut db, user).unwrap(),
-            _ => {
+            14..=16 => queriers::vote::vote_on_story(&mut db, Some(user), story, true).unwrap(),
+            17..=19 => queriers::user::get_profile(&mut db, user).unwrap(),
+            20..=22 => {
                 queriers::comment::post_comment(&mut db, Some(user), total_comments + 1, story, None).unwrap();
                 total_comments += 1;
             }
+            _ => {
+                if test == TestType::TestDecor {
+                    if let Some(gids) = unsubbed_users.remove(&user) {
+                        queriers::user::resubscribe_user(user, gids, &mut db);
+                        warn!("post-resubscribe {} unsubbed users: {:?}", user, unsubbed_users);
+                    } else {
+                        warn!("pre-unsubscribe {} unsubbed users: {:?}", user, unsubbed_users);
+                        let gids = queriers::user::unsubscribe_user(user, &mut db);
+                        unsubbed_users.insert(user, gids);
+                        warn!("post-unsubscribe {} unsubbed users: {:?}", user, unsubbed_users);
+                    }
+                } else {
+                    if let Some(_gids) = unsubbed_users.remove(&user) {
+                        // assume that baselines just delete the user when the user unsubscribes
+                        db.query_drop(&format!("INSERT INTO `users` (id, username) VALUES ({}, 'user{}')", user, user)).unwrap();
+                    } else {
+                        db.query_drop(&format!("DELETE FROM `users` WHERE `user`.`id` = {}", user)).unwrap();
+                        unsubbed_users.insert(user, vec![]);
+                    }
+                }
+            }
         }
-        //queriers::vote::vote_on_story(&mut db, Some(user), story, true).unwrap();
-        //queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap();
-        /*queriers::expensive_queries::insert(&mut db, Some(user), total_comments).unwrap();
-        total_comments += 1;
-        queriers::expensive_queries::update(&mut db, Some(user), story).unwrap();
-        queriers::expensive_queries::select(&mut db, Some(user), story).unwrap();*/
     }
     let dur = start.elapsed();
     println!("Time to do {} queries: {}s", nqueries, dur.as_secs());

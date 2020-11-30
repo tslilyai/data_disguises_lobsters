@@ -290,7 +290,7 @@ impl View {
             primary_index: primary_index.unwrap(),
             autoinc_col: autoinc_col,
         };
-        debug!("created new view {:?}", view);
+        warn!("created new view {:?}", view);
         view
     }
 
@@ -590,7 +590,7 @@ impl Views {
             }
         }
 
-        debug!("views::insert {}: Appending rows: {:?}", view.name, insert_rows);
+        warn!("views::insert {}: Appending rows: {:?}", view.name, insert_rows);
         for row in insert_rows {
             view.insert_row(row);
         }

@@ -1,18 +1,23 @@
 extern crate mysql;
 extern crate log;
+use decor::*;
 
 use mysql::prelude::*;
 use std::*;
 //use log::{warn, debug};
 
 pub fn get_profile(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
-    let uid : u64 = db.query(format!(
+    let uids : Vec<u64> = db.query(format!(
             "SELECT `users`.id FROM `users` \
              WHERE `users`.`username` = {}",
             (format!("\'user{}\'", uid))
-        ))?[0];
+        ))?;
+    if uids.is_empty() {
+        return Ok(());
+    }
+    let uid = uids[0];
 
-     let rows : Vec<(u64, u64)> = db.query(format!(
+    let rows : Vec<(u64, u64)> = db.query(format!(
             "SELECT  `tags`.`id`, COUNT(*) AS `count` FROM `taggings` \
              INNER JOIN `tags` ON `taggings`.`tag_id` = `tags`.`id` \
              INNER JOIN `stories` ON `stories`.`id` = `taggings`.`story_id` \
@@ -52,13 +57,26 @@ pub fn get_profile(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
     Ok(())
 } 
 
-
-pub fn resubscribe(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
-    db.query_drop(format!("RESUBSCRIBE UID {}", uid))?;
-    Ok(())
+pub fn unsubscribe_user(user: u64, db: &mut mysql::Conn) -> Vec<u64> {
+    let mut results = vec![];
+    let res = db.query_iter(format!("UNSUBSCRIBE UID {};", user)).unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        let gid = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        results.push(gid);
+    }
+    results
 }
 
-pub fn unsubscribe(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
-    db.query_drop(format!("UNSUBSCRIBE UID {}", uid))?;
-    Ok(())
+pub fn resubscribe_user(user: u64, gids: Vec<u64>, db: &mut mysql::Conn) {
+    let mut gid_str = String::new();
+    for i in 0..gids.len() {
+        gid_str.push_str(&gids[i].to_string());
+        if i+1 < gids.len() {
+            gid_str.push_str(",");
+        }
+    }
+    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS ({});", user, gid_str)).unwrap();
 }
+

@@ -6,6 +6,9 @@ use std::str::FromStr;
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 use log::{debug};
 
+/*******************************************
+ * Column stuff
+ *******************************************/
 pub fn tablecolumn_matches_col(c: &views::TableColumnDef, col: &str) -> bool {
     debug!("matching {} or {} to {}", c.column.name, c.fullname, col);
     c.colname == col || c.fullname == col
@@ -59,9 +62,8 @@ pub fn rhs_expr_to_name_or_value(right: &Expr) -> (Option<String>, Option<Value>
     }
     (rname, rval)
 }
-/*
- * return table name and optionally column if not wildcard
- */
+
+// return table name and optionally column if not wildcard
 pub fn expr_to_col(e: &Expr) -> (String, String) {
     //debug!("expr_to_col: {:?}", e);
     match e {
@@ -79,7 +81,9 @@ pub fn expr_to_col(e: &Expr) -> (String, String) {
     }
 }
 
-
+/*******************************************
+ * Schema/MySql datatable stuff
+ *******************************************/
 pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName) -> Vec<String> {
     let mut res : Vec<String> = vec![];
     let table_str = table_name.to_string();
@@ -150,7 +154,6 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
     debug!("helpers new:{}", new);
     new
 }
-
 
 
 /***************************
