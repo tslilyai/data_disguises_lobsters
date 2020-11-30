@@ -5,7 +5,7 @@ import csv
 plt.style.use('seaborn-deep')
 
 tests = ["decor", "shim_only", "shim_parse"]
-names = ["Read", "Update", "Insert", "Unsub", "Resub", "Other"]
+names = ["Read", "Update", "Insert", "Unsub", "Resub", "Delete"]
 ybounds = [25000, 3000, 3000, 3000, 3000, 3000]
 bins = [np.linspace(0, 14000, 200),
     np.linspace(0, 800, 200),
@@ -20,6 +20,7 @@ for test in tests:
         rows = csvfile.readlines()
         fig, axes = plt.subplots(nrows=len(rows), ncols=1, figsize=(6,18))
         axes_flat = axes.flatten()
+        ai = 0
         for (i, row) in enumerate(rows):
             q2lats = [[] for _ in range(4)]
             pairs = row.split(';')[:-1]
@@ -34,15 +35,16 @@ for test in tests:
                 if qs > 5:
                     continue
                 q2lats[qs].append(latency)
-            axes_flat[i].hist(q2lats,
+            axes_flat[ai].hist(q2lats,
                     bins[i],
                     stacked=True,
                     label=[str(i) + "x Query Mult." for i in range(len(q2lats))])
-            axes_flat[i].legend(loc='upper right')
-            axes_flat[i].set_title(names[i]+" Queries Latency Histogram")
-            axes_flat[i].set_yscale('log')
-            axes_flat[i].set_ylim(ymax = ybounds[i])
-            axes_flat[i].set_xlabel('Per-Query Latency (us)')
-            axes_flat[i].set_ylabel('Number of Queries')
+            axes_flat[ai].legend(loc='upper right')
+            axes_flat[ai].set_title(names[i]+" Queries Latency Histogram")
+            axes_flat[ai].set_yscale('log')
+            axes_flat[ai].set_ylim(ymax = ybounds[i])
+            axes_flat[ai].set_xlabel('Per-Query Latency (us)')
+            axes_flat[ai].set_ylabel('Number of Queries')
+            ai += 1
     fig.tight_layout(h_pad=4)
     plt.savefig('{}.png'.format(test), dpi=300)

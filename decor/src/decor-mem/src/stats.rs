@@ -4,7 +4,7 @@ use std::time::Duration;
 use sql_parser::ast::*;
 use sql_parser::parser::*;
 use std::*;
-use log::warn;
+use log::error;
 
 #[derive(Debug, Clone)]
 pub enum QueryType {
@@ -136,7 +136,7 @@ pub fn print_stats(stats: &Vec<QueryStat>, filename: String) {
                 resub_latencies.push((stat.nqueries, stat.duration.as_micros()));
             }
             _ => {
-                warn!("Found other query type {:?}", stat.qtype);
+                //error!("Found other query type {:?}", stat.qtype);
                 other_latencies.push((stat.nqueries, stat.duration.as_micros()));
             }
         }
