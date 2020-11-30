@@ -205,7 +205,6 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             res = helpers::answer_rows(results, self.db.query_iter(query));
             dur = start.elapsed();
         } else {
-        
             let parsestart = time::Instant::now();
             let stmt_ast = self.sqlcache.get_single_parsed_stmt(&query.to_string())?;
             let parsedur = parsestart.elapsed();

@@ -10,19 +10,21 @@ ybounds = [25000, 3000, 3000, 3000, 3000, 3000]
 bins = [np.linspace(0, 14000, 200),
     np.linspace(0, 800, 200),
     np.linspace(0, 800, 200),
-    np.linspace(0, 800, 200),
-    np.linspace(0, 800, 200),
+    np.linspace(0, 4000, 200),
+    np.linspace(0, 4000, 200),
     np.linspace(0, 600, 200),
 ]
 
 for test in tests:
     with open('{}1.csv'.format(test),'r') as csvfile:
         rows = csvfile.readlines()
-        fig, axes = plt.subplots(nrows=len(rows), ncols=1, figsize=(6,8))
+        fig, axes = plt.subplots(nrows=len(rows), ncols=1, figsize=(6,18))
         axes_flat = axes.flatten()
         for (i, row) in enumerate(rows):
             q2lats = [[] for _ in range(4)]
             pairs = row.split(';')[:-1]
+            if len(pairs) == 0:
+                continue
             for p in pairs:
                 p = p.split(',')
                 qs = int(p[0])
