@@ -312,17 +312,20 @@ edge type $t$,
 
 Note that the initial sensitivity for an edge of type $t$ with parent $k$ from Step 2 (parent-child
 decorrelation) is 1! Because \sys{} traverses from parent to child, if one edge of type $t$ with
-parent $k$ was collected by \sys{}, then \emph{all} edges of type $t$ with parent $k$ were collected by \sys{}.
+parent $k$ was collected by \sys{}, then \emph{all} edges of type $t$ with parent $k$ were collected
+by \sys{}. 
 
 However, the initial sensitivity for an edge of type $t$ with parent $k$ from Step 3 (child-parent
 decorrelation) may be very low: other parents of children touched by \sys{} may have many
 non-sensitive children (e.g.,\ a tag may have many stories not authored by the user being
 decorrelated).
 
-%\begin{figure}[t!]
-    %\caption{Examples of different decorrelation policies. (a) full
+\begin{figure}[t!]
+    \includegraphics[width=.5\textwidth]{img/algo}
+    \caption{Examples of \sys{}'s execution.}
+    %different decorrelation policies. (a) full
     %decorrelation; (b) only direct user decorrelation; (c) decorrelation of stories clustered around tags with threshold 0.25}
-%\end{figure}
+\end{figure}
 
 %\paragraph{Example policy.}
 %We can imagine an application tin which only the sum of votes per story is ever queried by the application; clusters of
