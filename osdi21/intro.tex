@@ -149,14 +149,11 @@ where the nodes are the entity instances: child entities are connected to parent
 a foreign or abstract key relationship. In the following, an \emph{edge} refers to an instance of a
 foreign or abstract key relationship.
 
-The developer provides a three-part specification to \sys{}: 
+The developer provides a two-part specification to \sys{}: 
 \begin{enumerate}
     \item Ghost entity generation policies on entity types, and
     \item Decorrelation policies for foreign/abstract key relationships specifying if and how
         instances of these edge types should be decorrelated.
-    \item Sensitivity thresholds for foreign/abstract key relationships specifying the maximum
-        proportion of edge instances of a relationship type that may connect to \emph{sensitive} entities (i.e.,\ entities transitively connected to the initial entity being
-        decorrelated). 
 \end{enumerate}
 
 \noindent The following describes the options for the different parts of the developer-provided
@@ -187,7 +184,19 @@ chosen to be random, a default value, or generated from the original value via a
 
 \subsubsection{Decorrelation Policies}
 
-\paragraph{Policy 1: Do not decorrelate.}
+\paragraph{Policy 1: Decorrelate.}
+Application developers specify that the relationship may be decorrelated.
+\sys{} generates a ghost parent entity for the child entity according to the parent entity's ghost
+generation policy, replacing the child's key with the new ghost parent key.
+
+Resubscription (and recorrelation) removes any created ghost entities and restores the relationship
+back to the original parent key instance.
+
+%\lyt{There could also be an option to "decorrelate the minimum amount possible to reach a
+%certain sensitivity threshold"; not sure if it's useful since the edges can already be
+%decorrelated.}
+%
+\paragraph{Policy 2: Do not decorrelate.}
 Application developers specify that this foreign or abstract key relationship cannot be decorrelated.
 Developers select from the following subpolicy options: 
 \begin{itemize}
@@ -199,53 +208,47 @@ Developers select from the following subpolicy options:
     \item \textbf{Retain}: Nothing is done on either side of the
         relationship. This option should only be selected if the developer knows that the
         relationship cannot leak identifying information.
-   \end{itemize}
 
-\paragraph{Policy 2: Decorrelate.}
-Application developers specify that the relationship may be decorrelated.
-\sys{} generates a ghost parent entity for the child entity according to the parent entity's ghost
-generation policy, replacing the child's key with the new ghost parent key.
+    \item \textbf{Achieve specified sensitivity threshold}:
+        A sensitivity threshold for an foreign/abstract key relationships specifies the maximum
+        proportion of edge instances of a relationship type that may connect to \emph{sensitive}
+        entities (i.e.,\ entities transitively correlated to the initial entity being decorrelated). 
 
-Resubscription (and recorrelation) removes any created ghost entities and restores the relationship
-back to the original parent key instance.
+        At a high level, the sensitivity threshold for a particular edge type estimates how much identifying
+        information may leak from edge instances of that type.  For any given edge type, developers can
+        determine the appropriate sensitivity threshold by approximating how much identifying information
+        may be leaked if edges of this type with the same parent key \emph{all} correlate (even indirectly)
+        back to the entity being decorrelated. In other words, what happens if all children of edges of this
+        type (with the same parent) are sensitive?
 
-\lyt{There could also be an option to "decorrelate the minimum amount possible to reach a
-certain sensitivity threshold"; not sure if it's useful since the edges can already be
-decorrelated.}
+        For example, consider the foreign key relationship from stories to tags. If all
+        the stories tagged with the same parent tag in the entity graph were written by some
+        (unsubscribed) user, would the story-tag correlation be problematic? The answer may be yes: 
+        perhaps tags are customizable by the user, and any story with that tag will clearly
+        belong to the unsubscribed user. In other cases, the answer may be no: even though the tag is only
+        correlated with sensitive stories, the tag indicates nothing about who may have authored the stories.
 
-\subsubsection{Sensitivity Thresholds}
-At a high level, the sensitivity threshold for a particular edge type estimates how much identifying
-information may leak from edge instances of that type.  For any given edge type, developers can
-determine the appropriate sensitivity threshold by approximating how much identifying information
-may be leaked if edges of this type with the same parent key \emph{all} correlate (even indirectly)
-back to the entity being decorrelated. In other words, what happens if all children of edges of this
-type (with the same parent) are sensitive?
+        For many cases, the answer may lie somewhere in the middle: it is problematic if \emph{all} of
+        children of edge of this type are sensitive, but perhaps it is acceptable if only a fraction of
+        children of this edge type are sensitive. The maximum value for this fraction is the sensitivity threshold.
+        For example, a reasonable sensitivity threshold might be 0.1 for stories-tag key relationships:
+        less than 10\% of all stories with a specific tag key should have been correlated (even
+        indirectly) with an (unsubscribed) user. 
 
-For example, consider the foreign key relationship from stories to tags. If all
-the stories tagged with the same parent tag in the entity graph were written by some
-(unsubscribed) user, would the story-tag correlation be problematic? The answer may be yes: 
-perhaps tags are customizable by the user, and any story with that tag will clearly
-belong to the unsubscribed user. In other cases, the answer may be no: even though the tag is only
-correlated with sensitive stories, the tag indicates nothing about who may have authored the stories.
+        \sys{} either generates ghost children entities with this edge type until the
+        sensitivity threshold is met (if a ghost generation policy is specified for the child type); upon
+        resubscription, \sys{} removes any generated ghost entities and edges.
+        Note that if the generated ghosts are easily distinguished from actual entities, there is
+        little privacy benefit from generating ghost entities to meet the threshold.
 
-For many cases, the answer may lie somewhere in the middle: it is problematic if \emph{all} of
-children of edge of this type are sensitive, but perhaps it is acceptable if only a fraction of
-children of this edge type are sensitive. The maximum value for this fraction is the sensitivity threshold.
-For example, a reasonable sensitivity threshold might be 0.1 for stories-tag key relationships:
-less than 10\% of all stories with a specific tag key should have been correlated (even
-indirectly) with an (unsubscribed) user. 
+        If the children entity type has no associated ghost generation policy, \sys{} removes
+        sensitive children and their dependencies until the threshold is met.  Upon recorrelation,
+        however, these entities cannot be restored.
 
-\sys{} either generates ghost children entities with this edge type until the
-sensitivity threshold is met (if a ghost generation policy is specified for the child type); upon
-resubscription, \sys{} removes any generated ghost entities and edges.
-Note that if the generated ghosts are easily distinguished from actual entities, there is
-little privacy benefit from generating ghost entities to meet the threshold.
-
-If the children entity type has no associated ghost generation policy, \sys{} removes sensitive children and their dependencies until the threshold is met.
-Upon recorrelation, however, these entities cannot be restored.
-
-If the sensitivity threshold is 0, then this corresponds to removing all edges of this type with
-sensitive children; if the sensitivity threshold is 1 or unspecified, \sys{} does nothing. 
+        If the sensitivity threshold is 0, then this corresponds to removing all edges of this type
+        with sensitive children; if the sensitivity threshold is 1, \sys{} does
+        nothing (this is equivalent to a Retain policy).
+    \end{itemize}
 
 \subsubsection{\sys{}'s Execution Algorithm}
 Given this specification and an entity to be decorrelated as input, \sys{} acts as follows:
@@ -266,11 +269,18 @@ Given this specification and an entity to be decorrelated as input, \sys{} acts 
 
         Intuitively, children of edges traversed by \sys{} share a connection with the initial
         entity being decorrelated. Edges \emph{from} these children to other parent entities may
-        thus leak sensitive identifying information.  The sensitivity threshold of a particular edge type
-        limits the proportion of edges of that type that connect to sensitive entities,
-        namely the children of traversed edge instances. 
+        thus leak sensitive identifying information. 
 
-        More precisely, for each distinct edge type $t$ in this set of edges, \sys{} ensures the
+        If these edges have a ``decorrelate'' policy, \sys{} generates ghost parent entities for
+        each sensitive child. 
+
+        If these edges have a ``do not decorrelate--delete'' policy, \sys{} removes the children and
+        corresponding edges.
+
+        Otherwise, \sys{} checks if there is a sensitivity threshold for the edge type, which
+        limits the proportion of edges of that type that connect to sensitive entities, namely the
+        children of traversed edge instances. 
+        For each distinct edge type $t$ in this set of edges, \sys{} ensures the
         sensitivity of $t$ is below its specified sensitivity threshold as follows. 
 
         Let $E_t$ be the subset of
