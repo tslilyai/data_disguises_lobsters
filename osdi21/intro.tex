@@ -230,7 +230,7 @@ chosen to be random, a default value, or generated from the original value via a
 \end{itemize}
 
 
-\subsubsection{Key Relationship Policies}
+\subsubsection{Decorrelation Policies}
 
 \paragraph{Policy 1: Do not decorrelate.}
 Application developers specify that this foreign or abstract key relationship cannot be decorrelated.
@@ -257,7 +257,7 @@ back to the original parent key instance.
 certain sensitivity threshold"; not sure if it's useful at all if the edges can simply be
 decorrelated.}
 
-\subsubsection{Sensitivity Threshold Policies}
+\subsubsection{Sensitivity Thresholds}
 At a high level, the sensitivity threshold for a particular edge type is the developer's estimate
 how much identifying information may leak from edge instances of that type.
 \lyt{TODO: examples? (Or more intuition on why sensitivity thresholds are important?)}
