@@ -1,5 +1,6 @@
 use sql_parser::ast::{Expr, Ident, ObjectName, DataType, UnaryOperator, Value};
 use std::*;
+use std::collections::HashMap;
 use std::cmp::Ordering;
 use crate::{config, views};
 use std::str::FromStr;
@@ -84,21 +85,12 @@ pub fn expr_to_col(e: &Expr) -> (String, String) {
 /*******************************************
  * Schema/MySql datatable stuff
  *******************************************/
-pub fn get_user_cols_of_datatable(cfg: &config::Config, table_name: &ObjectName) -> Vec<String> {
+pub fn get_ghosted_cols_of_datatable(ghost_tables: &HashMap<String, Vec<String>>, table_name: &ObjectName) -> Vec<String> {
     let mut res : Vec<String> = vec![];
-    let table_str = table_name.to_string();
-    'dtloop: for dt in &cfg.data_tables {
-        if table_str.ends_with(&dt.name) || table_str == dt.name {
-            for uc in &dt.user_cols {
-                let mut new_table_str = table_str.clone();
-                new_table_str.push_str(".");
-                new_table_str.push_str(uc);
-                res.push(new_table_str);
-            }
-            break 'dtloop;
-        }
+    if let Some(colnames) = ghost_tables.get(&table_name.to_string()) {
+        return colnames.clone();
     }
-    res
+    vec![]
 }
 
 pub fn get_user_col_idents_of_datatable(cfg: &config::Config, table_name: &ObjectName) -> Vec<Ident> {
@@ -115,7 +107,7 @@ pub fn get_user_col_idents_of_datatable(cfg: &config::Config, table_name: &Objec
     res
 }
 
-pub fn is_datatable(cfg: &config::Config, table_name: &ObjectName) -> bool {
+pub fn datatable_contains_ghosts(cfg: &config::Config, table_name: &ObjectName) -> bool {
     let table_str = table_name.to_string();
     for dt in &cfg.data_tables {
         if table_str.ends_with(&dt.name) || table_str == dt.name {
@@ -159,12 +151,12 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
 /***************************
  * IDENT STUFF
  ***************************/
-pub fn expr_is_ucol(expr:&Expr, ucols : &Vec<String>) -> bool {
+pub fn expr_is_ghosted_col(expr:&Expr, ghosted_cols : &Vec<String>) -> bool {
     match expr {
         Expr::Identifier(_) => 
-            ucols.iter().any(|uc| uc.ends_with(&expr.to_string())),
+            ghosted_cols.iter().any(|uc| uc.ends_with(&expr.to_string())),
         Expr::QualifiedWildcard(ids) => 
-            ucols.iter().any(|uc| uc.contains(&(Expr::Identifier(ids.to_vec())).to_string())),
+            ghosted_cols.iter().any(|uc| uc.contains(&(Expr::Identifier(ids.to_vec())).to_string())),
         // currently don't handle nested expressions inside LHS of expr (be conservative!)
         _ => false,
     } 

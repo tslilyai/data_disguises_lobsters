@@ -11,8 +11,10 @@ use crypto::sha3::Sha3;
 use msql_srv::{QueryResultWriter};
 
 pub const GHOST_ID_START : u64 = 1<<20;
+// the ghosts table contains ALL ghost identifiers which map from any entity to its ghosts
+// this assumes that all entities have an integer identifying key
 const GHOST_TABLE_NAME : &'static str = "ghosts";
-const GHOST_USER_COL : &'static str = "user_id";
+const GHOST_ENTITY_COL : &'static str = "entity_id";
 const GHOST_ID_COL: &'static str = "ghost_id";
 
 fn set_initial_gid_query() -> String {
@@ -26,7 +28,7 @@ fn create_ghosts_query(in_memory: bool) -> String {
         r"CREATE TABLE IF NOT EXISTS {} (
             `{}` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
             `{}` int unsigned)", 
-        GHOST_TABLE_NAME, GHOST_ID_COL, GHOST_USER_COL);
+        GHOST_TABLE_NAME, GHOST_ID_COL, GHOST_ENTITY_COL);
     if in_memory {
         q.push_str(" ENGINE = MEMORY");
     }
@@ -65,8 +67,8 @@ pub fn answer_rows<W: io::Write>(
 pub struct GhostsMap{
     // caches
     unsubscribed: HashMap<u64,String>,
-    uid2gids: HashMap<u64, Vec<u64>>,
-    gid2uid: HashMap<u64, u64>,
+    eid2gids: HashMap<u64, Vec<u64>>,
+    gid2eid: HashMap<u64, u64>,
     latest_gid: AtomicU64,
     hasher : Sha3,
     
@@ -78,26 +80,26 @@ impl GhostsMap{
         GhostsMap{
             unsubscribed: HashMap::new(),
             hasher : Sha3::sha3_256(),
-            uid2gids: HashMap::new(),
-            gid2uid: HashMap::new(),
+            eid2gids: HashMap::new(),
+            gid2eid: HashMap::new(),
             latest_gid: AtomicU64::new(GHOST_ID_START),
             nqueries: 0,
         }
     }   
     
     /* 
-     * Inserts the UID unsubscribing.
+     * Inserts the eid unsubscribing.
      * Returns a hash of the list of ghosts if user is not yet unsubscribed,
      * else None if the user is already unsubscribed
      */
-    pub fn unsubscribe(&mut self, uid:u64, db: &mut mysql::Conn) -> Result<Option<Vec<u64>>, mysql::Error> {
-        warn!("Unsubscribing {}", uid);
-        if self.unsubscribed.get(&uid).is_none() {
-            self.cache_uid2gids_for_uids(&vec![uid])?;
-            if let Some(gids) = self.uid2gids.remove(&uid) {
+    pub fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn) -> Result<Option<Vec<u64>>, mysql::Error> {
+        warn!("Unsubscribing {}", eid);
+        if self.unsubscribed.get(&eid).is_none() {
+            self.cache_eid2gids_for_eids(&vec![eid])?;
+            if let Some(gids) = self.eid2gids.remove(&eid) {
                 // remove gids from reverse mapping
                 for gid in &gids {
-                    self.gid2uid.remove(gid);
+                    self.gid2eid.remove(gid);
                 }
 
                 // cache the hash of the gids
@@ -106,7 +108,7 @@ impl GhostsMap{
                 let result = self.hasher.result_str();
                 self.hasher.reset();
                 // TODO should we persist the hash?
-                self.unsubscribed.insert(uid, result); 
+                self.unsubscribed.insert(eid, result); 
 
                 // delete from ghosts table
                 let delete_stmt = Statement::Delete(DeleteStatement{
@@ -125,34 +127,34 @@ impl GhostsMap{
                 return Ok(Some(gids));
             } else {
                 // no gids for this user
-                self.unsubscribed.insert(uid, String::new()); 
+                self.unsubscribed.insert(eid, String::new()); 
                 return Ok(Some(vec![]));
             }
         } else {
-            warn!("{} already unsubscribed", uid);
+            warn!("{} already unsubscribed", eid);
         }
         Ok(None)
     }
  
     /* 
-     * Removes the UID unsubscribing.
+     * Removes the eid unsubscribing.
      * Returns true if was unsubscribed 
      */
-    pub fn resubscribe(&mut self, uid:u64, gids: &Vec<u64>, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
+    pub fn resubscribe(&mut self, eid:u64, gids: &Vec<u64>, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
         // check hash and ensure that user has been unsubscribed
         // TODO could also use MAC to authenticate user
-        warn!("Resubscribing {}", uid);
-        match self.unsubscribed.get(&uid) {
+        warn!("Resubscribing {}", eid);
+        match self.unsubscribed.get(&eid) {
             Some(gidshash) => {
                 let serialized = serde_json::to_string(&gids).unwrap();
                 self.hasher.input_str(&serialized);
                 let hashed = self.hasher.result_str();
                 if *gidshash != hashed {
-                    warn!("Resubscribing {} hash mismatch {}, {}", uid, gidshash, hashed);
+                    warn!("Resubscribing {} hash mismatch {}, {}", eid, gidshash, hashed);
                     return Ok(false);
                 }
                 self.hasher.reset();
-                self.unsubscribed.remove(&uid); 
+                self.unsubscribed.remove(&eid); 
             }
             None => return Ok(false),
         }
@@ -161,16 +163,16 @@ impl GhostsMap{
 
         // insert mappings
         // no mappings should exist!
-        if let Some(gids) = self.uid2gids.insert(uid, gids.clone()) {
-            warn!("GIDS for {} are not empty???: {:?}", uid, gids);
+        if let Some(gids) = self.eid2gids.insert(eid, gids.clone()) {
+            warn!("GIDS for {} are not empty???: {:?}", eid, gids);
             // XXX This can happen if we're still allow this "user" to insert stories/comments...
             assert!(gids.is_empty());
         }
         for i in 0..gids.len() {
-            self.gid2uid.insert(gids[i], uid);
+            self.gid2eid.insert(gids[i], eid);
             
             // save values to insert into ghosts table
-            pairs.push_str(&format!("({}, {})", gids[i], uid));
+            pairs.push_str(&format!("({}, {})", gids[i], eid));
             if i < gids.len()-1 {
                 pairs.push_str(", ");
             }
@@ -178,52 +180,52 @@ impl GhostsMap{
 
         // insert into ghost table
         let insert_query = &format!("INSERT INTO {} ({}, {}) VALUES {};", 
-                            GHOST_TABLE_NAME, GHOST_ID_COL, GHOST_USER_COL, pairs);
-        warn!("insert_gid_for_uid {}: {}", uid, insert_query);
+                            GHOST_TABLE_NAME, GHOST_ID_COL, GHOST_ENTITY_COL, pairs);
+        warn!("insert_gid_for_eid {}: {}", eid, insert_query);
         db.query_iter(insert_query)?;
         self.nqueries+=1;
 
         Ok(true)
     }
 
-    pub fn insert_gid_into_caches(&mut self, uid:u64, gid:u64) {
-        match self.uid2gids.get_mut(&uid) {
+    pub fn insert_gid_into_caches(&mut self, eid:u64, gid:u64) {
+        match self.eid2gids.get_mut(&eid) {
             Some(gids) => (*gids).push(gid),
             None => {
-                self.uid2gids.insert(uid, vec![gid]);
+                self.eid2gids.insert(eid, vec![gid]);
             }
         }
-        self.gid2uid.insert(gid, uid);
+        self.gid2eid.insert(gid, eid);
     }
  
-    pub fn update_uid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn)
+    pub fn update_eid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn)
         -> Result<(), mysql::Error> 
     {
         let mut gids_to_delete = vec![];
-        for (uid, gid) in pairs {
+        for (eid, gid) in pairs {
             // delete current mapping
-            if let Some(olduid) = self.gid2uid.get(gid) {
-                if let Some(gids) = self.uid2gids.get_mut(&olduid) {
+            if let Some(oldeid) = self.gid2eid.get(gid) {
+                if let Some(gids) = self.eid2gids.get_mut(&oldeid) {
                     gids.retain(|x| *x != *gid);
                 }
-                self.gid2uid.remove(gid);
+                self.gid2eid.remove(gid);
             }
 
-            // delete from datatable if uid is none (set to NULL)
-            if uid.is_none() {
+            // delete from datatable if eid is none (set to NULL)
+            if eid.is_none() {
                 gids_to_delete.push(Expr::Value(Value::Number(gid.to_string())));
             }
 
             // update if there is a new mapping
-            else if let Some(newuid) = uid {
-                self.insert_gid_into_caches(*newuid, *gid);
+            else if let Some(neweid) = eid {
+                self.insert_gid_into_caches(*neweid, *gid);
                 
                 // XXX what if the value IS a GID??? should we just remove this GID?
                 let update_stmt = Statement::Update(UpdateStatement {
                     table_name: helpers::string_to_objname(GHOST_TABLE_NAME),
                     assignments: vec![Assignment{
-                        id: Ident::new(GHOST_USER_COL),
-                        value: Expr::Value(Value::Number(newuid.to_string())),
+                        id: Ident::new(GHOST_ENTITY_COL),
+                        value: Expr::Value(Value::Number(neweid.to_string())),
                     }],
                     selection: Some(Expr::BinaryOp{
                         left: Box::new(Expr::Identifier(
@@ -232,7 +234,7 @@ impl GhostsMap{
                         right: Box::new(Expr::Value(Value::Number(gid.to_string()))),
                     }),
                 });
-                warn!("issue_update_uid2gids_stmt: {}", update_stmt);
+                warn!("issue_update_eid2gids_stmt: {}", update_stmt);
                 db.query_drop(format!("{}", update_stmt))?;
                 self.nqueries+=1;
             }
@@ -254,99 +256,99 @@ impl GhostsMap{
         Ok(())
     }
 
-    pub fn get_gids_for_uid(&mut self, uid: u64) -> 
+    pub fn get_gids_for_eid(&mut self, eid: u64) -> 
         Result<Vec<u64>, mysql::Error> 
     {
-        self.cache_uid2gids_for_uids(&vec![uid])?;
-        let gids = self.uid2gids.get(&uid).ok_or(
+        self.cache_eid2gids_for_eids(&vec![eid])?;
+        let gids = self.eid2gids.get(&eid).ok_or(
                 mysql::Error::IoError(io::Error::new(
-                    io::ErrorKind::Other, "get_gids: uid not present in cache?")))?;
+                    io::ErrorKind::Other, "get_gids: eid not present in cache?")))?;
         Ok(gids.to_vec())
     }
 
-    pub fn get_gids_for_uids(&mut self, uids: &Vec<u64>) -> 
+    pub fn get_gids_for_eids(&mut self, eids: &Vec<u64>) -> 
         Result<Vec<(u64, Vec<u64>)>, mysql::Error> {
-        self.cache_uid2gids_for_uids(uids)?;
+        self.cache_eid2gids_for_eids(eids)?;
         let mut gid_vecs = vec![];
-        for uid in uids {
-            let gids = self.uid2gids.get(&uid).ok_or(
+        for eid in eids {
+            let gids = self.eid2gids.get(&eid).ok_or(
                     mysql::Error::IoError(io::Error::new(
-                        io::ErrorKind::Other, "get_gids: uid not present in cache?")))?;
-            gid_vecs.push((*uid, gids.to_vec()));
+                        io::ErrorKind::Other, "get_gids: eid not present in cache?")))?;
+            gid_vecs.push((*eid, gids.to_vec()));
         }
         Ok(gid_vecs)
     }
 
     /* 
-     * Add uid->gid mapping to cache if mapping not yet present
+     * Add eid->gid mapping to cache if mapping not yet present
      * by querying the ghosts mapping table
      */
-    pub fn cache_uid2gids_for_uids(&mut self, uids: &Vec<u64>) -> Result<(), mysql::Error>
+    pub fn cache_eid2gids_for_eids(&mut self, eids: &Vec<u64>) -> Result<(), mysql::Error>
     {
-        let mut uncached_uids = vec![];
-        for uid in uids {
-            if self.uid2gids.get(&uid) == None {
-                uncached_uids.push(uids[0])
+        let mut uncached_eids = vec![];
+        for eid in eids {
+            if self.eid2gids.get(&eid) == None {
+                uncached_eids.push(eids[0])
             }
         }
         /*let selection : Expr;
-        if uids.len() == 1 {
+        if eids.len() == 1 {
             selection = Expr::BinaryOp{
-                left: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_USER_COL))),
+                left: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_ENTITY_COL))),
                 op: BinaryOperator::Eq, 
-                right: Box::new(Expr::Value(Value::Number(uids[0].to_string()))),
+                right: Box::new(Expr::Value(Value::Number(eids[0].to_string()))),
             };
         } else {
             selection =  Expr::InList{
-                expr: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_USER_COL))),
-                list: uncached_uids.iter().map(|u| Expr::Value(Value::Number(u.to_string()))).collect(),
+                expr: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_ENTITY_COL))),
+                list: uncached_eids.iter().map(|u| Expr::Value(Value::Number(u.to_string()))).collect(),
                 negated: false, 
             };
         }*/
-        if uncached_uids.len() > 0 {
+        if uncached_eids.len() > 0 {
             unimplemented!("ghosts always should be in cache (as a MV)");
         }
         Ok(())
     }
 
-    fn insert_gid_for_uid(&mut self, uid: u64, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
+    fn insert_gid_for_eid(&mut self, eid: u64, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
         // user ids are always ints
         let insert_query = &format!("INSERT INTO {} ({}) VALUES ({});", 
-                            GHOST_TABLE_NAME, GHOST_USER_COL, uid);
+                            GHOST_TABLE_NAME, GHOST_ENTITY_COL, eid);
         let start = time::Instant::now();
         let res = db.query_iter(insert_query)?;
         self.nqueries+=1;
         let dur = start.elapsed();
-        warn!("insert_gid_for_uid {}: {}us", uid, dur.as_millis());
+        warn!("insert_gid_for_eid {}: {}us", eid, dur.as_millis());
         
-        // we want to insert the GID in place of the UID
+        // we want to insert the GID in place of the eid
         let gid = res.last_insert_id().ok_or_else(|| 
             mysql::Error::IoError(io::Error::new(
                 io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
       
         // insert into cache
-        self.insert_gid_into_caches(uid, gid);
+        self.insert_gid_into_caches(eid, gid);
 
         Ok(gid)
     }
     
-    pub fn insert_uid2gids_for_values(&mut self, values: &views::RowPtrs, ucol_indices: &Vec<usize>, db: &mut mysql::Conn) 
+    pub fn insert_eid2gids_for_values(&mut self, values: &views::RowPtrs, ghosted_col_indices: &Vec<usize>, db: &mut mysql::Conn) 
         -> Result<Vec<Vec<Expr>>, mysql::Error>
     {
         let start = time::Instant::now();
         let mut gid_rows = vec![];
-        if !ucol_indices.is_empty() {
+        if !ghosted_col_indices.is_empty() {
             for row in 0..values.len() {
                 let mut gid_vals = vec![];
                 let valrow = values[row].borrow();
                 for col in 0..valrow.len() {
                     let mut found = false;
                     // add entry to ghosts table
-                    if ucol_indices.contains(&col) {
-                        // NULL check: don't add ghosts entry if new UID value is NULL
+                    if ghosted_col_indices.contains(&col) {
+                        // NULL check: don't add ghosts entry if new eid value is NULL
                         if valrow[col] != Value::Null {
-                            let uid = helpers::parser_val_to_u64(&valrow[col]);
-                            let gid = self.insert_gid_for_uid(uid, db)?;
+                            let eid = helpers::parser_val_to_u64(&valrow[col]);
+                            let gid = self.insert_gid_for_eid(eid, db)?;
                             gid_vals.push(Expr::Value(Value::Number(gid.to_string())));
                             found = true;
                         }
@@ -359,7 +361,7 @@ impl GhostsMap{
             }
         }
         let dur = start.elapsed();
-        warn!("insert_uid2gids_for_values: {}us", dur.as_micros());
+        warn!("insert_eid2gids_for_values: {}us", dur.as_micros());
         Ok(gid_rows)
     }
 }

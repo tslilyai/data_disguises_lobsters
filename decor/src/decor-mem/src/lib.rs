@@ -20,6 +20,7 @@ pub mod select;
 pub mod policy;
 
 pub const INIT_CAPACITY: usize = 1000;
+pub const ID_COL: &str = "id";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
@@ -37,7 +38,6 @@ pub struct Shim {
 
     // NOTE: not *actually* static, but tied to our connection's lifetime.
     schema: String,
-
     test_params: TestParams,
 }
 
@@ -49,11 +49,10 @@ impl Drop for Shim {
 }
 
 impl Shim {
-    pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str, policy: policy::ApplicationPolicy, test_params: TestParams) 
+    pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str, policy: policy::ApplicationPolicy<'static>, test_params: TestParams) 
         -> Self 
     {
-        let cfg = config::parse_config(cfg_json).unwrap();
-        let qtrans = query_transformer::QueryTransformer::new(&cfg, &test_params);
+        let qtrans = query_transformer::QueryTransformer::new(policy, &test_params);
         let sqlcache = sqlparser_cache::ParserCache::new();
         let schema = schema.to_string();
         Shim{db, qtrans, sqlcache, schema, test_params}
@@ -63,7 +62,7 @@ impl Shim {
         dbname: &str, 
         cfg_json: &str, 
         schema: &'static str, 
-        policy: policy::ApplicationPolicy,
+        policy: policy::ApplicationPolicy<'static>,
         test_params: TestParams, 
         s: net::TcpStream) 
         -> Result<(), mysql::Error> 
@@ -172,10 +171,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 return Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?);
             }
         }
-        // update autoinc value (if exists)
-        if self.qtrans.cfg.user_table.is_autoinc {
-            //TODO self.db.query_iter("")
-        }
+        // TODO update autoinc value (if exists)
         Ok(w.ok()?)
     }
 

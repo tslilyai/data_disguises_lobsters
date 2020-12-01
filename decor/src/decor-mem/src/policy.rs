@@ -18,7 +18,7 @@ pub enum GhostColumnPolicy {
 pub type GhostPolicy<'a> = HashMap<Column<'a>, GhostColumnPolicy>;
 pub type EntityGhostPolicies<'a> = HashMap<Entity<'a>, GhostPolicy<'a>>;
    
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum DecorrelationPolicy {
     NoDecorRemove,
     NoDecorRetain,
@@ -35,4 +35,19 @@ pub struct KeyRelationship<'a> {
 pub struct ApplicationPolicy<'a> {
     pub ghost_policies: EntityGhostPolicies<'a>, 
     pub edge_policies: Vec<KeyRelationship<'a>>,
+}
+
+pub fn policy_to_ghosted_tables(policy: &ApplicationPolicy) -> HashMap<String, Vec<String>> {
+    let mut gdts: HashMap<String, Vec<String>>= HashMap::new();
+    for kr in &policy.edge_policies {
+        if kr.decorrelation_policy == DecorrelationPolicy::Decor {
+            let tablename = kr.child.to_string();
+            if let Some(ghost_cols) = gdts.get_mut(&tablename) {
+                ghost_cols.push(kr.column_name.to_string());
+            } else {
+                gdts.insert(tablename, vec![kr.column_name.to_string()]);
+            }
+        }
+    }
+    gdts
 }
