@@ -261,7 +261,7 @@ Given this specification and an entity to be decorrelated as input, \sys{} acts 
         policy is specified, \sys{} does nothing. If edges can be decorrelated, \sys{} generates
         ghost parent entities and new edges between child and ghost parent entities using the
         appropriate ghost entity generation policy. If edges cannot be decorrelated and should be
-        retained or deleted, \sys{} does nothing or removes the edge respectively. 
+        retained or deleted, \sys{} does nothing or removes the child and edge respectively. 
     
         If there is a sensitivity threshold for the edge's type, \sys{} ensures the
         sensitivity of the edge is below $t$'s threshold, providing the edge type and the edge's
@@ -280,7 +280,7 @@ Given this specification and an entity to be decorrelated as input, \sys{} acts 
         \sys{} acts on these edges according to the specified decorrelation relationship policy for
         each edge's type. If these edges can be decorrelated, \sys{} generates ghost parent entities
         for each sensitive child.  If these edges cannot be decorrelated and should be retained or
-        deleted, \sys{} does nothing or removes the edge respectively. 
+        deleted, \sys{} does nothing or removes the child and edge respectively. 
 
         Otherwise, if there is a sensitivity threshold for the edge type, then \sys{} limits the
         proportion of edges of that type that connect to sensitive entities (the children of
@@ -296,19 +296,28 @@ Let $E$ be the subset of edges traversed by \sys{} in Step 1 of execution.
 Given an edge type $t$ with sensitivity threshold $\sigma_t$, and a parent key $k$ of an instance of
 edge type $t$, 
     \begin{itemize}
-        \item \sys{} computes $N_{sensitive}$, the number of edges of type $t$ with parent key $k$ in the entity graph that share 
+        \item \sys{} computes $N_{sensitive}$, the number of edges of type $t$ with parent $k$ in the entity graph that share 
             a child node with edges in $E$.
-        \item \sys{} computes $N_{all}$, the total number of edges of type $t$ with parent key $k$
+        \item \sys{} computes $N_{all}$, the total number of edges of type $t$ with parent $k$
             in the entity graph of edge.
         \item \sys{} computes $N_{sensitive}/N_{all}$, the \emph{sensitivity} of edges of type $t$
-            with parent key $k$.
+            with parent $k$.
         \item If the sensitivity exceeds $\sigma_t$ and the child entity type has an associated ghost entity policy, \sys{}
             generates ghost children and edges of type $t$ from these children to parent
             key $k$. This lowers the sensitivity by increasing $N_{all}$.
         \item Otherwise, if the sensitivity exceeds $\sigma_t$ but ghosts cannot be generated,
-            \sys{} removes the children of edges in $E_t$ with parent key $k$, thus lowering the
+            \sys{} removes the children of edges in $E_t$ with parent $k$, thus lowering the
             sensitivity by lowering $N_{sensitive}$.
     \end{itemize}
+
+Note that the initial sensitivity for an edge of type $t$ with parent $k$ from Step 2 (parent-child
+decorrelation) is 1! Because \sys{} traverses from parent to child, if one edge of type $t$ with
+parent $k$ was collected by \sys{}, then \emph{all} edges of type $t$ with parent $k$ were collected by \sys{}.
+
+However, the initial sensitivity for an edge of type $t$ with parent $k$ from Step 3 (child-parent
+decorrelation) may be very low: other parents of children touched by \sys{} may have many
+non-sensitive children (e.g.,\ a tag may have many stories not authored by the user being
+decorrelated).
 
 %\begin{figure}[t!]
     %\caption{Examples of different decorrelation policies. (a) full
