@@ -14,6 +14,7 @@ pub struct QueryTransformer {
     views: Views,
     
     // map from table names to columns with ghost parent IDs
+    entity_type_to_decorrelate: String,
     ghosted_tables: HashMap<String, Vec<String>>,
     pub ghosts_map: ghosts_map::GhostsMap,
     policy: policy::ApplicationPolicy<'static>,
@@ -26,9 +27,11 @@ pub struct QueryTransformer {
 
 impl QueryTransformer {
     pub fn new(policy: policy::ApplicationPolicy<'static>, params: &super::TestParams) -> Self {
+        let (entity_type_to_decorrelate, ghosted_tables) = policy::policy_to_ghosted_tables(&policy);
         QueryTransformer{
             views: Views::new(),
-            ghosted_tables: policy::policy_to_ghosted_tables(&policy),
+            entity_type_to_decorrelate: entity_type_to_decorrelate,
+            ghosted_tables: ghosted_tables,
             ghosts_map: ghosts_map::GhostsMap::new(),
             policy: policy,
             params: params.clone(),
@@ -1270,8 +1273,7 @@ impl QueryTransformer {
         warn!("Unsubscribing {}", uid);
 
         let uid_val = Value::Number(uid.to_string());
-        // XXX TODO 
-        let user_table_name = helpers::string_to_objname("users");
+        let user_table_name = helpers::string_to_objname(&self.entity_type_to_decorrelate);
 
         // check if already unsubscribed
         // get list of ghosts to return otherwise
@@ -1376,8 +1378,7 @@ impl QueryTransformer {
             return Ok(());
         }
 
-        /// XXX TODO
-        let user_table_name = helpers::string_to_objname("users");
+        let user_table_name = helpers::string_to_objname(&self.entity_type_to_decorrelate);
         let uid_val = Value::Number(uid.to_string());
 
         let gid_exprs : Vec<Expr> = gids

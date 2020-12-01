@@ -1,8 +1,8 @@
 use std::*;
 use std::collections::HashMap;
 
-pub type Column<'a> = &'a str; // column name
-pub type Entity<'a> = &'a str; // table name, or foreign key
+pub type ColumnName<'a> = &'a str; // column name
+pub type EntityName<'a> = &'a str; // table name, or foreign key
 
 pub enum GeneratePolicy {
     Random,
@@ -15,8 +15,8 @@ pub enum GhostColumnPolicy {
     CloneOne(GeneratePolicy),
     Generate(GeneratePolicy),
 }
-pub type GhostPolicy<'a> = HashMap<Column<'a>, GhostColumnPolicy>;
-pub type EntityGhostPolicies<'a> = HashMap<Entity<'a>, GhostPolicy<'a>>;
+pub type GhostPolicy<'a> = HashMap<ColumnName<'a>, GhostColumnPolicy>;
+pub type EntityGhostPolicies<'a> = HashMap<EntityName<'a>, GhostPolicy<'a>>;
    
 #[derive(Clone, Debug, PartialEq)]
 pub enum DecorrelationPolicy {
@@ -27,17 +27,18 @@ pub enum DecorrelationPolicy {
 }
 #[derive(Clone, Debug)]
 pub struct KeyRelationship<'a> {
-    pub child: Entity<'a>,
-    pub parent: Entity<'a>,
+    pub child: EntityName<'a>,
+    pub parent: EntityName<'a>,
     pub column_name: &'a str,
     pub decorrelation_policy: DecorrelationPolicy,
 }
 pub struct ApplicationPolicy<'a> {
+    pub entity_type_to_decorrelate: EntityName<'a>,
     pub ghost_policies: EntityGhostPolicies<'a>, 
     pub edge_policies: Vec<KeyRelationship<'a>>,
 }
 
-pub fn policy_to_ghosted_tables(policy: &ApplicationPolicy) -> HashMap<String, Vec<String>> {
+pub fn policy_to_ghosted_tables(policy: &ApplicationPolicy) -> (String, HashMap<String, Vec<String>>) {
     let mut gdts: HashMap<String, Vec<String>>= HashMap::new();
     for kr in &policy.edge_policies {
         if kr.decorrelation_policy == DecorrelationPolicy::Decor {
@@ -49,5 +50,5 @@ pub fn policy_to_ghosted_tables(policy: &ApplicationPolicy) -> HashMap<String, V
             }
         }
     }
-    gdts
+    (policy.entity_type_to_decorrelate.to_string(), gdts)
 }

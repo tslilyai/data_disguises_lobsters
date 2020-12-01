@@ -44,6 +44,7 @@ fn get_ghost_policies() -> EntityGhostPolicies<'static> {
 pub fn get_lobsters_policy() -> ApplicationPolicy<'static> {
     use decor::policy::DecorrelationPolicy::*;
     ApplicationPolicy{
+        entity_type_to_decorrelate: "users", 
         ghost_policies : get_ghost_policies(), 
         edge_policies : vec![
             /* 
