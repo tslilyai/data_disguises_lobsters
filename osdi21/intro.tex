@@ -124,13 +124,13 @@ entities, and which correlations must be kept for application correctness.
 pub enum DecorrelationPolicy {
      NoDecorRemove,
      NoDecorRetain,
+     NoDecorSensitivity(f64),
      Decor,
  }
  pub struct KeyRelationship {
      child: Entity,
      parent: Entity,
      column_name: String,
-     sensitivity: Option<f64>,
      decorrelation_policy: DecorrelationPolicy,
  }
  pub type ApplicationPolicy = 
