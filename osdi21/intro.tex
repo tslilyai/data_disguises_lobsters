@@ -121,8 +121,7 @@ The developer provides a three-part specification to \sys{}:
     \item Sensitivity thresholds for foreign/abstract key relationships, which specify the maximum
         proportion of edge instances of a relationship type that may connect to sensitive
         entities, namely entities transitively connected to the initial entity being decorrelated.
-        Intuitively, the sensitivity threshold estimates how much identifying information may leak
-        from edge instances of a particular type.
+        
 \end{enumerate}
 
 Given this specification and an entity to be decorrelated as input, \sys{} acts as follows:
@@ -222,7 +221,8 @@ back to the original parent key instance.
 certain diversity threshold"; not sure if it's really that useful.}
 
 \subsubsection{Sensitivity Threshold Policies}
-At a high level, the sensitivity threshold
+At a high level, the sensitivity threshold for a particular edge type is the developer's estimate
+how much identifying information may leak from edge instances of that type.
 
 Note that if the generated ghosts are easily distinguished from actual entities, there is
 little privacy benefit from this option.
