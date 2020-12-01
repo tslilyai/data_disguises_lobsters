@@ -1,7 +1,7 @@
-use decor::policy::{GeneratePolicy, GhostColumnPolicy, GhostPolicy, AttributeGhostPolicies, ClusterPolicy, Cluster};
+use decor::policy::{GeneratePolicy, GhostColumnPolicy, GhostPolicy, EntityGhostPolicies, KeyRelationship};
 use sql_parser::ast::*;
 
-let mut ghost_policies : AttributeGhostPolicies = Hashmap::new();
+let mut ghost_policies : parentGhostPolicies = Hashmap::new();
 
 ghost_policies.insert("users", [
     ("id", GhostColumnPolicy::Generate(GeneratePolicy::Random)),
@@ -41,111 +41,123 @@ let lobsters_policy : policy::ApplicationPolicy = (
     ghost_policies, 
     vec![
         /* 
-         * Clusters around users should all be broken!
+         * Any relationship to users should be decorrelated
          */
-        ClusterPolicy::Decor(Cluster{
-            cluster_entity: "stories",
-            attribute: "users",
+        KeyRelationship{
+            child: "stories",
+            parent: "users",
             column_name: "user_id",
-        }),
-        ClusterPolicy::Decor(Cluster{
-            cluster_entity: "comments",
-            attribute: "users",
+            decorrelation_policy: Decor,
+        },
+        KeyRelationship{
+            child: "comments",
+            parent: "users",
             column_name: "user_id",
-        }),
-        ClusterPolicy::Decor(Cluster{
-            cluster_entity: "hats",
-            attribute: "users",
+            decorrelation_policy: Decor,
+        },
+        KeyRelationship{
+            child: "hats",
+            parent: "users",
             column_name: "user_id",
-        }),
-        ClusterPolicy::Decor(Cluster{
-            cluster_entity: "moderations",
-            attribute: "users",
+            decorrelation_policy: Decor,
+        },
+        KeyRelationship{
+            child: "moderations",
+            parent: "users",
             column_name: "user_id",
-        }),
-        ClusterPolicy::Decor(Cluster{
-            cluster_entity: "moderations",
-            attribute: "users",
+            decorrelation_policy: Decor,
+        },
+        KeyRelationship{
+            child: "moderations",
+            parent: "users",
             column_name: "moderator_user_id",
-        }),
-        ClusterPolicy::Decor(Cluster{
-            cluster_entity: "invitations",
-            attribute: "users",
+            decorrelation_policy: Decor,
+        },
+        KeyRelationship{
+            child: "invitations",
+            parent: "users",
             column_name: "user_id",
-        }),
-        ClusterPolicy::Decor(Cluster{
-            cluster_entity: "messages",
-            attribute: "users",
+            decorrelation_policy: Decor,
+        },
+        KeyRelationship{
+            child: "messages",
+            parent: "users",
             column_name: "author_user_id",
-        }),
-        ClusterPolicy::Decor(Cluster{
-            cluster_entity: "messages",
-            attribute: "users",
+            decorrelation_policy: Decor,
+        },
+        KeyRelationship{
+            child: "messages",
+            parent: "users",
             column_name: "recipient_user_id",
-        }),
-        ClusterPolicy::Decor(Cluster{
-            cluster_entity: "votes",
-            attribute: "users",
+            decorrelation_policy: Decor,
+        },
+        KeyRelationship{
+            child: "votes",
+            parent: "users",
             column_name: "user_id",
-        }),
+            decorrelation_policy: Decor,
+        },
         /* 
-         * Clusters of moderations around non-user entities: Moderations don't usually leak information
-         * about the story or comment's owner, so don't break up these clusters or add fake moderations 
+         * Relationships from moderations to non-user entities 
          */
-        ClusterPolicy::NoDecorRetain(Cluster{
-            cluster_entity: "moderations",
-            attribute: "stories",
+        KeyRelationship{
+            child: "moderations",
+            parent: "stories",
             column_name: "story_id",
-        }),
-        ClusterPolicy::NoDecorRetain(Cluster{
-            cluster_entity: "moderations",
-            attribute: "comments",
+            decorrelation_policy: NoDecorRetain,
+        },
+        KeyRelationship{
+            child: "moderations",
+            parent: "comments",
             column_name: "comment_id",
-        }),
+            decorrelation_policy: NoDecorRetain,
+        },
         /* 
-         * Clusters of comments around non-user entities: Comments usually don't leak information about
-         * the user, so don't break up clusters or add fake comments
+         * Relationships from comments to non-user entities
          */
-        ClusterPolicy::NoDecorRetain(Cluster{
-            cluster_entity: "comments",
-            attribute: "stories",
+        KeyRelationship{
+            child: "comments",
+            parent: "stories",
             column_name: "story_id",
-        }),
-        ClusterPolicy::NoDecorRetain(Cluster{
-            cluster_entity: "comments",
-            attribute: "comments",
+            decorrelation_policy: NoDecorRetain,
+        },
+        KeyRelationship{
+            child: "comments",
+            parent: "comments",
             column_name: "parent_comment_id",
-        }),
-        ClusterPolicy::NoDecorRetain(Cluster{
-            cluster_entity: "comments",
-            attribute: "comments.thread_id",
+            decorrelation_policy: NoDecorRetain,
+        },
+        KeyRelationship{
+            child: "comments",
+            parent: "comments.thread_id",
             column_name: "thread_id",
-        }),
+            decorrelation_policy: NoDecorRetain,
+        },
         /* 
-         * Clusters of taggings around non-user entities 
+         * Taggings to non-user entities 
          * It's fine to keep multiple tags per story clustered, but we should make sure that the user's
          * stories don't make up more than 25% of all stories with this tag
          */
-        ClusterPolicy::NoDecorRetain(Cluster{
-            cluster_entity: "taggings",
-            attribute: "stories",
+        KeyRelationship{
+            child: "taggings",
+            parent: "stories",
             column_name: "story_id",
-        }),
-        ClusterPolicy::NoDecorThreshold{
-            c: Cluster{
-                cluster_entity: "taggings",
-                attribute: "tags",
-                column_name: "tag_id",
-            },
-            cluster_threshold: 0.25,
+            decorrelation_policy: NoDecorRetain,
+        },
+        KeyRelationship{
+            child: "taggings",
+            parent: "tags",
+            column_name: "tag_id",
+            decorrelation_Policy: NoDecorSensitivity(0.25),
         },
         /* 
-         * Clusters of votes around things can stay
+         * Votes to stories
          */
-        ClusterPolicy::NoDecorRetain(Cluster{
-            cluster_entity: "votes",
-            attribute: "stories",
+        KeyRelationship{
+            child: "votes",
+            parent: "stories",
             column_name: "story_id",
-        }),
+            decorrelation_policy: NoDecorRetain,
+        },
     ].iter().clone().collect()
 );

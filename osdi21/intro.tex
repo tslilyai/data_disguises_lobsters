@@ -136,7 +136,8 @@ pub enum DecorrelationPolicy {
  pub type ApplicationPolicy = 
     (EntityGhostPolicies, Vec<KeyRelationship>);
 \end{lstlisting}
-    \caption{\sys{}-provided types to specify key relationships and ghost generation policies.}
+    \caption{\sys{}-provided types to specify key relationships and ghost generation policies.
+    \lyt{An actual instance of this policy is here: \url{https://github.com/tslilyai/gdpr/blob/master/decor/applications/lobsters/microbenchmarks/policy.rs}}}
 \end{figure}
 
 Application data is structured as tables, each representing a different \emph{table entity} type,
