@@ -2,12 +2,13 @@ extern crate ordered_float;
 extern crate mysql;
 extern crate crypto;
 extern crate hex;
+
 use msql_srv::*;
 use mysql::prelude::*;
-use std::collections::HashMap;
 use std::io::{self, BufReader, BufWriter};
 use std::*;
-use log::{error, warn};
+use log::{warn};
+
 pub mod config;
 pub mod helpers;
 pub mod ghosts_map;
@@ -16,6 +17,7 @@ pub mod views;
 pub mod sqlparser_cache;
 pub mod stats;
 pub mod select;
+pub mod policy;
 
 pub const INIT_CAPACITY: usize = 1000;
 
@@ -27,14 +29,8 @@ pub struct TestParams {
     pub in_memory: bool,
 }
 
-struct Prepared {
-    stmt: mysql::Statement,
-    params: Vec<Column>,
-}
-
 pub struct Shim { 
     db: mysql::Conn,
-    prepared: HashMap<u32, Prepared>,
 
     qtrans: query_transformer::QueryTransformer,
     sqlcache: sqlparser_cache::ParserCache,
@@ -48,38 +44,36 @@ pub struct Shim {
 impl Drop for Shim {
     fn drop(&mut self) {
         stats::print_stats(&self.qtrans.stats, self.test_params.testname.clone());
-        self.prepared.clear();
         // drop the connection (implicitly done).
     }
 }
 
 impl Shim {
-    pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str, test_params: TestParams) 
+    pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str, policy: policy::ApplicationPolicy, test_params: TestParams) 
         -> Self 
     {
         let cfg = config::parse_config(cfg_json).unwrap();
-        let prepared = HashMap::new();
         let qtrans = query_transformer::QueryTransformer::new(&cfg, &test_params);
         let sqlcache = sqlparser_cache::ParserCache::new();
         let schema = schema.to_string();
-        Shim{db, qtrans, sqlcache, prepared, schema, test_params}
+        Shim{db, qtrans, sqlcache, schema, test_params}
     }   
 
     pub fn run_on_tcp(
         dbname: &str, 
         cfg_json: &str, 
         schema: &'static str, 
+        policy: policy::ApplicationPolicy,
         test_params: TestParams, 
         s: net::TcpStream) 
         -> Result<(), mysql::Error> 
     {
-
         let mut db = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
         db.query_drop(&format!("DROP DATABASE IF EXISTS {};", dbname)).unwrap();
         db.query_drop(&format!("CREATE DATABASE {};", dbname)).unwrap();
         assert_eq!(db.ping(), true);
         let rs = s.try_clone().unwrap();
-        MysqlIntermediary::run_on(Shim::new(db, cfg_json, schema, test_params), 
+        MysqlIntermediary::run_on(Shim::new(db, cfg_json, schema, policy, test_params), 
                                     BufReader::new(rs), BufWriter::new(s))
     }
 
@@ -163,17 +157,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         return Ok(());
     }
     
-    fn on_close(&mut self, id: u32) {
-        match self.prepared.get(&id) {
-            None => return,
-            Some(prepped) => {
-                if let Err(e) = self.db.close(prepped.stmt.clone()){
-                    warn!("close error {}", e);
-                };
-                self.prepared.remove(&id); 
-            }
-        }
-    }
+    fn on_close(&mut self, _id: u32) {}
 
     fn on_init(&mut self, schema: &str, w: InitWriter<W>) -> Result<(), Self::Error> {
         let res = self.db.select_db(schema);

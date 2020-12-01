@@ -35,6 +35,7 @@ use std::sync::{Arc, Mutex};
 use log::warn;
 
 mod queriers;
+mod policy;
 use decor::*;
 
 const SCHEMA : &'static str = include_str!("../schema.sql");
@@ -203,14 +204,11 @@ fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, testname: String, nusers
             cpuset.singlify();
             locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
             drop(locked_topo);
-            /*unsafe {
-                libc::sched_setaffinity(tid as libc::pid_t, mem::size_of::<CpuSet>() as libc::size_t, 
-                                    mem::transmute(&cpuset));
-            }*/
 
+            let policy = policy::get_lobsters_policy();
             if let Ok((s, _)) = listener.accept() {
                 decor::Shim::run_on_tcp(
-                    DBNAME, CONFIG, SCHEMA, 
+                    DBNAME, CONFIG, SCHEMA, policy,
                     decor::TestParams{testname: testname, translate:translate, parse:parse, in_memory: true}, s).unwrap();
             }
         }));

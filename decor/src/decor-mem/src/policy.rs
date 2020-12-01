@@ -1,30 +1,38 @@
-pub type Column: String; // column name
-pub type Entity: String; // table name, or foreign key
+use std::*;
+use std::collections::HashMap;
 
-enum GeneratePolicy {
-        Random,
-        Default,
-        Custom<F>(f: F) // where F: FnMut(Column) -> Column,
-        ForeignKey,
-    }
+pub type Column<'a> = &'a str; // column name
+pub type Entity<'a> = &'a str; // table name, or foreign key
+
+pub enum GeneratePolicy {
+    Random,
+    Default(String),
+    Custom(Box<dyn Fn(String) -> String>), // column value -> column value
+    ForeignKey,
+}
 pub enum GhostColumnPolicy {
-        CloneAll,
-        CloneOne(gp: GeneratePolicy),
-        Generate(gp: GeneratePolicy),
-    }
-pub type GhostPolicy = HashMap<Column, GhostColumnPolicy>;
-pub type EntityGhostPolicies = HashMap<Entity, GhostPolicy>;
+    CloneAll,
+    CloneOne(GeneratePolicy),
+    Generate(GeneratePolicy),
+}
+pub type GhostPolicy<'a> = HashMap<Column<'a>, GhostColumnPolicy>;
+pub type EntityGhostPolicies<'a> = HashMap<Entity<'a>, GhostPolicy<'a>>;
    
+#[derive(Clone, Debug)]
 pub enum DecorrelationPolicy {
-        NoDecorRemove,
-        NoDecorRetain,
-        NoDecorSensitivity(f64),
-        Decor,
+    NoDecorRemove,
+    NoDecorRetain,
+    NoDecorSensitivity(f64),
+    Decor,
 }
-pub struct KeyRelationship {
-    child: Entity,
-    parent: Entity,
-    column_name: String,
-    decorrelation_policy: DecorrelationPolicy,
+#[derive(Clone, Debug)]
+pub struct KeyRelationship<'a> {
+    pub child: Entity<'a>,
+    pub parent: Entity<'a>,
+    pub column_name: &'a str,
+    pub decorrelation_policy: DecorrelationPolicy,
 }
-pub type ApplicationPolicy = (EntityGhostPolicies, Vec<KeyRelationship>);
+pub struct ApplicationPolicy<'a> {
+    pub ghost_policies: EntityGhostPolicies<'a>, 
+    pub edge_policies: Vec<KeyRelationship<'a>>,
+}
