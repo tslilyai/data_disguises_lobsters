@@ -39,7 +39,6 @@ mod policy;
 use decor::*;
 
 const SCHEMA : &'static str = include_str!("../schema.sql");
-const CONFIG : &'static str = include_str!("./config.json");
 const DBNAME : &'static str = &"decor_lobsters";
 
 #[derive(Debug, Clone, PartialEq)]
@@ -208,7 +207,7 @@ fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, testname: String, nusers
             let policy = policy::get_lobsters_policy();
             if let Ok((s, _)) = listener.accept() {
                 decor::Shim::run_on_tcp(
-                    DBNAME, CONFIG, SCHEMA, policy,
+                    DBNAME, SCHEMA, policy,
                     decor::TestParams{testname: testname, translate:translate, parse:parse, in_memory: true}, s).unwrap();
             }
         }));

@@ -249,7 +249,7 @@ impl GhostsMap{
                     negated: false,
                 }),
             });
-            warn!("issue_update_dt_stmt: {}", delete_stmt);
+            warn!("update eid2gids_with : {}", delete_stmt);
             db.query_drop(format!("{}", delete_stmt))?;
             self.nqueries+=1;
         }

@@ -356,6 +356,7 @@ impl QueryTransformer {
         // if it's just an identifier, we can return if it's not a ghosted_col
         debug!("\tFastpath expr: looking at {}", e);
         if helpers::expr_is_col(&e) && !helpers::expr_is_ghosted_col(&e, ghosted_cols_to_replace) {
+            warn!("Fastpath found non-ghost col {}, {:?}", e, ghosted_cols_to_replace);
             return Ok(Some(e.clone()));
         }
         let mut new_expr = None;
@@ -517,6 +518,7 @@ impl QueryTransformer {
                                 && (helpers::expr_is_col(&right) 
                                     || helpers::expr_is_value(&right)) 
                             {
+                                warn!("Fastpath found non-ghost col {:?}, {:?}", left, ghosted_cols_to_replace);
                                 new_expr = Some(e.clone());
                             }
                         }
@@ -953,12 +955,12 @@ impl QueryTransformer {
             }
         }
         let dur = start.elapsed();
-        warn!("issue_update_datatable_stmt assigns {}", dur.as_micros());
+        warn!("issue_update_datatable_stmt assigns dur {}us", dur.as_micros());
  
         let qt_selection = self.selection_to_datatable_selection(
             &stmt.selection, &stmt.table_name, &ghosted_cols)?;
         let dur = start.elapsed();
-        warn!("issue_update_datatable_stmt selection {}", dur.as_micros());
+        warn!("issue_update_datatable_stmt selection dur {}us", dur.as_micros());
  
         // if ghosted cols are being updated, query DT to get the relevant
         // GIDs and update these GID->EID mappings in the ghosts table
@@ -986,7 +988,7 @@ impl QueryTransformer {
             self.cur_stat.nqueries+=1;
             
             let dur = start.elapsed();
-            warn!("update datatable stmt getgids {}", dur.as_micros());
+            warn!("update datatable stmt getgids dur {}us", dur.as_micros());
 
             let mut ghost_update_pairs = vec![];
             for row in res {
@@ -1001,6 +1003,7 @@ impl QueryTransformer {
                     }
                 }
             }
+            warn!("update datatable stmt updating gids map with {:?}", ghost_update_pairs);
             self.ghosts_map.update_eid2gids_with(&ghost_update_pairs, db)?;
             let dur = start.elapsed();
             warn!("issue_insert_datatable_stmt ghosts {}", dur.as_micros());

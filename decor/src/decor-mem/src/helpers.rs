@@ -1,8 +1,8 @@
+use crate::views;
 use sql_parser::ast::{Expr, Ident, ObjectName, DataType, UnaryOperator, Value};
 use std::*;
 use std::collections::HashMap;
 use std::cmp::Ordering;
-use crate::{config, views};
 use std::str::FromStr;
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 use log::{debug};
@@ -86,35 +86,10 @@ pub fn expr_to_col(e: &Expr) -> (String, String) {
  * Schema/MySql datatable stuff
  *******************************************/
 pub fn get_ghosted_cols_of_datatable(ghost_tables: &HashMap<String, Vec<String>>, table_name: &ObjectName) -> Vec<String> {
-    let mut res : Vec<String> = vec![];
     if let Some(colnames) = ghost_tables.get(&table_name.to_string()) {
         return colnames.clone();
     }
     vec![]
-}
-
-pub fn get_user_col_idents_of_datatable(cfg: &config::Config, table_name: &ObjectName) -> Vec<Ident> {
-    let mut res : Vec<Ident> = vec![];
-    let table_str = table_name.to_string();
-    'dtloop: for dt in &cfg.data_tables {
-        if table_str.ends_with(&dt.name) || table_str == dt.name {
-            for uc in &dt.user_cols {
-                res.push(Ident::new(uc));
-            }
-            break 'dtloop;
-        }
-    }
-    res
-}
-
-pub fn datatable_contains_ghosts(cfg: &config::Config, table_name: &ObjectName) -> bool {
-    let table_str = table_name.to_string();
-    for dt in &cfg.data_tables {
-        if table_str.ends_with(&dt.name) || table_str == dt.name {
-            return true;
-        }
-    }
-    false
 }
 
 pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
@@ -153,12 +128,11 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
  ***************************/
 pub fn expr_is_ghosted_col(expr:&Expr, ghosted_cols : &Vec<String>) -> bool {
     match expr {
-        Expr::Identifier(_) => 
-            ghosted_cols.iter().any(|uc| uc.ends_with(&expr.to_string())),
-        Expr::QualifiedWildcard(ids) => 
-            ghosted_cols.iter().any(|uc| uc.contains(&(Expr::Identifier(ids.to_vec())).to_string())),
-        // currently don't handle nested expressions inside LHS of expr (be conservative!)
-        _ => false,
+        Expr::Identifier(ids) => {
+            let col = ids[ids.len()-1].to_string();
+            ghosted_cols.iter().any(|uc| *uc == col)
+        }
+        _ => unimplemented!("Expr is not a col {}", expr),
     } 
 }
 

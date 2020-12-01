@@ -9,7 +9,6 @@ use std::io::{self, BufReader, BufWriter};
 use std::*;
 use log::{warn};
 
-pub mod config;
 pub mod helpers;
 pub mod ghosts_map;
 pub mod query_transformer;
@@ -49,7 +48,7 @@ impl Drop for Shim {
 }
 
 impl Shim {
-    pub fn new(db: mysql::Conn, cfg_json: &str, schema: &'static str, policy: policy::ApplicationPolicy<'static>, test_params: TestParams) 
+    pub fn new(db: mysql::Conn, schema: &'static str, policy: policy::ApplicationPolicy<'static>, test_params: TestParams) 
         -> Self 
     {
         let qtrans = query_transformer::QueryTransformer::new(policy, &test_params);
@@ -60,7 +59,6 @@ impl Shim {
 
     pub fn run_on_tcp(
         dbname: &str, 
-        cfg_json: &str, 
         schema: &'static str, 
         policy: policy::ApplicationPolicy<'static>,
         test_params: TestParams, 
@@ -72,7 +70,7 @@ impl Shim {
         db.query_drop(&format!("CREATE DATABASE {};", dbname)).unwrap();
         assert_eq!(db.ping(), true);
         let rs = s.try_clone().unwrap();
-        MysqlIntermediary::run_on(Shim::new(db, cfg_json, schema, policy, test_params), 
+        MysqlIntermediary::run_on(Shim::new(db, schema, policy, test_params), 
                                     BufReader::new(rs), BufWriter::new(s))
     }
 

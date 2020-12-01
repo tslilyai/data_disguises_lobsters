@@ -23,10 +23,11 @@ extern crate log;
 
 use mysql::prelude::*;
 use std::*;
+use std::collections::HashMap;
 use log::warn;
+use decor_mem::policy::{KeyRelationship, GhostColumnPolicy, GeneratePolicy, DecorrelationPolicy::Decor, ApplicationPolicy};
 
 const SCHEMA : &'static str = include_str!("./schema.sql");
-const CONFIG : &'static str = include_str!("./config.json");
 const GHOST_ID_START : u64 = 1<<20;
 
 fn mysql_val_to_parser_val(val: &mysql::Value) -> sql_parser::ast::Value {
@@ -58,6 +59,40 @@ fn init_logger() {
         .try_init();
 }
 
+fn init_policy() -> ApplicationPolicy<'static> {
+    let mut ghost_policies = HashMap::new();
+    let mut users_map = HashMap::new();
+    users_map.insert("id", GhostColumnPolicy::Generate(GeneratePolicy::Random));
+    users_map.insert("username", GhostColumnPolicy::Generate(GeneratePolicy::Random));
+    users_map.insert("karma", GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    ghost_policies.insert("users", users_map);
+    
+    ApplicationPolicy{
+        entity_type_to_decorrelate: "users",
+        ghost_policies: ghost_policies, 
+        edge_policies: vec![
+            KeyRelationship{
+                child: "moderations",
+                parent: "users",
+                column_name: "user_id",
+                decorrelation_policy: Decor,
+            },
+            KeyRelationship{
+                child: "moderations",
+                parent: "users",
+                column_name: "moderator_user_id",
+                decorrelation_policy: Decor,
+            },
+            KeyRelationship{
+                child: "stories",
+                parent: "users",
+                column_name: "user_id",
+                decorrelation_policy: Decor,
+            }
+        ]
+    }
+}
+
 #[test]
 fn test_normal_execution() {
     init_logger();
@@ -67,7 +102,7 @@ fn test_normal_execution() {
     let jh = thread::spawn(move || {
         if let Ok((s, _)) = listener.accept() {
             decor_mem::Shim::run_on_tcp(
-                    "gdpr_normal", CONFIG, SCHEMA, 
+                    "gdpr_normal", SCHEMA, init_policy(),
                     decor_mem::TestParams{
                         testname: "test_normal".to_string(), 
                         translate:true, parse:true, in_memory: true}, s).unwrap();
@@ -314,7 +349,7 @@ fn test_users() {
     let jh = thread::spawn(move || {
         let (s, _) = listener.accept().unwrap();
         decor_mem::Shim::run_on_tcp(
-                    "gdpr_users_test", CONFIG, SCHEMA, 
+                    "gdpr_users_test", SCHEMA, init_policy(),
                     decor_mem::TestParams{
                         testname: "test_users".to_string(), 
                         translate:true, parse:true, in_memory: true}, s).unwrap();
