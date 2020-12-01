@@ -52,7 +52,7 @@ fn mysql_val_to_parser_val(val: &mysql::Value) -> sql_parser::ast::Value {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Debug)
+        .filter_level(log::LevelFilter::Warn)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -134,7 +134,9 @@ fn test_normal_execution() {
         results.push(trimmed);
     }
     let tables = vec![
-        "ghosts", 
+        "ghoststories", 
+        "ghostusers", 
+        "ghostmoderations", 
         "stories", 
         "users", 
         "moderations", 
@@ -164,7 +166,7 @@ fn test_normal_execution() {
 
     //  No ghost entries added
     let mut results = vec![];
-    let res = db_actual.query_iter(r"SELECT COUNT(*) FROM ghosts;").unwrap();
+    let res = db_actual.query_iter(r"SELECT COUNT(*) FROM ghostusers;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 1);
@@ -200,7 +202,7 @@ fn test_normal_execution() {
 
     // two ghost entries added, beginning from GHOST_ID_START
     let mut results = vec![];
-    let res = db_actual.query_iter(r"SELECT * FROM ghosts ORDER BY ghosts.ghost_id;").unwrap();
+    let res = db_actual.query_iter(r"SELECT * FROM ghostusers ORDER BY ghostusers.ghost_id;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 2);
@@ -235,7 +237,7 @@ fn test_normal_execution() {
 
     // two ghost entries added, beginning from GHOST_ID_START
     let mut results = vec![];
-    let res = db_actual.query_iter(r"SELECT * FROM ghosts;").unwrap();
+    let res = db_actual.query_iter(r"SELECT * FROM ghostusers;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 2);
@@ -290,7 +292,7 @@ fn test_normal_execution() {
 
     // latest ghost entry removed (user was set to NULL)
     let mut results = vec![];
-    let res = db_actual.query_iter(r"SELECT * FROM ghosts;").unwrap();
+    let res = db_actual.query_iter(r"SELECT * FROM ghostusers;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 2);
@@ -325,7 +327,7 @@ fn test_normal_execution() {
 
     // first two ghost entries removed 
     let mut results = vec![];
-    let res = db_actual.query_iter(r"SELECT * FROM ghosts;").unwrap();
+    let res = db_actual.query_iter(r"SELECT * FROM ghostusers;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 2);

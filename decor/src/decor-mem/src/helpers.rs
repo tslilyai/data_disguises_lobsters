@@ -85,7 +85,7 @@ pub fn expr_to_col(e: &Expr) -> (String, String) {
 /*******************************************
  * Schema/MySql datatable stuff
  *******************************************/
-pub fn get_ghosted_cols_of_datatable(ghost_tables: &HashMap<String, Vec<String>>, table_name: &ObjectName) -> Vec<String> {
+pub fn get_ghosted_cols_of_datatable(ghost_tables: &HashMap<String, Vec<(String, String)>>, table_name: &ObjectName) -> Vec<(String, String)> {
     if let Some(colnames) = ghost_tables.get(&table_name.to_string()) {
         return colnames.clone();
     }
@@ -126,11 +126,15 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
 /***************************
  * IDENT STUFF
  ***************************/
-pub fn expr_is_ghosted_col(expr:&Expr, ghosted_cols : &Vec<String>) -> bool {
+pub fn expr_to_ghosted_col(expr:&Expr, ghosted_cols : &Vec<(String, String)>) -> Option<(String, String)> {
     match expr {
         Expr::Identifier(ids) => {
             let col = ids[ids.len()-1].to_string();
-            ghosted_cols.iter().any(|uc| *uc == col)
+            if let Some(i) = ghosted_cols.iter().position(|(gc, pc)| *gc == col) {
+                Some(ghosted_cols[i].clone())
+            } else {
+                None
+            }
         }
         _ => unimplemented!("Expr is not a col {}", expr),
     } 

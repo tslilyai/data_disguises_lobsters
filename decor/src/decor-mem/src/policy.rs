@@ -32,11 +32,11 @@ pub struct KeyRelationship<'a> {
     pub column_name: &'a str,
     pub decorrelation_policy: DecorrelationPolicy,
 }
-#[derive(Clone, Debug)]
-pub struct KeyRelationshipInstance {
-    pub child: u64,
-    pub parent: u64,
-    pub column_name: String,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TraversedEntity {
+    pub table_name: String,
+    pub id : u64,
+    pub from_parent_col: String,
 }
 pub struct ApplicationPolicy<'a> {
     pub entity_type_to_decorrelate: EntityName<'a>,
@@ -44,17 +44,50 @@ pub struct ApplicationPolicy<'a> {
     pub edge_policies: Vec<KeyRelationship<'a>>,
 }
 
-pub fn policy_to_ghosted_tables(policy: &ApplicationPolicy) -> (String, HashMap<String, Vec<String>>) {
-    let mut gdts: HashMap<String, Vec<String>>= HashMap::new();
+pub struct Config {
+    pub entity_type_to_decorrelate: String,
+    // table and table columns that will be decorrelated (store GIDs)
+    pub ghosted_tables: HashMap<String, Vec<(String, String)>>,
+    // table and table columns for which sensitivity should fall below specified threshold
+    pub sensitive_tables: HashMap<String, Vec<(String, String, f64)>>,
+}
+
+pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
+    let mut gdts: HashMap<String, Vec<(String, String)>>= HashMap::new();
+    let mut sdts: HashMap<String, Vec<(String, String, f64)>>= HashMap::new();
     for kr in &policy.edge_policies {
-        if kr.decorrelation_policy == DecorrelationPolicy::Decor {
-            let tablename = kr.child.to_string();
-            if let Some(ghost_cols) = gdts.get_mut(&tablename) {
-                ghost_cols.push(kr.column_name.to_string());
-            } else {
-                gdts.insert(tablename, vec![kr.column_name.to_string()]);
+        let tablename = kr.child.to_string();
+        let parent = kr.parent.to_string();
+        let columname = kr.column_name.to_string();
+        match kr.decorrelation_policy {
+            DecorrelationPolicy::Decor => {
+                if let Some(ghost_cols) = gdts.get_mut(&tablename) {
+                    ghost_cols.push((columname, parent));
+                } else {
+                    gdts.insert(tablename, vec![(columname, parent)]);
+                }
+            } 
+            DecorrelationPolicy::NoDecorRemove => {
+                if let Some(ghost_cols) = sdts.get_mut(&tablename) {
+                    ghost_cols.push((columname, parent, 0.0));
+                } else {
+                    sdts.insert(tablename, vec![(columname, parent, 0.0)]);
+                }        
+            } 
+            DecorrelationPolicy::NoDecorSensitivity(s) => {
+                if let Some(ghost_cols) = sdts.get_mut(&tablename) {
+                    ghost_cols.push((columname, parent, s));
+                } else {
+                    sdts.insert(tablename, vec![(columname, parent, s)]);
+                }        
             }
+            _ => (), // retain doesn't need to be handled
         }
     }
-    (policy.entity_type_to_decorrelate.to_string(), gdts)
+    
+    Config {
+        entity_type_to_decorrelate: policy.entity_type_to_decorrelate.to_string(), 
+        ghosted_tables: gdts,
+        sensitive_tables: sdts,
+    }
 }

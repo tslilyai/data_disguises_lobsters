@@ -1,8 +1,8 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{select, helpers, ghosts_map, policy, stats, views, ID_COL};
+use crate::{select, helpers, ghosts_map, policy, stats, views, policy::TraversedEntity, ID_COL};
 use crate::views::{TableColumnDef, Views, Row, RowPtrs};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
@@ -14,10 +14,9 @@ pub struct QueryTransformer {
     views: Views,
     
     // map from table names to columns with ghost parent IDs
-    entity_type_to_decorrelate: String,
-    ghosted_tables: HashMap<String, Vec<String>>,
-    pub ghosts_map: ghosts_map::GhostsMap,
-    policy: policy::ApplicationPolicy<'static>,
+    decor_config: policy::Config,
+    ghost_policies: policy::EntityGhostPolicies<'static>,
+    pub ghost_maps: HashMap<String, ghosts_map::GhostsMap>, // table name to ghost map
     
     // for tests
     params: super::TestParams,
@@ -27,13 +26,12 @@ pub struct QueryTransformer {
 
 impl QueryTransformer {
     pub fn new(policy: policy::ApplicationPolicy<'static>, params: &super::TestParams) -> Self {
-        let (entity_type_to_decorrelate, ghosted_tables) = policy::policy_to_ghosted_tables(&policy);
+        let decor_config = policy::policy_to_config(&policy);
         QueryTransformer{
             views: Views::new(),
-            entity_type_to_decorrelate: entity_type_to_decorrelate,
-            ghosted_tables: ghosted_tables,
-            ghosts_map: ghosts_map::GhostsMap::new(),
-            policy: policy,
+            decor_config: decor_config,
+            ghost_policies: policy.ghost_policies,
+            ghost_maps: HashMap::new(),
             params: params.clone(),
             cur_stat: stats::QueryStat::new(),
             stats: vec![],
@@ -93,37 +91,37 @@ impl QueryTransformer {
      * This changes any nested queries to the corresponding VALUE 
      * (read from the MVs), if any exist.
      */
-    fn expr_to_value_expr(&mut self, expr: &Expr, contains_ucol_id: &mut bool, ucols_to_replace: &Vec<String>) 
+    fn expr_to_value_expr(&mut self, expr: &Expr, contains_ghosted_col_id: &mut bool, ghosted_cols_to_replace: &Vec<(String, String)>) 
         -> Result<Expr, mysql::Error> 
     {
         let new_expr = match expr {
             Expr::Identifier(_ids) => {
-                *contains_ucol_id |= ucols_to_replace.iter().any(|uc| uc.contains(&expr.to_string()));
+                *contains_ghosted_col_id |= helpers::expr_to_ghosted_col(expr, ghosted_cols_to_replace).is_some();
                 expr.clone()
             }
             Expr::QualifiedWildcard(_ids) => {
-                *contains_ucol_id |= ucols_to_replace.iter().any(|uc| uc.contains(&expr.to_string()));
+                *contains_ghosted_col_id |= helpers::expr_to_ghosted_col(expr, ghosted_cols_to_replace).is_some();
                 expr.clone()
             }
             Expr::FieldAccess {
                 expr,
                 field,
             } => {
-                // XXX we might be returning TRUE for contains_ucol_id if only the expr matches,
+                // XXX we might be returning TRUE for contains_ghosted_col_id if only the expr matches,
                 // but not the field
                 Expr::FieldAccess {
-                    expr: Box::new(self.expr_to_value_expr(&expr, contains_ucol_id, ucols_to_replace)?),
+                    expr: Box::new(self.expr_to_value_expr(&expr, contains_ghosted_col_id, ghosted_cols_to_replace)?),
                     field: field.clone(),
                 }
             }
             Expr::WildcardAccess(e) => {
-                Expr::WildcardAccess(Box::new(self.expr_to_value_expr(&e, contains_ucol_id, ucols_to_replace)?))
+                Expr::WildcardAccess(Box::new(self.expr_to_value_expr(&e, contains_ghosted_col_id, ghosted_cols_to_replace)?))
             }
             Expr::IsNull{
                 expr,
                 negated,
             } => Expr::IsNull {
-                expr: Box::new(self.expr_to_value_expr(&expr, contains_ucol_id, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, contains_ghosted_col_id, ghosted_cols_to_replace)?),
                 negated: *negated,
             },
             Expr::InList {
@@ -133,10 +131,10 @@ impl QueryTransformer {
             } => {
                 let mut new_list = vec![];
                 for e in list {
-                    new_list.push(self.expr_to_value_expr(&e, contains_ucol_id, ucols_to_replace)?);
+                    new_list.push(self.expr_to_value_expr(&e, contains_ghosted_col_id, ghosted_cols_to_replace)?);
                 }
                 Expr::InList {
-                    expr: Box::new(self.expr_to_value_expr(&expr, contains_ucol_id, ucols_to_replace)?),
+                    expr: Box::new(self.expr_to_value_expr(&expr, contains_ghosted_col_id, ghosted_cols_to_replace)?),
                     list: new_list,
                     negated: *negated,
                 }
@@ -149,7 +147,7 @@ impl QueryTransformer {
                 let new_query = self.query_to_value_query(&subquery)?;
                 // otherwise just return table column IN subquery
                 Expr::InSubquery {
-                    expr: Box::new(self.expr_to_value_expr(&expr, contains_ucol_id, ucols_to_replace)?),
+                    expr: Box::new(self.expr_to_value_expr(&expr, contains_ghosted_col_id, ghosted_cols_to_replace)?),
                     subquery: Box::new(new_query),
                     negated: *negated,
                 }                
@@ -160,10 +158,10 @@ impl QueryTransformer {
                 low,
                 high,
             } => {
-                let new_low = self.expr_to_value_expr(&low, contains_ucol_id, ucols_to_replace)?;
-                let new_high = self.expr_to_value_expr(&high, contains_ucol_id, ucols_to_replace)?;
+                let new_low = self.expr_to_value_expr(&low, contains_ghosted_col_id, ghosted_cols_to_replace)?;
+                let new_high = self.expr_to_value_expr(&high, contains_ghosted_col_id, ghosted_cols_to_replace)?;
                 Expr::Between {
-                    expr: Box::new(self.expr_to_value_expr(&expr, contains_ucol_id, ucols_to_replace)?),
+                    expr: Box::new(self.expr_to_value_expr(&expr, contains_ghosted_col_id, ghosted_cols_to_replace)?),
                     negated: *negated,
                     low: Box::new(new_low),
                     high: Box::new(new_high),
@@ -174,8 +172,8 @@ impl QueryTransformer {
                 op,
                 right
             } => {
-                let new_left = self.expr_to_value_expr(&left, contains_ucol_id, ucols_to_replace)?;
-                let new_right = self.expr_to_value_expr(&right, contains_ucol_id, ucols_to_replace)?;
+                let new_left = self.expr_to_value_expr(&left, contains_ghosted_col_id, ghosted_cols_to_replace)?;
+                let new_right = self.expr_to_value_expr(&right, contains_ghosted_col_id, ghosted_cols_to_replace)?;
                 Expr::BinaryOp{
                     left: Box::new(new_left),
                     op: op.clone(),
@@ -187,30 +185,30 @@ impl QueryTransformer {
                 expr,
             } => Expr::UnaryOp{
                 op: op.clone(),
-                expr: Box::new(self.expr_to_value_expr(&expr, contains_ucol_id, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, contains_ghosted_col_id, ghosted_cols_to_replace)?),
             },
             Expr::Cast{
                 expr,
                 data_type,
             } => Expr::Cast{
-                expr: Box::new(self.expr_to_value_expr(&expr, contains_ucol_id, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, contains_ghosted_col_id, ghosted_cols_to_replace)?),
                 data_type: data_type.clone(),
             },
             Expr::Collate {
                 expr,
                 collation,
             } => Expr::Collate{
-                expr: Box::new(self.expr_to_value_expr(&expr, contains_ucol_id, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, contains_ghosted_col_id, ghosted_cols_to_replace)?),
                 collation: collation.clone(),
             },
             Expr::Nested(expr) => Expr::Nested(Box::new(
-                    self.expr_to_value_expr(&expr, contains_ucol_id, ucols_to_replace)?)),
+                    self.expr_to_value_expr(&expr, contains_ghosted_col_id, ghosted_cols_to_replace)?)),
             Expr::Row{
                 exprs,
             } => {
                 let mut new_exprs = vec![];
                 for e in exprs {
-                    new_exprs.push(self.expr_to_value_expr(&e, contains_ucol_id, ucols_to_replace)?);
+                    new_exprs.push(self.expr_to_value_expr(&e, contains_ghosted_col_id, ghosted_cols_to_replace)?);
                 }
                 Expr::Row{
                     exprs: new_exprs,
@@ -223,25 +221,25 @@ impl QueryTransformer {
                     FunctionArgs::Args(exprs) => {
                         let mut new_exprs = vec![];
                         for e in exprs {
-                            new_exprs.push(self.expr_to_value_expr(&e, contains_ucol_id, ucols_to_replace)?);
+                            new_exprs.push(self.expr_to_value_expr(&e, contains_ghosted_col_id, ghosted_cols_to_replace)?);
                         }
                         FunctionArgs::Args(new_exprs)
                     }                
                 },
                 filter: match &f.filter {
-                    Some(filt) => Some(Box::new(self.expr_to_value_expr(&filt, contains_ucol_id, ucols_to_replace)?)),
+                    Some(filt) => Some(Box::new(self.expr_to_value_expr(&filt, contains_ghosted_col_id, ghosted_cols_to_replace)?)),
                     None => None,
                 },
                 over: match &f.over {
                     Some(ws) => {
                         let mut new_pb = vec![];
                         for e in &ws.partition_by {
-                            new_pb.push(self.expr_to_value_expr(&e, contains_ucol_id, ucols_to_replace)?);
+                            new_pb.push(self.expr_to_value_expr(&e, contains_ghosted_col_id, ghosted_cols_to_replace)?);
                         }
                         let mut new_ob = vec![];
                         for obe in &ws.order_by {
                             new_ob.push(OrderByExpr {
-                                expr: self.expr_to_value_expr(&obe.expr, contains_ucol_id, ucols_to_replace)?,
+                                expr: self.expr_to_value_expr(&obe.expr, contains_ghosted_col_id, ghosted_cols_to_replace)?,
                                 asc: obe.asc.clone(),
                             });
                         }
@@ -263,21 +261,21 @@ impl QueryTransformer {
             } => {
                 let mut new_cond = vec![];
                 for e in conditions {
-                    new_cond.push(self.expr_to_value_expr(&e, contains_ucol_id, ucols_to_replace)?);
+                    new_cond.push(self.expr_to_value_expr(&e, contains_ghosted_col_id, ghosted_cols_to_replace)?);
                 }
                 let mut new_res= vec![];
                 for e in results {
-                    new_res.push(self.expr_to_value_expr(&e, contains_ucol_id, ucols_to_replace)?);
+                    new_res.push(self.expr_to_value_expr(&e, contains_ghosted_col_id, ghosted_cols_to_replace)?);
                 }
                 Expr::Case{
                     operand: match operand {
-                        Some(e) => Some(Box::new(self.expr_to_value_expr(&e, contains_ucol_id, ucols_to_replace)?)),
+                        Some(e) => Some(Box::new(self.expr_to_value_expr(&e, contains_ghosted_col_id, ghosted_cols_to_replace)?)),
                         None => None,
                     },
                     conditions: new_cond ,
                     results: new_res, 
                     else_result: match else_result {
-                        Some(e) => Some(Box::new(self.expr_to_value_expr(&e, contains_ucol_id, ucols_to_replace)?)),
+                        Some(e) => Some(Box::new(self.expr_to_value_expr(&e, contains_ghosted_col_id, ghosted_cols_to_replace)?)),
                         None => None,
                     },
                 }
@@ -289,7 +287,7 @@ impl QueryTransformer {
                 op,
                 right,
             } => Expr::Any {
-                left: Box::new(self.expr_to_value_expr(&left, contains_ucol_id, ucols_to_replace)?),
+                left: Box::new(self.expr_to_value_expr(&left, contains_ghosted_col_id, ghosted_cols_to_replace)?),
                 op: op.clone(),
                 right: Box::new(self.query_to_value_query(&right)?),
             },
@@ -298,14 +296,14 @@ impl QueryTransformer {
                 op,
                 right,
             } => Expr::All{
-                left: Box::new(self.expr_to_value_expr(&left, contains_ucol_id, ucols_to_replace)?),
+                left: Box::new(self.expr_to_value_expr(&left, contains_ghosted_col_id, ghosted_cols_to_replace)?),
                 op: op.clone(),
                 right: Box::new(self.query_to_value_query(&right)?),
             },
             Expr::List(exprs) => {
                 let mut new_exprs = vec![];
                 for e in exprs {
-                    new_exprs.push(self.expr_to_value_expr(&e, contains_ucol_id, ucols_to_replace)?);
+                    new_exprs.push(self.expr_to_value_expr(&e, contains_ghosted_col_id, ghosted_cols_to_replace)?);
                 }
                 Expr::List(new_exprs)
             }
@@ -313,8 +311,8 @@ impl QueryTransformer {
                 expr,
                 subscript,
             } => Expr::SubscriptIndex{
-                expr: Box::new(self.expr_to_value_expr(&expr, contains_ucol_id, ucols_to_replace)?),
-                subscript: Box::new(self.expr_to_value_expr(&subscript, contains_ucol_id, ucols_to_replace)?),
+                expr: Box::new(self.expr_to_value_expr(&expr, contains_ghosted_col_id, ghosted_cols_to_replace)?),
+                subscript: Box::new(self.expr_to_value_expr(&subscript, contains_ghosted_col_id, ghosted_cols_to_replace)?),
             },
             Expr::SubscriptSlice{
                 expr,
@@ -324,17 +322,17 @@ impl QueryTransformer {
                 for pos in positions {
                     new_pos.push(SubscriptPosition {
                         start: match &pos.start {
-                            Some(e) => Some(self.expr_to_value_expr(&e, contains_ucol_id, ucols_to_replace)?),
+                            Some(e) => Some(self.expr_to_value_expr(&e, contains_ghosted_col_id, ghosted_cols_to_replace)?),
                             None => None,
                         },
                         end: match &pos.end {
-                            Some(e) => Some(self.expr_to_value_expr(&e, contains_ucol_id, ucols_to_replace)?),
+                            Some(e) => Some(self.expr_to_value_expr(&e, contains_ghosted_col_id, ghosted_cols_to_replace)?),
                             None => None,
                         },                
                     });
                 }
                 Expr::SubscriptSlice{
-                    expr: Box::new(self.expr_to_value_expr(&expr, contains_ucol_id, ucols_to_replace)?),
+                    expr: Box::new(self.expr_to_value_expr(&expr, contains_ghosted_col_id, ghosted_cols_to_replace)?),
                     positions: new_pos,
                 }
             }
@@ -350,12 +348,12 @@ impl QueryTransformer {
      * Note that expressions where we can guarantee that the constraint is on a non-user column are
      * also acceptable; nested or more complex expressions, however, are not.
      */
-    fn fastpath_expr_to_gid_expr(&mut self, e: &Expr, ghosted_cols_to_replace: &Vec<String>) 
+    fn fastpath_expr_to_gid_expr(&mut self, e: &Expr, ghosted_cols_to_replace: &Vec<(String, String)>) 
         -> Result<Option<Expr>, mysql::Error> 
     {
         // if it's just an identifier, we can return if it's not a ghosted_col
         debug!("\tFastpath expr: looking at {}", e);
-        if helpers::expr_is_col(&e) && !helpers::expr_is_ghosted_col(&e, ghosted_cols_to_replace) {
+        if helpers::expr_is_col(&e) && helpers::expr_to_ghosted_col(&e, ghosted_cols_to_replace).is_none() {
             warn!("Fastpath found non-ghost col {}, {:?}", e, ghosted_cols_to_replace);
             return Ok(Some(e.clone()));
         }
@@ -378,20 +376,21 @@ impl QueryTransformer {
                 negated,
             } => {
                 if helpers::expr_is_col(&expr) {
-                    if helpers::expr_is_ghosted_col(&expr, ghosted_cols_to_replace) {
+                    if let Some((_gc, parent)) = helpers::expr_to_ghosted_col(&expr, ghosted_cols_to_replace) {
                         // get all eids in the list
-                        let mut uid_vals = vec![];
+                        let mut eid_vals = vec![];
                         for e in list {
                             // values must be u64 for ghosted cols
                             match helpers::parser_expr_to_u64(&e) {
-                                Ok(v) => uid_vals.push(v),
+                                Ok(v) => eid_vals.push(v),
                                 Err(_) => return Ok(None),
                             }
                         }
 
                         // now change the eids to gids
                         let mut gid_exprs = vec![];
-                        for (_eid, gids) in self.ghosts_map.get_gids_for_eids(&uid_vals)? {
+                        let gm = self.ghost_maps.get_mut(&parent).unwrap();
+                        for (_eid, gids) in gm.get_gids_for_eids(&eid_vals)? {
                             for g in gids {
                                 gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
                             }
@@ -415,20 +414,21 @@ impl QueryTransformer {
             } => {
                 if helpers::expr_is_col(expr) {
                     let vals_vec = self.query_to_value_rows(&subquery, true)?;
-                    if helpers::expr_is_ghosted_col(expr, ghosted_cols_to_replace) {
+                    if let Some((_gc, parent)) = helpers::expr_to_ghosted_col(expr, ghosted_cols_to_replace) {
                         // get all uids in the list
-                        let mut uid_vals = vec![];
+                        let mut eid_vals = vec![];
                         for e in vals_vec {
                             // values must be u64 for ghosted_cols
                             match helpers::parser_expr_to_u64(&e) {
-                                Ok(v) => uid_vals.push(v),
+                                Ok(v) => eid_vals.push(v),
                                 Err(_) => return Ok(None),
                             }
                         }
 
                         // now change the uids to gids
                         let mut gid_exprs = vec![];
-                        for (_eid, gids) in self.ghosts_map.get_gids_for_eids(&uid_vals)? {
+                        let gm = self.ghost_maps.get_mut(&parent).unwrap();
+                        for (_eid, gids) in gm.get_gids_for_eids(&eid_vals)? {
                             for g in gids {
                                 gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
                             }
@@ -466,11 +466,12 @@ impl QueryTransformer {
                         Ok(v) => {highu64 = v;}
                         Err(_) => {return Ok(None);}
                     }
-                    if helpers::expr_is_ghosted_col(&expr, ghosted_cols_to_replace) {
+                    if let Some((_gc, parent)) = helpers::expr_to_ghosted_col(&expr, ghosted_cols_to_replace) {
                         // change the eids in the range to gids
                         let eid_vals : Vec<u64> = ops::RangeInclusive::new(lowu64, highu64).collect();
                         let mut gid_exprs = vec![];
-                        for (_eid, gids) in self.ghosts_map.get_gids_for_eids(&eid_vals)? {
+                        let gm = self.ghost_maps.get_mut(&parent).unwrap();
+                        for (_eid, gids) in gm.get_gids_for_eids(&eid_vals)? {
                             for g in gids {
                                 gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
                             }
@@ -494,7 +495,7 @@ impl QueryTransformer {
                     BinaryOperator::Eq | BinaryOperator::NotEq | BinaryOperator::Lt | BinaryOperator::LtEq => {
                         if helpers::expr_is_col(&left) {
                             // ghosted_col OP u64 val
-                            if helpers::expr_is_ghosted_col(&left, ghosted_cols_to_replace) {
+                            if let Some((_gc, parent)) = helpers::expr_to_ghosted_col(&left, ghosted_cols_to_replace) {
                                 if let Ok(v) = helpers::parser_expr_to_u64(&right) {
                                     let eid_vals : Vec<u64> = match op {
                                         BinaryOperator::Lt => (0..v).collect(),
@@ -502,7 +503,8 @@ impl QueryTransformer {
                                         _ => vec![v],
                                     };
                                     let mut gid_exprs = vec![];
-                                    for (_eid, gids) in self.ghosts_map.get_gids_for_eids(&eid_vals)? {
+                                    let gm = self.ghost_maps.get_mut(&parent).unwrap();
+                                    for (_eid, gids) in gm.get_gids_for_eids(&eid_vals)? {
                                         for g in gids {
                                             gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
                                         }
@@ -514,7 +516,7 @@ impl QueryTransformer {
                                     });
                                 }
                             // col OP val or non-ghosted_col column
-                            } else if !helpers::expr_is_ghosted_col(&right, ghosted_cols_to_replace) 
+                            } else if helpers::expr_to_ghosted_col(&right, ghosted_cols_to_replace).is_none()
                                 && (helpers::expr_is_col(&right) 
                                     || helpers::expr_is_value(&right)) 
                             {
@@ -526,8 +528,8 @@ impl QueryTransformer {
                     // col > / >= col or val 
                     //  XXX ghosted_cols not supported because potentially unbounded
                     BinaryOperator::Gt | BinaryOperator::GtEq => {
-                        if !helpers::expr_is_ghosted_col(&left, ghosted_cols_to_replace) 
-                            && !helpers::expr_is_ghosted_col(&right, ghosted_cols_to_replace) 
+                        if helpers::expr_to_ghosted_col(&left, ghosted_cols_to_replace).is_none()
+                            && helpers::expr_to_ghosted_col(&right, ghosted_cols_to_replace).is_none()
                             && (helpers::expr_is_col(&left) || helpers::expr_is_value(&left)) 
                             && (helpers::expr_is_col(&right) || helpers::expr_is_value(&right)) 
                         {
@@ -747,7 +749,7 @@ impl QueryTransformer {
         &mut self, 
         selection: &Option<Expr>, 
         table_name: &ObjectName, 
-        ghosted_cols: &Vec<String>) 
+        ghosted_cols: &Vec<(String, String)>) 
         -> Result<Option<Expr>, mysql::Error>
     {
         let mut contains_ghosted_col_id = false;
@@ -782,27 +784,28 @@ impl QueryTransformer {
                     let mut eids = vec![];
                     let (cols, rows, _cols_to_keep) = self.views.query_iter(&query)?;
                     self.cur_stat.nqueries_mv+=1;
-                    for rptr in &rows {
-                        let row = rptr.borrow();
-                        for ci in 0..cols.len() {
-                            // if it's a ghosted column, add restriction on GID
-                            let colname = &cols[ci].fullname;
-     
-                            // Add condition on ghosted column to be within relevant GIDs mapped
-                            // to by the EID value
-                            // However, only update with GIDs if EID value is NOT NULL
-                            if ghosted_cols.iter().any(|gc| helpers::str_ident_match(&colname, gc)) 
-                                && row[ci] != Value::Null
-                            {
-                                eids.push(helpers::parser_val_to_u64(&row[ci]));
+                    for ci in 0..cols.len() {
+                        let colname = &cols[ci].fullname;
+                        if let Some(i) = ghosted_cols.iter().position(|gc| helpers::str_ident_match(&colname, &gc.0)) {
+                            for rptr in &rows {
+                                let row = rptr.borrow();
+         
+                                // Add condition on ghosted column to be within relevant GIDs mapped
+                                // to by the EID value
+                                // However, only update with GIDs if EID value is NOT NULL
+                                if row[ci] != Value::Null
+                                {
+                                    eids.push(helpers::parser_val_to_u64(&row[ci]));
+                                }
                             }
+                            // get all the gid rows corresponding to eids
+                            // TODO deal with potential GIDs in ghosted_cols due to
+                            // unsubscriptions/resubscriptions
+                            let parent = &ghosted_cols[i].1;
+                            let gm = self.ghost_maps.get_mut(parent).unwrap();
+                            gm.cache_eid2gids_for_eids(&eids)?;
                         }
                     }
-
-                    // get all the gid rows corresponding to eids
-                    // TODO deal with potential GIDs in ghosted_cols due to
-                    // unsubscriptions/resubscriptions
-                    self.ghosts_map.cache_eid2gids_for_eids(&eids)?;
 
                     // expr to constrain to select a particular row
                     let mut or_row_constraint_expr = Expr::Value(Value::Boolean(false));
@@ -814,17 +817,20 @@ impl QueryTransformer {
                             // to by the EID value
                             // However, only update with GIDs if EID value is NOT NULL
                             let colname = &cols[ci].fullname;
-                            if ghosted_cols.iter().any(|gc| helpers::str_ident_match(&colname, gc)) 
-                                && row[ci] != Value::Null
-                            {
+                            if row[ci] == Value::Null {
+                                continue;
+                            }
+                            if let Some(i) = ghosted_cols.iter().position(|gc| helpers::str_ident_match(&colname, &gc.0)) {
                                 let eid = helpers::parser_val_to_u64(&row[ci]);
+                                let parent = &ghosted_cols[i].1;
+                                let gm = self.ghost_maps.get_mut(parent).unwrap();
                                 // add condition on user column to be within the relevant GIDs
                                 and_col_constraint_expr = Expr::BinaryOp {
                                     left: Box::new(and_col_constraint_expr),
                                     op: BinaryOperator::And,
                                     right: Box::new(Expr::InList {
                                         expr: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
-                                        list: self.ghosts_map.get_gids_for_eid(eid)?.iter()
+                                        list: gm.get_gids_for_eid(eid)?.iter()
                                                 .map(|g| Expr::Value(Value::Number(g.to_string())))
                                                 .collect(),
                                         negated: false,
@@ -870,15 +876,14 @@ impl QueryTransformer {
              those as the values instead for those columns.
             This will be empty if the table is not a table with ghost columns
          */
-        let ghost_cols = helpers::get_ghosted_cols_of_datatable(&self.ghosted_tables, &stmt.table_name);
+        let ghost_cols = helpers::get_ghosted_cols_of_datatable(&self.decor_config.ghosted_tables, &stmt.table_name);
         let mut ghost_col_indices = vec![];
         // get indices of columns corresponding to ghosted vals
         if !ghost_cols.is_empty() {
             for (i, c) in (&stmt.columns).into_iter().enumerate() {
-                // XXX this may overcount if a non-ghost column is a suffix of a ghost 
-                // column
-                if ghost_cols.iter().any(|gc| helpers::str_ident_match(&c.to_string(), gc)) {
-                    ghost_col_indices.push(i);
+                // XXX this may overcount if a non-ghost column is a suffix of a ghost col
+                if let Some(ghost_i) = ghost_cols.iter().position(|gc| helpers::str_ident_match(&c.to_string(), &gc.0)) {
+                    ghost_col_indices.push((i, ghost_cols[ghost_i].1.clone()));
                 }
             }
         }
@@ -892,9 +897,34 @@ impl QueryTransformer {
          * */
         match stmt.source {
             InsertSource::Query(q) => {
-                let vals_with_gids = self.ghosts_map.insert_eid2gids_for_values(&values, &ghost_col_indices, db)?;
+                let mut gid_rows = vec![];
+                for row in 0..values.len() {
+                    let mut gid_vals = vec![];
+                    let valrow = values[row].borrow();
+                    for col in 0..valrow.len() {
+                        // add entry to ghosts table but not if new value is null
+                        let mut found = false;
+                        if valrow[col] != Value::Null {
+                            // TODO could make this more efficient
+                            for (i, parent) in &ghost_col_indices {
+                                if col == *i {
+                                    let gm = self.ghost_maps.get_mut(parent).unwrap();
+                                    let eid = helpers::parser_val_to_u64(&valrow[col]);
+                                    let gid = gm.insert_gid_for_eid(eid, db)?;
+                                    gid_vals.push(Expr::Value(Value::Number(gid.to_string())));
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        } 
+                        if !found {
+                            gid_vals.push(Expr::Value(valrow[col].clone()));
+                        }
+                    }
+                    gid_rows.push(gid_vals);
+                }
                 let mut new_q = q.clone();
-                new_q.body = SetExpr::Values(Values(vals_with_gids));
+                new_q.body = SetExpr::Values(Values(gid_rows));
                 qt_source = InsertSource::Query(new_q);
             }
             InsertSource::DefaultValues => (),
@@ -921,7 +951,7 @@ impl QueryTransformer {
         -> Result<(), mysql::Error> 
     {
         let start = time::Instant::now();
-        let ghosted_cols = helpers::get_ghosted_cols_of_datatable(&self.ghosted_tables, &stmt.table_name);
+        let ghosted_cols = helpers::get_ghosted_cols_of_datatable(&self.decor_config.ghosted_tables, &stmt.table_name);
         let mut ghosted_col_assigns = vec![];
         let mut ghosted_col_selectitems_assn = vec![];
         let mut qt_assn = vec![];
@@ -933,8 +963,8 @@ impl QueryTransformer {
             // we won't replace any EIDs when converting assignments to values, but
             // we also want to update any ghosted col value to NULL if the EID is being set to NULL, so we put it
             // in qt_assn too (rather than only updating the GID)
-            let is_ghosted_col = ghosted_cols.iter().any(|uc| helpers::str_ident_match(&a.id.to_string(), uc));
-            if !is_ghosted_col || assign_vals[i] == Expr::Value(Value::Null) {
+            let ghosted_col_pos = ghosted_cols.iter().position(|uc| helpers::str_ident_match(&a.id.to_string(), &uc.0));
+            if ghosted_col_pos.is_none() || assign_vals[i] == Expr::Value(Value::Null) {
                 qt_assn.push(Assignment{
                     id: a.id.clone(),
                     value: assign_vals[i].clone(),
@@ -943,11 +973,11 @@ impl QueryTransformer {
             // if we have an assignment to a EID, we need to update the GID->EID mapping
             // instead of updating the actual data table record
             // note that we still include NULL entries so we know to delete this GID
-            if is_ghosted_col {
-                ghosted_col_assigns.push(Assignment {
+            if let Some(ghost_pos) = ghosted_col_pos {
+                ghosted_col_assigns.push((Assignment {
                     id: a.id.clone(),
                     value: assign_vals[i].clone(),
-                });
+                }, ghosted_cols[ghost_pos].1.clone()));
                 ghosted_col_selectitems_assn.push(SelectItem::Expr{
                     expr: Expr::Identifier(vec![a.id.clone()]),
                     alias: None,
@@ -990,23 +1020,25 @@ impl QueryTransformer {
             let dur = start.elapsed();
             warn!("update datatable stmt getgids dur {}us", dur.as_micros());
 
-            let mut ghost_update_pairs = vec![];
+            let mut ghost_update_pairs = vec![vec![]; ghosted_col_assigns.len()];
             for row in res {
                 let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
-                for (i, uc_val) in ghosted_col_assigns.iter().enumerate() {
+                for i in 0..ghosted_col_assigns.len() {
+                    let uc_val = &ghosted_col_assigns[i].0;
                     if uc_val.value == Expr::Value(Value::Null) {
-                        ghost_update_pairs.push((None, helpers::mysql_val_to_u64(&mysql_vals[i])?));
+                        ghost_update_pairs[i].push((None, helpers::mysql_val_to_u64(&mysql_vals[i])?));
                     } else {
-                        ghost_update_pairs.push(
+                        ghost_update_pairs[i].push(
                             (Some(helpers::parser_expr_to_u64(&uc_val.value)?), 
                              helpers::mysql_val_to_u64(&mysql_vals[i])?));
                     }
                 }
             }
-            warn!("update datatable stmt updating gids map with {:?}", ghost_update_pairs);
-            self.ghosts_map.update_eid2gids_with(&ghost_update_pairs, db)?;
-            let dur = start.elapsed();
-            warn!("issue_insert_datatable_stmt ghosts {}", dur.as_micros());
+            for (i, (_, parent)) in ghosted_col_assigns.iter().enumerate() {
+                let gm = self.ghost_maps.get_mut(parent).unwrap();
+                gm.update_eid2gids_with(&ghost_update_pairs[i], db)?;
+                warn!("update datatable stmt updating gids map with {:?}", ghost_update_pairs);
+            }
         }
         let update_stmt = Statement::Update(UpdateStatement{
             table_name: stmt.table_name.clone(),
@@ -1025,12 +1057,12 @@ impl QueryTransformer {
     fn issue_delete_datatable_stmt(&mut self, stmt: DeleteStatement, db: &mut mysql::Conn)
         -> Result<(), mysql::Error> 
     {        
-        let ghosted_cols = helpers::get_ghosted_cols_of_datatable(&self.ghosted_tables, &stmt.table_name);
+        let ghosted_cols = helpers::get_ghosted_cols_of_datatable(&self.decor_config.ghosted_tables, &stmt.table_name);
         let qt_selection = self.selection_to_datatable_selection(&stmt.selection, &stmt.table_name, &ghosted_cols)?;
 
         let ghosted_col_selectitems = ghosted_cols.iter()
-            .map(|uc| SelectItem::Expr{
-                expr: Expr::Identifier(helpers::string_to_idents(uc)),
+            .map(|gc| SelectItem::Expr{
+                expr: Expr::Identifier(helpers::string_to_idents(&gc.0)),
                 alias: None,
             })
             .collect();
@@ -1057,18 +1089,18 @@ impl QueryTransformer {
         let res = db.query_iter(format!("{}", select_gids_stmt.to_string()))?;
         self.cur_stat.nqueries+=1;
 
-        let mut gids_list : Vec<Expr>= vec![];
-        let mut ghost_update_pairs: Vec<(Option<u64>, u64)>= vec![];
+        let mut ghost_update_pairs = vec![vec![]; ghosted_cols.len()];
         for row in res {
-            for val in row.unwrap().unwrap() {
-                gids_list.push(Expr::Value(helpers::mysql_val_to_parser_val(&val)));
-                ghost_update_pairs.push((None, helpers::mysql_val_to_u64(&val)?));
+            let mysql_vals : Vec<mysql::Value> = row.unwrap().unwrap();
+            for i in 0..ghosted_cols.len() {
+                ghost_update_pairs[i].push((None, helpers::mysql_val_to_u64(&mysql_vals[i])?));
             }
         }
-
-        // delete from ghosts table if GIDs are removed
-        // TODO we might want to keep this around if data is "restorable"
-        self.ghosts_map.update_eid2gids_with(&ghost_update_pairs, db)?;
+        for (i, (_, parent)) in ghosted_cols.iter().enumerate() {
+            let gm = self.ghost_maps.get_mut(parent).unwrap();
+            gm.update_eid2gids_with(&ghost_update_pairs[i], db)?;
+            warn!("delete datatable stmt updating gids map with {:?}", ghost_update_pairs);
+        }
 
         // delete from the data table
         let delete_stmt = Statement::Delete(DeleteStatement{
@@ -1100,7 +1132,7 @@ impl QueryTransformer {
                 columns, 
                 source,
             }) => {
-                let writing_gids = self.ghosted_tables.contains_key(&table_name.to_string());
+                let writing_gids = self.decor_config.ghosted_tables.contains_key(&table_name.to_string());
                 
                 // update sources to only be values (note: we don't actually need to do this for tables that
                 // are never either ghosted or contain ghost column keys)
@@ -1139,7 +1171,7 @@ impl QueryTransformer {
                 selection,
             }) => {
                 let start = time::Instant::now();
-                let writing_gids = self.ghosted_tables.contains_key(&table_name.to_string());
+                let writing_gids = self.decor_config.ghosted_tables.contains_key(&table_name.to_string());
 
                 let mut assign_vals = vec![];
                 let mut contains_ghosted_col_id = false;
@@ -1174,7 +1206,7 @@ impl QueryTransformer {
                 table_name,
                 selection,
             }) => {
-                let writing_gids = self.ghosted_tables.contains_key(&table_name.to_string());
+                let writing_gids = self.decor_config.ghosted_tables.contains_key(&table_name.to_string());
                 if writing_gids {
                     self.issue_delete_datatable_stmt(DeleteStatement{
                         table_name: table_name.clone(), 
@@ -1199,6 +1231,9 @@ impl QueryTransformer {
                 if self.params.in_memory {
                     new_engine = Some(Engine::Memory);
                 }
+
+                // create ghosts map for this table 
+                self.ghost_maps.insert(name.to_string(), ghosts_map::GhostsMap::new(name.to_string(), db, self.params.in_memory));
 
                 let dtstmt = CreateTableStatement {
                     name: name.clone(),
@@ -1243,12 +1278,14 @@ impl QueryTransformer {
     }
 
     pub fn record_query_stats(&mut self, qtype: stats::QueryType, dur: Duration) {
-        self.cur_stat.nqueries+=self.ghosts_map.nqueries;
+        for (_, gm) in self.ghost_maps.iter_mut() {
+            self.cur_stat.nqueries += gm.nqueries;
+            gm.nqueries = 0;
+        }
         self.cur_stat.duration = dur;
         self.cur_stat.qtype = qtype;
         self.stats.push(self.cur_stat.clone());
         self.cur_stat.clear();
-        self.ghosts_map.nqueries = 0;
     }
 
     pub fn query<W: io::Write>(
@@ -1272,106 +1309,116 @@ impl QueryTransformer {
         Ok(())
     }
 
-    pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) -> Result<(), mysql::Error> {
+    pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) -> Result<(), mysql::Error> 
+    {
         warn!("Unsubscribing {}", uid);
 
-        /*
-         * Starting from the users table, traverse the graph and collect all edge instances
-         * For all 
-         */
-        let mut id_val = Value::Number(uid.to_string());
-        let mut parent_table_name = helpers::string_to_objname(&self.entity_type_to_decorrelate);
+        let mut id = uid; 
+        let mut eid_val = Value::Number(uid.to_string());
+        let mut parent_table_name = helpers::string_to_objname(&self.decor_config.entity_type_to_decorrelate);
+        let mut eid2gids : Vec<(u64, Vec<u64>)> = vec![];
+        let mut seen : HashSet<TraversedEntity> = HashSet::new();
         while(true) {
+            /* 
+             * for all edges to the parent entity that can be decorrelated, 
+             * generate ghost parents and rewrite these edges (only in MVs, since GIDs should
+             * already be stored in the datatables
+             */
 
-        }
-
-        // check if already unsubscribed
-        // get list of ghosts to return otherwise
-        let gids : Vec<u64>;
-        let gid_values : RowPtrs;
-        match self.ghosts_map.unsubscribe(uid, db)? {
-            None => {
-                writer.error(msql_srv::ErrorKind::ER_BAD_SLAVE, format!("{:?}", "user already unsubscribed").as_bytes())?;
-                return Ok(());
+            // get all ghosts corresponding to this identifier
+            let gids : Vec<u64>;
+            let gid_values : RowPtrs;
+            // check if already unsubscribed
+            // get list of ghosts to return otherwise
+            let gm = self.ghost_maps.get_mut(&parent_table_name.to_string()).unwrap();
+            match gm.unsubscribe(id, db)? {
+                None => {
+                    writer.error(msql_srv::ErrorKind::ER_BAD_SLAVE, format!("{:?}", "entity already unsubscribed").as_bytes())?;
+                    return Ok(());
+                }
+                Some(ghosts) => {
+                    gid_values = ghosts.iter().map(|g| Rc::new(RefCell::new(vec![Value::Number(g.to_string())]))).collect();
+                    gids = ghosts;
+                }
             }
-            Some(ghosts) => {
-                gid_values = ghosts.iter().map(|g| Rc::new(RefCell::new(vec![Value::Number(g.to_string())]))).collect();
-                gids = ghosts;
-            }
-        }
+            eid2gids.push((id, gids));
+
+            /* 
+             * 1. update the corresponding MV to have an entry for all the GIDs
+             */
+            warn!("UNSUB: inserting into {} view {:?}", parent_table_name, gid_values);
+            // TODO actually generate values according to ghost generation scheme
+            self.views.insert(&parent_table_name, &vec![Ident::new(ID_COL)], &gid_values)?;
+
+            /*
+             * 2. delete EID from entity MV and entity data table
+             */
+            let eid_col = Expr::Identifier(helpers::string_to_idents(ID_COL));
+            let selection = Some(Expr::BinaryOp{
+                    left: Box::new(eid_col),
+                    op: BinaryOperator::Eq,
+                    right: Box::new(Expr::Value(eid_val.clone())), 
+            });
+            // delete from entity mv  
+            warn!("UNSUB: deleting from {} view {:?}", parent_table_name, selection);
+            self.views.delete(&parent_table_name, &selection)?;
+
+            let delete_eid_from_table = Statement::Delete(DeleteStatement {
+                table_name: parent_table_name.clone(),
+                selection: selection.clone(),
+            });
+            warn!("UNSUB: {}", delete_eid_from_table);
+            db.query_drop(format!("{}", delete_eid_from_table.to_string()))?;
+            //assert!(res.affected_rows() == 1);
+            self.cur_stat.nqueries+=1;
  
-        /* 
-         * 1. update the users MV to have an entry for all the users' GIDs
-         */
-        warn!("UNSUB: inserting into user view {:?}", gid_values);
-        self.views.insert(&user_table_name, &vec![Ident::new(ID_COL)], &gid_values)?;
-        
-        /*
-         * 2. delete UID from users MV and users data table
-         */
-        let uid_col = Expr::Identifier(helpers::string_to_idents(ID_COL));
-        let selection = Some(Expr::BinaryOp{
-                left: Box::new(uid_col),
-                op: BinaryOperator::Eq,
-                right: Box::new(Expr::Value(uid_val.clone())), 
-        });
-        // delete from user mv  
-        warn!("UNSUB: deleting from user view {:?}", selection);
-        self.views.delete(&user_table_name, &selection)?;
+            /* 
+             * 3. Change all entities with this EID to use the correct GID in the MV
+             */
+            let mut gid_index = 0;
+            for (dtname, ghosted_cols) in self.decor_config.ghosted_tables.iter() {
+                let dtobjname = helpers::string_to_objname(dtname);
+                let view_ptr = self.views.get_view(dtname).unwrap();
+                let mut view = view_ptr.borrow_mut();
+                let mut select_constraint = Expr::Value(Value::Boolean(false));
+                let mut cis = vec![];
+                for (col, _) in ghosted_cols {
+                    cis.push(helpers::get_col_index(&col, &view.columns).unwrap());
+                    select_constraint = Expr::BinaryOp {
+                        left: Box::new(select_constraint),
+                        op: BinaryOperator::Or,
+                        right: Box::new(Expr::BinaryOp{
+                            left: Box::new(Expr::Identifier(helpers::string_to_idents(&col))),
+                            op: BinaryOperator::Eq,
+                            right: Box::new(Expr::Value(eid_val.clone())),
+                        }),             
+                    };
+                }            
 
-        // NOTE: users are special because they're actually existing in underlying datatables
-        // (they're not a ghost)
-        let delete_uid_from_users = Statement::Delete(DeleteStatement {
-            table_name: user_table_name.clone(),
-            selection: selection.clone(),
-        });
-        warn!("UNSUB: {}", delete_uid_from_users);
-        db.query_drop(format!("{}", delete_uid_from_users.to_string()))?;
-        //assert!(res.affected_rows() == 1);
-        self.cur_stat.nqueries+=1;
- 
-        /* 
-         * 3. Change all entries with this UID to use the correct GID in the MV
-         */
-        /*let mut gid_index = 0;
-        for dt in &self.cfg.data_tables {
-            let dtobjname = helpers::string_to_objname(&dt.name);
-            let ghosted_cols = helpers::get_user_cols_of_datatable(&self.cfg, &dtobjname);
+                let rptrs_to_update = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
+                for rptr in &rptrs_to_update {
+                    for ci in &cis {
+                        if rptr.row().borrow()[*ci].to_string() == eid_val.to_string() {
+                            assert!(gid_index < gid_values.len());
+                            let val = &gid_values[gid_index].borrow()[0];
+                            warn!("UNSUB: updating {:?} with {}", rptr, val);
 
-            let view_ptr = self.views.get_view(&dt.name).unwrap();
-            let mut view = view_ptr.borrow_mut();
-            let mut select_constraint = Expr::Value(Value::Boolean(false));
-            let mut cis = vec![];
-            for col in &ghosted_cols {
-                cis.push(helpers::get_col_index(&col, &view.columns).unwrap());
-                select_constraint = Expr::BinaryOp {
-                    left: Box::new(select_constraint),
-                    op: BinaryOperator::Or,
-                    right: Box::new(Expr::BinaryOp{
-                        left: Box::new(Expr::Identifier(helpers::string_to_idents(&col))),
-                        op: BinaryOperator::Eq,
-                        right: Box::new(Expr::Value(uid_val.clone())),
-                    }),             
-                };
-            }            
-
-            let rptrs_to_update = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
-            for rptr in &rptrs_to_update {
-                for ci in &cis {
-                    if rptr.row().borrow()[*ci].to_string() == uid_val.to_string() {
-                        assert!(gid_index < gid_values.len());
-                        let val = &gid_values[gid_index].borrow()[0];
-                        warn!("UNSUB: updating {:?} with {}", rptr, val);
-
-                        view.update_index_and_row(rptr.row().clone(), *ci, Some(&val));
-                        gid_index += 1;
+                            view.update_index_and_row(rptr.row().clone(), *ci, Some(&val));
+                            gid_index += 1;
+                        }
                     }
                 }
             }
+            warn!("gid_index is {}, gid_values has len {}", gid_index, gid_values.len());
+            assert!(gid_index == gid_values.len());  
+
+            // for all edges to the parent entity that need to reach a particular sensitivity
+            // threshold, either generate new children (if possible), or remove the children
+            // TODO remove all dependencies
         }
-        warn!("gid_index is {}, gid_values has len {}", gid_index, gid_values.len());
-        assert!(gid_index == gid_values.len());  */
-        ghosts_map::answer_rows(writer, &gids)
+
+        // TODO deal with edges going *from* visited children
+        ghosts_map::answer_rows(writer, &eid2gids)
     }
 
     /* 
@@ -1383,12 +1430,12 @@ impl QueryTransformer {
     pub fn resubscribe(&mut self, uid: u64, gids: &Vec<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         // TODO check auth token?
 
-        if !self.ghosts_map.resubscribe(uid, gids, db)? {
+        /*if !self.ghosts_map.resubscribe(uid, gids, db)? {
             warn!("Resubscribing {} failed", uid);
             return Ok(());
         }
 
-        let user_table_name = helpers::string_to_objname(&self.entity_type_to_decorrelate);
+        let user_table_name = helpers::string_to_objname(&self.decor_config.entity_type_to_decorrelate);
         let uid_val = Value::Number(uid.to_string());
 
         let gid_exprs : Vec<Expr> = gids
@@ -1436,7 +1483,7 @@ impl QueryTransformer {
         });
         warn!("resub: {}", insert_uid_as_user_stmt.to_string());
         db.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
-        self.cur_stat.nqueries+=1;
+        self.cur_stat.nqueries+=1;*/
         
         /* 
          * 3. update assignments in MV to use UID again

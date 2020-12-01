@@ -79,9 +79,6 @@ impl Shim {
      * Must be issued after select_db statement is issued.
      * */
     fn create_schema(&mut self) -> Result<(), mysql::Error> {
-        /* create ghost metadata table with boolean cols for each user id */
-        ghosts_map::create_ghosts_table(&mut self.db, self.test_params.in_memory)?;
-       
         /* issue schema statements */
         let mut stmt = String::new();
         for line in self.schema.lines() {
