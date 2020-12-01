@@ -103,6 +103,42 @@ entities, and which correlations must be kept for application correctness.
 \subsection{Specifying Decorrelation Policies}
 \lyt{FIGURE HERE} 
 
+\begin{figure}
+\begin{lstlisting}[language=Rust]
+ pub enum GeneratePolicy {
+     Random,
+     Default,
+     Custom<F>(f: F) // where F: FnMut(Column) -> Column,
+     ForeignKey, 
+ }
+ pub enum GhostColumnPolicy {
+     CloneAll,
+     CloneOne(gp: GeneratePolicy),
+     Generate(gp: GeneratePolicy),
+ }
+ pub type GhostPolicy = 
+    HashMap<Column, GhostColumnPolicy>;
+ pub type EntityGhostPolicies = 
+    HashMap<Entity, GhostPolicy>;
+
+pub enum DecorrelationPolicy {
+     NoDecorRemove,
+     NoDecorRetain,
+     Decor,
+ }
+ pub struct KeyRelationship {
+     child: Entity,
+     parent: Entity,
+     column_name: String,
+     sensitivity: Option<f64>,
+     decorrelation_policy: DecorrelationPolicy,
+ }
+ pub type ApplicationPolicy = 
+    (EntityGhostPolicies, Vec<KeyRelationship>);
+\end{lstlisting}
+    \caption{\sys{}-provided types to specify key relationships and ghost generation policies.}
+\end{figure}
+
 Application data is structured as tables, each representing a different \emph{table entity} type,
 e.g.,\ stories, users, or votes. Table columns act as foreign keys to other table entities, or as
 abstract keys that refer to abstract non-table entities (e.g.,\ a \texttt{thread\_id} comments column). 
@@ -118,10 +154,10 @@ The developer provides a three-part specification to \sys{}:
     \item Ghost entity generation policies on entity types, and
     \item Decorrelation policies for foreign/abstract key relationships specifying if and how
         instances of these edge types should be decorrelated.
-    \item Sensitivity thresholds for foreign/abstract key relationships, which specify the maximum
+    \item Sensitivity thresholds for foreign/abstract key relationships specifying the maximum
         proportion of edge instances of a relationship type that may connect to sensitive
-        entities, namely entities transitively connected to the initial entity being decorrelated.
-        
+        entities (i.e.,\ entities transitively connected to the initial entity being
+        decorrelated). 
 \end{enumerate}
 
 Given this specification and an entity to be decorrelated as input, \sys{} acts as follows:
@@ -218,59 +254,25 @@ Resubscription (and recorrelation) removes any created ghost entities and restor
 back to the original parent key instance.
 
 \lyt{There could also be an option here of "decorrelate the minimum amount possible to reach a
-certain diversity threshold"; not sure if it's really that useful.}
+certain sensitivity threshold"; not sure if it's useful at all if the edges can simply be
+decorrelated.}
 
 \subsubsection{Sensitivity Threshold Policies}
 At a high level, the sensitivity threshold for a particular edge type is the developer's estimate
 how much identifying information may leak from edge instances of that type.
+\lyt{TODO: examples? (Or more intuition on why sensitivity thresholds are important?)}
 
 Note that if the generated ghosts are easily distinguished from actual entities, there is
 little privacy benefit from this option.
 
-As an example, a reasonable sensitivity threshold might be 0.05 for stories-tag key relationships:
+For example, a reasonable sensitivity threshold might be 0.05 for stories-tag key relationships:
 less than 5\% of all stories with a specific tag key should have been associated with an
 (unsubscribed) user. 
 
-\begin{figure}[t!]
-    \caption{Examples of different decorrelation policies. (a) full
-    decorrelation; (b) only direct user decorrelation; (c) decorrelation of stories clustered around tags with threshold 0.25}
-\end{figure}
-
-\begin{figure}
-\begin{lstlisting}[language=Rust]
- pub enum GeneratePolicy {
-     Random,
-     Default,
-     Custom<F>(f: F) // where F: FnMut(Column) -> Column,
-     ForeignKey, 
- }
- pub enum GhostColumnPolicy {
-     CloneAll,
-     CloneOne(gp: GeneratePolicy),
-     Generate(gp: GeneratePolicy),
- }
- pub type GhostPolicy = 
-    HashMap<Column, GhostColumnPolicy>;
- pub type EntityGhostPolicies = 
-    HashMap<Entity, GhostPolicy>;
-
-pub enum DecorrelationPolicy {
-     NoDecorRemove,
-     NoDecorRetain,
-     Decor,
- }
- pub struct KeyRelationship {
-     child: Entity,
-     parent: Entity,
-     column_name: String,
-     sensitivity: Option<f64>,
-     decorrelation_policy: DecorrelationPolicy,
- }
- pub type ApplicationPolicy = 
-    (EntityGhostPolicies, Vec<KeyRelationship>);
-\end{lstlisting}
-    \caption{\sys{}-provided types to specify cluster and ghost generation policies.}
-\end{figure}
+%\begin{figure}[t!]
+    %\caption{Examples of different decorrelation policies. (a) full
+    %decorrelation; (b) only direct user decorrelation; (c) decorrelation of stories clustered around tags with threshold 0.25}
+%\end{figure}
 
 %\paragraph{Example policy.}
 %We can imagine an application tin which only the sum of votes per story is ever queried by the application; clusters of
