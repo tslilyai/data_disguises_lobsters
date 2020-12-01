@@ -209,14 +209,14 @@ Developers select from the following subpolicy options:
         relationship. This option should only be selected if the developer knows that the
         relationship cannot leak identifying information.
 
-    \item \textbf{Achieve specified sensitivity threshold}:
+    \item \textbf{Achieve sensitivity threshold $0 \le \sigma \le 1$}:
         A sensitivity threshold for an foreign/abstract key relationships specifies the maximum
         proportion of edge instances of a relationship type that may connect to \emph{sensitive}
         entities (i.e.,\ entities transitively correlated to the initial entity being decorrelated). 
 
         At a high level, the sensitivity threshold for a particular edge type estimates how much identifying
         information may leak from edge instances of that type.  For any given edge type, developers can
-        determine the appropriate sensitivity threshold by approximating how much identifying information
+        determine an appropriate sensitivity threshold by approximating how much identifying information
         may be leaked if edges of this type with the same parent key \emph{all} correlate (even indirectly)
         back to the entity being decorrelated. In other words, what happens if all children of edges of this
         type (with the same parent) are sensitive?
@@ -231,7 +231,7 @@ Developers select from the following subpolicy options:
         For many cases, the answer may lie somewhere in the middle: it is problematic if \emph{all} of
         children of edge of this type are sensitive, but perhaps it is acceptable if only a fraction of
         children of this edge type are sensitive. The maximum value for this fraction is the sensitivity threshold.
-        For example, a reasonable sensitivity threshold might be 0.1 for stories-tag key relationships:
+        For example, a reasonable sensitivity threshold might be $\sigma = 0.1$ for stories-tag key relationships:
         less than 10\% of all stories with a specific tag key should have been correlated (even
         indirectly) with an (unsubscribed) user. 
 
@@ -245,23 +245,29 @@ Developers select from the following subpolicy options:
         sensitive children and their dependencies until the threshold is met.  Upon recorrelation,
         however, these entities cannot be restored.
 
-        If the sensitivity threshold is 0, then this corresponds to removing all edges of this type
-        with sensitive children; if the sensitivity threshold is 1, \sys{} does
-        nothing (this is equivalent to a Retain policy).
+        If $\sigma = 0$, then this corresponds to removing all edges of this type
+        with sensitive children (equivalent to a Delete policy); if $\sigma = 1$, \sys{} does
+        nothing (equivalent to a Retain policy).
     \end{itemize}
 
 \subsubsection{\sys{}'s Execution Algorithm}
 Given this specification and an entity to be decorrelated as input, \sys{} acts as follows:
 \begin{enumerate}
-    \item \textbf{Traversal:} \sys{} traverses the entity graph starting from the input entity,
+    \item \textbf{Parent-Child Traversal:} \sys{} traverses the entity graph starting from the input entity,
         going down parent to child edges (and halting if it detects a cycle).  As it traverses,
         \sys{} collects the edges it has traversed. 
-    \item \textbf{Decorrelation:} Post-traversal, \sys{} acts on each edge instance according to the specified decorrelation
-        relationship policy for that edge's type; if no policy is specified, \sys{} does nothing. If edges can be
-        decorrelated, \sys{} generates ghost parent entities and new edges between 
-        child and ghost parent entities using the appropriate ghost entity 
-        generation policy.
-    \item \textbf{Sensitivity Check:} Next, \sys{} takes the children of all traversed edge
+    \item \textbf{Parent-Child Decorrelation:} Post-traversal, \sys{} acts on each edge instance
+        according to the specified decorrelation relationship policy for that edge's type: if no
+        policy is specified, \sys{} does nothing. If edges can be decorrelated, \sys{} generates
+        ghost parent entities and new edges between child and ghost parent entities using the
+        appropriate ghost entity generation policy. If edges cannot be decorrelated and should be
+        retained or deleted, \sys{} does nothing or removes the edge respectively. 
+    
+        If there is a sensitivity threshold for the edge's type, \sys{} ensures the
+        sensitivity of the edge is below $t$'s threshold, providing the edge type and the edge's
+        parent key to the procedure described in Section~\ref{sensitivity_algo}. 
+
+    \item \textbf{Child-Parent Decorrelation:} Next, \sys{} takes the children of all traversed edge
         instances, and considers the set of edges from these children to other parents
         \emph{not} traversed by \sys{} during the decorrelation phase. (In other words, these
         children entities have multiple key relationships to several parent entities, one of
@@ -271,36 +277,38 @@ Given this specification and an entity to be decorrelated as input, \sys{} acts 
         entity being decorrelated. Edges \emph{from} these children to other parent entities may
         thus leak sensitive identifying information. 
 
-        If these edges have a ``decorrelate'' policy, \sys{} generates ghost parent entities for
-        each sensitive child. 
+        \sys{} acts on these edges according to the specified decorrelation relationship policy for
+        each edge's type. If these edges can be decorrelated, \sys{} generates ghost parent entities
+        for each sensitive child.  If these edges cannot be decorrelated and should be retained or
+        deleted, \sys{} does nothing or removes the edge respectively. 
 
-        If these edges have a ``do not decorrelate--delete'' policy, \sys{} removes the children and
-        corresponding edges.
-
-        Otherwise, \sys{} checks if there is a sensitivity threshold for the edge type, which
-        limits the proportion of edges of that type that connect to sensitive entities, namely the
-        children of traversed edge instances. 
-        For each distinct edge type $t$ in this set of edges, \sys{} ensures the
-        sensitivity of $t$ is below its specified sensitivity threshold as follows. 
-
-        Let $E_t$ be the subset of
-        edges of type $t$ from traversed children to parents not seen by \sys{}. For each parent key $k$ of
-        edges in $E_t$:
-    \begin{itemize}
-        \item \sys{} computes $N_{traversed}$ the number of edges in $E_t$ with parent key $k$.
-        \item \sys{} computes $N_{all}$ the number of edges in the entire entity graph of edge
-            type $t$ with parent key $k$.
-        \item \sys{} computes the \emph{sensitivity} of edges of type $t$ with parent key $k$ as $N_{traversed}/N_{all}$.
-    \item If the sensitivity exceeds the specified sensitivity threshold for $t$,
-        and if the child entity type has an associated ghost entity policy, \sys{}
-        generates ghost children and edges of type $t$ from these children to parent
-        key $k$. This lowers the sensitivity by increasing $N_{all}$.
-    \item Otherwise, if the sensitivity exceeds the threshold but ghosts cannot be generated,
-        \sys{} removes the children of edges in $E_t$ with parent key $k$, thus lowering the
-            sensitivity by lowering $N_{traversed}$.
-    \end{itemize}
+        Otherwise, if there is a sensitivity threshold for the edge type, then \sys{} limits the
+        proportion of edges of that type that connect to sensitive entities (the children of
+        traversed edge instances) to below the threshold. 
+        For each edge with type $t$ in this set of edges, \sys{} ensures the
+        sensitivity of the edge is below $t$'s sensitivity threshold, providing the edge type and the edge's
+        parent key to the procedure described in Section~\ref{sensitivity_algo}. 
 \end{enumerate}
 
+\subsubsection{Achieving the Sensitivity Threshold}
+\label{sensitivity_algo}
+Let $E$ be the subset of edges traversed by \sys{} in Step 1 of execution. 
+Given an edge type $t$ with sensitivity threshold $\sigma_t$, and a parent key $k$ of an instance of
+edge type $t$, 
+    \begin{itemize}
+        \item \sys{} computes $N_{sensitive}$, the number of edges of type $t$ with parent key $k$ in the entity graph that share 
+            a child node with edges in $E$.
+        \item \sys{} computes $N_{all}$, the total number of edges of type $t$ with parent key $k$
+            in the entity graph of edge.
+        \item \sys{} computes $N_{sensitive}/N_{all}$, the \emph{sensitivity} of edges of type $t$
+            with parent key $k$.
+        \item If the sensitivity exceeds $\sigma_t$ and the child entity type has an associated ghost entity policy, \sys{}
+            generates ghost children and edges of type $t$ from these children to parent
+            key $k$. This lowers the sensitivity by increasing $N_{all}$.
+        \item Otherwise, if the sensitivity exceeds $\sigma_t$ but ghosts cannot be generated,
+            \sys{} removes the children of edges in $E_t$ with parent key $k$, thus lowering the
+            sensitivity by lowering $N_{sensitive}$.
+    \end{itemize}
 
 %\begin{figure}[t!]
     %\caption{Examples of different decorrelation policies. (a) full
