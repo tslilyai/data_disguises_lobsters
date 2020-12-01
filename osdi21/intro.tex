@@ -108,7 +108,7 @@ entities, and which correlations must be kept for application correctness.
  pub enum GeneratePolicy {
      Random,
      Default,
-     Custom<F>(f: F) // where F: FnMut(Column) -> Column,
+     Custom(FnMut(ColumnValue) -> ColumnValue),
      ForeignKey, 
  }
  pub enum GhostColumnPolicy {
@@ -119,7 +119,7 @@ entities, and which correlations must be kept for application correctness.
  pub type GhostPolicy = 
     HashMap<Column, GhostColumnPolicy>;
  pub type EntityGhostPolicies = 
-    HashMap<Entity, GhostPolicy>;
+    HashMap<EntityName, GhostPolicy>;
 
 pub enum DecorrelationPolicy {
      NoDecorRemove,
@@ -128,8 +128,8 @@ pub enum DecorrelationPolicy {
      Decor,
  }
  pub struct KeyRelationship {
-     child: Entity,
-     parent: Entity,
+     child: EntityName,
+     parent: EntityName,
      column_name: String,
      decorrelation_policy: DecorrelationPolicy,
  }

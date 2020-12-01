@@ -1275,8 +1275,15 @@ impl QueryTransformer {
     pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) -> Result<(), mysql::Error> {
         warn!("Unsubscribing {}", uid);
 
-        let uid_val = Value::Number(uid.to_string());
-        let user_table_name = helpers::string_to_objname(&self.entity_type_to_decorrelate);
+        /*
+         * Starting from the users table, traverse the graph and collect all edge instances
+         * For all 
+         */
+        let mut id_val = Value::Number(uid.to_string());
+        let mut parent_table_name = helpers::string_to_objname(&self.entity_type_to_decorrelate);
+        while(true) {
+
+        }
 
         // check if already unsubscribed
         // get list of ghosts to return otherwise

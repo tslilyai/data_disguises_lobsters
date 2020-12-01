@@ -32,6 +32,12 @@ pub struct KeyRelationship<'a> {
     pub column_name: &'a str,
     pub decorrelation_policy: DecorrelationPolicy,
 }
+#[derive(Clone, Debug)]
+pub struct KeyRelationshipInstance {
+    pub child: u64,
+    pub parent: u64,
+    pub column_name: String,
+}
 pub struct ApplicationPolicy<'a> {
     pub entity_type_to_decorrelate: EntityName<'a>,
     pub ghost_policies: EntityGhostPolicies<'a>, 
