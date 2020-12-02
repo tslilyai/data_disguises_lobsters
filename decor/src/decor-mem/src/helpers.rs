@@ -11,7 +11,7 @@ use log::{debug};
  * Column stuff
  *******************************************/
 pub fn tablecolumn_matches_col(c: &views::TableColumnDef, col: &str) -> bool {
-    debug!("matching {} or {} to {}", c.column.name, c.fullname, col);
+    debug!("matching {} or {} to {}", c.colname, c.fullname, col);
     c.colname == col || c.fullname == col
 }
 

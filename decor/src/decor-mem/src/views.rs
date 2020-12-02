@@ -43,6 +43,9 @@ impl HashedRowPtr {
     pub fn new(row: Rc<RefCell<Row>>, pki: usize) -> Self {
         HashedRowPtr(row.clone(), pki)
     }
+    pub fn new_empty(pki: usize) -> Self {
+        HashedRowPtr(Rc::new(RefCell::new(vec![])), pki)
+    }
 }
 
 pub type HashedRowPtrs = HashSet<HashedRowPtr>;
@@ -78,7 +81,7 @@ impl ViewIndex {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TableColumnDef {
     pub table: String,
     pub colname: String,
@@ -307,7 +310,7 @@ impl View {
     }
 
     pub fn is_indexed_col(&self, col_index: usize) -> bool {
-        col_index == self.primary_index || self.indexes.get(&self.columns[col_index].column.name.to_string()).is_some()
+        col_index == self.primary_index || self.indexes.get(&self.columns[col_index].colname.to_string()).is_some()
     }
 
     pub fn get_indexed_rptrs_of_col(&self, col_index: usize, col_val: &str) -> Option<HashedRowPtrs> {
@@ -323,7 +326,7 @@ impl View {
                 }
             }
             return Some(hs);
-        } else if let Some(index) = self.indexes.get(&self.columns[col_index].column.name.to_string()) {
+        } else if let Some(index) = self.indexes.get(&self.columns[col_index].colname.to_string()) {
             if let Some(rptrs) = index.borrow().get(col_val) {
                 debug!("get rptrs of col: found {} rows for col {} val {}!", rptrs.len(), self.columns[col_index].fullname, col_val);
                 return Some(rptrs.clone());
@@ -347,7 +350,7 @@ impl View {
                     debug!("get rptrs of primary: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
                 }
             }
-        } else if let Some(index) = self.indexes.get(&self.columns[col_index].column.name.to_string()) {
+        } else if let Some(index) = self.indexes.get(&self.columns[col_index].colname.to_string()) {
             if let Some(rptrs) = index.borrow().get(col_val) {
                 debug!("get rptrs of col: found {} rows for col {} val {}!", rptrs.len(), self.columns[col_index].fullname, col_val);
                 all_rptrs.extend(rptrs.clone());
@@ -369,7 +372,7 @@ impl View {
     
     pub fn insert_into_index(&mut self, row: Rc<RefCell<Row>>, col_index: usize) {
         let start = time::Instant::now();
-        if let Some(index) = self.indexes.get_mut(&self.columns[col_index].column.name.to_string()) {
+        if let Some(index) = self.indexes.get_mut(&self.columns[col_index].colname.to_string()) {
             let col_val = row.borrow()[col_index].to_string();
             debug!("INDEX {}: inserting {}) into index", self.columns[col_index].fullname, col_val);
             // insert into the new indexed ris 
@@ -415,7 +418,7 @@ impl View {
             self.rows.borrow_mut().remove(&rptr.borrow()[pk].to_string());
         }
 
-        if let Some(index) = self.indexes.get_mut(&self.columns[col_index].column.name.to_string()) {
+        if let Some(index) = self.indexes.get_mut(&self.columns[col_index].colname.to_string()) {
             let mut index = index.borrow_mut();
             // get the old indexed row_indexes if they existed for this column value
             // remove this row!
