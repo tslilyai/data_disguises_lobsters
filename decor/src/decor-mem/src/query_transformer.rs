@@ -1374,31 +1374,6 @@ impl QueryTransformer {
             // TODO actually generate values according to ghost generation scheme
             self.views.insert(&node.table_name, &vec![Ident::new(ID_COL)], &gid_values)?;
 
-            /*
-             * 3. delete EID from entity MV and entity data table
-             *  TODO only delete if the ghost generation policy says to delete?
-             *  IF THERE ARE OTHER TYPES OF EDGES to different types of children entities,
-             *  we shouldn't delete this entity....
-             *  REMOVE ONLY IF there are no children that refer to this entity any more
-             */
-            /*let eid_col = Expr::Identifier(helpers::string_to_idents(ID_COL));
-            let selection = Some(Expr::BinaryOp{
-                    left: Box::new(eid_col),
-                    op: BinaryOperator::Eq,
-                    right: Box::new(Expr::Value(eid_val.clone())), 
-            });
-            // delete from entity mv  
-            warn!("UNSUB: deleting from {} view {:?}", node.table_name, selection);
-            self.views.delete(&node.table_name, &selection)?;
-
-            let delete_eid_from_table = Statement::Delete(DeleteStatement {
-                table_name: helpers::string_to_objname(&node.table_name),
-                selection: selection.clone(),
-            });
-            warn!("UNSUB: {}", delete_eid_from_table);
-            db.query_drop(format!("{}", delete_eid_from_table.to_string()))?;
-            //assert!(res.affected_rows() == 1);
-            self.cur_stat.nqueries+=1;*/
 
             for (dtname, ghosted_cols) in self.decor_config.ghosted_tables.iter() {
                 let view_ptr = self.views.get_view(dtname).unwrap();
@@ -1510,11 +1485,29 @@ impl QueryTransformer {
          */
 
         /*
-         * Step 4(?) For all entities with no child references, remove? Should we remove the user
-         * entity?
-         * IF NOT CLONE OR CLONE ONE for ID column, we should REMOVE the entity during
-         * decorrelation!
+         * Step 4: remove the top-level user. Note that other entities that may have been blown up
+         * still exist (just all their edges have been removed); if we delete these, we'd have to
+         * somehow restore them upon resubscription? Could return all the data to the user, but
+         * that might be expensive
          */
+        let uid_col = Expr::Identifier(helpers::string_to_idents(ID_COL));
+        let selection = Some(Expr::BinaryOp{
+                left: Box::new(uid_col),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(Value::Number(uid.to_string()))), 
+        });
+        // delete from entity mv  
+        warn!("UNSUB: deleting from {} view {:?}", self.decor_config.entity_type_to_decorrelate, selection);
+        self.views.delete(&self.decor_config.entity_type_to_decorrelate, &selection)?;
+
+        let delete_eid_from_table = Statement::Delete(DeleteStatement {
+            table_name: helpers::string_to_objname(&self.decor_config.entity_type_to_decorrelate),
+            selection: selection.clone(),
+        });
+        warn!("UNSUB: {}", delete_eid_from_table);
+        db.query_drop(format!("{}", delete_eid_from_table.to_string()))?;
+        //assert!(res.affected_rows() == 1);
+        self.cur_stat.nqueries+=1;
 
         ghosts_map::answer_rows(writer, &eid2gids)
     }
@@ -1525,7 +1518,7 @@ impl QueryTransformer {
      * TODO add back deleted content from shard
      * TODO check that user doesn't already exist
      */
-    pub fn resubscribe(&mut self, uid: u64, gids: &Vec<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    pub fn resubscribe(&mut self, uid: u64, gids: &Vec<(String, u64, u64)>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         // TODO check auth token?
 
         /*if !self.ghosts_map.resubscribe(uid, gids, db)? {
