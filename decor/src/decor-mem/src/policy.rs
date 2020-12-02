@@ -43,9 +43,9 @@ pub struct ApplicationPolicy {
 
 pub struct Config {
     pub entity_type_to_decorrelate: String,
-    // table and table columns+type that will be decorrelated (store GIDs)
+    // table and which columns(+parent type) that correspond to ghosts (edges that are decorrelated and store GIDs)
     pub ghosted_tables: HashMap<String, Vec<(String, String)>>,
-    // table and table columns+type for which sensitivity should fall below specified threshold
+    // table and which columns(+parent type) for which sensitivity to this parent should fall below specified threshold
     pub sensitive_tables: HashMap<String, Vec<(String, String, f64)>>,
 }
 
