@@ -109,7 +109,7 @@ impl GhostsMap {
     pub fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn) -> Result<Option<Vec<u64>>, mysql::Error> {
         warn!("{} Unsubscribing {}", self.name, eid);
         if self.unsubscribed.get(&eid).is_none() {
-            self.cache_eid2gids_for_eids(&vec![eid])?;
+            //self.cache_eid2gids_for_eids(&vec![eid])?;
             if let Some(gids) = self.eid2gids.remove(&eid) {
                 // remove gids from reverse mapping
                 for gid in &gids {
@@ -273,7 +273,7 @@ impl GhostsMap {
     pub fn get_gids_for_eid(&mut self, eid: u64) -> 
         Result<Vec<u64>, mysql::Error> 
     {
-        self.cache_eid2gids_for_eids(&vec![eid])?;
+        //self.cache_eid2gids_for_eids(&vec![eid])?;
         let gids = self.eid2gids.get(&eid).ok_or(
                 mysql::Error::IoError(io::Error::new(
                     io::ErrorKind::Other, "get_gids: eid not present in cache?")))?;
@@ -282,7 +282,7 @@ impl GhostsMap {
 
     pub fn get_gids_for_eids(&mut self, eids: &Vec<u64>) -> 
         Result<Vec<(u64, Vec<u64>)>, mysql::Error> {
-        self.cache_eid2gids_for_eids(eids)?;
+        //self.cache_eid2gids_for_eids(eids)?;
         let mut gid_vecs = vec![];
         for eid in eids {
             let gids = self.eid2gids.get(&eid).ok_or(
@@ -297,7 +297,7 @@ impl GhostsMap {
      * Add eid->gid mapping to cache if mapping not yet present
      * by querying the ghosts mapping table
      */
-    pub fn cache_eid2gids_for_eids(&mut self, eids: &Vec<u64>) -> Result<(), mysql::Error>
+    /*pub fn cache_eid2gids_for_eids(&mut self, eids: &Vec<u64>) -> Result<(), mysql::Error>
     {
         let mut uncached_eids = vec![];
         for eid in eids {
@@ -318,12 +318,12 @@ impl GhostsMap {
                 list: uncached_eids.iter().map(|u| Expr::Value(Value::Number(u.to_string()))).collect(),
                 negated: false, 
             };
-        }*/
+        }
         if uncached_eids.len() > 0 {
             unimplemented!("ghosts always should be in cache (as a MV)");
-        }
+        }*/
         Ok(())
-    }
+    }*/
 
     pub fn insert_gid_for_eid(&mut self, eid: u64, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
         // user ids are always ints

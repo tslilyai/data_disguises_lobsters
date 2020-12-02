@@ -67,8 +67,8 @@ pub fn get_ordered_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>,
     }
 
     let dur = start.elapsed();
-    warn!("get ordered rptrs matching preds duration {}us", dur.as_micros());
-    warn!("returning ordered rptrs {:?}", rptrs);
+    debug!("get ordered rptrs matching preds duration {}us", dur.as_micros());
+    debug!("returning ordered rptrs {:?}", rptrs);
     rptrs
 }
 
@@ -127,7 +127,7 @@ pub fn get_ordered_predicated_rptrs(preds: &Vec<IndexedPredicate>, v: &View, ord
 
 pub fn get_ordered_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View, order_by_index: usize) -> BTreeMap<OrderedFloat<f64>, HashedRowPtrs> 
 {
-    warn!("Applying predicates {:?} to all view rows", preds);
+    debug!("Applying predicates {:?} to all view rows", preds);
     let mut btree :BTreeMap<OrderedFloat<f64>, HashedRowPtrs> = BTreeMap::new();
     assert!(!preds.is_empty());
     'rowloop: for (_, rptr) in v.rows.borrow().iter() {
@@ -152,7 +152,7 @@ pub fn get_ordered_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v:
 
 pub fn get_ordered_predicated_rptrs_from_matching(preds: &Vec<&IndexedPredicate>, matching: &HashedRowPtrs, order_by_index: usize) -> BTreeMap<OrderedFloat<f64>, HashedRowPtrs>
 {
-    warn!("Applying predicates {:?} to {} matching rows", preds, matching.len());
+    debug!("Applying predicates {:?} to {} matching rows", preds, matching.len());
     let mut btree :BTreeMap<OrderedFloat<f64>, HashedRowPtrs> = BTreeMap::new();
     assert!(!preds.is_empty());
     'rowloop: for hrp in matching.iter() {

@@ -43,8 +43,8 @@ impl HashedRowPtr {
     pub fn new(row: Rc<RefCell<Row>>, pki: usize) -> Self {
         HashedRowPtr(row.clone(), pki)
     }
-    pub fn new_empty(pki: usize) -> Self {
-        HashedRowPtr(Rc::new(RefCell::new(vec![])), pki)
+    pub fn new_empty(size: usize, pki: usize) -> Self {
+        HashedRowPtr(Rc::new(RefCell::new(vec![Value::Null; size])), pki)
     }
 }
 
@@ -667,7 +667,6 @@ impl Views {
                 }
                 _ => {
                     let assign_vals_fn = select::get_value_for_row_closure(&assign_vals[assign_index], &view.columns);
-                    //let innerstart = time::Instant::now();
                     if let Some(ref rptrs) = rptrs {
                         for rptr in rptrs {
                             let v = assign_vals_fn(&rptr.row().borrow());

@@ -257,6 +257,7 @@ Given this specification and an entity to be decorrelated as input, \sys{} acts 
     \item \textbf{Parent-Child Traversal:} \sys{} traverses the entity graph starting from the input entity,
         going down parent to child edges (and halting if it detects a cycle).  As it traverses,
         \sys{} collects the edges it has traversed. 
+    
     \item \textbf{Parent-Child Decorrelation:} Post-traversal, \sys{} acts on each edge instance
         according to the specified decorrelation relationship policy for that edge's type: if no
         policy is specified, \sys{} does nothing. If edges can be decorrelated, \sys{} generates
@@ -282,6 +283,11 @@ Given this specification and an entity to be decorrelated as input, \sys{} acts 
         each edge's type. If these edges can be decorrelated, \sys{} generates ghost parent entities
         for each sensitive child.  If these edges cannot be decorrelated and should be retained or
         deleted, \sys{} does nothing or removes the child and edge respectively. 
+        
+        \lyt{Note: edge policies should take account the \emph{direction} of the edge
+        (whether we're considering sensitive child->parent, or sensitive parent->child). We need
+        this to allow policies that decorrelate a message from one unsubscribing user while still retaining the correlation
+        to another subscribed user.}
 
         Otherwise, if there is a sensitivity threshold for the edge type, then \sys{} limits the
         proportion of edges of that type that connect to sensitive entities (the children of
