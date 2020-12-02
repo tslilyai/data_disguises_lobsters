@@ -1,8 +1,7 @@
-use crate::views;
+use crate::{policy, views};
 use crate::ghosts_map::GHOST_ID_START;
 use sql_parser::ast::{Expr, Ident, ObjectName, DataType, UnaryOperator, Value};
 use std::*;
-use std::collections::HashMap;
 use std::cmp::Ordering;
 use std::str::FromStr;
 use rand;
@@ -92,11 +91,19 @@ pub fn expr_to_col(e: &Expr) -> (String, String) {
 /*******************************************
  * Schema/MySql datatable stuff
  *******************************************/
-pub fn get_ghosted_cols_of_datatable(ghost_tables: &HashMap<String, Vec<(String, String)>>, table_name: &ObjectName) -> Vec<(String, String)> {
-    if let Some(colnames) = ghost_tables.get(&table_name.to_string()) {
-        return colnames.clone();
+pub fn contains_ghosted_columns(decor_config: &policy::Config, table_name: &str) -> bool {
+    decor_config.parent_child_ghosted_tables.contains_key(table_name)
+    || decor_config.child_parent_ghosted_tables.contains_key(table_name)
+}
+
+pub fn get_ghosted_cols_of_datatable(decor_config: &policy::Config, table_name: &ObjectName) -> Vec<(String, String)> {
+    let mut c = vec![];
+    if let Some(colnames) = decor_config.parent_child_ghosted_tables.get(&table_name.to_string()) {
+        c.append(&mut colnames.clone());
+    } else if let Some(colnames) = decor_config.child_parent_ghosted_tables.get(&table_name.to_string()) {
+        c.append(&mut colnames.clone());
     }
-    vec![]
+    c
 }
 
 pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
@@ -287,8 +294,8 @@ pub fn get_default_parser_val_with(base_val: &Value, val: &str) -> Value {
 
 pub fn get_random_parser_val_from(val: &Value) -> Value {
     match val {
-        Value::Number(_i) => Value::Number(rand::random::<u64>().to_string()),
-        Value::String(_i) => Value::String(rand::random::<u64>().to_string()),
+        Value::Number(_i) => Value::Number(rand::random::<u32>().to_string()),
+        Value::String(_i) => Value::String(rand::random::<u32>().to_string()),
         Value::Null => Value::Number(rand::random::<u64>().to_string()),
         _ => unimplemented!("value not supported ! {}", val),
     }

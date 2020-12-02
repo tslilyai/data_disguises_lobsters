@@ -25,7 +25,7 @@ use mysql::prelude::*;
 use std::*;
 use std::collections::HashMap;
 use log::warn;
-use decor_mem::policy::{KeyRelationship, GhostColumnPolicy, GeneratePolicy, DecorrelationPolicy::Decor, ApplicationPolicy};
+use decor_mem::policy::{KeyRelationship, GhostColumnPolicy, GeneratePolicy, DecorrelationPolicy::{Decor, NoDecorRetain}, ApplicationPolicy};
 
 const SCHEMA : &'static str = include_str!("./schema.sql");
 const GHOST_ID_START : u64 = 1<<20;
@@ -75,19 +75,22 @@ fn init_policy() -> ApplicationPolicy {
                 child: "moderations".to_string(),
                 parent: "users".to_string(),
                 column_name: "user_id".to_string(),
-                decorrelation_policy: Decor,
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "moderations".to_string(),
                 parent: "users".to_string(),
                 column_name: "moderator_user_id".to_string(),
-                decorrelation_policy: Decor,
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "stories".to_string(),
                 parent: "users".to_string(),
                 column_name: "user_id".to_string(),
-                decorrelation_policy: Decor,
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
             }
         ]
     }
@@ -375,12 +378,15 @@ fn test_users() {
     let res = db.query_iter(format!("UNSUBSCRIBE UID {};", 1)).unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 1);
-        let gid = format!("{}", mysql_val_to_parser_val(&vals[0]));
-        results.push(gid);
+        assert_eq!(vals.len(), 3);
+        let name = format!("{}", mysql_val_to_parser_val(&vals[0]));
+        let eid = format!("{}", mysql_val_to_parser_val(&vals[1]));
+        let gid = format!("{}", mysql_val_to_parser_val(&vals[2]));
+        results.push((name, eid, gid));
     }
     assert_eq!(results.len(), 2);
-    assert_eq!((results[0].clone(), results[1].clone()), (format!("'{}'", GHOST_ID_START), format!("'{}'", GHOST_ID_START+3)));
+    assert_eq!(results[0], ("'users'".to_string(), format!("'{}'", 1), format!("'{}'", GHOST_ID_START)));
+    assert_eq!(results[1], ("'users'".to_string(), format!("'{}'", 1), format!("'{}'", GHOST_ID_START+3)));
 
     let mut results = vec![];
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.user_id;").unwrap();

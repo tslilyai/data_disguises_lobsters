@@ -11,6 +11,8 @@ use crypto::sha3::Sha3;
 use msql_srv::{QueryResultWriter};
 
 pub const GHOST_ID_START : u64 = 1<<20;
+pub const GHOST_ID_MAX: u64 = 1<<25;
+
 // the ghosts table contains ALL ghost identifiers which map from any entity to its ghosts
 // this assumes that all entities have an integer identifying key
 const GHOST_ENTITY_COL : &'static str = "entity_id";

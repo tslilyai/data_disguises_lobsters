@@ -892,7 +892,7 @@ impl QueryTransformer {
              those as the values instead for those columns.
             This will be empty if the table is not a table with ghost columns
          */
-        let ghost_cols = helpers::get_ghosted_cols_of_datatable(&self.decor_config.ghosted_tables, &stmt.table_name);
+        let ghost_cols = helpers::get_ghosted_cols_of_datatable(&self.decor_config, &stmt.table_name);
         let mut ghost_col_indices = vec![];
         // get indices of columns corresponding to ghosted vals
         if !ghost_cols.is_empty() {
@@ -967,7 +967,7 @@ impl QueryTransformer {
         -> Result<(), mysql::Error> 
     {
         let start = time::Instant::now();
-        let ghosted_cols = helpers::get_ghosted_cols_of_datatable(&self.decor_config.ghosted_tables, &stmt.table_name);
+        let ghosted_cols = helpers::get_ghosted_cols_of_datatable(&self.decor_config, &stmt.table_name);
         let mut ghosted_col_assigns = vec![];
         let mut ghosted_col_selectitems_assn = vec![];
         let mut qt_assn = vec![];
@@ -1073,7 +1073,7 @@ impl QueryTransformer {
     fn issue_delete_datatable_stmt(&mut self, stmt: DeleteStatement, db: &mut mysql::Conn)
         -> Result<(), mysql::Error> 
     {        
-        let ghosted_cols = helpers::get_ghosted_cols_of_datatable(&self.decor_config.ghosted_tables, &stmt.table_name);
+        let ghosted_cols = helpers::get_ghosted_cols_of_datatable(&self.decor_config, &stmt.table_name);
         let qt_selection = self.selection_to_datatable_selection(&stmt.selection, &stmt.table_name, &ghosted_cols)?;
 
         let ghosted_col_selectitems = ghosted_cols.iter()
@@ -1148,7 +1148,7 @@ impl QueryTransformer {
                 columns, 
                 source,
             }) => {
-                let writing_gids = self.decor_config.ghosted_tables.contains_key(&table_name.to_string());
+                let writing_gids = helpers::contains_ghosted_columns(&self.decor_config, &table_name.to_string());
                 
                 // update sources to only be values (note: we don't actually need to do this for tables that
                 // are never either ghosted or contain ghost column keys)
@@ -1187,7 +1187,7 @@ impl QueryTransformer {
                 selection,
             }) => {
                 let start = time::Instant::now();
-                let writing_gids = self.decor_config.ghosted_tables.contains_key(&table_name.to_string());
+                let writing_gids = helpers::contains_ghosted_columns(&self.decor_config, &table_name.to_string());
 
                 let mut assign_vals = vec![];
                 let mut contains_ghosted_col_id = false;
@@ -1222,7 +1222,7 @@ impl QueryTransformer {
                 table_name,
                 selection,
             }) => {
-                let writing_gids = self.decor_config.ghosted_tables.contains_key(&table_name.to_string());
+                let writing_gids = helpers::contains_ghosted_columns(&self.decor_config, &table_name.to_string());
                 if writing_gids {
                     self.issue_delete_datatable_stmt(DeleteStatement{
                         table_name: table_name.clone(), 
@@ -1386,7 +1386,7 @@ impl QueryTransformer {
                     /*
                      * 3. Collect children nodes from the MV, update them to use the GID instead of the EID
                      */
-                    for (dtname, ghosted_cols) in self.decor_config.ghosted_tables.iter() {
+                    for (dtname, ghosted_cols) in self.decor_config.parent_child_ghosted_tables.iter() {
                         let view_ptr = self.views.get_view(dtname).unwrap();
                         let mut select_constraint = Expr::Value(Value::Boolean(false));
                         let mut cis = vec![];
@@ -1443,7 +1443,7 @@ impl QueryTransformer {
             }
 
             // ********************  SENSITIVE EDGES OF EID ************************ //
-            for (dtname, sensitive_cols) in self.decor_config.sensitive_tables.iter() {
+            for (dtname, sensitive_cols) in self.decor_config.parent_child_sensitive_tables.iter() {
                 let view_ptr = self.views.get_view(dtname).unwrap();
                 let mut select_constraint = Expr::Value(Value::Boolean(false));
                 let mut matching_sensitive_cols = vec![];
@@ -1540,10 +1540,10 @@ impl QueryTransformer {
         for (table_name, table_children) in tables_to_children.iter() {
             let mut ghosted_cols_and_types : Vec<(String, String)> = vec![];
             let mut sensitive_cols_and_types: Vec<(String, String, f64)> = vec![];
-            if let Some(gcts) = self.decor_config.ghosted_tables.get(table_name) {
+            if let Some(gcts) = self.decor_config.child_parent_ghosted_tables.get(table_name) {
                 ghosted_cols_and_types = gcts.clone();
             }
-            if let Some(scts) = self.decor_config.sensitive_tables.get(table_name) {
+            if let Some(scts) = self.decor_config.child_parent_sensitive_tables.get(table_name) {
                 sensitive_cols_and_types = scts.clone();
             }
             
@@ -1625,7 +1625,7 @@ impl QueryTransformer {
                         } else {
                             let mut gids = vec![];
                             for _i in 0..needed {
-                                gids.push(Value::Number(self.rng.gen_range(ghosts_map::GHOST_ID_START, u64::MAX).to_string()));
+                                gids.push(Value::Number(self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX).to_string()));
                             }
                             // TODO could choose a random child as the poster child 
                             warn!("Achieve child parent sensitivity: generating values for gids {:?}", gids);
@@ -1679,7 +1679,7 @@ impl QueryTransformer {
         // generate ghosts until the threshold is met
         let mut gids = vec![];
         for _i in 0..needed {
-            gids.push(Value::Number(self.rng.gen_range(ghosts_map::GHOST_ID_START, u64::MAX).to_string()));
+            gids.push(Value::Number(self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX).to_string()));
         }
         warn!("Achieve parent child sensitivity: generating values for gids {:?}", gids);
         self.generate_new_entities_from(
@@ -1790,6 +1790,7 @@ impl QueryTransformer {
 
             // otherwise, just follow policy
             let clone_val = &from_vals.borrow()[i];
+            warn!("Generating value using {:?} for {}", policies[i], col);
             match &policies[i] {
                 CloneAll => {
                     for n in 0..num_entities {
@@ -1855,7 +1856,7 @@ impl QueryTransformer {
         // assumes there is at least once value here...
         let random_row = viewptr.borrow().rows.borrow().iter().next().unwrap().1.clone();
         // TODO generate random ghost 
-        let gid = self.rng.gen_range(ghosts_map::GHOST_ID_START, u64::MAX);
+        let gid = self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX);
         let gidval= Value::Number(gid.to_string());
         warn!("Generating foreign key entity for {} {:?}", table_name, random_row);
         self.generate_new_entities_from(
