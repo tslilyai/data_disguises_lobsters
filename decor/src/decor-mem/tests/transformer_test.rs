@@ -23,9 +23,9 @@ extern crate log;
 
 use mysql::prelude::*;
 use std::*;
-use std::collections::HashMap;
+use std::collections::{HashMap,HashSet};
 use log::warn;
-use decor_mem::policy::{KeyRelationship, GhostColumnPolicy, GeneratePolicy, DecorrelationPolicy::{Decor, NoDecorRetain}, ApplicationPolicy};
+use decor_mem::policy::{KeyRelationship, GhostColumnPolicy, GeneratePolicy, DecorrelationPolicy::{Decor, NoDecorSensitivity, NoDecorRetain}, ApplicationPolicy};
 
 const SCHEMA : &'static str = include_str!("./schema.sql");
 const GHOST_ID_START : u64 = 1<<20;
@@ -61,12 +61,28 @@ fn init_logger() {
 
 fn init_policy() -> ApplicationPolicy {
     let mut ghost_policies = HashMap::new();
+    
     let mut users_map = HashMap::new();
     users_map.insert("id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
     users_map.insert("username".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
     users_map.insert("karma".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
     ghost_policies.insert("users".to_string(), users_map);
-    
+
+    let mut mods_map = HashMap::new();
+    mods_map.insert("id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
+    mods_map.insert("moderator_user_id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::ForeignKey("users".to_string())));
+    mods_map.insert("story_id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::ForeignKey("stories".to_string())));
+    mods_map.insert("user_id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::ForeignKey("users".to_string())));
+    mods_map.insert("action".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("text".to_string())));
+    ghost_policies.insert("moderations".to_string(), mods_map);
+   
+    let mut stories_map = HashMap::new();
+    stories_map.insert("id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
+    stories_map.insert("user_id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::ForeignKey("users".to_string())));
+    stories_map.insert("url".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("google.com".to_string())));
+    stories_map.insert("is_moderated".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("0".to_string())));
+    ghost_policies.insert("stories".to_string(), stories_map);
+
     ApplicationPolicy{
         entity_type_to_decorrelate: "users".to_string(),
         ghost_policies: ghost_policies, 
@@ -76,14 +92,14 @@ fn init_policy() -> ApplicationPolicy {
                 parent: "users".to_string(),
                 column_name: "user_id".to_string(),
                 parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                child_parent_decorrelation_policy: NoDecorSensitivity(0.4),
             },
             KeyRelationship{
                 child: "moderations".to_string(),
                 parent: "users".to_string(),
                 column_name: "moderator_user_id".to_string(),
                 parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                child_parent_decorrelation_policy: NoDecorSensitivity(0.4),
             },
             KeyRelationship{
                 child: "stories".to_string(),
@@ -375,6 +391,8 @@ fn test_users() {
      *  moderation entries
      */
     let mut results = vec![];
+    let mut user_counts = 0;
+    let mut story_counts = 0;
     let res = db.query_iter(format!("UNSUBSCRIBE UID {};", 1)).unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
@@ -382,13 +400,23 @@ fn test_users() {
         let name = format!("{}", mysql_val_to_parser_val(&vals[0]));
         let eid = format!("{}", mysql_val_to_parser_val(&vals[1]));
         let gid = format!("{}", mysql_val_to_parser_val(&vals[2]));
+        if name == "'users'" {
+            user_counts += 1;
+        } else if name == "'stories'" {
+            story_counts += 1;
+        } else {
+            assert!(false, "bad story! {}", name);
+        }
         results.push((name, eid, gid));
     }
-    assert_eq!(results.len(), 2);
+    warn!("Unsubscribe user 1: {:?}", results);
+    assert_eq!(results.len(), 14);
     assert_eq!(results[0], ("'users'".to_string(), format!("'{}'", 1), format!("'{}'", GHOST_ID_START)));
     assert_eq!(results[1], ("'users'".to_string(), format!("'{}'", 1), format!("'{}'", GHOST_ID_START+3)));
+    assert_eq!(user_counts, 10);
+    assert_eq!(story_counts, 4);
 
-    let mut results = vec![];
+    let mut results = HashSet::new();
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.user_id;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
@@ -398,31 +426,36 @@ fn test_users() {
         let story_id = format!("{}", mysql_val_to_parser_val(&vals[2]));
         let user_id = format!("{}", mysql_val_to_parser_val(&vals[3]));
         let action = format!("{}", mysql_val_to_parser_val(&vals[4]));
-        results.push((id, mod_id, story_id, user_id, action));
+        results.insert((id, mod_id, story_id, user_id, action));
     }
-    assert_eq!(results.len(), 2);
+    assert_eq!(results.len(), 6);
     warn!("results: {:?}", results);
-    assert!(((results[1] == ("'2'".to_string(), 
-                            "'2'".to_string(), 
-                            "'0'".to_string(), 
-                            format!("'{}'", GHOST_ID_START+3), 
-                            "'worst story!'".to_string()))
-            && (results[0] == ("'1'".to_string(), 
-                            format!("'{}'", GHOST_ID_START), 
-                            "'0'".to_string(), 
-                            "'2'".to_string(), 
-                            "'bad story!'".to_string())))
-        || ((results[1] == ("'2'".to_string(), 
-                            "'2'".to_string(), 
-                            "'0'".to_string(), 
-                            format!("'{}'", GHOST_ID_START), 
-                            "'worst story!'".to_string()))
-            && (results[0] == ("'1'".to_string(), 
-                            format!("'{}'", GHOST_ID_START+3), 
-                            "'0'".to_string(), 
-                            "'2'".to_string(), 
-                            "'bad story!'".to_string()))));
-
+    assert!(
+        results.contains(
+            &("'2'".to_string(), 
+            "'2'".to_string(), 
+            "'0'".to_string(), 
+            format!("'{}'", GHOST_ID_START+3), 
+            "'worst story!'".to_string()))
+        || results.contains(
+            &("'2'".to_string(), 
+            "'2'".to_string(), 
+            "'0'".to_string(), 
+            format!("'{}'", GHOST_ID_START), 
+            "'worst story!'".to_string()))); 
+    assert!(
+        results.contains(
+            &("'1'".to_string(), 
+            format!("'{}'", GHOST_ID_START), 
+            "'0'".to_string(), 
+            "'2'".to_string(), 
+            "'bad story!'".to_string()))
+        || results.contains(
+            &("'1'".to_string(), 
+            format!("'{}'", GHOST_ID_START+3), 
+            "'0'".to_string(), 
+            "'2'".to_string(), 
+            "'bad story!'".to_string())));
 
     // users modified appropriately: ghosts added to users 
     let mut results = vec![];
@@ -433,7 +466,7 @@ fn test_users() {
         let uid = format!("{}", mysql_val_to_parser_val(&vals[0]));
         results.push(uid);
     }
-    assert_eq!(results.len(), 3);
+    assert_eq!(results.len(), 11);
     assert_eq!(results[0], format!("'{}'", 2));
     assert_eq!(results[1], format!("'{}'", GHOST_ID_START));
     assert_eq!(results[2], format!("'{}'", GHOST_ID_START+3));

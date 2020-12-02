@@ -287,7 +287,7 @@ pub fn get_default_parser_val_with(base_val: &Value, val: &str) -> Value {
     match base_val {
         Value::Number(_i) => Value::Number(val.to_string()),
         Value::String(_i) => Value::String(val.to_string()),
-        Value::Null => Value::Number(val.to_string()),
+        Value::Null => Value::String(val.to_string()),
         _ => unimplemented!("value not supported ! {}", base_val),
     }
 }

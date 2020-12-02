@@ -1557,7 +1557,7 @@ impl QueryTransformer {
                 for child in table_children {
                     // if parent is not the from_parent (which could be a ghost!),
                     // generate a new parent and point the child to that parent
-                    if child.from_col_index != ci {
+                    if !helpers::is_ghost_eid(&child.vals.row().borrow()[ci]) {
                         warn!("Generating foreign key entity for {}", parent_table);
                         let newgid = self.generate_foreign_key_value(db, generated_eid_gids, &parent_table)?;
                         child.vals.row().borrow_mut()[ci] = newgid;
@@ -1585,60 +1585,60 @@ impl QueryTransformer {
                 let ci = poster_child.columns.iter().position(|c| col == c.to_string()).unwrap();
                 
                 // don't re-add parents that were traversed...
-                if poster_child.from_col_index != ci {
-                    let mut parent_eid_counts : HashMap<u64, usize> = HashMap::new();
-                    let viewptr = self.views.get_view(&poster_child.table_name).unwrap();
-                    let view = viewptr.borrow();
-                    
-                    // group all table children by EID
-                    for child in table_children {
-                        if removed.contains(*child) {
-                            continue;
-                        }
-                        let parent_eid = helpers::parser_val_to_u64(&child.vals.row().borrow()[ci]);
+                let mut parent_eid_counts : HashMap<u64, usize> = HashMap::new();
+                let viewptr = self.views.get_view(&poster_child.table_name).unwrap();
+                
+                // group all table children by EID
+                for child in table_children {
+                    if removed.contains(*child) {
+                        continue;
+                    }
+                    let parent_eid_val = &child.vals.row().borrow()[ci];
+                    if !helpers::is_ghost_eid(parent_eid_val) {
+                        let parent_eid = helpers::parser_val_to_u64(parent_eid_val);
                         if let Some(count) = parent_eid_counts.get_mut(&parent_eid) {
                             *count += 1;
                         } else {
                             parent_eid_counts.insert(parent_eid, 1);
                         }
                     }
+                }
 
-                    for (parent_eid, sensitive_count) in parent_eid_counts.iter() {
-                        // get all children of this type with the same parent entity eid
-                        let parent_val = Value::Number(parent_eid.to_string());
-                        let constraint = Expr::BinaryOp {
-                            left: Box::new(Expr::Identifier(vec![Ident::new(col.to_string())])),
-                            op: BinaryOperator::Eq, 
-                            right: Box::new(Expr::Value(parent_val.clone())),
-                        };
-                        // calculate how many total children are connected to this parent
-                        // if above sensitivity threshold, generate enough ghosts
-                        let total_count = select::get_rptrs_matching_constraint(&constraint, &view, &view.columns).len();
-                        let needed = (total_count as f64 * sensitivity).ceil() as i64 - *sensitive_count as i64;
+                for (parent_eid, sensitive_count) in parent_eid_counts.iter() {
+                    // get all children of this type with the same parent entity eid
+                    let parent_val = Value::Number(parent_eid.to_string());
+                    let constraint = Expr::BinaryOp {
+                        left: Box::new(Expr::Identifier(vec![Ident::new(col.to_string())])),
+                        op: BinaryOperator::Eq, 
+                        right: Box::new(Expr::Value(parent_val.clone())),
+                    };
+                    // calculate how many total children are connected to this parent
+                    // if above sensitivity threshold, generate enough ghosts
+                    let total_count = select::get_rptrs_matching_constraint(&constraint, &viewptr.borrow(), &viewptr.borrow().columns).len();
+                    warn!("Found {} total and {} sensitive children of type {} with parent {}", total_count, sensitive_count, poster_child.table_name, parent_eid);
+                    let needed = (*sensitive_count as f64 / sensitivity).ceil() as i64 - total_count as i64;
 
-                        if needed > 0 && self.ghost_policies.get(&poster_child.table_name).is_none() {
-                            // no ghost generation policy for this table; remove as many children as needed :-\
-                            for i in 0..needed {
-                                warn!("Unsub parent-child Removing {:?}", table_children[i as usize]);
-                                removed.extend(self.recursive_remove(&table_children[i as usize], children, db)?);
-                            }
-                        } else {
-                            let mut gids = vec![];
-                            for _i in 0..needed {
-                                gids.push(Value::Number(self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX).to_string()));
-                            }
-                            // TODO could choose a random child as the poster child 
-                            warn!("Achieve child parent sensitivity: generating values for gids {:?}", gids);
-                            self.generate_new_entities_from(
-                                db, 
-                                generated_eid_gids,
-                                &poster_child.table_name,
-                                &poster_child.columns, 
-                                poster_child.vals.row().clone(), 
-                                &gids,
-                                Some((ci, parent_val)))?;
+                    if needed > 0 && self.ghost_policies.get(&poster_child.table_name).is_none() {
+                        // no ghost generation policy for this table; remove as many children as needed :-\
+                        for i in 0..needed {
+                            warn!("Unsub parent-child Removing {:?}", table_children[i as usize]);
+                            removed.extend(self.recursive_remove(&table_children[i as usize], children, db)?);
                         }
-                        // TODO we need to generate new entities that all point to the same parent
+                    } else if needed > 0 {
+                        let mut gids = vec![];
+                        for _i in 0..needed {
+                            gids.push(Value::Number(self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX).to_string()));
+                        }
+                        // TODO could choose a random child as the poster child 
+                        warn!("Achieve child parent sensitivity: generating values for gids {:?}", gids);
+                        self.generate_new_entities_from(
+                            db, 
+                            generated_eid_gids,
+                            &poster_child.table_name,
+                            &poster_child.columns, 
+                            poster_child.vals.row().clone(), 
+                            &gids,
+                            Some((ci, parent_val)))?;
                     }
                 }
             }
@@ -1675,21 +1675,24 @@ impl QueryTransformer {
                 removed.insert(desc.clone());
             } 
         }
+        warn!("Found {} total and {} sensitive children of type {} with parent {}", count, count, child.table_name, parent_val);
         let needed = (count as f64 / child.sensitivity.0).ceil() as usize - count;
-        // generate ghosts until the threshold is met
-        let mut gids = vec![];
-        for _i in 0..needed {
-            gids.push(Value::Number(self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX).to_string()));
+        if needed > 0 {
+            // generate ghosts until the threshold is met
+            let mut gids = vec![];
+            for _i in 0..needed {
+                gids.push(Value::Number(self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX).to_string()));
+            }
+            warn!("Achieve parent child sensitivity: generating values for gids {:?}", gids);
+            self.generate_new_entities_from(
+                db, 
+                generated_eid_gids,
+                &child.table_name,
+                &child.columns, 
+                child.vals.row().clone(), 
+                &gids,
+                Some((child.from_col_index, parent_val.clone())))?;
         }
-        warn!("Achieve parent child sensitivity: generating values for gids {:?}", gids);
-        self.generate_new_entities_from(
-            db, 
-            generated_eid_gids,
-            &child.table_name,
-            &child.columns, 
-            child.vals.row().clone(), 
-            &gids,
-            Some((child.from_col_index, parent_val.clone())))?;
         Ok(removed)
     }
 
@@ -1761,6 +1764,8 @@ impl QueryTransformer {
         use policy::GhostColumnPolicy::*;
         warn!("Generate new entity from {} with vals {:?}, eids {:?}, set colval {:?}", from_table, from_vals, eids, set_colval);
 
+        // NOTE : generating entities with foreign keys must also have ways to generate foreign key
+        // entity
         let gp = self.ghost_policies.get(from_table).unwrap();
         let policies : Vec<policy::GhostColumnPolicy> = from_cols.iter().map(|col| gp.get(&col.to_string()).unwrap().clone()).collect();
         let num_entities = eids.len();
@@ -1852,9 +1857,15 @@ impl QueryTransformer {
         -> Result<Value, mysql::Error> 
     {
         let viewptr = self.views.get_view(table_name).unwrap();
-        let viewcols = viewptr.borrow().columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect();
+        let viewcols : Vec<Ident> = viewptr.borrow().columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect();
+        
         // assumes there is at least once value here...
-        let random_row = viewptr.borrow().rows.borrow().iter().next().unwrap().1.clone();
+        let random_row : RowPtr;
+        if viewptr.borrow().rows.borrow().len() > 0 {
+            random_row = viewptr.borrow().rows.borrow().iter().next().unwrap().1.clone();
+        } else {
+            random_row = Rc::new(RefCell::new(vec![Value::Null;viewcols.len()]));
+        }
         // TODO generate random ghost 
         let gid = self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX);
         let gidval= Value::Number(gid.to_string());
