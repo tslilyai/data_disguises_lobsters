@@ -18,6 +18,7 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 sql-parser = { path = "../sql-parser" }
 regex = "1"
+rand = "0.6.5"
 ordered-float = "2.0"
 
 [dev-dependencies]

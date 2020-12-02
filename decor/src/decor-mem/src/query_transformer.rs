@@ -1,7 +1,7 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use crate::{select, helpers, ghosts_map, policy, stats, views, ID_COL};
-use crate::views::{TableColumnDef, Views, Row, RowPtrs, HashedRowPtr};
+use crate::views::{TableColumnDef, Views, Row, RowPtrs, HashedRowPtr, RowPtr};
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -1327,7 +1327,7 @@ impl QueryTransformer {
         warn!("Unsubscribing {}", uid);
 
         // table name of entity, eid, gids for eid
-        let mut eid2gids : Vec<(String, u64, Vec<u64>)> = vec![];
+        let mut generated_eid_gids: Vec<(String, Option<u64>, u64)> = vec![];
         let mut seen_children : HashSet<TraversedEntity> = HashSet::new();
         let mut children_to_traverse: Vec<TraversedEntity> = vec![];
         let view_ptr = self.views.get_view(&self.decor_config.entity_type_to_decorrelate).unwrap();
@@ -1369,20 +1369,23 @@ impl QueryTransformer {
                     gids = ghosts;
                 }
             }
-            eid2gids.push((node.table_name.clone(), node.eid, gids));
+            for gid in gids {
+                generated_eid_gids.push((node.table_name.clone(), Some(node.eid), gid));
+            }
 
             /* 
              * 2. update the corresponding MV to have an entry for all the GIDs
              */
             warn!("UNSUB: inserting into {} view {:?}", node.table_name, gid_values);
             // TODO actually generate values according to ghost generation scheme
-            let gp = self.ghost_policies.get(&node.table_name).unwrap();
-            let cols = vec![];
-            let new_rowptrs = policy::generate_new_entities_from(&gp, &node.columns, &node.vals, gid_values.len(), Some(&gid_values));
-                // TODO set gid appropriately?
-                // TODO actually insert these users / etc. into the underlying data table
-            // INSERT in batch
-            self.views.insert(&node.table_name, &cols, &new_rowptrs)?;
+            let cols = node.columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect();
+            self.generate_new_entities_from(
+                db, 
+                &mut generated_eid_gids,
+                &node.table_name,
+                &cols, 
+                node.vals.row().clone(), 
+                &gid_values)?;
 
             /*
              * 3. Collect children nodes from the MV, update them to use the GID instead of the EID
@@ -1506,7 +1509,7 @@ impl QueryTransformer {
             } else if child.sensitivity.0 < 1.0 { 
                 // how many other children of this type came from this parent?
                 // do we need to add children?
-                removed.extend(self.achieve_parent_child_sensitivity(child, &seen_children, db)?);
+                removed.extend(self.achieve_parent_child_sensitivity(child, &seen_children, &mut generated_eid_gids, db)?);
             }
         }
 
@@ -1518,12 +1521,13 @@ impl QueryTransformer {
          */
         let children_other_parents = 0;
 
-        ghosts_map::answer_rows(writer, &eid2gids)
+        ghosts_map::answer_rows(writer, &generated_eid_gids)
     }
 
     pub fn achieve_parent_child_sensitivity(&mut self, 
         child: &TraversedEntity, 
         descendants: &HashSet<TraversedEntity>, 
+        generated_eid_gids: &mut Vec<(String, Option<u64>, u64)>,  
         db: &mut mysql::Conn) 
         -> Result<HashSet<TraversedEntity>, mysql::Error> 
     {
@@ -1606,6 +1610,103 @@ impl QueryTransformer {
 
         Ok(seen_children)
     }
+
+    pub fn generate_new_entities_from(
+        &mut self,
+        db: &mut mysql::Conn,
+        generated_eid_gids: &mut Vec<(String, Option<u64>, u64)>,
+        from_table: &str,
+        from_cols: &Vec<Ident>,
+        from_vals: RowPtr, 
+        eids: &Vec<Value>) 
+        -> Result<(), mysql::Error>
+    {
+        use policy::GhostColumnPolicy::*;
+
+        let gp = self.ghost_policies.get(from_table).unwrap();
+        let policies : Vec<policy::GhostColumnPolicy> = from_cols.iter().map(|col| gp.get(&col.to_string()).unwrap().clone()).collect();
+        let num_entities = eids.len();
+        let new_vals : RowPtrs = vec![
+            Rc::new(RefCell::new(vec![Value::Null; from_cols.len()])); 
+            num_entities
+        ];
+        for (i, col) in from_cols.iter().enumerate() {
+            let colname = col.to_string();
+            // put in ID if specified
+            if colname == ID_COL {
+                for n in 0..num_entities {
+                    new_vals[n].borrow_mut()[i] = eids[i].clone();
+                }
+                continue;            
+            }
+
+            // otherwise, just follow policy
+            let clone_val = &from_vals.borrow()[i];
+            match &policies[i] {
+                CloneAll => {
+                    for n in 0..num_entities {
+                        new_vals[n].borrow_mut()[i] = clone_val.clone();
+                    }
+                }
+                CloneOne(gen) => {
+                    // clone the value for the first row
+                    new_vals[0].borrow_mut()[i] = from_vals.borrow()[i].clone();
+                    for n in 1..num_entities {
+                        new_vals[n].borrow_mut()[i] = self.get_generated_val(db, generated_eid_gids, &gen, clone_val)?;
+                    }
+                }
+                Generate(gen) => {
+                    for n in 0..num_entities {
+                        new_vals[n].borrow_mut()[i] = self.get_generated_val(db, generated_eid_gids, &gen, clone_val)?;
+                    }
+                }
+            }
+        }
+        self.views.insert(from_table, from_cols, &new_vals)?;
+        // TODO actually insert these users / etc. into the underlying data table
+        Ok(())
+    }
+
+    fn get_generated_val(
+        &mut self,
+        db: &mut mysql::Conn,
+        generated_eid_gids: &mut Vec<(String, Option<u64>, u64)>,
+        gen: &policy::GeneratePolicy, 
+        base_val: &Value) 
+    -> Result<Value, mysql::Error> {
+        use policy::GeneratePolicy::*;
+        match gen {
+            Random => Ok(helpers::get_random_parser_val_from(&base_val)),
+            Default(val) => Ok(helpers::get_default_parser_val_with(&base_val, &val)),
+            //Custom(f) => helpers::get_computed_parser_val_with(&base_val, &f),
+            ForeignKey(table_name) => {
+                // generate new entities for this table...
+                // recursively call generate_new_entities_with?
+                if let Some(view) = self.views.get_view(&table_name) {
+                    let view = view.borrow();
+                    let viewcols = view.columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect();
+                    // assumes there is at least once value here...
+                    let viewrows = view.rows.borrow();
+                    let random_row = viewrows.iter().next().unwrap().1.clone();
+                    // TODO insert ghost 
+                    let gid = 0;
+                    let gidval= Value::Number(gid.to_string());
+                    self.generate_new_entities_from(
+                        db, 
+                        generated_eid_gids,
+                        &table_name,
+                        &viewcols,
+                        random_row,
+                        &vec![gidval.clone()],
+                    )?;
+                    generated_eid_gids.push((table_name.to_string(), None, gid));
+                    return Ok(gidval);
+                }
+                unimplemented!("Bad table");
+            }
+        }
+    }
+
 
     /* 
      * Set all user_ids in the ghosts table to specified user 

@@ -4,6 +4,7 @@ use std::*;
 use std::collections::HashMap;
 use std::cmp::Ordering;
 use std::str::FromStr;
+use rand;
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 use log::{debug};
 
@@ -259,6 +260,30 @@ pub fn plus_parser_vals(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value
 
 pub fn minus_parser_vals(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> sql_parser::ast::Value {
     Value::Number((parser_val_to_f64(v1) - parser_val_to_f64(v2)).to_string())
+}
+
+pub fn get_computed_parser_val_with(base_val: &Value, f: &Box<dyn Fn(&str) -> String>) -> Value {
+    match base_val {
+        Value::Number(i) => Value::Number(f(i)),
+        Value::String(i) => Value::String(f(i)),
+        _ => unimplemented!("value not supported ! {}", base_val),
+    }
+}
+
+pub fn get_default_parser_val_with(base_val: &Value, val: &str) -> Value {
+    match base_val {
+        Value::Number(_i) => Value::Number(val.to_string()),
+        Value::String(_i) => Value::String(val.to_string()),
+        _ => unimplemented!("value not supported ! {}", base_val),
+    }
+}
+
+pub fn get_random_parser_val_from(val: &Value) -> Value {
+    match val {
+        Value::Number(_i) => Value::Number(rand::random::<u64>().to_string()),
+        Value::String(_i) => Value::String(rand::random::<u64>().to_string()),
+        _ => unimplemented!("value not supported ! {}", val),
+    }
 }
 
 pub fn parser_val_to_f64(val: &sql_parser::ast::Value) -> f64 {

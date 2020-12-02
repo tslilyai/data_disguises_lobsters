@@ -1,19 +1,17 @@
 use std::*;
 use std::collections::HashMap;
-use crate::views::{RowPtrs, HashedRowPtr, TableColumnDef};
-use sql_parser::ast::Value;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 pub type ColumnName = String; // column name
 pub type EntityName = String; // table name, or foreign key
 
+#[derive(Clone, Debug, PartialEq)]
 pub enum GeneratePolicy {
     Random,
     Default(String),
-    Custom(Box<dyn Fn(String) -> String>), // column value -> column value
-    ForeignKey,
+    //Custom(Box<dyn Fn(&str) -> String>), // column value -> column value
+    ForeignKey(EntityName),
 }
+#[derive(Clone, Debug, PartialEq)]
 pub enum GhostColumnPolicy {
     CloneAll,
     CloneOne(GeneratePolicy),
@@ -21,36 +19,6 @@ pub enum GhostColumnPolicy {
 }
 pub type GhostPolicy = HashMap<ColumnName, GhostColumnPolicy>;
 pub type EntityGhostPolicies = HashMap<EntityName, GhostPolicy>;
-
-pub fn generate_new_entities_from(
-    gp: &GhostPolicy,
-    from_cols: &Vec<TableColumnDef>,
-    from_vals: &HashedRowPtr, 
-    num_entities: usize, 
-    with_eids: Option<&Vec<Value>>) 
-    -> RowPtrs 
-{
-    use GhostColumnPolicy::*;
-    let mut new_vals : RowPtrs = vec![
-        Rc::new(RefCell::new(vec![Value::Null; from_cols.len()])); 
-        num_entities
-    ];
-    for (i, col) in from_cols.iter().enumerate() {
-        let col_policy = gp.get(&col.colname).unwrap();
-        match col_policy {
-            CloneAll => {
-
-            }
-            CloneOne(gen) => {
-
-            }
-            Generate(gen) => {
-
-            }
-        }
-    } 
-    new_vals
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum DecorrelationPolicy {
