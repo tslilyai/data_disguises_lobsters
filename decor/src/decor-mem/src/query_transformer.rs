@@ -1390,7 +1390,8 @@ impl QueryTransformer {
                 &node.table_name,
                 &node.columns, 
                 node.vals.row().clone(), 
-                &gid_values)?;
+                &gid_values,
+                None)?;
 
             /*
              * 3. Collect children nodes from the MV, update them to use the GID instead of the EID
@@ -1532,87 +1533,116 @@ impl QueryTransformer {
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
-        // map from (child table, column containing parent name, parent eid) -> children + sensitivity of these edges
-        let mut sensitive_edges : HashMap<(String, String, u64), (Vec<TraversedEntity>, f64)> = HashMap::new();
         // for every parent edge from each seen child
+        let mut tables_to_children : HashMap<String, Vec<&TraversedEntity>> = HashMap::new();
         for child in children.iter() {
+            if let Some(cs) = tables_to_children.get_mut(&child.table_name) {
+                cs.push(child);
+            } else {
+                tables_to_children.insert(child.table_name.clone(), vec![child]);
+            }
+        }
+        
+        for (table_name, table_children) in tables_to_children.iter() {
             let mut ghosted_cols_and_types : Vec<(String, String)> = vec![];
             let mut sensitive_cols_and_types: Vec<(String, String, f64)> = vec![];
-            if let Some(gcts) = self.decor_config.ghosted_tables.get(&child.table_name) {
+            if let Some(gcts) = self.decor_config.ghosted_tables.get(table_name) {
                 ghosted_cols_and_types = gcts.clone();
             }
-            if let Some(scts) = self.decor_config.sensitive_tables.get(&child.table_name) {
+            if let Some(scts) = self.decor_config.sensitive_tables.get(table_name) {
                 sensitive_cols_and_types = scts.clone();
             }
-            // decorrelate this edge 
+            
+            let poster_child = table_children[0];
+            let columns = &poster_child.columns;
+            
+            // this table type has ghosted columns! decorrelate the edges of the children
+            // if they have not yet been decorrelated
             for (col, parent_table) in ghosted_cols_and_types {
-                let ci = child.columns.iter().position(|c| col == c.to_string()).unwrap();
-                // if parent is not the from parent (which could be a ghost!),
-                // generate a new parent and point the child to that parent
-                if child.from_col_index != ci {
-                    let newgid = self.generate_foreign_key_value(db, generated_eid_gids, &parent_table)?;
-                    child.vals.row().borrow_mut()[ci] = newgid;
+                let ci = columns.iter().position(|c| col == c.to_string()).unwrap();
+                for child in table_children {
+                    // if parent is not the from_parent (which could be a ghost!),
+                    // generate a new parent and point the child to that parent
+                    if child.from_col_index != ci {
+                        let newgid = self.generate_foreign_key_value(db, generated_eid_gids, &parent_table)?;
+                        child.vals.row().borrow_mut()[ci] = newgid;
+                    }
                 }
             }
-            // sensitive edges, just collect for now
+
+            let mut removed = HashSet::new();
+            // this table has sensitive parents! deal with accordingly
             for (col, _parent_table, sensitivity) in sensitive_cols_and_types {
                 if sensitivity == 0.0 {
                     // if sensitivity is 0, remove the child :-\
-                    self.recursive_remove(child, children, db)?;
+                    for child in table_children {
+                        if !removed.contains(*child) {
+                            removed.extend(self.recursive_remove(child, children, db)?);
+                        }
+                    }
                 }
                 if sensitivity == 1.0 {
                     // if sensitivity is 1, we don't need to do anything
                     continue
                 } 
                 // otherwise, collect all edges to measure sensitivity 
-                let ci = child.columns.iter().position(|c| col == c.to_string()).unwrap();
+                let ci = poster_child.columns.iter().position(|c| col == c.to_string()).unwrap();
+                
                 // don't re-add parents that were traversed...
-                if child.from_col_index != ci {
-                    // get all children with the same parent entity eid
-                    let parent_eid = helpers::parser_val_to_u64(&child.vals.row().borrow()[ci]);
-                    let key = (child.table_name.clone(), col.to_string(), parent_eid);
-                    if let Some(sc) = sensitive_edges.get_mut(&key)  {
-                        sc.0.push(child.clone());
-                    } else {
-                        sensitive_edges.insert(key, (vec![child.clone()], sensitivity));
+                if poster_child.from_col_index != ci {
+                    let mut parent_eid_counts : HashMap<u64, usize> = HashMap::new();
+                    let viewptr = self.views.get_view(&poster_child.table_name).unwrap();
+                    let view = viewptr.borrow();
+                    
+                    // group all table children by EID
+                    for child in table_children {
+                        if removed.contains(*child) {
+                            continue;
+                        }
+                        let parent_eid = helpers::parser_val_to_u64(&child.vals.row().borrow()[ci]);
+                        if let Some(count) = parent_eid_counts.get_mut(&parent_eid) {
+                            *count += 1;
+                        } else {
+                            parent_eid_counts.insert(parent_eid, 1);
+                        }
+                    }
+
+                    for (parent_eid, sensitive_count) in parent_eid_counts.iter() {
+                        // get all children of this type with the same parent entity eid
+                        let parent_val = Value::Number(parent_eid.to_string());
+                        let constraint = Expr::BinaryOp {
+                            left: Box::new(Expr::Identifier(vec![Ident::new(col.to_string())])),
+                            op: BinaryOperator::Eq, 
+                            right: Box::new(Expr::Value(parent_val.clone())),
+                        };
+                        // calculate how many total children are connected to this parent
+                        // if above sensitivity threshold, generate enough ghosts
+                        let total_count = select::get_rptrs_matching_constraint(&constraint, &view, &view.columns).len();
+                        let needed = (total_count as f64 * sensitivity).ceil() as i64 - *sensitive_count as i64;
+
+                        if needed > 0 && self.ghost_policies.get(&poster_child.table_name).is_none() {
+                            // no ghost generation policy for this table; remove as many children as needed :-\
+                            for i in 0..needed {
+                                removed.extend(self.recursive_remove(&table_children[i as usize], children, db)?);
+                            }
+                        } else {
+                            let mut gids = vec![];
+                            for _i in 0..needed {
+                                gids.push(Value::Number(self.rng.gen_range(ghosts_map::GHOST_ID_START, u64::MAX).to_string()));
+                            }
+                            // TODO could choose a random child as the poster child 
+                            self.generate_new_entities_from(
+                                db, 
+                                generated_eid_gids,
+                                &poster_child.table_name,
+                                &poster_child.columns, 
+                                poster_child.vals.row().clone(), 
+                                &gids,
+                                Some((ci, parent_val)))?;
+                        }
+                        // TODO we need to generate new entities that all point to the same parent
                     }
                 }
-            }
-        }
-
-        for ((child_table, column_name, parent_eid), (sensitive_children, threshold)) in sensitive_edges.iter() {
-            let viewptr = self.views.get_view(child_table).unwrap();
-            let view = viewptr.borrow();
-            let constraint = Expr::BinaryOp {
-                left: Box::new(Expr::Identifier(vec![Ident::new(column_name)])),
-                op: BinaryOperator::Eq, 
-                right: Box::new(Expr::Value(Value::Number(parent_eid.to_string()))),
-            };
-            // calculate how many total children are connected to this parent
-            // if above sensitivity threshold, generate enough ghosts
-            let total_children = select::get_rptrs_matching_constraint(&constraint, &view, &view.columns).len();
-            let needed = (total_children as f64 * threshold).ceil() as i64 - sensitive_children.len() as i64;
-            
-            if needed > 0 && self.ghost_policies.get(child_table).is_none() {
-                // no ghost generation policy for this table; remove as many children as needed :-\
-                // XXX this could potentially delete children twice, if a child has more than one
-                // parent edge and is flagged as sensitive twice
-                for i in 0..needed {
-                    self.recursive_remove(&sensitive_children[i as usize], children, db)?;
-                }
-            } else {
-                let mut gids = vec![];
-                for _i in 0..needed {
-                    gids.push(Value::Number(self.rng.gen_range(ghosts_map::GHOST_ID_START, u64::MAX).to_string()));
-                }
-                // TODO could choose a random child here
-                self.generate_new_entities_from(
-                    db, 
-                    generated_eid_gids,
-                    &child_table,
-                    &sensitive_children[0].columns, 
-                    sensitive_children[0].vals.row().clone(), 
-                    &gids)?;
             }
         }
         Ok(())
@@ -1634,12 +1664,13 @@ impl QueryTransformer {
         let mut removed = HashSet::new();
         // count the number of entities with the same parent
         let mut count = 0;
+        let parent_val = &child.vals.row().borrow()[child.from_col_index];
         for desc in descendants.iter() {
             // check if it's the same type of edge
             // note that this will count child too...
             if desc.table_name == child.table_name
                 && desc.from_table == child.from_table 
-                && desc.vals.row().borrow()[desc.from_col_index] == child.vals.row().borrow()[child.from_col_index]
+                && desc.vals.row().borrow()[desc.from_col_index] == *parent_val
             {
                 count += 1;
                 removed.insert(desc.clone());
@@ -1657,7 +1688,8 @@ impl QueryTransformer {
             &child.table_name,
             &child.columns, 
             child.vals.row().clone(), 
-            &gids)?;
+            &gids,
+            Some((child.from_col_index, parent_val.clone())))?;
         Ok(removed)
     }
 
@@ -1721,7 +1753,9 @@ impl QueryTransformer {
         from_table: &str,
         from_cols: &Vec<Ident>,
         from_vals: RowPtr, 
-        eids: &Vec<Value>) 
+        eids: &Vec<Value>,
+        set_colval: Option<(usize, Value)>,
+    ) 
         -> Result<(), mysql::Error>
     {
         use policy::GhostColumnPolicy::*;
@@ -1741,6 +1775,16 @@ impl QueryTransformer {
                     new_vals[n].borrow_mut()[i] = eids[i].clone();
                 }
                 continue;            
+            }
+
+            // set colval if specified
+            if let Some((ci, val)) = &set_colval {
+                if i == *ci {
+                    for n in 0..num_entities {
+                        new_vals[n].borrow_mut()[*ci] = val.clone();
+                    } 
+                    continue;
+                }
             }
 
             // otherwise, just follow policy
@@ -1765,6 +1809,7 @@ impl QueryTransformer {
                 }
             }
         }
+    
         warn!("Generated new entities for table {}, eids {:?}, values {:?}", from_table, eids, new_vals);
         // insert new rows into MVs
         self.views.insert(from_table, from_cols, &new_vals)?;
@@ -1820,6 +1865,7 @@ impl QueryTransformer {
             &viewcols,
             random_row,
             &vec![gidval.clone()],
+            None,
         )?;
         generated_eid_gids.push((table_name.to_string(), None, gid));
         Ok(gidval)
