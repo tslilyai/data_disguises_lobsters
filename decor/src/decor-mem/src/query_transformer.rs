@@ -1,3 +1,4 @@
+use rand::prelude::*;
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use crate::{select, helpers, ghosts_map, policy, stats, views, ID_COL};
@@ -30,6 +31,7 @@ pub struct QueryTransformer {
     decor_config: policy::Config,
     ghost_policies: policy::EntityGhostPolicies,
     pub ghost_maps: HashMap<String, ghosts_map::GhostsMap>, // table name to ghost map
+    rng: ThreadRng,
     
     // for tests
     params: super::TestParams,
@@ -45,6 +47,7 @@ impl QueryTransformer {
             decor_config: decor_config,
             ghost_policies: policy.ghost_policies,
             ghost_maps: HashMap::new(),
+            rng: rand::thread_rng(),
             params: params.clone(),
             cur_stat: stats::QueryStat::new(),
             stats: vec![],
@@ -1662,8 +1665,34 @@ impl QueryTransformer {
                 }
             }
         }
+        // insert new rows into MVs
         self.views.insert(from_table, from_cols, &new_vals)?;
-        // TODO actually insert these users / etc. into the underlying data table
+      
+        // insert new rows into actual data tables (do we really need to do this?)
+        let mut parser_rows = vec![];
+        for row in new_vals {
+            let parser_row = row.borrow().iter()
+                .map(|v| Expr::Value(v.clone()))
+                .collect();
+            parser_rows.push(parser_row);
+        }
+        let source = InsertSource::Query(Box::new(Query{
+            ctes: vec![],
+            body: SetExpr::Values(Values(parser_rows)),
+            order_by: vec![],
+            limit: None,
+            fetch: None,
+            offset: None,
+        }));
+        let dt_stmt = Statement::Insert(InsertStatement{
+            table_name: helpers::string_to_objname(from_table),
+            columns : from_cols.clone(),
+            source : source, 
+        });
+        warn!("issue_insert_dt_stmt: {}", dt_stmt);
+        db.query_drop(dt_stmt.to_string())?;
+        self.cur_stat.nqueries+=1;
+
         Ok(())
     }
 
@@ -1688,8 +1717,8 @@ impl QueryTransformer {
                     // assumes there is at least once value here...
                     let viewrows = view.rows.borrow();
                     let random_row = viewrows.iter().next().unwrap().1.clone();
-                    // TODO insert ghost 
-                    let gid = 0;
+                    // TODO generate random ghost 
+                    let gid = self.rng.gen_range(ghosts_map::GHOST_ID_START, u64::MAX);
                     let gidval= Value::Number(gid.to_string());
                     self.generate_new_entities_from(
                         db, 
@@ -1706,7 +1735,6 @@ impl QueryTransformer {
             }
         }
     }
-
 
     /* 
      * Set all user_ids in the ghosts table to specified user 
