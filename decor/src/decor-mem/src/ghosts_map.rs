@@ -39,17 +39,33 @@ pub fn answer_rows<W: io::Write>(
     gids: &Vec<(String, u64, Vec<u64>)>) 
     -> Result<(), mysql::Error> 
 {
-    let cols : Vec<_> = vec![msql_srv::Column {
-        table : "ghosts".to_string(),
-        column : GHOST_ID_COL.to_string(),
-        coltype: msql_srv::ColumnType::MYSQL_TYPE_LONGLONG,
-        colflags: msql_srv::ColumnFlags::empty(),
-    }];
+    let cols : Vec<_> = vec![
+        msql_srv::Column {
+            table : "ghosts".to_string(),
+            column : "entity_type".to_string(),
+            coltype: msql_srv::ColumnType::MYSQL_TYPE_VARCHAR,
+            colflags: msql_srv::ColumnFlags::empty(),
+        },
+        msql_srv::Column {
+            table : "ghosts".to_string(),
+            column : GHOST_ENTITY_COL.to_string(),
+            coltype: msql_srv::ColumnType::MYSQL_TYPE_LONGLONG,
+            colflags: msql_srv::ColumnFlags::empty(),
+        },
+        msql_srv::Column {
+            table : "ghosts".to_string(),
+            column : GHOST_ID_COL.to_string(),
+            coltype: msql_srv::ColumnType::MYSQL_TYPE_LONGLONG,
+            colflags: msql_srv::ColumnFlags::empty(),
+        },
+    ];
     let mut writer = results.start(&cols)?;
     for (entity_type, eid, gids) in gids {
-        // TODO 
-        //writer.write_col(mysql_common::value::Value::UInt(gid))?;
-        assert!(false);
+        for gid in gids {
+            writer.write_col(mysql_common::value::Value::Bytes(entity_type.as_bytes().to_vec()))?;
+            writer.write_col(mysql_common::value::Value::UInt(*eid))?;
+            writer.write_col(mysql_common::value::Value::UInt(*gid))?;
+        }
         writer.end_row()?;
     }
     writer.finish()?;

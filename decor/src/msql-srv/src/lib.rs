@@ -218,7 +218,7 @@ pub trait MysqlShim<W: Write> {
     fn on_resubscribe(
         &mut self,
         uid: u64,
-        gids: Vec<u64>,
+        gids: Vec<(String, u64, u64)>,
         w: QueryResultWriter<'_, W>,
     ) -> Result<(), Self::Error>;
 
@@ -389,18 +389,24 @@ impl<B: MysqlShim<W>, R: Read, W: Write> MysqlIntermediary<B, R, W> {
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
                         self.shim.on_unsubscribe(uid, w)?;
                     } else if q.starts_with(b"RESUBSCRIBE UID ") || q.starts_with(b"resubscribe uid ") {
-                        // RESUBSCRIBE UID uid WITH GIDS (gid1, gid2, ...);
+                        // RESUBSCRIBE UID uid WITH GIDS ((entity_type, eid, gid1), (entity_type,
+                        // eid, gid2), ...);
                         let w = QueryResultWriter::new(&mut self.writer, false);
                         let args = ::std::str::from_utf8(&q[b"RESUBSCRIBE UID ".len()..])
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
                         let args : Vec<&str> = args.split(" WITH GIDS (").collect();
                         assert!(args.len() == 2);
+                        // TODO 
                         let uidstr = args[0].trim().trim_end_matches(';').trim_matches('`');
-                        let gidstrs : Vec<&str> = args[1].trim_end_matches(';').trim_matches(')').split(',').collect();
+                        let gidstrs : Vec<&str> = args[1].trim_end_matches(';').trim_end_matches(')').split("), ").collect();
                         let mut gids = vec![];
                         for gid in &gidstrs {
-                            gids.push(u64::from_str(gid.trim())
-                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?);
+                            let parts : Vec<&str> = gid.trim_end_matches(')').trim_start_matches('(').split(',').collect();
+                            gids.push((
+                                    parts[0].to_string(), 
+                                    u64::from_str(parts[1].trim()).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+                                    u64::from_str(parts[1].trim()).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+                            ));
                         }
                         let uid = u64::from_str(uidstr)
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;

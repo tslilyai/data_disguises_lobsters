@@ -1516,7 +1516,6 @@ impl QueryTransformer {
          * decorrelation!
          */
 
-        // TODO deal with edges going *from* visited children
         ghosts_map::answer_rows(writer, &eid2gids)
     }
 
