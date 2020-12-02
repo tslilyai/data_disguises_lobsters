@@ -32,12 +32,7 @@ pub struct KeyRelationship<'a> {
     pub column_name: &'a str,
     pub decorrelation_policy: DecorrelationPolicy,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TraversedEntity {
-    pub table_name: String,
-    pub id : u64,
-    pub from_parent_col: String,
-}
+
 pub struct ApplicationPolicy<'a> {
     pub entity_type_to_decorrelate: EntityName<'a>,
     pub ghost_policies: EntityGhostPolicies<'a>, 
@@ -46,9 +41,9 @@ pub struct ApplicationPolicy<'a> {
 
 pub struct Config {
     pub entity_type_to_decorrelate: String,
-    // table and table columns that will be decorrelated (store GIDs)
+    // table and table columns+type that will be decorrelated (store GIDs)
     pub ghosted_tables: HashMap<String, Vec<(String, String)>>,
-    // table and table columns for which sensitivity should fall below specified threshold
+    // table and table columns+type for which sensitivity should fall below specified threshold
     pub sensitive_tables: HashMap<String, Vec<(String, String, f64)>>,
 }
 
@@ -81,7 +76,13 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
                     sdts.insert(tablename, vec![(columname, parent, s)]);
                 }        
             }
-            _ => (), // retain doesn't need to be handled
+            DecorrelationPolicy::NoDecorRetain => {
+                if let Some(ghost_cols) = sdts.get_mut(&tablename) {
+                    ghost_cols.push((columname, parent, 1.0));
+                } else {
+                    sdts.insert(tablename, vec![(columname, parent, 1.0)]);
+                }
+            } 
         }
     }
     

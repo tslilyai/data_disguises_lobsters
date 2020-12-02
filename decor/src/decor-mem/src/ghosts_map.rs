@@ -36,7 +36,7 @@ pub fn create_ghosts_table(name: String, db: &mut mysql::Conn, in_memory: bool) 
 
 pub fn answer_rows<W: io::Write>(
     results: QueryResultWriter<W>,
-    gids: &Vec<(u64, Vec<u64>)>) 
+    gids: &Vec<(String, u64, Vec<u64>)>) 
     -> Result<(), mysql::Error> 
 {
     let cols : Vec<_> = vec![msql_srv::Column {
@@ -46,7 +46,7 @@ pub fn answer_rows<W: io::Write>(
         colflags: msql_srv::ColumnFlags::empty(),
     }];
     let mut writer = results.start(&cols)?;
-    for (uid, gids) in gids {
+    for (entity_type, eid, gids) in gids {
         // TODO 
         //writer.write_col(mysql_common::value::Value::UInt(gid))?;
         assert!(false);

@@ -482,8 +482,8 @@ impl Views {
         select::get_query_results(&self.views, query)
     }
  
-    pub fn insert(&mut self, table_name: &ObjectName, columns: &Vec<Ident>, val_rows: &RowPtrs) -> Result<(), Error> {
-        let mut view = self.views.get(&table_name.to_string()).unwrap().borrow_mut();
+    pub fn insert(&mut self, table_name: &str, columns: &Vec<Ident>, val_rows: &RowPtrs) -> Result<(), Error> {
+        let mut view = self.views.get(table_name).unwrap().borrow_mut();
 
         debug!("{}: insert rows {:?} into {}", view.name, val_rows, table_name);
         // initialize the rows to insert
@@ -598,14 +598,14 @@ impl Views {
     }
 
     pub fn update(&mut self, 
-          table_name: &ObjectName, 
+          table_name: &str, 
           assignments: &Vec<Assignment>, 
           selection: &Option<Expr>, 
           assign_vals: &Vec<Expr>) 
         -> Result<(), Error> 
     {
         let start = time::Instant::now();
-        let mut view = self.views.get_mut(&table_name.to_string()).unwrap().borrow_mut();
+        let mut view = self.views.get_mut(table_name).unwrap().borrow_mut();
         debug!("{}: update {:?} with vals {:?}", view.name, assignments, assign_vals);
 
         // if the table has an autoincrement column, we should 
@@ -689,11 +689,11 @@ impl Views {
     }
 
     pub fn delete(&mut self, 
-          table_name: &ObjectName, 
+          table_name: &str, 
           selection: &Option<Expr>)
         -> Result<(), Error> 
     {
-        let mut view = self.views.get(&table_name.to_string()).unwrap().borrow_mut();
+        let mut view = self.views.get(table_name).unwrap().borrow_mut();
 
         let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
         if let Some(s) = selection {

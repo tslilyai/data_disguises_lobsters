@@ -1,6 +1,6 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{select, helpers, ghosts_map, policy, stats, views, policy::TraversedEntity, ID_COL};
+use crate::{select, helpers, ghosts_map, policy, stats, views, ID_COL};
 use crate::views::{TableColumnDef, Views, Row, RowPtrs};
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
@@ -9,6 +9,17 @@ use std::time::Duration;
 use std::*;
 use msql_srv::{QueryResultWriter};
 use log::{debug, warn};
+use ordered_float::*;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct TraversedEntity {
+    pub table_name: String,
+    pub eid : u64,
+    pub vals : Row,
+    pub from_parent_col: String,
+    pub from_parent_eid: u64,
+    pub sensitivity: OrderedFloat<f64>,
+}
 
 pub struct QueryTransformer {
     views: Views,
@@ -1163,7 +1174,7 @@ impl QueryTransformer {
                 }
 
                 // insert into views
-                self.views.insert(&table_name, &columns, &values)?;
+                self.views.insert(&table_name.to_string(), &columns, &values)?;
             }
             Statement::Update(UpdateStatement{
                 table_name,
@@ -1200,7 +1211,7 @@ impl QueryTransformer {
                     warn!("update mysql time issue update not datatable: {}us", dur.as_micros());
                 }
                 // update views
-                self.views.update(&table_name, &assignments, &selection, &assign_vals)?;
+                self.views.update(&table_name.to_string(), &assignments, &selection, &assign_vals)?;
             }
             Statement::Delete(DeleteStatement{
                 table_name,
@@ -1216,7 +1227,7 @@ impl QueryTransformer {
                     db.query_drop(stmt.to_string())?;
                     self.cur_stat.nqueries+=1;
                 }
-                self.views.delete(&table_name, &selection)?;
+                self.views.delete(&table_name.to_string(), &selection)?;
             }
             Statement::CreateTable(CreateTableStatement{
                 name,
@@ -1313,25 +1324,38 @@ impl QueryTransformer {
     {
         warn!("Unsubscribing {}", uid);
 
-        let mut id = uid; 
-        let mut eid_val = Value::Number(uid.to_string());
-        let mut parent_table_name = helpers::string_to_objname(&self.decor_config.entity_type_to_decorrelate);
-        let mut eid2gids : Vec<(u64, Vec<u64>)> = vec![];
-        let mut seen : HashSet<TraversedEntity> = HashSet::new();
-        while(true) {
-            /* 
-             * for all edges to the parent entity that can be decorrelated, 
-             * generate ghost parents and rewrite these edges (only in MVs, since GIDs should
-             * already be stored in the datatables
-             */
+        // table name of entity, eid, gids for eid
+        let mut eid2gids : Vec<(String, u64, Vec<u64>)> = vec![];
+        let mut seen_children : HashSet<TraversedEntity> = HashSet::new();
+        let mut children_to_traverse: Vec<TraversedEntity> = vec![];
+        children_to_traverse.push(TraversedEntity{
+            table_name: self.decor_config.entity_type_to_decorrelate.clone(),
+            eid : uid,
+            vals: vec![],
+            from_parent_col: "".to_string(),
+            from_parent_eid: 0,
+            sensitivity: OrderedFloat(0.0),
+        });
+        let mut node: TraversedEntity;
 
-            // get all ghosts corresponding to this identifier
+         /* 
+          * Step 1: TRAVERSAL + DECORRELATION
+          */
+        while children_to_traverse.len() > 0 {
+            node = children_to_traverse.pop().unwrap();
+            let eid_val = Value::Number(node.eid.to_string());
+            
+            // ********************  DECORRELATED EDGES OF EID ************************ //
+            /*
+             * 1. Get all GIDs corresponding to this EID if this entity has not already been
+             * unsubscribed
+             */
             let gids : Vec<u64>;
             let gid_values : RowPtrs;
             // check if already unsubscribed
             // get list of ghosts to return otherwise
-            let gm = self.ghost_maps.get_mut(&parent_table_name.to_string()).unwrap();
-            match gm.unsubscribe(id, db)? {
+            let gm = self.ghost_maps.get_mut(&node.table_name).unwrap();
+            match gm.unsubscribe(node.eid, db)? {
                 None => {
                     writer.error(msql_srv::ErrorKind::ER_BAD_SLAVE, format!("{:?}", "entity already unsubscribed").as_bytes())?;
                     return Ok(());
@@ -1341,64 +1365,81 @@ impl QueryTransformer {
                     gids = ghosts;
                 }
             }
-            eid2gids.push((id, gids));
+            eid2gids.push((node.table_name.clone(), node.eid, gids));
 
             /* 
-             * 1. update the corresponding MV to have an entry for all the GIDs
+             * 2. update the corresponding MV to have an entry for all the GIDs
              */
-            warn!("UNSUB: inserting into {} view {:?}", parent_table_name, gid_values);
+            warn!("UNSUB: inserting into {} view {:?}", node.table_name, gid_values);
             // TODO actually generate values according to ghost generation scheme
-            self.views.insert(&parent_table_name, &vec![Ident::new(ID_COL)], &gid_values)?;
+            self.views.insert(&node.table_name, &vec![Ident::new(ID_COL)], &gid_values)?;
 
             /*
-             * 2. delete EID from entity MV and entity data table
+             * 3. delete EID from entity MV and entity data table
+             *  TODO only delete if the ghost generation policy says to delete?
+             *  IF THERE ARE OTHER TYPES OF EDGES to different types of children entities,
+             *  we shouldn't delete this entity....
+             *  REMOVE ONLY IF there are no children that refer to this entity any more
              */
-            let eid_col = Expr::Identifier(helpers::string_to_idents(ID_COL));
+            /*let eid_col = Expr::Identifier(helpers::string_to_idents(ID_COL));
             let selection = Some(Expr::BinaryOp{
                     left: Box::new(eid_col),
                     op: BinaryOperator::Eq,
                     right: Box::new(Expr::Value(eid_val.clone())), 
             });
             // delete from entity mv  
-            warn!("UNSUB: deleting from {} view {:?}", parent_table_name, selection);
-            self.views.delete(&parent_table_name, &selection)?;
+            warn!("UNSUB: deleting from {} view {:?}", node.table_name, selection);
+            self.views.delete(&node.table_name, &selection)?;
 
             let delete_eid_from_table = Statement::Delete(DeleteStatement {
-                table_name: parent_table_name.clone(),
+                table_name: helpers::string_to_objname(&node.table_name),
                 selection: selection.clone(),
             });
             warn!("UNSUB: {}", delete_eid_from_table);
             db.query_drop(format!("{}", delete_eid_from_table.to_string()))?;
             //assert!(res.affected_rows() == 1);
-            self.cur_stat.nqueries+=1;
- 
-            /* 
-             * 3. Change all entities with this EID to use the correct GID in the MV
-             */
-            let mut gid_index = 0;
+            self.cur_stat.nqueries+=1;*/
+
             for (dtname, ghosted_cols) in self.decor_config.ghosted_tables.iter() {
-                let dtobjname = helpers::string_to_objname(dtname);
                 let view_ptr = self.views.get_view(dtname).unwrap();
                 let mut view = view_ptr.borrow_mut();
                 let mut select_constraint = Expr::Value(Value::Boolean(false));
                 let mut cis = vec![];
-                for (col, _) in ghosted_cols {
-                    cis.push(helpers::get_col_index(&col, &view.columns).unwrap());
-                    select_constraint = Expr::BinaryOp {
-                        left: Box::new(select_constraint),
-                        op: BinaryOperator::Or,
-                        right: Box::new(Expr::BinaryOp{
-                            left: Box::new(Expr::Identifier(helpers::string_to_idents(&col))),
-                            op: BinaryOperator::Eq,
-                            right: Box::new(Expr::Value(eid_val.clone())),
-                        }),             
-                    };
-                }            
-
+                for (col, parent) in ghosted_cols {
+                    // only check this column if the parent is the node being decorrelated!! 
+                    if parent == &node.table_name {
+                        cis.push(helpers::get_col_index(&col, &view.columns).unwrap());
+                        select_constraint = Expr::BinaryOp {
+                            left: Box::new(select_constraint),
+                            op: BinaryOperator::Or,
+                            right: Box::new(Expr::BinaryOp{
+                                left: Box::new(Expr::Identifier(helpers::string_to_idents(&col))),
+                                op: BinaryOperator::Eq,
+                                right: Box::new(Expr::Value(eid_val.clone())),
+                            }),             
+                        };
+                    }            
+                }
+                let mut gid_index = 0;
                 let rptrs_to_update = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
                 for rptr in &rptrs_to_update {
+                    let row = rptr.row().borrow();
                     for ci in &cis {
-                        if rptr.row().borrow()[*ci].to_string() == eid_val.to_string() {
+                        if row[*ci].to_string() == eid_val.to_string() {
+                            // add child of decorrelated edge to traversal queue 
+                            let child = TraversedEntity {
+                                table_name: dtname.clone(),
+                                eid: helpers::parser_val_to_u64(&row[view.primary_index]),
+                                vals: row.clone(),
+                                from_parent_col: view.columns[*ci].column.name.to_string(),
+                                from_parent_eid: node.eid,
+                                sensitivity: OrderedFloat(1.0),
+                            };
+                            if !seen_children.contains(&child) {
+                                children_to_traverse.push(child);
+                            }
+
+                            // swap out value in MV to be the GID instead of the EID
                             assert!(gid_index < gid_values.len());
                             let val = &gid_values[gid_index].borrow()[0];
                             warn!("UNSUB: updating {:?} with {}", rptr, val);
@@ -1407,15 +1448,73 @@ impl QueryTransformer {
                             gid_index += 1;
                         }
                     }
+                }       
+            }
+
+            // ********************  SENSITIVE EDGES OF EID ************************ //
+            for (dtname, sensitive_cols) in self.decor_config.sensitive_tables.iter() {
+                let view_ptr = self.views.get_view(dtname).unwrap();
+                let view = view_ptr.borrow_mut();
+                let mut select_constraint = Expr::Value(Value::Boolean(false));
+                let mut matching_sensitive_cols = vec![];
+                for (col, parent, sensitivity) in sensitive_cols {
+                    // only check this column if the parent is the node being decorrelated!! 
+                    if parent == &node.table_name {
+                        matching_sensitive_cols.push((helpers::get_col_index(&col, &view.columns).unwrap(), sensitivity));
+                        select_constraint = Expr::BinaryOp {
+                            left: Box::new(select_constraint),
+                            op: BinaryOperator::Or,
+                            right: Box::new(Expr::BinaryOp{
+                                left: Box::new(Expr::Identifier(helpers::string_to_idents(&col))),
+                                op: BinaryOperator::Eq,
+                                right: Box::new(Expr::Value(eid_val.clone())),
+                            }),             
+                        };
+                    }            
+                }
+                let sensitive_children = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
+                for rptr in &sensitive_children {
+                    let row = rptr.row().borrow();
+                    for (ci, sensitivity) in &matching_sensitive_cols {
+                        if row[*ci].to_string() == eid_val.to_string() {
+                            // add child of sensitive edge to traversal queue 
+                            let child = TraversedEntity {
+                                table_name: dtname.clone(),
+                                eid: helpers::parser_val_to_u64(&row[view.primary_index]),
+                                vals: row.clone(),
+                                from_parent_col: view.columns[*ci].column.name.to_string(),
+                                from_parent_eid: node.eid,
+                                sensitivity: OrderedFloat(**sensitivity),
+                            };
+                            if !seen_children.contains(&child) {
+                                children_to_traverse.push(child);
+                            }
+                        }
+                    }
                 }
             }
-            warn!("gid_index is {}, gid_values has len {}", gid_index, gid_values.len());
-            assert!(gid_index == gid_values.len());  
-
-            // for all edges to the parent entity that need to reach a particular sensitivity
-            // threshold, either generate new children (if possible), or remove the children
-            // TODO remove all dependencies
+           
+            // set this node to seen. push all children of this node onto the traversal stack (if they haven't yet been
+            // seen)
+            seen_children.insert(node);
         }
+
+        /* 
+         * Step 2 (cont): for all edges to the parent entity that need to reach a particular sensitivity
+         * threshold, either generate new children (if possible), or remove the children
+         * TODO remove all dependencies
+         */
+
+        /*
+         * Step 3: Child->Parent Decorrelation
+         */
+
+        /*
+         * Step 4(?) For all entities with no child references, remove? Should we remove the user
+         * entity?
+         * IF NOT CLONE OR CLONE ONE for ID column, we should REMOVE the entity during
+         * decorrelation!
+         */
 
         // TODO deal with edges going *from* visited children
         ghosts_map::answer_rows(writer, &eid2gids)
