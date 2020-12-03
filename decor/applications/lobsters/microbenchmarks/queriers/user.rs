@@ -57,25 +57,34 @@ pub fn get_profile(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
     Ok(())
 } 
 
-pub fn unsubscribe_user(user: u64, db: &mut mysql::Conn) -> Vec<(String, String, String)> {
-    let mut results = vec![];
+pub fn unsubscribe_user(user: u64, db: &mut mysql::Conn) -> (GhostMappingShard, EntityDataShard) {
     let res = db.query_iter(format!("UNSUBSCRIBE UID {};", user)).unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 3);
-        let name = format!("{}", helpers::mysql_val_to_parser_val(&vals[0])).trim().trim_matches('\'').to_string();
-        let eid = format!("{}", helpers::mysql_val_to_parser_val(&vals[1])).trim().trim_matches('\'').to_string();
-        let gid = format!("{}", helpers::mysql_val_to_parser_val(&vals[2])).trim().trim_matches('\'').to_string();
-        results.push((name, eid, gid));
+        assert_eq!(vals.len(), 2);
+        let s1 = helpers::mysql_val_to_string(&vals[0]);
+        let s2 = helpers::mysql_val_to_string(&vals[1]);
+        let s1 = s1.trim_end_matches('\'').trim_start_matches('\'');
+        let s2 = s2.trim_end_matches('\'').trim_start_matches('\'');
+        //warn!("Serialized values are {}, {}", s1, s2);
+        return (serde_json::from_str(s1).unwrap(), serde_json::from_str(s2).unwrap())
     }
-    results
+    (vec![], vec![])
 }
 
-pub fn resubscribe_user(user: u64, gids: Vec<(String, String, String)>, db: &mut mysql::Conn) {
+pub fn resubscribe_user(user: u64, data: &(GhostMappingShard, EntityDataShard), db: &mut mysql::Conn) {
     let mut gid_strs = vec![];
-    for (table, eid, gid) in &gids{
-        gid_strs.push(format!("({}, {}, {})", table, eid, gid));
+    for (table, eid, gid) in &data.0{
+        match eid {
+            None => gid_strs.push(format!("({}, {}, {})", table, "NULL", gid)),
+            Some(i) => gid_strs.push(format!("({}, {}, {})", table, i, gid)),
+        }
     }
-    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {};", user, gid_strs.join(", "))).unwrap();
+    let mut data_strs = vec![];
+    for (table, vals) in &data.1{
+        let vals_str = vals.join(",");
+        data_strs.push(format!("({}, {{{}}})", table, vals_str));
+    }
+    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", user, gid_strs.join(", "), data_strs.join(","))).unwrap();
 }
 

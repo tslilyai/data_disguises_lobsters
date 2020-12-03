@@ -263,7 +263,7 @@ fn main() {
         // all autoinc ids start at 1..
         let user = rng.gen_range(1, nusers+1);
         let story= rng.gen_range(0, nstories);
-        if let Some(gids) = unsubbed_users.remove(&user) {
+        if let Some(gids) = &unsubbed_users.remove(&user) {
             nresub += 1;
             if test == TestType::TestDecor {
                 queriers::user::resubscribe_user(user, gids, &mut db);
@@ -290,7 +290,7 @@ fn main() {
                     unsubbed_users.insert(user, gids);
                 } else {
                     db.query_drop(&format!("DELETE FROM `users` WHERE `users`.`id` = {}", user)).unwrap();
-                    unsubbed_users.insert(user, vec![]);
+                    unsubbed_users.insert(user, (vec![], vec![]));
                 }
             }
         }
