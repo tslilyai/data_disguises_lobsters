@@ -36,42 +36,29 @@ pub fn create_ghosts_table(name: String, db: &mut mysql::Conn, in_memory: bool) 
 
 pub fn answer_rows<W: io::Write>(
     results: QueryResultWriter<W>,
-    gids: &Vec<(String, Option<u64>, u64)>,
-    entities: &Vec<(String, Vec<String>)>) 
+    hash1: String,
+    hash2: String)
     -> Result<(), mysql::Error> 
 {
     let cols : Vec<_> = vec![
         msql_srv::Column {
-            table : "ghosts".to_string(),
-            column : "entity_type".to_string(),
+            table : "".to_string(),
+            column : "ghosts".to_string(),
             coltype: msql_srv::ColumnType::MYSQL_TYPE_VARCHAR,
             colflags: msql_srv::ColumnFlags::empty(),
         },
         msql_srv::Column {
-            table : "ghosts".to_string(),
-            column : GHOST_ENTITY_COL.to_string(),
-            coltype: msql_srv::ColumnType::MYSQL_TYPE_LONGLONG,
-            colflags: msql_srv::ColumnFlags::empty(),
-        },
-        msql_srv::Column {
-            table : "ghosts".to_string(),
-            column : GHOST_ID_COL.to_string(),
-            coltype: msql_srv::ColumnType::MYSQL_TYPE_LONGLONG,
+            table : "".to_string(),
+            column : "entities".to_string(),
+            coltype: msql_srv::ColumnType::MYSQL_TYPE_VARCHAR,
             colflags: msql_srv::ColumnFlags::empty(),
         },
     ];
+    warn!("GM Serialized values are {}, {}", hash1, hash2);
     let mut writer = results.start(&cols)?;
-    for (entity_type, eid, gid) in gids {
-        writer.write_col(mysql_common::value::Value::Bytes(entity_type.as_bytes().to_vec()))?;
-        if let Some(eid) = eid {
-            writer.write_col(mysql_common::value::Value::UInt(*eid))?;
-        }
-        else {
-            writer.write_col(mysql_common::value::Value::NULL)?;
-        }
-        writer.write_col(mysql_common::value::Value::UInt(*gid))?;
-        writer.end_row()?;
-    }
+    writer.write_col(mysql_common::value::Value::Bytes(hash1.as_bytes().to_vec()))?;
+    writer.write_col(mysql_common::value::Value::Bytes(hash2.as_bytes().to_vec()))?;
+    writer.end_row()?;
     writer.finish()?;
     Ok(())
 }

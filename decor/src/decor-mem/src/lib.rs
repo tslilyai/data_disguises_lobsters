@@ -20,6 +20,8 @@ pub mod policy;
 
 pub const INIT_CAPACITY: usize = 1000;
 pub const ID_COL: &str = "id";
+pub type GhostMappingShard = Vec<(String, Option<u64>, u64)>; 
+pub type EntityDataShard = Vec<(String, Vec<String>)>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {

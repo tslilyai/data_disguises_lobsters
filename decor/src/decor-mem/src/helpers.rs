@@ -363,7 +363,7 @@ pub fn parser_val_to_common_val(val: &sql_parser::ast::Value) -> mysql_common::v
         Value::String(s) => mysql_common::value::Value::Bytes(s.as_bytes().to_vec()),
         Value::HexString(s) => mysql_common::value::Value::Bytes(hex::decode(s).unwrap()),
         Value::Number(i) => {
-            warn!("Parsing number {}", i);
+            //warn!("Parsing number {}", i);
             if !i.contains('.') {
                 mysql_common::value::Value::Int(i64::from_str(i).unwrap())
             } else {
@@ -485,6 +485,25 @@ pub fn mysql_val_to_parser_val(val: &mysql::Value) -> sql_parser::ast::Value {
         mysql::Value::Int(i) => Value::Number(format!("{}", i)),
         mysql::Value::UInt(i) => Value::Number(format!("{}", i)),
         mysql::Value::Float(f) => Value::Number(format!("{}", f)),
+        _ => unimplemented!("No sqlparser support for dates yet?")
+        /*mysql::Date(u16, u8, u8, u8, u8, u8, u32),
+        mysql::Time(bool, u32, u8, u8, u8, u32),8*/
+    }
+}
+
+pub fn mysql_val_to_string(val: &mysql::Value) -> String {
+    match val {
+        mysql::Value::NULL => "NULL".to_string(),
+        mysql::Value::Bytes(bs) => {
+            let res = str::from_utf8(&bs);
+            match res {
+                Err(_) => String::new(),
+                Ok(s) => s.to_string(),
+            }
+        }
+        mysql::Value::Int(i) => format!("{}", i),
+        mysql::Value::UInt(i) => format!("{}", i),
+        mysql::Value::Float(f) => format!("{}", f),
         _ => unimplemented!("No sqlparser support for dates yet?")
         /*mysql::Date(u16, u8, u8, u8, u8, u8, u32),
         mysql::Time(bool, u32, u8, u8, u8, u32),8*/

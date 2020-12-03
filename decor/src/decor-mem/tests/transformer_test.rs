@@ -25,7 +25,10 @@ use mysql::prelude::*;
 use std::*;
 use std::collections::{HashMap,HashSet};
 use log::warn;
-use decor_mem::policy::{KeyRelationship, GhostColumnPolicy, GeneratePolicy, DecorrelationPolicy::{Decor, NoDecorSensitivity, NoDecorRetain}, ApplicationPolicy};
+use decor_mem::policy::{
+    KeyRelationship, GhostColumnPolicy, GeneratePolicy, 
+    DecorrelationPolicy::{Decor, NoDecorSensitivity, NoDecorRetain}, ApplicationPolicy};
+use decor_mem::{GhostMappingShard, EntityDataShard, helpers};
 
 const SCHEMA : &'static str = include_str!("./schema.sql");
 const GHOST_ID_START : u64 = 1<<20;
@@ -390,37 +393,44 @@ fn test_users() {
      *  Test 1: Unsubscribe of user 1 adds two ghost entries to user table, anonymizes both
      *  moderation entries
      */
-    let mut unsubscribed_gids = HashSet::new();
+    let mut unsubscribed_gids : GhostMappingShard = vec![];
+    let mut entity_data : EntityDataShard = vec![];
     let mut user_counts = 0;
     let mut story_counts = 0;
     let mut mod_counts = 0;
     let res = db.query_iter(format!("UNSUBSCRIBE UID {};", 1)).unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 3);
-        let name = format!("{}", mysql_val_to_parser_val(&vals[0]));
-        let eid = format!("{}", mysql_val_to_parser_val(&vals[1]));
-        let gid = format!("{}", mysql_val_to_parser_val(&vals[2]));
-        if name == "'users'" {
+        assert_eq!(vals.len(), 2);
+        let s1 = helpers::mysql_val_to_string(&vals[0]);
+        let s2 = helpers::mysql_val_to_string(&vals[1]);
+        let s1 = s1.trim_end_matches('\'').trim_start_matches('\'');
+        let s2 = s2.trim_end_matches('\'').trim_start_matches('\'');
+        warn!("Serialized values are {}, {}", s1, s2);
+        unsubscribed_gids = serde_json::from_str(s1).unwrap();
+        entity_data = serde_json::from_str(s2).unwrap();
+    }
+    for (name, _eid, _gid) in &unsubscribed_gids {
+        if name == "users" {
             user_counts += 1;
-        } else if name == "'stories'" {
+        } else if name == "stories" {
             story_counts += 1;
-        } else if name == "'moderations'" {
+        } else if name == "moderations" {
             mod_counts += 1;
-
         } else {
             assert!(false, "bad table! {}", name);
         }
-        unsubscribed_gids.insert((name, eid, gid));
     }
     //warn!("Unsubscribe user 1: {:?}", unsubscribed_gids);
     assert_eq!(unsubscribed_gids.len(), 18);
-    assert!(unsubscribed_gids.contains(&("'users'".to_string(), format!("'{}'", 1), format!("'{}'", GHOST_ID_START))));
-    assert!(unsubscribed_gids.contains(&("'users'".to_string(), format!("'{}'", 1), format!("'{}'", GHOST_ID_START+3))));
+    assert!(unsubscribed_gids.contains(&("users".to_string(), Some(1), GHOST_ID_START)));
+    assert!(unsubscribed_gids.contains(&("users".to_string(), Some(1), GHOST_ID_START+3)));
     assert_eq!(user_counts, 10);
     assert_eq!(story_counts, 4);
     assert_eq!(mod_counts, 4);
-
+    assert_eq!(entity_data.len(), 1);
+    assert_eq!(entity_data[0], ("users".to_string(), vec!["1".to_string(), "'hello_1'".to_string(), "0".to_string()]));
+    
     let mut results = HashSet::new();
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.user_id;").unwrap();
     for row in res {
@@ -482,10 +492,16 @@ fn test_users() {
      */
     let mut gid_strs = vec![];
     for (table, eid, gid) in &unsubscribed_gids {
-        gid_strs.push(format!("({}, {}, {})", table, eid, gid));
+        match eid {
+            None => gid_strs.push(format!("({}, {}, {})", table, "NULL", gid)),
+            Some(i) => gid_strs.push(format!("({}, {}, {})", table, i, gid)),
+        }
     }
     let mut data_strs = vec![];
-    // TODO
+    for (table, vals) in &entity_data {
+        let vals_str = vals.join(",");
+        data_strs.push(format!("({}, {{{}}})", table, vals_str));
+    }
     db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 1, gid_strs.join(", "), data_strs.join(","))).unwrap();
 
     let mut results = vec![];

@@ -1,7 +1,7 @@
 use rand::prelude::*;
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{select, helpers, ghosts_map, policy, stats, views, ID_COL};
+use crate::{select, helpers, ghosts_map, policy, stats, views, ID_COL, GhostMappingShard, EntityDataShard};
 use crate::views::{TableColumnDef, Views, Row, RowPtrs, HashedRowPtr, RowPtr};
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
@@ -1350,25 +1350,32 @@ impl QueryTransformer {
         let mut traversed_children : HashSet<(String, u64)> = HashSet::new();
         // queue of children to look at next
         let mut children_to_traverse_maps: Vec<HashMap<String, Vec<TraversedEntity>>> = vec![];
-        let view_ptr = self.views.get_view(&self.decor_config.entity_type_to_decorrelate).unwrap();
-        
+
         let mut table_to_children_to_traverse = HashMap::new();
+
+        // initialize with the entity specified by the uid
+        let view_ptr = self.views.get_view(&self.decor_config.entity_type_to_decorrelate).unwrap();
+        let matching_users = select::get_rptrs_matching_constraint(
+                        &Expr::BinaryOp {
+                            left: Box::new(Expr::Identifier(helpers::string_to_idents(ID_COL))),
+                            op: BinaryOperator::Eq,
+                            right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
+                        }, &view_ptr.borrow(), &view_ptr.borrow().columns);
+        assert!(matching_users.len() == 1);
+        let user_vals = matching_users.iter().next().unwrap();
         table_to_children_to_traverse.insert(
             self.decor_config.entity_type_to_decorrelate.clone(),
             vec![TraversedEntity{
                 table_name: self.decor_config.entity_type_to_decorrelate.clone(),
                 eid : uid,
                 columns: view_ptr.borrow().columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect(),
-                vals: HashedRowPtr::new_empty(view_ptr.borrow().columns.len(), view_ptr.borrow().primary_index),
+                vals: user_vals.clone(),
                 from_table: "".to_string(),
                 from_col_index: 0,
                 sensitivity: OrderedFloat(-1.0),
             }]
         );
         children_to_traverse_maps.push(table_to_children_to_traverse);
-
-        let mut node: TraversedEntity;
-        let mut node: TraversedEntity;
 
          /* 
           * Step 1: TRAVERSAL + DECORRELATION
@@ -1389,7 +1396,7 @@ impl QueryTransformer {
                         for node in nodes {
                             removed_entities.push((table_name.to_string(), node.vals.row().borrow().iter().map(|v| v.to_string()).collect()));
                         }
-                        self.remove_entities(nodes, db);
+                        self.remove_entities(nodes, db)?;
                     } else {
                         for node in nodes {
                             parent_child_edges.insert(node.clone());
@@ -1595,19 +1602,19 @@ impl QueryTransformer {
      
         // cache the hash of the gids we are returning
         generated_eid_gids.sort();
-        let serialized = serde_json::to_string(&generated_eid_gids).unwrap();
-        self.hasher.input_str(&serialized);
+        let serialized1 = serde_json::to_string(&generated_eid_gids).unwrap();
+        self.hasher.input_str(&serialized1);
         let result1 = self.hasher.result_str();
         self.hasher.reset();
        
         // note, the recipient has to just return the entities in order...
         removed_entities.sort();
-        let serialized = serde_json::to_string(&removed_entities).unwrap();
-        self.hasher.input_str(&serialized);
+        let serialized2 = serde_json::to_string(&removed_entities).unwrap();
+        self.hasher.input_str(&serialized2);
         let result2 = self.hasher.result_str();
         self.hasher.reset();
         self.unsubscribed.insert(uid, (result1, result2));
-        ghosts_map::answer_rows(writer, &generated_eid_gids, &removed_entities)
+        ghosts_map::answer_rows(writer, serialized1, serialized2)
     }
 
     pub fn unsubscribe_child_parent_edges(&mut self, 
@@ -2014,7 +2021,7 @@ impl QueryTransformer {
      * refresh "materialized views"
      * TODO add back deleted content from shard
      */
-    pub fn resubscribe(&mut self, uid: u64, gids: &Vec<(String, Option<u64>, u64)>, entity_data: &Vec<(String, Vec<String>)>, db: &mut mysql::Conn) -> 
+    pub fn resubscribe(&mut self, uid: u64, gids: &GhostMappingShard, entity_data: &EntityDataShard, db: &mut mysql::Conn) -> 
         Result<(), mysql::Error> {
         // TODO check auth token?
       
@@ -2030,7 +2037,7 @@ impl QueryTransformer {
                     warn!("Resubscribing {} gidshash mismatch {}, {}", uid, gidshash, hashed);
                     return Err(mysql::Error::IoError(io::Error::new(
                                 io::ErrorKind::Other, format!(
-                                    "User attempting to resubscribe with bad data {} {:?}", uid, gids))));
+                                    "User attempting to resubscribe with bad data {} {}", uid, serialized))));
                 }
                 self.hasher.reset();
 
@@ -2042,7 +2049,7 @@ impl QueryTransformer {
                     warn!("Resubscribing {} datahash mismatch {}, {}", uid, datahash, hashed);
                     return Err(mysql::Error::IoError(io::Error::new(
                                 io::ErrorKind::Other, format!(
-                                    "User attempting to resubscribe with bad data {} {:?}", uid, gids))));
+                                    "User attempting to resubscribe with bad data {} {}", uid, serialized))));
                 }
                 self.hasher.reset();
                 self.unsubscribed.remove(&uid); 
