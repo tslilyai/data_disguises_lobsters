@@ -5,9 +5,7 @@ use std::sync::atomic::Ordering;
 use std::*;
 use log::{warn};
 use std::sync::atomic::{AtomicU64};
-use std::collections::{HashMap};
-use crypto::digest::Digest;
-use crypto::sha3::Sha3;
+use std::collections::{HashMap, HashSet};
 use msql_srv::{QueryResultWriter};
 
 pub const GHOST_ID_START : u64 = 1<<20;
@@ -79,11 +77,10 @@ pub fn answer_rows<W: io::Write>(
 
 pub struct GhostsMap{
     name: String,
-    unsubscribed: HashMap<u64,String>,
+    unsubscribed: HashSet<u64>,
     eid2gids: HashMap<u64, Vec<u64>>,
     gid2eid: HashMap<u64, u64>,
     latest_gid: AtomicU64,
-    hasher : Sha3,
     
     pub nqueries: u64,
 }
@@ -94,8 +91,7 @@ impl GhostsMap {
         create_ghosts_table(name.clone(), db, in_memory).unwrap();
         GhostsMap{
             name: name.clone(),
-            unsubscribed: HashMap::new(),
-            hasher : Sha3::sha3_256(),
+            unsubscribed: HashSet::new(),
             eid2gids: HashMap::new(),
             gid2eid: HashMap::new(),
             latest_gid: AtomicU64::new(GHOST_ID_START),
@@ -118,13 +114,8 @@ impl GhostsMap {
                     self.gid2eid.remove(gid);
                 }
 
-                // cache the hash of the gids
-                let serialized = serde_json::to_string(&gids).unwrap();
-                self.hasher.input_str(&serialized);
-                let result = self.hasher.result_str();
-                self.hasher.reset();
                 // TODO should we persist the hash?
-                self.unsubscribed.insert(eid, result); 
+                self.unsubscribed.insert(eid); 
 
                 // delete from ghosts table
                 let delete_stmt = Statement::Delete(DeleteStatement{
@@ -143,7 +134,7 @@ impl GhostsMap {
                 return Ok(Some(gids));
             } else {
                 // no gids for this user
-                self.unsubscribed.insert(eid, String::new()); 
+                self.unsubscribed.insert(eid); 
                 return Ok(Some(vec![]));
             }
         } else {
@@ -156,23 +147,12 @@ impl GhostsMap {
      * Removes the eid unsubscribing.
      * Returns true if was unsubscribed 
      */
-    pub fn resubscribe(&mut self, eid:u64, gids: &Vec<u64>, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
+    pub fn resubscribe(&mut self, eid: u64, gids: &Vec<u64>, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
         // check hash and ensure that user has been unsubscribed
         // TODO could also use MAC to authenticate user
         warn!("{} Resubscribing {}", self.name, eid);
-        match self.unsubscribed.get(&eid) {
-            Some(gidshash) => {
-                let serialized = serde_json::to_string(&gids).unwrap();
-                self.hasher.input_str(&serialized);
-                let hashed = self.hasher.result_str();
-                if *gidshash != hashed {
-                    warn!("{} Resubscribing {} hash mismatch {}, {}", self.name, eid, gidshash, hashed);
-                    return Ok(false);
-                }
-                self.hasher.reset();
-                self.unsubscribed.remove(&eid); 
-            }
-            None => return Ok(false),
+        if !self.unsubscribed.remove(&eid) {
+            return Ok(false);
         }
 
         let mut pairs = String::new();

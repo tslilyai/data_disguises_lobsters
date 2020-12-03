@@ -218,7 +218,7 @@ pub trait MysqlShim<W: Write> {
     fn on_resubscribe(
         &mut self,
         uid: u64,
-        gids: Vec<(String, u64, u64)>,
+        gids: Vec<(String, Option<u64>, u64)>,
         w: QueryResultWriter<'_, W>,
     ) -> Result<(), Self::Error>;
 
@@ -402,11 +402,13 @@ impl<B: MysqlShim<W>, R: Read, W: Write> MysqlIntermediary<B, R, W> {
                         let mut gids = vec![];
                         for gid in &gidstrs {
                             let parts : Vec<&str> = gid.trim_end_matches(')').trim_start_matches('(').split(',').collect();
-                            gids.push((
-                                    parts[0].to_string(), 
-                                    u64::from_str(parts[1].trim()).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-                                    u64::from_str(parts[1].trim()).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
-                            ));
+                            let name = parts[0].to_string();
+                            let opt_eid = match u64::from_str(parts[1].trim()) {
+                                Ok(v) => Some(v),
+                                Err(_) => None,
+                            };
+                            let gid = u64::from_str(parts[2].trim()).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                            gids.push((name, opt_eid, gid));
                         }
                         let uid = u64::from_str(uidstr)
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;

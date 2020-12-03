@@ -475,7 +475,9 @@ fn test_users() {
      *  Test 2: Resubscribe of user 1 adds uid to user table, removes gids from user table, 
      *  unanonymizes both moderation entries
      */
-    /*db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS ({}, {});", 1, GHOST_ID_START, GHOST_ID_START+3)).unwrap();
+    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS ({}, {});", 1, GHOST_ID_START, GHOST_ID_START+3)).unwrap();
+
+    /* 
     let mut results = vec![];
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.id;").unwrap();
     for row in res {

@@ -144,7 +144,7 @@ pub fn expr_to_ghosted_col(expr:&Expr, ghosted_cols : &Vec<(String, String)>) ->
     match expr {
         Expr::Identifier(ids) => {
             let col = ids[ids.len()-1].to_string();
-            if let Some(i) = ghosted_cols.iter().position(|(gc, pc)| *gc == col) {
+            if let Some(i) = ghosted_cols.iter().position(|(gc, _pc)| *gc == col) {
                 Some(ghosted_cols[i].clone())
             } else {
                 None
