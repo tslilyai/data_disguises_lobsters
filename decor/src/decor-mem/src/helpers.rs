@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 use std::str::FromStr;
 use rand;
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
-use log::{debug};
+use log::{debug, warn};
 
 pub fn is_ghost_eid(val: &Value) -> bool {
     let gid = parser_val_to_u64(val);
@@ -296,7 +296,7 @@ pub fn get_random_parser_val_from(val: &Value) -> Value {
     match val {
         Value::Number(_i) => Value::Number(rand::random::<u32>().to_string()),
         Value::String(_i) => Value::String(rand::random::<u32>().to_string()),
-        Value::Null => Value::Number(rand::random::<u64>().to_string()),
+        Value::Null => Value::Number(rand::random::<u32>().to_string()),
         _ => unimplemented!("value not supported ! {}", val),
     }
 }
@@ -363,6 +363,7 @@ pub fn parser_val_to_common_val(val: &sql_parser::ast::Value) -> mysql_common::v
         Value::String(s) => mysql_common::value::Value::Bytes(s.as_bytes().to_vec()),
         Value::HexString(s) => mysql_common::value::Value::Bytes(hex::decode(s).unwrap()),
         Value::Number(i) => {
+            warn!("Parsing number {}", i);
             if !i.contains('.') {
                 mysql_common::value::Value::Int(i64::from_str(i).unwrap())
             } else {

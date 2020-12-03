@@ -539,9 +539,9 @@ impl QueryTransformer {
                                     });
                                 }
                             // col OP val or non-ghosted_col column
-                            } else if helpers::expr_to_ghosted_col(&right, ghosted_cols_to_replace).is_none()
-                                && (helpers::expr_is_col(&right) 
-                                    || helpers::expr_is_value(&right)) 
+                            } else if helpers::expr_is_value(&right) 
+                                || (helpers::expr_to_ghosted_col(&right, ghosted_cols_to_replace).is_none()
+                                    && helpers::expr_is_col(&right))
                             {
                                 warn!("Fastpath found non-ghost col {:?}, {:?}", left, ghosted_cols_to_replace);
                                 new_expr = Some(e.clone());

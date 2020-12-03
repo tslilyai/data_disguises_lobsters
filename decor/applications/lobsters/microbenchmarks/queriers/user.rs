@@ -57,26 +57,25 @@ pub fn get_profile(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
     Ok(())
 } 
 
-pub fn unsubscribe_user(user: u64, db: &mut mysql::Conn) -> Vec<u64> {
+pub fn unsubscribe_user(user: u64, db: &mut mysql::Conn) -> Vec<(String, String, String)> {
     let mut results = vec![];
     let res = db.query_iter(format!("UNSUBSCRIBE UID {};", user)).unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 1);
-        let gid = helpers::mysql_val_to_u64(&vals[0]).unwrap();
-        results.push(gid);
+        assert_eq!(vals.len(), 3);
+        let name = format!("{}", helpers::mysql_val_to_parser_val(&vals[0])).trim().trim_matches('\'').to_string();
+        let eid = format!("{}", helpers::mysql_val_to_parser_val(&vals[1])).trim().trim_matches('\'').to_string();
+        let gid = format!("{}", helpers::mysql_val_to_parser_val(&vals[2])).trim().trim_matches('\'').to_string();
+        results.push((name, eid, gid));
     }
     results
 }
 
-pub fn resubscribe_user(user: u64, gids: Vec<u64>, db: &mut mysql::Conn) {
-    let mut gid_str = String::new();
-    for i in 0..gids.len() {
-        gid_str.push_str(&gids[i].to_string());
-        if i+1 < gids.len() {
-            gid_str.push_str(",");
-        }
+pub fn resubscribe_user(user: u64, gids: Vec<(String, String, String)>, db: &mut mysql::Conn) {
+    let mut gid_strs = vec![];
+    for (table, eid, gid) in &gids{
+        gid_strs.push(format!("({}, {}, {})", table, eid, gid));
     }
-    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS ({});", user, gid_str)).unwrap();
+    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {};", user, gid_strs.join(", "))).unwrap();
 }
 

@@ -201,7 +201,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      * TODO add back deleted content from shard
      * TODO check that user doesn't already exist
      */
-    fn on_resubscribe(&mut self, uid: u64, _gids: Vec<u64>, w: QueryResultWriter<W>) -> Result<(), Self::Error> {
+    fn on_resubscribe(&mut self, uid: u64, _gids: Vec<(String, Option<u64>, u64)>, w: QueryResultWriter<W>) -> Result<(), Self::Error> {
         match self.qtrans.resubscribe(uid, &mut self.db) {
             Ok(()) => Ok(w.completed(0,0)?),
             Err(_e) => {
