@@ -77,6 +77,8 @@ pub fn answer_rows<W: io::Write>(
 
 pub struct GhostsMap{
     name: String,
+    // only those entities that actually had gids are marked
+    // as unsubscribed
     unsubscribed: HashSet<u64>,
     eid2gids: HashMap<u64, Vec<u64>>,
     gid2eid: HashMap<u64, u64>,
@@ -106,6 +108,7 @@ impl GhostsMap {
      */
     pub fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn) -> Result<Option<Vec<u64>>, mysql::Error> {
         warn!("{} Unsubscribing {}", self.name, eid);
+        let start = time::Instant::now();
         if self.unsubscribed.get(&eid).is_none() {
             //self.cache_eid2gids_for_eids(&vec![eid])?;
             if let Some(gids) = self.eid2gids.remove(&eid) {
@@ -114,8 +117,9 @@ impl GhostsMap {
                     self.gid2eid.remove(gid);
                 }
 
-                // TODO should we persist the hash?
-                self.unsubscribed.insert(eid); 
+                if !gids.is_empty() {
+                    self.unsubscribed.insert(eid); 
+                }
 
                 // delete from ghosts table
                 let delete_stmt = Statement::Delete(DeleteStatement{
@@ -126,15 +130,14 @@ impl GhostsMap {
                         negated: false,
                     }),
                 });
-                warn!("{} issue_update_dt_stmt: {}", self.name, delete_stmt);
                 db.query_drop(format!("{}", delete_stmt))?;
                 self.nqueries+=1;
+                warn!("{} issue_update_dt_stmt: {}, dur {}us", self.name, delete_stmt, start.elapsed().as_micros());
            
                 // return the gids
                 return Ok(Some(gids));
             } else {
                 // no gids for this user
-                self.unsubscribed.insert(eid); 
                 return Ok(Some(vec![]));
             }
         } else {
@@ -151,6 +154,7 @@ impl GhostsMap {
         // check hash and ensure that user has been unsubscribed
         // TODO could also use MAC to authenticate user
         warn!("{} Resubscribing {}", self.name, eid);
+        let start = time::Instant::now();
         if !self.unsubscribed.remove(&eid) {
             return Ok(false);
         }
@@ -177,9 +181,9 @@ impl GhostsMap {
         // insert into ghost table
         let insert_query = &format!("INSERT INTO {} ({}, {}) VALUES {};", 
                             self.name, GHOST_ID_COL, GHOST_ENTITY_COL, pairs);
-        warn!("{} insert_gid_for_eid {}: {}", self.name, eid, insert_query);
         db.query_iter(insert_query)?;
         self.nqueries+=1;
+        warn!("RESUB {} insert_gid_for_eid {}: {}, dur {}us", self.name, eid, insert_query, start.elapsed().as_micros());
 
         Ok(true)
     }

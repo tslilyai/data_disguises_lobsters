@@ -1255,7 +1255,6 @@ impl QueryTransformer {
                     new_engine = Some(Engine::Memory);
                 }
 
-                // create ghosts map for this table 
                 self.ghost_maps.insert(name.to_string(), ghosts_map::GhostsMap::new(name.to_string(), db, self.params.in_memory));
 
                 let dtstmt = CreateTableStatement {
@@ -1341,7 +1340,13 @@ impl QueryTransformer {
 
         // table name of entity, eid, gids for eid
         let mut generated_eid_gids: Vec<(String, Option<u64>, u64)> = vec![];
-        let mut seen_children : HashSet<TraversedEntity> = HashSet::new();
+
+        // track all parent-children edges, may have repeat children
+        let mut parent_child_edges : HashSet<TraversedEntity> = HashSet::new();
+        // track the children that have been traversed (may come multiple times via different
+        // parents)
+        let mut traversed_children : HashSet<(String, u64)> = HashSet::new();
+        // queue of children to look at next
         let mut children_to_traverse: Vec<TraversedEntity> = vec![];
         let view_ptr = self.views.get_view(&self.decor_config.entity_type_to_decorrelate).unwrap();
         children_to_traverse.push(TraversedEntity{
@@ -1361,6 +1366,8 @@ impl QueryTransformer {
         while children_to_traverse.len() > 0 {
             node = children_to_traverse.pop().unwrap();
             warn!("new node to process: {:?}", node);
+            let start = time::Instant::now();
+            
             let eid_val = Value::Number(node.eid.to_string());
             
             // ********************  DECORRELATED EDGES OF EID ************************ //
@@ -1436,7 +1443,9 @@ impl QueryTransformer {
                                         from_col_index: *ci, 
                                         sensitivity: OrderedFloat(-1.0),
                                     };
-                                    if !seen_children.contains(&child) {
+                                    // if child hasn't been seen yet, traverse
+                                    if traversed_children.insert((child.table_name.clone(), child.eid)) {
+                                        warn!("Adding traversed child {}, {}", child.table_name, child.eid);
                                         children_to_traverse.push(child);
                                     }
                                 }
@@ -1444,8 +1453,9 @@ impl QueryTransformer {
                         }       
                     }
 
-                    // NOTE: we will actually delete this entity if we notice that it has no edges
-                    // later
+                    // NOTE: completely decorrelated entities are not deleted from the system
+                    // unless they are the original top-level UID
+                    // in all cases, add edge to seen edges 
                 }
             }
 
@@ -1484,44 +1494,48 @@ impl QueryTransformer {
                                 from_col_index: *ci,
                                 sensitivity: OrderedFloat(**sensitivity),
                             };
-                            if !seen_children.contains(&child) {
+                            // if child hasn't been seen yet, traverse
+                            if traversed_children.insert((child.table_name.clone(), child.eid)) {
+                                warn!("Adding traversed child {}, {}", child.table_name, child.eid);
                                 children_to_traverse.push(child);
-                            }
+                            } 
                         }
                     }
                 }
             }
            
-            // set this node to seen. push all children of this node onto the traversal stack (if they haven't yet been
-            // seen)
-            seen_children.insert(node);
+            // add this edge to seen
+            warn!("UNSUB {}: Duration to traverse+decorrelate {:?}: {}us", uid, node, start.elapsed().as_micros());
+            parent_child_edges.insert(node);
         }
 
         /* 
          * Step 2 (cont): for all edges to the parent entity that need to reach a particular sensitivity
          * threshold, either generate new children (if possible), or remove the children
          */
+        let start = time::Instant::now();
         let mut removed = HashSet::new();
-        for child in seen_children.iter() {
+        for child in parent_child_edges.iter() {
             if removed.contains(child) {
                 continue;
             }
             if child.sensitivity == 0.0 { //remove 
                 warn!("Removing {:?} during step 2", child);
-                removed.extend(self.recursive_remove(child, &seen_children, db)?);
+                removed.extend(self.recursive_remove(child, &parent_child_edges, db)?);
             } else if child.sensitivity.0 > 0.0 && child.sensitivity.0 < 1.0 { 
                 // how many other children of this type came from this parent?
                 // do we need to add children?
-                removed.extend(self.achieve_parent_child_sensitivity(child, &seen_children, &mut generated_eid_gids, db)?);
+                removed.extend(self.achieve_parent_child_sensitivity(child, &parent_child_edges, &mut generated_eid_gids, db)?);
             }
         }
+        warn!("UNSUB {}: Duration to remove or add sensitive step 2: {}us", uid, start.elapsed().as_micros());
 
         /*
          * Step 3: Child->Parent Decorrelation: for all edges to the parent entity that need to reach a particular sensitivity
          * threshold, either generate new children (if possible), or remove the children. If the
          * edge can be decorrelated, decorrelate this edge (creating one ghost)
          */
-        self.unsubscribe_child_parent_edges(&seen_children, &mut generated_eid_gids, db)?;
+        self.unsubscribe_child_parent_edges(&parent_child_edges, &mut generated_eid_gids, db)?;
 
         // NOTE: non-user decorrelated entities are still present (sensitvity = -1), but their keys
         // are not foreign keys of other entities; they are in essence disconnected from any MV,
@@ -1544,6 +1558,8 @@ impl QueryTransformer {
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
+        let start = time::Instant::now();
+
         // for every parent edge from each seen child
         let mut tables_to_children : HashMap<String, Vec<&TraversedEntity>> = HashMap::new();
         for child in children.iter() {
@@ -1632,7 +1648,8 @@ impl QueryTransformer {
                     // calculate how many total children are connected to this parent
                     // if above sensitivity threshold, generate enough ghosts
                     let total_count = select::get_rptrs_matching_constraint(&constraint, &viewptr.borrow(), &viewptr.borrow().columns).len();
-                    warn!("Found {} total and {} sensitive children of type {} with parent {}", total_count, sensitive_count, poster_child.table_name, parent_eid);
+                    warn!("Found {} total and {} sensitive children of type {} with parent {}", 
+                          total_count, sensitive_count, poster_child.table_name, parent_eid);
                     let needed = (*sensitive_count as f64 / sensitivity).ceil() as i64 - total_count as i64;
 
                     if needed > 0 && self.ghost_policies.get(&poster_child.table_name).is_none() {
@@ -1662,6 +1679,7 @@ impl QueryTransformer {
                 }
             }
         }
+        warn!("UNSUB: Duration to look at and remove/desensitize child-parent edges: {}us", start.elapsed().as_micros());
         Ok(())
     }
 
@@ -1783,10 +1801,11 @@ impl QueryTransformer {
         -> Result<(), mysql::Error>
     {
         use policy::GhostColumnPolicy::*;
-        warn!("Generate new entity from {} with vals {:?}, eids {:?}, set colval {:?}", from_table, from_vals, eids, set_colval);
+        //warn!("UNSUB Generate new entity from {} with vals {:?}, eids {:?}, set colval {:?}", from_table, from_vals, eids, set_colval);
+        let start = time::Instant::now();
 
-        // NOTE : generating entities with foreign keys must also have ways to generate foreign key
-        // entity
+        // NOTE : generating entities with foreign keys must also have ways to 
+        // generate foreign key entity or this will panic
         let gp = self.ghost_policies.get(from_table).unwrap();
         let policies : Vec<policy::GhostColumnPolicy> = from_cols.iter().map(|col| gp.get(&col.to_string()).unwrap().clone()).collect();
         let num_entities = eids.len();
@@ -1838,9 +1857,11 @@ impl QueryTransformer {
             }
         }
     
-        warn!("Generated new entities for table {}, eids {:?}, values {:?}", from_table, eids, new_vals);
+        warn!("UNSUB Generated new entities for table {}, eids {:?}, values {:?}, dur {}", 
+              from_table, eids, new_vals, start.elapsed().as_micros());
         // insert new rows into MVs
         self.views.insert(from_table, from_cols, &new_vals)?;
+        warn!("UNSUB insert generated entities into view {} dur {}", from_table, start.elapsed().as_micros());
       
         // insert new rows into actual data tables (do we really need to do this?)
         let mut parser_rows = vec![];
@@ -1863,10 +1884,12 @@ impl QueryTransformer {
             columns : from_cols.clone(),
             source : source, 
         });
-        warn!("issue_insert_dt_stmt: {}", dt_stmt);
         db.query_drop(dt_stmt.to_string())?;
+        warn!("issue_insert_dt_stmt: {} dur {}", dt_stmt, start.elapsed().as_micros());
         self.cur_stat.nqueries+=1;
 
+        warn!("UNSUB Done adding {} new entities for table {}, dur {}", 
+              num_entities, from_table, start.elapsed().as_micros());
         Ok(())
     }
 
@@ -1988,7 +2011,7 @@ impl QueryTransformer {
         let mut cureid = &gids[0].1;
         let mut curgids : Vec<u64> = vec![];
         for (table, eid, gid) in &gids {
-            warn!("processing {}, {:?}, {}", table, eid, gid);
+            //warn!("processing {}, {:?}, {}", table, eid, gid);
             // do all the work for this eid at once!
             if !(curtable == table && cureid == eid) {
                 self.resubscribe_with_gids(curtable, cureid, &curgids, db)?;
@@ -2019,8 +2042,10 @@ impl QueryTransformer {
             list: gid_exprs.clone(),
             negated: false,
         });
-        // delete from users MV
+        // delete from MV
         self.views.delete(curtable, &selection)?;
+        
+        // delete from actual data table
         let delete_gids_as_entities = Statement::Delete(DeleteStatement {
             table_name: helpers::string_to_objname(&curtable),
             selection: selection.clone(),

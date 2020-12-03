@@ -271,6 +271,7 @@ fn main() {
                 db.query_drop(&format!("INSERT INTO `users` (id, username) VALUES ({}, 'user{}')", user, user-1)).unwrap();
             }
         }
+        //match rng.gen_range(0, 20) {
         match rng.gen_range(0, 24) {
             0..=8=> queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
             9..=11 => {
@@ -288,7 +289,6 @@ fn main() {
                 if test == TestType::TestDecor {
                     let gids = queriers::user::unsubscribe_user(user, &mut db);
                     unsubbed_users.insert(user, gids);
-                    warn!("post-unsubscribe {} unsubbed users: {:?}", user, unsubbed_users);
                 } else {
                     db.query_drop(&format!("DELETE FROM `users` WHERE `users`.`id` = {}", user)).unwrap();
                     unsubbed_users.insert(user, vec![]);

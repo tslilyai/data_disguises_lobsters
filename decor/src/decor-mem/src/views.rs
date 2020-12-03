@@ -358,7 +358,7 @@ impl View {
                 debug!("get rptrs of col: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
             }
         } else {
-            warn!("get rptrs of col: no index for col {} val {}!", self.columns[col_index].fullname, col_val);
+            debug!("get rptrs of col: no index for col {} val {}!", self.columns[col_index].fullname, col_val);
             for (_pk, row) in self.rows.borrow().iter() {
                 if row.borrow()[col_index].to_string() == col_val {
                     all_rptrs.insert(HashedRowPtr::new(row.clone(), self.primary_index));
@@ -380,17 +380,17 @@ impl View {
             if let Some(rptrs) = index.get_mut(&col_val) {
                 rptrs.insert(HashedRowPtr::new(row.clone(), self.primary_index));
                 let dur = start.elapsed();
-                warn!("insert into index {} size {} took: {}us", self.columns[col_index].fullname, index.len(), dur.as_micros());
+                debug!("insert into index {} size {} took: {}us", self.columns[col_index].fullname, index.len(), dur.as_micros());
             } else {
                 let mut rptrs = HashSet::with_capacity(INIT_CAPACITY);
                 rptrs.insert(HashedRowPtr::new(row.clone(), self.primary_index));
                 index.insert(col_val, rptrs);
                 let dur = start.elapsed();
-                warn!("insert new hashmap index {} took: {}us", self.columns[col_index].fullname, dur.as_micros());
+                debug!("insert new hashmap index {} took: {}us", self.columns[col_index].fullname, dur.as_micros());
             }
         } else {
             let dur = start.elapsed();
-            warn!("no insert index {} took: {}us", self.columns[col_index].fullname, dur.as_micros());
+            debug!("no insert index {} took: {}us", self.columns[col_index].fullname, dur.as_micros());
         }
     }
  
