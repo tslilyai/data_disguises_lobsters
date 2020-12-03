@@ -1444,8 +1444,8 @@ impl QueryTransformer {
                                 };
                                 // if child hasn't been seen yet, traverse
                                 if traversed_children.insert((child.table_name.clone(), child.eid)) {
-                                    //warn!("Adding traversed child {}, {}", child.table_name, child.eid);
-                                    //children_to_traverse.push(child);
+                                    warn!("Adding traversed child {}, {}", child.table_name, child.eid);
+                                    children_to_traverse.push(child);
                                 }
                             }
                         }
@@ -1494,8 +1494,8 @@ impl QueryTransformer {
                             };
                             // if child hasn't been seen yet, traverse
                             if traversed_children.insert((child.table_name.clone(), child.eid)) {
-                                //warn!("Adding traversed child {}, {}", child.table_name, child.eid);
-                                //children_to_traverse.push(child);
+                                warn!("Adding traversed child {}, {}", child.table_name, child.eid);
+                                children_to_traverse.push(child);
                             } 
                         }
                     }
@@ -1769,14 +1769,14 @@ impl QueryTransformer {
             }
 
             // delete from entity mv  
-            warn!("UNSUB remove: deleting from {} view {:?}", node.table_name, selection);
+            warn!("UNSUB {} remove: deleting from {} view {:?}", node.eid, node.table_name, selection);
             self.views.delete(&node.table_name, &selection)?;
 
             let delete_eid_from_table = Statement::Delete(DeleteStatement {
                 table_name: helpers::string_to_objname(&node.table_name),
                 selection: selection.clone(),
             });
-            warn!("UNSUB remove: {}", delete_eid_from_table);
+            warn!("UNSUB {} remove: {}", node.eid, delete_eid_from_table);
             db.query_drop(format!("{}", delete_eid_from_table.to_string()))?;
             //assert!(res.affected_rows() == 1);
             self.cur_stat.nqueries+=1;
@@ -1856,11 +1856,10 @@ impl QueryTransformer {
             }
         }
     
-        warn!("UNSUB Generated new entities for table {}, eids {:?}, values {:?}, dur {}", 
-              from_table, eids, new_vals, start.elapsed().as_micros());
         // insert new rows into MVs
         self.views.insert(from_table, from_cols, &new_vals)?;
-        warn!("UNSUB insert generated entities into view {} dur {}", from_table, start.elapsed().as_micros());
+        warn!("UNSUB {:?} insert {} generated entities into view {} dur {}", 
+              set_colval, eids.len(), from_table, start.elapsed().as_micros());
       
         // insert new rows into actual data tables (do we really need to do this?)
         let mut parser_rows = vec![];

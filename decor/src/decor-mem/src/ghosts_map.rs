@@ -135,6 +135,7 @@ impl GhostsMap {
                 warn!("{} issue_update_dt_stmt: {}, dur {}us", self.name, delete_stmt, start.elapsed().as_micros());
            
                 // return the gids
+                warn!("{} Found {} gids for {}", self.name, gids.len(), eid);
                 return Ok(Some(gids));
             } else {
                 return Ok(None);
