@@ -82,8 +82,8 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
-        //.filter_level(log::LevelFilter::Error)
+        //.filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -272,7 +272,7 @@ fn main() {
             }
         }
         match rng.gen_range(0, 24) {
-            /*0..=8=> queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
+            0..=8=> queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
             9..=11 => {
                 queriers::post_story::post_story(&mut db, Some(user), total_stories + 1, "Dummy title".to_string()).unwrap();
                 total_stories += 1;
@@ -282,7 +282,7 @@ fn main() {
             18..=20 => {
                 queriers::comment::post_comment(&mut db, Some(user), total_comments + 1, story, None).unwrap();
                 total_comments += 1;
-            }*/
+            }
             _ => {
                 nunsub += 1;
                 if test == TestType::TestDecor {
