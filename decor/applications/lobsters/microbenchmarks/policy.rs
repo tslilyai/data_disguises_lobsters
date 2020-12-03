@@ -1,7 +1,7 @@
 use decor::policy::{GeneratePolicy, GhostColumnPolicy, EntityGhostPolicies, KeyRelationship, ApplicationPolicy};
 use std::collections::HashMap;
 
-fn get_ghost_policies() -> EntityGhostPolicies<'static> {
+fn get_ghost_policies() -> EntityGhostPolicies {
     let mut ghost_policies : EntityGhostPolicies = HashMap::new();
 
     let mut users_map = HashMap::new();
@@ -12,8 +12,10 @@ fn get_ghost_policies() -> EntityGhostPolicies<'static> {
 
     let mut stories_map = HashMap::new();
     stories_map.insert("id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
-    stories_map.insert("created_at".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Custom(Box::new(|time| time)))); //TODO randomize
-    stories_map.insert("user_id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::ForeignKey));
+    //stories_map.insert("created_at".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Custom(Box::new(|time| time)))); 
+    ////TODO custom functions not supported because of clone / hash reasons... 
+    stories_map.insert("created_at".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string()))); //TODO randomize
+    stories_map.insert("user_id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::ForeignKey("users".to_string())));
     stories_map.insert("url".to_string(), GhostColumnPolicy::CloneAll);
     stories_map.insert("title".to_string(), GhostColumnPolicy::CloneAll);
     stories_map.insert("description".to_string(), GhostColumnPolicy::CloneAll);
@@ -34,14 +36,14 @@ fn get_ghost_policies() -> EntityGhostPolicies<'static> {
 
     let mut taggings_map = HashMap::new();
     taggings_map.insert("id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
-    taggings_map.insert("story_id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::ForeignKey));
+    taggings_map.insert("story_id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::ForeignKey("stories".to_string())));
     taggings_map.insert("tag_id".to_string(), GhostColumnPolicy::CloneAll);
     ghost_policies.insert("taggings".to_string(), taggings_map);
     
     ghost_policies 
 }
 
-pub fn get_lobsters_policy() -> ApplicationPolicy<'static> {
+pub fn get_lobsters_policy() -> ApplicationPolicy {
     use decor::policy::DecorrelationPolicy::*;
     ApplicationPolicy{
         entity_type_to_decorrelate: "users".to_string(), 
@@ -54,55 +56,64 @@ pub fn get_lobsters_policy() -> ApplicationPolicy<'static> {
                 child: "stories".to_string(),
                 parent: "users".to_string(),
                 column_name: "user_id".to_string(),
-                decorrelation_policy: Decor,
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "comments".to_string(),
                 parent: "users".to_string(),
                 column_name: "user_id".to_string(),
-                decorrelation_policy: Decor,
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "hats".to_string(),
                 parent: "users".to_string(),
                 column_name: "user_id".to_string(),
-                decorrelation_policy: Decor,
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "moderations".to_string(),
                 parent: "users".to_string(),
                 column_name: "user_id".to_string(),
-                decorrelation_policy: Decor,
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "moderations".to_string(),
                 parent: "users".to_string(),
                 column_name: "moderator_user_id".to_string(),
-                decorrelation_policy: Decor,
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "invitations".to_string(),
                 parent: "users".to_string(),
                 column_name: "user_id".to_string(),
-                decorrelation_policy: Decor,
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "messages".to_string(),
                 parent: "users".to_string(),
                 column_name: "author_user_id".to_string(),
-                decorrelation_policy: Decor,
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "messages".to_string(),
                 parent: "users".to_string(),
                 column_name: "recipient_user_id".to_string(),
-                decorrelation_policy: Decor,
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "votes".to_string(),
                 parent: "users".to_string(),
                 column_name: "user_id".to_string(),
-                decorrelation_policy: Decor,
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             /* 
              * Relationships from moderations to non-user entities 
@@ -111,13 +122,15 @@ pub fn get_lobsters_policy() -> ApplicationPolicy<'static> {
                 child: "moderations".to_string(),
                 parent: "stories".to_string(),
                 column_name: "story_id".to_string(),
-                decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: NoDecorRetain,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "moderations".to_string(),
                 parent: "comments".to_string(),
                 column_name: "comment_id".to_string(),
-                decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: NoDecorRetain,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             /* 
              * Relationships from comments to non-user entities
@@ -126,19 +139,22 @@ pub fn get_lobsters_policy() -> ApplicationPolicy<'static> {
                 child: "comments".to_string(),
                 parent: "stories".to_string(),
                 column_name: "story_id".to_string(),
-                decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: NoDecorRetain,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "comments".to_string(),
                 parent: "comments".to_string(),
                 column_name: "parent_comment_id".to_string(),
-                decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: NoDecorRetain,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "comments".to_string(),
                 parent: "comments.thread_id".to_string(),
                 column_name: "thread_id".to_string(),
-                decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: NoDecorRetain,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             /* 
              * Taggings to non-user entities 
@@ -149,13 +165,15 @@ pub fn get_lobsters_policy() -> ApplicationPolicy<'static> {
                 child: "taggings".to_string(),
                 parent: "stories".to_string(),
                 column_name: "story_id".to_string(),
-                decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: NoDecorRetain,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             KeyRelationship{
                 child: "taggings".to_string(),
                 parent: "tags".to_string(),
                 column_name: "tag_id".to_string(),
-                decorrelation_policy: NoDecorSensitivity(0.25),
+                parent_child_decorrelation_policy: NoDecorSensitivity(0.25),
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
             /* 
              * Votes to stories
@@ -164,7 +182,8 @@ pub fn get_lobsters_policy() -> ApplicationPolicy<'static> {
                 child: "votes".to_string(),
                 parent: "stories".to_string(),
                 column_name: "story_id".to_string(),
-                decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: NoDecorRetain,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
         ]
     }

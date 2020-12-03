@@ -1,6 +1,6 @@
-extern crate mysql;
+/*extern crate mysql;
 extern crate log;
-use std::collections::HashSet;
+//use std::collections::HashSet;
 use rand;
 
 use mysql::prelude::*;
@@ -56,4 +56,4 @@ pub fn select(db: &mut mysql::Conn,
         story)
     )?;
     Ok(())
-}
+}*/

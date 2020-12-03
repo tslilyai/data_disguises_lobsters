@@ -259,7 +259,7 @@ fn main() {
     let mut nunsub = 0;
     let mut nresub = 0;
     let start = time::Instant::now();
-    for i in 0..nqueries {
+    for _ in 0..nqueries {
         // all autoinc ids start at 1..
         let user = rng.gen_range(1, nusers+1);
         let story= rng.gen_range(0, nstories);

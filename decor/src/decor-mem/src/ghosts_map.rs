@@ -1,6 +1,6 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{helpers, views};
+use crate::{helpers};
 use std::sync::atomic::Ordering;
 use std::*;
 use log::{warn};
@@ -327,30 +327,4 @@ impl GhostsMap {
 
         Ok(gid)
     }
-    
-    /*pub fn insert_eid2gids_for_values(&mut self, values: &views::RowPtrs, index: usize, db: &mut mysql::Conn) 
-        -> Result<Vec<Vec<Expr>>, mysql::Error>
-    {
-        let start = time::Instant::now();
-        let mut gid_rows = vec![];
-        for row in 0..values.len() {
-            let mut gid_vals = vec![];
-            let valrow = values[row].borrow();
-            for col in 0..valrow.len() {
-                // add entry to ghosts table
-                // NULL check: don't add ghosts entry if new eid value is NULL
-                if col == index && valrow[col] != Value::Null {
-                    let eid = helpers::parser_val_to_u64(&valrow[col]);
-                    let gid = self.insert_gid_for_eid(eid, db)?;
-                    gid_vals.push(Expr::Value(Value::Number(gid.to_string())));
-                } else {
-                    gid_vals.push(Expr::Value(valrow[col].clone()));
-                }
-            }
-            gid_rows.push(gid_vals);
-        }
-        let dur = start.elapsed();
-        warn!("{} insert_eid2gids_for_values: {}us", self.name, dur.as_micros());
-        Ok(gid_rows)
-    }*/
 }
