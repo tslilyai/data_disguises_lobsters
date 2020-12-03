@@ -271,7 +271,6 @@ fn main() {
                 db.query_drop(&format!("INSERT INTO `users` (id, username) VALUES ({}, 'user{}')", user, user-1)).unwrap();
             }
         }
-        //match rng.gen_range(0, 20) {
         match rng.gen_range(0, 24) {
             0..=8=> queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
             9..=11 => {

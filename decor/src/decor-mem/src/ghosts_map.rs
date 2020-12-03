@@ -137,8 +137,7 @@ impl GhostsMap {
                 // return the gids
                 return Ok(Some(gids));
             } else {
-                // no gids for this user
-                return Ok(Some(vec![]));
+                return Ok(None);
             }
         } else {
             warn!("{}: {} already unsubscribed", self.name, eid);

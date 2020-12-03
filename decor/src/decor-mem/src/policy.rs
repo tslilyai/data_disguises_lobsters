@@ -1,5 +1,5 @@
 use std::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub type ColumnName = String; // column name
 pub type EntityName = String; // table name, or foreign key
@@ -51,7 +51,7 @@ pub struct Config {
     // table and which columns(+parent type) for which sensitivity to this parent should fall below specified threshold
     pub parent_child_sensitive_tables: HashMap<String, Vec<(String, String, f64)>>,
   
-    // table and which columns taht correspond to ghosts (edges that are decorrelated and store
+    // table and which columns(+parent type) that correspond to ghosts (edges that are decorrelated and store
     // GIDs), created when child->parent edges are decorrelated
     // NOTE: this is usually a subset of parent_child_ghosted_tables: an edge type that is
     // decorrelated when a child is sensitive should also be decorrelated when both the parent and
@@ -59,6 +59,9 @@ pub struct Config {
     pub child_parent_ghosted_tables: HashMap<String, Vec<(String, String)>>,
     // table and which columns(+parent type) for which sensitivity to this parent should fall below specified threshold
     pub child_parent_sensitive_tables: HashMap<String, Vec<(String, String, f64)>>,
+
+    // tables that can have parent->child edges
+    pub tables_with_children: HashSet<String>,
 }
 
 pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
@@ -67,7 +70,11 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
 
     let mut cp_gdts: HashMap<String, Vec<(String, String)>>= HashMap::new();
     let mut cp_sdts: HashMap<String, Vec<(String, String, f64)>>= HashMap::new();
+    
+    let mut tables_with_children: HashSet<String> = HashSet::new();
+
     for kr in &policy.edge_policies {
+        tables_with_children.insert(kr.parent.clone());
         match kr.parent_child_decorrelation_policy {
             DecorrelationPolicy::Decor => {
                 if let Some(ghost_cols) = pc_gdts.get_mut(&kr.child) {
@@ -107,8 +114,7 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
                 }
             } 
             DecorrelationPolicy::NoDecorRemove => {
-                if let Some(ghost_cols) = cp_sdts.get_mut(&kr.child.clone()) {
-                    ghost_cols.push((kr.column_name.clone(), kr.parent.clone(), 0.0));
+                if let Some(ghost_cols) = cp_sdts.get_mut(&kr.child.clone()) { ghost_cols.push((kr.column_name.clone(), kr.parent.clone(), 0.0));
                 } else {
                     cp_sdts.insert(kr.child.clone(), vec![(kr.column_name.clone(), kr.parent.clone(), 0.0)]);
                 }        
@@ -137,5 +143,7 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
 
         child_parent_ghosted_tables: cp_gdts,
         child_parent_sensitive_tables: cp_sdts,
+        
+        tables_with_children: tables_with_children,
     }
 }
