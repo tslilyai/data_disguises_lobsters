@@ -33,7 +33,7 @@ pub struct QueryTransformer {
     decor_config: policy::Config,
     ghost_policies: policy::EntityGhostPolicies,
     ghost_maps: HashMap<String, ghosts_map::GhostsMap>, // table name to ghost map
-    unsubscribed: HashMap<u64, String>,
+    unsubscribed: HashMap<u64, (String, String)>,
     rng: ThreadRng,
     hasher : Sha3,
     
@@ -1340,6 +1340,8 @@ impl QueryTransformer {
 
         // table name of entity, eid, gids for eid
         let mut generated_eid_gids: Vec<(String, Option<u64>, u64)> = vec![];
+        // all completely decorrelated entities
+        let mut removed_entities: Vec<(String, Vec<String>)> = vec![];
 
         // track all parent-children edges, may have repeat children
         let mut parent_child_edges : HashSet<TraversedEntity> = HashSet::new();
@@ -1360,7 +1362,7 @@ impl QueryTransformer {
                 vals: HashedRowPtr::new_empty(view_ptr.borrow().columns.len(), view_ptr.borrow().primary_index),
                 from_table: "".to_string(),
                 from_col_index: 0,
-                sensitivity: OrderedFloat(0.0),
+                sensitivity: OrderedFloat(-1.0),
             }]
         );
         children_to_traverse_maps.push(table_to_children_to_traverse);
@@ -1381,15 +1383,24 @@ impl QueryTransformer {
 
                 // this is a leaf table!
                 if !self.decor_config.tables_with_children.contains(table_name) {
-                    for node in nodes {
-                        parent_child_edges.insert(node.clone());
+                    // this table has no retained links to parents, this leaf will be completely
+                    // abandoned. remove it and give it to the user for later
+                    if self.decor_config.completely_decorrelated_children.contains(table_name) {
+                        for node in nodes {
+                            removed_entities.push((table_name.to_string(), node.vals.row().borrow().iter().map(|v| v.to_string()).collect()));
+                        }
+                        self.remove_entities(nodes, db);
+                    } else {
+                        for node in nodes {
+                            parent_child_edges.insert(node.clone());
+                        }
                     }
                     continue;
                 }
             
                 // ********************  DECORRELATED EDGES OF EID ************************ //
                 for node in nodes {
-                // 1. Get all GIDs corresponding to this EID if this entity has not already been unsubscribed
+                    // 1. Get all GIDs corresponding to this EID if this entity has not already been unsubscribed
                     let eid_val = Value::Number(node.eid.to_string());
                     let gm = self.ghost_maps.get_mut(&node.table_name).unwrap();
                     if let Some(gids) = gm.unsubscribe(node.eid, db)? {
@@ -1469,9 +1480,6 @@ impl QueryTransformer {
                                 }
                             }       
                         }
-                        // NOTE: completely decorrelated entities are not deleted from the system
-                        // unless they are the original top-level UID
-                        // in all cases, add edge to seen edges 
                     }
                 }
 
@@ -1529,9 +1537,21 @@ impl QueryTransformer {
                 }
                 warn!("UNSUB {}: Duration to traverse+decorrelate {}, {:?}: {}us", 
                       uid, table_name, nodes, start.elapsed().as_micros());
-                // add these nodes to seen
-                for node in nodes {
-                    parent_child_edges.insert(node.clone());
+               
+                // if this is a table whose edges to children are *all* decorrelated, then 
+                // remove these nodes, add to data to return to user
+                // because these are removed, we don't need to add them to nodes to check
+                if self.decor_config.completely_decorrelated_parents.contains(table_name) {
+                    for node in nodes {
+                        removed_entities.push((table_name.to_string(), node.vals.row().borrow().iter().map(|v| v.to_string()).collect()));
+                    }
+                    self.remove_entities(nodes, db)?;
+                } else {
+                    // in all other cases, add edge to seen edges because we want to check their outgoing
+                    // child->parent edges for sensitivity
+                    for node in nodes {
+                        parent_child_edges.insert(node.clone());
+                    }
                 }
             }
             // if there are new children found, add this map
@@ -1577,10 +1597,17 @@ impl QueryTransformer {
         generated_eid_gids.sort();
         let serialized = serde_json::to_string(&generated_eid_gids).unwrap();
         self.hasher.input_str(&serialized);
-        let result = self.hasher.result_str();
+        let result1 = self.hasher.result_str();
         self.hasher.reset();
-        self.unsubscribed.insert(uid, result);
-        ghosts_map::answer_rows(writer, &generated_eid_gids)
+       
+        // note, the recipient has to just return the entities in order...
+        removed_entities.sort();
+        let serialized = serde_json::to_string(&removed_entities).unwrap();
+        self.hasher.input_str(&serialized);
+        let result2 = self.hasher.result_str();
+        self.hasher.reset();
+        self.unsubscribed.insert(uid, (result1, result2));
+        ghosts_map::answer_rows(writer, &generated_eid_gids, &removed_entities)
     }
 
     pub fn unsubscribe_child_parent_edges(&mut self, 
@@ -1775,17 +1802,10 @@ impl QueryTransformer {
         let mut seen_children : HashSet<TraversedEntity> = HashSet::new();
         let mut children_to_traverse: Vec<&TraversedEntity> = vec![];
         children_to_traverse.push(child);
-        let mut node: &TraversedEntity;
+        let mut node: TraversedEntity;
 
         while children_to_traverse.len() > 0 {
-            node = children_to_traverse.pop().unwrap();
-
-            let id_col = Expr::Identifier(helpers::string_to_idents(ID_COL));
-            let selection = Some(Expr::BinaryOp{
-                    left: Box::new(id_col),
-                    op: BinaryOperator::Eq,
-                    right: Box::new(Expr::Value(Value::Number(node.eid.to_string()))), 
-            });
+            node = children_to_traverse.pop().unwrap().clone();
 
             // see if any entity has a foreign key to this one; we'll need to remove those too
             // NOTE: because traversal was parent->child, all potential children down the line
@@ -1800,23 +1820,33 @@ impl QueryTransformer {
                 }
             }
 
-            // delete from entity mv  
-            warn!("UNSUB {} remove: deleting from {} view {:?}", node.eid, node.table_name, selection);
-            self.views.delete(&node.table_name, &selection)?;
-
-            let delete_eid_from_table = Statement::Delete(DeleteStatement {
-                table_name: helpers::string_to_objname(&node.table_name),
-                selection: selection.clone(),
-            });
-            warn!("UNSUB {} remove: {}", node.eid, delete_eid_from_table);
-            db.query_drop(format!("{}", delete_eid_from_table.to_string()))?;
-            //assert!(res.affected_rows() == 1);
-            self.cur_stat.nqueries+=1;
-
-            seen_children.insert(node.clone());
+            self.remove_entities(&vec![node.clone()], db)?;
+            seen_children.insert(node);
         }
 
         Ok(seen_children)
+    }
+
+    fn remove_entities(&mut self, nodes: &Vec<TraversedEntity>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+        let id_col = Expr::Identifier(helpers::string_to_idents(ID_COL));
+        let eid_exprs : Vec<Expr> = nodes.iter().map(|node| Expr::Value(Value::Number(node.eid.to_string()))).collect();
+        let selection = Some(Expr::InList{
+                expr: Box::new(id_col),
+                list: eid_exprs,
+                negated: false,
+        });
+
+        warn!("UNSUB remove: deleting {:?} {:?}", nodes, selection);
+        self.views.delete(&nodes[0].table_name, &selection)?;
+
+        let delete_eid_from_table = Statement::Delete(DeleteStatement {
+            table_name: helpers::string_to_objname(&nodes[0].table_name),
+            selection: selection.clone(),
+        });
+        warn!("UNSUB remove: {}", delete_eid_from_table);
+        db.query_drop(format!("{}", delete_eid_from_table.to_string()))?;
+        self.cur_stat.nqueries+=1;
+        Ok(())
     }
 
     pub fn generate_new_entities_from(
@@ -1984,18 +2014,32 @@ impl QueryTransformer {
      * refresh "materialized views"
      * TODO add back deleted content from shard
      */
-    pub fn resubscribe(&mut self, uid: u64, gids: &Vec<(String, Option<u64>, u64)>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    pub fn resubscribe(&mut self, uid: u64, gids: &Vec<(String, Option<u64>, u64)>, entity_data: &Vec<(String, Vec<String>)>, db: &mut mysql::Conn) -> 
+        Result<(), mysql::Error> {
         // TODO check auth token?
       
         let mut gids = gids.clone();
+        let mut entity_data = entity_data.clone();
         match self.unsubscribed.get(&uid) {
-            Some(gidshash) => {
+            Some((gidshash, datahash)) => {
                 gids.sort();
                 let serialized = serde_json::to_string(&gids).unwrap();
                 self.hasher.input_str(&serialized);
                 let hashed = self.hasher.result_str();
                 if *gidshash != hashed {
-                    warn!("Resubscribing {} hash mismatch {}, {}", uid, gidshash, hashed);
+                    warn!("Resubscribing {} gidshash mismatch {}, {}", uid, gidshash, hashed);
+                    return Err(mysql::Error::IoError(io::Error::new(
+                                io::ErrorKind::Other, format!(
+                                    "User attempting to resubscribe with bad data {} {:?}", uid, gids))));
+                }
+                self.hasher.reset();
+
+                entity_data.sort();
+                let serialized = serde_json::to_string(&entity_data).unwrap();
+                self.hasher.input_str(&serialized);
+                let hashed = self.hasher.result_str();
+                if *datahash != hashed {
+                    warn!("Resubscribing {} datahash mismatch {}, {}", uid, datahash, hashed);
                     return Err(mysql::Error::IoError(io::Error::new(
                                 io::ErrorKind::Other, format!(
                                     "User attempting to resubscribe with bad data {} {:?}", uid, gids))));

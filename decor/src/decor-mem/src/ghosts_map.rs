@@ -36,7 +36,8 @@ pub fn create_ghosts_table(name: String, db: &mut mysql::Conn, in_memory: bool) 
 
 pub fn answer_rows<W: io::Write>(
     results: QueryResultWriter<W>,
-    gids: &Vec<(String, Option<u64>, u64)>) 
+    gids: &Vec<(String, Option<u64>, u64)>,
+    entities: &Vec<(String, Vec<String>)>) 
     -> Result<(), mysql::Error> 
 {
     let cols : Vec<_> = vec![

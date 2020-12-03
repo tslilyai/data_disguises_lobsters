@@ -62,6 +62,10 @@ pub struct Config {
 
     // tables that can have parent->child edges
     pub tables_with_children: HashSet<String>,
+    // is this child going to be left parent-less?
+    pub completely_decorrelated_children: HashSet<String>,
+    // is this parent going to be left edge-less?
+    pub completely_decorrelated_parents: HashSet<String>,
 }
 
 pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
@@ -72,9 +76,15 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
     let mut cp_sdts: HashMap<String, Vec<(String, String, f64)>>= HashMap::new();
     
     let mut tables_with_children: HashSet<String> = HashSet::new();
+    
+    let mut completely_decorrelated_parents: HashSet<String> = HashSet::new();
+    let mut completely_decorrelated_children: HashSet<String> = HashSet::new();
 
     for kr in &policy.edge_policies {
         tables_with_children.insert(kr.parent.clone());
+        completely_decorrelated_parents.insert(kr.parent.clone());
+        completely_decorrelated_children.insert(kr.child.clone());
+        
         match kr.parent_child_decorrelation_policy {
             DecorrelationPolicy::Decor => {
                 if let Some(ghost_cols) = pc_gdts.get_mut(&kr.child) {
@@ -91,6 +101,7 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
                 }        
             } 
             DecorrelationPolicy::NoDecorSensitivity(s) => {
+                completely_decorrelated_parents.remove(&kr.parent);
                 if let Some(ghost_cols) = pc_sdts.get_mut(&kr.child.clone()) {
                     ghost_cols.push((kr.column_name.clone(), kr.parent.clone(), s));
                 } else {
@@ -98,6 +109,7 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
                 }        
             }
             DecorrelationPolicy::NoDecorRetain => {
+                completely_decorrelated_parents.remove(&kr.parent);
                 if let Some(ghost_cols) = pc_sdts.get_mut(&kr.child.clone()) {
                     ghost_cols.push((kr.column_name.clone(), kr.parent.clone(), 1.0));
                 } else {
@@ -120,6 +132,7 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
                 }        
             } 
             DecorrelationPolicy::NoDecorSensitivity(s) => {
+                completely_decorrelated_children.remove(&kr.child);
                 if let Some(ghost_cols) = cp_sdts.get_mut(&kr.child.clone()) {
                     ghost_cols.push((kr.column_name.clone(), kr.parent.clone(), s));
                 } else {
@@ -127,6 +140,7 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
                 }        
             }
             DecorrelationPolicy::NoDecorRetain => {
+                completely_decorrelated_children.remove(&kr.child);
                 if let Some(ghost_cols) = cp_sdts.get_mut(&kr.child.clone()) {
                     ghost_cols.push((kr.column_name.clone(), kr.parent.clone(), 1.0));
                 } else {
@@ -145,5 +159,7 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
         child_parent_sensitive_tables: cp_sdts,
         
         tables_with_children: tables_with_children,
+        completely_decorrelated_parents: completely_decorrelated_parents,
+        completely_decorrelated_children: completely_decorrelated_children,
     }
 }

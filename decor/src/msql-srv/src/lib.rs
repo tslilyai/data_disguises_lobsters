@@ -218,7 +218,8 @@ pub trait MysqlShim<W: Write> {
     fn on_resubscribe(
         &mut self,
         uid: u64,
-        gids: Vec<(String, Option<u64>, u64)>,
+        gids: Vec<(String, Option<u64>, u64)>, 
+        entity_data: Vec<(String, Vec<String>)>, 
         w: QueryResultWriter<'_, W>,
     ) -> Result<(), Self::Error>;
 
@@ -415,7 +416,8 @@ impl<B: MysqlShim<W>, R: Read, W: Write> MysqlIntermediary<B, R, W> {
                         }
                         let uid = u64::from_str(uidstr)
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-                        self.shim.on_resubscribe(uid, gids, w)?;
+                        // TODO
+                        self.shim.on_resubscribe(uid, gids, vec![], w)?;
                     } else {
                         let w = QueryResultWriter::new(&mut self.writer, false);
                         self.shim.on_query(

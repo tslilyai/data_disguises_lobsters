@@ -484,7 +484,9 @@ fn test_users() {
     for (table, eid, gid) in &unsubscribed_gids {
         gid_strs.push(format!("({}, {}, {})", table, eid, gid));
     }
-    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {};", 1, gid_strs.join(", "))).unwrap();
+    let mut data_strs = vec![];
+    // TODO
+    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 1, gid_strs.join(", "), data_strs.join(","))).unwrap();
 
     let mut results = vec![];
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.id;").unwrap();
