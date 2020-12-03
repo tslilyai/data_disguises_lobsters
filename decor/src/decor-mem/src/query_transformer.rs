@@ -1362,6 +1362,7 @@ impl QueryTransformer {
 
          /* 
           * Step 1: TRAVERSAL + DECORRELATION
+          * TODO parallelize to reduce time to traverse...
           */
         while children_to_traverse.len() > 0 {
             node = children_to_traverse.pop().unwrap();
