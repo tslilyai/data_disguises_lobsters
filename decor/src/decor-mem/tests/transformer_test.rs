@@ -390,9 +390,10 @@ fn test_users() {
      *  Test 1: Unsubscribe of user 1 adds two ghost entries to user table, anonymizes both
      *  moderation entries
      */
-    let mut results = vec![];
+    let mut unsubscribed_gids = HashSet::new();
     let mut user_counts = 0;
     let mut story_counts = 0;
+    let mut mod_counts = 0;
     let res = db.query_iter(format!("UNSUBSCRIBE UID {};", 1)).unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
@@ -404,17 +405,21 @@ fn test_users() {
             user_counts += 1;
         } else if name == "'stories'" {
             story_counts += 1;
+        } else if name == "'moderations'" {
+            mod_counts += 1;
+
         } else {
-            assert!(false, "bad story! {}", name);
+            assert!(false, "bad table! {}", name);
         }
-        results.push((name, eid, gid));
+        unsubscribed_gids.insert((name, eid, gid));
     }
-    warn!("Unsubscribe user 1: {:?}", results);
-    assert_eq!(results.len(), 14);
-    assert_eq!(results[0], ("'users'".to_string(), format!("'{}'", 1), format!("'{}'", GHOST_ID_START)));
-    assert_eq!(results[1], ("'users'".to_string(), format!("'{}'", 1), format!("'{}'", GHOST_ID_START+3)));
+    //warn!("Unsubscribe user 1: {:?}", unsubscribed_gids);
+    assert_eq!(unsubscribed_gids.len(), 18);
+    assert!(unsubscribed_gids.contains(&("'users'".to_string(), format!("'{}'", 1), format!("'{}'", GHOST_ID_START))));
+    assert!(unsubscribed_gids.contains(&("'users'".to_string(), format!("'{}'", 1), format!("'{}'", GHOST_ID_START+3))));
     assert_eq!(user_counts, 10);
     assert_eq!(story_counts, 4);
+    assert_eq!(mod_counts, 4);
 
     let mut results = HashSet::new();
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.user_id;").unwrap();
@@ -429,7 +434,7 @@ fn test_users() {
         results.insert((id, mod_id, story_id, user_id, action));
     }
     assert_eq!(results.len(), 6);
-    warn!("results: {:?}", results);
+    //warn!("results: {:?}", results);
     assert!(
         results.contains(
             &("'2'".to_string(), 
@@ -475,9 +480,12 @@ fn test_users() {
      *  Test 2: Resubscribe of user 1 adds uid to user table, removes gids from user table, 
      *  unanonymizes both moderation entries
      */
-    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS ({}, {});", 1, GHOST_ID_START, GHOST_ID_START+3)).unwrap();
+    let mut gid_strs = vec![];
+    for (table, eid, gid) in &unsubscribed_gids {
+        gid_strs.push(format!("({}, {}, {})", table, eid, gid));
+    }
+    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {};", 1, gid_strs.join(", "))).unwrap();
 
-    /* 
     let mut results = vec![];
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.id;").unwrap();
     for row in res {
@@ -511,7 +519,6 @@ fn test_users() {
         let uid = format!("{}", mysql_val_to_parser_val(&vals[0]));
         results.push(uid);
     }
-    warn!("Got results {:?}", results);
     assert_eq!(results.len(), 2);
     assert_eq!(results[0], format!("'{}'", 1));
     assert_eq!(results[1], format!("'{}'", 2));
@@ -534,7 +541,7 @@ fn test_users() {
     assert_eq!(results.len(), 3);
     assert_eq!(results[0], format!("'{}'", 2));
     assert_eq!(results[1], format!("'{}'", 10));
-    assert_eq!(results[2], format!("'{}'", 11));*/
+    assert_eq!(results[2], format!("'{}'", 13));
  
     drop(db);
     jh.join().unwrap();

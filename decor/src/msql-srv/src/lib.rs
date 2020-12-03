@@ -389,25 +389,28 @@ impl<B: MysqlShim<W>, R: Read, W: Write> MysqlIntermediary<B, R, W> {
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
                         self.shim.on_unsubscribe(uid, w)?;
                     } else if q.starts_with(b"RESUBSCRIBE UID ") || q.starts_with(b"resubscribe uid ") {
-                        // RESUBSCRIBE UID uid WITH GIDS ((entity_type, eid, gid1), (entity_type,
-                        // eid, gid2), ...);
+                        // RESUBSCRIBE UID uid WITH GIDS (entity_type, eid, gid1), (entity_type,
+                        // eid, gid2), ...;
                         let w = QueryResultWriter::new(&mut self.writer, false);
                         let args = ::std::str::from_utf8(&q[b"RESUBSCRIBE UID ".len()..])
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-                        let args : Vec<&str> = args.split(" WITH GIDS (").collect();
+                        let args : Vec<&str> = args.split(" WITH GIDS ").collect();
                         assert!(args.len() == 2);
                         // TODO 
                         let uidstr = args[0].trim().trim_end_matches(';').trim_matches('`');
-                        let gidstrs : Vec<&str> = args[1].trim_end_matches(';').trim_end_matches(')').split("), ").collect();
+                        let gidstrs : Vec<&str> = args[1].trim_end_matches(';').split("), ").collect();
                         let mut gids = vec![];
                         for gid in &gidstrs {
-                            let parts : Vec<&str> = gid.trim_end_matches(')').trim_start_matches('(').split(',').collect();
-                            let name = parts[0].to_string();
-                            let opt_eid = match u64::from_str(parts[1].trim()) {
+                            let parts : Vec<&str> = gid.trim_end_matches(')').trim_start_matches('(').split(',')
+                                .map(|s| s.trim().trim_matches('\''))
+                                .collect();
+                            let name = parts[0].trim_matches('\'').to_string();
+                            let opt_eid = match u64::from_str(parts[1].trim().trim_matches('\'')) {
                                 Ok(v) => Some(v),
                                 Err(_) => None,
                             };
-                            let gid = u64::from_str(parts[2].trim()).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                            let gid = u64::from_str(parts[2].trim().trim_matches('\''))
+                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
                             gids.push((name, opt_eid, gid));
                         }
                         let uid = u64::from_str(uidstr)

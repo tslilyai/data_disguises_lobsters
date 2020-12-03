@@ -1644,7 +1644,9 @@ impl QueryTransformer {
                     } else if needed > 0 {
                         let mut gids = vec![];
                         for _i in 0..needed {
-                            gids.push(Value::Number(self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX).to_string()));
+                            let gid = self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX);
+                            gids.push(Value::Number(gid.to_string()));
+                            generated_eid_gids.push((poster_child.table_name.clone(), None, gid));
                         }
                         // TODO could choose a random child as the poster child 
                         warn!("Achieve child parent sensitivity: generating values for gids {:?}", gids);
@@ -1698,7 +1700,9 @@ impl QueryTransformer {
             // generate ghosts until the threshold is met
             let mut gids = vec![];
             for _i in 0..needed {
-                gids.push(Value::Number(self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX).to_string()));
+                let gid = self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX);
+                generated_eid_gids.push((child.table_name.clone(), None, gid));
+                gids.push(Value::Number(gid.to_string()));
             }
             warn!("Achieve parent child sensitivity: generating values for gids {:?}", gids);
             self.generate_new_entities_from(
@@ -1886,6 +1890,8 @@ impl QueryTransformer {
         // TODO generate random ghost 
         let gid = self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX);
         let gidval= Value::Number(gid.to_string());
+        generated_eid_gids.push((table_name.to_string(), None, gid));
+
         warn!("Generating foreign key entity for {} {:?}", table_name, random_row);
         self.generate_new_entities_from(
             db, 
@@ -1896,7 +1902,6 @@ impl QueryTransformer {
             &vec![gidval.clone()],
             None,
         )?;
-        generated_eid_gids.push((table_name.to_string(), None, gid));
         Ok(gidval)
     }
 
@@ -1982,83 +1987,93 @@ impl QueryTransformer {
         let mut curtable = &gids[0].0;
         let mut cureid = &gids[0].1;
         let mut curgids : Vec<u64> = vec![];
-        for ((table, eid, gid)) in &gids {
+        for (table, eid, gid) in &gids {
+            warn!("processing {}, {:?}, {}", table, eid, gid);
             // do all the work for this eid at once!
-            if cureid != eid {
-                let gid_exprs : Vec<Expr> = curgids
-                    .iter()
-                    .map(|g| Expr::Value(Value::Number(g.to_string())))
-                    .collect();
-                // remove all ghost entities that were created for this table!
-                let selection =  Some(Expr::InList{
-                    expr: Box::new(Expr::Identifier(helpers::string_to_idents(ID_COL))),
-                    list: gid_exprs.clone(),
-                    negated: false,
-                });
-                // delete from users MV
-                self.views.delete(&curtable, &selection)?;
-                let delete_gids_as_entities = Statement::Delete(DeleteStatement {
-                    table_name: helpers::string_to_objname(&curtable),
-                    selection: selection.clone(),
-                });
-                warn!("RESUB removing entities: {}", delete_gids_as_entities);
-                db.query_drop(format!("{}", delete_gids_as_entities.to_string()))?;
-                self.cur_stat.nqueries+=1;
-
-                // this GID was prior stored in an actual non-ghost entity
-                // we need to update these entities in the MV to now show the EID
-                // and also put these GIDs back in the ghost map
-                if let Some(eid) = cureid {
-                    let eid_val = Value::Number(eid.to_string());
-                    let gm = self.ghost_maps.get_mut(curtable).unwrap();
-                    if !gm.resubscribe(*eid, &curgids, db)? {
-                        return Err(mysql::Error::IoError(io::Error::new(
-                            io::ErrorKind::Other, format!("User not unsubscribed {}", uid))));
-                    }             
-                    
-                    // update assignments in MV to use EID again
-                    // NOTE: assuming that parent-child decorrelation is a superset of child-parent
-                    for (dtname, ghosted_cols) in self.decor_config.parent_child_ghosted_tables.iter() {
-                        let view_ptr = self.views.get_view(&dtname).unwrap();
-                        let mut view = view_ptr.borrow_mut();
-                        let mut select_constraint = Expr::Value(Value::Boolean(false));
-                        let mut cis = vec![];
-                        for (col, _) in ghosted_cols {
-                            // push all user columns, even if some of them might not "belong" to us
-                            cis.push(view.columns.iter().position(|c| helpers::tablecolumn_matches_col(c, col)).unwrap());
-                            select_constraint = Expr::BinaryOp {
-                                left: Box::new(select_constraint),
-                                op: BinaryOperator::Or,
-                                right: Box::new(Expr::InList{
-                                    expr: Box::new(Expr::Identifier(helpers::string_to_idents(&col))),
-                                    list: gid_exprs.clone(),
-                                    negated: false,
-                                }),             
-                            };
-                        }            
-
-                        let rptrs_to_update = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
-                        for rptr in &rptrs_to_update {
-                            for ci in &cis {
-                                warn!("RESUB: updating {:?} with {}", rptr, eid_val);
-                                // update the columns to use the uid
-                                if curgids.iter().any(|g| g.to_string() == rptr.row().borrow()[*ci].to_string()) {
-                                    view.update_index_and_row(rptr.row().clone(), *ci, Some(&eid_val));
-                                }
-                            }
-                        }
-                    }
-                }
+            if !(curtable == table && cureid == eid) {
+                self.resubscribe_with_gids(curtable, cureid, &curgids, db)?;
 
                 // reset 
                 cureid = eid;
                 curtable = table;
-                curgids.clear()
+                curgids = vec![*gid];
             } else {
                 curgids.push(*gid);
             }
         }
+        self.resubscribe_with_gids(curtable, cureid, &curgids, db)?;
 
         Ok(())
     }
-} 
+
+    fn resubscribe_with_gids(&mut self, curtable: &str, cureid: &Option<u64>, curgids: &Vec<u64>, db: &mut mysql::Conn) 
+        -> Result<(), mysql::Error> 
+    {
+        let gid_exprs : Vec<Expr> = curgids
+            .iter()
+            .map(|g| Expr::Value(Value::Number(g.to_string())))
+            .collect();
+        // remove all ghost entities that were created for this table!
+        let selection =  Some(Expr::InList{
+            expr: Box::new(Expr::Identifier(helpers::string_to_idents(ID_COL))),
+            list: gid_exprs.clone(),
+            negated: false,
+        });
+        // delete from users MV
+        self.views.delete(curtable, &selection)?;
+        let delete_gids_as_entities = Statement::Delete(DeleteStatement {
+            table_name: helpers::string_to_objname(&curtable),
+            selection: selection.clone(),
+        });
+        warn!("RESUB removing entities: {}", delete_gids_as_entities);
+        db.query_drop(format!("{}", delete_gids_as_entities.to_string()))?;
+        self.cur_stat.nqueries+=1;
+
+        // this GID was prior stored in an actual non-ghost entity
+        // we need to update these entities in the MV to now show the EID
+        // and also put these GIDs back in the ghost map
+        if let Some(eid) = cureid {
+            warn!("RESUB: actually restoring {} eid {}", curtable, eid);
+            let eid_val = Value::Number(eid.to_string());
+            let gm = self.ghost_maps.get_mut(curtable).unwrap();
+            if !gm.resubscribe(*eid, &curgids, db)? {
+                return Err(mysql::Error::IoError(io::Error::new(
+                    io::ErrorKind::Other, format!("not unsubscribed {}", eid))));
+            }             
+            
+            // update assignments in MV to use EID again
+            // NOTE: assuming that parent-child decorrelation is a superset of child-parent
+            for (dtname, ghosted_cols) in self.decor_config.parent_child_ghosted_tables.iter() {
+                let view_ptr = self.views.get_view(&dtname).unwrap();
+                let mut view = view_ptr.borrow_mut();
+                let mut select_constraint = Expr::Value(Value::Boolean(false));
+                let mut cis = vec![];
+                for (col, _) in ghosted_cols {
+                    // push all user columns, even if some of them might not "belong" to us
+                    cis.push(view.columns.iter().position(|c| helpers::tablecolumn_matches_col(c, col)).unwrap());
+                    select_constraint = Expr::BinaryOp {
+                        left: Box::new(select_constraint),
+                        op: BinaryOperator::Or,
+                        right: Box::new(Expr::InList{
+                            expr: Box::new(Expr::Identifier(helpers::string_to_idents(&col))),
+                            list: gid_exprs.clone(),
+                            negated: false,
+                        }),             
+                    };
+                }            
+
+                let rptrs_to_update = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
+                for rptr in &rptrs_to_update {
+                    for ci in &cis {
+                        warn!("RESUB: updating {:?} with {}", rptr, eid_val);
+                        // update the columns to use the uid
+                        if curgids.iter().any(|g| g.to_string() == rptr.row().borrow()[*ci].to_string()) {
+                            view.update_index_and_row(rptr.row().clone(), *ci, Some(&eid_val));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
