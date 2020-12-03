@@ -16,6 +16,6 @@ do
     	#../target/release/lobsters-microbenchmarks \
     	perflock ../target/release/lobsters-microbenchmarks \
 		--test=$test --testname=$test$trial \
-		--nusers=10 --nstories=500 --ncomments=1000 --nthreads=1 --nqueries=500
+		--nusers=10 --nstories=500 --ncomments=1000 --nthreads=1 --nqueries=1000
     done
 done
