@@ -1336,7 +1336,7 @@ impl QueryTransformer {
      *******************************************************/
     pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) -> Result<(), mysql::Error> 
     {
-        warn!("Unsubscribing {}", uid);
+        warn!("Unsubscribing uid {}", uid);
 
         // table name of entity, eid, gids for eid
         let mut generated_eid_gids: Vec<(String, Option<u64>, u64)> = vec![];
@@ -1361,7 +1361,7 @@ impl QueryTransformer {
                             op: BinaryOperator::Eq,
                             right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
                         }, &view_ptr.borrow(), &view_ptr.borrow().columns);
-        assert!(matching_users.len() == 1);
+        assert!(matching_users.len() == 1, format!("Matching users returned {:?}", matching_users));
         let user_vals = matching_users.iter().next().unwrap();
         table_to_children_to_traverse.insert(
             self.decor_config.entity_type_to_decorrelate.clone(),
@@ -2024,6 +2024,7 @@ impl QueryTransformer {
     pub fn resubscribe(&mut self, uid: u64, gids: &GhostMappingShard, entity_data: &EntityDataShard, db: &mut mysql::Conn) -> 
         Result<(), mysql::Error> {
         // TODO check auth token?
+         warn!("Resubscribing uid {}", uid);
       
         let mut gids = gids.clone();
         let mut entity_data = entity_data.clone();
@@ -2059,33 +2060,28 @@ impl QueryTransformer {
                                 io::ErrorKind::Other, format!("User not unsubscribed {}", uid))));
             }
         }
+        warn!("Entity data is {:?}", entity_data);
 
         /*
-         * Add resubscribing user to users
-         * NOTE: only the deleted user is ever reintroduced (with dummy fields)
-         * TODO: add generated user columns? Allow user to resubscribe profile?
-         * (Other decorrelated entities are still present, but their keys are not foreign keys of
-         * other entities; they are in essence disconnected from any MV)
+         * Add resubscribing data to data tables + MVs 
          */
-        self.views.insert(&self.decor_config.entity_type_to_decorrelate, 
-                          &vec![Ident::new(ID_COL)], 
-                          &vec![Rc::new(RefCell::new(vec![Value::Number(uid.to_string())]))])?;
-
-        let insert_uid_as_user_stmt = Statement::Insert(InsertStatement{
-            table_name: helpers::string_to_objname(&self.decor_config.entity_type_to_decorrelate.clone()),
-            columns: vec![Ident::new(ID_COL)],
-            source: InsertSource::Query(Box::new(Query{
-                ctes: vec![],
-                body: SetExpr::Values(Values(vec![vec![Expr::Value(Value::Number(uid.to_string()))]])),
-                order_by: vec![],
-                limit: None,
-                offset: None,
-                fetch: None,
-            })),
-        });
-        warn!("RESUB INSERT USER: {}", insert_uid_as_user_stmt.to_string());
-        db.query_drop(format!("{}", insert_uid_as_user_stmt.to_string()))?;
-        self.cur_stat.nqueries+=1;
+        // parse entity data into tables -> data
+        let mut curtable = &entity_data[0].0;
+        let mut curvals = vec![];
+        for (table, vals) in &entity_data {
+            //warn!("processing {}, {:?}, {}", table, eid, gid);
+            // do all the work for this table at once!
+            if !(curtable == table) {
+                self.reinsert_with_vals(curtable, &curvals, db)?;
+                
+                // reset 
+                curtable = table;
+                curvals = vec![vals];
+            } else {
+                curvals.push(vals); 
+            }
+        }
+        self.reinsert_with_vals(curtable, &curvals, db)?;
 
         // parse gids into table eids -> set of gids
         let mut curtable = &gids[0].0;
@@ -2109,6 +2105,40 @@ impl QueryTransformer {
 
         Ok(())
     }
+
+    fn reinsert_with_vals(&mut self, curtable: &str, curvals: &Vec<&Vec<String>>, db: &mut mysql::Conn) 
+    -> Result<(), mysql::Error> 
+    {
+        let viewptr = self.views.get_view(curtable).unwrap();
+        let columns = viewptr.borrow().columns.iter().map(|c| Ident::new(c.colname.to_string())).collect();
+        warn!("{}: Reinserting values {:?}", curtable, curvals);
+        let rowptrs = curvals.iter()
+            .map(|row| Rc::new(RefCell::new(helpers::string_vals_to_parser_vals(row, &viewptr.borrow().columns))))
+            .collect();
+        self.views.insert(curtable, &columns, &rowptrs);
+
+        let insert_entities_stmt = Statement::Insert(InsertStatement{
+            table_name: helpers::string_to_objname(&self.decor_config.entity_type_to_decorrelate.clone()),
+            columns: columns,
+            source: InsertSource::Query(Box::new(Query{
+                ctes: vec![],
+                body: SetExpr::Values(Values(
+                        curvals.iter()
+                        .map(|row| row.iter().map(|valstr| Expr::Value(Value::String(valstr.to_string()))).collect())
+                        .collect())),
+                order_by: vec![],
+                limit: None,
+                offset: None,
+                fetch: None,
+            })),
+        });
+
+        warn!("RESUB INSERT {}", insert_entities_stmt.to_string());
+        db.query_drop(format!("{}", insert_entities_stmt.to_string()))?;
+        self.cur_stat.nqueries+=1;
+        Ok(())
+    }
+ 
 
     fn resubscribe_with_gids(&mut self, curtable: &str, cureid: &Option<u64>, curgids: &Vec<u64>, db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 

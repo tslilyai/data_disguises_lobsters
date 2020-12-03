@@ -169,13 +169,8 @@ pub fn expr_is_value(expr:&Expr) -> bool {
 }
 
 pub fn trim_quotes(s: &str) -> &str {
-    let mut s = s;
-    if s.ends_with('"') && s.starts_with('"') {
-        s = &s[1..s.len() - 1]
-    } 
-    if s.ends_with("'") && s.starts_with("'") {
-        s = &s[1..s.len() - 1]
-    } 
+    let mut s = s.trim_matches('\'');
+    s = s.trim_matches('\"');
     s
 }
 
@@ -381,6 +376,31 @@ pub fn parser_val_to_common_val(val: &sql_parser::ast::Value) -> mysql_common::v
     }
 }
 
+pub fn string_vals_to_parser_vals(valstrs: &Vec<String>, columns: &Vec<views::TableColumnDef>) -> Vec<Value> {
+    let mut valsvec = vec![];
+    for ci in 0..columns.len() {
+        let valstr = trim_quotes(&valstrs[ci]);
+        valsvec.push(
+            match columns[ci].column.data_type {
+                DataType::Decimal(..) 
+                    | DataType::Float(..)
+                    | DataType::Double 
+                    | DataType::BigInt 
+                    | DataType::SmallInt
+                    | DataType::TinyInt(..) 
+                    | DataType::Int => Value::Number(valstr.to_string()),
+                DataType::Timestamp 
+                    | DataType::Date 
+                    | DataType::Time 
+                    | DataType::Varchar(..) 
+                    | DataType::Blob(..) 
+                    | DataType::Char(..) => Value::String(valstr.to_string()),
+                DataType::Boolean => Value::Boolean(valstr == "1"),
+                _ => unimplemented!("type not supported yet")
+            });
+    }
+    valsvec
+}
 
 /************************************ 
  * MYSQL HELPERS
