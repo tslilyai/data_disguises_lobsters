@@ -146,7 +146,7 @@ impl GhostsMap {
      * Removes the eid unsubscribing.
      * Returns true if was unsubscribed 
      */
-    pub fn resubscribe(&mut self, eid: u64, gidrptrs: &HashedRowPtrs, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
+    pub fn resubscribe(&mut self, eid: u64, index: usize, gidrptrs: &RowPtrs, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
         // check hash and ensure that user has been unsubscribed
         // TODO could also use MAC to authenticate user
         warn!("{} Resubscribing {}", self.name, eid);
@@ -157,11 +157,11 @@ impl GhostsMap {
         let mut ghosts_of_eid = vec![];
         let mut pairs = vec![];
         for grptr in gidrptrs {
-            let gid = grptr.id();
-            self.gid2eid.insert(gid, (eid, grptr.row().clone()));
+            let gid = helpers::parser_val_to_u64(&grptr.borrow()[index]);
+            self.gid2eid.insert(gid, (eid, grptr.clone()));
 
             // insert into backward map
-            ghosts_of_eid.push((gid, grptr.row().clone()));
+            ghosts_of_eid.push((gid, grptr.clone()));
 
             // save values to insert into ghosts table
             pairs.push(format!("({}, {})", gid, eid));
@@ -459,8 +459,8 @@ impl GhostMaps{
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
         gm.unsubscribe(eid, db)
     }
-    pub fn resubscribe(&mut self, eid: u64, gidrptrs: &HashedRowPtrs, db: &mut mysql::Conn, parent_table: &str) -> Result<bool, mysql::Error> {
+    pub fn resubscribe(&mut self, eid: u64, index: usize, gidrptrs: &RowPtrs, db: &mut mysql::Conn, parent_table: &str) -> Result<bool, mysql::Error> {
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
-        gm.resubscribe(eid, gidrptrs, db)
+        gm.resubscribe(eid, index, gidrptrs, db)
     }
 }

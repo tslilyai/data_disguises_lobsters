@@ -159,19 +159,13 @@ impl View {
     pub fn insert_row(&mut self, row: Rc<RefCell<Row>>) {
         self.rows.borrow_mut().insert(row.borrow()[self.primary_index].to_string(), row.clone());
     }
-
-    pub fn delete_ghost_rptrs(&mut self, 
-          rptrs: &HashedRowPtrs)
-        -> Result<(), Error> 
-    {
-        let len = self.columns.len();
-        for rptr in rptrs.iter() {
-            for ci in 0..len {
-                // all the row indices have to change too..
-                self.update_index_and_row(rptr.row().clone(), ci, None);
-            }
-        }
-        Ok(())
+    
+    pub fn get_rows_of_ids(&self, ids: &Vec<u64>) -> RowPtrs {
+        ids.iter().map(|id| self.get_row_of_id(*id)).collect()
+    }
+ 
+    pub fn get_row_of_id(&self, id: u64) -> RowPtr {
+        self.rows.borrow().get(&id.to_string()).unwrap().clone()
     }
 
     pub fn minus_rptrs(&self, a: &mut RowPtrs, b: &mut RowPtrs) -> RowPtrs {
@@ -536,7 +530,7 @@ impl Views {
         select::get_query_results(&self.views, query)
     }
  
-    pub fn insert(&mut self, table_name: &str, columns: &Vec<Ident>, val_rows: &RowPtrs, is_ghost: bool) -> Result<(), Error> {
+    pub fn insert(&mut self, table_name: &str, columns: &Vec<Ident>, val_rows: &RowPtrs) -> Result<(), Error> {
         let mut view = self.views.get(table_name).unwrap().borrow_mut();
 
         warn!("{}: insert rows {:?} into {}", view.name, val_rows, table_name);
@@ -648,13 +642,11 @@ impl Views {
 
         for row in insert_rows {
             view.insert_row(row.clone());
-            if !is_ghost {
-                for (ci, parent_table) in &view.parent_cols {
-                    // add edge to graph
-                    let peid = helpers::parser_val_to_u64_opt(&row.borrow()[*ci]);
-                    if let Some(peid) = peid {
-                        self.graph.add_edge(HashedRowPtr::new(row.clone(), view.primary_index), &view.name, parent_table, peid, *ci);
-                    }
+            for (ci, parent_table) in &view.parent_cols {
+                // add edge to graph
+                let peid = helpers::parser_val_to_u64_opt(&row.borrow()[*ci]);
+                if let Some(peid) = peid {
+                    self.graph.add_edge(HashedRowPtr::new(row.clone(), view.primary_index), &view.name, parent_table, peid, *ci);
                 }
             }
         }
@@ -754,6 +746,31 @@ impl Views {
 
         let dur = start.elapsed();
         warn!("Update view {} took: {}us", view.name, dur.as_micros());
+        Ok(())
+    }
+
+    pub fn delete_ghost_rptrs(&mut self, 
+          table_name: &str, 
+          rptrs: &RowPtrs)
+        -> Result<(), Error> 
+    {
+        let mut view = self.views.get(table_name).unwrap().borrow_mut();
+        let len = view.columns.len();
+        for rptr in rptrs {
+            for ci in 0..len {
+                for (pci, parent_table) in &view.parent_cols {
+                    if *pci == ci {
+                        let old_peid = helpers::parser_val_to_u64(&rptr.borrow()[ci]);
+                        self.graph.update_edge(&view.name, parent_table, 
+                                               HashedRowPtr::new(rptr.clone(), view.primary_index), old_peid, None, ci);
+                        break;
+                    }
+                }
+
+                // all the row indices have to change too..
+                view.update_index_and_row(rptr.clone(), ci, None);
+            }
+        }
         Ok(())
     }
 

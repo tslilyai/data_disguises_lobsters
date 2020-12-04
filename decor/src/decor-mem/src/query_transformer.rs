@@ -964,15 +964,8 @@ impl QueryTransformer {
 
     fn insert_ghost_parent(&mut self, parent_table: &str, eid: u64, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
         let view_ptr = self.views.get_view(parent_table).unwrap();
-        let matching= select::get_rptrs_matching_constraint(
-                        &Expr::BinaryOp {
-                            left: Box::new(Expr::Identifier(helpers::string_to_idents(ID_COL))),
-                            op: BinaryOperator::Eq,
-                            right: Box::new(Expr::Value(Value::Number(eid.to_string()))),
-                        }, &view_ptr.borrow(), &view_ptr.borrow().columns);
-        assert!(matching.len() == 1, format!("Matching parent returned {:?}", matching));
-        let vals = matching.iter().next().unwrap();
-        self.ghost_maps.insert_gid_for_eid(&self.views, &self.ghost_policies, vals.row().clone(), eid, db, parent_table)
+        let vals = view_ptr.borrow().get_row_of_id(eid);
+        self.ghost_maps.insert_gid_for_eid(&self.views, &self.ghost_policies, vals.clone(), eid, db, parent_table)
     }
        
     fn issue_update_datatable_stmt(&mut self, assign_vals: &Vec<Expr>, stmt: UpdateStatement, db: &mut mysql::Conn)
@@ -1189,7 +1182,7 @@ impl QueryTransformer {
                 }
 
                 // insert into views
-                self.views.insert(&table_name.to_string(), &columns, &values, false)?;
+                self.views.insert(&table_name.to_string(), &columns, &values)?;
             }
             Statement::Update(UpdateStatement{
                 table_name,
@@ -1358,19 +1351,12 @@ impl QueryTransformer {
 
         // initialize with the entity specified by the uid
         let mut view_ptr = self.views.get_view(&self.decor_config.entity_type_to_decorrelate).unwrap();
-        let matching_users = select::get_rptrs_matching_constraint(
-                        &Expr::BinaryOp {
-                            left: Box::new(Expr::Identifier(helpers::string_to_idents(ID_COL))),
-                            op: BinaryOperator::Eq,
-                            right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
-                        }, &view_ptr.borrow(), &view_ptr.borrow().columns);
-        assert!(matching_users.len() == 1, format!("Matching users returned {:?}", matching_users));
-        let user_vals = matching_users.iter().next().unwrap();
+        let matching_row = HashedRowPtr::new(view_ptr.borrow().get_row_of_id(uid), view_ptr.borrow().primary_index);
         children_to_traverse.push(TraversedEntity{
                 table_name: self.decor_config.entity_type_to_decorrelate.clone(),
                 eid : uid,
                 columns: view_ptr.borrow().columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect(),
-                vals: user_vals.clone(),
+                vals: matching_row.clone(),
                 from_table: "".to_string(),
                 from_col_index: 0,
                 sensitivity: OrderedFloat(-1.0),
@@ -1418,7 +1404,7 @@ impl QueryTransformer {
                 // NOTE: entries are already in the datatables!!
                 // we don't need to modify the graph...
                 let columns = self.views.get_view_columns(&node.table_name);
-                self.views.insert(&node.table_name, &columns, &rptrs, true)?;
+                self.views.insert(&node.table_name, &columns, &rptrs)?;
             }
 
             for ((child_table, child_ci), child_hrptrs) in children.iter() {
@@ -1587,7 +1573,7 @@ impl QueryTransformer {
                         let newgid = policy::generate_foreign_key_value(
                             &self.views, &self.ghost_policies, db, generated_eid_gids, &parent_table, &mut new_entities, &mut self.cur_stat.nqueries)?;
                         for (table, columns, rptrs) in &new_entities {
-                            self.views.insert(&table, &columns, &rptrs, true)?;
+                            self.views.insert(&table, &columns, &rptrs)?;
                         }
                         child.vals.row().borrow_mut()[ci] = newgid;
                     }
@@ -1666,7 +1652,7 @@ impl QueryTransformer {
                             Some((ci, Value::Number(parent_eid.to_string()))),
                             &mut self.cur_stat.nqueries)?;
                         for (table, columns, rptrs) in &new_entities {
-                            self.views.insert(table, columns, rptrs, true)?;
+                            self.views.insert(table, columns, rptrs)?;
                         }
                     }
                 }
@@ -1727,7 +1713,7 @@ impl QueryTransformer {
                 Some((child.from_col_index, parent_val.clone())),
                 &mut self.cur_stat.nqueries)?;
             for (table, columns, rptrs) in &new_entities {
-                self.views.insert(table, columns, rptrs, true)?;
+                self.views.insert(table, columns, rptrs)?;
             }
         }
         Ok(removed)
@@ -1896,7 +1882,7 @@ impl QueryTransformer {
             bodyvals.push(vals.iter().map(|v| Expr::Value(v.clone())).collect());
         }
 
-        self.views.insert(curtable, &columns, &rowptrs, false)?;
+        self.views.insert(curtable, &columns, &rowptrs)?;
 
         let insert_entities_stmt = Statement::Insert(InsertStatement{
             table_name: helpers::string_to_objname(&self.decor_config.entity_type_to_decorrelate.clone()),
@@ -1921,83 +1907,67 @@ impl QueryTransformer {
     fn resubscribe_with_gids(&mut self, curtable: &str, cureid: &Option<u64>, curgids: &Vec<u64>, db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
-        let gid_exprs : Vec<Expr> = curgids
-            .iter()
-            .map(|g| Expr::Value(Value::Number(g.to_string())))
-            .collect();
-        
         // get rows from MV belonging to the ghost entities
-        let select_ghosts = Expr::InList{
-            expr: Box::new(Expr::Identifier(helpers::string_to_idents(ID_COL))),
-            list: gid_exprs.clone(),
-            negated: false,
-        };
         let view_ptr = self.views.get_view(&curtable).unwrap();
-        let mut view = view_ptr.borrow_mut();
-        // don't use graph because ghosts weren't added to graph
-        let ghost_rptrs = select::get_rptrs_matching_constraint(&select_ghosts, &view, &view.columns);
+        let ghost_rptrs = view_ptr.borrow().get_rows_of_ids(curgids);
 
         // delete from actual data table if was created during unsub
         if cureid.is_none() {
+            let select_ghosts = Expr::InList{
+                expr: Box::new(Expr::Identifier(helpers::string_to_idents(ID_COL))),
+                list: curgids.iter().map(|gid| Expr::Value(Value::Number(gid.to_string()))).collect(),
+                negated: false,
+            };
             let delete_gids_as_entities = Statement::Delete(DeleteStatement {
                 table_name: helpers::string_to_objname(&curtable),
-                selection: Some(select_ghosts.clone()),
+                selection: Some(select_ghosts),
             });
             warn!("RESUB removing entities: {}", delete_gids_as_entities);
             db.query_drop(format!("{}", delete_gids_as_entities.to_string()))?;
             self.cur_stat.nqueries+=1;
 
             // delete from MV
-            view.delete_ghost_rptrs(&ghost_rptrs)?;
+            self.views.delete_ghost_rptrs(&curtable, &ghost_rptrs)?;
         }
 
         // this GID was prior stored in an actual non-ghost entity
         // we need to update these entities in the MV to now show the EID
         // and also put these GIDs back in the ghost map
         else if let Some(eid) = cureid {
-
             warn!("RESUB: actually restoring {} eid {}, gprtrs {:?} for gids {:?}", curtable, eid, ghost_rptrs, curgids);
             let eid_val = Value::Number(eid.to_string());
-            if !self.ghost_maps.resubscribe(*eid, &ghost_rptrs, db, curtable)? {
+            if !self.ghost_maps.resubscribe(*eid, view_ptr.borrow().primary_index, &ghost_rptrs, db, curtable)? {
                 return Err(mysql::Error::IoError(io::Error::new(
                     io::ErrorKind::Other, format!("not unsubscribed {}", eid))));
             }             
             
             // update assignments in MV to use EID again
-            // NOTE: assuming that parent-child decorrelation is a superset of child-parent
-            for (dtname, ghosted_cols) in self.decor_config.parent_child_ghosted_tables.iter() {
-                let view_ptr = self.views.get_view(&dtname).unwrap();
-                let mut view = view_ptr.borrow_mut();
-                let mut select_constraint = Expr::Value(Value::Boolean(false));
-                let mut cis = vec![];
-                for (col, _) in ghosted_cols {
-                    // push all user columns, even if some of them might not "belong" to us
-                    cis.push(view.columns.iter().position(|c| helpers::tablecolumn_matches_col(c, col)).unwrap());
-                    select_constraint = Expr::BinaryOp {
-                        left: Box::new(select_constraint),
-                        op: BinaryOperator::Or,
-                        right: Box::new(Expr::InList{
-                            expr: Box::new(Expr::Identifier(helpers::string_to_idents(&col))),
-                            list: gid_exprs.clone(),
-                            negated: false,
-                        }),             
-                    };
-                }            
-
-                let rptrs_to_update = select::get_rptrs_matching_constraint(&select_constraint, &view, &view.columns);
-                for rptr in &rptrs_to_update {
-                    for ci in &cis {
-                        warn!("RESUB: updating {:?} with {}", rptr, eid_val);
-                        // update the columns to use the uid
-                        if curgids.iter().any(|g| g.to_string() == rptr.row().borrow()[*ci].to_string()) {
-                            view.update_index_and_row(rptr.row().clone(), *ci, Some(&eid_val));
+            let mut children : EntityTypeRows;
+            for gid in curgids {
+                // get children of this ghost
+                match self.views.graph.get_children_of_parent(curtable, *gid) {
+                    None => continue,
+                    Some(cs) => children = cs,
+                }
+                // for each child row
+                for ((child_table, child_ci), child_hrptrs) in children.iter() {
+                    let ghosted_cols = helpers::get_ghosted_col_indices_of(&self.decor_config, &child_table, &view_ptr.borrow().columns);
+                    // if the child has a column that is ghosted and the ghost ID matches this gid
+                    for (ci, _) in &ghosted_cols {
+                        if ci == child_ci {
+                            for hrptr in child_hrptrs {
+                                if hrptr.row().borrow()[*ci].to_string() == gid.to_string() {
+                                    // then update this child to use the actual real EID
+                                    view_ptr.borrow_mut().update_index_and_row(hrptr.row().clone(), *ci, Some(&eid_val));
+                                }
+                            }
                         }
                     }
                 }
             }
 
             // delete ghost entities from MV
-            view.delete_ghost_rptrs(&ghost_rptrs)?;
+            self.views.delete_ghost_rptrs(&curtable, &ghost_rptrs)?;
         }
         Ok(())
     }
