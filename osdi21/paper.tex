@@ -76,48 +76,13 @@
 
 \maketitle
 
-%-------------------------------------------------------------------------------
-\begin{abstract}
-%-------------------------------------------------------------------------------
-Web services increasingly face legal requirements to protect users' privacy (e.g.,\ the GDPR). These
-    laws require companies to properly delete and anonymize users’ data when a user requests to
-    remove their data. And beyond current legal requirements, many users would rest easier if they
-    knew that they can unsubscribe from a web service at any time, without losing their data and
-    with the opportunity to come back later.
-
-    But unsubscribing users without compromising either the leaving user's privacy or the application
-    experience for the remaining users is difficult. Removing too much information meets privacy
-    requirements, but may yield surprising application behavior (e.g.,\ disappearing content);
-    removing too little risks exposing the identity of unsubscribed users via inference attacks.
-
-    In this paper, we propose \sys{}, a new system for safe unsubscription and resubscription of
-    users in database-backed web services. \sys{} helps application developers specify fine-grained
-    privacy policies to meet de-identification requirements, and goes beyond: with \sys{}, it is
-    possible for users to switch between a privacy-preserving unsubscribed mode and an
-    identity-revealing subscribed mode at any time without permanently losing their data. This
-    facilitates important new web service paradigms, such as users granting a time-limited "lease"
-    of data to a service instead of having a permanent service account.  
-\end{abstract}
-
+\input{abstract}
 \input{intro}
 \input{related}
 \input{design}
 \input{impl}
 \input{eval}
 \input{disc}
-
-%-------------------------------------------------------------------------------
-\section*{Acknowledgments}
-%-------------------------------------------------------------------------------
-
-%-------------------------------------------------------------------------------
-\section*{Availability}
-%-------------------------------------------------------------------------------
-
-\lyt{USENIX program committees give extra points to submissions that are
-backed by artifacts that are publicly available. If you made your code
-or data available, it's worth mentioning this fact in a dedicated
-section.}
 
 %-------------------------------------------------------------------------------
 \bibliographystyle{plain}
