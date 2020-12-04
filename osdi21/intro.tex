@@ -6,25 +6,36 @@
 Web application operators increasingly face pressure from legal requirements
 that grant users new rights over their data.
 %
-For example, the European Union's General Data Protection Regulation
-(GDPR)~\cite{eu:gdpr} grants end-users (``data subjects'') the right to request
-erasure of information related to them, and California's Consumer Privacy Act
-(CCPA)~\cite{ca:privacy-act} contains similar provisions.
+For example, both the European Union's General Data Protection Regulation
+(GDPR)~\cite{eu:gdpr} and California's Consumer Privacy Act
+(CCPA)~\cite{ca:privacy-act} grant users the right to request erasure of
+information related to them.
 %
-These laws make it necessary for companies to support \emph{unsubscription} of
-users from their services on request.
+These laws, for the first time, require companies to support \emph{unsubscription}
+of users from their services on request.
 %
 
+%
 Unsubscription goes beyond merely deleting a user's data.
 %
+The correct operation of a service often requires that some information
+remains after a user departs.
+%
+\ms{For example...}
+%
 
-
-In this paper, we propose \sys{}, which enables application developers to specify fine-grained
-privacy policies to meet de-identification requirements, and goes beyond: with \sys{}, it is
-possible for users to switch between a privacy-preserving unsubscribed mode and an
-identity-revealing subscribed mode at any time without permanently losing their data. This
-facilitates important new web service paradigms, such as users granting a time-limited ``lease'' of
-data to a service instead of having a permanent service account.
+%
+In this paper, we propose \sys{}, which enables application developers to specify
+fine-grained \emph{unsubscription policies} to meet de-identification requirements,
+%
+But \sys{} goes beyond simply unsubscribing users: it makes it possible for users to
+switch between a privacy-preserving unsubscribed mode and an
+identity-revealing subscribed mode at any time without permanently losing their data.
+%
+This facilitates important new web service paradigms, such as users granting a
+time-limited ``lease'' of data to a service instead of having a permanent service
+account.
+%
 
 Developers using \sys{} specify privacy-sensitive data and the state of such data after the user
 leaves. \sys{} \emph{decorrelates} a user's data according to this specification when a user unsubscribes;
