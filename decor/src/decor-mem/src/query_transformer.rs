@@ -1408,6 +1408,7 @@ impl QueryTransformer {
             }
             warn!("Found children {:?} of {:?}", children, node);
 
+            // TODO make a pointer so we don't have to clone
             for ((child_table, child_ci), child_hrptrs) in children.iter() {
                 view_ptr = self.views.get_view(&child_table).unwrap();
                 let columns = self.views.get_view_columns(&child_table);
@@ -1469,6 +1470,7 @@ impl QueryTransformer {
                     }
                 }
             }
+            self.views.update_index_and_row_of_view(&child_table, rptr.row().clone(), *ci, Some(&val));
             warn!("UNSUB {}: Duration to traverse+decorrelate {}, {:?}: {}us", 
                       uid, node.table_name, node, start.elapsed().as_micros());
            
