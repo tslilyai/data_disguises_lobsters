@@ -402,7 +402,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                 });
             }
 
-            debug!("setexpr select: returning {:?}", rptrs_to_keep);
+            warn!("setexpr select: returning {:?}", rptrs_to_keep);
             Ok((columns, rptrs_to_keep, cols_to_keep))
         }
         SetExpr::Values(_vals) => {

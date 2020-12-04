@@ -160,6 +160,20 @@ impl View {
         self.rows.borrow_mut().insert(row.borrow()[self.primary_index].to_string(), row.clone());
     }
 
+    pub fn delete_ghost_rptrs(&mut self, 
+          rptrs: &HashedRowPtrs)
+        -> Result<(), Error> 
+    {
+        let len = self.columns.len();
+        for rptr in rptrs.iter() {
+            for ci in 0..len {
+                // all the row indices have to change too..
+                self.update_index_and_row(rptr.row().clone(), ci, None);
+            }
+        }
+        Ok(())
+    }
+
     pub fn minus_rptrs(&self, a: &mut RowPtrs, b: &mut RowPtrs) -> RowPtrs {
         a.sort_by(|r1, r2| helpers::parser_vals_cmp(&r1.borrow()[self.primary_index], &r2.borrow()[self.primary_index]));
         b.sort_by(|r1, r2| helpers::parser_vals_cmp(&r1.borrow()[self.primary_index], &r2.borrow()[self.primary_index]));
@@ -522,7 +536,7 @@ impl Views {
         select::get_query_results(&self.views, query)
     }
  
-    pub fn insert(&mut self, table_name: &str, columns: &Vec<Ident>, val_rows: &RowPtrs) -> Result<(), Error> {
+    pub fn insert(&mut self, table_name: &str, columns: &Vec<Ident>, val_rows: &RowPtrs, is_ghost: bool) -> Result<(), Error> {
         let mut view = self.views.get(table_name).unwrap().borrow_mut();
 
         debug!("{}: insert rows {:?} into {}", view.name, val_rows, table_name);
@@ -631,13 +645,16 @@ impl Views {
         }
 
         warn!("views::insert {}: Appending rows: {:?}", view.name, insert_rows);
+
         for row in insert_rows {
             view.insert_row(row.clone());
-            for (ci, parent_table) in &view.parent_cols {
-                // add edge to graph
-                let peid = helpers::parser_val_to_u64_opt(&row.borrow()[*ci]);
-                if let Some(peid) = peid {
-                    self.graph.add_edge(HashedRowPtr::new(row.clone(), view.primary_index), &view.name, parent_table, peid, *ci);
+            if !is_ghost {
+                for (ci, parent_table) in &view.parent_cols {
+                    // add edge to graph
+                    let peid = helpers::parser_val_to_u64_opt(&row.borrow()[*ci]);
+                    if let Some(peid) = peid {
+                        self.graph.add_edge(HashedRowPtr::new(row.clone(), view.primary_index), &view.name, parent_table, peid, *ci);
+                    }
                 }
             }
         }

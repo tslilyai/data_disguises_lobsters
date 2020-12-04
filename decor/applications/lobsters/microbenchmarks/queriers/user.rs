@@ -1,5 +1,6 @@
 extern crate mysql;
 extern crate log;
+use log::{warn};
 use decor::*;
 
 use mysql::prelude::*;

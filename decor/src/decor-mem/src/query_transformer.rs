@@ -821,8 +821,6 @@ impl QueryTransformer {
                             // TODO deal with potential GIDs in ghosted_cols due to
                             // unsubscriptions/resubscriptions
                             //let parent = &ghosted_cols[i].1;
-                            //let gm = self.ghost_maps.get_mut(parent).unwrap();
-                            //gm.cache_eid2gids_for_eids(&eids)?;
                         }
                     }
 
@@ -1191,7 +1189,7 @@ impl QueryTransformer {
                 }
 
                 // insert into views
-                self.views.insert(&table_name.to_string(), &columns, &values)?;
+                self.views.insert(&table_name.to_string(), &columns, &values, false)?;
             }
             Statement::Update(UpdateStatement{
                 table_name,
@@ -1418,8 +1416,9 @@ impl QueryTransformer {
 
                 // 2. update this node's MV to have an entry for all the parent ghost entities 
                 // NOTE: entries are already in the datatables!!
+                // we don't need to modify the graph...
                 let columns = self.views.get_view_columns(&node.table_name);
-                self.views.insert(&node.table_name, &columns, &rptrs)?;
+                self.views.insert(&node.table_name, &columns, &rptrs, true)?;
             }
 
             for ((child_table, child_ci), child_hrptrs) in children.iter() {
@@ -1588,7 +1587,7 @@ impl QueryTransformer {
                         let newgid = policy::generate_foreign_key_value(
                             &self.views, &self.ghost_policies, db, generated_eid_gids, &parent_table, &mut new_entities, &mut self.cur_stat.nqueries)?;
                         for (table, columns, rptrs) in &new_entities {
-                            self.views.insert(&table, &columns, &rptrs)?;
+                            self.views.insert(&table, &columns, &rptrs, true)?;
                         }
                         child.vals.row().borrow_mut()[ci] = newgid;
                     }
@@ -1667,7 +1666,7 @@ impl QueryTransformer {
                             Some((ci, Value::Number(parent_eid.to_string()))),
                             &mut self.cur_stat.nqueries)?;
                         for (table, columns, rptrs) in &new_entities {
-                            self.views.insert(table, columns, rptrs)?;
+                            self.views.insert(table, columns, rptrs, true)?;
                         }
                     }
                 }
@@ -1728,7 +1727,7 @@ impl QueryTransformer {
                 Some((child.from_col_index, parent_val.clone())),
                 &mut self.cur_stat.nqueries)?;
             for (table, columns, rptrs) in &new_entities {
-                self.views.insert(table, columns, rptrs)?;
+                self.views.insert(table, columns, rptrs, true)?;
             }
         }
         Ok(removed)
@@ -1889,20 +1888,22 @@ impl QueryTransformer {
         let columns = self.views.get_view_columns(curtable);
         let viewptr = &self.views.get_view(curtable).unwrap();
         warn!("{}: Reinserting values {:?}", curtable, curvals);
-        let rowptrs = curvals.iter()
-            .map(|row| Rc::new(RefCell::new(helpers::string_vals_to_parser_vals(row, &viewptr.borrow().columns))))
-            .collect();
-        self.views.insert(curtable, &columns, &rowptrs)?;
+        let mut rowptrs = vec![];
+        let mut bodyvals = vec![];
+        for row in curvals {
+            let vals = helpers::string_vals_to_parser_vals(row, &viewptr.borrow().columns);
+            rowptrs.push(Rc::new(RefCell::new(vals.clone())));
+            bodyvals.push(vals.iter().map(|v| Expr::Value(v.clone())).collect());
+        }
+
+        self.views.insert(curtable, &columns, &rowptrs, false)?;
 
         let insert_entities_stmt = Statement::Insert(InsertStatement{
             table_name: helpers::string_to_objname(&self.decor_config.entity_type_to_decorrelate.clone()),
             columns: columns,
             source: InsertSource::Query(Box::new(Query{
                 ctes: vec![],
-                body: SetExpr::Values(Values(
-                        curvals.iter()
-                        .map(|row| row.iter().map(|valstr| Expr::Value(Value::String(valstr.to_string()))).collect())
-                        .collect())),
+                body: SetExpr::Values(Values(bodyvals)),
                 order_by: vec![],
                 limit: None,
                 offset: None,
@@ -1931,6 +1932,10 @@ impl QueryTransformer {
             list: gid_exprs.clone(),
             negated: false,
         };
+        let view_ptr = self.views.get_view(&curtable).unwrap();
+        let mut view = view_ptr.borrow_mut();
+        // don't use graph because ghosts weren't added to graph
+        let ghost_rptrs = select::get_rptrs_matching_constraint(&select_ghosts, &view, &view.columns);
 
         // delete from actual data table if was created during unsub
         if cureid.is_none() {
@@ -1941,17 +1946,17 @@ impl QueryTransformer {
             warn!("RESUB removing entities: {}", delete_gids_as_entities);
             db.query_drop(format!("{}", delete_gids_as_entities.to_string()))?;
             self.cur_stat.nqueries+=1;
+
+            // delete from MV
+            view.delete_ghost_rptrs(&ghost_rptrs)?;
         }
 
         // this GID was prior stored in an actual non-ghost entity
         // we need to update these entities in the MV to now show the EID
         // and also put these GIDs back in the ghost map
         else if let Some(eid) = cureid {
-            let view_ptr = self.views.get_view(&curtable).unwrap();
-            let view = view_ptr.borrow_mut();
-            let ghost_rptrs = select::get_rptrs_matching_constraint(&select_ghosts, &view, &view.columns);
 
-            warn!("RESUB: actually restoring {} eid {}", curtable, eid);
+            warn!("RESUB: actually restoring {} eid {}, gprtrs {:?} for gids {:?}", curtable, eid, ghost_rptrs, curgids);
             let eid_val = Value::Number(eid.to_string());
             if !self.ghost_maps.resubscribe(*eid, &ghost_rptrs, db, curtable)? {
                 return Err(mysql::Error::IoError(io::Error::new(
@@ -1990,10 +1995,10 @@ impl QueryTransformer {
                     }
                 }
             }
-        }
 
-        // delete ghost entities from MV
-        self.views.delete(curtable, &Some(select_ghosts))?;
+            // delete ghost entities from MV
+            view.delete_ghost_rptrs(&ghost_rptrs)?;
+        }
         Ok(())
     }
 }

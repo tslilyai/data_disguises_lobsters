@@ -441,7 +441,7 @@ pub fn string_vals_to_parser_vals(valstrs: &Vec<String>, columns: &Vec<views::Ta
                     | DataType::Time 
                     | DataType::Varchar(..) 
                     | DataType::Blob(..) 
-                    | DataType::Char(..) => Value::String(valstr.to_string()),
+                    | DataType::Char(..) => Value::String(trim_quotes(&valstr).to_string()),
                 DataType::Boolean => Value::Boolean(valstr == "1"),
                 _ => unimplemented!("type not supported yet")
             });

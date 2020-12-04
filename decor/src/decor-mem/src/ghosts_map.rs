@@ -171,6 +171,7 @@ impl GhostsMap {
 
         // insert into ghost table
         let insert_query = &format!("INSERT INTO {} ({}, {}) VALUES {};", self.name, GHOST_ID_COL, GHOST_ENTITY_COL, pairs.join(","));
+        warn!("Inserting into ghosts table {}", insert_query);
         db.query_iter(insert_query)?;
         self.nqueries+=1;
         warn!("RESUB {} insert_gid_for_eid {}: {}, dur {}us", self.name, eid, insert_query, start.elapsed().as_micros());
