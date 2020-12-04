@@ -425,7 +425,7 @@ impl View {
         }
     }
  
-    pub fn update_index_and_row(&mut self, rptr: Rc<RefCell<Row>>, col_index: usize, col_val: Option<&Value>) {
+    fn update_index_and_row(&mut self, rptr: Rc<RefCell<Row>>, col_index: usize, col_val: Option<&Value>) {
         let start = time::Instant::now();
         let old_val = rptr.borrow()[col_index].to_string();
         let mut index_len = 0;
@@ -747,6 +747,24 @@ impl Views {
         let dur = start.elapsed();
         warn!("Update view {} took: {}us", view.name, dur.as_micros());
         Ok(())
+    }
+
+    pub fn update_index_and_row_of_view(&mut self, table: &str, rptr: Rc<RefCell<Row>>, col_index: usize, col_val: Option<&Value>) {
+        let mut view = self.views.get(table).unwrap().borrow_mut();
+        for (pci, parent_table) in &view.parent_cols {
+            if *pci == col_index {
+                let old_peid = helpers::parser_val_to_u64(&rptr.borrow()[col_index]);
+                let new_peid = match col_val {
+                    None => None,
+                    Some(v) => helpers::parser_val_to_u64_opt(&v),
+                };
+                self.graph.update_edge(&view.name, parent_table, HashedRowPtr(rptr.clone(), view.primary_index), 
+                                       old_peid, new_peid, col_index);
+                break;
+            }
+        }
+        // update view
+        view.update_index_and_row(rptr.clone(), col_index, col_val);
     }
 
     pub fn delete_ghost_rptrs(&mut self, 

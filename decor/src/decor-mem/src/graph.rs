@@ -1,6 +1,7 @@
 use std::*;
 use std::collections::{HashMap, HashSet};
 use crate::views::{HashedRowPtrs, HashedRowPtr};
+use log::{warn};
 
 pub type EntityTypeRows = HashMap<(String, usize), HashedRowPtrs>;
 // parent EID value to (types => rptrs of children)
@@ -19,6 +20,7 @@ impl EntityGraph {
     pub fn add_edge(&mut self, 
                     childrptr: HashedRowPtr, child_table: &str,  
                     parent_table: &str, parent_eid: u64, parent_col_index: usize) {
+        warn!("Adding edge from {} col {} val {} to {} val {:?}", parent_table, parent_col_index, parent_eid, child_table, childrptr);
         if let Some(edges) = self.parents_to_children.get_mut(parent_table) {
             if let Some(typ2rows) = edges.get_mut(&parent_eid) {
                 if let Some(rows) = typ2rows.get_mut(&(child_table.to_string(), parent_col_index)) {
@@ -52,6 +54,7 @@ impl EntityGraph {
                        new_parent_eid: Option<u64>, 
                        parent_col_index: usize) 
     {
+        warn!("Updating edge from {} col {} val {} to new val {:?}, child {} {:?}", parent_table, parent_col_index, old_parent_eid, new_parent_eid, child_table, child_rptr);
         // remove old edges from both directions
         if let Some(edges) = self.parents_to_children.get_mut(parent_table) {
             if let Some(typ2rows) = edges.get_mut(&old_parent_eid) {

@@ -2,7 +2,7 @@ use rand::prelude::*;
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use crate::{select, helpers, ghosts_map, ghosts_map::GhostMaps, policy, stats, views, ID_COL, GhostMappingShard, EntityDataShard, graph::EntityTypeRows};
-use crate::views::{TableColumnDef, Views, Row, RowPtrs, HashedRowPtr, RowPtr};
+use crate::views::{TableColumnDef, Views, Row, RowPtrs, HashedRowPtr};
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -1425,7 +1425,7 @@ impl QueryTransformer {
                             let val = &gid_values[gid_index];
                             warn!("UNSUB: updating {:?} with {}", rptr, val);
 
-                            view_ptr.borrow_mut().update_index_and_row(rptr.row().clone(), *ci, Some(&val));
+                            self.views.update_index_and_row_of_view(&child_table, rptr.row().clone(), *ci, Some(&val));
                             gid_index += 1;
 
                             // add child of decorrelated edge to traversal queue 
@@ -1944,6 +1944,7 @@ impl QueryTransformer {
             // update assignments in MV to use EID again
             let mut children : EntityTypeRows;
             for gid in curgids {
+                warn!("Getting children of ghost entity with gid {}", gid);
                 // get children of this ghost
                 match self.views.graph.get_children_of_parent(curtable, *gid) {
                     None => continue,
@@ -1951,14 +1952,15 @@ impl QueryTransformer {
                 }
                 // for each child row
                 for ((child_table, child_ci), child_hrptrs) in children.iter() {
-                    let ghosted_cols = helpers::get_ghosted_col_indices_of(&self.decor_config, &child_table, &view_ptr.borrow().columns);
+                    let child_viewptr = self.views.get_view(&child_table).unwrap();
+                    let ghosted_cols = helpers::get_ghosted_col_indices_of(&self.decor_config, &child_table, &child_viewptr.borrow().columns);
                     // if the child has a column that is ghosted and the ghost ID matches this gid
                     for (ci, _) in &ghosted_cols {
                         if ci == child_ci {
                             for hrptr in child_hrptrs {
                                 if hrptr.row().borrow()[*ci].to_string() == gid.to_string() {
                                     // then update this child to use the actual real EID
-                                    view_ptr.borrow_mut().update_index_and_row(hrptr.row().clone(), *ci, Some(&eid_val));
+                                    self.views.update_index_and_row_of_view(&child_table, hrptr.row().clone(), *ci, Some(&eid_val));
                                 }
                             }
                         }

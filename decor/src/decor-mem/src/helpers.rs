@@ -112,6 +112,7 @@ pub fn get_ghosted_col_indices_of(decor_config: &policy::Config, table_name: &st
     let mut cis = vec![];
     if let Some(colnames) = decor_config.parent_child_ghosted_tables.get(&table_name.to_string()) {
         for colname in colnames {
+            warn!("Getting index for col {:?} in columns {:?}", colname, columns);
             cis.push((columns.iter().position(|c| c.colname == colname.0).unwrap(), colname.1.clone()));
         } 
     } 
