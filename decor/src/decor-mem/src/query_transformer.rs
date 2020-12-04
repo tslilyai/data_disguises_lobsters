@@ -1357,7 +1357,7 @@ impl QueryTransformer {
         let mut children_to_traverse: Vec<TraversedEntity> = vec![];
 
         // initialize with the entity specified by the uid
-        let view_ptr = self.views.get_view(&self.decor_config.entity_type_to_decorrelate).unwrap();
+        let mut view_ptr = self.views.get_view(&self.decor_config.entity_type_to_decorrelate).unwrap();
         let matching_users = select::get_rptrs_matching_constraint(
                         &Expr::BinaryOp {
                             left: Box::new(Expr::Identifier(helpers::string_to_idents(ID_COL))),
@@ -1402,6 +1402,7 @@ impl QueryTransformer {
                 None => continue,
                 Some(cs) => children = cs.clone(),
             }
+            warn!("Found children {:?} of {:?}", children, node);
             
             // ********************  DECORRELATED EDGES OF EID ************************ //
             // 1. Get all GIDs corresponding to this EID if this entity has not already been unsubscribed
@@ -1428,13 +1429,13 @@ impl QueryTransformer {
 
                 // 3. Collect children nodes in the MV, update them to use the GID instead of the EID
                 for (child_table, child_hrptrs) in children.borrow().iter() {
+                    view_ptr = self.views.get_view(&child_table).unwrap();
                     let ghosted_cols = helpers::get_ghosted_col_indices_of(&self.decor_config, &child_table, &view_ptr.borrow().columns); 
                     if ghosted_cols.is_empty() {
                         continue;
                     }
 
                     let mut gid_index = 0;
-                    let view_ptr = self.views.get_view(&child_table).unwrap();
                     for rptr in child_hrptrs {
                         for (ci, _) in &ghosted_cols {
                             if rptr.row().borrow()[*ci].to_string() == eid_val.to_string() {
