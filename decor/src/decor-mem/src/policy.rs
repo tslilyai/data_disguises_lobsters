@@ -1,5 +1,14 @@
 use std::*;
+use rand::prelude::*;
+use mysql::prelude::*;
+use sql_parser::ast::*;
+use crate::{helpers, ghosts_map, ghosts_map::GhostMaps, stats, views, ID_COL, GhostMappingShard, EntityDataShard, graph::EntityTypeRows};
+use crate::views::{TableColumnDef, Views, Row, RowPtrs, HashedRowPtr, RowPtr};
 use std::collections::{HashMap, HashSet};
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::time::Duration;
+use log::{debug, warn};
 
 pub type ColumnName = String; // column name
 pub type EntityName = String; // table name, or foreign key
@@ -163,3 +172,168 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
         completely_decorrelated_children: completely_decorrelated_children,
     }
 }
+
+pub fn generate_new_entities_from(
+    views: &Views,
+    gp: &GhostPolicy,
+    db: &mut mysql::Conn,
+    generated_eid_gids: &mut Vec<(String, Option<u64>, u64)>,
+    from_table: &str,
+    from_vals: RowPtr, 
+    eids: &Vec<Value>,
+    set_colval: Option<(usize, Value)>,
+    nqueries: &mut usize,
+) 
+    -> Result<Vec<(String, Vec<Ident>, RowPtrs)>, mysql::Error>
+{
+    use GhostColumnPolicy::*;
+    let start = time::Instant::now();
+    let mut new_entities : Vec<(String, Vec<Ident>, RowPtrs)> = vec![];
+    let from_cols = views.get_view_columns(from_table);
+
+    // NOTE : generating entities with foreign keys must also have ways to 
+    // generate foreign key entity or this will panic
+    let policies : Vec<GhostColumnPolicy> = from_cols.iter().map(|col| gp.get(&col.to_string()).unwrap().clone()).collect();
+    let num_entities = eids.len();
+    let mut new_vals : RowPtrs = vec![]; 
+    for _ in 0..num_entities {
+        new_vals.push(Rc::new(RefCell::new(vec![Value::Null; from_cols.len()]))); 
+    }
+    for (i, col) in from_cols.iter().enumerate() {
+        let colname = col.to_string();
+        // put in ID if specified
+        if colname == ID_COL {
+            for n in 0..num_entities {
+                new_vals[n].borrow_mut()[i] = eids[n].clone();
+            }
+            continue;            
+        }
+
+        // set colval if specified
+        if let Some((ci, val)) = &set_colval {
+            if i == *ci {
+                for n in 0..num_entities {
+                    new_vals[n].borrow_mut()[*ci] = val.clone();
+                } 
+                continue;
+            }
+        }
+
+        // otherwise, just follow policy
+        let clone_val = &from_vals.borrow()[i];
+        warn!("Generating value using {:?} for {}", policies[i], col);
+        match &policies[i] {
+            CloneAll => {
+                for n in 0..num_entities {
+                    new_vals[n].borrow_mut()[i] = clone_val.clone();
+                }
+            }
+            CloneOne(gen) => {
+                // clone the value for the first row
+                new_vals[0].borrow_mut()[i] = from_vals.borrow()[i].clone();
+                for n in 1..num_entities {
+                    new_vals[n].borrow_mut()[i] = get_generated_val(views, gp, db, generated_eid_gids, &gen, clone_val, &mut new_entities, nqueries)?;
+                }
+            }
+            Generate(gen) => {
+                for n in 0..num_entities {
+                    new_vals[n].borrow_mut()[i] = get_generated_val(views, gp, db, generated_eid_gids, &gen, clone_val, &mut new_entities, nqueries)?;
+                }
+            }
+        }
+    }
+
+    new_entities.push((from_table.to_string(), from_cols.clone(), new_vals.clone())); 
+  
+    // insert new rows into actual data tables (do we really need to do this?)
+    let mut parser_rows = vec![];
+    for row in new_vals {
+        let parser_row = row.borrow().iter()
+            .map(|v| Expr::Value(v.clone()))
+            .collect();
+        parser_rows.push(parser_row);
+    }
+    let source = InsertSource::Query(Box::new(Query{
+        ctes: vec![],
+        body: SetExpr::Values(Values(parser_rows)),
+        order_by: vec![],
+        limit: None,
+        fetch: None,
+        offset: None,
+    }));
+    let dt_stmt = Statement::Insert(InsertStatement{
+        table_name: helpers::string_to_objname(from_table),
+        columns : from_cols.clone(),
+        source : source, 
+    });
+    warn!("issue_insert_dt_stmt: {} dur {}", dt_stmt, start.elapsed().as_micros());
+    db.query_drop(dt_stmt.to_string())?;
+    *nqueries+=1;
+
+    warn!("UNSUB Done adding {} new entities for table {}, dur {}", 
+          num_entities, from_table, start.elapsed().as_micros());
+    Ok(new_entities)
+}
+
+pub fn generate_foreign_key_value(
+    views: &views::Views,
+    gp: &GhostPolicy,
+    db: &mut mysql::Conn,
+    generated_eid_gids: &mut Vec<(String, Option<u64>, u64)>,
+    table_name: &str,
+    new_entities: &mut Vec<(String, Vec<Ident>, RowPtrs)>,
+    nqueries: &mut usize) 
+    -> Result<Value, mysql::Error> 
+{
+    let viewcols= views.get_view_columns(table_name);
+    let viewptr = views.get_view(table_name).unwrap();
+    
+    // assumes there is at least once value here...
+    let random_row : RowPtr;
+    if viewptr.borrow().rows.borrow().len() > 0 {
+        random_row = viewptr.borrow().rows.borrow().iter().next().unwrap().1.clone();
+    } else {
+        random_row = Rc::new(RefCell::new(vec![Value::Null; viewcols.len()]));
+    }
+    let mut rng: ThreadRng = rand::thread_rng();
+    let gid = rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX);
+    let gidval= Value::Number(gid.to_string());
+    generated_eid_gids.push((table_name.to_string(), None, gid));
+
+    warn!("Generating foreign key entity for {} {:?}", table_name, random_row);
+    new_entities.append(&mut generate_new_entities_from(
+        views,
+        gp,
+        db, 
+        generated_eid_gids,
+        &table_name,
+        random_row,
+        &vec![gidval.clone()],
+        None,
+        nqueries,
+    )?);
+    Ok(gidval)
+}
+
+pub fn get_generated_val(
+    views: &views::Views,
+    gp: &GhostPolicy,
+    db: &mut mysql::Conn,
+    generated_eid_gids: &mut Vec<(String, Option<u64>, u64)>,
+    gen: &GeneratePolicy, 
+    base_val: &Value,
+    new_entities: &mut Vec<(String, Vec<Ident>, RowPtrs)>,
+    nqueries: &mut usize
+    ) 
+-> Result<Value, mysql::Error> 
+{
+    use GeneratePolicy::*;
+    match gen {
+        Random => Ok(helpers::get_random_parser_val_from(&base_val)),
+        Default(val) => Ok(helpers::get_default_parser_val_with(&base_val, &val)),
+        //Custom(f) => helpers::get_computed_parser_val_with(&base_val, &f),
+        ForeignKey(table_name) => generate_foreign_key_value(views, gp, db, generated_eid_gids, table_name, new_entities, nqueries),
+    }
+}
+
+

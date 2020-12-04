@@ -493,6 +493,12 @@ impl Views {
         }
     }
 
+    pub fn get_view_columns(&self, name: &str) -> Vec<Ident> {
+        let view_ptr = self.get_view(&name).unwrap();
+        let columns = view_ptr.borrow().columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect();
+        columns
+    }
+
     pub fn add_view(&mut self, 
                     name: String, 
                     columns: &Vec<ColumnDef>, 

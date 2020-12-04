@@ -21,8 +21,8 @@ pub enum QueryType {
 #[derive(Debug, Clone)]
 pub struct QueryStat {
     pub duration: Duration,
-    pub nqueries: u64,
-    pub nqueries_mv: u64,
+    pub nqueries: usize,
+    pub nqueries_mv: usize,
     pub qtype: QueryType,
 }
 

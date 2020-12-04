@@ -1,7 +1,7 @@
 use rand::prelude::*;
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{select, helpers, ghosts_map, policy, stats, views, ID_COL, GhostMappingShard, EntityDataShard, graph::EntityTypeRows};
+use crate::{select, helpers, ghosts_map, ghosts_map::GhostMaps, policy, stats, views, ID_COL, GhostMappingShard, EntityDataShard, graph::EntityTypeRows};
 use crate::views::{TableColumnDef, Views, Row, RowPtrs, HashedRowPtr, RowPtr};
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
@@ -32,7 +32,7 @@ pub struct QueryTransformer {
     // map from table names to columns with ghost parent IDs
     decor_config: policy::Config,
     ghost_policies: policy::EntityGhostPolicies,
-    ghost_maps: HashMap<String, ghosts_map::GhostsMap>, // table name to ghost map
+    ghost_maps: GhostMaps,
     unsubscribed: HashMap<u64, (String, String)>,
     rng: ThreadRng,
     hasher : Sha3,
@@ -50,7 +50,7 @@ impl QueryTransformer {
             views: Views::new(),
             decor_config: decor_config,
             ghost_policies: policy.ghost_policies,
-            ghost_maps: HashMap::new(),
+            ghost_maps: GhostMaps::new(),
             unsubscribed: HashMap::new(),
             rng: rand::thread_rng(),
             hasher : Sha3::sha3_256(),
@@ -412,8 +412,7 @@ impl QueryTransformer {
 
                         // now change the eids to gids
                         let mut gid_exprs = vec![];
-                        let gm = self.ghost_maps.get_mut(&parent).unwrap();
-                        for (_eid, gids) in gm.get_gids_for_eids(&eid_vals)? {
+                        for (_eid, gids) in self.ghost_maps.get_gids_for_eids(&eid_vals, &parent)? {
                             for g in gids {
                                 gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
                             }
@@ -450,8 +449,7 @@ impl QueryTransformer {
 
                         // now change the uids to gids
                         let mut gid_exprs = vec![];
-                        let gm = self.ghost_maps.get_mut(&parent).unwrap();
-                        for (_eid, gids) in gm.get_gids_for_eids(&eid_vals)? {
+                        for (_eid, gids) in self.ghost_maps.get_gids_for_eids(&eid_vals, &parent)? {
                             for g in gids {
                                 gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
                             }
@@ -493,8 +491,7 @@ impl QueryTransformer {
                         // change the eids in the range to gids
                         let eid_vals : Vec<u64> = ops::RangeInclusive::new(lowu64, highu64).collect();
                         let mut gid_exprs = vec![];
-                        let gm = self.ghost_maps.get_mut(&parent).unwrap();
-                        for (_eid, gids) in gm.get_gids_for_eids(&eid_vals)? {
+                        for (_eid, gids) in self.ghost_maps.get_gids_for_eids(&eid_vals, &parent)? {
                             for g in gids {
                                 gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
                             }
@@ -526,8 +523,7 @@ impl QueryTransformer {
                                         _ => vec![v],
                                     };
                                     let mut gid_exprs = vec![];
-                                    let gm = self.ghost_maps.get_mut(&parent).unwrap();
-                                    for (_eid, gids) in gm.get_gids_for_eids(&eid_vals)? {
+                                    for (_eid, gids) in self.ghost_maps.get_gids_for_eids(&eid_vals, &parent)? {
                                         for g in gids {
                                             gid_exprs.push(Expr::Value(Value::Number(g.to_string())));
                                         }
@@ -846,14 +842,13 @@ impl QueryTransformer {
                             if let Some(i) = ghosted_cols.iter().position(|gc| helpers::str_ident_match(&colname, &gc.0)) {
                                 let eid = helpers::parser_val_to_u64(&row[ci]);
                                 let parent = &ghosted_cols[i].1;
-                                let gm = self.ghost_maps.get_mut(parent).unwrap();
                                 // add condition on user column to be within the relevant GIDs
                                 and_col_constraint_expr = Expr::BinaryOp {
                                     left: Box::new(and_col_constraint_expr),
                                     op: BinaryOperator::And,
                                     right: Box::new(Expr::InList {
                                         expr: Box::new(Expr::Identifier(helpers::string_to_idents(&colname))),
-                                        list: gm.get_gids_for_eid(eid)?.iter()
+                                        list: self.ghost_maps.get_gids_for_eid(eid, &parent)?.iter()
                                                 .map(|g| Expr::Value(Value::Number(g.to_string())))
                                                 .collect(),
                                         negated: false,
@@ -929,11 +924,10 @@ impl QueryTransformer {
                         let mut found = false;
                         if valrow[col] != Value::Null {
                             // TODO could make this more efficient
-                            for (i, parent) in &ghost_col_indices {
+                            for (i, parent_table) in &ghost_col_indices {
                                 if col == *i {
-                                    let gm = self.ghost_maps.get_mut(parent).unwrap();
                                     let eid = helpers::parser_val_to_u64(&valrow[col]);
-                                    let gid = gm.insert_gid_for_eid(eid, db)?;
+                                    let gid = self.insert_ghost_parent(parent_table, eid, db)?;
                                     gid_vals.push(Expr::Value(Value::Number(gid.to_string())));
                                     found = true;
                                     break;
@@ -964,10 +958,24 @@ impl QueryTransformer {
         debug!("issue_insert_datatable_stmt prepare {}", dur.as_micros());
         db.query_drop(dt_stmt.to_string())?;
         self.cur_stat.nqueries+=1;
-        
+
         let dur = start.elapsed();
         debug!("issue_insert_datatable_stmt issued {}, {}", dt_stmt, dur.as_micros());
         Ok(())
+    }
+
+    fn insert_ghost_parent(&mut self, parent_table: &str, eid: u64, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
+        let mut view_ptr = self.views.get_view(parent_table).unwrap();
+        let matching= select::get_rptrs_matching_constraint(
+                        &Expr::BinaryOp {
+                            left: Box::new(Expr::Identifier(helpers::string_to_idents(ID_COL))),
+                            op: BinaryOperator::Eq,
+                            right: Box::new(Expr::Value(Value::Number(eid.to_string()))),
+                        }, &view_ptr.borrow(), &view_ptr.borrow().columns);
+        assert!(matching.len() == 1, format!("Matching parent returned {:?}", matching));
+        let vals = matching.iter().next().unwrap();
+        let gp = self.ghost_policies.get(parent_table).unwrap();
+        self.ghost_maps.insert_gid_for_eid(&self.views, &gp, vals.row().clone(), eid, db, parent_table)
     }
        
     fn issue_update_datatable_stmt(&mut self, assign_vals: &Vec<Expr>, stmt: UpdateStatement, db: &mut mysql::Conn)
@@ -1058,8 +1066,7 @@ impl QueryTransformer {
                 }
             }
             for (i, (_, parent)) in ghosted_col_assigns.iter().enumerate() {
-                let gm = self.ghost_maps.get_mut(parent).unwrap();
-                gm.update_eid2gids_with(&ghost_update_pairs[i], db)?;
+                self.ghost_maps.update_eid2gids_with(&ghost_update_pairs[i], db, &parent)?;
                 warn!("update datatable stmt updating gids map with {:?}", ghost_update_pairs);
             }
         }
@@ -1120,8 +1127,7 @@ impl QueryTransformer {
             }
         }
         for (i, (_, parent)) in ghosted_cols.iter().enumerate() {
-            let gm = self.ghost_maps.get_mut(parent).unwrap();
-            gm.update_eid2gids_with(&ghost_update_pairs[i], db)?;
+            self.ghost_maps.update_eid2gids_with(&ghost_update_pairs[i], db, &parent)?;
             warn!("delete datatable stmt updating gids map with {:?}", ghost_update_pairs);
         }
 
@@ -1268,7 +1274,7 @@ impl QueryTransformer {
                 self.cur_stat.nqueries+=1;
 
                 // create ghost maps
-                self.ghost_maps.insert(name.to_string(), ghosts_map::GhostsMap::new(name.to_string(), db, self.params.in_memory));
+                self.ghost_maps.insert(name.to_string(), db, self.params.in_memory);
 
                 // get parent columns so that we can keep track of the graph 
                 let parent_cols_of_table = helpers::get_parent_col_indices_of_datatable(&self.decor_config, &name, columns);
@@ -1305,10 +1311,7 @@ impl QueryTransformer {
     }
 
     pub fn record_query_stats(&mut self, qtype: stats::QueryType, dur: Duration) {
-        for (_, gm) in self.ghost_maps.iter_mut() {
-            self.cur_stat.nqueries += gm.nqueries;
-            gm.nqueries = 0;
-        }
+        self.cur_stat.nqueries += self.ghost_maps.get_nqueries();
         self.cur_stat.duration = dur;
         self.cur_stat.qtype = qtype;
         self.stats.push(self.cur_stat.clone());
@@ -1405,30 +1408,24 @@ impl QueryTransformer {
             warn!("Found children {:?} of {:?}", children, node);
             
             let mut gid_values = vec![];
-            let gm = self.ghost_maps.get_mut(&node.table_name).unwrap();
-            if let Some(gids) = gm.unsubscribe(node.eid, db)? {
+            if let Some((gids, rptrs)) = self.ghost_maps.unsubscribe(node.eid, db, &node.table_name)? {
                 // 1. Get all GIDs corresponding to this EID if this entity has not already been unsubscribed
                 assert!(!gids.is_empty());
                 gid_values = gids.iter().map(|g| Value::Number(g.to_string())).collect();
                 for gid in &gids {
+                    gid_values.push(Value::Number(gid.to_string()));
                     generated_eid_gids.push((node.table_name.clone(), Some(node.eid), *gid));
                 }
-                
-                // 2. update the corresponding MV and datatables to have an entry for all the parent ghost entities 
-                // being created to correspond with these GIDs
-                warn!("Generating ghost entities for gids {:?}", gids);
-                self.generate_new_entities_from(
-                    db, 
-                    &mut generated_eid_gids,
-                    &node.table_name,
-                    &node.columns, 
-                    node.vals.row().clone(), 
-                    &gid_values,
-                    None)?;
+
+                // 2. update this node's MV to have an entry for all the parent ghost entities 
+                // NOTE: entries are already in the datatables!!
+                let columns = self.views.get_view_columns(&node.table_name);
+                self.views.insert(&node.table_name, &columns, &rptrs);
             }
 
             for ((child_table, child_ci), child_hrptrs) in children.iter() {
                 view_ptr = self.views.get_view(&child_table).unwrap();
+                let columns = self.views.get_view_columns(&child_table);
                 let ghosted_cols = helpers::get_ghosted_col_indices_of(&self.decor_config, &child_table, &view_ptr.borrow().columns); 
                 let sensitive_cols = helpers::get_sensitive_col_indices_of(
                     &self.decor_config, &child_table, &view_ptr.borrow().columns); 
@@ -1452,7 +1449,7 @@ impl QueryTransformer {
                             let child = TraversedEntity {
                                 table_name: child_table.clone(),
                                 eid: helpers::parser_val_to_u64(&rptr.row().borrow()[view_ptr.borrow().primary_index]),
-                                columns: view_ptr.borrow().columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect(),
+                                columns: columns.clone(),
                                 vals: rptr.clone(),
                                 from_table: node.table_name.clone(), 
                                 from_col_index: *ci, 
@@ -1472,7 +1469,7 @@ impl QueryTransformer {
                             let child = TraversedEntity {
                                 table_name: child_table.clone(),
                                 eid: helpers::parser_val_to_u64(&rptr.row().borrow()[view_ptr.borrow().primary_index]),
-                                columns: view_ptr.borrow().columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect(),
+                                columns: columns.clone(),
                                 vals: rptr.clone(),
                                 from_table: node.table_name.clone(), 
                                 from_col_index: *ci,
@@ -1588,7 +1585,13 @@ impl QueryTransformer {
                     // generate a new parent and point the child to that parent
                     if !helpers::is_ghost_eid(&child.vals.row().borrow()[ci]) {
                         warn!("Generating foreign key entity for {}", parent_table);
-                        let newgid = self.generate_foreign_key_value(db, generated_eid_gids, &parent_table)?;
+                        let mut new_entities = vec![];
+                        let policy = self.ghost_policies.get(&parent_table).unwrap();
+                        let newgid = policy::generate_foreign_key_value(
+                            &self.views, &policy, db, generated_eid_gids, &parent_table, &mut new_entities, &mut self.cur_stat.nqueries)?;
+                        for (table, columns, rptrs) in &new_entities {
+                            self.views.insert(&table, &columns, &rptrs);
+                        }
                         child.vals.row().borrow_mut()[ci] = newgid;
                     }
                 }
@@ -1655,14 +1658,20 @@ impl QueryTransformer {
                         }
                         // TODO could choose a random child as the poster child 
                         warn!("Achieve child parent sensitivity: generating values for gids {:?}", gids);
-                        self.generate_new_entities_from(
+                        let gp = self.ghost_policies.get(&poster_child.table_name).unwrap();
+                        let new_entities = policy::generate_new_entities_from(
+                            &self.views,
+                            &gp,
                             db, 
                             generated_eid_gids,
                             &poster_child.table_name,
-                            &poster_child.columns, 
                             poster_child.vals.row().clone(), 
                             &gids,
-                            Some((ci, Value::Number(parent_eid.to_string()))))?;
+                            Some((ci, Value::Number(parent_eid.to_string()))),
+                            &mut self.cur_stat.nqueries)?;
+                        for (table, columns, rptrs) in &new_entities {
+                            self.views.insert(table, columns, rptrs);
+                        }
                     }
                 }
             }
@@ -1711,14 +1720,20 @@ impl QueryTransformer {
                 gids.push(Value::Number(gid.to_string()));
             }
             warn!("Achieve parent child sensitivity: generating values for gids {:?}", gids);
-            self.generate_new_entities_from(
+            let gp = self.ghost_policies.get(&child.table_name).unwrap();
+            let new_entities = policy::generate_new_entities_from(
+                &self.views,
+                &gp,
                 db, 
                 generated_eid_gids,
                 &child.table_name,
-                &child.columns, 
                 child.vals.row().clone(), 
                 &gids,
-                Some((child.from_col_index, parent_val.clone())))?;
+                Some((child.from_col_index, parent_val.clone())),
+                &mut self.cur_stat.nqueries)?;
+            for (table, columns, rptrs) in &new_entities {
+                self.views.insert(table, columns, rptrs);
+            }
         }
         Ok(removed)
     }
@@ -1779,163 +1794,6 @@ impl QueryTransformer {
         Ok(())
     }
 
-    pub fn generate_new_entities_from(
-        &mut self,
-        db: &mut mysql::Conn,
-        generated_eid_gids: &mut Vec<(String, Option<u64>, u64)>,
-        from_table: &str,
-        from_cols: &Vec<Ident>,
-        from_vals: RowPtr, 
-        eids: &Vec<Value>,
-        set_colval: Option<(usize, Value)>,
-    ) 
-        -> Result<(), mysql::Error>
-    {
-        use policy::GhostColumnPolicy::*;
-        //warn!("UNSUB Generate new entity from {} with vals {:?}, eids {:?}, set colval {:?}", from_table, from_vals, eids, set_colval);
-        let start = time::Instant::now();
-
-        // NOTE : generating entities with foreign keys must also have ways to 
-        // generate foreign key entity or this will panic
-        let gp = self.ghost_policies.get(from_table).unwrap();
-        let policies : Vec<policy::GhostColumnPolicy> = from_cols.iter().map(|col| gp.get(&col.to_string()).unwrap().clone()).collect();
-        let num_entities = eids.len();
-        let mut new_vals : RowPtrs = vec![]; 
-        for _ in 0..num_entities {
-            new_vals.push(Rc::new(RefCell::new(vec![Value::Null; from_cols.len()]))); 
-        }
-        for (i, col) in from_cols.iter().enumerate() {
-            let colname = col.to_string();
-            // put in ID if specified
-            if colname == ID_COL {
-                for n in 0..num_entities {
-                    new_vals[n].borrow_mut()[i] = eids[n].clone();
-                }
-                continue;            
-            }
-
-            // set colval if specified
-            if let Some((ci, val)) = &set_colval {
-                if i == *ci {
-                    for n in 0..num_entities {
-                        new_vals[n].borrow_mut()[*ci] = val.clone();
-                    } 
-                    continue;
-                }
-            }
-
-            // otherwise, just follow policy
-            let clone_val = &from_vals.borrow()[i];
-            warn!("Generating value using {:?} for {}", policies[i], col);
-            match &policies[i] {
-                CloneAll => {
-                    for n in 0..num_entities {
-                        new_vals[n].borrow_mut()[i] = clone_val.clone();
-                    }
-                }
-                CloneOne(gen) => {
-                    // clone the value for the first row
-                    new_vals[0].borrow_mut()[i] = from_vals.borrow()[i].clone();
-                    for n in 1..num_entities {
-                        new_vals[n].borrow_mut()[i] = self.get_generated_val(db, generated_eid_gids, &gen, clone_val)?;
-                    }
-                }
-                Generate(gen) => {
-                    for n in 0..num_entities {
-                        new_vals[n].borrow_mut()[i] = self.get_generated_val(db, generated_eid_gids, &gen, clone_val)?;
-                    }
-                }
-            }
-        }
-    
-        // insert new rows into MVs
-        self.views.insert(from_table, from_cols, &new_vals)?;
-        warn!("UNSUB {:?} insert {} generated entities into view {} dur {}", 
-              set_colval, eids.len(), from_table, start.elapsed().as_micros());
-      
-        // insert new rows into actual data tables (do we really need to do this?)
-        let mut parser_rows = vec![];
-        for row in new_vals {
-            let parser_row = row.borrow().iter()
-                .map(|v| Expr::Value(v.clone()))
-                .collect();
-            parser_rows.push(parser_row);
-        }
-        let source = InsertSource::Query(Box::new(Query{
-            ctes: vec![],
-            body: SetExpr::Values(Values(parser_rows)),
-            order_by: vec![],
-            limit: None,
-            fetch: None,
-            offset: None,
-        }));
-        let dt_stmt = Statement::Insert(InsertStatement{
-            table_name: helpers::string_to_objname(from_table),
-            columns : from_cols.clone(),
-            source : source, 
-        });
-        db.query_drop(dt_stmt.to_string())?;
-        warn!("issue_insert_dt_stmt: {} dur {}", dt_stmt, start.elapsed().as_micros());
-        self.cur_stat.nqueries+=1;
-
-        warn!("UNSUB Done adding {} new entities for table {}, dur {}", 
-              num_entities, from_table, start.elapsed().as_micros());
-        Ok(())
-    }
-
-    fn generate_foreign_key_value(
-        &mut self,
-        db: &mut mysql::Conn,
-        generated_eid_gids: &mut Vec<(String, Option<u64>, u64)>,
-        table_name: &str) 
-        -> Result<Value, mysql::Error> 
-    {
-        let viewptr = self.views.get_view(table_name).unwrap();
-        let viewcols : Vec<Ident> = viewptr.borrow().columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect();
-        
-        // assumes there is at least once value here...
-        let random_row : RowPtr;
-        if viewptr.borrow().rows.borrow().len() > 0 {
-            random_row = viewptr.borrow().rows.borrow().iter().next().unwrap().1.clone();
-        } else {
-            random_row = Rc::new(RefCell::new(vec![Value::Null;viewcols.len()]));
-        }
-        // TODO generate random ghost 
-        let gid = self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX);
-        let gidval= Value::Number(gid.to_string());
-        generated_eid_gids.push((table_name.to_string(), None, gid));
-
-        warn!("Generating foreign key entity for {} {:?}", table_name, random_row);
-        self.generate_new_entities_from(
-            db, 
-            generated_eid_gids,
-            &table_name,
-            &viewcols,
-            random_row,
-            &vec![gidval.clone()],
-            None,
-        )?;
-        Ok(gidval)
-    }
-
-    fn get_generated_val(
-        &mut self,
-        db: &mut mysql::Conn,
-        generated_eid_gids: &mut Vec<(String, Option<u64>, u64)>,
-        gen: &policy::GeneratePolicy, 
-        base_val: &Value) 
-    -> Result<Value, mysql::Error> 
-    {
-        use policy::GeneratePolicy::*;
-        match gen {
-            Random => Ok(helpers::get_random_parser_val_from(&base_val)),
-            Default(val) => Ok(helpers::get_default_parser_val_with(&base_val, &val)),
-            //Custom(f) => helpers::get_computed_parser_val_with(&base_val, &f),
-            ForeignKey(table_name) => self.generate_foreign_key_value(db, generated_eid_gids, table_name),
-        }
-    }
-
-    
     /*******************************************************
      ****************** RECORRELATION *********************
      *******************************************************/
@@ -2032,8 +1890,8 @@ impl QueryTransformer {
     fn reinsert_with_vals(&mut self, curtable: &str, curvals: &Vec<&Vec<String>>, db: &mut mysql::Conn) 
     -> Result<(), mysql::Error> 
     {
-        let viewptr = self.views.get_view(curtable).unwrap();
-        let columns = viewptr.borrow().columns.iter().map(|c| Ident::new(c.colname.to_string())).collect();
+        let columns = self.views.get_view_columns(curtable);
+        let viewptr = &self.views.get_view(curtable).unwrap();
         warn!("{}: Reinserting values {:?}", curtable, curvals);
         let rowptrs = curvals.iter()
             .map(|row| Rc::new(RefCell::new(helpers::string_vals_to_parser_vals(row, &viewptr.borrow().columns))))
@@ -2076,17 +1934,23 @@ impl QueryTransformer {
             list: gid_exprs.clone(),
             negated: false,
         });
+
+        // TODO get rows from MV to put back into ghosts cache
+        
         // delete from MV
         self.views.delete(curtable, &selection)?;
         
         // delete from actual data table
-        let delete_gids_as_entities = Statement::Delete(DeleteStatement {
-            table_name: helpers::string_to_objname(&curtable),
-            selection: selection.clone(),
-        });
-        warn!("RESUB removing entities: {}", delete_gids_as_entities);
-        db.query_drop(format!("{}", delete_gids_as_entities.to_string()))?;
-        self.cur_stat.nqueries+=1;
+        // TODO only do this is not ghosted
+        if cureid.is_none() {
+            let delete_gids_as_entities = Statement::Delete(DeleteStatement {
+                table_name: helpers::string_to_objname(&curtable),
+                selection: selection.clone(),
+            });
+            warn!("RESUB removing entities: {}", delete_gids_as_entities);
+            db.query_drop(format!("{}", delete_gids_as_entities.to_string()))?;
+            self.cur_stat.nqueries+=1;
+        }
 
         // this GID was prior stored in an actual non-ghost entity
         // we need to update these entities in the MV to now show the EID
@@ -2094,8 +1958,7 @@ impl QueryTransformer {
         if let Some(eid) = cureid {
             warn!("RESUB: actually restoring {} eid {}", curtable, eid);
             let eid_val = Value::Number(eid.to_string());
-            let gm = self.ghost_maps.get_mut(curtable).unwrap();
-            if !gm.resubscribe(*eid, &curgids, db)? {
+            if !self.ghost_maps.resubscribe(*eid, &curgids, db, curtable)? {
                 return Err(mysql::Error::IoError(io::Error::new(
                     io::ErrorKind::Other, format!("not unsubscribed {}", eid))));
             }             
