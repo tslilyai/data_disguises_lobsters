@@ -3,8 +3,8 @@
 #set -x
 
 trials=1
-#tests=( "shim_only" "shim_parse" "decor" "no_shim" )
-tests=( "decor" )
+tests=( "shim_only" "shim_parse" "decor" "no_shim" )
+#tests=( "decor" )
 
 cargo build --release
 
@@ -16,6 +16,6 @@ do
     	#../target/release/lobsters-microbenchmarks \
     	perflock ../target/release/lobsters-microbenchmarks \
 		--test=$test --testname=$test$trial \
-		--nusers=10 --nstories=500 --ncomments=1000 --nthreads=1 --nqueries=100
+		--nusers=10 --nstories=500 --ncomments=1000 --nthreads=1 --nqueries=800
     done
 done
