@@ -626,8 +626,10 @@ impl Views {
             view.insert_row(row.clone());
             for (ci, parent_table) in &view.parent_cols {
                 // add edge to graph
-                let peid = helpers::parser_val_to_u64(&row.borrow()[*ci]);
-                self.graph.add_edge(HashedRowPtr::new(row.clone(), view.primary_index), &view.name, parent_table, peid);
+                let peid = helpers::parser_val_to_u64_opt(&row.borrow()[*ci]);
+                if let Some(peid) = peid {
+                    self.graph.add_edge(HashedRowPtr::new(row.clone(), view.primary_index), &view.name, parent_table, peid);
+                }
             }
         }
         Ok(())

@@ -1,10 +1,8 @@
 use std::*;
 use std::collections::{HashMap, HashSet};
-use std::cell::RefCell;
-use std::rc::Rc;
 use crate::views::{HashedRowPtrs, HashedRowPtr};
 
-pub type EntityTypeRows = Rc<RefCell<HashMap<String, HashedRowPtrs>>>;
+pub type EntityTypeRows = HashMap<String, HashedRowPtrs>;
 // parent EID value to (types => rptrs of children)
 pub type EntityEdges = HashMap<u64, EntityTypeRows>;
 pub struct EntityGraph {
@@ -23,19 +21,19 @@ impl EntityGraph {
                     parent_table: &str, parent_eid: u64) {
         if let Some(edges) = self.parents_to_children.get_mut(parent_table) {
             if let Some(typ2rows) = edges.get_mut(&parent_eid) {
-                if let Some(rows) = typ2rows.borrow_mut().get_mut(child_table) {
+                if let Some(rows) = typ2rows.get_mut(child_table) {
                     rows.insert(childrptr);
                 } else {
                     let mut hs = HashSet::new();
                     hs.insert(childrptr);
-                    typ2rows.borrow_mut().insert(child_table.to_string(), hs);
+                    typ2rows.insert(child_table.to_string(), hs);
                 }
             } else {
                 let mut hm = HashMap::new();
                 let mut hs = HashSet::new();
                 hs.insert(childrptr);
                 hm.insert(child_table.to_string(), hs);
-                edges.insert(parent_eid, Rc::new(RefCell::new(hm)));
+                edges.insert(parent_eid, hm);
             }
         } else {
             let mut parenthm = HashMap::new();
@@ -43,7 +41,7 @@ impl EntityGraph {
             let mut hs = HashSet::new();
             hs.insert(childrptr);
             hm.insert(child_table.to_string(), hs);
-            parenthm.insert(parent_eid, Rc::new(RefCell::new(hm)));
+            parenthm.insert(parent_eid, hm);
             self.parents_to_children.insert(parent_table.to_string(), parenthm);
         }
     }
@@ -56,7 +54,7 @@ impl EntityGraph {
         // remove old edges from both directions
         if let Some(edges) = self.parents_to_children.get_mut(parent_table) {
             if let Some(typ2rows) = edges.get_mut(&old_parent_eid) {
-                if let Some(rows) = typ2rows.borrow_mut().get_mut(child_table) {
+                if let Some(rows) = typ2rows.get_mut(child_table) {
                     // remove old child from this parent
                     rows.remove(&child_rptr); 
                 } 
@@ -68,10 +66,13 @@ impl EntityGraph {
         }
     }
 
-    pub fn get_children_of_parent(&self, parent_table: &str, parent_eid: u64) -> Option<&EntityTypeRows>
+    pub fn get_children_of_parent(&self, parent_table: &str, parent_eid: u64) -> Option<EntityTypeRows>
     {
         if let Some(edges) = self.parents_to_children.get(parent_table) {
-            return edges.get(&parent_eid).clone();
+            match edges.get(&parent_eid) {
+                None => return None,
+                Some(es) => return Some(es.clone()),
+            }
         }
         None
     }

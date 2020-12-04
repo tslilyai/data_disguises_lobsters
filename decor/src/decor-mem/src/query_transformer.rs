@@ -1400,7 +1400,7 @@ impl QueryTransformer {
             let children : EntityTypeRows;
             match self.views.graph.get_children_of_parent(&node.table_name, node.eid) {
                 None => continue,
-                Some(cs) => children = cs.clone(),
+                Some(cs) => children = cs,
             }
             warn!("Found children {:?} of {:?}", children, node);
             
@@ -1428,7 +1428,7 @@ impl QueryTransformer {
                     None)?;
 
                 // 3. Collect children nodes in the MV, update them to use the GID instead of the EID
-                for (child_table, child_hrptrs) in children.borrow().iter() {
+                for (child_table, child_hrptrs) in children.iter() {
                     view_ptr = self.views.get_view(&child_table).unwrap();
                     let ghosted_cols = helpers::get_ghosted_col_indices_of(&self.decor_config, &child_table, &view_ptr.borrow().columns); 
                     if ghosted_cols.is_empty() {
@@ -1470,7 +1470,7 @@ impl QueryTransformer {
             }
 
             // ********************  SENSITIVE EDGES OF EID ************************ //
-            for (child_table, child_hrptrs) in children.borrow().iter() {
+            for (child_table, child_hrptrs) in children.iter() {
                 let sensitive_cols = helpers::get_sensitive_col_indices_of(
                     &self.decor_config, &child_table, &view_ptr.borrow().columns); 
                 if sensitive_cols.is_empty() {
@@ -1648,7 +1648,7 @@ impl QueryTransformer {
                 for (parent_eid, sensitive_count) in parent_eid_counts.iter() {
                     // get all children of this type with the same parent entity eid
                     let childrows = self.views.graph.get_children_of_parent(&parent_table, *parent_eid).unwrap();
-                    let total_count = childrows.borrow().get(&poster_child.table_name).unwrap().len();
+                    let total_count = childrows.get(&poster_child.table_name).unwrap().len();
                     warn!("Found {} total and {} sensitive children of type {} with parent {}", 
                           total_count, sensitive_count, poster_child.table_name, parent_eid);
                     let needed = (*sensitive_count as f64 / sensitivity).ceil() as i64 - total_count as i64;
