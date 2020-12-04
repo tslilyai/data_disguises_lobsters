@@ -1,7 +1,7 @@
 use rand::prelude::*;
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{select, helpers, ghosts_map, policy, stats, views, ID_COL, GhostMappingShard, EntityDataShard};
+use crate::{select, helpers, ghosts_map, policy, stats, views, ID_COL, GhostMappingShard, EntityDataShard, graph::EntityTypeRows};
 use crate::views::{TableColumnDef, Views, Row, RowPtrs, HashedRowPtr, RowPtr};
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
@@ -1255,8 +1255,6 @@ impl QueryTransformer {
                     new_engine = Some(Engine::Memory);
                 }
 
-                self.ghost_maps.insert(name.to_string(), ghosts_map::GhostsMap::new(name.to_string(), db, self.params.in_memory));
-
                 let dtstmt = CreateTableStatement {
                     name: name.clone(),
                     columns: columns.clone(),
@@ -1269,12 +1267,19 @@ impl QueryTransformer {
                 db.query_drop(dtstmt.to_string())?;
                 self.cur_stat.nqueries+=1;
 
+                // create ghost maps
+                self.ghost_maps.insert(name.to_string(), ghosts_map::GhostsMap::new(name.to_string(), db, self.params.in_memory));
+
+                // get parent columns so that we can keep track of the graph 
+                let parent_cols_of_table = helpers::get_parent_col_indices_of_datatable(&self.decor_config, &name, columns);
+
                 // create view for this table
                 self.views.add_view(
                     name.to_string(), 
                     columns,
                     &indexes,
                     &constraints,
+                    &parent_cols_of_table,
                 );
             }
             Statement::DropObjects(DropObjectsStatement{
@@ -1349,9 +1354,7 @@ impl QueryTransformer {
         // parents)
         let mut traversed_children : HashSet<(String, u64)> = HashSet::new();
         // queue of children to look at next
-        let mut children_to_traverse_maps: Vec<HashMap<String, Vec<TraversedEntity>>> = vec![];
-
-        let mut table_to_children_to_traverse = HashMap::new();
+        let mut children_to_traverse: Vec<TraversedEntity> = vec![];
 
         // initialize with the entity specified by the uid
         let view_ptr = self.views.get_view(&self.decor_config.entity_type_to_decorrelate).unwrap();
@@ -1363,9 +1366,7 @@ impl QueryTransformer {
                         }, &view_ptr.borrow(), &view_ptr.borrow().columns);
         assert!(matching_users.len() == 1, format!("Matching users returned {:?}", matching_users));
         let user_vals = matching_users.iter().next().unwrap();
-        table_to_children_to_traverse.insert(
-            self.decor_config.entity_type_to_decorrelate.clone(),
-            vec![TraversedEntity{
+        children_to_traverse.push(TraversedEntity{
                 table_name: self.decor_config.entity_type_to_decorrelate.clone(),
                 eid : uid,
                 columns: view_ptr.borrow().columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect(),
@@ -1373,197 +1374,144 @@ impl QueryTransformer {
                 from_table: "".to_string(),
                 from_col_index: 0,
                 sensitivity: OrderedFloat(-1.0),
-            }]
-        );
-        children_to_traverse_maps.push(table_to_children_to_traverse);
+        });
 
          /* 
           * Step 1: TRAVERSAL + DECORRELATION
           * TODO could parallelize to reduce time to traverse?
           */
-        while children_to_traverse_maps.len() > 0 {
-            let mut new_map : HashMap<String, Vec<TraversedEntity>> = HashMap::new();
-            let node_map = children_to_traverse_maps.pop().unwrap();
+        while children_to_traverse.len() > 0 {
+            let node = children_to_traverse.pop().unwrap();
 
-            for (table_name, nodes) in node_map.iter() {
-                let start = time::Instant::now();
+            let start = time::Instant::now();
 
-                // this is a leaf table!
-                if !self.decor_config.tables_with_children.contains(table_name) {
-                    // this table has no retained links to parents, this leaf will be completely
-                    // abandoned. remove it and give it to the user for later
-                    if self.decor_config.completely_decorrelated_children.contains(table_name) {
-                        for node in nodes {
-                            removed_entities.push((table_name.to_string(), node.vals.row().borrow().iter().map(|v| v.to_string()).collect()));
-                        }
-                        self.remove_entities(nodes, db)?;
-                    } else {
-                        for node in nodes {
-                            parent_child_edges.insert(node.clone());
-                        }
-                    }
-                    continue;
+            // this is a leaf table!
+            if !self.decor_config.tables_with_children.contains(&node.table_name) {
+                // this table has no retained links to parents, this leaf will be completely
+                // abandoned. remove it and give it to the user for later
+                if self.decor_config.completely_decorrelated_children.contains(&node.table_name) {
+                    removed_entities.push((node.table_name.to_string(), node.vals.row().borrow().iter().map(|v| v.to_string()).collect()));
+                    self.remove_entities(&vec![node], db)?;
+                } else {
+                    parent_child_edges.insert(node.clone());
                 }
+                continue;
+            }
+            let children : EntityTypeRows;
+            match self.views.graph.get_children_of_parent(&node.table_name, node.eid) {
+                None => continue,
+                Some(cs) => children = cs.clone(),
+            }
             
-                // ********************  DECORRELATED EDGES OF EID ************************ //
-                for node in nodes {
-                    // 1. Get all GIDs corresponding to this EID if this entity has not already been unsubscribed
-                    let eid_val = Value::Number(node.eid.to_string());
-                    let gm = self.ghost_maps.get_mut(&node.table_name).unwrap();
-                    if let Some(gids) = gm.unsubscribe(node.eid, db)? {
-                        assert!(!gids.is_empty());
-                        let gid_values = gids.iter().map(|g| Value::Number(g.to_string())).collect();
-                        for gid in &gids {
-                            generated_eid_gids.push((node.table_name.clone(), Some(node.eid), *gid));
-                        }
-                        
-                        // 2. update the corresponding MV and datatables to have an entry for all the parent ghost entities 
-                        // being created to correspond with these GIDs
-                        warn!("Generating ghost entities for gids {:?}", gids);
-                        self.generate_new_entities_from(
-                            db, 
-                            &mut generated_eid_gids,
-                            &node.table_name,
-                            &node.columns, 
-                            node.vals.row().clone(), 
-                            &gid_values,
-                            None)?;
-
-                        // 3. Collect children nodes from the MV, update them to use the GID instead of the EID
-                        for (dtname, ghosted_cols) in self.decor_config.parent_child_ghosted_tables.iter() {
-                            let view_ptr = self.views.get_view(dtname).unwrap();
-                            let mut select_constraint = Expr::Value(Value::Boolean(false));
-                            let mut cis = vec![];
-                            for (col, parent) in ghosted_cols {
-                                // only check this column if the parent is the node being decorrelated!! 
-                                if parent == table_name {
-                                    cis.push(helpers::get_col_index(&col, &view_ptr.borrow().columns).unwrap());
-                                    select_constraint = Expr::BinaryOp {
-                                        left: Box::new(select_constraint),
-                                        op: BinaryOperator::Or,
-                                        right: Box::new(Expr::BinaryOp{
-                                            left: Box::new(Expr::Identifier(helpers::string_to_idents(&col))),
-                                            op: BinaryOperator::Eq,
-                                            right: Box::new(Expr::Value(eid_val.clone())),
-                                        }),             
-                                    };
-                                }            
-                            }
-                            let mut gid_index = 0;
-                            let decorrelated_children = select::get_rptrs_matching_constraint(
-                                &select_constraint, &view_ptr.borrow(), &view_ptr.borrow().columns);
-                            for rptr in &decorrelated_children {
-                                for ci in &cis {
-                                    if rptr.row().borrow()[*ci].to_string() == eid_val.to_string() {
-                                        // swap out value in MV to be the GID instead of the EID
-                                        assert!(gid_index < gid_values.len());
-                                        let val = &gid_values[gid_index];
-                                        warn!("UNSUB: updating {:?} with {}", rptr, val);
-
-                                        view_ptr.borrow_mut().update_index_and_row(rptr.row().clone(), *ci, Some(&val));
-                                        gid_index += 1;
-
-                                        // add child of decorrelated edge to traversal queue 
-                                        // NOTE: this adds the child WITH the GID instead of the EID
-                                        let child = TraversedEntity {
-                                            table_name: dtname.clone(),
-                                            eid: helpers::parser_val_to_u64(&rptr.row().borrow()[view_ptr.borrow().primary_index]),
-                                            columns: view_ptr.borrow().columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect(),
-                                            vals: rptr.clone(),
-                                            from_table: node.table_name.clone(), 
-                                            from_col_index: *ci, 
-                                            sensitivity: OrderedFloat(-1.0),
-                                        };
-                                        // if child hasn't been seen yet, traverse
-                                        if traversed_children.insert((child.table_name.clone(), child.eid)) {
-                                            warn!("Adding traversed child {}, {}", child.table_name, child.eid);
-                                            if let Some(cs) = new_map.get_mut(&child.table_name) {
-                                                cs.push(child);
-                                            } else {
-                                                new_map.insert(child.table_name.clone(), vec![child]);
-                                            }
-                                        }
-                                    }
-                                }
-                            }       
-                        }
-                    }
+            // ********************  DECORRELATED EDGES OF EID ************************ //
+            // 1. Get all GIDs corresponding to this EID if this entity has not already been unsubscribed
+            let eid_val = Value::Number(node.eid.to_string());
+            let gm = self.ghost_maps.get_mut(&node.table_name).unwrap();
+            if let Some(gids) = gm.unsubscribe(node.eid, db)? {
+                assert!(!gids.is_empty());
+                let gid_values = gids.iter().map(|g| Value::Number(g.to_string())).collect();
+                for gid in &gids {
+                    generated_eid_gids.push((node.table_name.clone(), Some(node.eid), *gid));
                 }
+                
+                // 2. update the corresponding MV and datatables to have an entry for all the parent ghost entities 
+                // being created to correspond with these GIDs
+                warn!("Generating ghost entities for gids {:?}", gids);
+                self.generate_new_entities_from(
+                    db, 
+                    &mut generated_eid_gids,
+                    &node.table_name,
+                    &node.columns, 
+                    node.vals.row().clone(), 
+                    &gid_values,
+                    None)?;
 
-                // ********************  SENSITIVE EDGES OF EID ************************ //
-                let eid_strs : HashSet<String> = nodes.iter().map(|node| node.eid.to_string()).collect();
-                let eid_exprs : Vec<Expr> = nodes.iter().map(|node| Expr::Value(Value::Number(node.eid.to_string()))).collect();
-                for (dtname, sensitive_cols) in self.decor_config.parent_child_sensitive_tables.iter() {
-                    let view_ptr = self.views.get_view(dtname).unwrap();
-                    let mut select_constraint = Expr::Value(Value::Boolean(false));
-                    let mut matching_sensitive_cols = vec![];
-                    for (col, parent, sensitivity) in sensitive_cols {
-                        // only check this column if the parent is the node being decorrelated!! 
-                        // add condition that this column points to one of the nodes being checked
-                        if parent == table_name {
-                            matching_sensitive_cols.push((helpers::get_col_index(&col, &view_ptr.borrow().columns).unwrap(), sensitivity));
-                            select_constraint = Expr::BinaryOp {
-                                left: Box::new(select_constraint),
-                                op: BinaryOperator::Or,
-                                right: Box::new(Expr::InList{
-                                    expr: Box::new(Expr::Identifier(helpers::string_to_idents(&col))),
-                                    list: eid_exprs.clone(),
-                                    negated: false,
-                                }),             
-                            };
-                        }            
+                // 3. Collect children nodes in the MV, update them to use the GID instead of the EID
+                for (child_table, child_hrptrs) in children.borrow().iter() {
+                    let ghosted_cols = helpers::get_ghosted_col_indices_of(&self.decor_config, &child_table, &view_ptr.borrow().columns); 
+                    if ghosted_cols.is_empty() {
+                        continue;
                     }
-                    let sensitive_children = select::get_rptrs_matching_constraint(
-                        &select_constraint, &view_ptr.borrow(), &view_ptr.borrow().columns);
-                    for rptr in &sensitive_children {
-                        let row = rptr.row().borrow();
-                        for (ci, sensitivity) in &matching_sensitive_cols {
-                            if eid_strs.contains(&row[*ci].to_string()) {
-                                // add child of sensitive edge to traversal queue 
+
+                    let mut gid_index = 0;
+                    let view_ptr = self.views.get_view(&child_table).unwrap();
+                    for rptr in child_hrptrs {
+                        for (ci, _) in &ghosted_cols {
+                            if rptr.row().borrow()[*ci].to_string() == eid_val.to_string() {
+                                // swap out value in MV to be the GID instead of the EID
+                                assert!(gid_index < gid_values.len());
+                                let val = &gid_values[gid_index];
+                                warn!("UNSUB: updating {:?} with {}", rptr, val);
+
+                                view_ptr.borrow_mut().update_index_and_row(rptr.row().clone(), *ci, Some(&val));
+                                gid_index += 1;
+
+                                // add child of decorrelated edge to traversal queue 
+                                // NOTE: this adds the child WITH the GID instead of the EID
                                 let child = TraversedEntity {
-                                    table_name: dtname.clone(),
-                                    eid: helpers::parser_val_to_u64(&row[view_ptr.borrow().primary_index]),
+                                    table_name: child_table.clone(),
+                                    eid: helpers::parser_val_to_u64(&rptr.row().borrow()[view_ptr.borrow().primary_index]),
                                     columns: view_ptr.borrow().columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect(),
                                     vals: rptr.clone(),
-                                    from_table: table_name.clone(), 
-                                    from_col_index: *ci,
-                                    sensitivity: OrderedFloat(**sensitivity),
+                                    from_table: node.table_name.clone(), 
+                                    from_col_index: *ci, 
+                                    sensitivity: OrderedFloat(-1.0),
                                 };
                                 // if child hasn't been seen yet, traverse
                                 if traversed_children.insert((child.table_name.clone(), child.eid)) {
                                     warn!("Adding traversed child {}, {}", child.table_name, child.eid);
-                                    if let Some(cs) = new_map.get_mut(&child.table_name) {
-                                        cs.push(child);
-                                    } else {
-                                        new_map.insert(child.table_name.clone(), vec![child]);
-                                    }
-                                } 
+                                    children_to_traverse.push(child);
+                                }
                             }
+                        }
+                    }       
+                }
+            }
+
+            // ********************  SENSITIVE EDGES OF EID ************************ //
+            for (child_table, child_hrptrs) in children.borrow().iter() {
+                let sensitive_cols = helpers::get_sensitive_col_indices_of(
+                    &self.decor_config, &child_table, &view_ptr.borrow().columns); 
+                if sensitive_cols.is_empty() {
+                    continue;
+                }
+                let view_ptr = self.views.get_view(&child_table).unwrap();
+                for rptr in child_hrptrs {
+                    let row = rptr.row().borrow();
+                    for (ci, _, sensitivity) in &sensitive_cols {
+                        if node.eid.to_string() == row[*ci].to_string() {
+                            // add child of sensitive edge to traversal queue 
+                            let child = TraversedEntity {
+                                table_name: child_table.clone(),
+                                eid: helpers::parser_val_to_u64(&row[view_ptr.borrow().primary_index]),
+                                columns: view_ptr.borrow().columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect(),
+                                vals: rptr.clone(),
+                                from_table: node.table_name.clone(), 
+                                from_col_index: *ci,
+                                sensitivity: OrderedFloat(*sensitivity),
+                            };
+                            // if child hasn't been seen yet, traverse
+                            if traversed_children.insert((child.table_name.clone(), child.eid)) {
+                                warn!("Adding traversed child {}, {}", child.table_name, child.eid);
+                                children_to_traverse.push(child);
+                            } 
                         }
                     }
                 }
-                warn!("UNSUB {}: Duration to traverse+decorrelate {}, {:?}: {}us", 
-                      uid, table_name, nodes, start.elapsed().as_micros());
-               
-                // if this is a table whose edges to children are *all* decorrelated, then 
-                // remove these nodes, add to data to return to user
-                // because these are removed, we don't need to add them to nodes to check
-                if self.decor_config.completely_decorrelated_parents.contains(table_name) {
-                    for node in nodes {
-                        removed_entities.push((table_name.to_string(), node.vals.row().borrow().iter().map(|v| v.to_string()).collect()));
-                    }
-                    self.remove_entities(nodes, db)?;
-                } else {
-                    // in all other cases, add edge to seen edges because we want to check their outgoing
-                    // child->parent edges for sensitivity
-                    for node in nodes {
-                        parent_child_edges.insert(node.clone());
-                    }
-                }
             }
-            // if there are new children found, add this map
-            if !new_map.is_empty() {
-                children_to_traverse_maps.push(new_map);
+            warn!("UNSUB {}: Duration to traverse+decorrelate {}, {:?}: {}us", 
+                      uid, node.table_name, node, start.elapsed().as_micros());
+           
+            // if this is a table whose edges to children are *all* decorrelated, then 
+            // remove these nodes, add to data to return to user
+            // because these are removed, we don't need to add them to nodes to check
+            if self.decor_config.completely_decorrelated_parents.contains(&node.table_name) {
+                removed_entities.push((node.table_name.to_string(), node.vals.row().borrow().iter().map(|v| v.to_string()).collect()));
+                self.remove_entities(&vec![node], db)?;
+            } else {
+                // in all other cases, add edge to seen edges because we want to check their outgoing
+                // child->parent edges for sensitivity
+                parent_child_edges.insert(node.clone());
             }
         }
 
@@ -1595,11 +1543,6 @@ impl QueryTransformer {
          */
         self.unsubscribe_child_parent_edges(&parent_child_edges, &mut generated_eid_gids, db)?;
 
-        // NOTE: non-user decorrelated entities are still present (sensitvity = -1), but their keys
-        // are not foreign keys of other entities; they are in essence disconnected from any MV,
-        // but they are still present in the original MV)
-        // Top level User entity is removed because it has a sensitivity = 0
-     
         // cache the hash of the gids we are returning
         generated_eid_gids.sort();
         let serialized1 = serde_json::to_string(&generated_eid_gids).unwrap();
@@ -1665,7 +1608,7 @@ impl QueryTransformer {
 
             let mut removed = HashSet::new();
             // this table has sensitive parents! deal with accordingly
-            for (col, _parent_table, sensitivity) in sensitive_cols_and_types {
+            for (col, parent_table, sensitivity) in sensitive_cols_and_types {
                 if sensitivity == 0.0 {
                     // if sensitivity is 0, remove the child :-\
                     for child in table_children {
@@ -1684,7 +1627,6 @@ impl QueryTransformer {
                 
                 // don't re-add parents that were traversed...
                 let mut parent_eid_counts : HashMap<u64, usize> = HashMap::new();
-                let viewptr = self.views.get_view(&poster_child.table_name).unwrap();
                 
                 // group all table children by EID
                 for child in table_children {
@@ -1704,15 +1646,8 @@ impl QueryTransformer {
 
                 for (parent_eid, sensitive_count) in parent_eid_counts.iter() {
                     // get all children of this type with the same parent entity eid
-                    let parent_val = Value::Number(parent_eid.to_string());
-                    let constraint = Expr::BinaryOp {
-                        left: Box::new(Expr::Identifier(vec![Ident::new(col.to_string())])),
-                        op: BinaryOperator::Eq, 
-                        right: Box::new(Expr::Value(parent_val.clone())),
-                    };
-                    // calculate how many total children are connected to this parent
-                    // if above sensitivity threshold, generate enough ghosts
-                    let total_count = select::get_rptrs_matching_constraint(&constraint, &viewptr.borrow(), &viewptr.borrow().columns).len();
+                    let childrows = self.views.graph.get_children_of_parent(&parent_table, *parent_eid).unwrap();
+                    let total_count = childrows.borrow().get(&poster_child.table_name).unwrap().len();
                     warn!("Found {} total and {} sensitive children of type {} with parent {}", 
                           total_count, sensitive_count, poster_child.table_name, parent_eid);
                     let needed = (*sensitive_count as f64 / sensitivity).ceil() as i64 - total_count as i64;
@@ -1739,7 +1674,7 @@ impl QueryTransformer {
                             &poster_child.columns, 
                             poster_child.vals.row().clone(), 
                             &gids,
-                            Some((ci, parent_val)))?;
+                            Some((ci, Value::Number(parent_eid.to_string()))))?;
                     }
                 }
             }
@@ -2115,7 +2050,7 @@ impl QueryTransformer {
         let rowptrs = curvals.iter()
             .map(|row| Rc::new(RefCell::new(helpers::string_vals_to_parser_vals(row, &viewptr.borrow().columns))))
             .collect();
-        self.views.insert(curtable, &columns, &rowptrs);
+        self.views.insert(curtable, &columns, &rowptrs)?;
 
         let insert_entities_stmt = Statement::Insert(InsertStatement{
             table_name: helpers::string_to_objname(&self.decor_config.entity_type_to_decorrelate.clone()),

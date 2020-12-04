@@ -17,6 +17,7 @@ pub mod sqlparser_cache;
 pub mod stats;
 pub mod select;
 pub mod policy;
+pub mod graph;
 
 pub const INIT_CAPACITY: usize = 1000;
 pub const ID_COL: &str = "id";

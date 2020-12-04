@@ -1,7 +1,7 @@
 use sql_parser::ast::*;
 use std::collections::{HashSet, HashMap};
 use std::cmp::Ordering;
-use crate::{select, helpers, ghosts_map, INIT_CAPACITY};
+use crate::{select, helpers, ghosts_map, graph, INIT_CAPACITY};
 use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::io::{Error, Write};
@@ -103,6 +103,8 @@ pub struct View {
     // optional autoinc column (index) and current value
     // invariant: autoinc_col.1 is always the *next* value that should be used
     pub autoinc_col: Option<(usize, u64)>,
+    // columns that hold pointers to parent keys + parent view name
+    pub parent_cols: Vec<(usize, String)>,
 }
 
 pub fn view_cols_rows_to_answer_rows<W: Write>(cols: &Vec<TableColumnDef>, rows: RowPtrs, cols_to_keep: &Vec<usize>, 
@@ -218,10 +220,17 @@ impl View {
             indexes: HashMap::with_capacity(INIT_CAPACITY),
             primary_index: 0,
             autoinc_col: None,
+            parent_cols: vec![],
         }
     }
 
-    pub fn new(name: String, view_columns: &Vec<ColumnDef>, indexes: &Vec<IndexDef>, constraints: &Vec<TableConstraint>) -> Self {
+    pub fn new(name: String, 
+               view_columns: &Vec<ColumnDef>, 
+               indexes: &Vec<IndexDef>, 
+               constraints: &Vec<TableConstraint>,
+               parent_cols: &Vec<(usize, String)>) 
+        -> Self 
+    {
         // create autoinc column if doesn't exist
         let autoinc_col = match view_columns.iter().position(
             |c| c.options
@@ -292,6 +301,7 @@ impl View {
             indexes: indexes_map,
             primary_index: primary_index.unwrap(),
             autoinc_col: autoinc_col,
+            parent_cols: parent_cols.clone(),
         };
         warn!("created new view {:?}", view);
         view
@@ -338,6 +348,16 @@ impl View {
         None
     }
 
+    pub fn get_primary_rptr_of_val(&self, val: &str) -> HashedRowPtr {
+        match self.rows.borrow().get(val) {
+            Some(r) => {
+                debug!("get primary_rptr_of_val: found 1 primary row val {}!", val);
+                HashedRowPtr::new(r.clone(), self.primary_index)
+            }
+            None => unimplemented!("primary rptr value must exist for parent!"),
+        }
+    }
+ 
     pub fn get_rptrs_of_col(&self, col_index: usize, col_val: &str, all_rptrs: &mut HashSet<HashedRowPtr>) {
         let start = time::Instant::now();
         if col_index == self.primary_index {
@@ -455,12 +475,14 @@ impl View {
 
 pub struct Views {
     views: HashMap<String, Rc<RefCell<View>>>,
+    pub graph: graph::EntityGraph,
 }
 
 impl Views {
     pub fn new() -> Self {
         Views {
             views: HashMap::with_capacity(INIT_CAPACITY),
+            graph: graph::EntityGraph::new(),
         }
     }
     
@@ -471,8 +493,14 @@ impl Views {
         }
     }
 
-    pub fn add_view(&mut self, name: String, columns: &Vec<ColumnDef>, indexes: &Vec<IndexDef>, constraints: &Vec<TableConstraint>) {
-        self.views.insert(name.clone(), Rc::new(RefCell::new(View::new(name, columns, indexes, constraints))));
+    pub fn add_view(&mut self, 
+                    name: String, 
+                    columns: &Vec<ColumnDef>, 
+                    indexes: &Vec<IndexDef>, 
+                    constraints: &Vec<TableConstraint>,
+                    parent_cols: &Vec<(usize,String)>) 
+    {
+        self.views.insert(name.clone(), Rc::new(RefCell::new(View::new(name, columns, indexes, constraints, parent_cols))));
     }
 
     pub fn remove_views(&mut self, names: &Vec<ObjectName>) {
@@ -595,7 +623,12 @@ impl Views {
 
         warn!("views::insert {}: Appending rows: {:?}", view.name, insert_rows);
         for row in insert_rows {
-            view.insert_row(row);
+            view.insert_row(row.clone());
+            for (ci, parent_table) in &view.parent_cols {
+                // add edge to graph
+                let peid = helpers::parser_val_to_u64(&row.borrow()[*ci]);
+                self.graph.add_edge(HashedRowPtr::new(row.clone(), view.primary_index), &view.name, parent_table, peid);
+            }
         }
         Ok(())
     }
@@ -641,50 +674,56 @@ impl Views {
             cis.push(view.columns.iter().position(|vc| vc.column.name == a.id).unwrap());
         }
 
-        let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
+        let mut rptrs: Vec<HashedRowPtr> = vec![];
         if let Some(s) = selection {
-            rptrs = Some(select::get_rptrs_matching_constraint(s, &view, &view.columns));
-        }
+            rptrs = select::get_rptrs_matching_constraint(s, &view, &view.columns).iter().cloned().collect();
+        } else {
+            for (_pk, rptr) in view.rows.borrow().iter() {
+                rptrs.push(HashedRowPtr::new(rptr.clone(), view.primary_index)); 
+            }
+        };
 
         debug!("{}: update columns of indices {:?}", view.name, cis);
         // update the rows!
         for (assign_index, ci) in cis.iter().enumerate() {
             match &assign_vals[assign_index] {
                 Expr::Value(v) => {
-                    if let Some(ref rptrs) = rptrs {
-                        for rptr in rptrs {
-                            view.update_index_and_row(rptr.row().clone(), *ci, Some(&v));
+                    for rptr in &rptrs {
+                        // update graph
+                        for (pci, parent_table) in &view.parent_cols {
+                            if *pci == *ci {
+                                let old_peid = helpers::parser_val_to_u64(&rptr.row().borrow()[*ci]);
+                                let new_peid = helpers::parser_val_to_u64(&v);
+                                self.graph.update_edge(&view.name, parent_table, rptr.clone(), 
+                                                       old_peid, Some(new_peid));
+                                break;
+                            }
                         }
-                    } else {
-                        let mut rptrs = vec![];
-                        for (_pk, rptr) in view.rows.borrow().iter() {
-                            rptrs.push(rptr.clone()); 
-                        };
-                        for rptr in &rptrs {
-                            view.update_index_and_row(rptr.clone(), *ci, Some(&v));
-                        }
+                        // update view
+                        view.update_index_and_row(rptr.row().clone(), *ci, Some(&v));
                     }
                 }
                 _ => {
                     let assign_vals_fn = select::get_value_for_row_closure(&assign_vals[assign_index], &view.columns);
-                    if let Some(ref rptrs) = rptrs {
-                        for rptr in rptrs {
-                            let v = assign_vals_fn(&rptr.row().borrow());
-                            view.update_index_and_row(rptr.row().clone(), *ci, Some(&v));
+                    for rptr in &rptrs {
+                        let v = assign_vals_fn(&rptr.row().borrow());
+                        // update graph
+                        for (pci, parent_table) in &view.parent_cols {
+                            if *pci == *ci {
+                                let old_peid = helpers::parser_val_to_u64(&rptr.row().borrow()[*ci]);
+                                let new_peid = helpers::parser_val_to_u64(&v);
+                                self.graph.update_edge(&view.name, parent_table, rptr.clone(), 
+                                                       old_peid, Some(new_peid));
+                                break;
+                            }
                         }
-                    } else {
-                        let mut rptrs = vec![];
-                        for (_pk, rptr) in view.rows.borrow().iter() {
-                            rptrs.push(rptr.clone()); 
-                        };
-                        for rptr in &rptrs {
-                            let v = assign_vals_fn(&rptr.borrow());
-                            view.update_index_and_row(rptr.clone(), *ci, Some(&v));
-                        }
+                        // update view 
+                        view.update_index_and_row(rptr.row().clone(), *ci, Some(&v));
                     }
                 }
             }
-        }
+       }
+
         let dur = start.elapsed();
         warn!("Update view {} took: {}us", view.name, dur.as_micros());
         Ok(())
@@ -697,29 +736,29 @@ impl Views {
     {
         let mut view = self.views.get(table_name).unwrap().borrow_mut();
 
-        let mut rptrs: Option<HashSet<HashedRowPtr>> = None;
+        let mut rptrs: Vec<HashedRowPtr> = vec![];
         if let Some(s) = selection {
-            rptrs = Some(select::get_rptrs_matching_constraint(s, &view, &view.columns));
-        }
+            rptrs = select::get_rptrs_matching_constraint(s, &view, &view.columns).iter().cloned().collect();
+        } else {
+            for (_pk, rptr) in view.rows.borrow().iter() {
+                rptrs.push(HashedRowPtr::new(rptr.clone(), view.primary_index)); 
+            }
+        };
 
         let len = view.columns.len();
-        if let Some(ref rptrs) = rptrs {
-            for rptr in rptrs {
-                for ci in 0..len {
-                    // all the row indices have to change too..
-                    view.update_index_and_row(rptr.row().clone(), ci, None);
+        for rptr in &rptrs {
+            for ci in 0..len {
+                for (pci, parent_table) in &view.parent_cols {
+                    if *pci == ci {
+                        let old_peid = helpers::parser_val_to_u64(&rptr.row().borrow()[ci]);
+                        self.graph.update_edge(&view.name, parent_table, rptr.clone(), old_peid, None);
+                        break;
+                    }
                 }
+
+                // all the row indices have to change too..
+                view.update_index_and_row(rptr.row().clone(), ci, None);
             }
-        } else {
-            let mut rptrs = vec![];
-            for (_pk, rptr) in view.rows.borrow().iter() {
-                rptrs.push(rptr.clone());
-            }
-            for rptr in rptrs {
-                for ci in 0..len {
-                    view.update_index_and_row(rptr.clone(), ci, None);
-                }
-            };
         }
         Ok(())
     }

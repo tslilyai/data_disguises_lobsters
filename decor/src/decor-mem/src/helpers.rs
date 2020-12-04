@@ -95,15 +95,54 @@ pub fn contains_ghosted_columns(decor_config: &policy::Config, table_name: &str)
     decor_config.parent_child_ghosted_tables.contains_key(table_name)
     || decor_config.child_parent_ghosted_tables.contains_key(table_name)
 }
-
 pub fn get_ghosted_cols_of_datatable(decor_config: &policy::Config, table_name: &ObjectName) -> Vec<(String, String)> {
     let mut c = vec![];
     if let Some(colnames) = decor_config.parent_child_ghosted_tables.get(&table_name.to_string()) {
         c.append(&mut colnames.clone());
-    } else if let Some(colnames) = decor_config.child_parent_ghosted_tables.get(&table_name.to_string()) {
+    } 
+    //XXX if you decorrelate parent->child, you should decorrelate child->parent
+    /*if let Some(colnames) = decor_config.child_parent_ghosted_tables.get(&table_name.to_string()) {
         c.append(&mut colnames.clone());
-    }
+    }*/
     c
+}
+pub fn get_ghosted_col_indices_of(decor_config: &policy::Config, table_name: &str, columns: &Vec<views::TableColumnDef>) 
+    -> Vec<(usize, String)> 
+{
+    let mut cis = vec![];
+    if let Some(colnames) = decor_config.parent_child_ghosted_tables.get(&table_name.to_string()) {
+        for colname in colnames {
+            cis.push((columns.iter().position(|c| c.colname == colname.0).unwrap(), colname.1.clone()));
+        } 
+    } 
+    cis
+}
+
+pub fn get_sensitive_col_indices_of(decor_config: &policy::Config, table_name: &str, columns: &Vec<views::TableColumnDef>) -> Vec<(usize, String, f64)> {
+    let mut cis = vec![];
+    if let Some(colnames) = decor_config.parent_child_sensitive_tables.get(&table_name.to_string()) {
+        for colname in colnames {
+            cis.push((columns.iter().position(|c| c.colname == colname.0).unwrap(), colname.1.clone(), colname.2));
+        } 
+    } 
+    cis
+}
+
+pub fn get_parent_col_indices_of_datatable(decor_config: &policy::Config, table_name: &ObjectName, columns: &Vec<sql_parser::ast::ColumnDef>) 
+    -> Vec<(usize, String)> 
+{
+    let mut cis = vec![];
+    if let Some(colnames) = decor_config.parent_child_ghosted_tables.get(&table_name.to_string()) {
+        for colname in colnames {
+            cis.push((columns.iter().position(|c| c.name.to_string() == colname.0).unwrap(), colname.1.clone()));
+        } 
+    }
+    if let Some(colnames) = decor_config.parent_child_sensitive_tables.get(&table_name.to_string()) {
+        for colname in colnames {
+            cis.push((columns.iter().position(|c| c.name.to_string() == colname.0).unwrap(), colname.1.clone()));
+        } 
+    } 
+    cis
 }
 
 pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
