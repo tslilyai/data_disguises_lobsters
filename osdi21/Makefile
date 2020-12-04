@@ -10,4 +10,4 @@ $(PAPER).pdf: $(TEX) $(BIB) #$(FIG) $(GRAPH)
 	latexmk -pdf -shell-escape $(PAPER)
 
 clean:
-	rm -f *.aux *.bbl *.blg *.log *.out $(PAPER).pdf
+	rm -f *.aux *.bbl *.blg *.log *.out $(PAPER).pdf *.bcf
