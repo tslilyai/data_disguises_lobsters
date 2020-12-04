@@ -2,11 +2,22 @@
 \section{Introduction}
 %-------------------------------------------------------------------------------
 
-Web application companies face increasing legal requirements to protect users’ data. These
-requirements pressure companies to properly delete and anonymize users' data when a user requests to
-\emph{unsubscribe} from the service (i.e.,\ revoke access to their personal data). For example, the
-GDPR requires that any data remaining after a user unsubscribes cannot be (directly or
-indirectly) used to identify the user~\cite{gdpr}.  
+%
+Web application operators increasingly face pressure from legal requirements
+that grant users new rights over their data.
+%
+For example, the European Union's General Data Protection Regulation
+(GDPR)~\cite{eu:gdpr} grants end-users (``data subjects'') the right to request
+erasure of information related to them, and California's Consumer Privacy Act
+(CCPA)~\cite{ca:privacy-act} contains similar provisions.
+%
+These laws make it necessary for companies to support \emph{unsubscription} of
+users from their services on request.
+%
+
+Unsubscription goes beyond merely deleting a user's data.
+%
+
 
 In this paper, we propose \sys{}, which enables application developers to specify fine-grained
 privacy policies to meet de-identification requirements, and goes beyond: with \sys{}, it is
