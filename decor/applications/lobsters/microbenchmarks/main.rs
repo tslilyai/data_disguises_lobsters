@@ -255,7 +255,7 @@ fn main() {
     let mut rng = rand::thread_rng();
     let mut total_stories = nstories;
     let mut total_comments = ncomments;
-    //let mut unsubbed_users = HashMap::new(); 
+    let mut unsubbed_users = HashMap::new(); 
     let mut nunsub = 0;
     let mut nresub = 0;
     let start = time::Instant::now();
@@ -263,14 +263,14 @@ fn main() {
         // all autoinc ids start at 1..
         let user = rng.gen_range(1, nusers+1);
         let story= rng.gen_range(0, nstories);
-        /*if let Some(gids) = &unsubbed_users.remove(&user) {
+        if let Some(gids) = &unsubbed_users.remove(&user) {
             nresub += 1;
             if test == TestType::TestDecor {
                 queriers::user::resubscribe_user(user, gids, &mut db);
             } else {
                 db.query_drop(&format!("INSERT INTO `users` (id, username) VALUES ({}, 'user{}')", user, user-1)).unwrap();
             }
-        }*/
+        }
         match rng.gen_range(0, 24) {
             0..=8=> queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
             9..=11 => {
@@ -279,12 +279,11 @@ fn main() {
             }
             12..=14 => queriers::vote::vote_on_story(&mut db, Some(user), story, true).unwrap(),
             15..=17 => queriers::user::get_profile(&mut db, user).unwrap(),
-            //18..=20 => {
-            _ => {
+            18..=20 => {
                 queriers::comment::post_comment(&mut db, Some(user), total_comments + 1, story, None).unwrap();
                 total_comments += 1;
             }
-            /*_ => {
+            _ => {
                 nunsub += 1;
                 if test == TestType::TestDecor {
                     let gids = queriers::user::unsubscribe_user(user, &mut db);
@@ -293,7 +292,7 @@ fn main() {
                     db.query_drop(&format!("DELETE FROM `users` WHERE `users`.`id` = {}", user)).unwrap();
                     unsubbed_users.insert(user, (vec![], vec![]));
                 }
-            }*/
+            }
         }
     }
     let dur = start.elapsed();
