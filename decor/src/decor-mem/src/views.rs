@@ -539,7 +539,7 @@ impl Views {
     pub fn insert(&mut self, table_name: &str, columns: &Vec<Ident>, val_rows: &RowPtrs, is_ghost: bool) -> Result<(), Error> {
         let mut view = self.views.get(table_name).unwrap().borrow_mut();
 
-        debug!("{}: insert rows {:?} into {}", view.name, val_rows, table_name);
+        warn!("{}: insert rows {:?} into {}", view.name, val_rows, table_name);
         // initialize the rows to insert
         // insert rows with non-specified columns set as NULL for now (TODO)
         let mut insert_rows = vec![];
