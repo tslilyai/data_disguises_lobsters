@@ -46,6 +46,9 @@ impl HashedRowPtr {
     pub fn new_empty(size: usize, pki: usize) -> Self {
         HashedRowPtr(Rc::new(RefCell::new(vec![Value::Null; size])), pki)
     }
+    pub fn id(&self) -> u64 {
+        helpers::parser_val_to_u64(&self.0.borrow()[self.1])
+    }
 }
 
 pub type HashedRowPtrs = HashSet<HashedRowPtr>;

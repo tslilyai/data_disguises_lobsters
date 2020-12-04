@@ -1,6 +1,6 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{helpers, policy, policy::GhostPolicy, views::{Views, RowPtr, RowPtrs}, ID_COL};
+use crate::{helpers, policy, policy::GhostPolicy, views::{Views, RowPtr, HashedRowPtrs, RowPtrs}, ID_COL};
 use std::sync::atomic::Ordering;
 use std::*;
 use log::{warn};
@@ -146,7 +146,7 @@ impl GhostsMap {
      * Removes the eid unsubscribing.
      * Returns true if was unsubscribed 
      */
-    pub fn resubscribe(&mut self, eid: u64, gids: &Vec<u64>, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
+    pub fn resubscribe(&mut self, eid: u64, gidrptrs: &HashedRowPtrs, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
         // check hash and ensure that user has been unsubscribed
         // TODO could also use MAC to authenticate user
         warn!("{} Resubscribing {}", self.name, eid);
@@ -154,35 +154,26 @@ impl GhostsMap {
         if !self.unsubscribed.remove(&eid) {
             return Ok(false);
         }
+        let mut ghosts_of_eid = vec![];
+        let mut pairs = vec![];
+        for grptr in gidrptrs {
+            let gid = grptr.id();
+            self.gid2eid.insert(gid, (eid, grptr.row().clone()));
 
-        let mut pairs = String::new();
+            // insert into backward map
+            ghosts_of_eid.push((gid, grptr.row().clone()));
 
-        // TODO actually get vals from MVs here
-        // insert mappings
-        // no mappings should exist!
-        /*if let Some(gids) = self.eid2gids.insert(eid, gids.clone()) {
-            warn!("{} GIDS for {} are not empty???: {:?}", self.name, eid, gids);
-            // XXX This can happen if we're still allow this "user" to insert stories/comments...
-            assert!(gids.is_empty());
-        }
-
-        for i in 0..gids.len() {
-            // TODO insert actual ghost
-            self.gid2eid.insert(gids[i], eid);
-            
             // save values to insert into ghosts table
-            pairs.push_str(&format!("({}, {})", gids[i], eid));
-            if i < gids.len()-1 {
-                pairs.push_str(", ");
-            }
+            pairs.push(format!("({}, {})", gid, eid));
         }
+        // insert into foward map
+        assert!(self.eid2gids.insert(eid, ghosts_of_eid).is_none());
 
         // insert into ghost table
-        let insert_query = &format!("INSERT INTO {} ({}, {}) VALUES {};", self.name, GHOST_ID_COL, GHOST_ENTITY_COL, pairs);
+        let insert_query = &format!("INSERT INTO {} ({}, {}) VALUES {};", self.name, GHOST_ID_COL, GHOST_ENTITY_COL, pairs.join(","));
         db.query_iter(insert_query)?;
         self.nqueries+=1;
         warn!("RESUB {} insert_gid_for_eid {}: {}, dur {}us", self.name, eid, insert_query, start.elapsed().as_micros());
-        */
         Ok(true)
     }
 
@@ -467,8 +458,8 @@ impl GhostMaps{
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
         gm.unsubscribe(eid, db)
     }
-    pub fn resubscribe(&mut self, eid: u64, gids: &Vec<u64>, db: &mut mysql::Conn, parent_table: &str) -> Result<bool, mysql::Error> {
+    pub fn resubscribe(&mut self, eid: u64, gidrptrs: &HashedRowPtrs, db: &mut mysql::Conn, parent_table: &str) -> Result<bool, mysql::Error> {
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
-        gm.resubscribe(eid, gids, db)
+        gm.resubscribe(eid, gidrptrs, db)
     }
 }

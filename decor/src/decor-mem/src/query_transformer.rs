@@ -1928,24 +1928,19 @@ impl QueryTransformer {
             .iter()
             .map(|g| Expr::Value(Value::Number(g.to_string())))
             .collect();
-        // remove all ghost entities that were created for this table!
-        let selection =  Some(Expr::InList{
+        
+        // get rows from MV belonging to the ghost entities
+        let select_ghosts = Expr::InList{
             expr: Box::new(Expr::Identifier(helpers::string_to_idents(ID_COL))),
             list: gid_exprs.clone(),
             negated: false,
-        });
+        };
 
-        // TODO get rows from MV to put back into ghosts cache
-        
-        // delete from MV
-        self.views.delete(curtable, &selection)?;
-        
-        // delete from actual data table
-        // TODO only do this is not ghosted
+        // delete from actual data table if was created during unsub
         if cureid.is_none() {
             let delete_gids_as_entities = Statement::Delete(DeleteStatement {
                 table_name: helpers::string_to_objname(&curtable),
-                selection: selection.clone(),
+                selection: Some(select_ghosts.clone()),
             });
             warn!("RESUB removing entities: {}", delete_gids_as_entities);
             db.query_drop(format!("{}", delete_gids_as_entities.to_string()))?;
@@ -1955,10 +1950,14 @@ impl QueryTransformer {
         // this GID was prior stored in an actual non-ghost entity
         // we need to update these entities in the MV to now show the EID
         // and also put these GIDs back in the ghost map
-        if let Some(eid) = cureid {
+        else if let Some(eid) = cureid {
+            let view_ptr = self.views.get_view(&curtable).unwrap();
+            let mut view = view_ptr.borrow_mut();
+            let ghost_rptrs = select::get_rptrs_matching_constraint(&select_ghosts, &view, &view.columns);
+
             warn!("RESUB: actually restoring {} eid {}", curtable, eid);
             let eid_val = Value::Number(eid.to_string());
-            if !self.ghost_maps.resubscribe(*eid, &curgids, db, curtable)? {
+            if !self.ghost_maps.resubscribe(*eid, &ghost_rptrs, db, curtable)? {
                 return Err(mysql::Error::IoError(io::Error::new(
                     io::ErrorKind::Other, format!("not unsubscribed {}", eid))));
             }             
@@ -1996,6 +1995,9 @@ impl QueryTransformer {
                 }
             }
         }
+
+        // delete ghost entities from MV
+        self.views.delete(curtable, &Some(select_ghosts))?;
         Ok(())
     }
 }
