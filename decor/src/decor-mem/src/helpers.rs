@@ -351,6 +351,14 @@ pub fn parser_val_to_u64(val: &sql_parser::ast::Value) -> u64 {
     }
 }
 
+pub fn parser_val_to_u64_opt(val: &sql_parser::ast::Value) -> Option<u64> {
+    match val {
+        Value::Number(i) => Some(u64::from_str(i).unwrap()),
+        Value::String(i) => Some(u64::from_str(i).unwrap()),
+        _ => None,
+    }
+}
+
 pub fn parser_expr_to_u64(val: &Expr) -> Result<u64, mysql::Error> {
     match val {
         Expr::Value(Value::Number(i)) => Ok(u64::from_str(i).unwrap()),
