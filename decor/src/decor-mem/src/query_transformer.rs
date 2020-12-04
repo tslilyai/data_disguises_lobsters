@@ -1383,12 +1383,6 @@ impl QueryTransformer {
                 }
                 continue;
             }
-            let children : EntityTypeRows;
-            match self.views.graph.get_children_of_parent(&node.table_name, node.eid) {
-                None => continue,
-                Some(cs) => children = cs,
-            }
-            warn!("Found children {:?} of {:?}", children, node);
             
             let mut gid_values = vec![];
             if let Some((gids, rptrs)) = self.ghost_maps.unsubscribe(node.eid, db, &node.table_name)? {
@@ -1406,6 +1400,13 @@ impl QueryTransformer {
                 let columns = self.views.get_view_columns(&node.table_name);
                 self.views.insert(&node.table_name, &columns, &rptrs)?;
             }
+
+            let children : EntityTypeRows;
+            match self.views.graph.get_children_of_parent(&node.table_name, node.eid) {
+                None => continue,
+                Some(cs) => children = cs,
+            }
+            warn!("Found children {:?} of {:?}", children, node);
 
             for ((child_table, child_ci), child_hrptrs) in children.iter() {
                 view_ptr = self.views.get_view(&child_table).unwrap();
