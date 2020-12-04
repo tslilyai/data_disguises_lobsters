@@ -13,11 +13,28 @@
 \usepackage[normalem]{ulem}
 \usepackage{listings, listings-rust}
 
+% BibLaTeX for bibliography
+\usepackage[
+  backend=biber,
+  style=numeric-comp,
+  minalphanames=3,
+  isbn=false,
+  sortcites=true,
+  sorting=anyt,
+  abbreviate=false,
+  url=false,
+  doi=false,
+  maxnames=99,
+  minbibnames=3,
+  maxbibnames=99]{biblatex}
+\addbibresource{paper.bib}
+
 \newcommand{\sys}{DeCor}
 \newcommand{\plinked}{$p_\text{linked}$}
 \newcommand{\premnant}{$p_\text{remnant}$}
 \newcommand{\uidkey}{$uid_\text{key}$}
 \newcommand{\gidkey}{$gid_\text{key}$}
+\newcommand\ms[1]{\textcolor{red!55!blue}{[malte: {#1}]}}
 \newcommand\lyt[1]{\textcolor{green!55!blue}{[lyt: {#1}]}}
 \newcommand{\tabitem}{~~\llap{\textbullet}~~}
 %\renewcommand\lyt[1]{}
@@ -55,7 +72,7 @@
 \date{}
 
 % make title bold and 14 pt font (Latex default is non-bold, 16 pt)
-\title{\Large \bf \sys{}: Ensuring the Right To Be Forgotten (and Remembered) in Web Applications}
+\title{\Large \bf \sys{}: Ensuring the Right To Be Forgotten in Web Applications}
 
 %for single author (just remove % characters)
 %\author{
@@ -85,8 +102,7 @@
 \input{disc}
 
 %-------------------------------------------------------------------------------
-\bibliographystyle{plain}
-\bibliography{paper}
+\printbibliography
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \end{document}
