@@ -965,7 +965,7 @@ impl QueryTransformer {
     }
 
     fn insert_ghost_parent(&mut self, parent_table: &str, eid: u64, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
-        let mut view_ptr = self.views.get_view(parent_table).unwrap();
+        let view_ptr = self.views.get_view(parent_table).unwrap();
         let matching= select::get_rptrs_matching_constraint(
                         &Expr::BinaryOp {
                             left: Box::new(Expr::Identifier(helpers::string_to_idents(ID_COL))),
@@ -974,8 +974,7 @@ impl QueryTransformer {
                         }, &view_ptr.borrow(), &view_ptr.borrow().columns);
         assert!(matching.len() == 1, format!("Matching parent returned {:?}", matching));
         let vals = matching.iter().next().unwrap();
-        let gp = self.ghost_policies.get(parent_table).unwrap();
-        self.ghost_maps.insert_gid_for_eid(&self.views, &gp, vals.row().clone(), eid, db, parent_table)
+        self.ghost_maps.insert_gid_for_eid(&self.views, &self.ghost_policies, vals.row().clone(), eid, db, parent_table)
     }
        
     fn issue_update_datatable_stmt(&mut self, assign_vals: &Vec<Expr>, stmt: UpdateStatement, db: &mut mysql::Conn)
@@ -1420,7 +1419,7 @@ impl QueryTransformer {
                 // 2. update this node's MV to have an entry for all the parent ghost entities 
                 // NOTE: entries are already in the datatables!!
                 let columns = self.views.get_view_columns(&node.table_name);
-                self.views.insert(&node.table_name, &columns, &rptrs);
+                self.views.insert(&node.table_name, &columns, &rptrs)?;
             }
 
             for ((child_table, child_ci), child_hrptrs) in children.iter() {
@@ -1586,11 +1585,10 @@ impl QueryTransformer {
                     if !helpers::is_ghost_eid(&child.vals.row().borrow()[ci]) {
                         warn!("Generating foreign key entity for {}", parent_table);
                         let mut new_entities = vec![];
-                        let policy = self.ghost_policies.get(&parent_table).unwrap();
                         let newgid = policy::generate_foreign_key_value(
-                            &self.views, &policy, db, generated_eid_gids, &parent_table, &mut new_entities, &mut self.cur_stat.nqueries)?;
+                            &self.views, &self.ghost_policies, db, generated_eid_gids, &parent_table, &mut new_entities, &mut self.cur_stat.nqueries)?;
                         for (table, columns, rptrs) in &new_entities {
-                            self.views.insert(&table, &columns, &rptrs);
+                            self.views.insert(&table, &columns, &rptrs)?;
                         }
                         child.vals.row().borrow_mut()[ci] = newgid;
                     }
@@ -1658,10 +1656,9 @@ impl QueryTransformer {
                         }
                         // TODO could choose a random child as the poster child 
                         warn!("Achieve child parent sensitivity: generating values for gids {:?}", gids);
-                        let gp = self.ghost_policies.get(&poster_child.table_name).unwrap();
                         let new_entities = policy::generate_new_entities_from(
                             &self.views,
-                            &gp,
+                            &self.ghost_policies,
                             db, 
                             generated_eid_gids,
                             &poster_child.table_name,
@@ -1670,7 +1667,7 @@ impl QueryTransformer {
                             Some((ci, Value::Number(parent_eid.to_string()))),
                             &mut self.cur_stat.nqueries)?;
                         for (table, columns, rptrs) in &new_entities {
-                            self.views.insert(table, columns, rptrs);
+                            self.views.insert(table, columns, rptrs)?;
                         }
                     }
                 }
@@ -1720,10 +1717,9 @@ impl QueryTransformer {
                 gids.push(Value::Number(gid.to_string()));
             }
             warn!("Achieve parent child sensitivity: generating values for gids {:?}", gids);
-            let gp = self.ghost_policies.get(&child.table_name).unwrap();
             let new_entities = policy::generate_new_entities_from(
                 &self.views,
-                &gp,
+                &self.ghost_policies,
                 db, 
                 generated_eid_gids,
                 &child.table_name,
@@ -1732,7 +1728,7 @@ impl QueryTransformer {
                 Some((child.from_col_index, parent_val.clone())),
                 &mut self.cur_stat.nqueries)?;
             for (table, columns, rptrs) in &new_entities {
-                self.views.insert(table, columns, rptrs);
+                self.views.insert(table, columns, rptrs)?;
             }
         }
         Ok(removed)
@@ -1952,7 +1948,7 @@ impl QueryTransformer {
         // and also put these GIDs back in the ghost map
         else if let Some(eid) = cureid {
             let view_ptr = self.views.get_view(&curtable).unwrap();
-            let mut view = view_ptr.borrow_mut();
+            let view = view_ptr.borrow_mut();
             let ghost_rptrs = select::get_rptrs_matching_constraint(&select_ghosts, &view, &view.columns);
 
             warn!("RESUB: actually restoring {} eid {}", curtable, eid);

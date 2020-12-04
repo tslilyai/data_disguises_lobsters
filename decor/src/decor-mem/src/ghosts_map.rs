@@ -1,6 +1,6 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{helpers, policy, policy::GhostPolicy, views::{Views, RowPtr, HashedRowPtrs, RowPtrs}, ID_COL};
+use crate::{helpers, policy, policy::EntityGhostPolicies, views::{Views, RowPtr, HashedRowPtrs, RowPtrs}, ID_COL};
 use std::sync::atomic::Ordering;
 use std::*;
 use log::{warn};
@@ -289,7 +289,7 @@ impl GhostsMap {
 
     pub fn insert_gid_for_eid(&mut self, 
                                 views: &Views,
-                                gp: &GhostPolicy,
+                                gp: &EntityGhostPolicies,
                                 from_vals: RowPtr,
                                 eid: u64, db: &mut mysql::Conn) 
         -> Result<u64, mysql::Error> 
@@ -411,7 +411,7 @@ impl GhostMaps{
 
     pub fn insert_gid_for_eid(&mut self, 
                      views: &Views,
-                     gp: &GhostPolicy,
+                     gp: &EntityGhostPolicies,
                      from_vals: RowPtr,
                     eid: u64, db: &mut mysql::Conn, parent_str: &str) -> Result<u64, mysql::Error> 
     {
