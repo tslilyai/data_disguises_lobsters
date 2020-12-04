@@ -1406,7 +1406,6 @@ impl QueryTransformer {
             
             // ********************  DECORRELATED EDGES OF EID ************************ //
             // 1. Get all GIDs corresponding to this EID if this entity has not already been unsubscribed
-            let eid_val = Value::Number(node.eid.to_string());
             let gm = self.ghost_maps.get_mut(&node.table_name).unwrap();
             if let Some(gids) = gm.unsubscribe(node.eid, db)? {
                 assert!(!gids.is_empty());
@@ -1428,7 +1427,7 @@ impl QueryTransformer {
                     None)?;
 
                 // 3. Collect children nodes in the MV, update them to use the GID instead of the EID
-                for (child_table, child_hrptrs) in children.iter() {
+                for ((child_table, child_ci), child_hrptrs) in children.iter() {
                     view_ptr = self.views.get_view(&child_table).unwrap();
                     let ghosted_cols = helpers::get_ghosted_col_indices_of(&self.decor_config, &child_table, &view_ptr.borrow().columns); 
                     if ghosted_cols.is_empty() {
@@ -1438,7 +1437,7 @@ impl QueryTransformer {
                     let mut gid_index = 0;
                     for rptr in child_hrptrs {
                         for (ci, _) in &ghosted_cols {
-                            if rptr.row().borrow()[*ci].to_string() == eid_val.to_string() {
+                            if ci == child_ci {
                                 // swap out value in MV to be the GID instead of the EID
                                 assert!(gid_index < gid_values.len());
                                 let val = &gid_values[gid_index];
@@ -1470,7 +1469,7 @@ impl QueryTransformer {
             }
 
             // ********************  SENSITIVE EDGES OF EID ************************ //
-            for (child_table, child_hrptrs) in children.iter() {
+            for ((child_table, child_ci), child_hrptrs) in children.iter() {
                 let sensitive_cols = helpers::get_sensitive_col_indices_of(
                     &self.decor_config, &child_table, &view_ptr.borrow().columns); 
                 if sensitive_cols.is_empty() {
@@ -1480,7 +1479,7 @@ impl QueryTransformer {
                 for rptr in child_hrptrs {
                     let row = rptr.row().borrow();
                     for (ci, _, sensitivity) in &sensitive_cols {
-                        if node.eid.to_string() == row[*ci].to_string() {
+                        if child_ci == ci {
                             // add child of sensitive edge to traversal queue 
                             let child = TraversedEntity {
                                 table_name: child_table.clone(),
@@ -1648,7 +1647,7 @@ impl QueryTransformer {
                 for (parent_eid, sensitive_count) in parent_eid_counts.iter() {
                     // get all children of this type with the same parent entity eid
                     let childrows = self.views.graph.get_children_of_parent(&parent_table, *parent_eid).unwrap();
-                    let total_count = childrows.get(&poster_child.table_name).unwrap().len();
+                    let total_count = childrows.get(&(poster_child.table_name.clone(), ci)).unwrap().len();
                     warn!("Found {} total and {} sensitive children of type {} with parent {}", 
                           total_count, sensitive_count, poster_child.table_name, parent_eid);
                     let needed = (*sensitive_count as f64 / sensitivity).ceil() as i64 - total_count as i64;

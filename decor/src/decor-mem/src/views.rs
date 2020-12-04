@@ -628,7 +628,7 @@ impl Views {
                 // add edge to graph
                 let peid = helpers::parser_val_to_u64_opt(&row.borrow()[*ci]);
                 if let Some(peid) = peid {
-                    self.graph.add_edge(HashedRowPtr::new(row.clone(), view.primary_index), &view.name, parent_table, peid);
+                    self.graph.add_edge(HashedRowPtr::new(row.clone(), view.primary_index), &view.name, parent_table, peid, *ci);
                 }
             }
         }
@@ -697,7 +697,7 @@ impl Views {
                                 let old_peid = helpers::parser_val_to_u64(&rptr.row().borrow()[*ci]);
                                 let new_peid = helpers::parser_val_to_u64_opt(&v);
                                 self.graph.update_edge(&view.name, parent_table, rptr.clone(), 
-                                                       old_peid, new_peid);
+                                                       old_peid, new_peid, *ci);
                                 break;
                             }
                         }
@@ -715,7 +715,7 @@ impl Views {
                                 let old_peid = helpers::parser_val_to_u64(&rptr.row().borrow()[*ci]);
                                 let new_peid = helpers::parser_val_to_u64_opt(&v);
                                 self.graph.update_edge(&view.name, parent_table, rptr.clone(), 
-                                                       old_peid, new_peid);
+                                                       old_peid, new_peid, *ci);
                                 break;
                             }
                         }
@@ -753,7 +753,7 @@ impl Views {
                 for (pci, parent_table) in &view.parent_cols {
                     if *pci == ci {
                         let old_peid = helpers::parser_val_to_u64(&rptr.row().borrow()[ci]);
-                        self.graph.update_edge(&view.name, parent_table, rptr.clone(), old_peid, None);
+                        self.graph.update_edge(&view.name, parent_table, rptr.clone(), old_peid, None, ci);
                         break;
                     }
                 }
