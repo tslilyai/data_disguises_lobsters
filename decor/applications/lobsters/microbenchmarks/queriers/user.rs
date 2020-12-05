@@ -5,7 +5,6 @@ use decor::*;
 
 use mysql::prelude::*;
 use std::*;
-//use log::{warn, debug};
 
 pub fn get_profile(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
     let uids : Vec<u64> = db.query(format!(
@@ -58,7 +57,7 @@ pub fn get_profile(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
     Ok(())
 } 
 
-pub fn unsubscribe_user(user: u64, db: &mut mysql::Conn) -> (GhostMappingShard, EntityDataShard) {
+pub fn unsubscribe_user(user: u64, db: &mut mysql::Conn) -> (String, String) {
     let res = db.query_iter(format!("UNSUBSCRIBE UID {};", user)).unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
@@ -68,24 +67,12 @@ pub fn unsubscribe_user(user: u64, db: &mut mysql::Conn) -> (GhostMappingShard, 
         let s1 = s1.trim_end_matches('\'').trim_start_matches('\'');
         let s2 = s2.trim_end_matches('\'').trim_start_matches('\'');
         //warn!("Serialized values are {}, {}", s1, s2);
-        return (serde_json::from_str(s1).unwrap(), serde_json::from_str(s2).unwrap())
+        return (s1.to_string(), s2.to_string());
     }
-    (vec![], vec![])
+    (String::new(), String::new())
 }
 
-pub fn resubscribe_user(user: u64, data: &(GhostMappingShard, EntityDataShard), db: &mut mysql::Conn) {
-    let mut gid_strs = vec![];
-    for (table, eid, gid) in &data.0{
-        match eid {
-            None => gid_strs.push(format!("({}, {}, {})", table, "NULL", gid)),
-            Some(i) => gid_strs.push(format!("({}, {}, {})", table, i, gid)),
-        }
-    }
-    let mut data_strs = vec![];
-    for (table, vals) in &data.1{
-        let vals_str = vals.join(",");
-        data_strs.push(format!("({}, {{{}}})", table, vals_str));
-    }
-    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", user, gid_strs.join(", "), data_strs.join(","))).unwrap();
+pub fn resubscribe_user(user: u64, data: &(String, String), db: &mut mysql::Conn) {
+    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", user, data.0, data.1)).unwrap();
 }
 
