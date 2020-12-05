@@ -20,7 +20,7 @@ accounts cannot be restored after deletion.
 
 Applications such as Facebook or Twitter do support user account deactivation by hiding the user's
 data, but retain all user data with their identifiers in their databases.  \lyt{Facebook keeps a
-``log`` of data versions, but this wouldn't be a problem if everything in the database is ghosted!}
+``log'' of data versions, but this wouldn't be a problem if everything in the database is ghosted!}
 
 \sys{}'s decorrelation primitives provide a way for applications to state more flexible privacy
 policies, trading off data retention with de-identifying a user.
@@ -32,9 +32,15 @@ in its database.
 \subsection{Data Anonymization}
 
 Prior research on k-anonymization, pseudonymization (more for static analysis purposes than used in
-web applications);
-\url{https://amnesia.openaire.eu/index.html}
-\url{https://www.aclweb.org/anthology/2020.coling-main.32.pdf}
+web applications).
+%\url{https://amnesia.openaire.eu/index.html}
+%\url{https://www.aclweb.org/anthology/2020.coling-main.32.pdf}
+
+While psuedo/anonymization
+techniques still allow for reidentification/reconstruction attacks), \sys{} provides better
+anonymization than prior approaches, which decorrelate only coarsely by associating remnants of data
+with a global placeholder for all deleted users, or do not decorrelate at all (e.g., replacing
+usernames with a pseudonym, as in the AOL dataset case~\lyt{TODO}%\cite{aol}).
 
 \subsection{Differentially Private Queries}
 
@@ -64,8 +70,8 @@ via queries that may reveal individual data records cannot be so easily defined:
 learn information from the friends who liked the (ghosted) story, or the time and location the story
 was posted.
 
-Thus, we cannot, in general, use the DP approach of asking, "by how much do answers to adversary
-queries change with the presence of a users' decorrelated data?" While we can precisely define which
+Thus, we cannot, in general, use the DP approach of asking, ``by how much do answers to adversary
+queries change with the presence of a users' decorrelated data?'' While we can precisely define which
 data records an adversary sees with and without a user's decorrelated data, we cannot numerically
 quantify the knowledge gained by the adversary in the same way as we can quantify the percentage
 change to a sum or average.
@@ -83,14 +89,9 @@ unique keys (ghosts), one per story. By PINQ's analysis of stable transformation
 unbounded stability (as the number of different results produced by queries is proportional to the
 potentially very large number of stories for that user). In PINQ's DP framework, such unbounded
 stability leads to unbounded privacy loss: one users' data could change aggregation results in
-"significant" ways unless huge amounts of noise were added. 
+``significant'' ways unless huge amounts of noise were added. 
 
-While \sys{}'s approach has been shown to be problematic in the past (psuedo/anonymization
-techniques still allow for reidentification/reconstruction attacks), \sys{} provides better
-anonymization than prior approaches, which decorrelate only coarsely by associating remnants of data
-with a global placeholder for all deleted users, or do not decorrelate at all (e.g., replacing
-usernames with a pseudonym, as in the AOL dataset case~\cite{aol}). In addition, \sys{} and PINQ's
-approaches can be complementary: for queries that are more analytic in nature (for example,
+\sys{} and PINQ's approaches can be seen as complementary: for queries that are more analytic in nature (for example,
 population statistics used by the web application to measure usage or trends), \sys{} can utilize
 PINQ's technique to provide differentially private guarantees (for a particular snapshot of the
 dataset).  \sys{}'s decorrelation, in fact, adds more noise than necessary in these cases: a count
@@ -100,25 +101,6 @@ user is now associated with a unique (ghost) user.
 %\sys{} provides the highest granularity of decorrelation possible (for integer
 %identifiers)\lyt{(Not sure about this claim for highest granularity, since noise / fake records
 %could also be introduced?)}.
-%
-%Some examples of how \sys{} provides better privacy than prior approaches even with potentially unbounded DP-defined privacy
-%loss:
-%\begin{itemize}
-%    \item Aspects like birthdate, sex, ZIP code are identifiable, even if usernames/UIDs are
-%        deidentified --> all deanonymization records suffer this problem, if one data record holds
-%        this information. Something like a story might only have one "bit" of information---needs to
-%        be linked with other stories to be interesting at all.
-%    \item 
-%    \item Querying the count of people with HIV and 
-%\end{itemize}
-%\lyt{TODO: one user's data in mutliple queries cannot be ``linked''}
-%
-%\subsection{Deletion Frameworks}
-
-%\lyt{cite ones that replace all of one user with pseudoym---AOL anonymization failure: https://www.nytimes.com/2006/08/09/technology/09aol.html}
-%
-%\lyt{(cite Reddit, Lobsters, others?)}
-%
 
 %First, differential privacy guarantees are formally defined on a fixed dataset; \sys{} aims to
 %ensure privacy in the context of changing datasets, as is common in social media settings where
@@ -139,10 +121,10 @@ another's.
 
 Potentially other related works:
 \begin{itemize}
-    \item Deceptive Deletions for protecting withdrawn posts: https://arxiv.org/abs/2005.14113
-    \item "My Friend Wanted to Talk About It and I Didn't": Understanding Perceptions of
-        Deletion Privacy in Social Platforms, user survey https://arxiv.org/pdf/2008.11317.pdf;
-        talk about decoy deletion, prescheduled deletion strategies~\cite{myfw}
+    \item Deceptive Deletions for protecting withdrawn posts %https://arxiv.org/abs/2005.14113
+    %\item "My Friend Wanted to Talk About It and I Didn't": Understanding Perceptions of
+        %Deletion Privacy in Social Platforms, user survey https://arxiv.org/pdf/2008.11317.pdf;
+        %talk about decoy deletion, prescheduled deletion strategies~\cite{myfw}
     \item Contextual Integrity
     \item ML Unlearning
 \end{itemize}
