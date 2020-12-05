@@ -28,6 +28,8 @@ top of the views is also stored for unsubscription and resubscription performanc
 Reads are directly to the materialized views, which support a subset of MySql that covers most
 common application queries. Because the materialized views are kept up-to-date with any application
 writes, no queries to the underlying datatables are performed.
+\lyt{I'm not sure if it's appropriate or interesting to put some of the MV query handling stuff
+here? (Like processing joins, etc.)}
 
 \paragraph{Inserts.}
 When the application inserts an entity, \sys{} first checks (using the developer-provided policy) whether
