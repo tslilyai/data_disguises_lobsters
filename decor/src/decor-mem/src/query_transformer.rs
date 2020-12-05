@@ -1567,12 +1567,16 @@ impl QueryTransformer {
                 let ci = columns.iter().position(|c| col == c.to_string()).unwrap();
                 for child in table_children {
                     // if parent is not the from_parent (which could be a ghost!),
-                    // then change child to point ghost of the real parent
-                    // and remove the mapping from the real parent
                     if !helpers::is_ghost_eid(&child.vals.row().borrow()[ci]) {
                         let eid = helpers::parser_val_to_u64(&child.vals.row().borrow()[ci]);
-                        if let Some((gid, _)) = self.ghost_maps.take_one_gidrptr_for_eid(eid, &parent_table)? {
+                        if let Some((gid, parent_rptr)) = self.ghost_maps.take_one_gidrptr_for_eid(eid, db, &parent_table)? {
+                            // this parent already has ghosts!
+                            // change child to point ghost of the real parent,
+                            // insert the ghost into the MV,
+                            // and remove the mapping from the real parent
                             generated_eid_gids.push((parent_table.clone(), Some(eid), gid));
+                            let parent_columns = self.views.get_view_columns(&parent_table);
+                            self.views.insert(&parent_table, &parent_columns, &vec![parent_rptr.clone()])?;
                             self.views.update_index_and_row_of_view(&table_name, child.vals.row().clone(), ci, Some(&Value::Number(gid.to_string())));
                         } else {
                             warn!("Generating foreign key entity for {}", parent_table);

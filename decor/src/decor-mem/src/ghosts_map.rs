@@ -264,13 +264,30 @@ impl GhostsMap {
         Ok(())
     }
 
-    pub fn take_one_gidrptr_for_eid(&mut self, eid: u64) -> 
+    pub fn take_one_gidrptr_for_eid(&mut self, eid: u64, db: &mut mysql::Conn) -> 
         Result<Option<(u64, RowPtr)>, mysql::Error> 
     {
         let gids = self.eid2gids.get_mut(&eid).ok_or(
                 mysql::Error::IoError(io::Error::new(
                     io::ErrorKind::Other, "get_gids: eid not present in cache?")))?;
-        Ok(gids.pop())
+
+        if let Some((gid, rptr)) = gids.pop() {
+            // delete mapping
+            let delete_stmt = Statement::Delete(DeleteStatement{
+                table_name: helpers::string_to_objname(&self.name),
+                selection: Some(Expr::BinaryOp{
+                    left: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_ID_COL))),
+                    op: BinaryOperator::Eq,
+                    right: Box::new(Expr::Value(Value::Number(gid.to_string()))),
+                }),
+            });
+            warn!("{} delete from eid2gids_with : {}", self.name, delete_stmt);
+            db.query_drop(format!("{}", delete_stmt))?;
+            self.nqueries+=1;
+            Ok(Some((gid, rptr)))
+        } else {
+            Ok(None)
+        }
     }
 
     pub fn get_gids_for_eid(&mut self, eid: u64) -> 
@@ -473,10 +490,10 @@ impl GhostMaps{
         gm.resubscribe(eid, index, gidrptrs, db)
     }
 
-    pub fn take_one_gidrptr_for_eid(&mut self, eid: u64, parent_table: &str) -> 
+    pub fn take_one_gidrptr_for_eid(&mut self, eid: u64, db: &mut mysql::Conn, parent_table: &str) -> 
         Result<Option<(u64, RowPtr)>, mysql::Error> {
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
-        gm.take_one_gidrptr_for_eid(eid)
+        gm.take_one_gidrptr_for_eid(eid, db)
     }
 
 }
