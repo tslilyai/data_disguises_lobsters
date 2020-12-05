@@ -21,7 +21,7 @@ pub mod graph;
 
 pub const INIT_CAPACITY: usize = 1000;
 pub const ID_COL: &str = "id";
-pub type GhostMappingShard = Vec<(String, Option<u64>, u64)>; 
+pub type GhostMappingShard = Vec<(String, Option<u64>, Vec<(String, u64)>)>; 
 pub type EntityDataShard = Vec<(String, Vec<String>)>;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -126,17 +126,21 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      */
     fn on_resubscribe(&mut self, 
                       uid: u64, 
-                      gids: Vec<(String, Option<u64>, u64)>, 
-                      entity_data: Vec<(String, Vec<String>)>, 
+                      gidshard: String, 
+                      entity_data: String, 
                       w: QueryResultWriter<W>) 
         -> Result<(), Self::Error> 
     {
+        warn!("RESUB got data {}, {}", gidshard, entity_data);
         let start = time::Instant::now();
-        match self.qtrans.resubscribe(uid, &gids, &entity_data, &mut self.db) {
+        let gidshard = serde_json::from_str(&gidshard).unwrap();
+        let entity_data = serde_json::from_str(&entity_data).unwrap();
+ 
+        match self.qtrans.resubscribe(uid, &gidshard, &entity_data, &mut self.db) {
             Ok(()) => {
                 let dur = start.elapsed();
                 self.qtrans.record_query_stats(stats::QueryType::Resub, dur);
-                Ok(w.completed(gids.len() as u64, 0)?)
+                Ok(w.completed(gidshard.len() as u64 + entity_data.len() as u64, 0)?)
             }
             Err(e) => {
                 let dur = start.elapsed();

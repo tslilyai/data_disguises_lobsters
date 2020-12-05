@@ -1,6 +1,6 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{helpers, policy, policy::EntityGhostPolicies, views::{Views, RowPtr, HashedRowPtrs, RowPtrs}, ID_COL};
+use crate::{helpers, policy, policy::GeneratedEntities, policy::EntityGhostPolicies, views::{Views, RowPtr, HashedRowPtrs, RowPtrs}, ID_COL};
 use std::sync::atomic::Ordering;
 use std::*;
 use log::{warn};
@@ -63,14 +63,24 @@ pub fn answer_rows<W: io::Write>(
     Ok(())
 }
 
+/*
+ * INVARIANTS:
+ *  - ghost map contains only mappings between real entity EIDs and their ghost counterpart GIDs;
+ *      these mappings only exist for edges that are *preemptively* created because the edge type
+ *      can be decorrelated.
+ *  - these GIDs always correspond to actual ghosts in the datatables, and these ghosts always
+ *      exist
+ *  - these ghost sibling entities MAY have parents who are also ghosts which are not present in
+ *      the mapping to ensure referential integrity; these rptrs are contained in the mapping
+ */
 pub struct GhostsMap{
     table_name: String,
     name: String,
     // only those entities that actually had gids are marked
     // as unsubscribed
     unsubscribed: HashSet<u64>,
-    eid2gids: HashMap<u64, Vec<(u64, RowPtr)>>,
-    gid2eid: HashMap<u64, (u64, RowPtr)>,
+    eid2gids: HashMap<u64, Vec<(u64, GeneratedEntities)>>,
+    gid2eid: HashMap<u64, (u64, GeneratedEntities)>,
     latest_gid: AtomicU64,
     
     pub nqueries: usize,
@@ -97,19 +107,19 @@ impl GhostsMap {
      * Returns a hash of the list of ghosts if user is not yet unsubscribed,
      * else None if the user is already unsubscribed
      */
-    pub fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn) -> Result<Option<(Vec<u64>, RowPtrs)>, mysql::Error> {
+    fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn) -> Result<Option<Vec<(u64, GeneratedEntities)>>, mysql::Error> {
         warn!("{} Unsubscribing {}", self.name, eid);
         let start = time::Instant::now();
         if self.unsubscribed.get(&eid).is_none() {
             //self.cache_eid2gids_for_eids(&vec![eid])?;
             if let Some(gidrptrs) = self.eid2gids.remove(&eid) {
-                let mut rowptrs = vec![];
+                let mut gidrowptrs = vec![];
                 let mut gids = vec![];
                 
                 // remove gids from reverse mapping
                 for (gid, vals) in &gidrptrs {
                     self.gid2eid.remove(gid);
-                    rowptrs.push(vals.clone());
+                    gidrowptrs.push((*gid, vals.clone()));
                     gids.push(*gid);
                 }
 
@@ -132,7 +142,7 @@ impl GhostsMap {
            
                 // return the gids
                 warn!("{} Found {} gids for {}", self.name, gids.len(), eid);
-                return Ok(Some((gids, rowptrs)));
+                return Ok(Some(gidrowptrs));
             } else {
                 return Ok(None);
             }
@@ -146,7 +156,7 @@ impl GhostsMap {
      * Removes the eid unsubscribing.
      * Returns true if was unsubscribed 
      */
-    pub fn resubscribe(&mut self, eid: u64, index: usize, gidrptrs: &RowPtrs, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
+    pub fn resubscribe(&mut self, eid: u64, gidrptrs: &Vec<(u64, GeneratedEntities)>, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
         // check hash and ensure that user has been unsubscribed
         // TODO could also use MAC to authenticate user
         warn!("{} Resubscribing {}", self.name, eid);
@@ -156,15 +166,14 @@ impl GhostsMap {
         }
         let mut ghosts_of_eid = vec![];
         let mut pairs = vec![];
-        for grptr in gidrptrs {
-            let gid = helpers::parser_val_to_u64(&grptr.borrow()[index]);
-            self.gid2eid.insert(gid, (eid, grptr.clone()));
+        for (gid, ghost_ancestors) in gidrptrs {
+            self.gid2eid.insert(*gid, (eid, ghost_ancestors.clone()));
 
             // insert into backward map
-            ghosts_of_eid.push((gid, grptr.clone()));
+            ghosts_of_eid.push((*gid, ghost_ancestors.clone()));
 
             // save values to insert into ghosts table
-            pairs.push(format!("({}, {})", gid, eid));
+            pairs.push(format!("({}, {})", *gid, eid));
         }
         // insert into foward map
         assert!(self.eid2gids.insert(eid, ghosts_of_eid).is_none());
@@ -178,7 +187,8 @@ impl GhostsMap {
         Ok(true)
     }
 
-    pub fn insert_gid_into_caches(&mut self, eid:u64, gid:u64, vals: RowPtr) {
+    pub fn insert_gid_into_caches(&mut self, eid:u64, gid:u64, vals: GeneratedEntities) {
+        warn!("{} insert {}, {:?} into caches for eid {}", self.name, gid, vals, eid);
         match self.eid2gids.get_mut(&eid) {
             Some(gids) => (*gids).push((gid,vals.clone())),
             None => {
@@ -194,7 +204,7 @@ impl GhostsMap {
         let mut gids_to_delete = vec![];
         for (eid, gid) in pairs {
             // delete current mapping
-            let mut vals: Option<RowPtr> = None;
+            let mut vals: Option<GeneratedEntities> = None;
             if let Some((oldeid, oldvals)) = self.gid2eid.get(gid) {
                 vals = Some(oldvals.clone());
                 if let Some(gids) = self.eid2gids.get_mut(&oldeid) {
@@ -265,7 +275,7 @@ impl GhostsMap {
     }
 
     pub fn take_one_gidrptr_for_eid(&mut self, eid: u64, db: &mut mysql::Conn) -> 
-        Result<Option<(u64, RowPtr)>, mysql::Error> 
+        Result<Option<(u64, GeneratedEntities)>, mysql::Error> 
     {
         let gids = self.eid2gids.get_mut(&eid).ok_or(
                 mysql::Error::IoError(io::Error::new(
@@ -336,14 +346,10 @@ impl GhostsMap {
         drop(res);
       
         // actually generate parent ghost entities for this table
-        let mut generated_eid_gids = vec![];
         let new_entities = policy::generate_new_entities_from(
-            views, gp, db, &mut generated_eid_gids, &self.table_name, from_vals, &vec![Value::Number(gid.to_string())], None, &mut self.nqueries)?;
-        let new_rows = &new_entities[0].2;
-        assert!(new_rows.len() == 1);
-        // insert into cache
-        self.insert_gid_into_caches(eid, gid, new_rows[0].clone());
-
+            views, gp, db, &self.table_name, from_vals, &vec![Value::Number(gid.to_string())], None, &mut self.nqueries)?;
+        
+        self.insert_gid_into_caches(eid, gid, new_entities.clone());
         Ok(gid)
     }
 
@@ -375,9 +381,8 @@ impl GhostsMap {
         let gids : Vec<u64> = (last_gid +1 - eids.len())..(last_gid+1).collect();
 
         // actually generate parent ghost entities for this table
-        let mut generated_eid_gids = vec![];
         let new_entities = policy::generate_new_entities_from(
-            views, gp, db, &mut generated_eid_gids, &self.table_name, from_vals, 
+            views, gp, db, &self.table_name, from_vals, 
             eids.iter().map(|e| Value::Number(e.to_string())).collect(), 
             None, &mut self.nqueries)?;
         
@@ -440,9 +445,9 @@ impl GhostMaps{
                      views: &Views,
                      gp: &EntityGhostPolicies,
                      from_vals: RowPtr,
-                    eid: u64, db: &mut mysql::Conn, parent_str: &str) -> Result<u64, mysql::Error> 
+                    eid: u64, db: &mut mysql::Conn, table_name: &str) -> Result<u64, mysql::Error> 
     {
-        let gm = self.ghost_maps.get_mut(parent_str).unwrap();
+        let gm = self.ghost_maps.get_mut(table_name).unwrap();
         gm.insert_gid_for_eid(views, gp, from_vals, eid, db)
     }
 
@@ -481,17 +486,17 @@ impl GhostMaps{
         gm.update_eid2gids_with(pairs, db)
     }
 
-    pub fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn, parent_table: &str) -> Result<Option<(Vec<u64>, RowPtrs)>, mysql::Error> {
+    pub fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn, parent_table: &str) -> Result<Option<Vec<(u64, GeneratedEntities)>>, mysql::Error> {
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
         gm.unsubscribe(eid, db)
     }
-    pub fn resubscribe(&mut self, eid: u64, index: usize, gidrptrs: &RowPtrs, db: &mut mysql::Conn, parent_table: &str) -> Result<bool, mysql::Error> {
+    pub fn resubscribe(&mut self, eid: u64, gidrptrs: &Vec<(u64, GeneratedEntities)>, db: &mut mysql::Conn, parent_table: &str) -> Result<bool, mysql::Error> {
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
-        gm.resubscribe(eid, index, gidrptrs, db)
+        gm.resubscribe(eid, gidrptrs, db)
     }
 
     pub fn take_one_gidrptr_for_eid(&mut self, eid: u64, db: &mut mysql::Conn, parent_table: &str) -> 
-        Result<Option<(u64, RowPtr)>, mysql::Error> {
+        Result<Option<(u64, GeneratedEntities)>, mysql::Error> {
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
         gm.take_one_gidrptr_for_eid(eid, db)
     }

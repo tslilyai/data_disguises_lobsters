@@ -504,6 +504,12 @@ impl Views {
         }
     }
 
+    pub fn get_view_pi(&self, name: &str) -> usize {
+        let view_ptr = self.get_view(&name).unwrap();
+        let pi = view_ptr.borrow().primary_index;
+        pi
+    }
+
     pub fn get_view_columns(&self, name: &str) -> Vec<Ident> {
         let view_ptr = self.get_view(&name).unwrap();
         let columns = view_ptr.borrow().columns.iter().map(|tcd| Ident::new(tcd.colname.clone())).collect();
@@ -530,7 +536,7 @@ impl Views {
         select::get_query_results(&self.views, query)
     }
  
-    pub fn insert(&mut self, table_name: &str, columns: &Vec<Ident>, val_rows: &RowPtrs) -> Result<(), Error> {
+    pub fn insert(&mut self, table_name: &str, columns_opt: Option<&Vec<Ident>>, val_rows: &RowPtrs) -> Result<(), Error> {
         let mut view = self.views.get(table_name).unwrap().borrow_mut();
 
         warn!("{}: insert rows {:?} into {}", view.name, val_rows, table_name);
@@ -541,13 +547,16 @@ impl Views {
             insert_rows.push(Rc::new(RefCell::new(vec![Value::Null; view.columns.len()])));
         }
         let mut cis : Vec<usize>;
-        if columns.is_empty() {
-            // update all columns
-            cis = (0..columns.len()).collect();
-        } else {
-            cis = columns.iter()
+        let columns : Vec<String>;
+        if let Some(cols) = columns_opt {
+            cis = cols.iter()
                 .map(|c| view.columns.iter().position(|vc| vc.column.name == *c).unwrap())
                 .collect();
+            columns = cols.iter().map(|c| c.to_string()).collect();
+        } else {
+            // update all columns
+            cis = (0..view.columns.len()).collect();
+            columns = view.columns.iter().map(|tcd| tcd.colname.clone()).collect();
         }
          
         // if there is an autoincrement column, we should 
@@ -561,24 +570,28 @@ impl Views {
             
             let mut found = false;
             for c in columns {
-                if *c == col.column.name {
+                if *c == col.colname {
                     // get the values of the uid col being inserted, update autoinc
                     let mut max = id_val;
                     for row in val_rows {
                         let row = row.borrow();
+                        // only update if it's a UID!!!
+                        if helpers::is_ghost_eid(&row[col_index]) {
+                            continue;
+                        } 
                         match &row[col_index] {
                             Value::Number(n) => {
                                 let n = n.parse::<u64>().unwrap();
-                                // only update if it's a UID!!!
-                                if n < ghosts_map::GHOST_ID_START {
-                                    max = u64::max(max, n);
-                                }
+                                max = u64::max(max, n);
                             }
                             _ => (),
                         }
                     }
                     // TODO ensure self.latest_uid never goes above GID_START
-                    view.autoinc_col = Some((col_index, max+1));
+                    if max > id_val {
+                        warn!("Autoinc col of view {} is set to {:?}", view.name, view.autoinc_col);
+                        view.autoinc_col = Some((col_index, max+1));
+                    } 
                     found = true;
                     break;
                 }
@@ -598,18 +611,19 @@ impl Views {
                 // then add it to the end!
                 cis.push(col_index);
                 view.autoinc_col = Some((col_index, id_val + val_rows.len() as u64));
+                warn!("Autoinc col of view {} is set to {:?}", view.name, view.autoinc_col);
             }
         }
 
         // update with the values to insert
         for (i, row) in val_rows.iter().enumerate() {
             let mut irow = insert_rows[i].borrow_mut();
-            debug!("views::insert: insert_rows {} is {:?}", i, irow);
             let row = row.borrow();
+            warn!("views::insert: insert_rows {} is {:?}, val row is {:?}, cis are {:?}", i, irow, row, cis);
             for (val_index, ci) in cis.iter().enumerate() {
                 // update the right column ci with the value corresponding 
                 // to that column to update
-                debug!("views::insert: setting insert_row col {} to {}", ci, row[val_index]);
+                warn!("views::insert: setting insert_row col {} to {}", ci, row[val_index]);
                 irow[*ci] = row[val_index].clone();
             }
             debug!("views::insert: insert_rows {} is {:?}", i, irow);
@@ -767,7 +781,33 @@ impl Views {
         view.update_index_and_row(rptr.clone(), col_index, col_val);
     }
 
-    pub fn delete_ghost_rptrs(&mut self, 
+    pub fn delete_rptrs_with_ids(&mut self, 
+          table_name: &str, 
+          ids: &Vec<u64>)
+        -> Result<(), Error> 
+    {
+        let mut view = self.views.get(table_name).unwrap().borrow_mut();
+        let rptrs = view.get_rows_of_ids(ids);
+        let len = view.columns.len();
+        for rptr in rptrs {
+            for ci in 0..len {
+                for (pci, parent_table) in &view.parent_cols {
+                    if *pci == ci {
+                        let old_peid = helpers::parser_val_to_u64(&rptr.borrow()[ci]);
+                        self.graph.update_edge(&view.name, parent_table, 
+                                               HashedRowPtr::new(rptr.clone(), view.primary_index), old_peid, None, ci);
+                        break;
+                    }
+                }
+
+                // all the row indices have to change too..
+                view.update_index_and_row(rptr.clone(), ci, None);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn delete_rptrs(&mut self, 
           table_name: &str, 
           rptrs: &RowPtrs)
         -> Result<(), Error> 

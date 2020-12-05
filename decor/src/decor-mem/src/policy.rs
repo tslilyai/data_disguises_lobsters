@@ -84,7 +84,9 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
     let mut cp_sdts: HashMap<String, Vec<(String, String, f64)>>= HashMap::new();
     
     let mut tables_with_children: HashSet<String> = HashSet::new();
-    
+     
+    let mut attached_parents: HashSet<String> = HashSet::new();
+    let mut attached_children: HashSet<String> = HashSet::new();
     let mut completely_decorrelated_parents: HashSet<String> = HashSet::new();
     let mut completely_decorrelated_children: HashSet<String> = HashSet::new();
 
@@ -109,7 +111,7 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
                 }        
             } 
             DecorrelationPolicy::NoDecorSensitivity(s) => {
-                completely_decorrelated_parents.remove(&kr.parent);
+                attached_parents.insert(kr.parent.clone());
                 if let Some(ghost_cols) = pc_sdts.get_mut(&kr.child.clone()) {
                     ghost_cols.push((kr.column_name.clone(), kr.parent.clone(), s));
                 } else {
@@ -117,7 +119,7 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
                 }        
             }
             DecorrelationPolicy::NoDecorRetain => {
-                completely_decorrelated_parents.remove(&kr.parent);
+                attached_parents.insert(kr.parent.clone());
                 if let Some(ghost_cols) = pc_sdts.get_mut(&kr.child.clone()) {
                     ghost_cols.push((kr.column_name.clone(), kr.parent.clone(), 1.0));
                 } else {
@@ -140,7 +142,7 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
                 }        
             } 
             DecorrelationPolicy::NoDecorSensitivity(s) => {
-                completely_decorrelated_children.remove(&kr.child);
+                attached_children.insert(kr.child.clone());
                 if let Some(ghost_cols) = cp_sdts.get_mut(&kr.child.clone()) {
                     ghost_cols.push((kr.column_name.clone(), kr.parent.clone(), s));
                 } else {
@@ -148,7 +150,7 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
                 }        
             }
             DecorrelationPolicy::NoDecorRetain => {
-                completely_decorrelated_children.remove(&kr.child);
+                attached_children.insert(kr.child.clone());
                 if let Some(ghost_cols) = cp_sdts.get_mut(&kr.child.clone()) {
                     ghost_cols.push((kr.column_name.clone(), kr.parent.clone(), 1.0));
                 } else {
@@ -157,7 +159,13 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
             } 
         }
     }
-    
+ 
+    for child in attached_children {
+        completely_decorrelated_children.remove(&child);
+    }
+    for parent in attached_parents {
+        completely_decorrelated_parents.remove(&parent);
+    }
     Config {
         entity_type_to_decorrelate: policy.entity_type_to_decorrelate.clone(), 
         parent_child_ghosted_tables: pc_gdts,
@@ -172,22 +180,23 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
     }
 }
 
+pub type GeneratedEntities = Vec<(String, RowPtrs)>;
+
 pub fn generate_new_entities_from(
     views: &Views,
     ghost_policies: &EntityGhostPolicies,
     db: &mut mysql::Conn,
-    generated_eid_gids: &mut Vec<(String, Option<u64>, u64)>,
     from_table: &str,
     from_vals: RowPtr, 
     eids: &Vec<Value>,
     set_colval: Option<(usize, Value)>,
     nqueries: &mut usize,
 ) 
-    -> Result<Vec<(String, Vec<Ident>, RowPtrs)>, mysql::Error>
+    -> Result<GeneratedEntities, mysql::Error>
 {
     use GhostColumnPolicy::*;
     let start = time::Instant::now();
-    let mut new_entities : Vec<(String, Vec<Ident>, RowPtrs)> = vec![];
+    let mut new_entities : GeneratedEntities = vec![];
     let from_cols = views.get_view_columns(from_table);
 
     // NOTE : generating entities with foreign keys must also have ways to 
@@ -233,18 +242,17 @@ pub fn generate_new_entities_from(
                 // clone the value for the first row
                 new_vals[0].borrow_mut()[i] = from_vals.borrow()[i].clone();
                 for n in 1..num_entities {
-                    new_vals[n].borrow_mut()[i] = get_generated_val(views, ghost_policies, db, generated_eid_gids, &gen, clone_val, &mut new_entities, nqueries)?;
+                    new_vals[n].borrow_mut()[i] = get_generated_val(views, ghost_policies, db, &gen, clone_val, &mut new_entities, nqueries)?;
                 }
             }
             Generate(gen) => {
                 for n in 0..num_entities {
-                    new_vals[n].borrow_mut()[i] = get_generated_val(views, ghost_policies, db, generated_eid_gids, &gen, clone_val, &mut new_entities, nqueries)?;
+                    new_vals[n].borrow_mut()[i] = get_generated_val(views, ghost_policies, db, &gen, clone_val, &mut new_entities, nqueries)?;
                 }
             }
         }
     }
-
-    new_entities.push((from_table.to_string(), from_cols.clone(), new_vals.clone())); 
+    new_entities.push((from_table.to_string(), new_vals.clone())); 
   
     // insert new rows into actual data tables (do we really need to do this?)
     let mut parser_rows = vec![];
@@ -271,8 +279,8 @@ pub fn generate_new_entities_from(
     db.query_drop(dt_stmt.to_string())?;
     *nqueries+=1;
 
-    warn!("UNSUB Done adding {} new entities for table {}, dur {}", 
-          num_entities, from_table, start.elapsed().as_micros());
+    warn!("UNSUB Done adding {} new entities {:?} for table {}, dur {}", 
+          num_entities, new_entities, from_table, start.elapsed().as_micros());
     Ok(new_entities)
 }
 
@@ -280,9 +288,8 @@ pub fn generate_foreign_key_value(
     views: &views::Views,
     ghost_policies: &EntityGhostPolicies,
     db: &mut mysql::Conn,
-    generated_eid_gids: &mut Vec<(String, Option<u64>, u64)>,
     table_name: &str,
-    new_entities: &mut Vec<(String, Vec<Ident>, RowPtrs)>,
+    new_entities: &mut GeneratedEntities,
     nqueries: &mut usize) 
     -> Result<Value, mysql::Error> 
 {
@@ -299,14 +306,12 @@ pub fn generate_foreign_key_value(
     let mut rng: ThreadRng = rand::thread_rng();
     let gid = rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX);
     let gidval= Value::Number(gid.to_string());
-    generated_eid_gids.push((table_name.to_string(), None, gid));
 
     warn!("Generating foreign key entity for {} {:?}", table_name, random_row);
     new_entities.append(&mut generate_new_entities_from(
         views,
         ghost_policies,
         db, 
-        generated_eid_gids,
         &table_name,
         random_row,
         &vec![gidval.clone()],
@@ -320,10 +325,9 @@ pub fn get_generated_val(
     views: &views::Views,
     ghost_policies: &EntityGhostPolicies,
     db: &mut mysql::Conn,
-    generated_eid_gids: &mut Vec<(String, Option<u64>, u64)>,
     gen: &GeneratePolicy, 
     base_val: &Value,
-    new_entities: &mut Vec<(String, Vec<Ident>, RowPtrs)>,
+    new_entities: &mut GeneratedEntities,
     nqueries: &mut usize
     ) 
 -> Result<Value, mysql::Error> 
@@ -333,7 +337,7 @@ pub fn get_generated_val(
         Random => Ok(helpers::get_random_parser_val_from(&base_val)),
         Default(val) => Ok(helpers::get_default_parser_val_with(&base_val, &val)),
         //Custom(f) => helpers::get_computed_parser_val_with(&base_val, &f),
-        ForeignKey(table_name) => generate_foreign_key_value(views, ghost_policies, db, generated_eid_gids, table_name, new_entities, nqueries),
+        ForeignKey(table_name) => generate_foreign_key_value(views, ghost_policies, db, table_name, new_entities, nqueries),
     }
 }
 

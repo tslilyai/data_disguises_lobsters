@@ -218,8 +218,8 @@ pub trait MysqlShim<W: Write> {
     fn on_resubscribe(
         &mut self,
         uid: u64,
-        gids: Vec<(String, Option<u64>, u64)>, 
-        entity_data: Vec<(String, Vec<String>)>, 
+        gids: String,
+        entity_data: String,
         w: QueryResultWriter<'_, W>,
     ) -> Result<(), Self::Error>;
 
@@ -392,11 +392,8 @@ impl<B: MysqlShim<W>, R: Read, W: Write> MysqlIntermediary<B, R, W> {
                     } else if q.starts_with(b"RESUBSCRIBE UID ") || q.starts_with(b"resubscribe uid ") {
                         /* 
                          * RESUBSCRIBE UID uid 
-                         * WITH GIDS 
-                         *      (entity_type, eid, gid1), (entity_type, eid, gid2), ...
-                         *  WITH ENTITIES 
-                         *      (entity_type, {val, val, val...}), (entity_type, {val, val,
-                         *      val...})...;
+                         * WITH GIDS [serialized gidmappingshard]
+                         *  WITH ENTITIES [serialized entitydata]
                          */
                         let w = QueryResultWriter::new(&mut self.writer, false);
                         let args = ::std::str::from_utf8(&q[b"RESUBSCRIBE UID ".len()..])
@@ -409,40 +406,11 @@ impl<B: MysqlShim<W>, R: Read, W: Write> MysqlIntermediary<B, R, W> {
                         let uid = u64::from_str(uidstr)
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?; 
 
-                        // get GIDs
                         let args : Vec<&str> = args[1].split(" WITH DATA ").collect();
                         assert!(args.len() == 2);
-                        let gidstrs : Vec<&str> = args[0].trim_end_matches(';').split("), ").collect();
-                        let mut gids = vec![];
-                        for gid in &gidstrs {
-                            let parts : Vec<&str> = gid.trim_end_matches(')').trim_start_matches('(').split(',')
-                                .map(|s| s.trim().trim_matches('\''))
-                                .collect();
-                            let name = parts[0].trim_matches('\'').to_string();
-                            let opt_eid = match u64::from_str(parts[1].trim().trim_matches('\'')) {
-                                Ok(v) => Some(v),
-                                Err(_) => None,
-                            };
-                            let gid = u64::from_str(parts[2].trim().trim_matches('\''))
-                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-                            gids.push((name, opt_eid, gid));
-                        }
-
-                        // get entity data
-                        let datastrs : Vec<&str> = args[1].trim_end_matches(';').split("), ").collect();
-                        let mut data = vec![];
-                        for datastr in &datastrs{
-                            let parts : Vec<&str> = datastr.trim_end_matches(')').trim_start_matches('(').split(", {")
-                                .map(|s| s.trim().trim_matches('\''))
-                                .collect();
-                            let name = parts[0].trim_matches('\'').to_string();
-                            let vals : Vec<String> = parts[1].trim().trim_end_matches('}').trim_start_matches('{').split(',')
-                                .map(|s| s.trim().to_string())
-                                .collect();
-                            data.push((name, vals));
-                        }
- 
-                        self.shim.on_resubscribe(uid, gids, data, w)?;
+                        let gidshardstr = args[0].trim();
+                        let datashardstr = args[1].trim().trim_matches(';');
+                        self.shim.on_resubscribe(uid, gidshardstr.to_string(), datashardstr.to_string(), w)?;
                     } else {
                         let w = QueryResultWriter::new(&mut self.writer, false);
                         self.shim.on_query(
