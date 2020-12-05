@@ -16,6 +16,13 @@ do
     	#../target/release/lobsters-microbenchmarks \
     	perflock ../target/release/lobsters-microbenchmarks \
 		--test=$test --testname=$test$trial \
-		--nusers=1000 --nstories=5000 --ncomments=10000 --nthreads=1 --nqueries=8000
+		--nusers=1000 --nstories=5000 --ncomments=10000 --nthreads=1 --nqueries=10
     done
 done
+
+for test in "${tests[@]}"
+do
+    diff $test$trial.out no_shim$trial.out
+done
+
+python3 plot.py

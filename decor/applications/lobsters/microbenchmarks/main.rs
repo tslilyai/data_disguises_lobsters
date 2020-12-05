@@ -28,10 +28,14 @@ use mysql::prelude::*;
 use rand::prelude::*;
 use std::*;
 use std::collections::HashMap;
+use std::io::Write;
+use std::fs::File;
 use std::thread;
 use structopt::StructOpt;
 use hwloc::{Topology, ObjectType, CPUBIND_THREAD, CPUBIND_PROCESS, CpuSet};
 use std::sync::{Arc, Mutex};
+use rand_core::{SeedableRng, RngCore};
+use rand_pcg::Pcg64;
 use log::warn;
 
 mod queriers;
@@ -110,10 +114,10 @@ fn init_database(db: &mut mysql::Conn, nusers: u64, nstories: u64, ncomments: u6
         if i != 0 {
             story_vals.push_str(",");
         }
-        story_vals.push_str(&format!("({}, {}, 'story{}')", i % nusers +1, i, i));
+        story_vals.push_str(&format!("({}, {}, 'story{}', {})", i % nusers +1, i, i, i as f64));
     }
     db.query_drop(&format!(
-            "INSERT INTO stories (user_id, short_id, title) VALUES {};", 
+            "INSERT INTO stories (user_id, short_id, title, hotness) VALUES {};", 
             story_vals)).unwrap();
 
     // comments
@@ -251,19 +255,20 @@ fn main() {
     locked_topo.set_cpubind_for_process(pid, cpuset, CPUBIND_PROCESS).unwrap();
     drop(locked_topo);
             
-    let (mut db, jh) = init_db(topo.clone(), test.clone(), testname, nusers, nstories, ncomments);
+    let (mut db, jh) = init_db(topo.clone(), test.clone(), testname.clone(), nusers, nstories, ncomments);
 
-    let mut rng = rand::thread_rng();
+    let mut rng = Pcg64::seed_from_u64(2);
     let mut total_stories = nstories;
     let mut total_comments = ncomments;
     let mut unsubbed_users = HashMap::new(); 
     let mut nunsub = 0;
     let mut nresub = 0;
+    let mut file = File::create(format!("{}.out", testname)).unwrap();
     let start = time::Instant::now();
-    for _ in 0..nqueries {
+    for i in 0..nqueries {
         // all autoinc ids start at 1..
-        let user = rng.gen_range(1, nusers+1);
-        let story= rng.gen_range(0, nstories);
+        let user = rng.next_u64() % nusers + 1;
+        let short_story_id = rng.next_u64() % nstories;
         if let Some(gids) = &unsubbed_users.remove(&user) {
             nresub += 1;
             if test == TestType::TestDecor {
@@ -272,16 +277,17 @@ fn main() {
                 db.query_drop(&format!("INSERT INTO `users` (id, username) VALUES ({}, 'user{}')", user, user-1)).unwrap();
             }
         }
-        match rng.gen_range(0, 24) {
-            0..=8=> queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
+        let mut res = vec![];
+        match rng.next_u64() % 24 {
+            0..=8=> res = queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
             9..=11 => {
                 queriers::post_story::post_story(&mut db, Some(user), total_stories + 1, "Dummy title".to_string()).unwrap();
                 total_stories += 1;
             }
-            12..=14 => queriers::vote::vote_on_story(&mut db, Some(user), story, true).unwrap(),
+            12..=14 => queriers::vote::vote_on_story(&mut db, Some(user), short_story_id, true).unwrap(),
             15..=17 => queriers::user::get_profile(&mut db, user).unwrap(),
             18..=20 => {
-                queriers::comment::post_comment(&mut db, Some(user), total_comments + 1, story, None).unwrap();
+                queriers::comment::post_comment(&mut db, Some(user), total_comments + 1, short_story_id, None).unwrap();
                 total_comments += 1;
             }
             _ => {
@@ -295,11 +301,14 @@ fn main() {
                 }
             }
         }
+        res.sort();
+        file.write(format!("Query {}, user{}, story{}, {}\n", i, user, short_story_id, res.join(" ")).as_bytes()).unwrap();
     }
     let dur = start.elapsed();
     println!("Time to do {} queries ({}/{} un/resubs): {}s", nqueries, nunsub, nresub, dur.as_secs());
-    //println!("{:.2}", nqueries as f64/duration.as_millis() as f64 * 1000f64);
     
+    file.flush().unwrap();
+
     drop(db);
     if let Some(t) = jh {
         t.join().unwrap();
