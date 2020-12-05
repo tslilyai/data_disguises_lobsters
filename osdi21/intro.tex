@@ -16,12 +16,18 @@ of users from their services on request.
 %
 
 %
-Unsubscription goes beyond merely deleting a user's data.
+Unsubscription goes beyond merely deleting a user's data: correct operation of
+a service often requires that some information remains after a user departs.
 %
-The correct operation of a service often requires that some information
-remains after a user departs.
+\ms{Give an example!}
 %
-\ms{For example...}
+It is difficult for developers to determine and implement the database
+transformations required to correctly unsubscribe a user, and to continously
+maintain this feature.
+%
+Consequently, the majority of web services today either lack unsubscription support
+(requiring manual labor to handle \eg GDPR deletion requests), or leave substantial
+information behind that potentially harms user privacy.
 %
 
 %
