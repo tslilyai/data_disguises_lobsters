@@ -82,6 +82,8 @@ impl Shim {
      * Must be issued after select_db statement is issued.
      * */
     fn create_schema(&mut self) -> Result<(), mysql::Error> {
+        self.db.query_drop("SET max_heap_table_size = 4294967295;")?;
+
         /* issue schema statements */
         let mut stmt = String::new();
         for line in self.schema.lines() {

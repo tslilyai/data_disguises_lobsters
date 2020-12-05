@@ -133,6 +133,7 @@ fn init_database(db: &mut mysql::Conn, nusers: u64, nstories: u64, ncomments: u6
 
 fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     let mut txn = db.start_transaction(mysql::TxOpts::default())?;
+    txn.query_drop("SET max_heap_table_size = 4294967295;")?;
     
     /* issue schema statements */
     let mut sql = String::new();
