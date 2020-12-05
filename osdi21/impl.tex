@@ -1,6 +1,110 @@
-
 %-------------------------------------------------------------------------------
 \section{Implementation}
 %-------------------------------------------------------------------------------
 
+\sys{} introduces in-memory shim layer on top of the application database, intercepting queries sent by the
+application frontend. 
+
+To amortize the cost of unsubscription and resubscription, \sys{} preemptively creates, stores, and
+links ghost parent entities to child entities if an update creates an edge that may be decorrelated.
+\sys{} builds in-memory materialized views on top of the underlying database, exposing ghost
+entities only if the true entity has been decorrelated, and real entities otherwise. Updates
+propagate to the materialized views when the underlying database is updated. \sys{} answers
+application queries using these materialized views, hiding the complexity of ghost entity and
+decorrelation management.
+
+\lyt{Should I mention details like query parsing...?}
+
+\subsection{Data Objects}
+In addition to the original application data tables, \sys{} stores a persistent mapping from entity
+ID (EID) to a set of ghost IDs (GID). This mapping is cached in the shim layer for performance.
+
+\sys{} stores the in-memory materialized views for each datatable, using hashtables and btrees for
+table indexes. An in-memory cache of the graph of parent-child entity key relationships built on
+top of the views is also stored for unsubscription and resubscription performance.
+
+\subsection{Handling Normal Execution Queries}
+\paragraph{Reads.}
+Reads are directly to the materialized views, which support a subset of MySql that covers most
+common application queries. Because the materialized views are kept up-to-date with any application
+writes, no queries to the underlying datatables are performed.
+
+\paragraph{Inserts.}
+When the application inserts an entity, \sys{} first checks (using the developer-provided policy) whether
+the entity is a child entity (i.e., it has a foreign key to another data table). 
+If yes, \sys{} checks whether the policy specifies that this child-parent key
+relationship should be decorrelated during unsubscription. If so, \sys{} preemptively creates a
+\emph{ghost parent} entity using the appropriate entity generation policy, and adds this entity to
+the parent data table. \sys{} then saves the child entity's real parent EID (the child entity's
+foreign key column value), and adds a mapping from this EID to the new ghost parent
+GID.\footnote{\sys{} assumes that the application does not violate referential integrity, namely
+that any child entity inserted into the system will refer to a corresponding parent in the
+database.} Finally, \sys{} rewrites the child entity's foreign key reference to correspond to this
+new ghost parent's GID, and stores the child into the datatable.
+
+The insert propagates to the materialized view, inserting the entity with its real parent EID; queries that
+select for this entity will not see any ghost entities. 
+
+If the child-parent key relationship should not be decorrelated, or the inserted entity is not a
+child, \sys{} simply inserts the entity as-is into the datatable, and the materialized view is
+updated with the entity.
+
+\sys{} also updates the parent-child entity graph with the new entity if the entity adds any edges
+specified by the developer-provided policy. This graph is built on top of the materialized view, and
+thus contains only those entities exposed by the materialized view to the application.
+
+\paragraph{Updates.}
+When the application updates an entity, \sys{} again checks (using the developer-provided policy) whether
+the entity is a child entity (i.e., it has a foreign key to another data table). 
+If the entity is a child, and the policy specifies that this child-parent key
+relationship should be decorrelated during unsubscription, then \sys{} performs one final check of
+whether the entity's parent key is one of the columns being updated.
+
+If yes, then \sys{} gets the current value of the entity parent key in the datatable: because \sys{}
+inserts only GIDs into the datatable for these decorrelatable child-parent links, this value 
+corresponds to some ghost parent GID.
+\sys{} checks its ghosts mapping table for which real parent EID currently maps to this GID, removes
+this current mapping, and updates the mapping so that the updated parent key value now points to
+this GID.
+\sys{} updates all non-foreign key columns as normal, with values specified by the application.
+
+If the updated entity is not a child of a decorrelatable edge, the update is performed without any
+alterations.
+
+Updates are propagated to the materialized view without modifying the values, so that application
+reads only observe real parent entities.
+\sys{} also updates the parent-child entity graph if any edges between materialized view entities change.
+
+\paragraph{Deletes.}
+When the application deletes an entity, \sys{} checks whether
+the entity is a child entity (i.e., it has a foreign key to another data table). 
+If the entity is a child, and the policy specifies that this child-parent key
+relationship should be decorrelated during unsubscription, then \sys{} gets the current value of the
+entity parent key in the datatable, which must correspond to some ghost parent GID.
+\sys{} checks its ghosts mapping table for which real parent EID currently maps to this GID and removes
+this mapping. \sys{} also removes the ghost parent with this GID.
+
+In all cases, \sys{} removes the entity being deleted.
+The deletion is propagated to the materialized view and removes the entity being deleted; the
+parent-child entity graph is modified appropriately.
+
+\paragraph{Recovering the Materialized Views}
+Upon a crash, the in-memory materialized views are rebuilt from the underlying datatables and ghost
+mapping. Non-children datatable entities are simply reinserted into the appropriate
+materialized view. 
+
+If a datatable contains child entities, and these children have ghost parent GIDs as foreign
+keys (because their child-parent edges can be decorrelated), then \sys{} checks, for each child, whether a mapping
+from a real parent EID to this entity's foreign key GID exists in the persistent EID to GIDs
+mapping. If such a mapping exists, then this edge has not yet been decorrelated, and the real parent
+entity should be exposed to the application: \sys{} inserts the child entity with the real parent
+EID into the materialized view.
+
+If the mapping does not exist, then the link to the real parent entity must have been decorrelated at some point:
+\sys{} inserts the unmodified child entity with the GID as foreign key into the materialized view.
+
+The parent-child graph is constructed appropriately on top of the materialized view, and the EID to
+GIDs mapping cache repopulated.
+
+\subsection{Handling Unsubscription and Resubscription}
 
