@@ -37,16 +37,14 @@ pub enum DecorrelationPolicy {
     \caption{\sys{}-provided types to specify key relationships and ghost generation policies.}
 \end{figure}
 
-
-Application data is structured as tables, each representing a different \emph{table entity} type,
-e.g.,\ stories, users, or votes. Table columns act as foreign keys to other table entities, or as
-abstract keys that refer to abstract non-table entities (e.g.,\ a \texttt{thread\_id} comments column). 
-Key relationships represent correlations between entity types.
-
-\sys{} represents instances of key-based relationships between entities as the edges of a graph,
-where the nodes are the entity instances: child entities are connected to parents via an instance of
-a foreign or abstract key relationship. In the following, an \emph{edge} refers to an instance of a
-foreign or abstract key relationship.
+\sys{} models an application's schema as a graph of data \emph{entities}. Each entity type corresponds to
+an application data table, such as stories, users, or votes. 
+Entities are linked in the entity graph by foreign key relationships: table columns that act as foreign keys to other tables create child-parent relationships between
+entities.
+\sys{} also includes abstract entities in the graph, where the keys may be non-referential
+identifiers that refer to abstract, non-table entities (e.g.,\ a \texttt{thread\_id} comments column).
+Edges in the graph---foreign or abstract key relationships---represent correlations between the nodes of the graph,
+namely individual entities.
 
 \subsection{Specifying Decorrelation Policies}
 The developer provides a two-part specification to \sys{}: 
@@ -245,5 +243,3 @@ decorrelated).
 %this cluster by location can have a different decorrelation policy that generates ghost locations by
 %randomizing the location, breaking up the cluster. 
 %
-
-
