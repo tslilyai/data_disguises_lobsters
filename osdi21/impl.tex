@@ -166,7 +166,12 @@ from a prior unsubscription.
 \sys{} verifies that the hash of the EID and data matches that from the latest unsubscription of
 this entity.
 
-\sys{} then 
+For all removed parent EID to GIDs mappings, \sys{} reinserts these mappings, removes the
+corresponding ghost entities for all GIDs from the materialized views, and updates all materialized
+children with these GIDs for parent keys with the original parent EID. Looking up the relevant
+children is facilitated by the in-memory entity graph.  \sys{} then re-inserts any completely
+decorrelated entities into both the datatables and materialized views.  Finally, \sys{} removes any
+ghost entities from the datatables and materialized views that were created during unsubscription.
 
 \paragraph{Recovering the Materialized Views}
 Upon a crash, the in-memory materialized views are rebuilt from the underlying datatables and ghost
