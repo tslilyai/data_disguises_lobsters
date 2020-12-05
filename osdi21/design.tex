@@ -42,7 +42,8 @@ an application data table, such as stories, users, or votes.
 Entities are linked in the entity graph by foreign key relationships: table columns that act as foreign keys to other tables create child-parent relationships between
 entities.
 \sys{} also includes abstract entities in the graph, where the keys may be non-referential
-identifiers that refer to abstract, non-table entities (e.g.,\ a \texttt{thread\_id} comments column).
+identifiers that refer to abstract, non-table entities (e.g.,\ a \texttt{thread\_id} column in the
+comments table).
 Edges in the graph---foreign or abstract key relationships---represent correlations between the nodes of the graph,
 namely individual entities.
 
@@ -212,7 +213,9 @@ edge type $t$,
             with parent $k$.
         \item If the sensitivity exceeds $\sigma_t$ and the child entity type has an associated ghost entity policy, \sys{}
             generates ghost children and edges of type $t$ from these children to parent
-            key $k$. This lowers the sensitivity by increasing $N_{all}$.
+            key $k$. This lowers the sensitivity by increasing $N_{all}$. Note that this may also
+            create other ghost parents for the generated ghost children if these children have more
+            than one column representing a foreign key relationship.
         \item Otherwise, if the sensitivity exceeds $\sigma_t$ but ghosts cannot be generated,
             \sys{} removes the children of edges in $E_t$ with parent $k$, thus lowering the
             sensitivity by lowering $N_{sensitive}$.
