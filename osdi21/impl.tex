@@ -175,7 +175,7 @@ children is facilitated by the in-memory entity graph.  \sys{} then re-inserts a
 decorrelated entities into both the datatables and materialized views.  Finally, \sys{} removes any
 ghost entities from the datatables and materialized views that were created during unsubscription.
 
-\paragraph{Recovering the Materialized Views}
+\paragraph{Consistency and Recovering the Materialized Views}
 Upon a crash, the in-memory materialized views are rebuilt from the underlying datatables and ghost
 mapping. Non-children datatable entities are simply reinserted into the appropriate
 materialized view. 
@@ -198,3 +198,6 @@ also doesn't seem that important.}
 
 The parent-child graph is constructed appropriately on top of the materialized view, and the EID to
 GIDs mapping cache repopulated.
+
+\sys{} does not currently support atomic unsubscription, resubscription, or recovery behavior.
+\lyt{TODO}

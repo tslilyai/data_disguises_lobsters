@@ -183,17 +183,21 @@ Given this specification and an entity to be decorrelated as input, \sys{} acts 
         for each sensitive child.  If these edges cannot be decorrelated and should be retained or
         deleted, \sys{} does nothing or removes the child and edge respectively. 
         
-        \lyt{Note: edge policies should take account the \emph{direction} of the edge
-        (whether we're considering sensitive child->parent, or sensitive parent->child). We need
-        this to allow policies that decorrelate a message from one unsubscribing user while still retaining the correlation
-        to another subscribed user.}
-
         Otherwise, if there is a sensitivity threshold for the edge type, then \sys{} limits the
         proportion of edges of that type that connect to sensitive entities (the children of
         traversed edge instances) to below the threshold. 
         For each edge with type $t$ in this set of edges, \sys{} ensures the
         sensitivity of the edge is below $t$'s sensitivity threshold, providing the edge type and the edge's
         parent key to the procedure described in Section~\ref{sensitivity_algo}. 
+
+        \sys{} optionally allows developers to specify that edges have \emph{weaker}
+        decorrelation policies in the child-to-parent direction than from parent-to-child: this
+        allows expression of policies where it is safe to retain links if \emph{only the child} is
+        sensitive, but where the link should be decorrelated, removed, or desensitized if
+        \emph{both} the child
+        and parent are sensitive. For example, perhaps a user wants to ensure that their link to
+        sent messages are decorrelated, but links from the message to the recipient users 
+        can still be retained.
 \end{enumerate}
 
 \subsubsection{Achieving the Sensitivity Threshold}
