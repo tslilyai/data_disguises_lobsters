@@ -1396,7 +1396,6 @@ impl QueryTransformer {
 
                 // 2. update this node's MV to have an entry for all the parent ghost entities 
                 // NOTE: entries are already in the datatables!!
-                // we don't need to modify the graph...
                 let columns = self.views.get_view_columns(&node.table_name);
                 self.views.insert(&node.table_name, &columns, &rptrs)?;
             }
@@ -1470,7 +1469,6 @@ impl QueryTransformer {
                     }
                 }
             }
-            self.views.update_index_and_row_of_view(&child_table, rptr.row().clone(), *ci, Some(&val));
             warn!("UNSUB {}: Duration to traverse+decorrelate {}, {:?}: {}us", 
                       uid, node.table_name, node, start.elapsed().as_micros());
            
@@ -1569,16 +1567,23 @@ impl QueryTransformer {
                 let ci = columns.iter().position(|c| col == c.to_string()).unwrap();
                 for child in table_children {
                     // if parent is not the from_parent (which could be a ghost!),
-                    // generate a new parent and point the child to that parent
+                    // then change child to point ghost of the real parent
+                    // and remove the mapping from the real parent
                     if !helpers::is_ghost_eid(&child.vals.row().borrow()[ci]) {
-                        warn!("Generating foreign key entity for {}", parent_table);
-                        let mut new_entities = vec![];
-                        let newgid = policy::generate_foreign_key_value(
-                            &self.views, &self.ghost_policies, db, generated_eid_gids, &parent_table, &mut new_entities, &mut self.cur_stat.nqueries)?;
-                        for (table, columns, rptrs) in &new_entities {
-                            self.views.insert(&table, &columns, &rptrs)?;
+                        let eid = helpers::parser_val_to_u64(&child.vals.row().borrow()[ci]);
+                        if let Some((gid, _)) = self.ghost_maps.take_one_gidrptr_for_eid(eid, &parent_table)? {
+                            generated_eid_gids.push((parent_table.clone(), Some(eid), gid));
+                            self.views.update_index_and_row_of_view(&table_name, child.vals.row().clone(), ci, Some(&Value::Number(gid.to_string())));
+                        } else {
+                            warn!("Generating foreign key entity for {}", parent_table);
+                            let mut new_entities = vec![];
+                            let newgid = policy::generate_foreign_key_value(
+                                &self.views, &self.ghost_policies, db, generated_eid_gids, &parent_table, &mut new_entities, &mut self.cur_stat.nqueries)?;
+                            for (table, columns, rptrs) in &new_entities {
+                                self.views.insert(&table, &columns, &rptrs)?;
+                            }
+                            self.views.update_index_and_row_of_view(&table_name, child.vals.row().clone(), ci, Some(&Value::Number(newgid.to_string())));
                         }
-                        child.vals.row().borrow_mut()[ci] = newgid;
                     }
                 }
             }

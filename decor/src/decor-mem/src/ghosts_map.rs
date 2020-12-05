@@ -264,6 +264,15 @@ impl GhostsMap {
         Ok(())
     }
 
+    pub fn take_one_gidrptr_for_eid(&mut self, eid: u64) -> 
+        Result<Option<(u64, RowPtr)>, mysql::Error> 
+    {
+        let gids = self.eid2gids.get_mut(&eid).ok_or(
+                mysql::Error::IoError(io::Error::new(
+                    io::ErrorKind::Other, "get_gids: eid not present in cache?")))?;
+        Ok(gids.pop())
+    }
+
     pub fn get_gids_for_eid(&mut self, eid: u64) -> 
         Result<Vec<u64>, mysql::Error> 
     {
@@ -463,4 +472,11 @@ impl GhostMaps{
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
         gm.resubscribe(eid, index, gidrptrs, db)
     }
+
+    pub fn take_one_gidrptr_for_eid(&mut self, eid: u64, parent_table: &str) -> 
+        Result<Option<(u64, RowPtr)>, mysql::Error> {
+        let gm = self.ghost_maps.get_mut(parent_table).unwrap();
+        gm.take_one_gidrptr_for_eid(eid)
+    }
+
 }
