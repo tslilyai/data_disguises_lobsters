@@ -256,7 +256,6 @@ fn main() {
             res = queriers::frontpage::query_frontpage(&mut db, user).unwrap();
         } else if pick(6702) {
             // XXX: we're assuming that users who vote a lot are also "popular"
-            //LobstersRequest::User(sampler.user(&mut rng))
             queriers::user::get_profile(&mut db, user_id).unwrap();
         } else if pick(4674) {
             //LobstersRequest::Comments

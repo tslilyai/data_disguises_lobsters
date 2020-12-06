@@ -964,6 +964,7 @@ impl QueryTransformer {
 
     fn insert_ghost_parent(&mut self, parent_table: &str, eid: u64, db: &mut mysql::Conn) -> Result<u64, mysql::Error> {
         let view_ptr = self.views.get_view(parent_table).unwrap();
+        // NOTE : this assumes that the parent must exist in the datatable!
         let vals = view_ptr.borrow().get_row_of_id(eid);
         // NOTE: this may create a *chain* of ghost parents, but only the mapping to the first
         // ghost is held in the ghost table (since the other ghost->ghost mappings don't really

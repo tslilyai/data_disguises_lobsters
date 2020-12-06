@@ -44,7 +44,7 @@ pub fn read_story(db: &mut mysql::Conn, acting_as: Option<u64>, id : u64) -> Res
             Some(rr) => {
                 db.query_drop(format!(
                     "UPDATE `read_ribbons` \
-                         SET `read_ribbons`.`updated_at` = {} \
+                         SET `updated_at` = {} \
                          WHERE `read_ribbons`.`id` = {}",
                     now, rr)
                 )?;

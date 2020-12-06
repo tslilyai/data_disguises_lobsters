@@ -165,7 +165,10 @@ impl View {
     }
  
     pub fn get_row_of_id(&self, id: u64) -> RowPtr {
-        self.rows.borrow().get(&id.to_string()).unwrap().clone()
+        match self.rows.borrow().get(&id.to_string()) {
+            None => unimplemented!("View {}: No row for id {}", self.name, id),
+            Some(idrow) => idrow.clone(),
+        }
     }
 
     pub fn minus_rptrs(&self, a: &mut RowPtrs, b: &mut RowPtrs) -> RowPtrs {

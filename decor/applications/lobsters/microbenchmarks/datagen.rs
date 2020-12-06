@@ -46,7 +46,7 @@ impl Sampler {
     }
 
     pub fn user<R: rand::Rng>(&self, rng: &mut R) -> u32 {
-        self.votes_per_user.sample(rng) as u32
+        self.votes_per_user.sample(rng) as u32 + 1
     }
 
     pub fn nusers(&self) -> u32 {
@@ -58,7 +58,7 @@ impl Sampler {
     }
 
     pub fn story_for_vote<R: rand::Rng>(&self, rng: &mut R) -> u32 {
-        self.votes_per_story.sample(rng) as u32
+        self.votes_per_story.sample(rng) as u32 
     }
 
     pub fn nstories(&self) -> u32 {
@@ -94,25 +94,25 @@ pub fn gen_data(sampler: &Sampler, db: &mut mysql::Conn) -> (u32, u32) {
     }
     for id in 0..sampler.ncomments(){
         // NOTE: we're assuming that users who vote much also submit many stories
-        let story = id % nstories; // TODO: distribution
+        let story_shortid = id % nstories; // TODO: distribution
         let user_id = Some(sampler.user(&mut rng) as u64);
         let parent = if rng.gen_bool(0.5) {
             // we need to pick a parent in the same story
-            let generated_comments = id - story;
+            let generated_comments = id - story_shortid;
             // how many stories to we know there are per story?
             let generated_comments_per_story = generated_comments / nstories;
             // pick the nth comment to chosen story
             if generated_comments_per_story != 0 {
                 let story_comment = rng.gen_range(0, generated_comments_per_story);
-                Some((story + nstories * story_comment) as u64)
+                Some((story_shortid + nstories * story_comment) as u64)
             } else {
                 None
             }
         } else {
             None
         };
-        warn!("Generating comment {} from user {:?} and story{}, parent {:?}", id, user_id, story, parent);
-        queriers::comment::post_comment(db, user_id, id.into(), story.into(), parent).unwrap();
+        warn!("Generating comment {} from user {:?} and story{}, parent {:?}", id, user_id, story_shortid, parent);
+        queriers::comment::post_comment(db, user_id, id.into(), story_shortid.into(), parent).unwrap();
     }
     let nstories = sampler.nstories();
     let ncomments = sampler.ncomments();
