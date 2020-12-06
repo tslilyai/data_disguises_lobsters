@@ -98,18 +98,6 @@ dataset).  \sys{}'s decorrelation, in fact, adds more noise than necessary in th
 of unique users who posted about cats will be more imprecise because each post by a decorrelated
 user is now associated with a unique (ghost) user.
 
-%\sys{} provides the highest granularity of decorrelation possible (for integer
-%identifiers)\lyt{(Not sure about this claim for highest granularity, since noise / fake records
-%could also be introduced?)}.
-
-%First, differential privacy guarantees are formally defined on a fixed dataset; \sys{} aims to
-%ensure privacy in the context of changing datasets, as is common in social media settings where
-%users constantly add, update, and delete content.  While differential privacy-defined loss can be
-%computed for a particular query on data set snapshots and added together by treating snapshots as
-%independent, potential privacy loss from queries performed on a flucuating dataset, where the
-%flucuations in the dataset might themselves leak information, has not been formally defined.  PINQ supports
-%data analysis queries only on a fixed dataset.
-
 \subsection{Deletion Privacy}
 The right to be forgotten has also been formally defined by Garg et
 al.~\cite{garg}, where correct deletion corresponds to the notion of
@@ -127,4 +115,5 @@ Potentially other related works:
         %talk about decoy deletion, prescheduled deletion strategies~\cite{myfw}
     \item Contextual Integrity
     \item ML Unlearning
+    \item Database IFC (sensitive data flowing down edges?)
 \end{itemize}

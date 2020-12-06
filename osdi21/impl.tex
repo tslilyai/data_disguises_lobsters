@@ -2,7 +2,7 @@
 \section{Implementation}
 %-------------------------------------------------------------------------------
 
-\sys{} introduces in-memory shim layer on top of a MariaDB database, 
+\sys{} introduces in-memory shim layer on top of a MySQL database, 
 allowing \sys{} to intercept and process queries sent by the application frontend. 
 To amortize the cost of unsubscription and resubscription, \sys{} preemptively creates, stores, and
 links ghost parent entities to child entities if an update creates an edge that may be decorrelated.
@@ -12,9 +12,52 @@ propagate to the materialized views when the underlying database is updated. \sy
 application queries using these materialized views, hiding the complexity of ghost entity and
 decorrelation management.
 
-\sys{} is build in 5K LoC of Rust, and supports a subset of MySql. \sys{} adds \texttt{UNSUBSCRIBE
+\sys{} is build in 5K LoC of Rust, and supports a subset of MySQL. \sys{} adds \texttt{UNSUBSCRIBE
 [user]} and \texttt{RESUBSCRIBE [user] WITH [user\_data]} calls to the query language.
 \lyt{Should I mention details like query parsing, single-threaded?}
+Application developers specify and provide an \texttt{ApplicationPolicy} using the objects shown in
+Figure~\ref{fig:policytype} \lyt{Why is this showing the wrong figure number??}.
+
+\begin{figure}
+\begin{lstlisting}[language=Rust]
+ pub enum GeneratePolicy {
+     Random,
+     Default,
+     Custom(FnMut(ColumnValue) -> ColumnValue),
+     ForeignKey, 
+ }
+ pub enum GhostColumnPolicy {
+     CloneAll,
+     CloneOne(gp: GeneratePolicy),
+     Generate(gp: GeneratePolicy),
+ }
+ pub type GhostPolicy;
+    HashMap<Column, GhostColumnPolicy>;
+ pub type EntityGhostPolicies = 
+    HashMap<EntityName, GhostPolicy>;
+
+pub enum DecorrelationPolicy {
+     NoDecorRemove,
+     NoDecorRetain,
+     NoDecorSensitivity(f64),
+     Decor,
+ }
+ pub struct KeyRelationship {
+     child: EntityName,
+     parent: EntityName,
+     column_name: String,
+     parent_child_decor_policy: DecorrelationPolicy,
+     child_parent_decor_policy: DecorrelationPolicy,
+ }
+ pub struct ApplicationPolicy {
+     entity_type_to_decorrelate: EntityName,
+     ghost_policies: EntityGhostPolicies,
+     edge_policies: Vec<KeyRelationship>,
+ }
+\end{lstlisting}
+    \label{fig:policytype}
+    \caption{\sys{}-provided types to specify key relationships and ghost generation policies.}
+\end{figure}
 
 \subsection{Data Objects}
 In addition to the original application data tables, \sys{} stores a persistent mapping from entity

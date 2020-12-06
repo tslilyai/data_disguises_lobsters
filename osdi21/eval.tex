@@ -1,16 +1,120 @@
 %-------------------------------------------------------------------------------
 \section{Evaluation}
 %-------------------------------------------------------------------------------
-
 We evaluate \sys{} on two metrics: (1) can desired decorrelation policies be easily specified using the
 provided decorrelation primitives for a range of practical applications?, and (2) can decorrelation
 be supported with low performance overhead?
 
 Our evaluation exemplifies how a suite of applications (Lobste.rs, \lyt{TODO}) can express a diverse
-range of privacy policies using \sys{} with low developer effort.
+range of privacy policies using \sys{} with low developer effort with low overhead.
 
-\subsection{Lobste.rs}
+\subsection{Example policies}
+\begin{figure}
+\begin{lstlisting}[language=Rust]
+use GhostColumnPolicy, GeneratePolicy;
+let ghost_policies = GhostGenerationPolicy::new(
+  ("users", 
+     [("id", Generate(Random)),
+     ("username", Generate(Random)),
+     ("karma", Generate(Default(0)))]),
+  ...);
+
+let edge_policies = vec![
+  KeyRelationship{
+    child: "stories".to_string(),
+    parent: "users".to_string(),
+    column_name: "user_id".to_string(),
+    parent_child_decorrelation_policy: Decor,
+    child_parent_decorrelation_policy: NoDecorRetain,
+  },
+  KeyRelationship{
+    child: "taggings".to_string(),
+    parent: "tags".to_string(),
+    column_name: "tag_id".to_string(),
+    parent_child_decorrelation_policy: 
+        NoDecorSensitivity(0.25),
+    child_parent_decorrelation_policy: NoDecorRetain,
+  },
+  ...];
+
+ ApplicationPolicy {
+    entity_type_to_decorrelate: "users",
+    ghost_policies: ghost_policies,
+    edge_policies: edge_policies,
+ }
+\end{lstlisting}
+    \label{fig:policy}
+    \caption{Excerpt of the Lobsters Application Policy}
+\end{figure}
+
+We provide several variants of an application policy for Lobsters. Each requires specifying at most 17 key
+relationships and at most 5 ghost entity generation policies (see Figure~\ref{fig:policy} for an example
+of what these policies). The total number of lines that a developer must write range from \lyt{TODO}
+to \lyt{TODO} LoC (current policy is 190LoC).
+
+The first policy replicates what the behavior of the current Lobsters deployment upon user
+unsubscription, with the exception that users are replaced with ghost users rather than a global
+placeholder. This requires specifying \texttt{Decor} policies for all edges from entities with users
+as parents, resulting in the developer writing 9 edge policies and one ghost generation policy (for
+ghost users). While this policy does nothing significant, splitting a user into multiple ghosts as
+compared to a global placeholder allows the user to resubscribe by identifying their ghost
+counterparts, whereas a global placeholder does not. Furthermore, splitting users into multiple
+users as compared to grouping them together upon unsubscription may benefit privacy: global
+placeholder users indicate that any child of the placeholder belongs to some deleted user, whereas
+ghost users may more successfully mask which children have been abandoned.
+
+The second policy decorrelates all user-related edges, but additionally desensitizes tags and  
+
+\subsection{Performance}
+\paragraph{Experimental Setup.}
 The performance experiments reported are run on Intel Xeon E5-2660 v3 CPUs, with a
-single-threaded client and \sys{}'s shim layer each pinned to a single core. \sys{} utilizes the
-trawler workload~\cite{trawler} for Lobste.rs, which emulates production Lobste.rs traffic according
-to a recorded production workload. 
+single-threaded client and \sys{}'s shim layer each pinned to a single core. \sys{} runs on top of 
+MariaDB (v10.4.13). 
+
+We compare the application execution performance on four systems, all of which configure MariaDB to
+store the database on a ramdisk to avoid disk IO overheads.
+\begin{enumerate}
+    \item \texttt{NoShim}: queries are directly issued to a MariaDB instance;
+    \item \texttt{Shim}: queries are intercepted by the shim layer,
+        which does nothing more than send queries to the MariaDB instance and
+        return the results back to the client;
+    \item \texttt{ShimParsing}: queries are intercepted the shim layer, parsed into a
+        SQL AST (which is discarded), and then sent to the MariaDB instance; the shim then returns the results to the
+        client. 
+    \item \texttt{\sys{}}: queries are intercepted by the shim layer and parsed into a SQL AST. \sys{}
+        then processes the parsed query, potentially introducing ghost entities and sending additional queries to the MariaDB backend.
+        \sys{} then returns results to the client.
+\end{enumerate}
+
+We compare \texttt{NoShim} and \texttt{Shim} to define the cost of query interception; \texttt{Shim}
+and \texttt{ShimParsing} to define the cost of query parsing; and \texttt{ShimParsing} and
+\texttt{\sys{}} to define the cost of adding decorrelation and recorrelation support.  \texttt{Shim}
+provides an upper bound for \sys{}'s (single-threaded) performance, as the costs of query parsing
+and decorrelation are not necessarily fundamental.
+
+\paragraph{Lobste.rs Performance}
+\sys{} utilizes the trawler workload~\cite{trawler} for Lobsters, which emulates production
+Lobsters traffic according to a recorded production workload. The database initially begins with 1.5K
+users, 10K stories, and 30K comments (1/4 the size of the the real Lobsters deployment), and issues
+queries according to the recorded traffic distribution. The query distribution skews towards reads
+(recent and frontpage stories) over writes (votes, commenting, and posting of stories); the
+workload assumes that users with popular content are also more active and likely to post stories,
+comment, and vote.
+
+The benchmarks perform 10000 actions, each performing on average 8 application queries. 
+We measure (1) overall throughput, (2) the distribution of application query
+latencies, and (3) the query multiplication per application query performed by \sys{}.
+
+The first benchmark measures \sys{}'s performance during \emph{normal execution}, namely when only
+read and update actions performed by Lobsters are executed.
+
+The second benchmark measures \sys{}'s performance with 10\% of the actions being unsubscription. If
+an unsubscribed user is chosen to perform an action, this user is first resubscribed.
+\texttt{NoShim}, \texttt{Shim}, and \texttt{ShimParsing} simply delete or insert the chosen user on
+unsubscription or resubscription respectively; this provides a very conservative estimate of the
+amount of work these baseline systems would need to do if a user withdrew their data from the system.
+
+\lyt{overall throughput numbers here}
+
+
+
