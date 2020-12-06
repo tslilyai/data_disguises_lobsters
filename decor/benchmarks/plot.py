@@ -6,13 +6,13 @@ plt.style.use('seaborn-deep')
 
 tests = ["decor", "shim_only", "shim_parse"]
 names = ["Read", "Update", "Insert", "Unsub", "Resub", "Delete"]
-ybounds = [60000, 6000, 6000, 6000, 6000, 6000]
-bins = [np.linspace(0, 10000, 200),
-    np.linspace(0, 2000, 200),
-    np.linspace(0, 2000, 200),
-    np.linspace(0, 10000, 200),
-    np.linspace(0, 10000, 200),
-    np.linspace(0, 10000, 200),
+ybounds = [400000, 20000, 20000, 6000, 6000, 6000]
+bins = [np.linspace(0, 20000, 200),
+    np.linspace(0, 20000, 400),
+    np.linspace(0, 20000, 400),
+    np.linspace(0, 20000, 400),
+    np.linspace(0, 20000, 400),
+    np.linspace(0, 20000, 400),
 ]
 
 for test in tests:

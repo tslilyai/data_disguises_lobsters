@@ -1,42 +1,6 @@
 %-------------------------------------------------------------------------------
 \section{Design}
 %-------------------------------------------------------------------------------
-\begin{figure}
-\begin{lstlisting}[language=Rust]
- pub enum GeneratePolicy {
-     Random,
-     Default,
-     Custom(FnMut(ColumnValue) -> ColumnValue),
-     ForeignKey, 
- }
- pub enum GhostColumnPolicy {
-     CloneAll,
-     CloneOne(gp: GeneratePolicy),
-     Generate(gp: GeneratePolicy),
- }
- pub type GhostPolicy = 
-    HashMap<Column, GhostColumnPolicy>;
- pub type EntityGhostPolicies = 
-    HashMap<EntityName, GhostPolicy>;
-
-pub enum DecorrelationPolicy {
-     NoDecorRemove,
-     NoDecorRetain,
-     NoDecorSensitivity(f64),
-     Decor,
- }
- pub struct KeyRelationship {
-     child: EntityName,
-     parent: EntityName,
-     column_name: String,
-     decorrelation_policy: DecorrelationPolicy,
- }
- pub type ApplicationPolicy = 
-    (EntityGhostPolicies, Vec<KeyRelationship>);
-\end{lstlisting}
-    \caption{\sys{}-provided types to specify key relationships and ghost generation policies.}
-\end{figure}
-
 \sys{} models an application's schema as a graph of data \emph{entities}. Each entity type corresponds to
 an application data table, such as stories, users, or votes. 
 Entities are linked in the entity graph by foreign key relationships: table columns that act as foreign keys to other tables create child-parent relationships between
@@ -82,7 +46,6 @@ chosen to be random, a default value, or generated from the original value via a
 
 
 \subsubsection{Decorrelation Policies}
-
 \paragraph{Policy 1: Decorrelate.}
 Application developers specify that the relationship may be decorrelated.
 \sys{} generates a ghost parent entity for the child entity according to the parent entity's ghost
@@ -199,6 +162,8 @@ Given this specification and an entity to be decorrelated as input, \sys{} acts 
         can still be retained.
 \end{enumerate}
 
+An example of these three decorrelation steps is shown in Figure~\ref{fig:algo}.
+
 \subsubsection{Achieving the Sensitivity Threshold}
 \label{sensitivity_algo}
 Let $E$ be the subset of edges traversed by \sys{} in Step 1 of execution. 
@@ -233,9 +198,8 @@ decorrelated).
 
 \begin{figure}[t!]
     \includegraphics[width=.5\textwidth]{img/algo}
+    \label{fig:algo}
     \caption{Examples of \sys{}'s execution.}
-    %different decorrelation policies. (a) full
-    %decorrelation; (b) only direct user decorrelation; (c) decorrelation of stories clustered around tags with threshold 0.25}
 \end{figure}
 
 %\paragraph{Example policy.}
