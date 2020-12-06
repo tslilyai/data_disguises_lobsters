@@ -213,8 +213,8 @@ fn main() {
     drop(locked_topo);
             
     let (mut db, jh) = init_db(topo.clone(), test.clone(), testname.clone(), nusers, nstories, ncomments);
-    let sampler = datagen::Sampler::new(1.0);
-    let (nstories, ncomments) = datagen::gen_data(1.0, &sampler, &mut db);
+    let sampler = datagen::Sampler::new(0.02);
+    let (nstories, ncomments) = datagen::gen_data(&sampler, &mut db);
     
     // randomly pick next request type based on relative frequency
     let mut seed: isize = 90000;// TODO check for determinism? rng.gen_range(0, 100000);
@@ -248,9 +248,10 @@ fn main() {
         }
         let mut res = vec![];
 
-        let req = if pick(55842) {
+        if pick(55842) {
             // XXX: we're assuming here that stories with more votes are viewed more
-            //LobstersRequest::Story(id_to_slug(sampler.story_for_vote(&mut rng)))
+            let story = sampler.story_for_vote(&mut rng) as u64;
+            res = queriers::stories::read_story(&mut db, user, story).unwrap();
         } else if pick(30105) {
             res = queriers::frontpage::query_frontpage(&mut db, user).unwrap();
         } else if pick(6702) {
@@ -287,13 +288,13 @@ fn main() {
             //LobstersRequest::CommentVote(id_to_slug(sampler.comment_for_vote(&mut rng)), Vote::Down)
         } else if pick(53) {
             let id = rng.gen_range(nstories, max_id);
-            queriers::post_story::post_story(&mut db, user, id as u64, format!("benchmark {}", id)).unwrap();
+            queriers::stories::post_story(&mut db, user, id as u64, format!("benchmark {}", id)).unwrap();
         } else if pick(21) {
             //LobstersRequest::StoryVote(id_to_slug(sampler.story_for_vote(&mut rng)), Vote::Down)
         } else {
             // ~.003%
             //LobstersRequest::Logout
-        };
+        }
         /*nunsub += 1;
         if test == TestType::TestDecor {
             let gids = queriers::user::unsubscribe_user(user, &mut db);
@@ -303,6 +304,7 @@ fn main() {
             unsubbed_users.insert(user, (String::new(), String::new()));
         }*/
         res.sort();
+        warn!("Query {}, user{}, {}\n", i, user_id, res.join(" "));
         file.write(format!("Query {}, user{}, {}\n", i, user_id, res.join(" ")).as_bytes()).unwrap();
     }
     let dur = start.elapsed();

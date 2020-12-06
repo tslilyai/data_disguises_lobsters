@@ -85,14 +85,15 @@ pub fn post_comment(db: &mut mysql::Conn,
         db.query_iter(format!(
             "INSERT INTO `comments` \
              (`created_at`, `updated_at`, `short_id`, `story_id`, \
-             `user_id`, `comment`, `upvotes`, `confidence`, \
+             `user_id`, `thread_id`, `comment`, `upvotes`, `confidence`, \
              `markeddown_comment`) \
-             VALUES (\'{}\', \'{}\', {}, {}, {}, {}, {}, {}, {})",
+             VALUES (\'{}\', \'{}\', {}, {}, {}, {}, {}, {}, {}, {})",
             now,
             now,
             id,
             story,
             user,
+            id,
             "\'moar benchmarking\'", // lorem ipsum?
             1,
             0.1828847834138887,

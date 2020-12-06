@@ -4,6 +4,7 @@ use rand_distr::Distribution;
 use std::collections::HashMap;
 use std::{mem, time};
 use crate::{COMMENTS_PER_STORY, VOTES_PER_COMMENT, VOTES_PER_STORY, VOTES_PER_USER, queriers};
+use log::warn;
 use histogram_sampler;
 
 // taken from jonhoo.trawler
@@ -30,11 +31,11 @@ impl Sampler {
         }
         let votes_per_user = adjust(VOTES_PER_USER, |n| n*scale);
 
-        let votes_per_story = adjust(VOTES_PER_STORY, |n| n);
+        let votes_per_story = adjust(VOTES_PER_STORY, |n| n*scale);
 
-        let votes_per_comment = adjust(VOTES_PER_COMMENT, |n| n);
+        let votes_per_comment = adjust(VOTES_PER_COMMENT, |n| n*scale);
 
-        let comments_per_story = adjust(COMMENTS_PER_STORY, |n| n);
+        let comments_per_story = adjust(COMMENTS_PER_STORY, |n| n*scale);
 
         Sampler {
             votes_per_user: histogram_sampler::Sampler::from_bins(votes_per_user, 100),
@@ -76,17 +77,20 @@ impl Sampler {
     }
 }
 
-pub fn gen_data(scale: f64, sampler: &Sampler, db: &mut mysql::Conn) -> (u32, u32) {
+pub fn gen_data(sampler: &Sampler, db: &mut mysql::Conn) -> (u32, u32) {
     let nstories = sampler.nstories();
     let mut rng = rand::thread_rng();
+    warn!("Generating {} stories, {} comments, {} users", nstories, sampler.ncomments(), sampler.nusers());
 
     for uid in 0..sampler.nusers() {
+        warn!("Generating user {}", uid);
         db.query_drop(format!("INSERT INTO `users` (`username`) VALUES ('user{}')", uid)).unwrap();
     }
     for id in 0..nstories {
         // NOTE: we're assuming that users who vote much also submit many stories
         let user_id = Some(sampler.user(&mut rng) as u64);
-        queriers::post_story::post_story(db, user_id, id.into(), format!("Base article {}", id)).unwrap();
+        warn!("Generating story {} for user {:?}", id, user_id);
+        queriers::stories::post_story(db, user_id, id.into(), format!("Base article {}", id)).unwrap();
     }
     for id in 0..sampler.ncomments(){
         // NOTE: we're assuming that users who vote much also submit many stories
@@ -107,6 +111,7 @@ pub fn gen_data(scale: f64, sampler: &Sampler, db: &mut mysql::Conn) -> (u32, u3
         } else {
             None
         };
+        warn!("Generating comment {} from user {:?} and story{}, parent {:?}", id, user_id, story, parent);
         queriers::comment::post_comment(db, user_id, id.into(), story.into(), parent).unwrap();
     }
     let nstories = sampler.nstories();
