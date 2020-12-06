@@ -1,8 +1,6 @@
 use mysql::prelude::*;
 use rand::prelude::*;
 use rand_distr::Distribution;
-use std::collections::HashMap;
-use std::{mem, time};
 use crate::{COMMENTS_PER_STORY, VOTES_PER_COMMENT, VOTES_PER_STORY, VOTES_PER_USER, queriers};
 use log::warn;
 use histogram_sampler;
@@ -80,12 +78,14 @@ impl Sampler {
 pub fn gen_data(sampler: &Sampler, db: &mut mysql::Conn) -> (u32, u32) {
     let nstories = sampler.nstories();
     let mut rng = rand::thread_rng();
-    warn!("Generating {} stories, {} comments, {} users", nstories, sampler.ncomments(), sampler.nusers());
+    println!("Generating {} stories, {} comments, {} users", nstories, sampler.ncomments(), sampler.nusers());
 
+    let mut users = vec![];
     for uid in 0..sampler.nusers() {
         warn!("Generating user {}", uid);
-        db.query_drop(format!("INSERT INTO `users` (`username`) VALUES ('user{}')", uid)).unwrap();
+        users.push(format!("('user{}')", uid));
     }
+    db.query_drop(format!("INSERT INTO `users` (`username`) VALUES {}", users.join(", "))).unwrap();
     for id in 0..nstories {
         // NOTE: we're assuming that users who vote much also submit many stories
         let user_id = Some(sampler.user(&mut rng) as u64);

@@ -49,14 +49,8 @@ impl std::str::FromStr for TestType {
 struct Cli {
     #[structopt(long="test", default_value="no_shim")]
     test: TestType,
-    #[structopt(long="nusers", default_value="10")]
-    nusers: u64,
-    #[structopt(long="nstories", default_value="10")]
-    nstories: u64,
-    #[structopt(long="ncomments", default_value="100")]
-    ncomments: u64,
-    #[structopt(long="nthreads", default_value = "1")]
-    nthreads: u64,
+    #[structopt(long="scale", default_value = "1")]
+    scale: f64,
     #[structopt(long="nqueries", default_value = "100")]
     nqueries: u64,
     #[structopt(long="testname", default_value = "decor_1")]
@@ -100,7 +94,7 @@ fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     Ok(())
 }
 
-fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, testname: String, nusers: u64, nstories: u64, ncomments: u64) 
+fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, testname: String) 
     -> (mysql::Conn, Option<thread::JoinHandle<()>>) 
 {
     let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -126,18 +120,20 @@ fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, testname: String, nusers
         }
         _ => (),
     }
-    
+   
+    let test_dbname = format!("{}_{}", DBNAME, testname);
     if test == TestType::TestNoShim {
         url = String::from("mysql://tslilyai:pass@127.0.0.1");
         db = mysql::Conn::new(&url).unwrap();
-        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", DBNAME)).unwrap();
-        db.query_drop(&format!("CREATE DATABASE {};", DBNAME)).unwrap();
+        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname)).unwrap();
+        db.query_drop(&format!("CREATE DATABASE {};", &test_dbname)).unwrap();
         assert_eq!(db.ping(), true);
-        assert_eq!(db.select_db(&format!("{}", DBNAME)), true);
+        assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
         // TODO this is done automatically in all the other tests
         // when select_db is called (probably not the right interface for DeCor)
         create_schema(&mut db).unwrap();
     } else {
+        let dbname = test_dbname.clone();
         jh = Some(thread::spawn(move || {
             // bind thread to core 1
             let tid = unsafe { libc::pthread_self() };
@@ -150,14 +146,14 @@ fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, testname: String, nusers
             let policy = policy::get_lobsters_policy();
             if let Ok((s, _)) = listener.accept() {
                 decor::Shim::run_on_tcp(
-                    DBNAME, SCHEMA, policy,
+                    &dbname, SCHEMA, policy,
                     decor::TestParams{testname: testname, translate:translate, parse:parse, in_memory: true}, s).unwrap();
             }
         }));
         url = format!("mysql://127.0.0.1:{}", port);
         db = mysql::Conn::new(&url).unwrap();
         assert_eq!(db.ping(), true);
-        assert_eq!(db.select_db(&format!("{}", DBNAME)), true);
+        assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
     }
     (db, jh)
 }
@@ -174,11 +170,8 @@ fn main() {
     init_logger();
     let args = Cli::from_args();
     let test = args.test;
-    let ncomments = args.ncomments;
     let nqueries = args.nqueries;
-    let nstories = args.nstories;
-    let nusers = args.nusers;
-    //let nthreads = args.nthreads;
+    let scale = args.scale;
     let testname = args.testname;
 
     // bind each thread to a particular cpu to avoid non-local memory accesses
@@ -192,8 +185,8 @@ fn main() {
     locked_topo.set_cpubind_for_process(pid, cpuset, CPUBIND_PROCESS).unwrap();
     drop(locked_topo);
             
-    let (mut db, jh) = init_db(topo.clone(), test.clone(), testname.clone(), nusers, nstories, ncomments);
-    let sampler = datagen::Sampler::new(0.02);
+    let (mut db, jh) = init_db(topo.clone(), test.clone(), testname.clone());
+    let sampler = datagen::Sampler::new(scale);
     let (nstories, ncomments) = datagen::gen_data(&sampler, &mut db);
     
     // randomly pick next request type based on relative frequency

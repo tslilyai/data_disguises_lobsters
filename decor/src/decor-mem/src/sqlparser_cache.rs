@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use sql_parser::ast::Statement;
 use std::*;
 use sql_parser::parser::*;
-use log::warn;
+//use log::warn;
 
 pub struct ParserCache {
     // caches

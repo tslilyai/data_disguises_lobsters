@@ -12,5 +12,5 @@ cargo build --release
 for test in "${tests[@]}"
 do
 	echo $test
-	cargo flamegraph -o flamegraphs/$name.svg --bin lobsters-microbenchmarks -- --test=$test --nusers=10 --nstories=500 --ncomments=1000 --nthreads=1 --nqueries=2000
+	cargo flamegraph -o flamegraphs/$name.svg --bin lobsters-microbenchmarks -- --test=$test --scale=0.1 --nqueries=2000
 done

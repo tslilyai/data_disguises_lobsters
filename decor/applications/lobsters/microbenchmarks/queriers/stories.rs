@@ -3,7 +3,6 @@ extern crate log;
 
 use chrono;
 use std::collections::HashSet;
-use std::iter;
 use mysql::prelude::*;
 use std::*;
 

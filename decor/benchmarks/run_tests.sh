@@ -14,12 +14,12 @@ do
     do
         echo $test: Trial $trial
     	#../target/release/lobsters-microbenchmarks \
-    	perflock ../target/release/lobsters-microbenchmarks \
+	perflock ../target/release/lobsters-microbenchmarks \
 		--test=$test --testname=$test$trial \
-		--nusers=1000 --nstories=5000 --ncomments=10000 --nthreads=1 --nqueries=500
+		--scale=0.1 --nqueries=8000 &
     done
 done
-
+wait
 for test in "${tests[@]}"
 do
     diff $test$trial.out no_shim$trial.out

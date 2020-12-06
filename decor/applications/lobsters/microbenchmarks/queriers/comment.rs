@@ -4,7 +4,6 @@ extern crate log;
 use mysql::prelude::*;
 use std::*;
 use std::collections::HashSet;
-use std::iter;
 
 pub fn get_comments(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), mysql::Error> 
 {

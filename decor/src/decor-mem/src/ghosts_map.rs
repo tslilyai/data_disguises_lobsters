@@ -1,6 +1,6 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{helpers, policy, policy::GeneratedEntities, policy::EntityGhostPolicies, views::{Views, RowPtr, HashedRowPtrs, RowPtrs}, ID_COL};
+use crate::{helpers, policy, policy::GeneratedEntities, policy::EntityGhostPolicies, views::{Views, RowPtr}, ID_COL};
 use std::sync::atomic::Ordering;
 use std::*;
 use log::{warn};
