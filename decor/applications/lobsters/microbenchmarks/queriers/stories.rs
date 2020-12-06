@@ -23,7 +23,7 @@ pub fn read_story(db: &mut mysql::Conn, acting_as: Option<u64>, id : u64) -> Res
         // keep track of when the user last saw this story
         // NOTE: *technically* the update only happens at the end...
         let mut rr = None;
-        let now = chrono::Local::now().naive_local();
+        let now = format!("\'{}\'", chrono::Local::now().naive_local());
         db.query_map(format!(
             "SELECT  `read_ribbons`.`id` \
                  FROM `read_ribbons` \
@@ -69,7 +69,7 @@ pub fn read_story(db: &mut mysql::Conn, acting_as: Option<u64>, id : u64) -> Res
          saldo ASC, \
          confidence DESC",
          story),
-        |(user_id, id) :(u32, u32)| {
+        |(user_id, id, _saldo) :(u32, u32, i32)| {
             users.insert(user_id);
             comments.insert(id);
         })?;
