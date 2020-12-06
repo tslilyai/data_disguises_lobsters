@@ -8,6 +8,14 @@ use std::*;
 pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title: String) -> Result<(), mysql::Error> {
     let user = acting_as.unwrap();
 
+    // check that tags are active
+    let mut res = db.query_iter( 
+            "SELECT  `tags`.* FROM `tags` \
+             WHERE `tags`.`inactive` = 0 AND `tags`.`tag` IN ('test')",
+        ).unwrap();
+    let tag = res.next().unwrap().unwrap().get::<u32, _>("id").unwrap() as u32;
+    drop(res);
+    
     db.query_drop(format!(
         "SELECT  1 AS one FROM `stories` \
          WHERE `stories`.`short_id` = {}",
@@ -34,8 +42,7 @@ pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title:
 
     // NOTE: MySQL technically does everything inside this and_then in a transaction,
     // but let's be nice to it
-    let q = db
-        .query_iter(format!(
+    let q = db.query_iter(format!(
             "INSERT INTO `stories` \
              (`created_at`, `user_id`, `title`, \
              `description`, `short_id`, `upvotes`, `hotness`, \
@@ -46,19 +53,18 @@ pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title:
                 "to infinity", // lorem ipsum?
                 id,
                 1,
-                -19216.2884921,
+                -19216.2884921 - id as f64,
                 "<p>to infinity</p>\\n",
             ),
         )?;
     // TODO this returned none?
-    //let story = q.last_insert_id().unwrap();
+    let story = id;//q.last_insert_id().unwrap();
     drop(q);
 
-    /*db.query_drop(format!(
+    db.query_drop(format!(
         "INSERT INTO `taggings` (`story_id`, `tag_id`) \
          VALUES ({}, {})",
-        (story, tag),
-    )?;*/
+        story, tag))?;
 
     /*let key = format!("\'user:{}:stories_submitted\'", user);
     db.query_drop(format!(
@@ -75,7 +81,7 @@ pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title:
          FROM `keystores` \
          WHERE `keystores`.`key` = {}",
         key,),
-    )?;
+    )?;*/
 
     db.query_drop(format!(
         "SELECT  `votes`.* FROM `votes` \
@@ -107,7 +113,7 @@ pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title:
          SET `hotness` = {} \
          WHERE `stories`.`id` = {}",
         -19216.5479744, story),
-    )?;*/
+    )?;
 
     Ok(())
 }

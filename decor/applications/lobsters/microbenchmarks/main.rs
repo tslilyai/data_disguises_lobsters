@@ -34,12 +34,12 @@ use std::thread;
 use structopt::StructOpt;
 use hwloc::{Topology, ObjectType, CPUBIND_THREAD, CPUBIND_PROCESS, CpuSet};
 use std::sync::{Arc, Mutex};
-use rand_core::{SeedableRng, RngCore};
-use rand_pcg::Pcg64;
 use log::warn;
 
 mod queriers;
 mod policy;
+mod datagen;
+include!("statistics.rs");
 use decor::*;
 
 const SCHEMA : &'static str = include_str!("../schema.sql");
@@ -92,47 +92,6 @@ fn init_logger() {
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
         .try_init();
-}
-
-fn init_database(db: &mut mysql::Conn, nusers: u64, nstories: u64, ncomments: u64) {
-    // users
-    let mut user_ids = String::new();
-    for user in 0..nusers {
-        if user != 0 {
-            user_ids.push_str(",");
-        }
-        user_ids.push_str(&format!("('user{}')", user));
-    }
-    db.query_drop(&format!(
-            //"INSERT INTO users (id, username) VALUES {};", 
-            "INSERT INTO users (username) VALUES {};", 
-            user_ids)).unwrap();
-    
-    // stories
-    let mut story_vals = String::new();
-    for i in 0..nstories {
-        if i != 0 {
-            story_vals.push_str(",");
-        }
-        story_vals.push_str(&format!("({}, {}, 'story{}', {})", i % nusers +1, i, i, i as f64));
-    }
-    db.query_drop(&format!(
-            "INSERT INTO stories (user_id, short_id, title, hotness) VALUES {};", 
-            story_vals)).unwrap();
-
-    // comments
-    let mut comment_vals = String::new();
-    for i in 0..ncomments {
-        if i != 0 {
-            comment_vals.push_str(",");
-        }
-        comment_vals.push_str(&format!(
-                "({}, {}, '{}', 'comment{}', {})", 
-                i % nusers + 1, i % nstories + 1, "2004-05-23T14:25:00", i, i));
-    }
-    db.query_drop(&format!(
-        "INSERT INTO comments (user_id, story_id, created_at, comment, short_id) VALUES {};",
-        comment_vals)).unwrap();
 }
 
 fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
@@ -198,7 +157,6 @@ fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, testname: String, nusers
         // TODO this is done automatically in all the other tests
         // when select_db is called (probably not the right interface for DeCor)
         create_schema(&mut db).unwrap();
-        init_database(&mut db, nusers, nstories, ncomments);
     } else {
         jh = Some(thread::spawn(move || {
             // bind thread to core 1
@@ -220,7 +178,6 @@ fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, testname: String, nusers
         db = mysql::Conn::new(&url).unwrap();
         assert_eq!(db.ping(), true);
         assert_eq!(db.select_db(&format!("{}", DBNAME)), true);
-        init_database(&mut db, nusers, nstories, ncomments);
     }
     (db, jh)
 }
@@ -256,57 +213,101 @@ fn main() {
     drop(locked_topo);
             
     let (mut db, jh) = init_db(topo.clone(), test.clone(), testname.clone(), nusers, nstories, ncomments);
-
-    let mut rng = Pcg64::seed_from_u64(2);
-    let mut total_stories = nstories;
-    let mut total_comments = ncomments;
-    let mut unsubbed_users = HashMap::new(); 
+    let sampler = datagen::Sampler::new(1.0);
+    let (nstories, ncomments) = datagen::gen_data(1.0, &sampler, &mut db);
+    
+    // randomly pick next request type based on relative frequency
+    let mut seed: isize = 90000;// TODO check for determinism? rng.gen_range(0, 100000);
+    let seed = &mut seed;
+    let mut pick = |f| {
+        let applies = *seed <= f;
+        *seed -= f;
+        applies
+    };
+    let mut rng = rand::thread_rng();
+    let mut unsubbed_users : HashMap<u64, (String, String)> = HashMap::new(); 
     let mut nunsub = 0;
     let mut nresub = 0;
     let mut file = File::create(format!("{}.out", testname)).unwrap();
+    let max_id = decor::ghosts_map::GHOST_ID_START as u32;
     let start = time::Instant::now();
     for i in 0..nqueries {
-        // all autoinc ids start at 1..
-        let user = rng.next_u64() % nusers + 1;
-        let short_story_id = rng.next_u64() % nstories;
-        if let Some(gids) = &unsubbed_users.remove(&user) {
+        // XXX: we're assuming that basically all page views happen as a user, and that the users
+        // who are most active voters are also the ones that interact most with the site.
+        // XXX: we're assuming that users who vote a lot also comment a lot
+        // XXX: we're assuming that users who vote a lot also submit many stories
+        let user_id = sampler.user(&mut rng) as u64;
+        let user = Some(user_id);
+        if let Some(gids) = &unsubbed_users.remove(&user_id) {
             nresub += 1;
             if test == TestType::TestDecor {
-                queriers::user::resubscribe_user(user, gids, &mut db);
+                queriers::user::resubscribe_user(user_id, gids, &mut db);
             } else {
-                db.query_drop(&format!("INSERT INTO `users` (id, username) VALUES ({}, 'user{}')", user, user-1)).unwrap();
+                db.query_drop(&format!("INSERT INTO `users` (id, username) VALUES ({}, 'user{}')", user_id, user_id)).unwrap();
             }
         }
         let mut res = vec![];
-        match rng.next_u64() % 24 {
-            0..=8=> res = queriers::frontpage::query_frontpage(&mut db, Some(user)).unwrap(),
-            9..=11 => {
-                queriers::post_story::post_story(&mut db, Some(user), total_stories + 1, "Dummy title".to_string()).unwrap();
-                total_stories += 1;
-            }
-            12..=14 => queriers::vote::vote_on_story(&mut db, Some(user), short_story_id, true).unwrap(),
-            15..=17 => queriers::user::get_profile(&mut db, user).unwrap(),
-            18..=20 => {
-                queriers::comment::post_comment(&mut db, Some(user), total_comments + 1, short_story_id, None).unwrap();
-                total_comments += 1;
-            }
-            _ => {
-                nunsub += 1;
-                if test == TestType::TestDecor {
-                    let gids = queriers::user::unsubscribe_user(user, &mut db);
-                    unsubbed_users.insert(user, gids);
-                } else {
-                    db.query_drop(&format!("DELETE FROM `users` WHERE `users`.`id` = {}", user)).unwrap();
-                    unsubbed_users.insert(user, (String::new(), String::new()));
-                }
-            }
-        }
+
+        let req = if pick(55842) {
+            // XXX: we're assuming here that stories with more votes are viewed more
+            //LobstersRequest::Story(id_to_slug(sampler.story_for_vote(&mut rng)))
+        } else if pick(30105) {
+            res = queriers::frontpage::query_frontpage(&mut db, user).unwrap();
+        } else if pick(6702) {
+            // XXX: we're assuming that users who vote a lot are also "popular"
+            //LobstersRequest::User(sampler.user(&mut rng))
+            queriers::user::get_profile(&mut db, user_id).unwrap();
+        } else if pick(4674) {
+            //LobstersRequest::Comments
+        } else if pick(967) {
+            //LobstersRequest::Recent
+        } else if pick(630) {
+            //LobstersRequest::CommentVote(id_to_slug(sampler.comment_for_vote(&mut rng)), Vote::Up)
+        } else if pick(475) {
+            //LobstersRequest::StoryVote(id_to_slug(sampler.story_for_vote(&mut rng)), Vote::Up)
+            let story = sampler.story_for_vote(&mut rng);
+            queriers::vote::vote_on_story(&mut db, user, story as u64, true).unwrap();
+        } else if pick(316) {
+            // comments without a parent
+            let id = rng.gen_range(ncomments, max_id);
+            let story = sampler.story_for_comment(&mut rng);
+            queriers::comment::post_comment(&mut db, user, id as u64, story as u64, None).unwrap();
+        } else if pick(87) {
+            //LobstersRequest::Login
+        } else if pick(71) {
+            // comments with a parent
+            let id = rng.gen_range(ncomments, max_id);
+            let story = sampler.story_for_comment(&mut rng);
+            // we need to pick a comment that's on the chosen story
+            // we know that every nth comment from prepopulation is to the same story
+            let comments_per_story = ncomments / nstories;
+            let parent = story + nstories * rng.gen_range(0, comments_per_story);
+            queriers::comment::post_comment(&mut db, user, id.into(), story as u64, Some(parent as u64)).unwrap();
+        } else if pick(54) {
+            //LobstersRequest::CommentVote(id_to_slug(sampler.comment_for_vote(&mut rng)), Vote::Down)
+        } else if pick(53) {
+            let id = rng.gen_range(nstories, max_id);
+            queriers::post_story::post_story(&mut db, user, id as u64, format!("benchmark {}", id)).unwrap();
+        } else if pick(21) {
+            //LobstersRequest::StoryVote(id_to_slug(sampler.story_for_vote(&mut rng)), Vote::Down)
+        } else {
+            // ~.003%
+            //LobstersRequest::Logout
+        };
+        /*nunsub += 1;
+        if test == TestType::TestDecor {
+            let gids = queriers::user::unsubscribe_user(user, &mut db);
+            unsubbed_users.insert(user, gids);
+        } else {
+            db.query_drop(&format!("DELETE FROM `users` WHERE `users`.`id` = {}", user)).unwrap();
+            unsubbed_users.insert(user, (String::new(), String::new()));
+        }*/
         res.sort();
-        file.write(format!("Query {}, user{}, story{}, {}\n", i, user, short_story_id, res.join(" ")).as_bytes()).unwrap();
+        file.write(format!("Query {}, user{}, {}\n", i, user_id, res.join(" ")).as_bytes()).unwrap();
     }
     let dur = start.elapsed();
     println!("Time to do {} queries ({}/{} un/resubs): {}s", nqueries, nunsub, nresub, dur.as_secs());
-    
+        
     file.flush().unwrap();
 
     drop(db);
