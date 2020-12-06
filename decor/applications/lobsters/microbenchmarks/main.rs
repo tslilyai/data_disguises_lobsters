@@ -295,13 +295,14 @@ fn main() {
     let tests = vec![TestDecor, TestShimParse, TestShim, TestNoShim];
     let testnames = vec!["decor", "shim_parse", "shim_only", "no_shim"];
 
-    //let mut threads = vec![];
+    let mut threads = vec![];
     let mut core = 2;
     for i in 0..tests.len() {
         let testclone = tests[i].clone();
+        let testname = testnames[i].clone();
         let mut tid_core = core;
-        /*threads.push(thread::spawn(move || {
-            // bind thread to core 1*/
+        threads.push(thread::spawn(move || {
+            // bind thread to core 1
             let topo = Arc::new(Mutex::new(Topology::new()));
             let tid = unsafe { libc::pthread_self() };
             let mut locked_topo = topo.lock().unwrap();
@@ -311,17 +312,17 @@ fn main() {
             locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
             drop(locked_topo);
             
-            let (mut db, jh) = init_db(topo, tid_core, testclone.clone(), testnames[i], prime);
-            run_test(&mut db, testclone, nqueries, scale, prime, testnames[i]);
+            let (mut db, jh) = init_db(topo, tid_core, testclone.clone(), testname, prime);
+            run_test(&mut db, testclone, nqueries, scale, prime, testname);
             
             drop(db);
             if let Some(t) = jh {
                 t.join().unwrap();
             }
-        /*}));
+        }));
         core += 2;
     }
     for thread in threads {
-        thread.join().unwrap();*/
+        thread.join().unwrap();
     }
 }

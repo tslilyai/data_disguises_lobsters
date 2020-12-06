@@ -7,12 +7,11 @@ trials=1
 #tests=( "decor" )
 
 cargo build --release
-cargo build 
 
 for trial in `seq $trials`
 do
-	perflock ../target/debug/lobsters-microbenchmarks \
-		--scale=0.001 --nqueries=10000 --prime
+	perflock ../target/release/lobsters-microbenchmarks \
+		--scale=0.001 --nqueries=1000 --prime
 done
 
 python3 plot.py
