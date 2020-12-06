@@ -4,7 +4,6 @@
 
 \sys{} introduces in-memory shim layer on top of the application database, intercepting queries sent by the
 application frontend. 
-
 To amortize the cost of unsubscription and resubscription, \sys{} preemptively creates, stores, and
 links ghost parent entities to child entities if an update creates an edge that may be decorrelated.
 \sys{} builds in-memory materialized views on top of the underlying database, exposing ghost
@@ -13,11 +12,16 @@ propagate to the materialized views when the underlying database is updated. \sy
 application queries using these materialized views, hiding the complexity of ghost entity and
 decorrelation management.
 
+\sys{} is build in 5K LoC of Rust, and supports a subset of MySql. \sys{} adds \texttt{UNSUBSCRIBE
+[user]} and \texttt{RESUBSCRIBE [user] WITH [user\_data]} calls to the query language.
 \lyt{Should I mention details like query parsing, single-threaded?}
 
 \subsection{Data Objects}
 In addition to the original application data tables, \sys{} stores a persistent mapping from entity
-ID (EID) to a set of ghost IDs (GID). This mapping is cached in the shim layer for performance.
+ID (EID) to a set of ghost IDs (GID). This mapping is cached in the shim layer for performance. Only
+ghost entities that correspond to a true parent entity are stored in the mapping: auxiliary ghosts that are
+created to introduce noise (reduce sensitivity), or to satisfy referential integrity---all their
+children are also ghosts---are not linked to the real parent EID.
 
 \sys{} stores the in-memory materialized views for each datatable, using hashtables and btrees for
 table indexes. An in-memory cache of the graph of parent-child entity key relationships built on
@@ -25,8 +29,7 @@ top of the views is also stored for unsubscription and resubscription performanc
 
 \subsection{Handling Normal Execution Queries}
 \paragraph{Reads.}
-Reads are directly to the materialized views, which support a subset of MySql that covers most
-common application queries. Because the materialized views are kept up-to-date with any application
+Reads are answered by the materialized views. Because the materialized views are kept up-to-date with any application
 writes, no queries to the underlying datatables are performed.
 \lyt{I'm not sure if it's appropriate or interesting to put some of the MV query handling stuff
 here? (Like processing joins, etc.)}
@@ -34,17 +37,22 @@ here? (Like processing joins, etc.)}
 \paragraph{Inserts.}
 When the application inserts an entity, \sys{} first checks (using the developer-provided policy) whether
 the entity is a child entity (i.e., it has a foreign key to another data table). 
-If yes, \sys{} checks whether the policy specifies that this child-parent key
-relationship should be decorrelated during unsubscription. If so, \sys{} preemptively creates a
-\emph{ghost parent} entity using the appropriate entity generation policy, and adds this entity to
-the parent data table. \sys{} then saves the child entity's real parent EID (the child entity's
-foreign key column value), and adds a mapping from this EID to the new ghost parent
-GID.\footnote{\sys{} assumes that the application does not violate referential integrity, namely
-that any child entity inserted into the system will refer to a corresponding parent in the
-database.} Finally, \sys{} rewrites the child entity's foreign key reference to correspond to this
-new ghost parent's GID, and stores the child into the datatable.
+and whether the policy specifies that this child-parent key
+relationship should be decorrelated during unsubscription. 
 
-The insert propagates to the materialized view, inserting the entity with its real parent EID; queries that
+If so, \sys{} preemptively creates a \emph{ghost parent} entity using the appropriate entity
+generation policy, and adds this ghost to the parent data table. \sys{} then saves the child
+entity's real parent EID (the child entity's foreign key column value), and adds a mapping from this
+EID to the new ghost parent GID.\footnote{\sys{} assumes that the application does not violate
+referential integrity, namely that any child entity inserted into the system will refer to a
+corresponding parent in the database.} Finally, \sys{} rewrites the child entity's foreign key
+reference to correspond to this new ghost parent's GID, and stores the child into the datatable.
+
+Note that generating the ghost parent may recursively generate a set of ghost ancestors for that
+parent as well (to satisfy referential integrity). These ancestors are also added to the parent data
+table.
+
+The insert then propagates to the materialized view, inserting the entity with its real parent EID; queries that
 select for this entity will not see any ghost entities. 
 
 If the child-parent key relationship should not be decorrelated, or the inserted entity is not a
@@ -168,12 +176,20 @@ from a prior unsubscription.
 \sys{} verifies that the hash of the EID and data matches that from the latest unsubscription of
 this entity.
 
-For all removed parent EID to GIDs mappings, \sys{} reinserts these mappings, removes the
-corresponding ghost entities for all GIDs from the materialized views, and updates all materialized
-children with these GIDs for parent keys with the original parent EID. Looking up the relevant
-children is facilitated by the in-memory entity graph.  \sys{} then re-inserts any completely
-decorrelated entities into both the datatables and materialized views.  Finally, \sys{} removes any
-ghost entities from the datatables and materialized views that were created during unsubscription.
+\sys{} first re-inserts any completely
+decorrelated entities into both the datatables and materialized views. 
+
+Next, for all removed parent EID to GIDs mappings, \sys{} reinserts these mappings into the
+persistent and cached EID to GIDs mapping.
+\sys{} then removes the corresponding ghost entities for all GIDs and any ghost ancestors of these
+GIDS from the materialized views; note that these ghosts still remain present in the
+persistent data tables for future unsubscription.
+\sys{} then updates all materialized children of these removed ghosts with the original parent EID. Looking up the relevant
+children is facilitated by the in-memory entity graph. 
+
+Finally, \sys{} removes any
+ghost entities from the datatables and materialized views that were created during unsubscription to
+lower sensitivity.
 
 \paragraph{Consistency and Recovering the Materialized Views}
 Upon a crash, the in-memory materialized views are rebuilt from the underlying datatables and ghost
