@@ -29,7 +29,6 @@ pub fn get_comments(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), 
         .collect::<Vec<_>>()
         .join(",");
 
-    assert!(!stories.is_empty());
     if let Some(uid) = acting_as {
         db.query_drop(
                 &format!(
@@ -90,8 +89,6 @@ pub fn get_comments(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), 
         ))?;
     Ok(())
 }
-
-
 
 pub fn post_comment(db: &mut mysql::Conn, 
                     acting_as: Option<u64>, 

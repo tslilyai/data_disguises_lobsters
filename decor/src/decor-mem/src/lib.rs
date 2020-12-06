@@ -7,7 +7,7 @@ use msql_srv::*;
 use mysql::prelude::*;
 use std::io::{self, BufReader, BufWriter};
 use std::*;
-use log::{warn};
+use log::{warn, error};
 
 pub mod helpers;
 pub mod ghosts_map;

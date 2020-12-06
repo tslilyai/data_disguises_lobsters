@@ -73,22 +73,26 @@ pub fn read_story(db: &mut mysql::Conn, acting_as: Option<u64>, id : u64) -> Res
             comments.insert(id);
         })?;
 
-    // get user info for all commenters
-    let users = users
-        .into_iter()
-        .map(|id| format!("{}", id))
-        .collect::<Vec<_>>()
-        .join(", ");
-    db.query_drop(&format!("SELECT `users`.* FROM `users` WHERE `users`.`id` IN ({})", users))?;
+    if !users.is_empty() {
+        // get user info for all commenters
+        let users = users
+            .into_iter()
+            .map(|id| format!("{}", id))
+            .collect::<Vec<_>>()
+            .join(", ");
+        db.query_drop(&format!("SELECT `users`.* FROM `users` WHERE `users`.`id` IN ({})", users))?;
+    }
 
     // get comment votes
     // XXX: why?!
-    let comments = comments
-        .into_iter()
-        .map(|id| format!("{}", id))
-        .collect::<Vec<_>>()
-        .join(", ");
-        db.query_drop(&format!("SELECT `votes`.* FROM `votes` WHERE `votes`.`comment_id` IN ({})", comments))?;
+    if !comments.is_empty() {
+        let comments = comments
+            .into_iter()
+            .map(|id| format!("{}", id))
+            .collect::<Vec<_>>()
+            .join(", ");
+            db.query_drop(&format!("SELECT `votes`.* FROM `votes` WHERE `votes`.`comment_id` IN ({})", comments))?;
+    }
 
     // OTE: lobste.rs here fetches the user list again. unclear why?
     if let Some(uid) = acting_as {
@@ -122,12 +126,14 @@ pub fn read_story(db: &mut mysql::Conn, acting_as: Option<u64>, id : u64) -> Res
         tags.insert(tag_id);
     })?;
 
-    let tags = tags
-        .into_iter()
-        .map(|id| format!("{}", id))
-        .collect::<Vec<_>>()
-        .join(", ");
-    db.query_drop(&format!("SELECT `tags`.* FROM `tags` WHERE `tags`.`id` IN ({})", tags))?;
+    if !tags.is_empty() {
+        let tags = tags
+            .into_iter()
+            .map(|id| format!("{}", id))
+            .collect::<Vec<_>>()
+            .join(", ");
+        db.query_drop(&format!("SELECT `tags`.* FROM `tags` WHERE `tags`.`id` IN ({})", tags))?;
+    }
     Ok(result)
 }
 

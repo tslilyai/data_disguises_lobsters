@@ -60,7 +60,6 @@ pub fn query_frontpage(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<V
         .map(|id| format!("{}", id))
         .collect::<Vec<_>>()
         .join(",");
-    
     db.query_map(&format!(
             "SELECT `users`.`username` FROM `users` WHERE `users`.`id` IN ({})",
             users
