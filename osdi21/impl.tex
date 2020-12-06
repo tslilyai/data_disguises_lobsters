@@ -2,8 +2,8 @@
 \section{Implementation}
 %-------------------------------------------------------------------------------
 
-\sys{} introduces in-memory shim layer on top of the application database, intercepting queries sent by the
-application frontend. 
+\sys{} introduces in-memory shim layer on top of a MariaDB database, 
+allowing \sys{} to intercept and process queries sent by the application frontend. 
 To amortize the cost of unsubscription and resubscription, \sys{} preemptively creates, stores, and
 links ghost parent entities to child entities if an update creates an edge that may be decorrelated.
 \sys{} builds in-memory materialized views on top of the underlying database, exposing ghost

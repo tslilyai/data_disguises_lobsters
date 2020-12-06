@@ -8,3 +8,9 @@ be supported with low performance overhead?
 
 Our evaluation exemplifies how a suite of applications (Lobste.rs, \lyt{TODO}) can express a diverse
 range of privacy policies using \sys{} with low developer effort.
+
+\subsection{Lobste.rs}
+The performance experiments reported are run on Intel Xeon E5-2660 v3 CPUs, with a
+single-threaded client and \sys{}'s shim layer each pinned to a single core. \sys{} utilizes the
+trawler workload~\cite{trawler} for Lobste.rs, which emulates production Lobste.rs traffic according
+to a recorded production workload. 
