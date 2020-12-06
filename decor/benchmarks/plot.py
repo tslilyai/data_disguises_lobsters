@@ -16,7 +16,7 @@ bins = [np.linspace(0, 20000, 200),
 ]
 
 for test in tests:
-    with open('{}1.csv'.format(test),'r') as csvfile:
+    with open('{}.csv'.format(test),'r') as csvfile:
         rows = csvfile.readlines()
 
         q2lats_all = []
