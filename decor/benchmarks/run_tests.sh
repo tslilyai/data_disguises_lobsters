@@ -3,8 +3,8 @@
 #set -x
 
 trials=1
-tests=( "shim_only" "shim_parse" "decor" "no_shim" )
-#tests=( "decor" )
+#tests=( "shim_only" "shim_parse" "decor" "no_shim" )
+tests=( "decor" )
 
 cargo build --release
 
@@ -20,9 +20,9 @@ do
     done
 done
 wait
-for test in "${tests[@]}"
-do
-    diff $test$trial.out no_shim$trial.out
-done
+#for test in "${tests[@]}"
+#do
+#    diff $test$trial.out no_shim$trial.out
+#done
 
 python3 plot.py
