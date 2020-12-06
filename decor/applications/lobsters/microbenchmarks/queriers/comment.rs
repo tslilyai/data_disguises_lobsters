@@ -3,7 +3,93 @@ extern crate log;
 
 use mysql::prelude::*;
 use std::*;
-//use log::{warn, debug};
+use std::collections::HashSet;
+use std::iter;
+
+pub fn get_comments(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), mysql::Error> 
+{
+    let mut comments = HashSet::new();
+    let mut users = HashSet::new();
+    let mut stories = HashSet::new();
+    db.query_map(&format!(
+            "SELECT  `comments`.* \
+             FROM `comments` \
+             WHERE `comments`.`is_deleted` = 0 \
+             AND `comments`.`is_moderated` = 0 \
+             ORDER BY id DESC \
+             LIMIT 40 OFFSET 0",
+        ), |(id, user_id, story_id) : (u32, u32, u32)| {
+            comments.insert(id);
+            users.insert(user_id);
+            stories.insert(story_id);
+        })?;
+
+    let stories = stories
+        .into_iter()
+        .map(|id| format!("{}", id))
+        .collect::<Vec<_>>()
+        .join(",");
+
+    if let Some(uid) = acting_as {
+        db.query_drop(
+                &format!(
+                    "SELECT 1 FROM hidden_stories \
+                     WHERE user_id = {} \
+                     AND hidden_stories.story_id IN ({})",
+                     uid, stories
+                ))?;
+    }
+
+    let users = users
+        .into_iter()
+        .map(|id| format!("{}", id))
+        .collect::<Vec<_>>()
+        .join(",");
+    db.query_drop(&format!(
+            "SELECT `users`.* FROM `users` \
+             WHERE `users`.`id` IN ({})",
+            users
+        ))?;
+   
+    let mut authors = HashSet::new();
+    db.query_map(&format!(
+            "SELECT  `stories`.`user_id` FROM `stories` \
+             WHERE `stories`.`id` IN ({})",
+            stories
+        ),
+        |user_id: u32| authors.insert(user_id))?;
+
+    if let Some(uid) = acting_as {
+        let comments = comments 
+            .iter()
+            .map(|id| format!("{}", id))
+            .collect::<Vec<_>>()
+            .join(",");
+        db.query_drop(
+            &format!(
+                "SELECT `votes`.* FROM `votes` \
+                 WHERE `votes`.`user_id` = {} \
+                 AND `votes`.`comment_id` IN ({})",
+                 uid, comments)
+            )?;
+    }
+
+    // NOTE: the real website issues all of these one by one...
+    let authors = authors
+        .into_iter()
+        .map(|id| format!("{}", id))
+        .collect::<Vec<_>>()
+        .join(",");
+
+    db.query_drop(&format!(
+            "SELECT  `users`.* FROM `users` \
+             WHERE `users`.`id` IN ({})",
+            authors
+        ))?;
+    Ok(())
+}
+
+
 
 pub fn post_comment(db: &mut mysql::Conn, 
                     acting_as: Option<u64>, 

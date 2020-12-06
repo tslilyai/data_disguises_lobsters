@@ -6,6 +6,16 @@ use decor::*;
 use mysql::prelude::*;
 use std::*;
 
+pub fn login(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
+    let user : Option<u64> = db.query_first(format!(
+            "SELECT 1 as one FROM `users` WHERE `users`.`username` = user{}",
+             uid))?;
+    if user.is_none() {
+        db.query_drop(format!("INSERT INTO `users` (`username`) VALUES (user{})",uid))?;
+    }
+    Ok(())
+}
+
 pub fn get_profile(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
     let uids : Vec<u64> = db.query(format!(
             "SELECT `users`.id FROM `users` \

@@ -1,23 +1,3 @@
-// Copyright 2018 sqlparser-rs contributors. All rights reserved.
-// Copyright Materialize, Inc. All rights reserved.
-//
-// This file is derived from the sqlparser-rs project, available at
-// https://github.com/andygrove/sqlparser-rs. It was incorporated
-// directly into Materialize on December 21, 2019.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License in the LICENSE file at the
-// root of this repository, or online at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 extern crate mysql;
 extern crate log;
 extern crate rand;
@@ -258,13 +238,13 @@ fn main() {
             // XXX: we're assuming that users who vote a lot are also "popular"
             queriers::user::get_profile(&mut db, user_id).unwrap();
         } else if pick(4674) {
-            //LobstersRequest::Comments
+            queriers::comment::get_comments(&mut db, user).unwrap();
         } else if pick(967) {
-            //LobstersRequest::Recent
+            queriers::recent::recent(&mut db, user).unwrap();
         } else if pick(630) {
-            //LobstersRequest::CommentVote(id_to_slug(sampler.comment_for_vote(&mut rng)), Vote::Up)
+            let comment = sampler.comment_for_vote(&mut rng);
+            queriers::vote::vote_on_comment(&mut db, user, comment as u64, true).unwrap();
         } else if pick(475) {
-            //LobstersRequest::StoryVote(id_to_slug(sampler.story_for_vote(&mut rng)), Vote::Up)
             let story = sampler.story_for_vote(&mut rng);
             queriers::vote::vote_on_story(&mut db, user, story as u64, true).unwrap();
         } else if pick(316) {
@@ -273,7 +253,7 @@ fn main() {
             let story = sampler.story_for_comment(&mut rng);
             queriers::comment::post_comment(&mut db, user, id as u64, story as u64, None).unwrap();
         } else if pick(87) {
-            //LobstersRequest::Login
+            queriers::user::login(&mut db, user_id).unwrap();
         } else if pick(71) {
             // comments with a parent
             let id = rng.gen_range(ncomments, max_id);
@@ -284,12 +264,14 @@ fn main() {
             let parent = story + nstories * rng.gen_range(0, comments_per_story);
             queriers::comment::post_comment(&mut db, user, id.into(), story as u64, Some(parent as u64)).unwrap();
         } else if pick(54) {
-            //LobstersRequest::CommentVote(id_to_slug(sampler.comment_for_vote(&mut rng)), Vote::Down)
+            let comment = sampler.comment_for_vote(&mut rng);
+            queriers::vote::vote_on_comment(&mut db, user, comment as u64, false).unwrap();
         } else if pick(53) {
             let id = rng.gen_range(nstories, max_id);
             queriers::stories::post_story(&mut db, user, id as u64, format!("benchmark {}", id)).unwrap();
         } else if pick(21) {
-            //LobstersRequest::StoryVote(id_to_slug(sampler.story_for_vote(&mut rng)), Vote::Down)
+            let story = sampler.story_for_vote(&mut rng);
+            queriers::vote::vote_on_story(&mut db, user, story as u64, false).unwrap();
         } else {
             // ~.003%
             //LobstersRequest::Logout
