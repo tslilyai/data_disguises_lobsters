@@ -29,6 +29,7 @@ pub fn recent(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), mysql:
 
     assert!(!stories.is_empty(), "got no stories from /recent");
 
+    assert!(!stories.is_empty());
     let stories_in = stories
         .iter()
         .map(|id| format!("{}", id))
@@ -56,6 +57,7 @@ pub fn recent(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), mysql:
             ))?;
     }
 
+    assert!(!users.is_empty());
     let users = users
         .into_iter()
         .map(|id| format!("{}", id))
@@ -81,6 +83,7 @@ pub fn recent(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), mysql:
         ))?;
 
     let mut tags = HashSet::new();
+    assert!(!tags.is_empty());
     db.query_map(&format!(
             "SELECT `taggings`.`tag_id` FROM `taggings` \
              WHERE `taggings`.`story_id` IN ({})",

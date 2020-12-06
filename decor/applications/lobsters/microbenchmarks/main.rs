@@ -53,8 +53,10 @@ struct Cli {
     scale: f64,
     #[structopt(long="nqueries", default_value = "100")]
     nqueries: u64,
-    #[structopt(long="testname", default_value = "decor_1")]
+    #[structopt(long="testname", default_value = "no_shim")]
     testname: String,
+    #[structopt(long="prime")]
+    prime: bool,
 }
 
 fn init_logger() {
@@ -94,7 +96,7 @@ fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     Ok(())
 }
 
-fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, testname: String) 
+fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'static str, prime: bool) 
     -> (mysql::Conn, Option<thread::JoinHandle<()>>) 
 {
     let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -131,14 +133,15 @@ fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, testname: String)
         assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
         // TODO this is done automatically in all the other tests
         // when select_db is called (probably not the right interface for DeCor)
-        create_schema(&mut db).unwrap();
+        if prime {
+            create_schema(&mut db).unwrap();
+        }
     } else {
         let dbname = test_dbname.clone();
         jh = Some(thread::spawn(move || {
-            // bind thread to core 1
             let tid = unsafe { libc::pthread_self() };
             let mut locked_topo = topo.lock().unwrap();
-            let mut cpuset = cpuset_for_core(&mut *locked_topo, 2);
+            let mut cpuset = cpuset_for_core(&mut *locked_topo, cpu);
             cpuset.singlify();
             locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
             drop(locked_topo);
@@ -147,7 +150,7 @@ fn init_db(topo: Arc<Mutex<Topology>>, test : TestType, testname: String)
             if let Ok((s, _)) = listener.accept() {
                 decor::Shim::run_on_tcp(
                     &dbname, SCHEMA, policy,
-                    decor::TestParams{testname: testname, translate:translate, parse:parse, in_memory: true}, s).unwrap();
+                    decor::TestParams{testname: testname.to_string(), translate:translate, parse:parse, in_memory: true, prime: prime}, s).unwrap();
             }
         }));
         url = format!("mysql://127.0.0.1:{}", port);
@@ -166,28 +169,16 @@ fn cpuset_for_core(topology: &mut Topology, idx: usize) -> CpuSet {
     }
 }
 
-fn main() {
-    init_logger();
-    let args = Cli::from_args();
-    let test = args.test;
-    let nqueries = args.nqueries;
-    let scale = args.scale;
-    let testname = args.testname;
-
-    // bind each thread to a particular cpu to avoid non-local memory accesses
-    let topo = Arc::new(Mutex::new(Topology::new()));
-    let mut locked_topo = topo.lock().unwrap();
-    assert!(locked_topo.support().cpu().set_current_process() && 
-        locked_topo.support().cpu().set_current_thread());
-    let pid = unsafe { libc::getpid() };
-    let mut cpuset = cpuset_for_core(&mut *locked_topo, 1);
-    cpuset.singlify();
-    locked_topo.set_cpubind_for_process(pid, cpuset, CPUBIND_PROCESS).unwrap();
-    drop(locked_topo);
-            
-    let (mut db, jh) = init_db(topo.clone(), test.clone(), testname.clone());
+fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, prime: bool, testname: &'static str) {
+    //let (mut db, jh) = init_db(topo.clone(), test.clone(), testname, prime);
     let sampler = datagen::Sampler::new(scale);
-    let (nstories, ncomments) = datagen::gen_data(&sampler, &mut db);
+    let mut nstories = sampler.nstories();
+    let mut ncomments = sampler.ncomments();
+    if prime {
+        let (ns, nc) = datagen::gen_data(&sampler, db);
+        nstories = ns;
+        ncomments = nc;
+    }
     
     // randomly pick next request type based on relative frequency
     let mut seed: isize = 90000;// TODO check for determinism? rng.gen_range(0, 100000);
@@ -211,42 +202,57 @@ fn main() {
         // XXX: we're assuming that users who vote a lot also submit many stories
         let user_id = sampler.user(&mut rng) as u64;
         let user = Some(user_id);
+
         if let Some(gids) = &unsubbed_users.remove(&user_id) {
             nresub += 1;
             if test == TestType::TestDecor {
-                queriers::user::resubscribe_user(user_id, gids, &mut db);
+                queriers::user::resubscribe_user(user_id, gids, db);
             } else {
-                db.query_drop(&format!("INSERT INTO `users` (id, username) VALUES ({}, 'user{}')", user_id, user_id)).unwrap();
+                // user id is always one more than the username...
+                db.query_drop(&format!("INSERT INTO `users` (id, username) VALUES ({}, 'user{}')", user_id+1, user_id)).unwrap();
             }
         }
-        let mut res = vec![];
 
+        // with probability 0.1, unsubscribe the user
+        if rng.gen_bool(0.1) {
+            nunsub += 1;
+            if test == TestType::TestDecor {
+                let gids = queriers::user::unsubscribe_user(user_id, db);
+                unsubbed_users.insert(user_id, gids);
+            } else {
+                db.query_drop(&format!("DELETE FROM `users` WHERE `users`.`username` = 'user{}'", user_id)).unwrap();
+                unsubbed_users.insert(user_id, (String::new(), String::new()));
+            }
+            continue;
+        }
+
+        let mut res = vec![];
         if pick(55842) {
             // XXX: we're assuming here that stories with more votes are viewed more
             let story = sampler.story_for_vote(&mut rng) as u64;
-            res = queriers::stories::read_story(&mut db, user, story).unwrap();
+            res = queriers::stories::read_story(db, user, story).unwrap();
         } else if pick(30105) {
-            res = queriers::frontpage::query_frontpage(&mut db, user).unwrap();
+            res = queriers::frontpage::query_frontpage(db, user).unwrap();
         } else if pick(6702) {
             // XXX: we're assuming that users who vote a lot are also "popular"
-            queriers::user::get_profile(&mut db, user_id).unwrap();
+            queriers::user::get_profile(db, user_id).unwrap();
         } else if pick(4674) {
-            queriers::comment::get_comments(&mut db, user).unwrap();
+            queriers::comment::get_comments(db, user).unwrap();
         } else if pick(967) {
-            queriers::recent::recent(&mut db, user).unwrap();
+            queriers::recent::recent(db, user).unwrap();
         } else if pick(630) {
             let comment = sampler.comment_for_vote(&mut rng);
-            queriers::vote::vote_on_comment(&mut db, user, comment as u64, true).unwrap();
+            queriers::vote::vote_on_comment(db, user, comment as u64, true).unwrap();
         } else if pick(475) {
             let story = sampler.story_for_vote(&mut rng);
-            queriers::vote::vote_on_story(&mut db, user, story as u64, true).unwrap();
+            queriers::vote::vote_on_story(db, user, story as u64, true).unwrap();
         } else if pick(316) {
             // comments without a parent
             let id = rng.gen_range(ncomments, max_id);
             let story = sampler.story_for_comment(&mut rng);
-            queriers::comment::post_comment(&mut db, user, id as u64, story as u64, None).unwrap();
+            queriers::comment::post_comment(db, user, id as u64, story as u64, None).unwrap();
         } else if pick(87) {
-            queriers::user::login(&mut db, user_id).unwrap();
+            queriers::user::login(db, user_id).unwrap();
         } else if pick(71) {
             // comments with a parent
             let id = rng.gen_range(ncomments, max_id);
@@ -255,39 +261,63 @@ fn main() {
             // we know that every nth comment from prepopulation is to the same story
             let comments_per_story = ncomments / nstories;
             let parent = story + nstories * rng.gen_range(0, comments_per_story);
-            queriers::comment::post_comment(&mut db, user, id.into(), story as u64, Some(parent as u64)).unwrap();
+            queriers::comment::post_comment(db, user, id.into(), story as u64, Some(parent as u64)).unwrap();
         } else if pick(54) {
             let comment = sampler.comment_for_vote(&mut rng);
-            queriers::vote::vote_on_comment(&mut db, user, comment as u64, false).unwrap();
+            queriers::vote::vote_on_comment(db, user, comment as u64, false).unwrap();
         } else if pick(53) {
             let id = rng.gen_range(nstories, max_id);
-            queriers::stories::post_story(&mut db, user, id as u64, format!("benchmark {}", id)).unwrap();
-        } else if pick(21) {
+            queriers::stories::post_story(db, user, id as u64, format!("benchmark {}", id)).unwrap();
+        } else {
             let story = sampler.story_for_vote(&mut rng);
-            queriers::vote::vote_on_story(&mut db, user, story as u64, false).unwrap();
-        } else {
-            // ~.003%
-            //LobstersRequest::Logout
+            queriers::vote::vote_on_story(db, user, story as u64, false).unwrap();
         }
-        /*nunsub += 1;
-        if test == TestType::TestDecor {
-            let gids = queriers::user::unsubscribe_user(user, &mut db);
-            unsubbed_users.insert(user, gids);
-        } else {
-            db.query_drop(&format!("DELETE FROM `users` WHERE `users`.`id` = {}", user)).unwrap();
-            unsubbed_users.insert(user, (String::new(), String::new()));
-        }*/
-        res.sort();
-        warn!("Query {}, user{}, {}\n", i, user_id, res.join(" "));
-        file.write(format!("Query {}, user{}, {}\n", i, user_id, res.join(" ")).as_bytes()).unwrap();
+        //res.sort();
+        //warn!("Query {}, user{}, {}\n", i, user_id, res.join(" "));
+        //file.write(format!("Query {}, user{}, {}\n", i, user_id, res.join(" ")).as_bytes()).unwrap();
     }
     let dur = start.elapsed();
-    println!("Time to do {} queries ({}/{} un/resubs): {}s", nqueries, nunsub, nresub, dur.as_secs());
+    println!("{} Time to do {} queries ({}/{} un/resubs): {}s", testname, nqueries, nunsub, nresub, dur.as_secs());
         
     file.flush().unwrap();
+}
 
-    drop(db);
-    if let Some(t) = jh {
-        t.join().unwrap();
-    } 
+fn main() {
+    init_logger();
+    let args = Cli::from_args();
+    let test = args.test;
+    let nqueries = args.nqueries;
+    let scale = args.scale;
+    let prime = args.prime;
+    let testname = args.testname;
+
+    let mut threads = vec![];
+    let mut core = 2;
+    for testname in &["no_shim", "decor", "shim_only", "shim_parse"] {
+        let testclone = test.clone();
+        let mut tid_core = core;
+        threads.push(thread::spawn(move || {
+            // bind thread to core 1
+            let topo = Arc::new(Mutex::new(Topology::new()));
+            let tid = unsafe { libc::pthread_self() };
+            let mut locked_topo = topo.lock().unwrap();
+            let mut cpuset = cpuset_for_core(&mut *locked_topo, tid_core);
+            tid_core+=1;
+            cpuset.singlify();
+            locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
+            drop(locked_topo);
+            
+            let (mut db, jh) = init_db(topo, tid_core, testclone.clone(), testname, prime);
+            run_test(&mut db, testclone, nqueries, scale, prime, testname);
+            
+            drop(db);
+            if let Some(t) = jh {
+                t.join().unwrap();
+            }
+        }));
+        core += 2;
+    }
+    for thread in threads {
+        thread.join().unwrap();
+    }
 }

@@ -3,7 +3,7 @@
 #set -x
 
 trials=1
-#tests=( "shim_only" "shim_parse" "decor" "no_shim" )
+#tests=( "no_shim" "decor" "shim_only" "shim_parse" )
 tests=( "decor" )
 
 cargo build --release
@@ -16,10 +16,9 @@ do
     	#../target/release/lobsters-microbenchmarks \
 	perflock ../target/release/lobsters-microbenchmarks \
 		--test=$test --testname=$test$trial \
-		--scale=0.1 --nqueries=8000 &
+		--scale=0.1 --nqueries=8000 --prime
     done
 done
-wait
 #for test in "${tests[@]}"
 #do
 #    diff $test$trial.out no_shim$trial.out

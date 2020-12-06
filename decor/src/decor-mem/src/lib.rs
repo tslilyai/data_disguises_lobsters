@@ -30,6 +30,7 @@ pub struct TestParams {
     pub translate: bool,
     pub parse: bool,
     pub in_memory: bool,
+    pub prime: bool,
 }
 
 pub struct Shim { 

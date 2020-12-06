@@ -29,6 +29,7 @@ pub fn get_comments(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), 
         .collect::<Vec<_>>()
         .join(",");
 
+    assert!(!stories.is_empty());
     if let Some(uid) = acting_as {
         db.query_drop(
                 &format!(
@@ -39,6 +40,7 @@ pub fn get_comments(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), 
                 ))?;
     }
 
+    assert!(!users.is_empty());
     let users = users
         .into_iter()
         .map(|id| format!("{}", id))
@@ -58,6 +60,7 @@ pub fn get_comments(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), 
         ),
         |user_id: u32| authors.insert(user_id))?;
 
+    assert!(!authors.is_empty());
     if let Some(uid) = acting_as {
         let comments = comments 
             .iter()
