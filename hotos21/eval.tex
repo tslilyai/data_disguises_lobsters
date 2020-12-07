@@ -1,0 +1,214 @@
+%-------------------------------------------------------------------------------
+\section{Evaluation}
+%-------------------------------------------------------------------------------
+We evaluate \sys{} on two metrics: (1) can desired decorrelation policies be easily specified using the
+provided decorrelation primitives for a range of practical applications?, and (2) can decorrelation
+be supported with low performance overhead?
+
+Our evaluation exemplifies how a suite of applications (Lobste.rs, \lyt{TODO}) can express a diverse
+range of privacy policies using \sys{} with low developer effort with low overhead.
+
+\subsection{Example policies}
+\begin{figure}
+\begin{lstlisting}[language=Rust]
+use GhostColumnPolicy, GeneratePolicy;
+let ghost_policies = GhostGenerationPolicy::new(
+  ("users", 
+     [("id", Generate(Random)),
+     ("username", Generate(Random)),
+     ("karma", Generate(Default(0)))]),
+  ...);
+
+let edge_policies = vec![
+  KeyRelationship{
+    child: "stories".to_string(),
+    parent: "users".to_string(),
+    column_name: "user_id".to_string(),
+    parent_child_decorrelation_policy: Decor,
+    child_parent_decorrelation_policy: NoDecorRetain,
+  },
+  KeyRelationship{
+    child: "taggings".to_string(),
+    parent: "tags".to_string(),
+    column_name: "tag_id".to_string(),
+    parent_child_decorrelation_policy: 
+        NoDecorSensitivity(0.25),
+    child_parent_decorrelation_policy: NoDecorRetain,
+  },
+  ...];
+
+ ApplicationPolicy {
+    entity_type_to_decorrelate: "users",
+    ghost_policies: ghost_policies,
+    edge_policies: edge_policies,
+ }
+\end{lstlisting}
+    \label{fig:policy}
+    \caption{Excerpt of the Lobsters Application Policy}
+\end{figure}
+We provide several variants of an application policy for Lobsters, as well as example policies for a
+suite of other applications: (1) HotCRP, software for conference reviews; (2) PrestaShop, an
+open-source e-commerce web application; and (3) an Instagram clone with posts, likes, hashtags,
+shares, and groups.
+
+\paragraph{Lobsters}
+Lobsters has a total of 20 entities, and 
+these Lobsters policies require specifying at most 17 key
+relationships and at most 5 ghost entity generation policies (see Figure~\ref{fig:policy} for an example
+of these policy specifications).
+
+The first policy replicates what the behavior of the current Lobsters deployment upon user
+unsubscription, with the exception that users are replaced with ghost users rather than a global
+placeholder. This requires specifying \texttt{Decorrelate} policies for all edges from entities with users
+as parents, resulting in the developer writing 9 edge policies and one ghost generation policy (for
+ghost users). While this policy does nothing significant, splitting a user into multiple ghosts as
+compared to a global placeholder allows the user to resubscribe by identifying their ghost
+counterparts, whereas a global placeholder does not. Furthermore, splitting users into multiple
+users as compared to grouping them together upon unsubscription may benefit privacy: global
+placeholder users indicate that any child of the placeholder belongs to some deleted user, whereas
+ghost users may more successfully mask which children have been abandoned.
+
+The second policy decorrelates all user-related edges, but additionally desensitizes tags so the
+taggings associated with sensitive stories are at most 25\% the number of stories with that tag.
+Ghost stories clone randomly chosen existing stories with slight variations on the url.
+This limits the amount that an observer can determine that a particular story was posted by a
+particular user simply by knowing that a certain user has posted about the tag topic (e.g.,\ a researcher 
+in visualization). However, Lobsters still retains the content of these tagged stories.
+
+\lyt{TODO} third policy.
+
+\paragraph{HotCRP.}
+HotCRP entities include users (reviewers and paper authors), papers, and paper reviews. There are a total of 25
+entities, with 47 foreign key relationships between entities; specifying these key relationships (as
+a non-maintainer of the HotCRP site) took fewer than 20 minutes.
+
+HotCRP's current privacy policy~\cite{hotcrp_privacy} allows site managers (e.g.,\ program chairs)
+to indefinitely store and distribute submissions and reviews. Each HotCRP.com user has an associated
+global profile and a profile for every HotCRP.com site, and must contact the HotCRP maintainers
+directly to remove these profiles. This corresponds to key relationships with
+\texttt{NoDecorrelate:Retain} policies: a user simply cannot unsubscribe (or resubscribe).
+
+With \sys{}, we can express many more granular privacy policies that would otherwise be difficult to
+implement right in HotCRP. The top-level entity to decorrelate are user profiles: reviewers may want
+to remove their connections with their reviews, papers, and other metadata (such as papers they
+have requested to review).
+However, review and paper artifacts should remain identifiable and present, and correctly linked:
+(subscribed) reviewers should still see the correct paper for each of their reviews, and authors
+should see the correct reivews for their papers.
+
+With \sys{}, the HotCRP developer can specify that decorrelating a user decorrelates all edges with
+the user as parent, replacing reviewers (or authors) with ghost user profiles. This goes beyond
+pseudonymization: these reviews or papers are no longer grouped together by any (even anonymized)
+identity. Furthermore, papers by the user can be decorrelated from their reviews, comments, and
+conflicts, all of which in aggregate may reveal information about the unsubscribing user, or information that the
+user may wish to keep private (such as the total review scores for the paper). To maintain semantic
+correctness, paper entities have a \texttt{CloneAll} ghost generation policy: this ensures each child
+review or comment still has a semantic connection to their parent paper, and a HotCRP reviewer
+always observes the correct paper for any of their reviews, even if the paper is a ghost of the
+original.
+%Interesting policies: reviewers' reviews cannot be linked together (no global placeholder here), can
+%clone papers if want to separate reviews
+
+\paragraph{PrestaShop.} 
+PrestaShop entities include customers, products, orders, carriers, employees, and shops (as well as
+many other entities such as product categories, languages, countries, shopping cart, etc.) There are
+214 total different entities. 
+
+Due to the large scope of the schema, we automatically generate policies for the 324 key relationships between them 
+with \texttt{NoDecorrelation:Retain} policies, which means that \sys{} does, by default, no work upon
+decorrelation and recorrelation. (We could also imagine that a \texttt{Decorrelate} or
+\texttt{NoDecorrelate:Remove} policy could be
+the default here, but we choose a policy by default that will not break application semantics,
+instead of a policy that provides the strongest possible unsubscription privacy).
+
+By simply providing a ghost customer generation policy and modifying all key relationships with
+customer parents to \texttt{Decorrelate} or \texttt{Remove} policies, PrestaShop can ensure that
+customer information is appropriately de-identified when a customer unsubscribes.
+Currently, PrestaShop has explicit GDPR policies for its merchants when a customer requests to delete
+their account: their personal account details (age, email, address) are removed, but order invoices
+and abandoned carts are transferred to an anonymous account
+\lyt{TODO \url{https://doc.prestashop.com/display/PS17/Complying+with+the+GDPR}}.
+\sys{} allows PrestaShop to go beyond pseudonymity, creating individual (ghost) accounts for each
+cart and order invoices of a customer, and also allowing a customer to retrieve these orders and
+abandoned carts if she rejoins the application.
+
+\sys{} also can help PrestaShop keep attributes such as the country or language of a user for
+statistical analyses (used by merchants to analyze product popularity). Ghost customers can generate
+links to countries nearby a set of countries similar to the original user; if this still reveals too
+much sensitive information, the location can be desensitized (adding additional generated ghost
+customers not related to the original user for noise).
+
+This process requires going through each of the individual key relationships, which must be done to
+generate the schema in the first place.
+
+\paragraph{Instagram Clone.}
+
+\subsection{Performance}
+
+\begin{figure*}[h!]
+\includegraphics[width=.32\textwidth]{img/decor}
+\includegraphics[width=.32\textwidth]{img/shim_parse}
+\includegraphics[width=.32\textwidth]{img/shim_only}
+    \label{fig:results}
+    \caption{Comparison of \sys{}'s latency during normal execution.}
+\end{figure*}
+
+\paragraph{Experimental Setup.}
+The performance experiments reported are run on Intel Xeon E5-2660 v3 CPUs, with a
+single-threaded client and \sys{}'s shim layer each pinned to a single core. \sys{} runs on top of 
+MariaDB (v10.4.13). 
+
+We compare the application execution performance on four systems, all of which configure MariaDB to
+store the database on a ramdisk to avoid disk IO overheads.
+\begin{enumerate}
+    \item \texttt{NoShim}: queries are directly issued to a MariaDB instance;
+    \item \texttt{Shim}: queries are intercepted by the shim layer,
+        which does nothing more than send queries to the MariaDB instance and
+        return the results back to the client;
+    \item \texttt{ShimParsing}: queries are intercepted the shim layer, parsed into a
+        SQL AST (which is discarded), and then sent to the MariaDB instance; the shim then returns the results to the
+        client. 
+    \item \texttt{\sys{}}: queries are intercepted by the shim layer and parsed into a SQL AST. \sys{}
+        then processes the parsed query, potentially introducing ghost entities and sending additional queries to the MariaDB backend.
+        \sys{} then returns results to the client.
+\end{enumerate}
+
+We compare \texttt{NoShim} and \texttt{Shim} to define the cost of query interception; \texttt{Shim}
+and \texttt{ShimParsing} to define the cost of query parsing; and \texttt{ShimParsing} and
+\texttt{\sys{}} to define the cost of adding decorrelation and recorrelation support.  \texttt{Shim}
+provides an upper bound for \sys{}'s (single-threaded) performance, as the costs of query parsing
+and decorrelation are not necessarily fundamental.
+
+\paragraph{Lobste.rs Performance}
+\sys{} utilizes the trawler workload~\cite{trawler} for Lobsters, which emulates production
+Lobsters traffic according to a recorded production workload. The database initially begins with 3K
+users, 20K stories, and 60K comments (1/2 the size of the the real Lobsters deployment), and issues
+queries according to the recorded traffic distribution. The query distribution skews towards reads
+(recent and frontpage stories) over writes (votes, commenting, and posting of stories); the
+workload assumes that users with popular content are also more active and likely to post stories,
+comment, and vote.
+
+The benchmarks perform 10000 actions, each performing on average 8 application queries. 
+We measure (1) overall throughput, (2) the distribution of application query
+latencies, (3) the query multiplication per application query performed by \sys{}, and (4) the
+storage cost (in-memory and on-disk).
+
+The first benchmark measures \sys{}'s performance during \emph{normal execution}, namely when only
+read and update actions performed by Lobsters are executed. 
+The second benchmark measures \sys{}'s performance with users unsubscribing 10\% of the time
+(approximately 1000 actions are unsubscriptions). If an unsubscribed user is chosen to perform an action, this user is first resubscribed.
+\texttt{NoShim}, \texttt{Shim}, and \texttt{ShimParsing} simply delete or insert the chosen user on
+unsubscription or resubscription respectively; this provides a very conservative estimate of the
+amount of work these baseline systems would need to do if a user withdrew their data from the system.
+
+\lyt{Currently debugging the benchmark... (some error with repeat keys, hopefully won't take too long)}
+To complete 10K actions during normal execution, \texttt{NoShim} takes 293s, \texttt{ShimOnly} takes
+TODO, \texttt{ShimParse} takes 316s; and \texttt{\sys{}} takes 185s.
+We show the latency results of the second of the Lobsters policies described above in
+Figure~\ref{fig:results}. 
+\lyt{TODO memory usage}
+\lyt{Should we also record the amount of time to initialize?}
+
+To complete 10K actions with 10\% of actions being unsubscribe, \texttt{NoShim} takes 263s, \texttt{ShimOnly} takes 277s, \texttt{ShimParse}
+takes 284s; and \texttt{\sys{}} takes TODO.
+\lyt{TODO memory usage}

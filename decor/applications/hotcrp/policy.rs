@@ -3,6 +3,8 @@ use std::collections::HashMap;
 
 fn get_ghost_policies() -> EntityGhostPolicies {
     let mut ghost_policies : EntityGhostPolicies = HashMap::new();
+
+
     ghost_policies 
 }
 
