@@ -63,7 +63,18 @@ users as compared to grouping them together upon unsubscription may benefit priv
 placeholder users indicate that any child of the placeholder belongs to some deleted user, whereas
 ghost users may more successfully mask which children have been abandoned.
 
-The second policy decorrelates all user-related edges, but additionally desensitizes tags and  
+The second policy decorrelates all user-related edges, but additionally desensitizes tags so the
+taggings associated with sensitive stories are at most 25\% the number of stories with that tag.
+Ghost stories clone randomly chosen existing stories with slight variations on the url.
+This limits the amount that an observer can determine that a particular story was posted by a
+particular user simply by knowing that a certain user has posted about the tag topic (e.g.,\ a researcher 
+in visualization). However, Lobsters still retains the content of these tagged stories.
+
+\lyt{TODO} third policy.
+
+We also evaluate policies for several other applications: (1) an Instagram clone with posts, likes,
+hashtags, shares, and groups; (2) PrestaShop, an open-source e-commerce web application; and (3)
+\lyt{I would like to go HotCrp here... will try and get something here before we meet tomorrow}
 
 \subsection{Performance}
 \paragraph{Experimental Setup.}
@@ -116,5 +127,6 @@ amount of work these baseline systems would need to do if a user withdrew their 
 
 \lyt{overall throughput numbers here}
 
-
-
+We show the results of both benchmarks using the 3 different Lobsters policies described above in
+Figure~\ref{fig:results}. 
+\lyt{Currently debugging the benchmark... (some off-by-one error, hopefully won't take too long)}
