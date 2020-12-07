@@ -144,6 +144,15 @@ generate the schema in the first place.
 \paragraph{Instagram Clone.}
 
 \subsection{Performance}
+
+\begin{figure*}[h!]
+\includegraphics[width=.32\textwidth]{img/decor}
+\includegraphics[width=.32\textwidth]{img/shim_parse}
+\includegraphics[width=.32\textwidth]{img/shim_only}
+    \label{fig:results}
+    \caption{Comparison of \sys{}'s latency during normal execution.}
+\end{figure*}
+
 \paragraph{Experimental Setup.}
 The performance experiments reported are run on Intel Xeon E5-2660 v3 CPUs, with a
 single-threaded client and \sys{}'s shim layer each pinned to a single core. \sys{} runs on top of 
@@ -171,16 +180,6 @@ provides an upper bound for \sys{}'s (single-threaded) performance, as the costs
 and decorrelation are not necessarily fundamental.
 
 \paragraph{Lobste.rs Performance}
-
-\begin{figure*}
-\includegraphics[width=.32\textwidth]{img/decor}
-\includegraphics[width=.32\textwidth]{img/shim_parse}
-\includegraphics[width=.32\textwidth]{img/shim_only}
-    \label{fig:results}
-    \caption{Comparison of \sys{}'s latency during normal execution.}
-\end{figure*}
-
-
 \sys{} utilizes the trawler workload~\cite{trawler} for Lobsters, which emulates production
 Lobsters traffic according to a recorded production workload. The database initially begins with 3K
 users, 20K stories, and 60K comments (1/2 the size of the the real Lobsters deployment), and issues
