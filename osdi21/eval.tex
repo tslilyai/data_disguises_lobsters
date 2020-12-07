@@ -109,6 +109,10 @@ This process requires going through each of the individual key relationships, wh
 generate the schema in the first place.
 
 \paragraph{HotCRP.}
+Interesting policies: reviewers' reviews cannot be linked together (no global placeholder here), can
+clone papers if want to separate reviews
+
+\paragraph{Instagram Clone.}
 
 \subsection{Performance}
 \paragraph{Experimental Setup.}
@@ -162,10 +166,11 @@ amount of work these baseline systems would need to do if a user withdrew their 
 \lyt{Currently debugging the benchmark... (some error with repeat keys, hopefully won't take too long)}
 To complete 10K actions during normal execution, \texttt{NoShim} takes TODO, \texttt{ShimOnly} takes
 TODO, \texttt{ShimParse}
-takes TODO; and \texttt{\sys{}} takes 185s.
+takes 316s; and \texttt{\sys{}} takes 185s.
 We show the latency results of the 3 different Lobsters policies described above in
 Figure~\ref{fig:results}. 
 \lyt{TODO memory usage}
+\lyt{Should we also record the amount of time to initialize?}
 
 To complete 10K actions during normal execution, \texttt{NoShim} takes 263s, \texttt{ShimOnly} takes 277s, \texttt{ShimParse}
 takes 284s; and \texttt{\sys{}} takes TODO.
