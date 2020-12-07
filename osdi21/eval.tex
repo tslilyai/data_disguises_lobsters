@@ -108,6 +108,8 @@ customers not related to the original user for noise).
 This process requires going through each of the individual key relationships, which must be done to
 generate the schema in the first place.
 
+\paragraph{HotCRP.}
+
 \subsection{Performance}
 \paragraph{Experimental Setup.}
 The performance experiments reported are run on Intel Xeon E5-2660 v3 CPUs, with a
@@ -157,8 +159,14 @@ an unsubscribed user is chosen to perform an action, this user is first resubscr
 unsubscription or resubscription respectively; this provides a very conservative estimate of the
 amount of work these baseline systems would need to do if a user withdrew their data from the system.
 
-To complete 10K actions during normal execution, \texttt{NoShim} takes 263s, \texttt{ShimOnly} takes 277s, \texttt{ShimParse}
-takes 284s; and \texttt{\sys{}} takes 185s.
-We show the results of both benchmarks using the 3 different Lobsters policies described above in
+\lyt{Currently debugging the benchmark... (some error with repeat keys, hopefully won't take too long)}
+To complete 10K actions during normal execution, \texttt{NoShim} takes TODO, \texttt{ShimOnly} takes
+TODO, \texttt{ShimParse}
+takes TODO; and \texttt{\sys{}} takes 185s.
+We show the latency results of the 3 different Lobsters policies described above in
 Figure~\ref{fig:results}. 
-\lyt{Currently debugging the benchmark... (some off-by-one error, hopefully won't take too long)}
+\lyt{TODO memory usage}
+
+To complete 10K actions during normal execution, \texttt{NoShim} takes 263s, \texttt{ShimOnly} takes 277s, \texttt{ShimParse}
+takes 284s; and \texttt{\sys{}} takes TODO.
+\lyt{TODO memory usage}
