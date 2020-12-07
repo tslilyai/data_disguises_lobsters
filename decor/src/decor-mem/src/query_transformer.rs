@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::time::Duration;
 use std::*;
 use msql_srv::{QueryResultWriter};
-use log::{debug, warn};
+use log::{debug, warn, error};
 use crypto::digest::Digest;
 use crypto::sha3::Sha3;
 use ordered_float::*;
@@ -958,7 +958,7 @@ impl QueryTransformer {
         self.cur_stat.nqueries+=1;
 
         let dur = start.elapsed();
-        debug!("issue_insert_datatable_stmt issued {}, {}", dt_stmt, dur.as_micros());
+        warn!("issue_insert_datatable_stmt issued {}, {}", dt_stmt, dur.as_micros());
         Ok(())
     }
 

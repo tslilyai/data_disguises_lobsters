@@ -7,7 +7,7 @@ use crate::views::{Views, RowPtrs, RowPtr};
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::rc::Rc;
-use log::{debug, warn};
+use log::{debug, warn, error};
 
 pub type ColumnName = String; // column name
 pub type EntityName = String; // table name, or foreign key
@@ -275,7 +275,7 @@ pub fn generate_new_entities_from(
         columns : from_cols.clone(),
         source : source, 
     });
-    warn!("issue_insert_dt_stmt: {} dur {}", dt_stmt, start.elapsed().as_micros());
+    warn!("new entities issue_insert_dt_stmt: {} dur {}", dt_stmt, start.elapsed().as_micros());
     db.query_drop(dt_stmt.to_string())?;
     *nqueries+=1;
 

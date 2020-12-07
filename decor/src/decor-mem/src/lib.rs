@@ -70,8 +70,10 @@ impl Shim {
         -> Result<(), mysql::Error> 
     {
         let mut db = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
-        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", dbname)).unwrap();
-        db.query_drop(&format!("CREATE DATABASE {};", dbname)).unwrap();
+        if self.test_params.prime || self.test_params.testname.contains("decor") {
+            db.query_drop(&format!("DROP DATABASE IF EXISTS {};", dbname)).unwrap();
+            db.query_drop(&format!("CREATE DATABASE {};", dbname)).unwrap();
+        }
         assert_eq!(db.ping(), true);
         let rs = s.try_clone().unwrap();
         MysqlIntermediary::run_on(Shim::new(db, schema, policy, test_params), 
@@ -85,21 +87,23 @@ impl Shim {
     fn create_schema(&mut self) -> Result<(), mysql::Error> {
         self.db.query_drop("SET max_heap_table_size = 4294967295;")?;
 
-        /* issue schema statements */
-        let mut stmt = String::new();
-        for line in self.schema.lines() {
-            if line.starts_with("--") || line.is_empty() {
-                continue;
-            }
-            if !stmt.is_empty() {
-                stmt.push_str(" ");
-            }
-            stmt.push_str(line);
-            if stmt.ends_with(';') {
-                stmt = helpers::process_schema_stmt(&stmt, self.test_params.in_memory);
-                let stmt_ast = self.sqlcache.get_single_parsed_stmt(&stmt)?;
-                self.qtrans.query_drop(&stmt_ast, &mut self.db)?;                
-                stmt = String::new();
+        /* issue schema statements but only if we're not priming and not decor */
+        if self.test_params.prime || self.test_params.testname.contains("decor") {
+            let mut stmt = String::new();
+            for line in self.schema.lines() {
+                if line.starts_with("--") || line.is_empty() {
+                    continue;
+                }
+                if !stmt.is_empty() {
+                    stmt.push_str(" ");
+                }
+                stmt.push_str(line);
+                if stmt.ends_with(';') {
+                    stmt = helpers::process_schema_stmt(&stmt, self.test_params.in_memory);
+                    let stmt_ast = self.sqlcache.get_single_parsed_stmt(&stmt)?;
+                    self.qtrans.query_drop(&stmt_ast, &mut self.db)?;                
+                    stmt = String::new();
+                }
             }
         }
         Ok(())

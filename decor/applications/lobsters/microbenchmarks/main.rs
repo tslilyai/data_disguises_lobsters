@@ -62,8 +62,8 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
-        //.filter_level(log::LevelFilter::Error)
+        //.filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -127,15 +127,15 @@ fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'
     if test == TestType::TestNoShim {
         url = String::from("mysql://tslilyai:pass@127.0.0.1");
         db = mysql::Conn::new(&url).unwrap();
-        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname)).unwrap();
-        db.query_drop(&format!("CREATE DATABASE {};", &test_dbname)).unwrap();
-        assert_eq!(db.ping(), true);
-        assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
         // TODO this is done automatically in all the other tests
         // when select_db is called (probably not the right interface for DeCor)
         if prime {
+            db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname)).unwrap();
+            db.query_drop(&format!("CREATE DATABASE {};", &test_dbname)).unwrap();
+            assert_eq!(db.ping(), true);
             create_schema(&mut db).unwrap();
         }
+        assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
     } else {
         let dbname = test_dbname.clone();
         jh = Some(thread::spawn(move || {
@@ -207,7 +207,8 @@ fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, pri
         }
 
         // with probability 0.1, unsubscribe the user
-        if rng.gen_bool(0.1) {
+        if false {
+        //if rng.gen_bool(0.1) {
             nunsub += 1;
             if test == TestType::TestDecor {
                 let gids = queriers::user::unsubscribe_user(user_id, db);
@@ -293,8 +294,10 @@ fn main() {
     let testname = args.testname;
 
     use TestType::*;
-    let tests = vec![TestDecor, TestShimParse, TestNoShim, TestShim];
-    let testnames = vec!["decor", "shim_parse", "no_shim", "shim_only"];
+    //let tests = &[TestDecor];//vec![TestShimParse, TestNoShim, TestShim, TestDecor];
+    let tests = vec![TestShimParse, TestNoShim, TestShim, TestDecor];
+    let testnames = vec!["shim_parse", "no_shim", "shim_only", "decor"];
+    //let testnames = vec!["decor"];//vec!["shim_parse", "no_shim", "shim_only", "decor"];
 
     //let mut threads = vec![];
     let mut core = 2;

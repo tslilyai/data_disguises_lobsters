@@ -3,13 +3,13 @@ use sql_parser::ast::*;
 use crate::{helpers, policy, policy::GeneratedEntities, policy::EntityGhostPolicies, views::{Views, RowPtr}, ID_COL};
 use std::sync::atomic::Ordering;
 use std::*;
-use log::{warn};
+use log::{warn, error};
 use std::sync::atomic::{AtomicU64};
 use std::collections::{HashMap, HashSet};
 use msql_srv::{QueryResultWriter};
 
 pub const GHOST_ID_START : u64 = 1<<20;
-pub const GHOST_ID_MAX: u64 = 1<<25;
+pub const GHOST_ID_MAX: u64 = u32::MAX as u64;
 
 // the ghosts table contains ALL ghost identifiers which map from any entity to its ghosts
 // this assumes that all entities have an integer identifying key
@@ -344,6 +344,7 @@ impl GhostsMap {
             mysql::Error::IoError(io::Error::new(
                 io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
         drop(res);
+        warn!("Issue ghost parents with gid {} for {}", gid, eid);
       
         // actually generate parent ghost entities for this table
         let new_entities = policy::generate_new_entities_from(

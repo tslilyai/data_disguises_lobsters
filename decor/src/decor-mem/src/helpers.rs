@@ -330,8 +330,8 @@ pub fn get_default_parser_val_with(base_val: &Value, val: &str) -> Value {
 pub fn get_random_parser_val_from(val: &Value) -> Value {
     match val {
         Value::Number(_i) => Value::Number(rand::random::<u32>().to_string()),
-        Value::String(_i) => Value::String(rand::random::<u32>().to_string()),
-        Value::Null => Value::Number(rand::random::<u32>().to_string()),
+        Value::String(_i) => Value::String(rand::random::<u64>().to_string()),
+        Value::Null => Value::Number(rand::random::<u64>().to_string()),
         _ => unimplemented!("value not supported ! {}", val),
     }
 }
