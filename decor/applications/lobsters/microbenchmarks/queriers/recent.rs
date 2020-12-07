@@ -14,15 +14,16 @@ pub fn recent(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), mysql:
     // also note the `NOW()` hack to support dbs primed a while ago
     let mut users = HashSet::new();
     let mut stories = HashSet::new();
+    // XXX removed cast 
     db.query_map(
             "SELECT `stories`.`user_id`, `stories`.`id`, \
-             CAST(upvotes AS signed int) - CAST(downvotes AS signed int) AS saldo \
+             upvotes - downvotes AS saldo \
              FROM `stories` \
              WHERE `stories`.`merged_story_id` IS NULL \
              AND `stories`.`is_expired` = 0 \
-             ORDER BY stories.id DESC LIMIT 51",
+             ORDER BY `id` DESC LIMIT 51",
             //AND saldo <= 5 \
-        |(uid, id): (u32, u32)| {
+        |(uid, id, _): (u32, u32, u32)| {
             users.insert(uid);
             stories.insert(id);
         })?;
@@ -83,22 +84,23 @@ pub fn recent(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), mysql:
         ))?;
 
     let mut tags = HashSet::new();
-    assert!(!tags.is_empty());
-    db.query_map(&format!(
-            "SELECT `taggings`.`tag_id` FROM `taggings` \
-             WHERE `taggings`.`story_id` IN ({})",
-            stories_in
-        ), |tag_id: u32| tags.insert(tag_id))?;
+    if !tags.is_empty() {
+        db.query_map(&format!(
+                "SELECT `taggings`.`tag_id` FROM `taggings` \
+                 WHERE `taggings`.`story_id` IN ({})",
+                stories_in
+            ), |tag_id: u32| tags.insert(tag_id))?;
 
-    let tags = tags
-        .into_iter()
-        .map(|id| format!("{}", id))
-        .collect::<Vec<_>>()
-        .join(",");
-    db.query_drop(&format!(
-            "SELECT `tags`.* FROM `tags` WHERE `tags`.`id` IN ({})",
-            tags
-        ))?;
+        let tags = tags
+            .into_iter()
+            .map(|id| format!("{}", id))
+            .collect::<Vec<_>>()
+            .join(",");
+        db.query_drop(&format!(
+                "SELECT `tags`.* FROM `tags` WHERE `tags`.`id` IN ({})",
+                tags
+            ))?;
+    }
 
     // also load things that we need to highlight
     if let Some(uid) = acting_as {

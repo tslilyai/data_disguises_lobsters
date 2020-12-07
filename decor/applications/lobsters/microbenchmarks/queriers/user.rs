@@ -9,9 +9,10 @@ use std::*;
 pub fn login(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
     let user : Option<u64> = db.query_first(format!(
             "SELECT 1 as one FROM `users` WHERE `users`.`username` = 'user{}'",
-             uid))?;
+             uid-1))?;
     if user.is_none() {
-        db.query_drop(format!("INSERT INTO `users` (`username`) VALUES ('user{}')",uid))?;
+        assert!(false);
+        db.query_drop(format!("INSERT INTO `users` (`username`) VALUES ('user{}')",uid-1))?;
     }
     Ok(())
 }
@@ -20,7 +21,7 @@ pub fn get_profile(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
     let uids : Vec<u64> = db.query(format!(
             "SELECT `users`.id FROM `users` \
              WHERE `users`.`username` = {}",
-            (format!("\'user{}\'", uid))
+            (format!("\'user{}\'", uid-1))
         ))?;
     if uids.is_empty() {
         return Ok(());
@@ -76,7 +77,6 @@ pub fn unsubscribe_user(user: u64, db: &mut mysql::Conn) -> (String, String) {
         let s2 = helpers::mysql_val_to_string(&vals[1]);
         let s1 = s1.trim_end_matches('\'').trim_start_matches('\'');
         let s2 = s2.trim_end_matches('\'').trim_start_matches('\'');
-        //warn!("Serialized values are {}, {}", s1, s2);
         return (s1.to_string(), s2.to_string());
     }
     (String::new(), String::new())
@@ -85,4 +85,3 @@ pub fn unsubscribe_user(user: u64, db: &mut mysql::Conn) -> (String, String) {
 pub fn resubscribe_user(user: u64, data: &(String, String), db: &mut mysql::Conn) {
     db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", user, data.0, data.1)).unwrap();
 }
-
