@@ -57,6 +57,8 @@ struct Cli {
     testname: String,
     #[structopt(long="prime")]
     prime: bool,
+    #[structopt(long="prop_unsub", default_value = "0.0")]
+    prop_unsub: f64,
 }
 
 fn init_logger() {
@@ -169,7 +171,7 @@ fn cpuset_for_core(topology: &mut Topology, idx: usize) -> CpuSet {
     }
 }
 
-fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, prime: bool, testname: &'static str) {
+fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, prime: bool, testname: &'static str, prop_unsub: f64) {
     //let (mut db, jh) = init_db(topo.clone(), test.clone(), testname, prime);
     let sampler = datagen::Sampler::new(scale);
     let mut nstories = sampler.nstories();
@@ -206,9 +208,8 @@ fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, pri
             }
         }
 
-        // with probability 0.1, unsubscribe the user
-        if false {
-        //if rng.gen_bool(0.1) {
+        // with probability prop_unsub, unsubscribe the user
+        if rng.gen_bool(prop_unsub) {
             nunsub += 1;
             if test == TestType::TestDecor {
                 let gids = queriers::user::unsubscribe_user(user_id, db);
@@ -292,6 +293,7 @@ fn main() {
     let scale = args.scale;
     let prime = args.prime;
     let testname = args.testname;
+    let prop_unsub = args.prop_unsub;
 
     use TestType::*;
     //let tests = &[TestDecor];//vec![TestShimParse, TestNoShim, TestShim, TestDecor];
@@ -317,7 +319,7 @@ fn main() {
             drop(locked_topo);
             
             let (mut db, jh) = init_db(topo, tid_core, testclone.clone(), testname, prime);
-            run_test(&mut db, testclone, nqueries, scale, prime, testname);
+            run_test(&mut db, testclone, nqueries, scale, prime, testname, prop_unsub);
             
             drop(db);
             if let Some(t) = jh {

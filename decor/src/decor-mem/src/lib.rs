@@ -70,7 +70,7 @@ impl Shim {
         -> Result<(), mysql::Error> 
     {
         let mut db = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
-        if self.test_params.prime || self.test_params.testname.contains("decor") {
+        if test_params.prime || test_params.testname.contains("decor") {
             db.query_drop(&format!("DROP DATABASE IF EXISTS {};", dbname)).unwrap();
             db.query_drop(&format!("CREATE DATABASE {};", dbname)).unwrap();
         }
