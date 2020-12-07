@@ -46,16 +46,16 @@ let edge_policies = vec![
     \label{fig:policy}
     \caption{Excerpt of the Lobsters Application Policy}
 \end{figure}
-We provide several variants of an application policy for Lobsters. Each requires specifying at most 17 key
-relationships and at most 5 ghost entity generation policies (see Figure~\ref{fig:policy} for an example
-of what these policies). The total number of lines that a developer must write range from \lyt{TODO}
-to \lyt{TODO} LoC (current policy is 190LoC).
-
-We also evaluate policies for several other applications: (1) an Instagram clone with posts, likes,
-hashtags, shares, and groups; (2) PrestaShop, an open-source e-commerce web application; and (3)
-\lyt{I would like to go HotCrp here... will try and get something here before we meet tomorrow}
+We provide several variants of an application policy for Lobsters, as well as example policies for a
+suite of other applications: (1) HotCRP, software for conference reviews; (2) PrestaShop, an
+open-source e-commerce web application; and (3) an Instagram clone with posts, likes, hashtags,
+shares, and groups.
 
 \paragraph{Lobsters}
+Lobsters has a total of 20 entities, and 
+these Lobsters policies require specifying at most 17 key
+relationships and at most 5 ghost entity generation policies (see Figure~\ref{fig:policy} for an example
+of these policy specifications).
 
 The first policy replicates what the behavior of the current Lobsters deployment upon user
 unsubscription, with the exception that users are replaced with ghost users rather than a global
@@ -76,6 +76,39 @@ particular user simply by knowing that a certain user has posted about the tag t
 in visualization). However, Lobsters still retains the content of these tagged stories.
 
 \lyt{TODO} third policy.
+
+\paragraph{HotCRP.}
+HotCRP entities include users (reviewers and paper authors), papers, and paper reviews. There are a total of 25
+entities, with 47 foreign key relationships between entities; specifying these key relationships (as
+a non-maintainer of the HotCRP site) took fewer than 20 minutes.
+
+HotCRP's current privacy policy~\cite{hotcrp_privacy} allows site managers (e.g.,\ program chairs)
+to indefinitely store and distribute submissions and reviews. Each HotCRP.com user has an associated
+global profile and a profile for every HotCRP.com site, and must contact the HotCRP maintainers
+directly to remove these profiles. This corresponds to key relationships with
+\texttt{NoDecorrelate:Retain} policies: a user simply cannot unsubscribe (or resubscribe).
+
+With \sys{}, we can express many more granular privacy policies that would otherwise be difficult to
+implement right in HotCRP. The top-level entity to decorrelate are user profiles: reviewers may want
+to remove their connections with their reviews, papers, and other metadata (such as papers they
+have requested to review).
+However, review and paper artifacts should remain identifiable and present, and correctly linked:
+(subscribed) reviewers should still see the correct paper for each of their reviews, and authors
+should see the correct reivews for their papers.
+
+With \sys{}, the HotCRP developer can specify that decorrelating a user decorrelates all edges with
+the user as parent, replacing reviewers (or authors) with ghost user profiles. This goes beyond
+pseudonymization: these reviews or papers are no longer grouped together by any (even anonymized)
+identity. Furthermore, papers by the user can be decorrelated from their reviews, comments, and
+conflicts, all of which in aggregate may reveal information about the unsubscribing user, or information that the
+user may wish to keep private (such as the total review scores for the paper). To maintain semantic
+correctness, paper entities have a \texttt{CloneAll} ghost generation policy: this ensures each child
+review or comment still has a semantic connection to their parent paper, and a HotCRP reviewer
+always observes the correct paper for any of their reviews, even if the paper is a ghost of the
+original.
+%Interesting policies: reviewers' reviews cannot be linked together (no global placeholder here), can
+%clone papers if want to separate reviews
+
 \paragraph{PrestaShop.} 
 PrestaShop entities include customers, products, orders, carriers, employees, and shops (as well as
 many other entities such as product categories, languages, countries, shopping cart, etc.) There are
@@ -107,16 +140,6 @@ customers not related to the original user for noise).
 
 This process requires going through each of the individual key relationships, which must be done to
 generate the schema in the first place.
-
-\paragraph{HotCRP.}
-HotCRP entities include users (reviewers and paper authors), papers, and paper reviews. There are a total of 25
-entities, with 48 foreign key relationships between entities.
-
-
-
-
-Interesting policies: reviewers' reviews cannot be linked together (no global placeholder here), can
-clone papers if want to separate reviews
 
 \paragraph{Instagram Clone.}
 

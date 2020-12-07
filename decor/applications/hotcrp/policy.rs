@@ -6,7 +6,7 @@ fn get_ghost_policies() -> EntityGhostPolicies {
     ghost_policies 
 }
 
-fn get_prestashop_policy() -> ApplicationPolicy {
+fn get_hotcrp_policy() -> ApplicationPolicy {
     use decor::policy::DecorrelationPolicy::*;
     ApplicationPolicy{
         entity_type_to_decorrelate: "ContaactInfo".to_string(), 
@@ -101,14 +101,6 @@ KeyRelationship{
 
            KeyRelationship{
                 child: "Formula".to_string(),
-                parent: "ContactId".to_string(),
-                column_name: "createdBy".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
-            },
-
-           KeyRelationship{
-                child: "MailLog".to_string(),
                 parent: "ContactId".to_string(),
                 column_name: "createdBy".to_string(),
                 parent_child_decorrelation_policy: NoDecorRetain,
