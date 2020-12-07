@@ -223,58 +223,57 @@ fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, pri
                 db.query_drop(&format!("DELETE FROM `users` WHERE `users`.`username` = 'user{}'", user_id)).unwrap();
                 unsubbed_users.insert(user_id, (String::new(), String::new()));
             }
-            continue;
-        }
-
-        let mut res = vec![];
-        if pick(55842) {
-            // XXX: we're assuming here that stories with more votes are viewed more
-            let story = sampler.story_for_vote(&mut rng) as u64;
-            res = queriers::stories::read_story(db, user, story).unwrap();
-        } else if pick(30105) {
-            res = queriers::frontpage::query_frontpage(db, user).unwrap();
-        } else if pick(6702) {
-            // XXX: we're assuming that users who vote a lot are also "popular"
-            queriers::user::get_profile(db, user_id).unwrap();
-        } else if pick(4674) {
-            queriers::comment::get_comments(db, user).unwrap();
-        } else if pick(967) {
-            queriers::recent::recent(db, user).unwrap();
-        } else if pick(630) {
-            let comment = sampler.comment_for_vote(&mut rng);
-            queriers::vote::vote_on_comment(db, user, comment as u64, true).unwrap();
-        } else if pick(475) {
-            let story = sampler.story_for_vote(&mut rng);
-            queriers::vote::vote_on_story(db, user, story as u64, true).unwrap();
-        } else if pick(316) {
-            // comments without a parent
-            let id = rng.gen_range(ncomments, max_id);
-            let story = sampler.story_for_comment(&mut rng);
-            queriers::comment::post_comment(db, user, id as u64, story as u64, None).unwrap();
-        } else if pick(87) {
-            queriers::user::login(db, user_id).unwrap();
-        } else if pick(71) {
-            // comments with a parent
-            let id = rng.gen_range(ncomments, max_id);
-            let story = sampler.story_for_comment(&mut rng);
-            // we need to pick a comment that's on the chosen story
-            // we know that every nth comment from prepopulation is to the same story
-            let comments_per_story = ncomments / nstories;
-            let parent = story + nstories * rng.gen_range(0, comments_per_story);
-            queriers::comment::post_comment(db, user, id.into(), story as u64, Some(parent as u64)).unwrap();
-        } else if pick(54) {
-            let comment = sampler.comment_for_vote(&mut rng);
-            queriers::vote::vote_on_comment(db, user, comment as u64, false).unwrap();
-        } else if pick(53) {
-            let id = rng.gen_range(nstories, max_id);
-            queriers::stories::post_story(db, user, id as u64, format!("benchmark {}", id)).unwrap();
         } else {
-            let story = sampler.story_for_vote(&mut rng);
-            queriers::vote::vote_on_story(db, user, story as u64, false).unwrap();
+            let mut res = vec![];
+            if pick(55842) {
+                // XXX: we're assuming here that stories with more votes are viewed more
+                let story = sampler.story_for_vote(&mut rng) as u64;
+                res = queriers::stories::read_story(db, user, story).unwrap();
+            } else if pick(30105) {
+                res = queriers::frontpage::query_frontpage(db, user).unwrap();
+            } else if pick(6702) {
+                // XXX: we're assuming that users who vote a lot are also "popular"
+                queriers::user::get_profile(db, user_id).unwrap();
+            } else if pick(4674) {
+                queriers::comment::get_comments(db, user).unwrap();
+            } else if pick(967) {
+                queriers::recent::recent(db, user).unwrap();
+            } else if pick(630) {
+                let comment = sampler.comment_for_vote(&mut rng);
+                queriers::vote::vote_on_comment(db, user, comment as u64, true).unwrap();
+            } else if pick(475) {
+                let story = sampler.story_for_vote(&mut rng);
+                queriers::vote::vote_on_story(db, user, story as u64, true).unwrap();
+            } else if pick(316) {
+                // comments without a parent
+                let id = rng.gen_range(ncomments, max_id);
+                let story = sampler.story_for_comment(&mut rng);
+                queriers::comment::post_comment(db, user, id as u64, story as u64, None).unwrap();
+            } else if pick(87) {
+                queriers::user::login(db, user_id).unwrap();
+            } else if pick(71) {
+                // comments with a parent
+                let id = rng.gen_range(ncomments, max_id);
+                let story = sampler.story_for_comment(&mut rng);
+                // we need to pick a comment that's on the chosen story
+                // we know that every nth comment from prepopulation is to the same story
+                let comments_per_story = ncomments / nstories;
+                let parent = story + nstories * rng.gen_range(0, comments_per_story);
+                queriers::comment::post_comment(db, user, id.into(), story as u64, Some(parent as u64)).unwrap();
+            } else if pick(54) {
+                let comment = sampler.comment_for_vote(&mut rng);
+                queriers::vote::vote_on_comment(db, user, comment as u64, false).unwrap();
+            } else if pick(53) {
+                let id = rng.gen_range(nstories, max_id);
+                queriers::stories::post_story(db, user, id as u64, format!("benchmark {}", id)).unwrap();
+            } else {
+                let story = sampler.story_for_vote(&mut rng);
+                queriers::vote::vote_on_story(db, user, story as u64, false).unwrap();
+            }
+            res.sort();
+            warn!("Query {}, user{}, {}\n", i, user_id, res.join(" "));
+            file.write(format!("Query {}, user{}, {}\n", i, user_id, res.join(" ")).as_bytes()).unwrap();
         }
-        //res.sort();
-        //warn!("Query {}, user{}, {}\n", i, user_id, res.join(" "));
-        //file.write(format!("Query {}, user{}, {}\n", i, user_id, res.join(" ")).as_bytes()).unwrap();
     }
     let dur = start.elapsed();
     println!("{} Time to do {} queries ({}/{} un/resubs): {}s", testname, nqueries, nunsub, nresub, dur.as_secs());
@@ -292,16 +291,16 @@ fn main() {
     let testname = args.testname;
 
     use TestType::*;
-    let tests = vec![TestDecor, TestShimParse, TestShim, TestNoShim];
-    let testnames = vec!["decor", "shim_parse", "shim_only", "no_shim"];
+    let tests = vec![TestNoShim, TestDecor, TestShimParse, TestShim];
+    let testnames = vec!["no_shim", "decor", "shim_parse", "shim_only"];
 
-    let mut threads = vec![];
+    //let mut threads = vec![];
     let mut core = 2;
     for i in 0..tests.len() {
         let testclone = tests[i].clone();
         let testname = testnames[i].clone();
         let mut tid_core = core;
-        threads.push(thread::spawn(move || {
+        //threads.push(thread::spawn(move || {
             // bind thread to core 1
             let topo = Arc::new(Mutex::new(Topology::new()));
             let tid = unsafe { libc::pthread_self() };
@@ -319,10 +318,10 @@ fn main() {
             if let Some(t) = jh {
                 t.join().unwrap();
             }
-        }));
+        //}));
         core += 2;
     }
-    for thread in threads {
+    /*for thread in threads {
         thread.join().unwrap();
-    }
+    }*/
 }
