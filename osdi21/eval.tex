@@ -90,12 +90,20 @@ instead of a policy that provides the strongest possible unsubscription privacy)
 
 By simply providing a ghost customer generation policy and modifying all key relationships with
 customer parents to \texttt{Decorrelate} or \texttt{Remove} policies, PrestaShop can ensure that
-customer information is appropriately de-identified when a customer unsubscribes. To keep attributes
-such as the country or language of a user for statistical analyses (perhaps a merchant wishes to
-know how popular their product is in different locations), ghost customers can clone the link of the
-original user to the same location.  However, if this reveals too much sensitive information, the
-location can be desensitized (adding additional generated ghost customers not related to the
-original user for noise), or randomized.
+customer information is appropriately de-identified when a customer unsubscribes.
+Currently, PrestaShop has explicit GDPR policies for its merchants when a customer requests to delete
+their account: their personal account details (age, email, address) are removed, but order invoices
+and abandoned carts are transferred to an anonymous account
+\lyt{TODO \url{https://doc.prestashop.com/display/PS17/Complying+with+the+GDPR}}.
+\sys{} allows PrestaShop to go beyond pseudonymity, creating individual (ghost) accounts for each
+cart and order invoices of a customer, and also allowing a customer to retrieve these orders and
+abandoned carts if she rejoins the application.
+
+\sys{} also can help PrestaShop keep attributes such as the country or language of a user for
+statistical analyses (used by merchants to analyze product popularity). Ghost customers can generate
+links to countries nearby a set of countries similar to the original user; if this still reveals too
+much sensitive information, the location can be desensitized (adding additional generated ghost
+customers not related to the original user for noise).
 
 This process requires going through each of the individual key relationships, which must be done to
 generate the schema in the first place.
@@ -138,20 +146,19 @@ comment, and vote.
 
 The benchmarks perform 10000 actions, each performing on average 8 application queries. 
 We measure (1) overall throughput, (2) the distribution of application query
-latencies, and (3) the query multiplication per application query performed by \sys{}.
+latencies, (3) the query multiplication per application query performed by \sys{}, and (4) the
+storage cost (in-memory and on-disk).
 
 The first benchmark measures \sys{}'s performance during \emph{normal execution}, namely when only
 read and update actions performed by Lobsters are executed. 
-
 The second benchmark measures \sys{}'s performance with 10\% of the actions being unsubscription. If
 an unsubscribed user is chosen to perform an action, this user is first resubscribed.
 \texttt{NoShim}, \texttt{Shim}, and \texttt{ShimParsing} simply delete or insert the chosen user on
 unsubscription or resubscription respectively; this provides a very conservative estimate of the
 amount of work these baseline systems would need to do if a user withdrew their data from the system.
 
-To complete 10K actions, \texttt{NoShim} takes 263s, \texttt{ShimOnly} takes 277s, \texttt{ShimParse}
+To complete 10K actions during normal execution, \texttt{NoShim} takes 263s, \texttt{ShimOnly} takes 277s, \texttt{ShimParse}
 takes 284s; and \texttt{\sys{}} takes 185s.
-
 We show the results of both benchmarks using the 3 different Lobsters policies described above in
 Figure~\ref{fig:results}. 
 \lyt{Currently debugging the benchmark... (some off-by-one error, hopefully won't take too long)}
