@@ -180,14 +180,6 @@ fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, pri
         ncomments = nc;
     }
     
-    // randomly pick next request type based on relative frequency
-    let mut seed: isize = 90000;// TODO check for determinism? rng.gen_range(0, 100000);
-    let seed = &mut seed;
-    let mut pick = |f| {
-        let applies = *seed <= f;
-        *seed -= f;
-        applies
-    };
     let mut rng = rand::thread_rng();
     let mut unsubbed_users : HashMap<u64, (String, String)> = HashMap::new(); 
     let mut nunsub = 0;
@@ -224,6 +216,15 @@ fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, pri
                 unsubbed_users.insert(user_id, (String::new(), String::new()));
             }
         } else {
+            // randomly pick next request type based on relative frequency
+            let mut seed: isize = rng.gen_range(0, 100000);
+            let seed = &mut seed;
+            let mut pick = |f| {
+                let applies = *seed <= f;
+                *seed -= f;
+                applies
+            };
+
             let mut res = vec![];
             if pick(55842) {
                 // XXX: we're assuming here that stories with more votes are viewed more
