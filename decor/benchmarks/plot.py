@@ -6,7 +6,7 @@ plt.style.use('seaborn-deep')
 
 tests = ["decor", "shim_only", "shim_parse"]
 names = ["Read", "Update", "Insert", "Unsub", "Resub", "Delete"]
-ybounds = [400000, 20000, 20000, 6000, 6000, 6000]
+ybounds = [1000000, 1000000, 1000000, 10000, 6000, 6000]
 bins = [np.linspace(0, 20000, 200),
     np.linspace(0, 20000, 400),
     np.linspace(0, 20000, 400),
@@ -21,6 +21,9 @@ for test in tests:
 
         q2lats_all = []
         for (i, row) in enumerate(rows):
+            # only reads/inserts/updates for now
+            if i > 2:
+                continue
             q2lats = [[] for _ in range(4)]
             pairs = row.split(';')[:-1]
             if len(pairs) == 0:
@@ -49,5 +52,6 @@ for test in tests:
             axes_flat[ai].set_ylim(ymax = ybounds[i])
             axes_flat[ai].set_xlabel('Per-Query Latency (us)')
             axes_flat[ai].set_ylabel('Number of Queries')
+    fig.suptitle('{}'.format(test))
     fig.tight_layout(h_pad=4)
     plt.savefig('{}.png'.format(test), dpi=300)

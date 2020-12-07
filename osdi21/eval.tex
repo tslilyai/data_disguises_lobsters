@@ -171,6 +171,16 @@ provides an upper bound for \sys{}'s (single-threaded) performance, as the costs
 and decorrelation are not necessarily fundamental.
 
 \paragraph{Lobste.rs Performance}
+
+\begin{figure*}
+\includegraphics[width=.32\textwidth]{img/decor}
+\includegraphics[width=.32\textwidth]{img/shim_parse}
+\includegraphics[width=.32\textwidth]{img/shim_only}
+    \label{fig:results}
+    \caption{Comparison of \sys{}'s latency during normal execution.}
+\end{figure*}
+
+
 \sys{} utilizes the trawler workload~\cite{trawler} for Lobsters, which emulates production
 Lobsters traffic according to a recorded production workload. The database initially begins with 3K
 users, 20K stories, and 60K comments (1/2 the size of the the real Lobsters deployment), and issues
@@ -195,7 +205,7 @@ amount of work these baseline systems would need to do if a user withdrew their 
 \lyt{Currently debugging the benchmark... (some error with repeat keys, hopefully won't take too long)}
 To complete 10K actions during normal execution, \texttt{NoShim} takes 293s, \texttt{ShimOnly} takes
 TODO, \texttt{ShimParse} takes 316s; and \texttt{\sys{}} takes 185s.
-We show the latency results of the 3 different Lobsters policies described above in
+We show the latency results of the second of the Lobsters policies described above in
 Figure~\ref{fig:results}. 
 \lyt{TODO memory usage}
 \lyt{Should we also record the amount of time to initialize?}
