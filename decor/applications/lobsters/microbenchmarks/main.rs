@@ -62,8 +62,8 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        //.filter_level(log::LevelFilter::Warn)
-        .filter_level(log::LevelFilter::Error)
+        .filter_level(log::LevelFilter::Warn)
+        //.filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -193,6 +193,7 @@ fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, pri
         // XXX: we're assuming that users who vote a lot also comment a lot
         // XXX: we're assuming that users who vote a lot also submit many stories
         let user_id = sampler.user(&mut rng) as u64;
+        let username_id = user_id - 1;
         let user = Some(user_id);
 
         if let Some(gids) = &unsubbed_users.remove(&user_id) {
@@ -201,7 +202,7 @@ fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, pri
                 queriers::user::resubscribe_user(user_id, gids, db);
             } else {
                 // user id is always one more than the username...
-                db.query_drop(&format!("INSERT INTO `users` (id, username) VALUES ({}, 'user{}')", user_id+1, user_id)).unwrap();
+                db.query_drop(&format!("INSERT INTO `users` (id, username) VALUES ({}, 'user{}')", user_id, username_id)).unwrap();
             }
         }
 
@@ -212,7 +213,7 @@ fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, pri
                 let gids = queriers::user::unsubscribe_user(user_id, db);
                 unsubbed_users.insert(user_id, gids);
             } else {
-                db.query_drop(&format!("DELETE FROM `users` WHERE `users`.`username` = 'user{}'", user_id)).unwrap();
+                db.query_drop(&format!("DELETE FROM `users` WHERE `users`.`username` = 'user{}'", username_id)).unwrap();
                 unsubbed_users.insert(user_id, (String::new(), String::new()));
             }
         } else {
@@ -292,8 +293,8 @@ fn main() {
     let testname = args.testname;
 
     use TestType::*;
-    let tests = vec![TestNoShim, TestDecor, TestShimParse, TestShim];
-    let testnames = vec!["no_shim", "decor", "shim_parse", "shim_only"];
+    let tests = vec![TestDecor, TestShimParse, TestNoShim, TestShim];
+    let testnames = vec!["decor", "shim_parse", "no_shim", "shim_only"];
 
     //let mut threads = vec![];
     let mut core = 2;

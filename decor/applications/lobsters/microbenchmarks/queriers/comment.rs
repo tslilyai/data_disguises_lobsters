@@ -11,12 +11,12 @@ pub fn get_comments(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), 
     let mut users = HashSet::new();
     let mut stories = HashSet::new();
     db.query_map(&format!(
-            "SELECT  `comments`.* \
+            "SELECT  `comments`.`id`, `comments`.`user_id`, `comments`.`story_id` \
              FROM `comments` \
              WHERE `comments`.`is_deleted` = 0 \
              AND `comments`.`is_moderated` = 0 \
              ORDER BY id DESC \
-             LIMIT 40 OFFSET 0",
+             LIMIT 40",// OFFSET 0",
         ), |(id, user_id, story_id) : (u32, u32, u32)| {
             comments.insert(id);
             users.insert(user_id);
@@ -215,14 +215,14 @@ pub fn post_comment(db: &mut mysql::Conn,
 
     // why are these ordered?
     let res : Vec<(u64, u64)> = db.query(format!(
-        "SELECT `comments`.id, \
+        "SELECT `comments`.`id`, \
          `comments`.`upvotes` - `comments`.`downvotes` AS saldo \
          FROM `comments` \
          WHERE `comments`.`story_id` = {} \
          ORDER BY \
          saldo ASC, \
          confidence DESC",
-        story,),
+        story),
     )?;
     let count = res.len() + 1;
 

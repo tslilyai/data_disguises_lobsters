@@ -9,8 +9,8 @@ pub fn vote_on_comment(db: &mut mysql::Conn, acting_as: Option<u64>, comment: u6
     let user = acting_as.unwrap();
 
     let (author, sid, upvotes, downvotes, comment) : (u32, u32, u32, u32, u32) = db.query_first(format!(
-            "SELECT `comments`.`user_id`, `comments`.`story_id` \
-                `comments`.`upvotes`, `comments`.`downvotes` \
+            "SELECT `comments`.`user_id`, `comments`.`story_id`, \
+                `comments`.`upvotes`, `comments`.`downvotes`, \
                 `comments`.`id` \
              FROM `comments` \
              WHERE `comments`.`short_id` = {}",
@@ -47,7 +47,7 @@ pub fn vote_on_comment(db: &mut mysql::Conn, acting_as: Option<u64>, comment: u6
 
     db.query_drop(format!(
                "UPDATE `users` \
-                SET `users`.`karma` = `users`.`karma` {} \
+                SET `karma` = `karma` {} \
                 WHERE `users`.`id` = {}",
                 match pos {
                     true => "+ 1",
@@ -59,9 +59,9 @@ pub fn vote_on_comment(db: &mut mysql::Conn, acting_as: Option<u64>, comment: u6
     db.query_drop(format!(
                 "UPDATE `comments` \
                  SET \
-                 `comments`.`upvotes` = `comments`.`upvotes` {}, \
-                 `comments`.`downvotes` = `comments`.`downvotes` {}, \
-                 `comments`.`confidence` = {} \
+                 `upvotes` = `upvotes` {}, \
+                 `downvotes` = `downvotes` {}, \
+                 `confidence` = {} \
                  WHERE `id` = {}",
                 match pos {
                     true => "+ 1",
@@ -113,9 +113,9 @@ pub fn vote_on_comment(db: &mut mysql::Conn, acting_as: Option<u64>, comment: u6
     // in the lobsters source for details.
         db.query_drop(&format!(
                 "UPDATE stories SET \
-                 stories.upvotes = stories.upvotes {}, \
-                 stories.downvotes = stories.downvotes {}, \
-                 stories.hotness = {} \
+                 upvotes = upvotes {}, \
+                 downvotes = downvotes {}, \
+                 hotness = {} \
                  WHERE id = {}",
                 match pos {
                     true => "+ 1",
@@ -173,7 +173,7 @@ pub fn vote_on_story(db: &mut mysql::Conn, acting_as: Option<u64>, story_id: u64
 
     db.query_drop(format!(
         "UPDATE `users` \
-         SET `karma` = `users`.`karma` {} \
+         SET `karma` = `karma` {} \
          WHERE `users`.`id` = {}",
         match pos {
             true => "+ 1",

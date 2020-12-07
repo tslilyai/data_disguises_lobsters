@@ -11,6 +11,7 @@ pub fn login(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
             "SELECT 1 as one FROM `users` WHERE `users`.`username` = 'user{}'",
              uid))?;
     if user.is_none() {
+        assert!(false);
         db.query_drop(format!("INSERT INTO `users` (`username`) VALUES ('user{}')",uid))?;
     }
     Ok(())
@@ -76,7 +77,6 @@ pub fn unsubscribe_user(user: u64, db: &mut mysql::Conn) -> (String, String) {
         let s2 = helpers::mysql_val_to_string(&vals[1]);
         let s1 = s1.trim_end_matches('\'').trim_start_matches('\'');
         let s2 = s2.trim_end_matches('\'').trim_start_matches('\'');
-        //warn!("Serialized values are {}, {}", s1, s2);
         return (s1.to_string(), s2.to_string());
     }
     (String::new(), String::new())
@@ -85,4 +85,3 @@ pub fn unsubscribe_user(user: u64, db: &mut mysql::Conn) -> (String, String) {
 pub fn resubscribe_user(user: u64, data: &(String, String), db: &mut mysql::Conn) {
     db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", user, data.0, data.1)).unwrap();
 }
-

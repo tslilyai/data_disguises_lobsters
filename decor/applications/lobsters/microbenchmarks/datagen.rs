@@ -44,7 +44,7 @@ impl Sampler {
     }
 
     pub fn user<R: rand::Rng>(&self, rng: &mut R) -> u32 {
-        self.votes_per_user.sample(rng) as u32 + 1
+        self.votes_per_user.sample(rng) as u32 +1
     }
 
     pub fn nusers(&self) -> u32 {
