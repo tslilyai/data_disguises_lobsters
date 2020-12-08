@@ -1,8 +1,11 @@
 use rand::prelude::*;
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{helpers, ghosts_map, ghosts_map::GhostMaps, 
-    policy, stats, views, ID_COL, GhostMappingShard, EntityDataShard, graph::EntityTypeRows};
+use crate::{helpers, 
+    ghosts_map, ghosts_map::GhostMaps, 
+    ghost::TemplateEntity,
+    policy, stats, views, ID_COL, 
+    ghost::GhostEidMapping, EntityData, graph::EntityTypeRows};
 use crate::views::{TableColumnDef, Views, Row, RowPtr, RowPtrs, HashedRowPtr};
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
@@ -1268,7 +1271,7 @@ impl QueryTransformer {
                 self.cur_stat.nqueries+=1;
 
                 // create ghost maps
-                self.ghost_maps.insert(name.to_string(), db, self.params.in_memory);
+                self.ghost_maps.new(name.to_string(), db, self.params.in_memory);
 
                 // get parent columns so that we can keep track of the graph 
                 let parent_cols_of_table = helpers::get_parent_col_indices_of_datatable(&self.decor_config, &name, columns);
@@ -1341,7 +1344,7 @@ impl QueryTransformer {
         warn!("Unsubscribing uid {}", uid);
 
         // table name of entity, eid, gids for eid
-        let mut generated_eid_gids: GhostMappingShard = vec![];
+        let mut ghost_eid_mappings : Vec<GhostEidMapping> = vec![];
         // all completely decorrelated entities
         // this is updated prior to the entity's modification (if, for example, it is assigned a
         // ghost pointer)
@@ -1396,25 +1399,28 @@ impl QueryTransformer {
             }
             
             let mut gid_values = vec![];
-            if let Some(gids_and_ghost_ancestors) = self.ghost_maps.unsubscribe(node.eid, db, &node.table_name)? {
+            if let Some(ghost_families) = self.ghost_maps.unsubscribe(node.eid, db, &node.table_name)? {
                 // 1. Get all sibling GIDs corresponding to this EID if this entity has not already been unsubscribed
-                assert!(!gids_and_ghost_ancestors.is_empty());
-                for (gid, ghost_ancestors) in &gids_and_ghost_ancestors {
-                    let mut ancestor_table_gids = vec![];
-                    for (ancestor_table, ancestor_rptrs) in ghost_ancestors { 
+                assert!(!ghost_family.is_empty());
+                for ghost_family in &ghost_families {
+                    let mut family_ghost_names = vec![];
+                    for ghost_entities in ghost_family.family_members { 
                         // update this node's MV to have an entry for all its ghost entities 
                         // NOTE: entries must already be in the datatables!!
                         // We must ensure that any parent ghosts of these ghost entities also become
                         // visible in the MVs for referential integrity
-                        self.views.insert(&ancestor_table, None, &ancestor_rptrs)?;
-                        
-                        let pi = self.views.get_view_pi(&ancestor_table);
-                        for rptr in ancestor_rptrs {
-                            ancestor_table_gids.push((ancestor_table.clone(), helpers::parser_val_to_u64(&rptr.borrow()[pi])));
+                        self.views.insert(&ghost_entities.table, None, &ghost_entities.rptrs)?;
+                       
+                        for gid in ghost_entities.gids {
+                            family_ghost_names.push((family.table.clone(), helpers::parser_val_to_u64(&gid)));
                         }
                     }
-                    gid_values.push(Value::Number(gid.to_string()));
-                    generated_eid_gids.push((node.table_name.clone(), Some(node.eid), ancestor_table_gids));
+                    gid_values.push(Value::Number(ghost_family.root_gid.to_string()));
+                    ghost_eid_mappings.push(GhostEidMapping{
+                        table: node.table_name.clone(), 
+                        eid2gidroot: Some((node.eid, ghost_family.root_gid)), 
+                        ghosts: family_ghost_names, 
+                    });
                 }
             }
             let mut gid_index = 0;
@@ -1521,7 +1527,7 @@ impl QueryTransformer {
             } else if child.sensitivity.0 > 0.0 && child.sensitivity.0 < 1.0 { 
                 // how many other children of this type came from this parent?
                 // do we need to add children?
-                removed.extend(self.achieve_parent_child_sensitivity(child, &parent_child_edges, &mut generated_eid_gids, db)?);
+                removed.extend(self.achieve_parent_child_sensitivity(child, &parent_child_edges, &mut ghost_eid_mappings, db)?);
             }
         }
         warn!("UNSUB {}: Duration to remove or add sensitive step 2: {}us", uid, start.elapsed().as_micros());
@@ -1531,11 +1537,11 @@ impl QueryTransformer {
          * threshold, either generate new children (if possible), or remove the children. If the
          * edge can be decorrelated, decorrelate this edge (creating one ghost)
          */
-        self.unsubscribe_child_parent_edges(&parent_child_edges, &mut generated_eid_gids, db)?;
+        self.unsubscribe_child_parent_edges(&parent_child_edges, &mut ghost_eid_mappings, db)?;
 
         // cache the hash of the gids we are returning
-        generated_eid_gids.sort();
-        let serialized1 = serde_json::to_string(&generated_eid_gids).unwrap();
+        ghost_eid_mappings.sort();
+        let serialized1 = serde_json::to_string(&ghost_eid_mappings).unwrap();
         self.hasher.input_str(&serialized1);
         let result1 = self.hasher.result_str();
         self.hasher.reset();
@@ -1552,7 +1558,7 @@ impl QueryTransformer {
 
     pub fn unsubscribe_child_parent_edges(&mut self, 
         children: &HashSet<TraversedEntity>, 
-        generated_eid_gids: &mut GhostMappingShard,
+        ghost_eid_mappings: &mut Vec<GhostEidMapping>,
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
@@ -1589,25 +1595,29 @@ impl QueryTransformer {
                     // if parent is not the from_parent (which could be a ghost!),
                     if !helpers::is_ghost_eid(&child.vals.row().borrow()[ci]) {
                         let eid = helpers::parser_val_to_u64(&child.vals.row().borrow()[ci]);
-                        if let Some((gid, ghost_ancestors)) = self.ghost_maps.take_one_gidrptr_for_eid(eid, db, &parent_table)? {
+                        
+                        if let Some(family) = self.ghost_maps.take_one_ghost_family_for_eid(eid, db, &parent_table)? {
                             // this parent already has ghosts! remove the mapping from the real parent 
                             // ensure that any parent ghosts of these ghost entities also become
                             // visible in the MVs for referential integrity
-                            let mut ancestor_table_gids = vec![];
-                            for (ancestor_table, ancestor_rptrs) in ghost_ancestors { 
-                                self.views.insert(&ancestor_table, None, &ancestor_rptrs)?;
-                        
-                                let pi = self.views.get_view_pi(&ancestor_table);
-                                for ancestor_rptr in ancestor_rptrs {
-                                    ancestor_table_gids.push((ancestor_table.clone(), helpers::parser_val_to_u64(&ancestor_rptr.borrow()[pi])));
+                            let mut ancestor_table_ghosts = vec![];
+                            for ghost_entities in &family.family_members {
+                                self.views.insert(ghost_entities.table, None, ghost_entities.rptrs)?;
+                                for gid in ghost_entities.gids {
+                                    ancestor_table_ghosts.push((ancestor_table.clone(), helpers::parser_val_to_u64(&gid)));
                                 }
                             }
                             
                             // changing child to point ghost of the real parent,
-                            self.views.update_index_and_row_of_view(&table_name, child.vals.row().clone(), ci, Some(&Value::Number(gid.to_string())));
+                            self.views.update_index_and_row_of_view(
+                                &table_name, child.vals.row().clone(), 
+                                ci, Some(&Value::Number(family.root_gid.to_string())));
                             
-                            // TODO could add ghost ancestors here?
-                            generated_eid_gids.push((parent_table.clone(), Some(eid), ancestor_table_gids));
+                            ghost_eid_mappings.push(GhostEidMapping{
+                                table: parent_table.clone(), 
+                                eid2gidroot: Some((eid, family.root_gid)),
+                                ghosts: ancestor_table_ghosts,
+                            });
                         } else {
                             unimplemented!("Ghost entity must already exist for decorrelatable edges!");
                         }
@@ -1675,27 +1685,29 @@ impl QueryTransformer {
                         }
                         // TODO could choose a random child as the poster child 
                         warn!("Achieve child parent sensitivity: generating values for gids {:?}", gids);
-                        let new_entities = policy::generate_new_entities_from(
-                            &self.views,
-                            &self.ghost_policies,
-                            db, 
-                            &poster_child.table_name,
-                            poster_child.vals.row().clone(), 
+                        let new_entities = policy::generate_new_ghosts_with_gids(
+                            &self.views, &self.ghost_policies, db, 
+                            &TemplateEntity{
+                                table: poster_child.table_name,
+                                row: poster_child.vals.row().clone(), 
+                                fixed_colvals: Some(vec![(ci, Value::Number(parent_eid.to_string()))]),
+                            },
                             &gids,
-                            Some((ci, Value::Number(parent_eid.to_string()))),
                             &mut self.cur_stat.nqueries)?;
 
                         // insert all ghost ancestors created into the MV
-                        let mut ancestor_table_gids = vec![];
-                        for (ancestor_table, ancestor_rptrs) in &new_entities {
-                            self.views.insert(ancestor_table, None, ancestor_rptrs)?;
-     
-                            let pi = self.views.get_view_pi(&ancestor_table);
-                            for rptr in ancestor_rptrs {
-                                ancestor_table_gids.push((ancestor_table.clone(), helpers::parser_val_to_u64(&rptr.borrow()[pi])));
+                        let mut ancestor_table_ghosts = vec![];
+                        for ghost_entities in &new_entities {
+                            self.views.insert(ghost_entities.table, None, ghost_entities.rptrs)?;
+                            for gid in ghost_entities.gids {
+                                ancestor_table_ghosts.push((ancestor_table.clone(), helpers::parser_val_to_u64(&gid)));
                             }
                         }
-                        generated_eid_gids.push((poster_child.table_name.clone(), None, ancestor_table_gids));
+                        ghost_eid_mappings.push(GhostEidMapping{
+                            table: poster_child.table_name.clone(), 
+                            eid2gidroot: None, 
+                            ghosts: ancestor_table_ghosts,
+                        });
                     }
                 }
             }
@@ -1707,7 +1719,7 @@ impl QueryTransformer {
     pub fn achieve_parent_child_sensitivity(&mut self, 
         child: &TraversedEntity, 
         descendants: &HashSet<TraversedEntity>, 
-        generated_eid_gids: &mut GhostMappingShard,
+        ghost_eid_mappings: &mut GhostMappingShard,
         db: &mut mysql::Conn) 
         -> Result<HashSet<TraversedEntity>, mysql::Error> 
     {
@@ -1743,27 +1755,29 @@ impl QueryTransformer {
                 gids.push(Value::Number(gid.to_string()));
             }
             warn!("Achieve parent child sensitivity: generating values for gids {:?}", gids);
-            let new_entities = policy::generate_new_entities_from(
-                &self.views,
-                &self.ghost_policies,
-                db, 
-                &child.table_name,
-                child.vals.row().clone(), 
+            let new_entities = ghost::generate_new_ghosts_with_gids(
+                &self.views, &self.ghost_policies,db, 
+                &TemplateEntity{
+                    table: child.table_name,
+                    row: child.vals.row().clone(),
+                    fixed_colvals: Some(vec![(child.from_col_index, parent_val.clone())]),
+                }
                 &gids,
-                Some((child.from_col_index, parent_val.clone())),
                 &mut self.cur_stat.nqueries)?;
             
             // insert all ghost ancestors created into the MV
-            let mut ancestor_table_gids = vec![];
-            for (ancestor_table, ancestor_rptrs) in &new_entities {
-                self.views.insert(ancestor_table, None, ancestor_rptrs)?;
-
-                let pi = self.views.get_view_pi(&ancestor_table);
-                for rptr in ancestor_rptrs {
-                    ancestor_table_gids.push((ancestor_table.clone(), helpers::parser_val_to_u64(&rptr.borrow()[pi])));
+            let mut ancestor_table_ghosts = vec![];
+            for ghost_entities in &new_entities {
+                self.views.insert(ghost_entities.table, None, ghost_entities.rptrs)?;
+                for gid in ghost_entities.gids {
+                    ancestor_table_ghosts.push((ancestor_table.clone(), helpers::parser_val_to_u64(&gid)));
                 }
             }
-            generated_eid_gids.push((child.table_name.clone(), None, ancestor_table_gids));
+            ghost_eid_mappings.push(GhostEidMapping{
+                table: child.table_name.clone(), 
+                eid2gidroot: None, 
+                ghosts: ancestor_table_ghosts
+            });
         }
         Ok(removed)
     }
@@ -1833,17 +1847,17 @@ impl QueryTransformer {
      * refresh "materialized views"
      * TODO add back deleted content from shard
      */
-    pub fn resubscribe(&mut self, uid: u64, gidshard: &GhostMappingShard, entity_data: &EntityDataShard, db: &mut mysql::Conn) -> 
+    pub fn resubscribe(&mut self, uid: u64, ghost_eid_mappings: &Vec<GhostEidMapping>, entity_data: &Vec<EntityData>, db: &mut mysql::Conn) -> 
         Result<(), mysql::Error> {
         // TODO check auth token?
          warn!("Resubscribing uid {}", uid);
       
-        let mut gidshard = gidshard.clone();
+        let mut ghost_eid_mappings = ghost_eid_mappings.clone();
         let mut entity_data = entity_data.clone();
         match self.unsubscribed.get(&uid) {
             Some((gidshash, datahash)) => {
-                gidshard.sort();
-                let serialized = serde_json::to_string(&gidshard).unwrap();
+                ghost_eid_mappings.sort();
+                let serialized = serde_json::to_string(&ghost_eid_mappings).unwrap();
                 self.hasher.input_str(&serialized);
                 let hashed = self.hasher.result_str();
                 if *gidshash != hashed {
@@ -1884,7 +1898,7 @@ impl QueryTransformer {
             //warn!("processing {}, {:?}, {}", table, eid, gid);
             // do all the work for this table at once!
             if !(curtable == table) {
-                self.reinsert_with_vals(curtable, &curvals, db)?;
+                self.reinsert_view_rows(curtable, &curvals, db)?;
                 
                 // reset 
                 curtable = table;
@@ -1893,31 +1907,31 @@ impl QueryTransformer {
                 curvals.push(vals); 
             }
         }
-        self.reinsert_with_vals(curtable, &curvals, db)?;
+        self.reinsert_view_rows(curtable, &curvals, db)?;
 
         // parse gids into table eids -> set of gids
-        let mut curtable = &gidshard[0].0;
-        let mut cureid = &gidshard[0].1;
-        let mut curgids : Vec<&Vec<(String, u64)>> = vec![];
-        for (table, eid, gids) in &gidshard {
+        let mut table = &ghost_eid_mappings[0].table;
+        let mut eid2gid = &ghost_eid_mappings[0].eid2gidroot;
+        let mut ghosts : Vec<&Vec<(String, u64)>> = vec![];
+        for mapping in &ghost_eid_mappings {
             // do all the work for this eid at once!
-            if !(curtable == table && cureid == eid) {
-                self.resubscribe_with_gids(curtable, cureid, &curgids, db)?;
+            if !(table == mapping.table && eid2gid == mapping.eid2gidroot) {
+                self.resubscribe_ghosts_map(table, eid2gid, &ghosts, db)?;
 
                 // reset 
-                cureid = eid;
-                curtable = table;
-                curgids = vec![gids];
+                eid2gid = mapping.eid2gidroot;
+                table = mapping.table;
+                ghosts = vec![mapping.ghosts];
             } else {
-                curgids.push(gids);
+                ghosts.push(mapping.ghosts);
             }
         }
-        self.resubscribe_with_gids(curtable, cureid, &curgids, db)?;
+        self.resubscribe_ghosts_map(table, eid2gid, &ghosts, db)?;
 
         Ok(())
     }
 
-    fn reinsert_with_vals(&mut self, curtable: &str, curvals: &Vec<&Vec<String>>, db: &mut mysql::Conn) 
+    fn reinsert_view_rows(&mut self, curtable: &str, curvals: &Vec<&Vec<String>>, db: &mut mysql::Conn) 
     -> Result<(), mysql::Error> 
     {
         let start = time::Instant::now();
@@ -1956,23 +1970,21 @@ impl QueryTransformer {
     }
  
 
-    fn resubscribe_with_gids(&mut self, curtable: &str, cureid: &Option<u64>, curgids: &Vec<&Vec<(String, u64)>>, db: &mut mysql::Conn) 
+    fn resubscribe_ghosts_map(&mut self, curtable: &str, eid2gidroot: &Option<u64>, ghosts: &Vec<&Vec<(String, u64)>>, db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
         let start = time::Instant::now();
 
-        // pairs of gids of the current table to the ghost pointers of it and its ancestors
-        // these gids are the ghosts with GIDs pointed to by real children 
-        let mut curtable_gids_to_ancestor_rptrs : Vec<(u64, policy::GeneratedEntities)> = vec![];
+        let mut ghost_families : Vec<GhostFamily> = vec![];
         
         // maps from tables to the gid/rptrs of ghost entities from that table
         let mut table_to_gid_rptrs: HashMap<String, Vec<(u64, RowPtr)>> = HashMap::new();
-        for ancestor_gids in curgids {
-            let mut gid = u64::MAX; 
-            let mut ancestor_rptrs = vec![]; 
-            let mut curancestortable = "";
-            let mut curtable_pointers = vec![]; 
-            for (ancestor_table, ancestor_gid) in *ancestor_gids {
+        for ancestor_group in ghosts {
+            let mut ancestor_generated_entities = vec![]; 
+            let mut cur_ancestor_table = "";
+            let mut cur_ancestor_rptrs = vec![]; 
+            let mut cur_ancestor_gids= vec![]; 
+            for (ancestor_table, ancestor_gid) in ancestor_group {
                 // get rptr for this ancestor
                 let view_ptr = self.views.get_view(&ancestor_table).unwrap();
                 let ancestor_rptr = view_ptr.borrow().get_row_of_id(*ancestor_gid);
@@ -1981,42 +1993,101 @@ impl QueryTransformer {
                 if let Some(gidrptrs) = table_to_gid_rptrs.get_mut(ancestor_table) {
                     gidrptrs.push((*ancestor_gid, ancestor_rptr.clone()));
                 } else {
-                    table_to_gid_rptrs.insert(ancestor_table.to_string(), vec![(*ancestor_gid, ancestor_rptr.clone())]);
+                    table_to_gid_rptrs.insert(
+                        ancestor_table.to_string(), 
+                        vec![(*ancestor_gid, ancestor_rptr.clone())]);
                 }
 
                 /*
-                 * We only care about this next part of the loop if cureid is some
+                 * We only care about this next part of the loop if eid2gidroot is some
+                 * This means that the rptrs need to be kept around because they were ancestors of
+                 * some actual entity that was decorrelated
                  */
-                if cureid.is_some() {
-                    if curancestortable != ancestor_table {
-                        if !curancestortable.is_empty() {
-                            ancestor_rptrs.push((curancestortable.to_string(), curtable_pointers));
+                if eid2gidroot.is_some() {
+                    if cur_ancestor_table != ancestor_table {
+                        if !cur_ancestor_table.is_empty() {
+                            ancestor_generated_entities.push(policy::TableEntities{
+                                table: cur_ancestor_table.to_string(),
+                                gids: cur_ancestor_gids,
+                                rptrs: cur_ancestor_rptrs,
+                            });
                         }
-                        curtable_pointers = vec![]; 
-                        curancestortable = ancestor_table;
-                        gid = u64::MAX;
+                        cur_ancestor_table = ancestor_table;
+                        cur_ancestor_rptrs = vec![]; 
+                        cur_ancestor_gids = vec![];
                     }
-                    // check if this is the GID that actually corresponds to the EID
-                    // we only
-                    if curtable == ancestor_table {
-                        warn!("Found gid {} for table {}", *ancestor_gid, curtable);
-                        assert!(gid == u64::MAX);
-                        gid = *ancestor_gid;
-                    } 
-                    curtable_pointers.push(ancestor_rptr.clone());
+                    cur_ancestor_rptrs.push(ancestor_rptr.clone());
+                    cur_ancestor_gids.push(*ancestor_gid);
                 }
             }
-            if cureid.is_some() {
-                if !curancestortable.is_empty() {
-                    ancestor_rptrs.push((curancestortable.to_string(), curtable_pointers));
+            if let Some((_eid, gidroot)) = eid2gidroot {
+                if !cur_ancestor_table.is_empty() {
+                    ancestor_generated_entities.push(policy::TableEntities{
+                        table: cur_ancestor_table.to_string(),
+                        gids: cur_ancestor_gids,
+                        rptrs: cur_ancestor_rptrs,
+                    });
                 }
-                curtable_gids_to_ancestor_rptrs.push((gid, ancestor_rptrs));
+                ghost_families.push(GhostFamily{
+                    table: ancestor_table.to_string(),
+                    root_gid: gidroot,
+                    rptrs: ancestor_rptrs
+                });
             }
+        }
+        // these GIDs were stored in an actual non-ghost entity before decorrelation
+        // we need to update child in the MV to now show the EID
+        // and also put these GIDs back in the ghost map
+        if let Some((eid, _gidroot)) = eid2gidroot {
+            let eid_val = Value::Number(eid.to_string());
+
+            warn!("RESUB: actually restoring {} eid {}, gprtrs {:?}", table, eid, ghost_families);
+            if !self.ghost_maps.resubscribe(*eid, &ghost_families, db, table)? {
+                return Err(mysql::Error::IoError(io::Error::new(
+                    io::ErrorKind::Other, format!("not unsubscribed {}", eid))));
+            }             
+            
+            let mut children : EntityTypeRows;
+            for gfam in &ghost_families {
+                // update assignments in MV to use EID again for this gid
+                warn!("Getting children of ghost entity with gid {}", gid);
+                // get children of this ghost
+                match self.views.graph.get_children_of_parent(table, gfam.root_gid) {
+                    None => continue,
+                    Some(cs) => children = cs,
+                }
+                // for each child row
+                for ((child_table, child_ci), child_hrptrs) in children.iter() {
+                    let child_viewptr = self.views.get_view(&child_table).unwrap();
+                    let ghosted_cols = helpers::get_ghosted_col_indices_of(&self.decor_config, &child_table, &child_viewptr.borrow().columns);
+                    // if the child has a column that is ghosted and the ghost ID matches this gid
+                    for (ci, _) in &ghosted_cols {
+                        if ci == child_ci {
+                            for hrptr in child_hrptrs {
+                                if hrptr.row().borrow()[*ci].to_string() == gfam.root_gid.to_string() {
+                                    // then update this child to use the actual real EID
+                                    self.views.update_index_and_row_of_view(&child_table, hrptr.row().clone(), *ci, Some(&eid_val));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // TODO we also want to remove the ghost ancestors of this gid from the MV (while still
+                // keeping these ancestors on disk).
+                warn!("RESUB: update children of {} use EID {}us", gfam.root_gid, start.elapsed().as_micros());
+            }
+        }
+
+        // delete all ghosts from from MV
+        for (table, gidrptrs) in table_to_gid_rptrs.iter() {
+            self.views.delete_rptrs(&table, &gidrptrs.iter().map(|(_, rptr)| rptr.clone()).collect())?;
+            warn!("RESUB: remove {} ghost entities from view {} took {}us", gidrptrs.len(), table, start.elapsed().as_micros());
         }
 
         // delete from actual data table if was created during unsub
         // this includes any recursively created parents
-        if cureid.is_none() {
+        if eid2gidroot.is_none() {
             for (table, gidrptrs) in table_to_gid_rptrs.iter() {
                 let select_ghosts = Expr::InList{
                     expr: Box::new(Expr::Identifier(helpers::string_to_idents(ID_COL))),
@@ -2032,25 +2103,123 @@ impl QueryTransformer {
                 self.cur_stat.nqueries+=1;
             }
         }
+        Ok(())
+    }
 
-        // these GIDs were stored in an actual non-ghost entity before decorrelation
-        // we need to update child in the MV to now show the EID
-        // and also put these GIDs back in the ghost map
-        else if let Some(eid) = cureid {
-            let eid_val = Value::Number(eid.to_string());
+    pub fn rebuild_view_with_all_rows(&mut self,
+            name: &str,
+            columns: Vec<ColumnDef>,
+            constraints: Vec<TableConstraint>,
+            indexes: Vec<TableIndex>,
+            db: &mut mysql::Conn) => 
+    {
+        // get parent columns so that we can keep track of the graph 
+        let parent_cols_of_table = helpers::get_parent_col_indices_of_datatable(&self.decor_config, &name, columns);
+        
+        // create view for this table
+        self.views.add_view(
+            name.to_string(), 
+            columns,
+            &indexes,
+            &constraints,
+            &parent_cols_of_table,
+        );
+        let pi = self.views.get_view_pi(name);
+        
+        // 1. get all rows of this table; some may be ghosts
+        let get_all_rows_query = Query::select(Select{
+            distinct: true,
+            projection: vec![SelectItem::Wildcard],
+            from: vec![TableWithJoins{
+                relation: TableFactor::Table{
+                    name: name.clone(),
+                    alias: None,
+                },
+                joins: vec![],
+            }],
+            selection: None,
+            group_by: vec![],
+            having: None,
+        });
+        let rows = db.query_drop(get_all_rows_query.to_string())?;
+        
+        // 2. convert rows to appropriate rowptrs
+        let mut rptrs : RowPtrs = vec![];
+        for row in rows {
+            let vals = row.unwrap().unwrap();
+            let mut parsed_row = vec![];
+            for v in vals {
+                parsed_row.push(helpers::mysql_val_to_parser_val(&v));
+            }
+            rptrs.push(Rc::new(RefCell::new(parsed_row)));    
+        }
+        // 3. insert all eid rows AND potentially ghost rows back into the view
+        // We need to remove mapped-to ghosts and rewrite foreign key columns to point to EIDs at a later step
+        self.views.insert(name, None, &rptrs)?;
+    }
 
-            warn!("RESUB: actually restoring {} eid {}, gprtrs {:?}", curtable, eid, curtable_gids_to_ancestor_rptrs);
-            if !self.ghost_maps.resubscribe(*eid, &curtable_gids_to_ancestor_rptrs, db, curtable)? {
-                return Err(mysql::Error::IoError(io::Error::new(
-                    io::ErrorKind::Other, format!("not unsubscribed {}", eid))));
-            }             
-            
-            let mut children : EntityTypeRows;
-            for (gid, _) in &curtable_gids_to_ancestor_rptrs {
+    pub fn reupdate_with_ghost_mappings(&mut self, db: &mut mysql::Conn) (
+        // All views have been populated with BOTH ghost and real entities. In addition, none of
+        // the real entities have any children yet: child view entities always point to their ghost
+        // counterparts. 
+        //
+        // Only some of these view ghosts should be kept in the view, namely those that have no
+        // real counterpart (which has unsubscribed).
+        //
+        // For those that do have a real counterpart, we need to remove these ghosts from the view,
+        // and rewrite child view entities to point to the actual entity.
+
+        // collect the GIDs of each table that are currently mapped to a real EID
+        let mut table2gids_to_delete: HashMap<String, Vec<u64>> = HashMap::new();
+        let mut eid_to_fams: Vec<(u64, Vec<GhostFamily>)>;
+        for table in self.views.get_table_names() {
+            self.ghost_maps.new_cache_only(name.to_string());
+            let mut mappings : Vec<GhostEidMapping> = self.ghost_maps.get_ghost_eid_mappings(db, name);
+            for mut mapping in mappings {
+                let mut family_members = vec![];
+
+                let mut cur_table_ghost_entities = TableGhostEntities{
+                    table: mapping.ghosts[0].0, 
+                    gids: vec![],
+                    rptrs: vec![],
+                };
+                mapping.ghosts.sort();
+                for (ghost_table, gid) in mapping.ghosts {
+
+                    // update current table entities with rptr
+                    if ghost_table != cur_table_ghost_entities.table {
+                        family_members.push(cur_table_ghost_entities); 
+                        cur_table_ghost_entities = TableGhostEntities {
+                            table: ghost_table,
+                            gids: vec![],
+                            rptrs: vec![],
+                        };
+                    } 
+                    let rptr = self.views.get_row_of_id(ghost_table, gid);
+                    cur_table_ghost_entities.gids.push(gid);
+                    cur_table_ghost_entities.rptrs.push(rptr);
+
+                    // remember to delete this gid from the MV
+                    if let Some(gids) = table2gids_to_delete.get_mut(&ghost_table) {
+                        gids.push(gid);
+                    } else {
+                        table2gids_to_delete.insert(ghost_table, vec![gid]);
+                    }
+                }
+                family_members.push(cur_table_ghost_entities);
+                let (eid, gidroot) = mapping.eid2gidroot.unwrap();
+                eid_to_fams.push((eid, 
+                    GhostFamily {
+                        root_table: mappings.table,
+                        root_gid: gidroot,
+                        family_members: family_members,
+                    }
+                );
+
+                // get children of this parent
                 // update assignments in MV to use EID again for this gid
                 warn!("Getting children of ghost entity with gid {}", gid);
-                // get children of this ghost
-                match self.views.graph.get_children_of_parent(curtable, *gid) {
+                match self.views.graph.get_children_of_parent(mapping.table, gidroot) {
                     None => continue,
                     Some(cs) => children = cs,
                 }
@@ -2058,30 +2227,31 @@ impl QueryTransformer {
                 for ((child_table, child_ci), child_hrptrs) in children.iter() {
                     let child_viewptr = self.views.get_view(&child_table).unwrap();
                     let ghosted_cols = helpers::get_ghosted_col_indices_of(&self.decor_config, &child_table, &child_viewptr.borrow().columns);
+                    
                     // if the child has a column that is ghosted and the ghost ID matches this gid
                     for (ci, _) in &ghosted_cols {
                         if ci == child_ci {
                             for hrptr in child_hrptrs {
-                                if hrptr.row().borrow()[*ci].to_string() == gid.to_string() {
+                                if hrptr.row().borrow()[*ci].to_string() == gidroot.to_string() {
+                                    
                                     // then update this child to use the actual real EID
-                                    self.views.update_index_and_row_of_view(&child_table, hrptr.row().clone(), *ci, Some(&eid_val));
+                                    self.views.update_index_and_row_of_view(
+                                        &child_table, hrptr.row().clone(), 
+                                        *ci, Some(&Value::Number(eid.to_string())));
                                 }
                             }
                         }
                     }
                 }
-
-                // TODO we also want to remove the ghost ancestors of this gid from the MV (while still
-                // keeping these ancestors on disk).
-                warn!("RESUB: update children of {} use EID {}us", gid, start.elapsed().as_micros());
             }
         }
 
-        // delete all ghosts from from MV
-        for (table, gidrptrs) in table_to_gid_rptrs.iter() {
-            self.views.delete_rptrs(&table, &gidrptrs.iter().map(|(_, rptr)| rptr.clone()).collect())?;
-            warn!("RESUB: remove {} ghost entities from view {} took {}us", gidrptrs.len(), table, start.elapsed().as_micros());
+        // remove the ghosts that are mapped to read IDs
+        for (table, gids) in table2gids_to_delete.iter() {
+            self.views.delete_rptrs_with_ids(table, &gids);
         }
-        Ok(())
+
+        // all families into ghost maps cache to recreate in-memory mapping
+        self.ghost_maps.regenerate_cache_entries(&eids_to_fams);
     }
 }

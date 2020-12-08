@@ -43,9 +43,6 @@ impl HashedRowPtr {
     pub fn new(row: Rc<RefCell<Row>>, pki: usize) -> Self {
         HashedRowPtr(row.clone(), pki)
     }
-    pub fn new_empty(size: usize, pki: usize) -> Self {
-        HashedRowPtr(Rc::new(RefCell::new(vec![Value::Null; size])), pki)
-    }
     pub fn id(&self) -> u64 {
         helpers::parser_val_to_u64(&self.0.borrow()[self.1])
     }
@@ -110,8 +107,11 @@ pub struct View {
     pub parent_cols: Vec<(usize, String)>,
 }
 
-pub fn view_cols_rows_to_answer_rows<W: Write>(cols: &Vec<TableColumnDef>, rows: RowPtrs, cols_to_keep: &Vec<usize>, 
-                                               results: QueryResultWriter<W>)
+pub fn view_cols_rows_to_answer_rows<W: Write>(
+    cols: &Vec<TableColumnDef>, 
+    rows: RowPtrs, 
+    cols_to_keep: &Vec<usize>, 
+    results: QueryResultWriter<W>)
     -> Result<(), mysql::Error> 
 {
     let start = time::Instant::now();
@@ -498,6 +498,18 @@ impl Views {
             views: HashMap::with_capacity(INIT_CAPACITY),
             graph: graph::EntityGraph::new(),
         }
+    }
+    
+    pub fn get_row_of_id(&self, name: &str, id: u64) -> RowPtr {
+        let view_ptr = self.views.get(name).unwrap();
+        match view_ptr.borrow().rows.borrow().get(&id.to_string()) {
+            None => unimplemented!("View {}: No row for id {}", self.name, id),
+            Some(idrow) => idrow.clone(),
+        }
+    }
+ 
+    pub fn get_table_names(&self) -> Vec<String> {
+        self.views.iter().map(|(k, _)| k.to_string()).collect()
     }
     
     pub fn get_view(&self, name: &str) -> Option<Rc<RefCell<View>>> {

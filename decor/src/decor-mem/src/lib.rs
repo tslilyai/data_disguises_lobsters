@@ -11,6 +11,7 @@ use log::{warn, error};
 
 pub mod helpers;
 pub mod ghosts_map;
+pub mod ghost;
 pub mod query_transformer;
 pub mod views;
 pub mod sqlparser_cache;
@@ -21,8 +22,11 @@ pub mod graph;
 
 pub const INIT_CAPACITY: usize = 1000;
 pub const ID_COL: &str = "id";
-pub type GhostMappingShard = Vec<(String, Option<u64>, Vec<(String, u64)>)>; 
-pub type EntityDataShard = Vec<(String, Vec<String>)>;
+
+pub struct EntityData {
+    table: String, 
+    row_strs: Vec<String>
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
@@ -70,7 +74,7 @@ impl Shim {
         -> Result<(), mysql::Error> 
     {
         let mut db = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
-        if test_params.prime || test_params.testname.contains("decor") {
+        if test_params.prime {
             db.query_drop(&format!("DROP DATABASE IF EXISTS {};", dbname)).unwrap();
             db.query_drop(&format!("CREATE DATABASE {};", dbname)).unwrap();
         }
@@ -88,23 +92,44 @@ impl Shim {
         self.db.query_drop("SET max_heap_table_size = 4294967295;")?;
 
         /* issue schema statements but only if we're not priming and not decor */
-        if self.test_params.prime || self.test_params.testname.contains("decor") {
-            let mut stmt = String::new();
-            for line in self.schema.lines() {
-                if line.starts_with("--") || line.is_empty() {
-                    continue;
-                }
-                if !stmt.is_empty() {
-                    stmt.push_str(" ");
-                }
-                stmt.push_str(line);
-                if stmt.ends_with(';') {
-                    stmt = helpers::process_schema_stmt(&stmt, self.test_params.in_memory);
-                    let stmt_ast = self.sqlcache.get_single_parsed_stmt(&stmt)?;
+        let mut stmt = String::new();
+        for line in self.schema.lines() {
+            if line.starts_with("--") || line.is_empty() {
+                continue;
+            }
+            if !stmt.is_empty() {
+                stmt.push_str(" ");
+            }
+            stmt.push_str(line);
+            if stmt.ends_with(';') {
+                stmt = helpers::process_schema_stmt(&stmt, self.test_params.in_memory);
+                let stmt_ast = self.sqlcache.get_single_parsed_stmt(&stmt)?;
+                
+                // if we're not priming, the table already exists!
+                // add it as a MV
+                if !prime {
+                    match stmt_ast {
+                        Statement::CreateTable(CreateTableStatement{
+                            name,
+                            columns,
+                            constraints,
+                            indexes,
+                            with_options,
+                            if_not_exists,
+                            engine,
+                        }) => {
+                            self.qtrans.rebuild_view(name, columns, constraints, indexes, with_options, if_not_exists, &mut self.db);
+                        }
+                        _ => (),
+                    }
+                } else {
                     self.qtrans.query_drop(&stmt_ast, &mut self.db)?;                
                     stmt = String::new();
                 }
             }
+        }
+        if !prime {
+            self.qtrans.reupdate_with_ghost_mappings(&mut self.db)
         }
         Ok(())
     }

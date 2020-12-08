@@ -1,6 +1,6 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{helpers, policy, policy::GeneratedEntities, policy::EntityGhostPolicies, views::{Views, RowPtr}, ID_COL};
+use crate::{helpers, policy, policy::TableEntities, policy::EntityGhostPolicies, views::{Views, RowPtr}, ID_COL};
 use std::sync::atomic::Ordering;
 use std::*;
 use log::{warn, error};
@@ -15,24 +15,7 @@ pub const GHOST_ID_MAX: u64 = u32::MAX as u64;
 // this assumes that all entities have an integer identifying key
 const GHOST_ENTITY_COL : &'static str = "entity_id";
 const GHOST_ID_COL: &'static str = "ghost_id";
-
-pub fn create_ghosts_table(name: String, db: &mut mysql::Conn, in_memory: bool) -> Result<(), mysql::Error> {
-    db.query_drop(&format!("DROP TABLE IF EXISTS {};", name))?;
-    let mut q = format!(
-        r"CREATE TABLE IF NOT EXISTS {} (
-            `{}` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            `{}` int unsigned)", 
-        name, GHOST_ID_COL, GHOST_ENTITY_COL);
-    if in_memory {
-        q.push_str(" ENGINE = MEMORY");
-    }
-    db.query_drop(q)?;
-    let q = format!(r"ALTER TABLE {} AUTO_INCREMENT={};",
-        name, GHOST_ID_START);
-    db.query_drop(q)?;
-    warn!("drop/create/alter ghosts table {}", name);
-    Ok(())
-}
+const GHOST_DATA_COL: &'static str = "ghost_data";
 
 pub fn answer_rows<W: io::Write>(
     results: QueryResultWriter<W>,
@@ -68,19 +51,15 @@ pub fn answer_rows<W: io::Write>(
  *  - ghost map contains only mappings between real entity EIDs and their ghost counterpart GIDs;
  *      these mappings only exist for edges that are *preemptively* created because the edge type
  *      can be decorrelated.
- *  - these GIDs always correspond to actual ghosts in the datatables, and these ghosts always
- *      exist
+ *  - these GIDs always correspond to actual ghosts in the datatables, which always exist
  *  - these ghost sibling entities MAY have parents who are also ghosts which are not present in
  *      the mapping to ensure referential integrity; these rptrs are contained in the mapping
  */
 pub struct GhostsMap{
     table_name: String,
     name: String,
-    // only those entities that actually had gids are marked
-    // as unsubscribed
-    unsubscribed: HashSet<u64>,
-    eid2gids: HashMap<u64, Vec<(u64, GeneratedEntities)>>,
-    gid2eid: HashMap<u64, (u64, GeneratedEntities)>,
+    eid2gids: HashMap<u64, Vec<GhostFamily>>,
+    gid2eid: HashMap<u64, u64>,
     latest_gid: AtomicU64,
     
     pub nqueries: usize,
@@ -88,13 +67,33 @@ pub struct GhostsMap{
 
 
 impl GhostsMap {
-    pub fn new(table_name: String, db: &mut mysql::Conn, in_memory: bool) -> Self {
+    pub fn create_ghosts_table(name: String, db: &mut mysql::Conn, in_memory: bool) -> Result<(), mysql::Error> {
+        db.query_drop(&format!("DROP TABLE IF EXISTS {};", name))?;
+        let mut q = format!(
+            r"CREATE TABLE IF NOT EXISTS {} (
+                `{}` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                `{}` int unsigned, 
+                `{}` varchar(4096), INDEX eid (`{}`)", 
+            name, GHOST_ID_COL, GHOST_ENTITY_COL, GHOST_DATA_COL, GHOST_ENTITY_COL);
+        if in_memory {
+            q.push_str(" ENGINE = MEMORY");
+        }
+        db.query_drop(q)?;
+        let q = format!(r"ALTER TABLE {} AUTO_INCREMENT={};",
+            name, GHOST_ID_START);
+        db.query_drop(q)?;
+        warn!("drop/create/alter ghosts table {}", name);
+        Ok(())
+    }
+
+    pub fn new(table_name: String, db: Option<&mut mysql::Conn>, in_memory: bool) -> Self {
         let name = format!("ghost{}", table_name);
-        create_ghosts_table(name.clone(), db, in_memory).unwrap();
+        if let Some(db) = db {
+            create_ghosts_table(name.clone(), db, in_memory).unwrap();
+        }
         GhostsMap{
             table_name: table_name.clone(),
             name: name.clone(),
-            unsubscribed: HashSet::new(),
             eid2gids: HashMap::new(),
             gid2eid: HashMap::new(),
             latest_gid: AtomicU64::new(GHOST_ID_START),
@@ -107,79 +106,59 @@ impl GhostsMap {
      * Returns a hash of the list of ghosts if user is not yet unsubscribed,
      * else None if the user is already unsubscribed
      */
-    fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn) -> Result<Option<Vec<(u64, GeneratedEntities)>>, mysql::Error> {
+    fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn) -> Result<Option<Vec<GhostFamily>>, mysql::Error> {
         warn!("{} Unsubscribing {}", self.name, eid);
         let start = time::Instant::now();
-        if self.unsubscribed.get(&eid).is_none() {
-            //self.cache_eid2gids_for_eids(&vec![eid])?;
-            if let Some(gidrptrs) = self.eid2gids.remove(&eid) {
-                let mut gidrowptrs = vec![];
-                let mut gids = vec![];
-                
-                // remove gids from reverse mapping
-                for (gid, vals) in &gidrptrs {
-                    self.gid2eid.remove(gid);
-                    gidrowptrs.push((*gid, vals.clone()));
-                    gids.push(*gid);
-                }
-
-                if !gids.is_empty() {
-                    self.unsubscribed.insert(eid); 
-                }
-
-                // delete from ghosts table
-                let delete_stmt = Statement::Delete(DeleteStatement{
-                    table_name: helpers::string_to_objname(&self.name),
-                    selection: Some(Expr::InList{
-                        expr: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_ID_COL))),
-                        list: gids.iter().map(|g| Expr::Value(Value::Number(g.to_string()))).collect(),
-                        negated: false,
-                    }),
-                });
-                db.query_drop(format!("{}", delete_stmt))?;
-                self.nqueries+=1;
-                warn!("{} issue_update_dt_stmt: {}, dur {}us", self.name, delete_stmt, start.elapsed().as_micros());
-           
-                // return the gids
-                warn!("{} Found {} gids for {}", self.name, gids.len(), eid);
-                return Ok(Some(gidrowptrs));
-            } else {
-                return Ok(None);
+        if let Some(ghost_families) = self.eid2gids.remove(&eid) {
+            let mut gids = vec![];
+            let mut families = vec![];
+            
+            // remove gids from reverse mapping
+            for family in &ghost_families {
+                self.gid2eid.remove(family.root_gid);
+                families.push(family);
+                gids.push(family.root_gid);
             }
-        } else {
-            warn!("{}: {} already unsubscribed", self.name, eid);
-        }
-        Ok(None)
-    }
- 
+
+            // delete from ghosts table
+            let delete_stmt = Statement::Delete(DeleteStatement{
+                table_name: helpers::string_to_objname(&self.name),
+                selection: Some(Expr::InList{
+                    expr: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_ID_COL))),
+                    list: gids.iter().map(|g| Expr::Value(Value::Number(g.to_string()))).collect(),
+                    negated: false,
+                }),
+            });
+            db.query_drop(format!("{}", delete_stmt))?;
+            self.nqueries+=1;
+            warn!("{} issue_update_dt_stmt: {}, dur {}us", self.name, delete_stmt, start.elapsed().as_micros());
+       
+            // return the gids
+            warn!("{} Found {} gids for {}", self.name, gids.len(), eid);
+            return Ok(Some(families));
+        } 
+        return Ok(None);
+    }  
     /* 
      * Removes the eid unsubscribing.
      * Returns true if was unsubscribed 
      */
-    pub fn resubscribe(&mut self, eid: u64, gidrptrs: &Vec<(u64, GeneratedEntities)>, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
-        // check hash and ensure that user has been unsubscribed
-        // TODO could also use MAC to authenticate user
+    pub fn resubscribe(&mut self, 
+                       eid: u64, 
+                       ghost_families: &Vec<GhostFamily>,
+                       db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
         warn!("{} Resubscribing {}", self.name, eid);
         let start = time::Instant::now();
-        if !self.unsubscribed.remove(&eid) {
-            return Ok(false);
-        }
-        let mut ghosts_of_eid = vec![];
+       
+        self.regenerate_cache_entry(eid, ghost_families);
+
         let mut pairs = vec![];
-        for (gid, ghost_ancestors) in gidrptrs {
-            self.gid2eid.insert(*gid, (eid, ghost_ancestors.clone()));
-
-            // insert into backward map
-            ghosts_of_eid.push((*gid, ghost_ancestors.clone()));
-
-            // save values to insert into ghosts table
-            pairs.push(format!("({}, {})", *gid, eid));
+        for family in ghost_families {
+            pairs.push(ghost::ghost_family_to_db_entry(eid, family);
         }
-        // insert into foward map
-        assert!(self.eid2gids.insert(eid, ghosts_of_eid).is_none());
-
         // insert into ghost table
-        let insert_query = &format!("INSERT INTO {} ({}, {}) VALUES {};", self.name, GHOST_ID_COL, GHOST_ENTITY_COL, pairs.join(","));
+        let insert_query = &format!("INSERT INTO {} ({}, {}, {}) VALUES {};", 
+                                    self.name, GHOST_ID_COL, GHOST_ENTITY_COL, GHOST_DATA_COL, pairs.join(","));
         warn!("Inserting into ghosts table {}", insert_query);
         db.query_iter(insert_query)?;
         self.nqueries+=1;
@@ -187,15 +166,26 @@ impl GhostsMap {
         Ok(true)
     }
 
-    pub fn insert_gid_into_caches(&mut self, eid:u64, gid:u64, vals: GeneratedEntities) {
-        warn!("{} insert {}, {:?} into caches for eid {}", self.name, gid, vals, eid);
+    fn regenerate_cache_entry(&mut self, eid: u64, ghost_families: &Vec<GhostFamily>) {
+        let start = time::Instant::now();
+        let mut families_of_eid = vec![];
+        for family in ghost_families {
+            self.gid2eid.insert(family.root_gid, eid);
+            // save to insert into forward map
+            families_of_eid.push(family.clone());
+        }
+        // insert into foward map
+        assert!(self.eid2gids.insert(eid, families_of_eid).is_none());
+    }
+
+    pub fn insert_gid_into_caches(&mut self, eid:u64, gfam: GhostFamily) {
         match self.eid2gids.get_mut(&eid) {
-            Some(gids) => (*gids).push((gid,vals.clone())),
+            Some(gfams) => (*gfams).push(gfam),
             None => {
-                self.eid2gids.insert(eid, vec![(gid, vals.clone())]);
+                self.eid2gids.insert(eid, vec![gfam]);
             }
         }
-        self.gid2eid.insert(gid, (eid, vals));
+        self.gid2eid.insert(gid, eid);
     }
  
     pub fn update_eid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn)
@@ -204,11 +194,11 @@ impl GhostsMap {
         let mut gids_to_delete = vec![];
         for (eid, gid) in pairs {
             // delete current mapping
-            let mut vals: Option<GeneratedEntities> = None;
-            if let Some((oldeid, oldvals)) = self.gid2eid.get(gid) {
-                vals = Some(oldvals.clone());
-                if let Some(gids) = self.eid2gids.get_mut(&oldeid) {
-                    gids.retain(|(x, _)| *x != *gid);
+            let mut vals: Option<GhostFamily> = None;
+            if let Some(oldeid) = self.gid2eid.get(gid) {
+                if let Some(gfams) = self.eid2gids.get_mut(&oldeid) {
+                    let pos = gfams.iter().position(|gfam| gfam.root_gid == *gid).unwrap();
+                    vals = Some(gfams.remove(pos));
                 }
                 self.gid2eid.remove(gid);
             }
@@ -274,27 +264,27 @@ impl GhostsMap {
         Ok(())
     }
 
-    pub fn take_one_gidrptr_for_eid(&mut self, eid: u64, db: &mut mysql::Conn) -> 
-        Result<Option<(u64, GeneratedEntities)>, mysql::Error> 
+    pub fn take_one_ghost_family_for_eid(&mut self, eid: u64, db: &mut mysql::Conn) -> 
+        Result<Option<GhostFamily>, mysql::Error> 
     {
-        let gids = self.eid2gids.get_mut(&eid).ok_or(
+        let ghost_fams = self.eid2gids.get_mut(&eid).ok_or(
                 mysql::Error::IoError(io::Error::new(
                     io::ErrorKind::Other, "get_gids: eid not present in cache?")))?;
 
-        if let Some((gid, rptr)) = gids.pop() {
+        if let Some(fam) = ghost_fams.pop() {
             // delete mapping
             let delete_stmt = Statement::Delete(DeleteStatement{
                 table_name: helpers::string_to_objname(&self.name),
                 selection: Some(Expr::BinaryOp{
                     left: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_ID_COL))),
                     op: BinaryOperator::Eq,
-                    right: Box::new(Expr::Value(Value::Number(gid.to_string()))),
+                    right: Box::new(Expr::Value(Value::Number(fam.gid.to_string()))),
                 }),
             });
             warn!("{} delete from eid2gids_with : {}", self.name, delete_stmt);
             db.query_drop(format!("{}", delete_stmt))?;
             self.nqueries+=1;
-            Ok(Some((gid, rptr)))
+            Ok(Some(fam))
         } else {
             Ok(None)
         }
@@ -331,100 +321,31 @@ impl GhostsMap {
                                 eid: u64, db: &mut mysql::Conn) 
         -> Result<u64, mysql::Error> 
     {
-        // user ids are always ints
-        let insert_query = &format!("INSERT INTO {} ({}) VALUES ({});", self.name, GHOST_ENTITY_COL, eid);
         let start = time::Instant::now();
-        let res = db.query_iter(insert_query)?;
-        self.nqueries+=1;
-        let dur = start.elapsed();
-        warn!("{} insert_gid_for_eid {}: {}us", self.name, eid, dur.as_millis());
-        
-        // we want to insert the GID in place of the eid
-        let gid = res.last_insert_id().ok_or_else(|| 
-            mysql::Error::IoError(io::Error::new(
-                io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
-        drop(res);
-        warn!("Issue ghost parents with gid {} for {}", gid, eid);
-      
-        // actually generate parent ghost entities for this table
+       
+        let gid = self.latest_gid.fetch_add(1, Ordering::SeqCst);
         let new_entities = policy::generate_new_entities_from(
             views, gp, db, &self.table_name, from_vals, &vec![Value::Number(gid.to_string())], None, &mut self.nqueries)?;
-        
-        self.insert_gid_into_caches(eid, gid, new_entities.clone());
-        Ok(gid)
-    }
 
-    /*pub fn insert_gids_for_eids(&mut self, 
-                                views: &Views,
-                                gp: &GhostPolicy,
-                                from_vals: RowPtr,
-                                eids: &Vec<u64>, 
-                                db: &mut mysql::Conn) 
-        -> Result<Vec<u64>, mysql::Error> 
-    {
-        // user ids are always ints
-        let eid_strs = vec![];
-        for eid in eids{
-            eid_strs.push(format!("({})", eid.to_string()));
-        }
-        let insert_query = &format!("INSERT INTO {} ({}) VALUES {};", 
-                            self.name, GHOST_ENTITY_COL, eid_strs.join(','));
-        let start = time::Instant::now();
+        let new_family = GhostFamily{
+            root_table: self.table_name,
+            root_gid: gid,
+            family_members: new_entities,
+        };
+        // insert into in-memory cache
+        self.insert_gid_into_caches(eid, new_family);
+
+        // insert into DB
+        let dbentry = ghost::ghost_family_to_db_entry(eid, new_family);
+        let insert_query = &format!("INSERT INTO {} ({}, {}, {}) VALUES {};", 
+                                    self.name, GHOST_ID_COL, GHOST_ENTITY_COL, GHOST_DATA_COL, dbentry);
         let res = db.query_iter(insert_query)?;
         self.nqueries+=1;
         let dur = start.elapsed();
-        warn!("{} insert_gid_for_eids {:?}: {}us", self.name, eids, dur.as_millis());
         
-        // we want to insert the GID in place of the eid
-        let last_gid = res.last_insert_id().ok_or_else(|| 
-            mysql::Error::IoError(io::Error::new(
-                io::ErrorKind::Other, "Last GID inserted could not be retrieved")))?;
-        let gids : Vec<u64> = (last_gid +1 - eids.len())..(last_gid+1).collect();
-
-        // actually generate parent ghost entities for this table
-        let new_entities = policy::generate_new_entities_from(
-            views, gp, db, &self.table_name, from_vals, 
-            eids.iter().map(|e| Value::Number(e.to_string())).collect(), 
-            None, &mut self.nqueries)?;
-        
-        // insert new ghost entities into cache
-        for i in 0..new_entities.len() {
-            self.insert_gid_into_caches(eids[i], gids[i], new_entities[i].2);
-        }
-        Ok(gids)
-    }*/
-
-    /* 
-     * Add eid->gid mapping to cache if mapping not yet present
-     * by querying the ghosts mapping table
-     */
-    /*pub fn cache_eid2gids_for_eids(&mut self, eids: &Vec<u64>) -> Result<(), mysql::Error>
-    {
-        let mut uncached_eids = vec![];
-        for eid in eids {
-            if self.eid2gids.get(&eid) == None {
-                uncached_eids.push(eids[0])
-            }
-        }
-        /*let selection : Expr;
-        if eids.len() == 1 {
-            selection = Expr::BinaryOp{
-                left: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_ENTITY_COL))),
-                op: BinaryOperator::Eq, 
-                right: Box::new(Expr::Value(Value::Number(eids[0].to_string()))),
-            };
-        } else {
-            selection =  Expr::InList{
-                expr: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_ENTITY_COL))),
-                list: uncached_eids.iter().map(|u| Expr::Value(Value::Number(u.to_string()))).collect(),
-                negated: false, 
-            };
-        }
-        if uncached_eids.len() > 0 {
-            unimplemented!("ghosts always should be in cache (as a MV)");
-        }*/
-        Ok(())
-    }*/
+        warn!("{} insert_gid_for_eid {}, {}: {}us", self.name, gid, eid, dur.as_millis());
+        Ok(gid)
+    }
 }
 
 pub struct GhostMaps{
@@ -438,8 +359,12 @@ impl GhostMaps{
         }
     }
 
-    pub fn insert(&mut self, name: String, db: &mut mysql::Conn, in_mem: bool) {
-        self.ghost_maps.insert(name.to_string(), GhostsMap::new(name.to_string(), db, in_mem));
+    pub fn new(&mut self, name: String, db: &mut mysql::Conn, in_mem: bool) {
+        self.ghost_maps.insert(name.to_string(), GhostsMap::new(name.to_string(), Some(db), in_mem));
+    }
+
+    pub fn new_cache_only(&mut self, name: String) {
+        self.ghost_maps.insert(name.to_string(), GhostsMap::new(name.to_string(), None, true));
     }
 
     pub fn insert_gid_for_eid(&mut self, 
@@ -451,11 +376,6 @@ impl GhostMaps{
         let gm = self.ghost_maps.get_mut(table_name).unwrap();
         gm.insert_gid_for_eid(views, gp, from_vals, eid, db)
     }
-
-    /*pub fn insert_gids_for_eids(&mut self, eids: &Vec<u64>, db: &mut mysql::Conn, parent_str: &str) -> Result<Vec<u64>, mysql::Error> {
-        let gm = self.ghost_maps.get_mut(parent_str);
-        gm.insert_gids_for_eids(eids, db)
-    }*/
 
     pub fn get_nqueries(&mut self) -> usize {
         let mut n = 0;
@@ -487,19 +407,55 @@ impl GhostMaps{
         gm.update_eid2gids_with(pairs, db)
     }
 
-    pub fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn, parent_table: &str) -> Result<Option<Vec<(u64, GeneratedEntities)>>, mysql::Error> {
+    pub fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn, parent_table: &str) -> Result<Option<Vec<GhostFamily>>>, mysql::Error> {
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
         gm.unsubscribe(eid, db)
     }
-    pub fn resubscribe(&mut self, eid: u64, gidrptrs: &Vec<(u64, GeneratedEntities)>, db: &mut mysql::Conn, parent_table: &str) -> Result<bool, mysql::Error> {
+    pub fn resubscribe(&mut self, eid: u64, families: &Vec<GhostFamily>, db: &mut mysql::Conn, parent_table: &str) -> Result<bool, mysql::Error> {
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
-        gm.resubscribe(eid, gidrptrs, db)
+        gm.resubscribe(eid, families, db)
     }
 
     pub fn take_one_gidrptr_for_eid(&mut self, eid: u64, db: &mut mysql::Conn, parent_table: &str) -> 
-        Result<Option<(u64, GeneratedEntities)>, mysql::Error> {
+        Result<Option<(u64, TableEntities)>, mysql::Error> {
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
         gm.take_one_gidrptr_for_eid(eid, db)
     }
 
+    pub fn gid_has_eid(&mut self, db: &mut mysql::Conn, parent_table: &str) -> bool {
+        let gm = self.ghost_maps.get_mut(parent_table).unwrap();
+    }
+ 
+    pub fn get_ghost_eid_mappings(&mut self, db: &mut mysql::Conn, table: &str) -> 
+        Result<Vec<GhostEidMapping>, mysql::Error> {
+        let gm = self.ghost_maps.get_mut(table).unwrap();
+        let mut mappings = vec![]; 
+
+        let res = db.query_iter(format!("SELECT * FROM {}", gm.name));
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert!(vals.len()==3);
+            
+            let root_gid = helpers::mysql_val_to_u64(&vals[0]);
+            let eid = helpers::mysql_val_to_u64(&vals[1]);
+            let ghostsdata = helpers::mysql_val_to_string(&vals[2]);
+            let ghostdata = ghostdata.trim_end_matches('\'').trim_start_matches('\'');
+            let family_ghost_names = serde_json::from_str(&ghostdata).unwrap();
+            let mapping = GhostEidMapping {
+                table: table,
+                eid2gidroot: Some((eid, root_gid)),
+                ghosts: family_ghost_names,
+            }
+            mappings.push(mapping);
+        }
+        mappings
+    }
+
+    pub fn regenerate_cache_entries(&mut self, eids_to_fams: &Vec<(u64, &Vec<GhostFamily>)> {
+        // get rows corresponding to these ghost family names
+        let gm = self.ghost_maps.get_mut(parent_table).unwrap();
+        for (eid, ghost_families) in eid_to_fams {
+            gm.regenerate_cache_entry(eid, ghost_families);
+        }
+    }
 }

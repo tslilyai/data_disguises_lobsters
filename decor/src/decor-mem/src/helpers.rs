@@ -100,10 +100,6 @@ pub fn get_ghosted_cols_of_datatable(decor_config: &policy::Config, table_name: 
     if let Some(colnames) = decor_config.parent_child_ghosted_tables.get(&table_name.to_string()) {
         c.append(&mut colnames.clone());
     } 
-    //XXX if you decorrelate parent->child, you should decorrelate child->parent
-    /*if let Some(colnames) = decor_config.child_parent_ghosted_tables.get(&table_name.to_string()) {
-        c.append(&mut colnames.clone());
-    }*/
     c
 }
 pub fn get_ghosted_col_indices_of(decor_config: &policy::Config, table_name: &str, columns: &Vec<views::TableColumnDef>) 
