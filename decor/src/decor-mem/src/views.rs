@@ -503,7 +503,7 @@ impl Views {
     pub fn get_row_of_id(&self, name: &str, id: u64) -> RowPtr {
         let view_ptr = self.views.get(name).unwrap();
         match view_ptr.borrow().rows.borrow().get(&id.to_string()) {
-            None => unimplemented!("View {}: No row for id {}", self.name, id),
+            None => unimplemented!("View {}: No row for id {}", view_ptr.borrow().name, id),
             Some(idrow) => idrow.clone(),
         }
     }

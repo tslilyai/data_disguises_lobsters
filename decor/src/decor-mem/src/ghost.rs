@@ -1,45 +1,65 @@
+use std::*;
+use rand::prelude::*;
+use mysql::prelude::*;
+use sql_parser::ast::*;
+use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::rc::Rc;
+use log::{debug, warn, error};
+
+use crate::{helpers, ghosts_map, views, ID_COL};
+use crate::views::{Views, RowPtrs, RowPtr};
+use crate::policy::{GhostColumnPolicy, GeneratePolicy, EntityGhostPolicies};
+
 /* 
  * a single table's ghosts and their rptrs
  */
-pub struct TableGhostEntities = {
+#[derive(Debug, Clone)]
+pub struct TableGhostEntities {
     pub table: String, 
-    pub gids: Vec<Value>,
+    pub gids: Vec<u64>,
     pub rptrs: RowPtrs,
-};
+}
+
 /* 
  * a root ghost and the descendant ghosts 
  */
+#[derive(Debug, Clone)]
 pub struct GhostFamily {
     pub root_table: String,
     pub root_gid: u64,
     pub family_members: Vec<TableGhostEntities>,
 }
 impl GhostFamily {
-    pub fn ghost_family_to_db_string(eid: u64, gfam: &GhostFamily) -> String {
-        let ghost_names = vec![];
-        for gid in gfam.gids {
-            ghost_names.push((family.table, gid));
+    pub fn ghost_family_to_db_string(&self, eid: u64) -> String {
+        let mut ghost_names : Vec<(String, String)> = vec![];
+        for tableghosts in &self.family_members{
+            for gid in &tableghosts.gids {
+                ghost_names.push((tableghosts.table.to_string(), (*gid).to_string()));
+            }
         }
         let ghostdata = serde_json::to_string(&ghost_names).unwrap();
-        format!("({}, {}, {}", eid, gfma.root_gid, ghostdata)
+        format!("({}, {}, {}", eid, self.root_gid, ghostdata)
     }
 }
+
 /*
  * A variant of eid -> family of ghosts to store on-disk or serialize (no row pointers!)
  */
+#[derive(Serialize, Deserialize, PartialOrd, Ord, PartialEq, Eq, Clone)]
 pub struct GhostEidMapping {
-    table: String,
-    eid2gidroot: Option<(u64, u64)>,
-    ghosts: Vec<(String, u64),
+    pub table: String,
+    pub eid2gidroot: Option<(u64, u64)>,
+    pub ghosts: Vec<(String, u64)>,
 }
 
 /* 
  * a base true entity upon which to generate ghosts
  */
 pub struct TemplateEntity {
-    table: String,
-    row: RowPtr,
-    fixed_colvals: Option<Vec<(usize, Value)>>,
+    pub table: String,
+    pub row: RowPtr,
+    pub fixed_colvals: Option<Vec<(usize, Value)>>,
 }
 
 pub fn generate_new_ghosts_with_gids(
@@ -54,11 +74,11 @@ pub fn generate_new_ghosts_with_gids(
     use GhostColumnPolicy::*;
     let start = time::Instant::now();
     let mut new_entities : Vec<TableGhostEntities> = vec![];
-    let from_cols = views.get_view_columns(template.table);
+    let from_cols = views.get_view_columns(&template.table);
 
     // NOTE : generating entities with foreign keys must also have ways to 
     // generate foreign key entity or this will panic
-    let gp = ghost_policies.get(template.table).unwrap();
+    let gp = ghost_policies.get(&template.table).unwrap();
     warn!("Getting policies from {:?}, columns {:?}", gp, from_cols);
     let policies : Vec<GhostColumnPolicy> = from_cols.iter().map(|col| gp.get(&col.to_string()).unwrap().clone()).collect();
     let num_entities = gids.len();
@@ -77,7 +97,7 @@ pub fn generate_new_ghosts_with_gids(
         }
 
         // set colval if specified
-        if let Some(fixed) = template.fixed_colvals {
+        if let Some(fixed) = &template.fixed_colvals {
             for (ci, val) in fixed {
                 if i == *ci {
                     for n in 0..num_entities {
@@ -111,15 +131,10 @@ pub fn generate_new_ghosts_with_gids(
             }
         }
     }
-    new_entities.push(GeneratedEntity{
-        table: template.table.to_string(), 
-        gids: gids.clone(),
-        rptrs: new_vals,
-    });
-  
+ 
     // insert new rows into actual data tables 
     let mut parser_rows = vec![];
-    for row in new_vals {
+    for row in &new_vals {
         let parser_row = row.borrow().iter()
             .map(|v| Expr::Value(v.clone()))
             .collect();
@@ -134,7 +149,7 @@ pub fn generate_new_ghosts_with_gids(
         offset: None,
     }));
     let dt_stmt = Statement::Insert(InsertStatement{
-        table_name: helpers::string_to_objname(template.table),
+        table_name: helpers::string_to_objname(&template.table),
         columns : from_cols.clone(),
         source : source, 
     });
@@ -142,6 +157,12 @@ pub fn generate_new_ghosts_with_gids(
     db.query_drop(dt_stmt.to_string())?;
     *nqueries+=1;
 
+    new_entities.push(TableGhostEntities{
+        table: template.table.to_string(), 
+        gids: gids.iter().map(|gval| helpers::parser_val_to_u64(&gval)).collect(),
+        rptrs: new_vals,
+    });
+ 
     warn!("GHOSTS: adding {} new entities {:?} for table {}, dur {}", 
           num_entities, new_entities, template.table, start.elapsed().as_micros());
     Ok(new_entities)
@@ -174,7 +195,7 @@ pub fn generate_foreign_key_val(
     new_entities.append(&mut generate_new_ghosts_with_gids(
         views, ghost_policies, db, 
         &TemplateEntity{
-            table: table_name,
+            table: table_name.to_string(),
             row: random_row,
             fixed_colvals: None,
         },
@@ -198,6 +219,6 @@ pub fn get_generated_val(
         Random => Ok(helpers::get_random_parser_val_from(&base_val)),
         Default(val) => Ok(helpers::get_default_parser_val_with(&base_val, &val)),
         //Custom(f) => helpers::get_computed_parser_val_with(&base_val, &f),
-        ForeignKey(table_name) => generate_foreign_key_value(views, ghost_policies, db, table_name, new_entities, nqueries),
+        ForeignKey(table_name) => generate_foreign_key_val(views, ghost_policies, db, table_name, new_entities, nqueries),
     }
 }

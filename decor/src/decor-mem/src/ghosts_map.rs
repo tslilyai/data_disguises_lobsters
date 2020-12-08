@@ -1,11 +1,12 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{helpers, policy, policy::TableEntities, policy::EntityGhostPolicies, views::{Views, RowPtr}, ID_COL};
+use crate::{ghost, helpers, policy::EntityGhostPolicies, views::{Views, RowPtr}, ID_COL};
+use crate::ghost::{GhostEidMapping, GhostFamily, TemplateEntity};
 use std::sync::atomic::Ordering;
 use std::*;
 use log::{warn, error};
 use std::sync::atomic::{AtomicU64};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use msql_srv::{QueryResultWriter};
 
 pub const GHOST_ID_START : u64 = 1<<20;
@@ -45,6 +46,24 @@ pub fn answer_rows<W: io::Write>(
     writer.finish()?;
     Ok(())
 }
+fn create_ghosts_table(name: String, db: &mut mysql::Conn, in_memory: bool) -> Result<(), mysql::Error> {
+    db.query_drop(&format!("DROP TABLE IF EXISTS {};", name))?;
+    let mut q = format!(
+        r"CREATE TABLE IF NOT EXISTS {} (
+            `{}` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            `{}` int unsigned, 
+            `{}` varchar(4096), INDEX eid (`{}`)", 
+        name, GHOST_ID_COL, GHOST_ENTITY_COL, GHOST_DATA_COL, GHOST_ENTITY_COL);
+    if in_memory {
+        q.push_str(" ENGINE = MEMORY");
+    }
+    db.query_drop(q)?;
+    let q = format!(r"ALTER TABLE {} AUTO_INCREMENT={};",
+        name, GHOST_ID_START);
+    db.query_drop(q)?;
+    warn!("drop/create/alter ghosts table {}", name);
+    Ok(())
+}
 
 /*
  * INVARIANTS:
@@ -67,25 +86,6 @@ pub struct GhostsMap{
 
 
 impl GhostsMap {
-    pub fn create_ghosts_table(name: String, db: &mut mysql::Conn, in_memory: bool) -> Result<(), mysql::Error> {
-        db.query_drop(&format!("DROP TABLE IF EXISTS {};", name))?;
-        let mut q = format!(
-            r"CREATE TABLE IF NOT EXISTS {} (
-                `{}` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                `{}` int unsigned, 
-                `{}` varchar(4096), INDEX eid (`{}`)", 
-            name, GHOST_ID_COL, GHOST_ENTITY_COL, GHOST_DATA_COL, GHOST_ENTITY_COL);
-        if in_memory {
-            q.push_str(" ENGINE = MEMORY");
-        }
-        db.query_drop(q)?;
-        let q = format!(r"ALTER TABLE {} AUTO_INCREMENT={};",
-            name, GHOST_ID_START);
-        db.query_drop(q)?;
-        warn!("drop/create/alter ghosts table {}", name);
-        Ok(())
-    }
-
     pub fn new(table_name: String, db: Option<&mut mysql::Conn>, in_memory: bool) -> Self {
         let name = format!("ghost{}", table_name);
         if let Some(db) = db {
@@ -111,12 +111,12 @@ impl GhostsMap {
         let start = time::Instant::now();
         if let Some(ghost_families) = self.eid2gids.remove(&eid) {
             let mut gids = vec![];
-            let mut families = vec![];
+            let mut families : Vec<GhostFamily> = vec![];
             
             // remove gids from reverse mapping
-            for family in &ghost_families {
-                self.gid2eid.remove(family.root_gid);
-                families.push(family);
+            for family in ghost_families {
+                self.gid2eid.remove(&family.root_gid);
+                families.push(family.clone());
                 gids.push(family.root_gid);
             }
 
@@ -154,7 +154,7 @@ impl GhostsMap {
 
         let mut pairs = vec![];
         for family in ghost_families {
-            pairs.push(ghost::ghost_family_to_db_entry(eid, family);
+            pairs.push(family.ghost_family_to_db_string(eid));
         }
         // insert into ghost table
         let insert_query = &format!("INSERT INTO {} ({}, {}, {}) VALUES {};", 
@@ -167,25 +167,28 @@ impl GhostsMap {
     }
 
     fn regenerate_cache_entry(&mut self, eid: u64, ghost_families: &Vec<GhostFamily>) {
-        let start = time::Instant::now();
         let mut families_of_eid = vec![];
         for family in ghost_families {
             self.gid2eid.insert(family.root_gid, eid);
             // save to insert into forward map
             families_of_eid.push(family.clone());
         }
-        // insert into foward map
-        assert!(self.eid2gids.insert(eid, families_of_eid).is_none());
+
+        if let Some(families) = self.eid2gids.get_mut(&eid) {
+            families.append(&mut families_of_eid);
+        } else {
+            self.eid2gids.insert(eid, families_of_eid);
+        }
     }
 
     pub fn insert_gid_into_caches(&mut self, eid:u64, gfam: GhostFamily) {
         match self.eid2gids.get_mut(&eid) {
-            Some(gfams) => (*gfams).push(gfam),
+            Some(gfams) => (*gfams).push(gfam.clone()),
             None => {
-                self.eid2gids.insert(eid, vec![gfam]);
+                self.eid2gids.insert(eid, vec![gfam.clone()]);
             }
         }
-        self.gid2eid.insert(gid, eid);
+        self.gid2eid.insert(gfam.root_gid, eid);
     }
  
     pub fn update_eid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn)
@@ -200,7 +203,7 @@ impl GhostsMap {
                     let pos = gfams.iter().position(|gfam| gfam.root_gid == *gid).unwrap();
                     vals = Some(gfams.remove(pos));
                 }
-                self.gid2eid.remove(gid);
+                self.gid2eid.remove(&gid);
             }
 
             // delete from datatable if eid is none (set to NULL)
@@ -210,7 +213,7 @@ impl GhostsMap {
 
             // update if there is a new mapping
             else if let Some(neweid) = eid {
-                self.insert_gid_into_caches(*neweid, *gid, vals.unwrap());
+                self.insert_gid_into_caches(*neweid, vals.unwrap());
                 
                 // XXX what if the value IS a GID??? should we just remove this GID?
                 let update_stmt = Statement::Update(UpdateStatement {
@@ -278,7 +281,7 @@ impl GhostsMap {
                 selection: Some(Expr::BinaryOp{
                     left: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_ID_COL))),
                     op: BinaryOperator::Eq,
-                    right: Box::new(Expr::Value(Value::Number(fam.gid.to_string()))),
+                    right: Box::new(Expr::Value(Value::Number(fam.root_gid.to_string()))),
                 }),
             });
             warn!("{} delete from eid2gids_with : {}", self.name, delete_stmt);
@@ -297,7 +300,7 @@ impl GhostsMap {
         let gids = self.eid2gids.get(&eid).ok_or(
                 mysql::Error::IoError(io::Error::new(
                     io::ErrorKind::Other, "get_gids: eid not present in cache?")))?;
-        Ok(gids.iter().map(|(g,_)| *g).collect())
+        Ok(gids.iter().map(|fam| fam.root_gid).collect())
     }
 
     pub fn get_gids_for_eids(&mut self, eids: &Vec<u64>) -> 
@@ -308,7 +311,7 @@ impl GhostsMap {
             let gids = self.eid2gids.get(&eid).ok_or(
                     mysql::Error::IoError(io::Error::new(
                         io::ErrorKind::Other, "get_gids: eid not present in cache?")))?;
-            let gids = gids.iter().map(|(g,_)| *g).collect();
+            let gids = gids.iter().map(|fam| fam.root_gid).collect();
             gid_vecs.push((*eid, gids));
         }
         Ok(gid_vecs)
@@ -324,22 +327,28 @@ impl GhostsMap {
         let start = time::Instant::now();
        
         let gid = self.latest_gid.fetch_add(1, Ordering::SeqCst);
-        let new_entities = policy::generate_new_entities_from(
-            views, gp, db, &self.table_name, from_vals, &vec![Value::Number(gid.to_string())], None, &mut self.nqueries)?;
+        let new_entities = ghost::generate_new_ghosts_with_gids(
+            views, gp, db, &TemplateEntity{
+                table: self.table_name.clone(), 
+                row: from_vals, 
+                fixed_colvals: None,
+            },
+            &vec![Value::Number(gid.to_string())], &mut self.nqueries)?;
 
         let new_family = GhostFamily{
-            root_table: self.table_name,
+            root_table: self.table_name.clone(),
             root_gid: gid,
             family_members: new_entities,
         };
+        let dbentry = new_family.ghost_family_to_db_string(eid);
+        
         // insert into in-memory cache
         self.insert_gid_into_caches(eid, new_family);
 
         // insert into DB
-        let dbentry = ghost::ghost_family_to_db_entry(eid, new_family);
         let insert_query = &format!("INSERT INTO {} ({}, {}, {}) VALUES {};", 
                                     self.name, GHOST_ID_COL, GHOST_ENTITY_COL, GHOST_DATA_COL, dbentry);
-        let res = db.query_iter(insert_query)?;
+        db.query_drop(insert_query)?;
         self.nqueries+=1;
         let dur = start.elapsed();
         
@@ -352,18 +361,18 @@ pub struct GhostMaps{
     ghost_maps: HashMap<String, GhostsMap> // table name to ghost map
 }
 
-impl GhostMaps{
+impl GhostMaps {
     pub fn new() -> Self {
         GhostMaps{
             ghost_maps: HashMap::new()
         }
     }
 
-    pub fn new(&mut self, name: String, db: &mut mysql::Conn, in_mem: bool) {
+    pub fn new_ghost_map(&mut self, name: String, db: &mut mysql::Conn, in_mem: bool) {
         self.ghost_maps.insert(name.to_string(), GhostsMap::new(name.to_string(), Some(db), in_mem));
     }
 
-    pub fn new_cache_only(&mut self, name: String) {
+    pub fn new_ghost_map_cache_only(&mut self, name: String) {
         self.ghost_maps.insert(name.to_string(), GhostsMap::new(name.to_string(), None, true));
     }
 
@@ -407,7 +416,7 @@ impl GhostMaps{
         gm.update_eid2gids_with(pairs, db)
     }
 
-    pub fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn, parent_table: &str) -> Result<Option<Vec<GhostFamily>>>, mysql::Error> {
+    pub fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn, parent_table: &str) -> Result<Option<Vec<GhostFamily>>, mysql::Error> {
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
         gm.unsubscribe(eid, db)
     }
@@ -416,46 +425,43 @@ impl GhostMaps{
         gm.resubscribe(eid, families, db)
     }
 
-    pub fn take_one_gidrptr_for_eid(&mut self, eid: u64, db: &mut mysql::Conn, parent_table: &str) -> 
-        Result<Option<(u64, TableEntities)>, mysql::Error> {
+    pub fn take_one_ghost_family_for_eid(&mut self, eid: u64, db: &mut mysql::Conn, parent_table: &str) -> 
+        Result<Option<GhostFamily>, mysql::Error> {
         let gm = self.ghost_maps.get_mut(parent_table).unwrap();
-        gm.take_one_gidrptr_for_eid(eid, db)
+        gm.take_one_ghost_family_for_eid(eid, db)
     }
 
-    pub fn gid_has_eid(&mut self, db: &mut mysql::Conn, parent_table: &str) -> bool {
-        let gm = self.ghost_maps.get_mut(parent_table).unwrap();
-    }
- 
     pub fn get_ghost_eid_mappings(&mut self, db: &mut mysql::Conn, table: &str) -> 
-        Result<Vec<GhostEidMapping>, mysql::Error> {
+        Result<Vec<GhostEidMapping>, mysql::Error> 
+    {
         let gm = self.ghost_maps.get_mut(table).unwrap();
         let mut mappings = vec![]; 
 
-        let res = db.query_iter(format!("SELECT * FROM {}", gm.name));
+        let res = db.query_iter(format!("SELECT * FROM {}", gm.name))?;
         for row in res {
             let vals = row.unwrap().unwrap();
             assert!(vals.len()==3);
             
-            let root_gid = helpers::mysql_val_to_u64(&vals[0]);
-            let eid = helpers::mysql_val_to_u64(&vals[1]);
-            let ghostsdata = helpers::mysql_val_to_string(&vals[2]);
+            let root_gid = helpers::mysql_val_to_u64(&vals[0])?;
+            let eid = helpers::mysql_val_to_u64(&vals[1])?;
+            let ghostdata = helpers::mysql_val_to_string(&vals[2]);
             let ghostdata = ghostdata.trim_end_matches('\'').trim_start_matches('\'');
             let family_ghost_names = serde_json::from_str(&ghostdata).unwrap();
             let mapping = GhostEidMapping {
-                table: table,
+                table: table.to_string(),
                 eid2gidroot: Some((eid, root_gid)),
                 ghosts: family_ghost_names,
-            }
+            };
             mappings.push(mapping);
         }
-        mappings
+        Ok(mappings)
     }
 
-    pub fn regenerate_cache_entries(&mut self, eids_to_fams: &Vec<(u64, &Vec<GhostFamily>)> {
+    pub fn regenerate_cache_entries(&mut self, table_to_eid_to_fam: &Vec<(String, u64, GhostFamily)>) {
         // get rows corresponding to these ghost family names
-        let gm = self.ghost_maps.get_mut(parent_table).unwrap();
-        for (eid, ghost_families) in eid_to_fams {
-            gm.regenerate_cache_entry(eid, ghost_families);
+        for (table, eid, ghost_family) in table_to_eid_to_fam {
+            let gm = self.ghost_maps.get_mut(table).unwrap();
+            gm.regenerate_cache_entry(*eid, &vec![ghost_family.clone()]);
         }
     }
 }

@@ -5,8 +5,10 @@ extern crate hex;
 
 use msql_srv::*;
 use mysql::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::io::{self, BufReader, BufWriter};
 use std::*;
+use sql_parser::ast::*;
 use log::{warn, error};
 
 pub mod helpers;
@@ -23,6 +25,7 @@ pub mod graph;
 pub const INIT_CAPACITY: usize = 1000;
 pub const ID_COL: &str = "id";
 
+#[derive(Serialize, Deserialize, PartialOrd, Ord, PartialEq, Eq, Debug, Clone)]
 pub struct EntityData {
     table: String, 
     row_strs: Vec<String>
@@ -107,18 +110,17 @@ impl Shim {
                 
                 // if we're not priming, the table already exists!
                 // add it as a MV
-                if !prime {
+                if !self.test_params.prime {
                     match stmt_ast {
                         Statement::CreateTable(CreateTableStatement{
                             name,
                             columns,
                             constraints,
                             indexes,
-                            with_options,
-                            if_not_exists,
-                            engine,
+                            ..
                         }) => {
-                            self.qtrans.rebuild_view(name, columns, constraints, indexes, with_options, if_not_exists, &mut self.db);
+                            self.qtrans.rebuild_view_with_all_rows(
+                                &name.to_string(), columns, constraints, indexes, &mut self.db);
                         }
                         _ => (),
                     }
@@ -128,7 +130,7 @@ impl Shim {
                 }
             }
         }
-        if !prime {
+        if !self.test_params.prime {
             self.qtrans.reupdate_with_ghost_mappings(&mut self.db)
         }
         Ok(())
