@@ -1,16 +1,13 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{ghost, helpers, policy::EntityGhostPolicies, views::{Views, RowPtr}, ID_COL};
-use crate::ghost::{GhostEidMapping, GhostFamily, TemplateEntity};
+use crate::{ghost_entities, helpers, policy::EntityGhostPolicies, views::{Views, RowPtr}, ID_COL};
+use crate::ghost_entities::{GhostEidMapping, GhostFamily, TemplateEntity};
 use std::sync::atomic::Ordering;
 use std::*;
 use log::{warn, error};
 use std::sync::atomic::{AtomicU64};
 use std::collections::{HashMap};
 use msql_srv::{QueryResultWriter};
-
-pub const GHOST_ID_START : u64 = 1<<20;
-pub const GHOST_ID_MAX: u64 = 1<<30;
 
 // the ghosts table contains ALL ghost identifiers which map from any entity to its ghosts
 // this assumes that all entities have an integer identifying key
@@ -60,7 +57,7 @@ fn create_ghosts_table(name: String, db: &mut mysql::Conn, in_memory: bool) -> R
     warn!("drop/create/alter ghosts table {}: {}", name, q);
     db.query_drop(q)?;
     let q = format!(r"ALTER TABLE {} AUTO_INCREMENT={};",
-        name, GHOST_ID_START);
+        name, ghost_entities::GHOST_ID_START);
     db.query_drop(q)?;
     Ok(())
 }
@@ -74,7 +71,7 @@ fn create_ghosts_table(name: String, db: &mut mysql::Conn, in_memory: bool) -> R
  *  - these ghost sibling entities MAY have parents who are also ghosts which are not present in
  *      the mapping to ensure referential integrity; these rptrs are contained in the mapping
  */
-pub struct GhostsMap{
+pub struct GhostMap{
     table_name: String,
     name: String,
     eid2gids: HashMap<u64, Vec<GhostFamily>>,
@@ -85,18 +82,18 @@ pub struct GhostsMap{
 }
 
 
-impl GhostsMap {
+impl GhostMap {
     pub fn new(table_name: String, db: Option<&mut mysql::Conn>, in_memory: bool) -> Self {
         let name = format!("ghost{}", table_name);
         if let Some(db) = db {
             create_ghosts_table(name.clone(), db, in_memory).unwrap();
         }
-        GhostsMap{
+        GhostMap{
             table_name: table_name.clone(),
             name: name.clone(),
             eid2gids: HashMap::new(),
             gid2eid: HashMap::new(),
-            latest_gid: AtomicU64::new(GHOST_ID_START),
+            latest_gid: AtomicU64::new(ghost_entities::GHOST_ID_START),
             nqueries: 0,
         }
     }   
@@ -359,7 +356,7 @@ impl GhostsMap {
 }
 
 pub struct GhostMaps{
-    ghost_maps: HashMap<String, GhostsMap> // table name to ghost map
+    ghost_maps: HashMap<String, GhostMap> // table name to ghost map
 }
 
 impl GhostMaps {
@@ -370,11 +367,11 @@ impl GhostMaps {
     }
 
     pub fn new_ghost_map(&mut self, name: String, db: &mut mysql::Conn, in_mem: bool) {
-        self.ghost_maps.insert(name.to_string(), GhostsMap::new(name.to_string(), Some(db), in_mem));
+        self.ghost_maps.insert(name.to_string(), GhostMap::new(name.to_string(), Some(db), in_mem));
     }
 
     pub fn new_ghost_map_cache_only(&mut self, name: String) {
-        self.ghost_maps.insert(name.to_string(), GhostsMap::new(name.to_string(), None, true));
+        self.ghost_maps.insert(name.to_string(), GhostMap::new(name.to_string(), None, true));
     }
 
     pub fn insert_gid_for_eid(&mut self, 

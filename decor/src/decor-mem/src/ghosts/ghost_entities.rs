@@ -11,6 +11,9 @@ use crate::{helpers, ghosts_map, views, ID_COL};
 use crate::views::{Views, RowPtrs, RowPtr};
 use crate::policy::{GhostColumnPolicy, GeneratePolicy, EntityGhostPolicies};
 
+pub const GHOST_ID_START : u64 = 1<<20;
+pub const GHOST_ID_MAX: u64 = 1<<30;
+
 /* 
  * a single table's ghosts and their rptrs
  */
@@ -61,6 +64,15 @@ pub struct TemplateEntity {
     pub table: String,
     pub row: RowPtr,
     pub fixed_colvals: Option<Vec<(usize, Value)>>,
+}
+
+pub fn is_ghost_eid(gid: u64) -> bool {
+    gid >= GHOST_ID_START
+}
+
+pub fn is_ghost_eidval(val: &Value) -> bool {
+    let gid = parser_val_to_u64(val);
+    gid >= GHOST_ID_START
 }
 
 pub fn generate_new_ghosts_with_gids(
@@ -189,7 +201,7 @@ pub fn generate_foreign_key_val(
         random_row = Rc::new(RefCell::new(vec![Value::Null; viewcols.len()]));
     }
     let mut rng: ThreadRng = rand::thread_rng();
-    let gid = rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX);
+    let gid = rng.gen_range(GHOST_ID_START, GHOST_ID_MAX);
     let gidval = Value::Number(gid.to_string());
 
     warn!("GHOSTS: Generating foreign key entity for {} {:?}", table_name, random_row);

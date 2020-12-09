@@ -12,10 +12,9 @@ use crypto::digest::Digest;
 use crypto::sha3::Sha3;
 use ordered_float::*;
 
-use crate::{helpers, ghosts_map, ghosts_map::GhostMaps, 
-    ghost, policy, stats, views, ID_COL, EntityData, graph::EntityTypeRows};
+use crate::{helpers, ghosts::GhostMaps, ghosts, policy, stats, views, ID_COL, EntityData, graph::EntityTypeRows};
 use crate::views::{TableColumnDef, Views, Row, RowPtr, RowPtrs, HashedRowPtr};
-use crate::ghost::{TemplateEntity, GhostEidMapping, TableGhostEntities, GhostFamily};
+use crate::ghosts::{TemplateEntity, GhostEidMapping, TableGhostEntities, GhostFamily};
 
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -1679,7 +1678,7 @@ impl QueryTransformer {
                     } else if needed > 0 {
                         let mut gids = vec![];
                         for _i in 0..needed {
-                            let gid = self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX);
+                            let gid = self.rng.gen_range(ghosts_entities::GHOST_ID_START, ghosts_entities::GHOST_ID_MAX);
                             gids.push(Value::Number(gid.to_string()));
                         }
                         // TODO could choose a random child as the poster child 
@@ -1750,7 +1749,7 @@ impl QueryTransformer {
             // generate ghosts until the threshold is met
             let mut gids = vec![];
             for _i in 0..needed {
-                let gid = self.rng.gen_range(ghosts_map::GHOST_ID_START, ghosts_map::GHOST_ID_MAX);
+                let gid = self.rng.gen_range(ghosts_entities::GHOST_ID_START, ghosts_entities::GHOST_ID_MAX);
                 gids.push(Value::Number(gid.to_string()));
             }
             warn!("Achieve parent child sensitivity: generating values for gids {:?}", gids);

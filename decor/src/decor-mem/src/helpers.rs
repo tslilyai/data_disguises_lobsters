@@ -1,5 +1,3 @@
-use crate::{policy, views};
-use crate::ghosts_map::GHOST_ID_START;
 use sql_parser::ast::{Expr, Ident, ObjectName, DataType, UnaryOperator, Value};
 use std::*;
 use std::cmp::Ordering;
@@ -7,11 +5,7 @@ use std::str::FromStr;
 use rand;
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
 use log::{debug, warn};
-
-pub fn is_ghost_eid(val: &Value) -> bool {
-    let gid = parser_val_to_u64(val);
-    gid >= GHOST_ID_START
-}
+use crate::{policy, views};
 
 /*******************************************
  * Column stuff

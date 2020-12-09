@@ -12,13 +12,12 @@ use sql_parser::ast::*;
 use log::{warn, error};
 
 pub mod helpers;
-pub mod ghosts_map;
-pub mod ghost;
 pub mod query_transformer;
 pub mod views;
 pub mod sqlparser_cache;
 pub mod stats;
 pub mod select;
+pub mod ghosts;
 pub mod policy;
 pub mod graph;
 
