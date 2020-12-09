@@ -9,7 +9,7 @@ use msql_srv::{QueryResultWriter};
 use log::{debug, warn, error};
 use ordered_float::*;
 
-use crate::{helpers, ghosts::GhostMaps, ghosts, policy, stats, views, ID_COL, EntityData, graph::EntityTypeRows, subscriber};
+use crate::{helpers, ghosts::GhostMaps, ghosts, policy, views, ID_COL, EntityData, graph::EntityTypeRows, subscriber};
 use crate::views::{TableColumnDef, Views, Row, RowPtr, RowPtrs, HashedRowPtr};
 use crate::ghosts::{TemplateEntity, GhostEidMapping, TableGhostEntities, GhostFamily};
 
@@ -36,8 +36,8 @@ pub struct QueryTransformer {
     
     // for tests
     params: super::TestParams,
-    pub cur_stat: stats::QueryStat,
-    pub stats: Vec<stats::QueryStat>,
+    pub cur_stat: helpers::stats::QueryStat,
+    pub stats: Vec<helpers::stats::QueryStat>,
 }
 
 impl QueryTransformer {
@@ -50,7 +50,7 @@ impl QueryTransformer {
             ghost_maps: GhostMaps::new(),
             subscriber: subscriber::Subscriber::new(),
             params: params.clone(),
-            cur_stat: stats::QueryStat::new(),
+            cur_stat: helpers::stats::QueryStat::new(),
             stats: vec![],
         }
     }   
@@ -1298,7 +1298,7 @@ impl QueryTransformer {
         Ok(view_res)
     }
 
-    pub fn record_query_stats(&mut self, qtype: stats::QueryType, dur: Duration) {
+    pub fn record_query_stats(&mut self, qtype: helpers::stats::QueryType, dur: Duration) {
         self.cur_stat.nqueries += self.ghost_maps.get_nqueries();
         self.cur_stat.nqueries += self.subscriber.get_nqueries();
         self.cur_stat.duration = dur;

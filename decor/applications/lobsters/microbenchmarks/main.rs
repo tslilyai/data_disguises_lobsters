@@ -12,7 +12,7 @@ use std::io::Write;
 use std::fs::File;
 use std::thread;
 use structopt::StructOpt;
-use hwloc::{Topology, ObjectType, CPUBIND_THREAD, CPUBIND_PROCESS, CpuSet};
+use hwloc::{Topology, ObjectType, CPUBIND_THREAD, CpuSet};
 use std::sync::{Arc, Mutex};
 use log::warn;
 
@@ -152,7 +152,13 @@ fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'
             if let Ok((s, _)) = listener.accept() {
                 decor::Shim::run_on_tcp(
                     &dbname, SCHEMA, policy,
-                    decor::TestParams{testname: testname.to_string(), translate:translate, parse:parse, in_memory: true, prime: prime}, s).unwrap();
+                    decor::TestParams{
+                        testname: testname.to_string(), 
+                        translate:translate, 
+                        parse:parse, 
+                        in_memory: true, 
+                        prime: prime
+                    }, s).unwrap();
             }
         }));
         url = format!("mysql://127.0.0.1:{}", port);
@@ -187,7 +193,7 @@ fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, pri
     let mut nunsub = 0;
     let mut nresub = 0;
     let mut file = File::create(format!("{}.out", testname)).unwrap();
-    let max_id = decor::ghosts_map::GHOST_ID_START as u32;
+    let max_id = decor::ghosts::GHOST_ID_START as u32;
     let start = time::Instant::now();
     for i in 0..nqueries {
         // XXX: we're assuming that basically all page views happen as a user, and that the users
@@ -296,10 +302,10 @@ fn main() {
     let prop_unsub = args.prop_unsub;
 
     use TestType::*;
-    //let tests = &[TestDecor];//vec![TestShimParse, TestNoShim, TestShim, TestDecor];
-    let tests = vec![TestShimParse, TestNoShim, TestShim, TestDecor];
-    let testnames = vec!["shim_parse", "no_shim", "shim_only", "decor"];
-    //let testnames = vec!["decor"];//vec!["shim_parse", "no_shim", "shim_only", "decor"];
+    let tests = &[TestDecor];
+    let testnames = vec!["decor"];
+    //let tests = vec![TestShimParse, TestNoShim, TestShim, TestDecor];
+    //let testnames = vec!["shim_parse", "no_shim", "shim_only", "decor"];
 
     //let mut threads = vec![];
     let mut core = 2;

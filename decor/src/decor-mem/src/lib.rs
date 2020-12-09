@@ -17,7 +17,6 @@ pub mod helpers;
 pub mod policy;
 pub mod query_transformer;
 pub mod sqlparser_cache;
-pub mod stats;
 pub mod select;
 pub mod subscriber;
 pub mod views;
@@ -53,7 +52,7 @@ pub struct Shim {
 
 impl Drop for Shim {
     fn drop(&mut self) {
-        stats::print_stats(&self.qtrans.stats, self.test_params.testname.clone());
+        helpers::stats::print_stats(&self.qtrans.stats, self.test_params.testname.clone());
         // drop the connection (implicitly done).
     }
 }
@@ -148,7 +147,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let start = time::Instant::now();
         let res = self.qtrans.unsubscribe(uid, &mut self.db, w);
         let dur = start.elapsed();
-        self.qtrans.record_query_stats(stats::QueryType::Unsub, dur);
+        self.qtrans.record_query_stats(helpers::stats::QueryType::Unsub, dur);
         res
     }
 
@@ -176,12 +175,12 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         match self.qtrans.resubscribe(uid, &gidshard, &entity_data, &mut self.db) {
             Ok(()) => {
                 let dur = start.elapsed();
-                self.qtrans.record_query_stats(stats::QueryType::Resub, dur);
+                self.qtrans.record_query_stats(helpers::stats::QueryType::Resub, dur);
                 Ok(w.completed(gidshard.len() as u64 + entity_data.len() as u64, 0)?)
             }
             Err(e) => {
                 let dur = start.elapsed();
-                self.qtrans.record_query_stats(stats::QueryType::Resub, dur);
+                self.qtrans.record_query_stats(helpers::stats::QueryType::Resub, dur);
                 w.error(ErrorKind::ER_BAD_DB_ERROR, format!("b{}", e).as_bytes())?;
                 Ok(())
             }
@@ -250,7 +249,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         /*if dur.as_micros() > 400 {
             error!("Long query: {}: {}us", query, dur.as_micros());
         }*/
-        let qtype = stats::get_qtype(query)?;
+        let qtype = helpers::stats::get_qtype(query)?;
         self.qtrans.record_query_stats(qtype, dur);
         res
     }
