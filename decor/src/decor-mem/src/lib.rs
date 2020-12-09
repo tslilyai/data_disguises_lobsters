@@ -26,8 +26,8 @@ pub const ID_COL: &str = "id";
 
 #[derive(Serialize, Deserialize, PartialOrd, Ord, PartialEq, Eq, Debug, Clone)]
 pub struct EntityData {
-    table: String, 
-    row_strs: Vec<String>
+    pub table: String, 
+    pub row_strs: Vec<String>
 }
 
 #[derive(Debug, Clone, PartialEq)]

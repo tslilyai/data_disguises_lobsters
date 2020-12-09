@@ -3,7 +3,7 @@ extern crate log;
 
 use mysql::prelude::*;
 use std::*;
-use std::collections::{HashMap,HashSet};
+use std::collections::{HashMap};
 use log::warn;
 use decor_mem::policy::{
     KeyRelationship, GhostColumnPolicy, GeneratePolicy, 

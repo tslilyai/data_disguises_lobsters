@@ -1,7 +1,7 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{ghost_entities, helpers, policy::EntityGhostPolicies, views::{Views, RowPtr}, ID_COL};
-use crate::ghost_entities::{GhostEidMapping, GhostFamily, TemplateEntity};
+use crate::{ghosts, helpers, policy::EntityGhostPolicies, views::{Views, RowPtr}, ID_COL};
+use crate::ghosts::{GhostEidMapping, GhostFamily, TemplateEntity};
 use std::sync::atomic::Ordering;
 use std::*;
 use log::{warn, error};
@@ -57,7 +57,7 @@ fn create_ghosts_table(name: String, db: &mut mysql::Conn, in_memory: bool) -> R
     warn!("drop/create/alter ghosts table {}: {}", name, q);
     db.query_drop(q)?;
     let q = format!(r"ALTER TABLE {} AUTO_INCREMENT={};",
-        name, ghost_entities::GHOST_ID_START);
+        name, ghosts::GHOST_ID_START);
     db.query_drop(q)?;
     Ok(())
 }
@@ -93,7 +93,7 @@ impl GhostMap {
             name: name.clone(),
             eid2gids: HashMap::new(),
             gid2eid: HashMap::new(),
-            latest_gid: AtomicU64::new(ghost_entities::GHOST_ID_START),
+            latest_gid: AtomicU64::new(ghosts::GHOST_ID_START),
             nqueries: 0,
         }
     }   
@@ -324,7 +324,7 @@ impl GhostMap {
         let start = time::Instant::now();
        
         let gid = self.latest_gid.fetch_add(1, Ordering::SeqCst);
-        let new_entities = ghost::generate_new_ghosts_with_gids(
+        let new_entities = ghosts::generate_new_ghosts_with_gids(
             views, gp, db, &TemplateEntity{
                 table: self.table_name.clone(), 
                 row: from_vals, 

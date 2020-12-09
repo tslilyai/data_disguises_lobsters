@@ -1551,7 +1551,7 @@ impl QueryTransformer {
         let result2 = self.hasher.result_str();
         self.hasher.reset();
         self.unsubscribed.insert(uid, (result1, result2));
-        ghosts_map::answer_rows(writer, serialized1, serialized2)
+        ghosts::answer_rows(writer, serialized1, serialized2)
     }
 
     pub fn unsubscribe_child_parent_edges(&mut self, 
@@ -1591,7 +1591,7 @@ impl QueryTransformer {
                 let ci = child_columns.iter().position(|c| col == c.to_string()).unwrap();
                 for child in table_children {
                     // if parent is not the from_parent (which could be a ghost!),
-                    if !helpers::is_ghost_eid(&child.vals.row().borrow()[ci]) {
+                    if !ghosts::is_ghost_eidval(&child.vals.row().borrow()[ci]) {
                         let eid = helpers::parser_val_to_u64(&child.vals.row().borrow()[ci]);
                         
                         if let Some(family) = self.ghost_maps.take_one_ghost_family_for_eid(eid, db, &parent_table)? {
@@ -1651,7 +1651,7 @@ impl QueryTransformer {
                         continue;
                     }
                     let parent_eid_val = &child.vals.row().borrow()[ci];
-                    if !helpers::is_ghost_eid(parent_eid_val) {
+                    if !ghosts::is_ghost_eidval(parent_eid_val) {
                         let parent_eid = helpers::parser_val_to_u64(parent_eid_val);
                         if let Some(count) = parent_eid_counts.get_mut(&parent_eid) {
                             *count += 1;
@@ -1678,12 +1678,12 @@ impl QueryTransformer {
                     } else if needed > 0 {
                         let mut gids = vec![];
                         for _i in 0..needed {
-                            let gid = self.rng.gen_range(ghosts_entities::GHOST_ID_START, ghosts_entities::GHOST_ID_MAX);
+                            let gid = self.rng.gen_range(ghosts::GHOST_ID_START, ghosts::GHOST_ID_MAX);
                             gids.push(Value::Number(gid.to_string()));
                         }
                         // TODO could choose a random child as the poster child 
                         warn!("Achieve child parent sensitivity: generating values for gids {:?}", gids);
-                        let new_entities = ghost::generate_new_ghosts_with_gids(
+                        let new_entities = ghosts::generate_new_ghosts_with_gids(
                             &self.views, &self.ghost_policies, db, 
                             &TemplateEntity{
                                 table: poster_child.table_name.clone(),
@@ -1749,11 +1749,11 @@ impl QueryTransformer {
             // generate ghosts until the threshold is met
             let mut gids = vec![];
             for _i in 0..needed {
-                let gid = self.rng.gen_range(ghosts_entities::GHOST_ID_START, ghosts_entities::GHOST_ID_MAX);
+                let gid = self.rng.gen_range(ghosts::GHOST_ID_START, ghosts::GHOST_ID_MAX);
                 gids.push(Value::Number(gid.to_string()));
             }
             warn!("Achieve parent child sensitivity: generating values for gids {:?}", gids);
-            let new_entities = ghost::generate_new_ghosts_with_gids(
+            let new_entities = ghosts::generate_new_ghosts_with_gids(
                 &self.views, &self.ghost_policies, db, 
                 &TemplateEntity{
                     table: child.table_name.clone(),

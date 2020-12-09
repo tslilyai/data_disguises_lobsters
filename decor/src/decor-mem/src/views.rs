@@ -591,7 +591,7 @@ impl Views {
                     for row in val_rows {
                         let row = row.borrow();
                         // only update if it's a UID!!!
-                        if ghosts::is_ghost_eid(&row[col_index]) {
+                        if ghosts::is_ghost_eidval(&row[col_index]) {
                             continue;
                         } 
                         match &row[col_index] {

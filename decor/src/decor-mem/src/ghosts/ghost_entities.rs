@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use log::{debug, warn, error};
 
-use crate::{helpers, ghosts_map, views, ID_COL};
+use crate::{helpers, views, ID_COL};
 use crate::views::{Views, RowPtrs, RowPtr};
 use crate::policy::{GhostColumnPolicy, GeneratePolicy, EntityGhostPolicies};
 
@@ -71,7 +71,7 @@ pub fn is_ghost_eid(gid: u64) -> bool {
 }
 
 pub fn is_ghost_eidval(val: &Value) -> bool {
-    let gid = parser_val_to_u64(val);
+    let gid = helpers::parser_val_to_u64(val);
     gid >= GHOST_ID_START
 }
 
@@ -99,24 +99,25 @@ pub fn generate_new_ghosts_with_gids(
     for _ in 0..num_entities {
         new_vals.push(Rc::new(RefCell::new(vec![Value::Null; from_cols.len()]))); 
     }
-    for (i, col) in from_cols.iter().enumerate() {
+    'col_loop: for (i, col) in from_cols.iter().enumerate() {
         let colname = col.to_string();
         // put in ID if specified
         if colname == ID_COL {
             for n in 0..num_entities {
                 new_vals[n].borrow_mut()[i] = gids[n].clone();
             }
-            continue;            
+            continue 'col_loop;            
         }
 
         // set colval if specified
         if let Some(fixed) = &template.fixed_colvals {
             for (ci, val) in fixed {
                 if i == *ci {
+                    warn!("Generating value for col {} using fixed val {}", col, val);
                     for n in 0..num_entities {
                         new_vals[n].borrow_mut()[*ci] = val.clone();
                     } 
-                    continue;
+                    continue 'col_loop;
                 }
             }
         }
