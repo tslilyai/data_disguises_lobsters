@@ -106,7 +106,8 @@ fn test_normal_execution() {
                     "gdpr_normal", SCHEMA, init_policy(),
                     decor_mem::TestParams{
                         testname: "test_normal".to_string(), 
-                        translate:true, parse:true, in_memory: true}, s).unwrap();
+                        translate:true, parse:true, in_memory: true,
+                        prime: true}, s).unwrap();
         }
     });
 
@@ -206,9 +207,11 @@ fn test_normal_execution() {
     let res = db_actual.query_iter(r"SELECT * FROM ghostusers ORDER BY ghostusers.ghost_id;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 2);
+        assert_eq!(vals.len(), 3);
         let gid = format!("{}", mysql_val_to_parser_val(&vals[0]));
         let uid = format!("{}", mysql_val_to_parser_val(&vals[1]));
+        let ghostdata = format!("{}", mysql_val_to_parser_val(&vals[2]));
+        warn!("ghostdata includes {}", ghostdata);
         results.push((gid, uid));
     }
     assert_eq!(results.len(), 2);
@@ -241,9 +244,11 @@ fn test_normal_execution() {
     let res = db_actual.query_iter(r"SELECT * FROM ghostusers;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 2);
+        assert_eq!(vals.len(), 3);
         let gid = format!("{}", mysql_val_to_parser_val(&vals[0]));
         let uid = format!("{}", mysql_val_to_parser_val(&vals[1]));
+        let ghostdata = format!("{}", mysql_val_to_parser_val(&vals[2]));
+        warn!("ghostdata includes {}", ghostdata);
         results.push((gid, uid));
     }
     assert_eq!(results.len(), 4);
@@ -296,7 +301,7 @@ fn test_normal_execution() {
     let res = db_actual.query_iter(r"SELECT * FROM ghostusers;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 2);
+        assert_eq!(vals.len(), 3);
         let gid = format!("{}", mysql_val_to_parser_val(&vals[0]));
         let uid = format!("{}", mysql_val_to_parser_val(&vals[1]));
         results.push((gid, uid));
@@ -331,7 +336,7 @@ fn test_normal_execution() {
     let res = db_actual.query_iter(r"SELECT * FROM ghostusers;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 2);
+        assert_eq!(vals.len(), 3);
         let gid = format!("{}", mysql_val_to_parser_val(&vals[0]));
         let uid = format!("{}", mysql_val_to_parser_val(&vals[1]));
         results.push((gid, uid));

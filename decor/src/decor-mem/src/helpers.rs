@@ -204,6 +204,18 @@ pub fn expr_is_value(expr:&Expr) -> bool {
     } 
 }
 
+pub fn escape_quotes_mysql(s: &str) -> String {
+    let mut s = s.replace("\'", "\'\'");
+    s = s.replace("\"", "\"\"");
+    s
+}
+
+pub fn remove_escaped_chars(s: &str) -> String {
+    let mut s = s.replace("\'\'", "\'");
+    s = s.replace("\"\"", "\"");
+    s
+}
+
 pub fn trim_quotes(s: &str) -> &str {
     let mut s = s.trim_matches('\'');
     s = s.trim_matches('\"');
@@ -543,7 +555,7 @@ pub fn mysql_val_to_parser_val(val: &mysql::Value) -> sql_parser::ast::Value {
             let res = str::from_utf8(&bs);
             match res {
                 Err(_) => Value::String(String::new()),
-                Ok(s) => Value::String(s.to_string()),
+                Ok(s) => {Value::String(remove_escaped_chars(s).to_string())}
             }
         }
         mysql::Value::Int(i) => Value::Number(format!("{}", i)),
@@ -562,7 +574,7 @@ pub fn mysql_val_to_string(val: &mysql::Value) -> String {
             let res = str::from_utf8(&bs);
             match res {
                 Err(_) => String::new(),
-                Ok(s) => s.to_string(),
+                Ok(s) => remove_escaped_chars(s),
             }
         }
         mysql::Value::Int(i) => format!("{}", i),

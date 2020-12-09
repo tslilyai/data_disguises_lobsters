@@ -10,7 +10,7 @@ use std::collections::{HashMap};
 use msql_srv::{QueryResultWriter};
 
 pub const GHOST_ID_START : u64 = 1<<20;
-pub const GHOST_ID_MAX: u64 = u32::MAX as u64;
+pub const GHOST_ID_MAX: u64 = 1<<30;
 
 // the ghosts table contains ALL ghost identifiers which map from any entity to its ghosts
 // this assumes that all entities have an integer identifying key
@@ -52,16 +52,16 @@ fn create_ghosts_table(name: String, db: &mut mysql::Conn, in_memory: bool) -> R
         r"CREATE TABLE IF NOT EXISTS {} (
             `{}` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
             `{}` int unsigned, 
-            `{}` varchar(4096), INDEX eid (`{}`)", 
+            `{}` varchar(4096), INDEX eid (`{}`))", 
         name, GHOST_ID_COL, GHOST_ENTITY_COL, GHOST_DATA_COL, GHOST_ENTITY_COL);
     if in_memory {
         q.push_str(" ENGINE = MEMORY");
     }
+    warn!("drop/create/alter ghosts table {}: {}", name, q);
     db.query_drop(q)?;
     let q = format!(r"ALTER TABLE {} AUTO_INCREMENT={};",
         name, GHOST_ID_START);
     db.query_drop(q)?;
-    warn!("drop/create/alter ghosts table {}", name);
     Ok(())
 }
 
@@ -348,6 +348,7 @@ impl GhostsMap {
         // insert into DB
         let insert_query = &format!("INSERT INTO {} ({}, {}, {}) VALUES {};", 
                                     self.name, GHOST_ID_COL, GHOST_ENTITY_COL, GHOST_DATA_COL, dbentry);
+        warn!("Inserting into ghosts table {}", insert_query);
         db.query_drop(insert_query)?;
         self.nqueries+=1;
         let dur = start.elapsed();

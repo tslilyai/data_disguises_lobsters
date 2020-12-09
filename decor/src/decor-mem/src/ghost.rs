@@ -39,14 +39,15 @@ impl GhostFamily {
             }
         }
         let ghostdata = serde_json::to_string(&ghost_names).unwrap();
-        format!("({}, {}, {}", eid, self.root_gid, ghostdata)
+        let ghostdata = helpers::escape_quotes_mysql(&ghostdata);
+        format!("({}, {}, '{}')", self.root_gid, eid, ghostdata)
     }
 }
 
 /*
  * A variant of eid -> family of ghosts to store on-disk or serialize (no row pointers!)
  */
-#[derive(Serialize, Deserialize, PartialOrd, Ord, PartialEq, Eq, Clone)]
+#[derive(Serialize, Deserialize, PartialOrd, Ord, PartialEq, Eq, Clone, Debug)]
 pub struct GhostEidMapping {
     pub table: String,
     pub eid2gidroot: Option<(u64, u64)>,
