@@ -7,7 +7,6 @@ use std::*;
 use log::{warn, error};
 use std::sync::atomic::{AtomicU64};
 use std::collections::{HashMap};
-use msql_srv::{QueryResultWriter};
 
 // the ghosts table contains ALL ghost identifiers which map from any entity to its ghosts
 // this assumes that all entities have an integer identifying key
@@ -15,34 +14,6 @@ const GHOST_ENTITY_COL : &'static str = "entity_id";
 const GHOST_ID_COL: &'static str = "ghost_id";
 const GHOST_DATA_COL: &'static str = "ghost_data";
 
-pub fn answer_rows<W: io::Write>(
-    results: QueryResultWriter<W>,
-    hash1: String,
-    hash2: String)
-    -> Result<(), mysql::Error> 
-{
-    let cols : Vec<_> = vec![
-        msql_srv::Column {
-            table : "".to_string(),
-            column : "ghosts".to_string(),
-            coltype: msql_srv::ColumnType::MYSQL_TYPE_VARCHAR,
-            colflags: msql_srv::ColumnFlags::empty(),
-        },
-        msql_srv::Column {
-            table : "".to_string(),
-            column : "entities".to_string(),
-            coltype: msql_srv::ColumnType::MYSQL_TYPE_VARCHAR,
-            colflags: msql_srv::ColumnFlags::empty(),
-        },
-    ];
-    warn!("GM Serialized values are {}, {}", hash1, hash2);
-    let mut writer = results.start(&cols)?;
-    writer.write_col(mysql_common::value::Value::Bytes(hash1.as_bytes().to_vec()))?;
-    writer.write_col(mysql_common::value::Value::Bytes(hash2.as_bytes().to_vec()))?;
-    writer.end_row()?;
-    writer.finish()?;
-    Ok(())
-}
 fn create_ghosts_table(name: String, db: &mut mysql::Conn, in_memory: bool) -> Result<(), mysql::Error> {
     db.query_drop(&format!("DROP TABLE IF EXISTS {};", name))?;
     let mut q = format!(

@@ -11,15 +11,16 @@ use std::*;
 use sql_parser::ast::*;
 use log::{warn, error};
 
+pub mod ghosts;
+pub mod graph;
 pub mod helpers;
+pub mod policy;
 pub mod query_transformer;
-pub mod views;
 pub mod sqlparser_cache;
 pub mod stats;
 pub mod select;
-pub mod ghosts;
-pub mod policy;
-pub mod graph;
+pub mod subscriber;
+pub mod views;
 
 pub const INIT_CAPACITY: usize = 1000;
 pub const ID_COL: &str = "id";
@@ -130,8 +131,8 @@ impl Shim {
             }
         }
         if !self.test_params.prime {
-            self.qtrans.reupdate_with_ghost_mappings(&mut self.db)
-        }
+            self.qtrans.reupdate_with_ghost_mappings(&mut self.db);
+        } 
         Ok(())
     }
 }
@@ -208,6 +209,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             w.error(ErrorKind::ER_BAD_DB_ERROR, b"select db failed")?;
             return Ok(());
         }   
+        
+        self.qtrans.subscriber.init(&mut self.db, self.test_params.prime, self.test_params.in_memory)?;
+
         match self.create_schema() {
             Ok(_) => (),
             Err(e) => {

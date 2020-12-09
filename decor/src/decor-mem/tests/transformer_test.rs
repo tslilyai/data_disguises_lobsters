@@ -142,6 +142,7 @@ fn test_normal_execution() {
         "stories", 
         "users", 
         "moderations", 
+        "unsubscribed", 
     ];
     assert_eq!(results.len(), tables.len());
     for tab in results {

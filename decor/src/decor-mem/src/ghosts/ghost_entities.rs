@@ -5,6 +5,7 @@ use sql_parser::ast::*;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
+use rand::distributions::{Distribution, Uniform};
 use log::{debug, warn, error};
 
 use crate::{helpers, views, ID_COL};
@@ -73,6 +74,16 @@ pub fn is_ghost_eid(gid: u64) -> bool {
 pub fn is_ghost_eidval(val: &Value) -> bool {
     let gid = helpers::parser_val_to_u64(val);
     gid >= GHOST_ID_START
+}
+
+pub fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {
+    let between = Uniform::from(GHOST_ID_START..GHOST_ID_MAX);
+    let mut rng = rand::thread_rng();
+    let mut gids = vec![];
+    for _ in 0..needed {
+        gids.push(Value::Number(between.sample(&mut rng).to_string()));
+    }
+    gids
 }
 
 pub fn generate_new_ghosts_with_gids(

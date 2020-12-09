@@ -1,4 +1,3 @@
-use rand::prelude::*;
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::collections::{HashMap, HashSet};
@@ -8,11 +7,9 @@ use std::time::Duration;
 use std::*;
 use msql_srv::{QueryResultWriter};
 use log::{debug, warn, error};
-use crypto::digest::Digest;
-use crypto::sha3::Sha3;
 use ordered_float::*;
 
-use crate::{helpers, ghosts::GhostMaps, ghosts, policy, stats, views, ID_COL, EntityData, graph::EntityTypeRows};
+use crate::{helpers, ghosts::GhostMaps, ghosts, policy, stats, views, ID_COL, EntityData, graph::EntityTypeRows, subscriber};
 use crate::views::{TableColumnDef, Views, Row, RowPtr, RowPtrs, HashedRowPtr};
 use crate::ghosts::{TemplateEntity, GhostEidMapping, TableGhostEntities, GhostFamily};
 
@@ -35,9 +32,7 @@ pub struct QueryTransformer {
     decor_config: policy::Config,
     ghost_policies: policy::EntityGhostPolicies,
     ghost_maps: GhostMaps,
-    unsubscribed: HashMap<u64, (String, String)>,
-    rng: ThreadRng,
-    hasher : Sha3,
+    pub subscriber: subscriber::Subscriber,
     
     // for tests
     params: super::TestParams,
@@ -53,10 +48,7 @@ impl QueryTransformer {
             decor_config: decor_config,
             ghost_policies: policy.ghost_policies,
             ghost_maps: GhostMaps::new(),
-            unsubscribed: HashMap::new(),
-            rng: rand::thread_rng(),
-            hasher : Sha3::sha3_256(),
-            
+            subscriber: subscriber::Subscriber::new(),
             params: params.clone(),
             cur_stat: stats::QueryStat::new(),
             stats: vec![],
@@ -1308,6 +1300,7 @@ impl QueryTransformer {
 
     pub fn record_query_stats(&mut self, qtype: stats::QueryType, dur: Duration) {
         self.cur_stat.nqueries += self.ghost_maps.get_nqueries();
+        self.cur_stat.nqueries += self.subscriber.get_nqueries();
         self.cur_stat.duration = dur;
         self.cur_stat.qtype = qtype;
         self.stats.push(self.cur_stat.clone());
@@ -1338,7 +1331,8 @@ impl QueryTransformer {
     /*******************************************************
      ****************** DECORRELATION *********************
      *******************************************************/
-    pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) -> Result<(), mysql::Error> 
+    pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) 
+        -> Result<(), mysql::Error> 
     {
         warn!("Unsubscribing uid {}", uid);
 
@@ -1545,23 +1539,7 @@ impl QueryTransformer {
          */
         self.unsubscribe_child_parent_edges(&parent_child_edges, &mut ghost_eid_mappings, db)?;
 
-        // cache the hash of the gids we are returning
-        ghost_eid_mappings.sort();
-        let serialized1 = serde_json::to_string(&ghost_eid_mappings).unwrap();
-        self.hasher.input_str(&serialized1);
-        let result1 = self.hasher.result_str();
-        warn!("Hashing {}, got {}", serialized1, result1);
-        self.hasher.reset();
-       
-        // note, the recipient has to just return the entities in order...
-        removed_entities.sort();
-        let serialized2 = serde_json::to_string(&removed_entities).unwrap();
-        self.hasher.input_str(&serialized2);
-        let result2 = self.hasher.result_str();
-        warn!("Hashing {}, got {}", serialized2, result2);
-        self.hasher.reset();
-        self.unsubscribed.insert(uid, (result1, result2));
-        ghosts::answer_rows(writer, serialized1, serialized2)
+        self.subscriber.record_unsubbed_user_and_return_results(writer, uid, &mut ghost_eid_mappings, &mut removed_entities, db)
     }
 
     pub fn unsubscribe_child_parent_edges(&mut self, 
@@ -1686,11 +1664,7 @@ impl QueryTransformer {
                             removed.extend(self.recursive_remove(&table_children[i as usize], children, db)?);
                         }
                     } else if needed > 0 {
-                        let mut gids = vec![];
-                        for _i in 0..needed {
-                            let gid = self.rng.gen_range(ghosts::GHOST_ID_START, ghosts::GHOST_ID_MAX);
-                            gids.push(Value::Number(gid.to_string()));
-                        }
+                        let gids = ghosts::generate_new_ghost_gids(needed as usize);
                         // TODO could choose a random child as the poster child 
                         warn!("Achieve child parent sensitivity: generating values for gids {:?}", gids);
                         let new_entities = ghosts::generate_new_ghosts_with_gids(
@@ -1757,11 +1731,7 @@ impl QueryTransformer {
         let needed = (count as f64 / child.sensitivity.0).ceil() as usize - count;
         if needed > 0 {
             // generate ghosts until the threshold is met
-            let mut gids = vec![];
-            for _i in 0..needed {
-                let gid = self.rng.gen_range(ghosts::GHOST_ID_START, ghosts::GHOST_ID_MAX);
-                gids.push(Value::Number(gid.to_string()));
-            }
+            let gids = ghosts::generate_new_ghost_gids(needed);
             warn!("Achieve parent child sensitivity: generating values for gids {:?}", gids);
             let new_entities = ghosts::generate_new_ghosts_with_gids(
                 &self.views, &self.ghost_policies, db, 
@@ -1862,39 +1832,7 @@ impl QueryTransformer {
       
         let mut ghost_eid_mappings = ghost_eid_mappings.clone();
         let mut entity_data = entity_data.clone();
-        match self.unsubscribed.get(&uid) {
-            Some((gidshash, datahash)) => {
-                ghost_eid_mappings.sort();
-                let serialized = serde_json::to_string(&ghost_eid_mappings).unwrap();
-                self.hasher.input_str(&serialized);
-                let hashed = self.hasher.result_str();
-                if *gidshash != hashed {
-                    warn!("Resubscribing {} gidshash {} mismatch {}, {}", uid, serialized, gidshash, hashed);
-                    return Err(mysql::Error::IoError(io::Error::new(
-                                io::ErrorKind::Other, format!(
-                                    "User attempting to resubscribe with bad data {} {}", uid, serialized))));
-                }
-                self.hasher.reset();
-
-                entity_data.sort();
-                let serialized = serde_json::to_string(&entity_data).unwrap();
-                self.hasher.input_str(&serialized);
-                let hashed = self.hasher.result_str();
-                if *datahash != hashed {
-                    warn!("Resubscribing {} datahash {} mismatch {}, {}", uid, serialized, datahash, hashed);
-                    return Err(mysql::Error::IoError(io::Error::new(
-                                io::ErrorKind::Other, format!(
-                                    "User attempting to resubscribe with bad data {} {}", uid, serialized))));
-                }
-                self.hasher.reset();
-                self.unsubscribed.remove(&uid); 
-            }
-            None => {
-                return Err(mysql::Error::IoError(io::Error::new(
-                                io::ErrorKind::Other, format!("User not unsubscribed {}", uid))));
-            }
-        }
-        warn!("Entity data is {:?}", entity_data);
+        self.subscriber.check_and_sort_resubscribed_data(uid, &mut ghost_eid_mappings, &mut entity_data, db)?;
 
         /*
          * Add resubscribing data to data tables + MVs 
