@@ -316,9 +316,12 @@ fn test_complex() {
      *  Test 2: Resubscribe of user 1 adds uid to user table, removes gids from user table, 
      *  unanonymizes both moderation entries
      */
-    warn!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 1, gidshardstr, entitydatastr);
-    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 1, gidshardstr, entitydatastr)).unwrap();
-
+    warn!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 1, 
+          helpers::escape_quotes_mysql(&gidshardstr), 
+          helpers::escape_quotes_mysql(&entitydatastr));
+    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 1, 
+                            helpers::escape_quotes_mysql(&gidshardstr),
+                            helpers::escape_quotes_mysql(&entitydatastr))).unwrap();
     let mut results = vec![];
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.id;").unwrap();
     for row in res {

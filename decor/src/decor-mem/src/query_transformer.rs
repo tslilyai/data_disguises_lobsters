@@ -1347,7 +1347,7 @@ impl QueryTransformer {
         // all completely decorrelated entities
         // this is updated prior to the entity's modification (if, for example, it is assigned a
         // ghost pointer)
-        let mut removed_entities: Vec<(String, Vec<String>)> = vec![];
+        let mut removed_entities: Vec<EntityData> = vec![];
 
         // track all parent-children edges, may have repeat children
         let mut parent_child_edges : HashSet<TraversedEntity> = HashSet::new();
@@ -1370,8 +1370,10 @@ impl QueryTransformer {
         });
         if self.decor_config.completely_decorrelated_parents.contains(&self.decor_config.entity_type_to_decorrelate) {
             warn!("Removing completely decorrelated toplevel entity {} {:?}", self.decor_config.entity_type_to_decorrelate, matching_row);
-            removed_entities.push((self.decor_config.entity_type_to_decorrelate.to_string(), 
-                                   matching_row.row().borrow().iter().map(|v| v.to_string()).collect()));
+            removed_entities.push(EntityData{
+                table: self.decor_config.entity_type_to_decorrelate.to_string(), 
+                row_strs: matching_row.row().borrow().iter().map(|v| v.to_string()).collect(),
+            });
         }
 
          /* 
@@ -1388,7 +1390,10 @@ impl QueryTransformer {
                 // this table has no retained links to parents, this leaf will be completely
                 // abandoned. remove it and give it to the user for later
                 if self.decor_config.completely_decorrelated_children.contains(&node.table_name) {
-                    removed_entities.push((node.table_name.to_string(), node.vals.row().borrow().iter().map(|v| v.to_string()).collect()));
+                    removed_entities.push(EntityData{
+                        table: node.table_name.to_string(), 
+                        row_strs: node.vals.row().borrow().iter().map(|v| v.to_string()).collect()
+                    });
                     warn!("Found leaf table node {:?}", node);
                     self.remove_entities(&vec![node], db)?;
                 } else {
@@ -1448,7 +1453,10 @@ impl QueryTransformer {
 
                             if self.decor_config.completely_decorrelated_parents.contains(child_table) {
                                 warn!("Removing completely decorrelated child entity {} {:?}", child_table, rptr);
-                                removed_entities.push((child_table.to_string(), rptr.row().borrow().iter().map(|v| v.to_string()).collect()));
+                                removed_entities.push(EntityData{
+                                    table: child_table.to_string(), 
+                                    row_strs: rptr.row().borrow().iter().map(|v| v.to_string()).collect(),
+                                });
                             }
                 
                             // add child of decorrelated edge to traversal queue 
@@ -1542,6 +1550,7 @@ impl QueryTransformer {
         let serialized1 = serde_json::to_string(&ghost_eid_mappings).unwrap();
         self.hasher.input_str(&serialized1);
         let result1 = self.hasher.result_str();
+        warn!("Hashing {}, got {}", serialized1, result1);
         self.hasher.reset();
        
         // note, the recipient has to just return the entities in order...
@@ -1549,6 +1558,7 @@ impl QueryTransformer {
         let serialized2 = serde_json::to_string(&removed_entities).unwrap();
         self.hasher.input_str(&serialized2);
         let result2 = self.hasher.result_str();
+        warn!("Hashing {}, got {}", serialized2, result2);
         self.hasher.reset();
         self.unsubscribed.insert(uid, (result1, result2));
         ghosts::answer_rows(writer, serialized1, serialized2)
@@ -1859,7 +1869,7 @@ impl QueryTransformer {
                 self.hasher.input_str(&serialized);
                 let hashed = self.hasher.result_str();
                 if *gidshash != hashed {
-                    warn!("Resubscribing {} gidshash mismatch {}, {}", uid, gidshash, hashed);
+                    warn!("Resubscribing {} gidshash {} mismatch {}, {}", uid, serialized, gidshash, hashed);
                     return Err(mysql::Error::IoError(io::Error::new(
                                 io::ErrorKind::Other, format!(
                                     "User attempting to resubscribe with bad data {} {}", uid, serialized))));
@@ -1871,7 +1881,7 @@ impl QueryTransformer {
                 self.hasher.input_str(&serialized);
                 let hashed = self.hasher.result_str();
                 if *datahash != hashed {
-                    warn!("Resubscribing {} datahash mismatch {}, {}", uid, datahash, hashed);
+                    warn!("Resubscribing {} datahash {} mismatch {}, {}", uid, serialized, datahash, hashed);
                     return Err(mysql::Error::IoError(io::Error::new(
                                 io::ErrorKind::Other, format!(
                                     "User attempting to resubscribe with bad data {} {}", uid, serialized))));

@@ -164,8 +164,11 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                       w: QueryResultWriter<W>) 
         -> Result<(), Self::Error> 
     {
-        warn!("RESUB got data {}, {}", gidshard, entity_data);
         let start = time::Instant::now();
+        let gidshard = helpers::remove_escaped_chars(&gidshard);
+        let entity_data = helpers::remove_escaped_chars(&entity_data);
+        warn!("RESUB got data {}, {}", gidshard, entity_data);
+        
         let gidshard = serde_json::from_str(&gidshard).unwrap();
         let entity_data = serde_json::from_str(&entity_data).unwrap();
  
