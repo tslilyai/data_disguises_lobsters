@@ -305,7 +305,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
                 parent: "ContactInfo".to_string(),
                 column_name: "contactId".to_string(),
                 parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
             },
  
             /*
@@ -492,7 +492,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
                 child: "PaperReviewRefused".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "email".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
             },
 
