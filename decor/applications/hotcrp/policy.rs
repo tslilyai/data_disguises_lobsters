@@ -47,7 +47,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              */
             KeyRelationship{
                 child: "ActionLog".to_string(),
-                parent: "ContactId".to_string(),
+                parent: "ContactInfo".to_string(),
                 column_name: "contactId".to_string(),
                 parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
@@ -55,7 +55,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
 
             KeyRelationship{
                 child: "ActionLog".to_string(),
-                parent: "ContactId".to_string(),
+                parent: "ContactInfo".to_string(),
                 column_name: "destContactId".to_string(),
                 parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
@@ -63,7 +63,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
 
             KeyRelationship{
                 child: "ActionLog".to_string(),
-                parent: "ContactId".to_string(),
+                parent: "ContactInfo".to_string(),
                 column_name: "trueContactId".to_string(),
                 parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
@@ -93,9 +93,9 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              */
             KeyRelationship{
                 child: "Capability".to_string(),
-                parent: "ContactId".to_string(),
+                parent: "ContactInfo".to_string(),
                 column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
             },
 
@@ -207,10 +207,10 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              */
             KeyRelationship{
                 child: "Formula".to_string(),
-                parent: "ContactId".to_string(),
+                parent: "ContactInfo".to_string(),
                 column_name: "createdBy".to_string(),
                 parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain, // NA
             },
 
             /* 
@@ -288,6 +288,9 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              *
              * Comments should remain associated with the original paper.
              * 
+             * Note that if a conflicting author has unsubscribed, the paper will have already been
+             * decorrelated from that conflict, and the comment reviewer name can remain correlated.
+
              */
             KeyRelationship{
                 child: "PaperComment".to_string(),
