@@ -334,7 +334,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              * seems problematic because other collaborators will suddenly lose access to the
              * paper.
              *
-             * If all paper conflicts have unsubscribed, then the paper will seemingly have no
+             * If all paper conflict users have unsubscribed, then the paper will seemingly have no
              * paper conflicts; all ghost users will point to a ghost paper (which can be generated
              * as a clone of the original).
              */
@@ -342,19 +342,23 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
                 child: "PaperConflict".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "contactId".to_string(),
-                // if the conflict is sensitive, the associated user should be decorrelated and
-                // vice versa
+                // if the user is unsubscribing, decorrelate the user from this conflict
                 parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: Decor, 
+                // if the conflict has been decorrelated from a parent paper (and is sensitive), we
+                // can keep the conflict link to the user because the transitive link to the paper
+                // has been broken
+                child_parent_decorrelation_policy: NoDecorRetain, 
             },
 
             KeyRelationship{
                 child: "PaperConflict".to_string(),
                 parent: "Paper".to_string(),
                 column_name: "paperId".to_string(),
-                // if the conflict is sensitive, the associated paper should be decorrelated and
-                // vice versa
+                // if the conflict is sensitive, the associated paper should be decorrelated (thus
+                // removing even a ghost trace of there having been this conflict)
                 parent_child_decorrelation_policy: Decor,
+                // if the paper is sensitive (e.g., the lead contact unsubscribes), the paper
+                // should be decorrelated from its conflicts
                 child_parent_decorrelation_policy: Decor,
             },
  
@@ -382,7 +386,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              *      - contactId = reviewer
              *      - requestedBy = person assigning the review
              * 
-             * TODO
+             * Papers should be kept associated with their reviews
              */
             KeyRelationship{
                 child: "PaperReview".to_string(),
