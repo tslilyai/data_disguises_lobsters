@@ -386,7 +386,14 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              *      - contactId = reviewer
              *      - requestedBy = person assigning the review
              * 
-             * Papers should be kept associated with their reviews
+             * Papers should be kept associated with their reviews.
+             *
+             * Unsubscribing reviewers (or requesters) should be decorrelated from their reviews.
+             * However, if the paper is sensitive (the lead contact has been decorrelated), reviews
+             * should still remain correlated.
+             *
+             * Note that if a conflicting author has unsubscribed, the paper will have already been
+             * decorrelated from that conflict, and the review should remain correlated.
              */
             KeyRelationship{
                 child: "PaperReview".to_string(),
@@ -400,7 +407,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
                 child: "PaperReview".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
             },
 
@@ -408,7 +415,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
                 child: "PaperReview".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "requestedBy".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
             },
  
@@ -419,7 +426,9 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              *      - paperId = paper requested to review 
              *      - contactId = requesting reviewer
              * 
-             * TODO
+             * Decorrelate unsubscribed contactIds from their preferences; papers can remain
+             * linked. If the paper is sensitive, we can still keep requesting reviewer users
+             * correlated.
              */
             KeyRelationship{
                 child: "PaperReviewPreference".to_string(),
@@ -433,7 +442,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
                 child: "PaperReviewPreference".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
             },
 
@@ -443,25 +452,28 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              * Foreign keys:
              *      - paperId = paper  
              *      - contactId = user who was refused
-             *      - refusedReviewId = paper review that was refused
              *      - requestedBy = user who requested the refusal
+             *      - refusedBy = user who refused the paper review assignment
              *      - XXX email = email of user who was refused
+             *      - refusedReviewId = paper review that was refused
              * 
-             * TODO
+             * Unsubscribing users should be decorrelated from their refused paper reviews
+             * (similarly if they were the refuser), but papers and paper reviews can remain linked
+             * to this record.
+             *
+             * It seems like the email address is used as a foreign key to identify the user as
+             * well, so this should also be "decorrelated" (this email address identifies an
+             * "abstract" entity)
+             *
+             * If the paper or paper review are sensitive (e.g., a paper author unsubscribed), the
+             * refused review can still remain linked to its contacts. 
+             *
              */
-            KeyRelationship{
-                child: "PaperReviewRefused".to_string(),
-                parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
-            },
-
             KeyRelationship{
                 child: "PaperReviewRefused".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
             },
 
@@ -472,159 +484,228 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
                 parent_child_decorrelation_policy: NoDecorRetain,
                 child_parent_decorrelation_policy: NoDecorRetain,
             },
-
-            KeyRelationship{
-                child: "PaperReviewRefused".to_string(),
-                parent: "ContactInfo".to_string(),
-                column_name: "requestedBy".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
-            },
-        
-            // TODO email isn't the primary index into ContactInfo, but it's
-            // used as the foreign key
+ 
             KeyRelationship{
                 child: "PaperReviewRefused".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "email".to_string(),
                 parent_child_decorrelation_policy: NoDecorRetain,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        },
+            },
 
-        KeyRelationship{
+            KeyRelationship{
+                child: "PaperReviewRefused".to_string(),
+                parent: "ContactInfo".to_string(),
+                column_name: "requestedBy".to_string(),
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
+            },
+
+            KeyRelationship{
                 child: "PaperReviewRefused".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "refusedBy".to_string(),
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
+            },
+           
+            KeyRelationship{
+                child: "PaperReviewRefused".to_string(),
+                parent: "Paper".to_string(),
+                column_name: "paperId".to_string(),
                 parent_child_decorrelation_policy: NoDecorRetain,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        },
+            },
 
-        KeyRelationship{
+            KeyRelationship{
                 child: "PaperStorage".to_string(),
                 parent: "Paper".to_string(),
                 column_name: "paperId".to_string(),
                 parent_child_decorrelation_policy: NoDecorRetain,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        },
-        // paperStorageId joined with DocumentLink.documentId
-
-        KeyRelationship{
+            },
+            // paperStorageId joined with DocumentLink.documentId
+ 
+            /*
+             * PaperTag
+             *
+             * Foreign keys:
+             *      - paper = the paper with the tag
+             *
+             *  Papers can remain affiliated with their tags.
+             *  
+             *  XXX it seems like paper tags and paper tag annotations both contain the contact IDs
+             *  of the creators in the tag contents?
+             *
+             *  XXX Paper tag annotations vs paper tags... what's the difference? PaperTagAnno
+             *  seems to link an annotation ID to tags; the API allows users to delete, update, or insert
+             *  new tag annotations?
+             */
+            KeyRelationship{
                 child: "PaperTag".to_string(),
                 parent: "Paper".to_string(),
                 column_name: "paperId".to_string(),
                 parent_child_decorrelation_policy: NoDecorRetain,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        },
-
-        // I'm not sure what ``annoId'' refers to; an anonymous contactId?
-        // TODO difference between PaperTag and PaperTagAnno; seems like tags are generated from
-        // contactIDs?
-        KeyRelationship{
-                child: "PaperTagAnno".to_string(),
-                parent: "ContactInfo".to_string(),
-                column_name: "annoId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
-        },
-
-        KeyRelationship{
+            },
+ 
+            /*
+             * PaperTopic
+             *
+             * Foreign keys:
+             *      - paperId = paper
+             *
+             *  Papers can remain affiliated with their topics
+             */
+            KeyRelationship{
                 child: "PaperTopic".to_string(),
                 parent: "Paper".to_string(),
                 column_name: "paperId".to_string(),
                 parent_child_decorrelation_policy: NoDecorRetain,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        },
-
-        KeyRelationship{
+            },
+ 
+            /*
+             * PaperWatch
+             *
+             * Foreign keys:
+             *      - contactId = the user watching the paper
+             *      - paperId = the paper
+             *
+             *  The user's watched papers should be decorrelated from the user.
+             *
+             *  XXX Other users watching the same paper could potentially leak information who a
+             *  ghost user watching the same paper might be? (In the same way that paper conflicts
+             *  might?) To handle this, we could decorrelate the paper watch entries with ghost
+             *  user parents from their real papers.
+             *
+             */
+            KeyRelationship{
                 child: "PaperWatch".to_string(),
                 parent: "Paper".to_string(),
                 column_name: "paperId".to_string(),
                 parent_child_decorrelation_policy: NoDecorRetain,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        },
+            },
 
-        KeyRelationship{
+            KeyRelationship{
                 child: "PaperWatch".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        },
-
-        KeyRelationship{
+            },
+           
+            /*
+             * REVIEW RATING 
+             *
+             * Foreign keys:
+             *      - contactId = the user giving the review rating 
+             *      - requestedBy = the user who assigned this review
+             *      - paperId = paper being reviewed
+             *      - reviewId = review attached to rating
+             *
+             * The user rating or requesting the rating should be decorrelated from the rating.
+             */
+            KeyRelationship{
                 child: "ReviewRating".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        },
+            },
 
-        KeyRelationship{
-                child: "ReviewRating".to_string(),
-                parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
-        },
-
-        KeyRelationship{
-                child: "ReviewRating".to_string(),
-                parent: "Review".to_string(),
-                column_name: "reviewId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
-        },
-
-        KeyRelationship{
+            KeyRelationship{
                 child: "ReviewRequest".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "requestedBy".to_string(),
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: NoDecorRetain,
+            },
+
+            KeyRelationship{
+                child: "ReviewRating".to_string(),
+                parent: "Paper".to_string(),
+                column_name: "paperId".to_string(),
                 parent_child_decorrelation_policy: NoDecorRetain,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        },
+            },
+
+            KeyRelationship{
+                child: "ReviewRating".to_string(),
+                parent: "Review".to_string(),
+                column_name: "reviewId".to_string(),
+                parent_child_decorrelation_policy: NoDecorRetain,
+                child_parent_decorrelation_policy: NoDecorRetain,
+            },
        
-        // TODO email isn't the primary index into ContactInfo, but it's
-        // used as the foreign key
-        KeyRelationship{
+            /*
+             * REVIEW REQUEST
+             *
+             * Foreign keys:
+             *      - email = the email of the user requesting the review
+             *      - paperId = paper being requested to review
+             *      - reviewId = paper review being requested
+             *
+             * The user requesting the review should be decorrelated from the request.
+             *
+             * It again seems like the email address is used as a foreign key to identify the user as
+             * well, so this should also be "decorrelated" (this email address identifies an
+             * "abstract" entity)
+             */
+            KeyRelationship{
                 child: "ReviewRequest".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "email".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        },
+            },
 
-        KeyRelationship{
+            KeyRelationship{
                 child: "ReviewRequest".to_string(),
                 parent: "Paper".to_string(),
                 column_name: "paperId".to_string(),
                 parent_child_decorrelation_policy: NoDecorRetain,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        },
+            },
 
-        KeyRelationship{
+            KeyRelationship{
                 child: "ReviewRequest".to_string(),
-                parent: "Review".to_string(),
+                parent: "PaperReview".to_string(),
                 column_name: "reviewId".to_string(),
                 parent_child_decorrelation_policy: NoDecorRetain,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        },
+            },
         
-        // settings and topic area have no children...
+            /* 
+             * SETTINGS and TOPIC AREA have no parents...
+             */
 
-        KeyRelationship{
+            /*
+             * TOPIC INTEREST
+             *
+             * Foreign keys:
+             *      - contactId = the user performing the action
+             *      - topicArea
+             *
+             * Users should be decorrelated from topics of interest when they unsubscribe.
+             *
+             */
+            KeyRelationship{
                 child: "TopicInterest".to_string(),
                 parent: "TopicArea".to_string(),
                 column_name: "topicId".to_string(),
                 parent_child_decorrelation_policy: NoDecorRetain,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        },
+            },
 
-        KeyRelationship{
+            KeyRelationship{
                 child: "TopicInterest".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
-        }]
+            }
+        ]
     }
 }
