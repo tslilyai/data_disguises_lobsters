@@ -226,7 +226,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              * Foreign keys:
              *      - leadContactId = lead author for paper
              *      - shepherdContactId = shepherd
-             *      - managerContactId = ?? 
+             *      - managerContactId = managers of conference(?)
              *      - paperStorageId = actual paper file 
              *      - finalPaperStorageId = paper file for final version of paper
              *
@@ -239,7 +239,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
                 child: "Paper".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "leadContactId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
             },
 
@@ -247,7 +247,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
                 child: "Paper".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "shepherdContactId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
             },
 
@@ -255,7 +255,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
                 child: "Paper".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "managerContactId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
                 child_parent_decorrelation_policy: NoDecorRetain,
             },
 
@@ -284,7 +284,7 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              *
              * If commenters unsubscribe, they should be decorrelated from their comments; if they
              * are also authors or reviewers of the paper, note that those lead contact/reviewer
-             * identifiers will also be decorrelated and replaced by ghosts.A
+             * identifiers will also be decorrelated and replaced by ghosts.
              *
              * Comments should remain associated with the original paper.
              * 
@@ -301,8 +301,8 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
                 child: "PaperComment".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: Decor,
             },
  
             /*
@@ -321,7 +321,8 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              * 
              * Option 1: We decorrelate the paper conflict from the paper as well, linking to a
              * ghost paper instead. Observing the conflicts for the paper therefore hides that
-             * there is a ghost user who also has a conflict with the paper.
+             * there is a ghost user who also has a conflict with the paper. (This is the policy
+             * specified below).
              *
              * Option 2: We introduce fake conflicts for this paper to add noise. This has the
              * problem of introducing spurious conflicts and messes with the semantics for
@@ -341,16 +342,20 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
                 child: "PaperConflict".to_string(),
                 parent: "ContactInfo".to_string(),
                 column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                // if the conflict is sensitive, the associated user should be decorrelated and
+                // vice versa
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: Decor, 
             },
 
             KeyRelationship{
                 child: "PaperConflict".to_string(),
                 parent: "Paper".to_string(),
                 column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                // if the conflict is sensitive, the associated paper should be decorrelated and
+                // vice versa
+                parent_child_decorrelation_policy: Decor,
+                child_parent_decorrelation_policy: Decor,
             },
  
             /*
