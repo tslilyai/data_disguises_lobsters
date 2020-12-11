@@ -44,14 +44,15 @@ for test in tests:
             i = q2lats_all[ai][1]
             axes_flat[ai].hist(q2lats_all[ai][0],
                     bins[i],
-                    stacked=True,
+                    density=True, histtype='step', cumulative=True,
+                    #stacked=True,
                     label=[str(i) + "x Query Mult." for i in range(len(q2lats))])
             axes_flat[ai].legend(loc='upper right')
             axes_flat[ai].set_title(names[i]+" Queries Latency Histogram")
-            axes_flat[ai].set_yscale('log')
-            axes_flat[ai].set_ylim(ymax = ybounds[i])
+            #axes_flat[ai].set_yscale('log')
+            #axes_flat[ai].set_ylim(ymax = ybounds[i])
             axes_flat[ai].set_xlabel('Per-Query Latency (us)')
-            axes_flat[ai].set_ylabel('Number of Queries')
+            #axes_flat[ai].set_ylabel('Number of Queries')
     fig.suptitle('{}'.format(test))
     fig.tight_layout(h_pad=4)
     plt.savefig('{}.png'.format(test), dpi=300)

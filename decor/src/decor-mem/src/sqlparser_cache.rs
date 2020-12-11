@@ -26,7 +26,7 @@ impl ParserCache{
             Ok(asts) => {
                 if asts.len() != 1 {
                     return Err(mysql::Error::IoError(io::Error::new(
-                        io::ErrorKind::InvalidInput, "More than one stmt")));
+                        io::ErrorKind::InvalidInput, format!("More than one stmt {:?}", asts))));
                 }
                 Ok(asts[0].clone())
             }

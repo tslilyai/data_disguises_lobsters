@@ -125,8 +125,8 @@ impl Shim {
                     }
                 } else {
                     self.qtrans.query_drop(&stmt_ast, &mut self.db)?;                
-                    stmt = String::new();
                 }
+                stmt = String::new();
             }
         }
         if !self.test_params.prime {
