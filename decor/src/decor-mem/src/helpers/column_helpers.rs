@@ -1,6 +1,6 @@
 use sql_parser::ast::{ObjectName};
 use std::*;
-use log::{debug};
+use log::{debug, warn};
 use crate::{policy, views};
 
 pub fn contains_ghosted_columns(decor_config: &policy::Config, table_name: &str) -> bool {

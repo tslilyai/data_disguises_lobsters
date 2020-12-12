@@ -17,9 +17,7 @@ pub fn get_rptrs_matching_constraint(e: &Expr, v: &View, columns: &Vec<TableColu
     if predsets.is_empty() {
         predsets.push(vec![NamedPredicate::Bool(true)]);
     }
-    let (matching, failed_predsets) = predicates::get_rptrs_matching_preds(v, columns, &predsets);
-    assert!(failed_predsets.is_empty());
-    matching
+    predicates::get_rptrs_matching_preds(v, columns, &predsets)
 }
 
 pub fn get_ordered_rptrs_of_view(v: &View, order_by_indices: &Vec<usize>) -> RowPtrs {
@@ -173,7 +171,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
             // TODO don't need to init?
             let mut from_view: Rc<RefCell<View>> = Rc::new(RefCell::new(View::new_with_cols(vec![])));
             
-            // special case: we're getting results from only this view
+            // special case: we're getting results from only this joined view
             assert!(s.from.len() <= 1);
             for twj in &s.from {
                 from_view = joins::tablewithjoins_to_view(views, &twj, &mut preds);

@@ -2070,6 +2070,8 @@ impl QueryTransformer {
             &constraints,
             &parent_cols_of_table,
         );
+        let viewptr = self.views.get_view(name).unwrap();
+        
         // 1. get all rows of this table; some may be ghosts
         let get_all_rows_query = Query::select(Select{
             distinct: true,
@@ -2091,10 +2093,9 @@ impl QueryTransformer {
         let mut rptrs : RowPtrs = vec![];
         for row in rows {
             let vals = row.unwrap().unwrap();
-            let mut parsed_row = vec![];
-            for v in vals {
-                parsed_row.push(helpers::mysql_val_to_parser_val(&v));
-            }
+            let parsed_row = helpers::string_vals_to_parser_vals(
+                &vals.iter().map(|v| helpers::mysql_val_to_string(v)).collect(), 
+                &viewptr.borrow().columns);
             rptrs.push(Rc::new(RefCell::new(parsed_row)));    
         }
         // 3. insert all eid rows AND potentially ghost rows back into the view

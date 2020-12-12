@@ -168,11 +168,14 @@ fn test_init_noop() {
 
     //let mut results = vec![];
     let mut results = vec![];
-    let res = db.query_iter(r"SELECT user_id, url FROM stories ORDER BY id").unwrap();
+    let res = db.query_iter(r"SELECT stories.user_id, stories.url FROM stories 
+                            JOIN users ON users.id = stories.user_id 
+                            WHERE users.id = 1 
+                            ORDER BY stories.id").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 2);
         results.push(vals);
     }
-    assert_eq!(results.len(), 6);
+    assert_eq!(results.len(), 3);
 }

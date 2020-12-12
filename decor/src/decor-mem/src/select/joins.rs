@@ -270,6 +270,7 @@ fn join_using_indexes(jo: &JoinOperator, i1: &ViewIndex, i2: &ViewIndex, r1len: 
 }
 
 fn join_using_matches(jo: &JoinOperator, i1: usize, i2: usize, r1len: usize, r2len: usize, v1rptrs: &HashedRowPtrs, v2rptrs: &HashedRowPtrs, new_view: &mut View) {
+    warn!("Join using matches: v1 {:?}.{}, v2 {:?}.{}", v1rptrs, i1, v2rptrs ,i2);
     match jo {
         JoinOperator::Inner(JoinConstraint::On(_e)) => {
             for v1rptr in v1rptrs.iter() {
@@ -331,6 +332,7 @@ fn join_using_matches(jo: &JoinOperator, i1: usize, i2: usize, r1len: usize, r2l
 fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>, preds: &mut Vec<Vec<predicates::NamedPredicate>>) 
         -> Rc<RefCell<View>> 
 {
+    // XXX no order by support for joins yet
     let start = time::Instant::now();
 
     let (r1len, r2len) = (v1.borrow().columns.len(), v2.borrow().columns.len());
@@ -346,33 +348,40 @@ fn join_views(jo: &JoinOperator, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>, p
         let (i1, i2) = get_join_on_indexes(jo, v1.clone(), v2.clone());
         join_using_indexes(jo, &i1, &i2, r1len, r2len, &mut new_view);
     } else {
-        warn!("Applying predicates {:?} to v1", preds);
-        // XXX no order by support for joins yet
-        let (v1rptrs, mut remainder) = predicates::get_rptrs_matching_preds(&v1.borrow(), &v1.borrow().columns, preds);
-      
-        if remainder.is_empty() {
-            // TODO could use index for second table here instead of getting all rows??
-            remainder = vec![vec![predicates::NamedPredicate::Bool(true)]];
-        }
-        warn!("Applying predicates {:?} to v2", remainder);
-        let (v2rptrs, remainder) = predicates::get_rptrs_matching_preds(&v2.borrow(), &v2.borrow().columns, &remainder);
-        
-        warn!("Applying predicates {:?} to rest", remainder);
-        // if we can apply all predicates (and there is no lingering OR that could evaluate to TRUE for
-        // rows not yet constrained), then we just join these selected predicates and set them as the
-        // new_view rows
-        if remainder.is_empty() || (remainder.iter().filter(|&preds| !preds.is_empty()).count() <= 1) {
-            // note that these rows will still later have to be filtered by any remaining predicates
+        let (mut v1preds, remainder) = predicates::get_applicable_and_failed_preds(&v1.borrow(), &v1.borrow().columns, preds);
+        warn!("predicates {:?} apply to v1", v1preds);
+        let (mut v2preds, remainder) = predicates::get_applicable_and_failed_preds(&v2.borrow(), &v2.borrow().columns, &remainder);
+        warn!("predicates {:?} apply to v2", v2preds);
+        let num_predsets = remainder.iter().filter(|&preds| !preds.is_empty()).count();
+        warn!("remaining predicates to apply: {:?}", remainder);
+ 
+        // if we can't apply predicates or there is a lingering OR that could evaluate to TRUE for
+        // all rows not yet constrained, join the rows by actually going through all values
+        if (v1preds.is_empty() && v2preds.is_empty()) || num_predsets > 1 {
+            warn!("join {}-{} using indices", v1.borrow().name, v2.borrow().name);
+            let (i1, i2) = get_join_on_indexes(jo, v1.clone(), v2.clone());
+            join_using_indexes(jo, &i1, &i2, r1len, r2len, &mut new_view);
+        } else {
+            // otherwise, we can apply some predicates, and then we just join these selected predicates and set them as the
+            // new_view rows
+            if v1preds.is_empty() {
+                v1preds = vec![vec![predicates::NamedPredicate::Bool(true)]];
+            }
+            if v2preds.is_empty() {
+                v2preds = vec![vec![predicates::NamedPredicate::Bool(true)]];
+            }
+            let v1rptrs = predicates::get_rptrs_matching_preds(&v1.borrow(), &v1.borrow().columns, &v1preds);
+            let v2rptrs = predicates::get_rptrs_matching_preds(&v2.borrow(), &v2.borrow().columns, &v2preds);
+            warn!("join {:?}-{:?} using matches", v1rptrs, v2rptrs);
+
+            warn!("Applying predicates {:?} to rest", remainder);
+            // note that these rows may still later have to be filtered by any remaining predicates
             // (e.g., on computed rows, or over the joined rows)
             *preds = remainder;
             let (i1, i2) = get_join_on_indices(jo, v1.clone(), v2.clone());
             join_using_matches(jo, i1, i2, r1len, r2len, &v1rptrs, &v2rptrs, &mut new_view);
-        } else {
-            let (i1, i2) = get_join_on_indexes(jo, v1.clone(), v2.clone());
-            join_using_indexes(jo, &i1, &i2, r1len, r2len, &mut new_view);
         }
     }
-    
     let dur = start.elapsed();
     warn!("Join views took: {}us", dur.as_micros());
     Rc::new(RefCell::new(new_view))

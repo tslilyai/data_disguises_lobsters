@@ -368,30 +368,21 @@ pub fn get_predicate_sets_of_constraint(e: &Expr) -> Vec<Vec<NamedPredicate>>
 pub fn get_rptrs_matching_preds_vec(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>) 
     -> RowPtrs
 {
-    let (rptrs, _remainder) = get_rptrs_matching_preds(v, columns, predsets); 
+    let rptrs = get_rptrs_matching_preds(v, columns, predsets); 
     rptrs.iter().map(|r| r.row().clone()).collect()
 }
 
-pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>) -> (HashedRowPtrs, Vec<Vec<NamedPredicate>>) 
+pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>) -> HashedRowPtrs 
 {
     warn!("{}: getting rptrs of preds {:?}", v.name, predsets);
     assert!(!predsets.is_empty());
 
     let start = time::Instant::now();
     let mut matching = HashSet::new();
-    let mut failed_predsets = vec![];
     for preds in predsets {
-        let mut failed = vec![];
         let mut indexed_preds = vec![]; 
         for p in preds {
-            if let Some(ip) = p.to_indexed_predicate(columns) {
-                indexed_preds.push(ip);
-            } else {
-                failed.push(p.clone());
-            }
-        }
-        if !(failed.is_empty()) {
-            failed_predsets.push(failed);
+            indexed_preds.push(p.to_indexed_predicate(columns).unwrap());
         }
         // we failed to index
         if indexed_preds.is_empty() {
@@ -402,7 +393,36 @@ pub fn get_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predset
     }
     let dur = start.elapsed();
     warn!("get rptrs matching preds duration {}us", dur.as_micros());
-    (matching, failed_predsets)
+    matching
+}
+
+pub fn get_applicable_and_failed_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>) -> (Vec<Vec<NamedPredicate>>, Vec<Vec<NamedPredicate>>) 
+{
+    warn!("{}: getting rptrs of preds {:?}", v.name, predsets);
+    assert!(!predsets.is_empty());
+
+    let start = time::Instant::now();
+    let mut applicable_predsets = vec![];
+    let mut failed_predsets = vec![];
+    for preds in predsets {
+        let mut failed = vec![];
+        let mut indexed_preds = vec![]; 
+        for p in preds {
+            if p.to_indexed_predicate(columns).is_some() {
+                indexed_preds.push(p.clone());
+            } else {
+                failed.push(p.clone());
+            }
+        }
+        if !(failed.is_empty()) {
+            failed_predsets.push(failed);
+        } else {
+            applicable_predsets.push(indexed_preds);
+        }
+    }
+    let dur = start.elapsed();
+    warn!("get rptrs matching preds duration {}us", dur.as_micros());
+    (applicable_predsets, failed_predsets)
 }
 
 /*

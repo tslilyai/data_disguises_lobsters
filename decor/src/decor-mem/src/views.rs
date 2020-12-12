@@ -265,7 +265,7 @@ impl View {
                     // TODO just create a separate index for each key part for now rather than
                     // nesting
                     indexes_map.insert(key.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))));
-                    debug!("{}: Created index for column {}", name, key.to_string());
+                    warn!("{}: Created index for column {}", name, key.to_string());
                 }
             }
         }; 
@@ -276,10 +276,11 @@ impl View {
             for opt in &c.options {
                 if let ColumnOption::Unique{is_primary} = opt.option {
                     if is_primary {
+                        warn!("{}: Created primary index for column {}", name, c.name);
                         primary_index = Some(ci);
                     } else {
                         indexes_map.insert(c.name.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))));
-                        debug!("{}: Created unique index for column {}", name, c.name);
+                        warn!("{}: Created unique index for column {}", name, c.name);
                     }
                     break;
                 }
@@ -295,7 +296,7 @@ impl View {
                     } else {
                         for c in columns {
                             indexes_map.insert(c.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))));
-                            debug!("{}: Created unique index for column {}", name, c.to_string());
+                            warn!("{}: Created unique index for column {}", name, c.to_string());
                         }
                     }
                 }
@@ -340,22 +341,23 @@ impl View {
     pub fn get_indexed_rptrs_of_col(&self, col_index: usize, col_val: &str) -> Option<HashedRowPtrs> {
         let mut hs = HashSet::with_capacity(1);
         if col_index == self.primary_index {
+            warn!("Primary index contains {:?}", self.rows);
             match self.rows.borrow().get(col_val) {
                 Some(r) => {
-                    debug!("get rptrs of col: found 1 primary row for col {} val {}!", self.columns[col_index].fullname, col_val);
+                    warn!("get rptrs of col: found 1 primary row for col {} val {}!", self.columns[col_index].fullname, col_val);
                     hs.insert(HashedRowPtr::new(r.clone(), self.primary_index));
                 }
                 None => {
-                    debug!("get rptrs of primary: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
+                    warn!("get rptrs of primary: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
                 }
             }
             return Some(hs);
         } else if let Some(index) = self.indexes.get(&self.columns[col_index].colname.to_string()) {
             if let Some(rptrs) = index.borrow().get(col_val) {
-                debug!("get rptrs of col: found {} rows for col {} val {}!", rptrs.len(), self.columns[col_index].fullname, col_val);
+                warn!("get rptrs of col: found {} rows for col {} val {}!", rptrs.len(), self.columns[col_index].fullname, col_val);
                 return Some(rptrs.clone());
             } else {
-                debug!("get rptrs of col: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
+                warn!("get rptrs of col: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
                 return Some(hs);
             }
         } 
@@ -408,23 +410,23 @@ impl View {
         let start = time::Instant::now();
         if let Some(index) = self.indexes.get_mut(&self.columns[col_index].colname.to_string()) {
             let col_val = row.borrow()[col_index].to_string();
-            debug!("INDEX {}: inserting {}) into index", self.columns[col_index].fullname, col_val);
+            warn!("INDEX {}: inserting {}) into index", self.columns[col_index].fullname, col_val);
             // insert into the new indexed ris 
             let mut index = index.borrow_mut();
             if let Some(rptrs) = index.get_mut(&col_val) {
                 rptrs.insert(HashedRowPtr::new(row.clone(), self.primary_index));
                 let dur = start.elapsed();
-                debug!("insert into index {} size {} took: {}us", self.columns[col_index].fullname, index.len(), dur.as_micros());
+                warn!("insert into index {} size {} took: {}us", self.columns[col_index].fullname, index.len(), dur.as_micros());
             } else {
                 let mut rptrs = HashSet::with_capacity(INIT_CAPACITY);
                 rptrs.insert(HashedRowPtr::new(row.clone(), self.primary_index));
                 index.insert(col_val, rptrs);
                 let dur = start.elapsed();
-                debug!("insert new hashmap index {} took: {}us", self.columns[col_index].fullname, dur.as_micros());
+                warn!("insert new hashmap index {} took: {}us", self.columns[col_index].fullname, dur.as_micros());
             }
         } else {
             let dur = start.elapsed();
-            debug!("no insert index {} took: {}us", self.columns[col_index].fullname, dur.as_micros());
+            warn!("no insert index {}, col {} took: {}us", self.columns[col_index].fullname, col_index, dur.as_micros());
         }
     }
  
@@ -665,14 +667,14 @@ impl Views {
                 // make sure to actually insert into the right index!!!
                 view.insert_into_index(row.clone(), ci);
             }
+            view.insert_row(row.clone());
         }
 
         warn!("views::insert {}: Appending rows: {:?}", view.name, insert_rows);
 
+        // add edges to graph
         for row in insert_rows {
-            view.insert_row(row.clone());
             for (ci, parent_table) in &view.parent_cols {
-                // add edge to graph
                 let peid = helpers::parser_val_to_u64_opt(&row.borrow()[*ci]);
                 if let Some(peid) = peid {
                     self.graph.add_edge(HashedRowPtr::new(row.clone(), view.primary_index), &view.name, parent_table, peid, *ci);
