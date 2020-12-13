@@ -434,7 +434,7 @@ impl View {
         let start = time::Instant::now();
         let old_val = rptr.borrow()[col_index].to_string();
         let mut index_len = 0;
-        warn!("{}: updating {:?} from {:?}", self.columns[col_index].fullname, col_val, old_val);
+        warn!("{}: updating {:?} to {:?}", self.columns[col_index].fullname, old_val, col_val);
 
         // don't actually do anything if we're just updating to the same value!
         let mut col_val_str = String::new(); 

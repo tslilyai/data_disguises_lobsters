@@ -179,3 +179,223 @@ fn test_init_noop() {
     }
     assert_eq!(results.len(), 3);
 }
+
+#[test]
+fn test_init_complex() {
+    let mut db: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
+    let mut db_actual: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
+    init_dbs("test_reinit_complex", policies::combined_policy(), &mut db, &mut db_actual);
+
+    // one more update just for fun
+    db.query_drop(r"UPDATE users SET karma=10 WHERE username='hello_1'").unwrap();
+
+    // check that users were updated correctly
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT * FROM users WHERE users.username='hello_1' OR users.username='hello_2' ORDER BY users.id;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 3);
+        let id = format!("{}", helpers::mysql_val_to_string(&vals[0]));
+        let username = format!("{}", helpers::mysql_val_to_string(&vals[1]));
+        let karma = format!("{}", helpers::mysql_val_to_string(&vals[2]));
+        results.push((id, username, karma));
+    }
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0], ("1".to_string(), "hello_1".to_string(), "10".to_string()));
+    assert_eq!(results[1], ("2".to_string(), "hello_2".to_string(), "0".to_string()));
+
+    //let mut results = vec![];
+    let res = db.query_iter(r"SELECT user_id, url FROM stories ORDER BY id").unwrap();
+    let mut results = vec![];
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 2);
+        results.push(vals);
+    }
+    assert_eq!(results.len(), 4);
+
+    // drop db
+    drop(db);
+    
+    // reinitialize
+    let mut db: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
+    restore_db("test_reinit_complex", policies::combined_policy(), &mut db);
+ 
+    // check that all data returns correctly
+    let mod1 : (String, String, String, String, String) = 
+        ("1".to_string(), 
+         "1".to_string(), 
+         "1".to_string(), 
+         "2".to_string(), 
+         "bad story!".to_string());
+    let mod2 : (String, String, String, String, String) = 
+        ("2".to_string(), 
+         "2".to_string(), 
+         "2".to_string(), 
+         "1".to_string(), 
+         "worst story!".to_string());
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.user_id;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 5);
+        let id = helpers::mysql_val_to_string(&vals[0]);
+        let mod_id = helpers::mysql_val_to_string(&vals[1]);
+        let story_id = helpers::mysql_val_to_string(&vals[2]);
+        let user_id = helpers::mysql_val_to_string(&vals[3]);
+        let action = helpers::mysql_val_to_string(&vals[4]);
+        results.push((id, mod_id, story_id, user_id, action));
+    }
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0], mod2);
+    assert_eq!(results[1], mod1);
+
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT * FROM users WHERE users.username='hello_1' OR users.username='hello_2' ORDER BY users.id;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 3);
+        let id = format!("{}", helpers::mysql_val_to_string(&vals[0]));
+        let username = format!("{}", helpers::mysql_val_to_string(&vals[1]));
+        let karma = format!("{}", helpers::mysql_val_to_string(&vals[2]));
+        results.push((id, username, karma));
+    }
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0], ("1".to_string(), "hello_1".to_string(), "10".to_string()));
+    assert_eq!(results[1], ("2".to_string(), "hello_2".to_string(), "0".to_string()));
+
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT stories.user_id, stories.url FROM stories 
+                            JOIN users ON users.id = stories.user_id 
+                            WHERE users.id = 1 
+                            ORDER BY stories.id").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 2);
+        results.push(vals);
+    }
+    assert_eq!(results.len(), 2);
+
+    // unsubscribe
+    let mut gidshardstr : String = String::new(); 
+    let mut entitydatastr : String = String::new();
+    let mut unsubscribed_gids : Vec<GhostEidMapping> = vec![];
+    let mut entity_data : Vec<EntityData> = vec![];
+    let res = db.query_iter(format!("UNSUBSCRIBE UID {};", 1)).unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 2);
+        let s1 = helpers::mysql_val_to_string(&vals[0]);
+        let s2 = helpers::mysql_val_to_string(&vals[1]);
+        gidshardstr = s1.trim_end_matches('\'').trim_start_matches('\'').to_string();
+        entitydatastr = s2.trim_end_matches('\'').trim_start_matches('\'').to_string();
+        unsubscribed_gids = serde_json::from_str(&gidshardstr).unwrap();
+        entity_data = serde_json::from_str(&entitydatastr).unwrap();
+    }
+    for mapping in &unsubscribed_gids {
+        if mapping.table == "users" {
+            assert_eq!(mapping.eid2gidroot.unwrap().0, 1);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 1);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 0);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
+        } else if mapping.table == "stories" {
+            assert!(mapping.eid2gidroot.is_some());
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 1);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 1);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
+        } else if mapping.table == "moderations" {
+            assert_eq!(mapping.eid2gidroot, None);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 2);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 2);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 4);
+        } else {
+            assert!(false, "bad table! {}", mapping.table);
+        }
+    }
+    assert_eq!(unsubscribed_gids.len(), 8);
+    assert_eq!(entity_data.len(), 3);
+    assert_eq!(entity_data[0], 
+               EntityData{
+                    table: "stories".to_string(),
+                    row_strs: vec!["1".to_string(), "1".to_string(), "'google.com'".to_string(), "0".to_string()],
+               });
+    assert_eq!(entity_data[1], 
+               EntityData{
+                    table: "stories".to_string(),
+                    row_strs: vec!["2".to_string(), "1".to_string(), "'bing.com'".to_string(), "0".to_string()],
+               });
+    assert_eq!(entity_data[2], 
+               EntityData{
+                    table: "users".to_string(), 
+                    row_strs: vec!["1".to_string(), "'hello_1'".to_string(), "10".to_string()],
+                });
+
+
+    // drop db
+    drop(db);
+ 
+    // reinitialize
+    let mut db: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
+    restore_db("test_reinit_complex", policies::combined_policy(), &mut db);
+
+    // check unsubscribed restored state
+    let mut results = HashSet::new();
+    let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.user_id;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 5);
+        let id = helpers::mysql_val_to_string(&vals[0]);
+        let mod_id = helpers::mysql_val_to_string(&vals[1]);
+        let story_id = helpers::mysql_val_to_string(&vals[2]);
+        let user_id = helpers::mysql_val_to_string(&vals[3]);
+        let action = helpers::mysql_val_to_string(&vals[4]);
+        results.insert((id, mod_id, story_id, user_id, action));
+    }
+    assert_eq!(results.len(), 6);
+    assert_eq!(results.iter().filter(|r| r.0 == "2".to_string() && r.1 == "2".to_string() && r.4 == "worst story!".to_string()
+                                  && u64::from_str(&r.2).unwrap() >= GHOST_ID_START && u64::from_str(&r.3).unwrap() >= GHOST_ID_START).count(), 1);
+    assert_eq!(results.iter().filter(|r| r.0 == "1".to_string() && r.3 == "2".to_string() && r.4 == "bad story!".to_string()
+                                  && u64::from_str(&r.1).unwrap() >= GHOST_ID_START && u64::from_str(&r.2).unwrap() >= GHOST_ID_START).count(), 1);
+    
+    // users modified appropriately: ghosts added to users 
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT id FROM users ORDER BY users.id;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        let uid = helpers::mysql_val_to_string(&vals[0]);
+        results.push(uid);
+    }
+    assert_eq!(results.len(), 15);
+    assert_eq!(results[0], format!("{}", 2));
+    assert_eq!(results[1], format!("{}", GHOST_ID_START));
+    assert_eq!(results[2], format!("{}", GHOST_ID_START+1));
+  
+    // resubscribe
+    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 1, 
+                            helpers::escape_quotes_mysql(&gidshardstr),
+                            helpers::escape_quotes_mysql(&entitydatastr))).unwrap();
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.id;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 5);
+        let id = helpers::mysql_val_to_string(&vals[0]);
+        let mod_id = helpers::mysql_val_to_string(&vals[1]);
+        let story_id = helpers::mysql_val_to_string(&vals[2]);
+        let user_id = helpers::mysql_val_to_string(&vals[3]);
+        let action = helpers::mysql_val_to_string(&vals[4]);
+        results.push((id, mod_id, story_id, user_id, action));
+    }
+    assert_eq!(results.len(), 2);
+    assert_eq!(results[0], ("1".to_string(), 
+                            format!("{}", 1), 
+                            "1".to_string(), 
+                            "2".to_string(), 
+                            "bad story!".to_string()));
+    assert_eq!(results[1], ("2".to_string(), 
+                            "2".to_string(), 
+                            "2".to_string(), 
+                            format!("{}", 1), 
+                            "worst story!".to_string()));
+}

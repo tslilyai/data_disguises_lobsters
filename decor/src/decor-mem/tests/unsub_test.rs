@@ -141,7 +141,7 @@ fn test_unsub_noop() {
     /* 
      *  Unsubscribe of user 2 does nothing
      */
-    let res = db.query_iter(format!("UNSUBSCRIBE UID {};", 1)).unwrap();
+    let res = db.query_iter(format!("UNSUBSCRIBE UID {};", 2)).unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 2);

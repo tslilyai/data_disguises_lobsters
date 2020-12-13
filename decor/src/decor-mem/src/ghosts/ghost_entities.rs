@@ -36,13 +36,14 @@ pub struct GhostFamily {
 }
 impl GhostFamily {
     pub fn ghost_family_to_db_string(&self, eid: u64) -> String {
-        let mut ghost_names : Vec<(String, String)> = vec![];
+        let mut ghost_names : Vec<(String, u64)> = vec![];
         for tableghosts in &self.family_members{
             for gid in &tableghosts.gids {
-                ghost_names.push((tableghosts.table.to_string(), (*gid).to_string()));
+                ghost_names.push((tableghosts.table.to_string(), *gid));
             }
         }
         let ghostdata = serde_json::to_string(&ghost_names).unwrap();
+        warn!("Ghostdata serialized is {}", ghostdata);
         let ghostdata = helpers::escape_quotes_mysql(&ghostdata);
         format!("({}, {}, '{}')", self.root_gid, eid, ghostdata)
     }

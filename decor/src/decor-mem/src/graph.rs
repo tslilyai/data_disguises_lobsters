@@ -3,8 +3,10 @@ use std::collections::{HashMap, HashSet};
 use crate::views::{HashedRowPtrs, HashedRowPtr};
 use log::{warn};
 
+/* entity type (parent table+parentcol) => children rptrs */
 pub type EntityTypeRows = HashMap<(String, usize), HashedRowPtrs>;
-// parent EID value to (types => rptrs of children)
+
+/* parent EID value to ((table+parentcol)=> rptrs of children) */
 pub type EntityEdges = HashMap<u64 , EntityTypeRows>;
 pub struct EntityGraph {
     // map from parent type => map of parent id => children rptrs (map of type -> rptrs)

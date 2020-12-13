@@ -1437,8 +1437,8 @@ impl QueryTransformer {
 
                 for rptr in child_hrptrs {
                     // ********************  DECORRELATED EDGES OF EID ************************ //
-                    for (ci, _) in &ghosted_cols {
-                        if ci == child_ci {
+                    for (ci, parent_table) in &ghosted_cols {
+                        if ci == child_ci && parent_table == &node.table_name {
                             // decorrelate:
                             // swap out value in MV to be the GID instead of the EID
                             assert!(gid_index < gid_values.len());
@@ -1983,7 +1983,7 @@ impl QueryTransformer {
         // these GIDs were stored in an actual non-ghost entity before decorrelation
         // we need to update child in the MV to now show the EID
         // and also put these GIDs back in the ghost map
-        if let Some((eid, _gidroot)) = eid2gidroot {
+        if let Some((eid, gidroot)) = eid2gidroot {
             let eid_val = Value::Number(eid.to_string());
 
             warn!("RESUB: actually restoring {} eid {}, gprtrs {:?}", curtable, eid, ghost_families);
@@ -1991,36 +1991,27 @@ impl QueryTransformer {
                 return Err(mysql::Error::IoError(io::Error::new(
                     io::ErrorKind::Other, format!("not unsubscribed {}", eid))));
             }             
-            
-            let mut children : EntityTypeRows;
-            for gfam in &ghost_families {
-                // update assignments in MV to use EID again for this gid
-                warn!("Getting children of ghost entity with gid {}", gfam.root_gid);
-                // get children of this ghost
-                match self.views.graph.get_children_of_parent(&gfam.root_table, gfam.root_gid) {
-                    None => continue,
-                    Some(cs) => children = cs,
-                }
+            // Note: all ghosts in families will be deleted from the MV, so we only need to restore
+            // the EID value for the root level GID entries
+            if let Some(children) = self.views.graph.get_children_of_parent(curtable, *gidroot) {
+                warn!("Get children of table {} GID {}: {:?}", curtable, gidroot, children);
                 // for each child row
                 for ((child_table, child_ci), child_hrptrs) in children.iter() {
                     let child_viewptr = self.views.get_view(&child_table).unwrap();
                     let ghosted_cols = helpers::get_ghosted_col_indices_of(&self.decor_config, &child_table, &child_viewptr.borrow().columns);
                     // if the child has a column that is ghosted and the ghost ID matches this gid
-                    for (ci, _) in &ghosted_cols {
-                        if ci == child_ci {
+                    for (ci, parent_table) in &ghosted_cols {
+                        if ci == child_ci && parent_table == &curtable {
                             for hrptr in child_hrptrs {
-                                if hrptr.row().borrow()[*ci].to_string() == gfam.root_gid.to_string() {
+                                if hrptr.row().borrow()[*ci].to_string() == gidroot.to_string() {
                                     // then update this child to use the actual real EID
+                                    warn!("Updating child row with GID {} to point to actual eid {}", gidroot, eid_val);
                                     self.views.update_index_and_row_of_view(&child_table, hrptr.row().clone(), *ci, Some(&eid_val));
                                 }
                             }
                         }
                     }
                 }
-
-                // TODO we also want to remove the ghost ancestors of this gid from the MV (while still
-                // keeping these ancestors on disk).
-                warn!("RESUB: update children of {} use EID {}us", gfam.root_gid, start.elapsed().as_micros());
             }
         }
 
@@ -2100,6 +2091,7 @@ impl QueryTransformer {
         }
         // 3. insert all eid rows AND potentially ghost rows back into the view
         // We need to remove mapped-to ghosts and rewrite foreign key columns to point to EIDs at a later step
+        warn!("Rebuilding view {} with all rows {:?}", name, rptrs);
         self.views.insert(name, None, &rptrs).unwrap();
     }
 
@@ -2175,8 +2167,8 @@ impl QueryTransformer {
                     let ghosted_cols = helpers::get_ghosted_col_indices_of(&self.decor_config, &child_table, &child_viewptr.borrow().columns);
                     
                     // if the child has a column that is ghosted and the ghost ID matches this gid
-                    for (ci, _) in &ghosted_cols {
-                        if ci == child_ci {
+                    for (ci, parent_table) in &ghosted_cols {
+                        if ci == child_ci && &mapping.table == parent_table {
                             for hrptr in child_hrptrs {
                                 if hrptr.row().borrow()[*ci].to_string() == gidroot.to_string() {
                                     

@@ -135,8 +135,8 @@ pub fn policy_to_config(policy: &ApplicationPolicy) -> Config {
             } 
             DecorrelationPolicy::NoDecorSensitivity(s) => {
                 attached_children.insert(kr.child.clone());
-                if let Some(ghost_cols) = cp_sdts.get_mut(&kr.child.clone()) {
-                    ghost_cols.push((kr.column_name.clone(), kr.parent.clone(), s));
+                if let Some(sensitive) = cp_sdts.get_mut(&kr.child.clone()) {
+                    sensitive.push((kr.column_name.clone(), kr.parent.clone(), s));
                 } else {
                     cp_sdts.insert(kr.child.clone(), vec![(kr.column_name.clone(), kr.parent.clone(), s)]);
                 }        
