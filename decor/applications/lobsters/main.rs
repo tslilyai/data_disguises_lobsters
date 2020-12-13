@@ -22,7 +22,7 @@ mod datagen;
 include!("statistics.rs");
 use decor::*;
 
-const SCHEMA : &'static str = include_str!("../schema.sql");
+const SCHEMA : &'static str = include_str!("schema.sql");
 const DBNAME : &'static str = &"decor_lobsters";
 
 #[derive(Debug, Clone, PartialEq)]

@@ -39,6 +39,6 @@ histogram-sampler = "0.4.0"
 #doc = false
 
 [[bin]]
-name = "lobsters-microbenchmarks"
-path = "lobsters/microbenchmarks/main.rs"
+name = "lobsters"
+path = "lobsters/main.rs"
 doc = false

@@ -11,7 +11,7 @@ cargo build --release
 for trial in `seq $trials`
 do
 	perflock ../target/release/lobsters-microbenchmarks \
-		--scale=0.5 --nqueries=10000 --prime --prop_unsub=0.0
+		--scale=0.33 --nqueries=10000 --prime --prop_unsub=0.0
 done
 
 python3 plot.py
