@@ -55,11 +55,13 @@ pub fn get_parent_col_indices_of_datatable(decor_config: &policy::Config, table_
 }
 
 pub fn tablecolumn_matches_col(c: &views::TableColumnDef, col: &str) -> bool {
-    debug!("matching {} or {} to {}", c.colname, c.fullname, col);
-    c.colname == col || c.fullname == col
+    //warn!("matching {} or {} to {}", c.colname, c.fullname, col);
+    (col.len() < c.fullname.len() && c.colname == col) || c.fullname == col
 }
 
 pub fn get_col_index(col: &str, columns: &Vec<views::TableColumnDef>) -> Option<usize> {
-    columns.iter().position(|c| tablecolumn_matches_col(c, col))
+    let pos = columns.iter().position(|c| tablecolumn_matches_col(c, col));
+    warn!("found position {:?} for col {}", pos, col);
+    pos
 }
 
