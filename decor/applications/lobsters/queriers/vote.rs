@@ -13,7 +13,7 @@ pub fn vote_on_comment(db: &mut mysql::Conn, acting_as: Option<u64>, comment: u6
                 `comments`.`upvotes`, `comments`.`downvotes`, \
                 `comments`.`id` \
              FROM `comments` \
-             WHERE `comments`.`short_id` = {}",
+             WHERE `comments`.`short_id` = '{}'",
              comment
         ))?.unwrap();
     
@@ -141,7 +141,7 @@ pub fn vote_on_story(db: &mut mysql::Conn, acting_as: Option<u64>, story_id: u64
     let (author, score, story) : (u64, f64, u64) = db.query(format!(
                 "SELECT `stories`.user_id, stories.hotness, stories.id \
                  FROM `stories` \
-                 WHERE `stories`.`short_id` = {}",
+                 WHERE `stories`.`short_id` = '{}'",
                  story_id
             ))?[0];
     db.query_drop(format!(

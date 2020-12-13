@@ -374,7 +374,7 @@ fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr,
                     if row.len() > newcol_index {
                         row[newcol_index] = Value::Number(rowcnts.1.to_string());
                     } else {
-                        row[newcol_index] = Value::Number(rowcnts.1.to_string());
+                        row.push(Value::Number(rowcnts.1.to_string()));
                     }
                     rptrs_to_keep.push(rowcnts.0.clone());
                 }

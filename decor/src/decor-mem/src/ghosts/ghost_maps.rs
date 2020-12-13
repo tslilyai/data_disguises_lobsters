@@ -140,6 +140,7 @@ impl GhostMap {
             self.gid2eid.insert(family.root_gid, eid);
             // save to insert into forward map
             families_of_eid.push(family.clone());
+            self.latest_gid.fetch_max(family.root_gid, Ordering::SeqCst);
         }
 
         if let Some(families) = self.eid2gids.get_mut(&eid) {
@@ -294,7 +295,7 @@ impl GhostMap {
     {
         let start = time::Instant::now();
        
-        let gid = self.latest_gid.fetch_add(1, Ordering::SeqCst);
+        let gid = self.latest_gid.fetch_add(1, Ordering::SeqCst) + 1;
         let new_entities = ghosts::generate_new_ghosts_with_gids(
             views, gp, db, &TemplateEntity{
                 table: self.table_name.clone(), 

@@ -101,7 +101,7 @@ pub fn post_comment(db: &mut mysql::Conn,
     let (author, hotness, story) : (u64, f64, u64) = db.query_first(format!(
             "SELECT `stories`.`user_id`, `stories`.`hotness`, stories.id \
              FROM `stories` \
-             WHERE `stories`.`short_id` = {}",
+             WHERE `stories`.`short_id` = '{}'",
              story
         ))?.unwrap();
 
@@ -115,7 +115,7 @@ pub fn post_comment(db: &mut mysql::Conn,
         if let Some(p) = db.query_first(format!(
                 "SELECT  `comments`.id, comments.thread_id FROM `comments` \
                  WHERE `comments`.`story_id` = {} \
-                 AND `comments`.`short_id` = {}",
+                 AND `comments`.`short_id` = '{}'",
                  story, parent))? 
         {
             Some(p)
@@ -136,7 +136,7 @@ pub fn post_comment(db: &mut mysql::Conn,
     // check that short id is available
     db.query_drop(format!(
         "SELECT  1 AS one FROM `comments` \
-         WHERE `comments`.`short_id` = {}",
+         WHERE `comments`.`short_id` = '{}'",
          id
     ))?;
 
@@ -152,7 +152,7 @@ pub fn post_comment(db: &mut mysql::Conn,
              `user_id`, `parent_comment_id`, `thread_id`, \
              `comment`, `upvotes`, `confidence`, \
              `markeddown_comment`) \
-             VALUES (\'{}\', \'{}\', {}, {}, {}, {}, {}, {}, {}, {}, {})",
+             VALUES (\'{}\', \'{}\', \'{}\', {}, {}, {}, {}, {}, {}, {}, {})",
             now,
             now,
             id,
@@ -172,7 +172,7 @@ pub fn post_comment(db: &mut mysql::Conn,
              (`created_at`, `updated_at`, `short_id`, `story_id`, \
              `user_id`, `thread_id`, `comment`, `upvotes`, `confidence`, \
              `markeddown_comment`) \
-             VALUES (\'{}\', \'{}\', {}, {}, {}, {}, {}, {}, {}, {})",
+             VALUES (\'{}\', \'{}\', \'{}\', {}, {}, {}, {}, {}, {}, {})",
             now,
             now,
             id,
@@ -189,7 +189,7 @@ pub fn post_comment(db: &mut mysql::Conn,
     // TODO last insert ID not working?
     //q.last_insert_id().unwrap();
     drop(q);
-    let comment : u64 = db.query_first(format!("SELECT comments.id FROM comments WHERE comments.short_id={}", id))?.unwrap();
+    let comment : u64 = db.query_first(format!("SELECT comments.id FROM comments WHERE comments.short_id='{}'", id))?.unwrap();
 
     db.query_drop(format!(
         "SELECT  `votes`.* FROM `votes` \

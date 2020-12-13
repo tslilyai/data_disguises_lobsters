@@ -265,7 +265,7 @@ impl View {
                     // TODO just create a separate index for each key part for now rather than
                     // nesting
                     indexes_map.insert(key.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))));
-                    debug!("{}: Created index for column {}", name, key.to_string());
+                    warn!("{}: Created index for column {}", name, key.to_string());
                 }
             }
         }; 
@@ -276,11 +276,11 @@ impl View {
             for opt in &c.options {
                 if let ColumnOption::Unique{is_primary} = opt.option {
                     if is_primary {
-                        debug!("{}: Created primary index for column {}", name, c.name);
+                        warn!("{}: Created primary index for column {}", name, c.name);
                         primary_index = Some(ci);
                     } else {
                         indexes_map.insert(c.name.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))));
-                        debug!("{}: Created unique index for column {}", name, c.name);
+                        warn!("{}: Created unique index for column {}", name, c.name);
                     }
                     break;
                 }
@@ -296,7 +296,7 @@ impl View {
                     } else {
                         for c in columns {
                             indexes_map.insert(c.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))));
-                            debug!("{}: Created unique index for column {}", name, c.to_string());
+                            warn!("{}: Created unique index for column {}", name, c.to_string());
                         }
                     }
                 }
@@ -343,20 +343,20 @@ impl View {
         if col_index == self.primary_index {
             match self.rows.borrow().get(col_val) {
                 Some(r) => {
-                    debug!("get rptrs of col: found 1 primary row for col {} val {}!", self.columns[col_index].fullname, col_val);
+                    warn!("get rptrs of col: found 1 primary row for col {} val {}!", self.columns[col_index].fullname, col_val);
                     hs.insert(HashedRowPtr::new(r.clone(), self.primary_index));
                 }
                 None => {
-                    debug!("get rptrs of primary: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
+                    warn!("get rptrs of primary: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
                 }
             }
             return Some(hs);
         } else if let Some(index) = self.indexes.get(&self.columns[col_index].colname.to_string()) {
             if let Some(rptrs) = index.borrow().get(col_val) {
-                debug!("get rptrs of col: found {} rows for col {} val {}!", rptrs.len(), self.columns[col_index].fullname, col_val);
+                warn!("get rptrs of col: found {} rows for col {} val {}!", rptrs.len(), self.columns[col_index].fullname, col_val);
                 return Some(rptrs.clone());
             } else {
-                debug!("get rptrs of col: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
+                warn!("get rptrs of col: no rows for col {} val {}!", self.columns[col_index].fullname, col_val);
                 return Some(hs);
             }
         } 
@@ -409,7 +409,7 @@ impl View {
         let start = time::Instant::now();
         if let Some(index) = self.indexes.get_mut(&self.columns[col_index].colname.to_string()) {
             let col_val = row.borrow()[col_index].to_string();
-            debug!("INDEX {}: inserting {}) into index", self.columns[col_index].fullname, col_val);
+            warn!("INDEX {}: inserting {} into index", self.columns[col_index].fullname, col_val);
             // insert into the new indexed ris 
             let mut index = index.borrow_mut();
             if let Some(rptrs) = index.get_mut(&col_val) {
@@ -425,7 +425,7 @@ impl View {
             }
         } else {
             let dur = start.elapsed();
-            debug!("no insert index {}, col {} took: {}us", self.columns[col_index].fullname, col_index, dur.as_micros());
+            warn!("no insert index {}, col {} took: {}us", self.columns[col_index].fullname, col_index, dur.as_micros());
         }
     }
  
@@ -555,7 +555,7 @@ impl Views {
     pub fn insert(&mut self, table_name: &str, columns_opt: Option<&Vec<Ident>>, val_rows: &RowPtrs) -> Result<(), Error> {
         let mut view = self.views.get(table_name).unwrap().borrow_mut();
 
-        warn!("{}: insert rows {:?} into {}", view.name, val_rows, table_name);
+        debug!("{}: insert rows {:?} into {}", view.name, val_rows, table_name);
         // initialize the rows to insert
         // insert rows with non-specified columns set as NULL for now (TODO)
         let mut insert_rows = vec![];
@@ -635,11 +635,11 @@ impl Views {
         for (i, row) in val_rows.iter().enumerate() {
             let mut irow = insert_rows[i].borrow_mut();
             let row = row.borrow();
-            warn!("views::insert: insert_rows {} is {:?}, val row is {:?}, cis are {:?}", i, irow, row, cis);
+            debug!("views::insert: insert_rows {} is {:?}, val row is {:?}, cis are {:?}", i, irow, row, cis);
             for (val_index, ci) in cis.iter().enumerate() {
                 // update the right column ci with the value corresponding 
                 // to that column to update
-                warn!("views::insert: setting insert_row col {} to {}", ci, row[val_index]);
+                debug!("views::insert: setting insert_row col {} to {}", ci, row[val_index]);
                 irow[*ci] = row[val_index].clone();
             }
             debug!("views::insert: insert_rows {} is {:?}", i, irow);
@@ -669,7 +669,7 @@ impl Views {
             view.insert_row(row.clone());
         }
 
-        warn!("views::insert {}: Appending rows: {:?}", view.name, insert_rows);
+        debug!("views::insert {}: Appending rows: {:?}", view.name, insert_rows);
 
         // add edges to graph
         for row in insert_rows {

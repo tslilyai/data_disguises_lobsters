@@ -64,8 +64,8 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
-        //.filter_level(log::LevelFilter::Error)
+        //.filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -302,10 +302,10 @@ fn main() {
     let prop_unsub = args.prop_unsub;
 
     use TestType::*;
-    let tests = &[TestDecor];
-    let testnames = vec!["decor"];
-    //let tests = vec![TestShimParse, TestNoShim, TestShim, TestDecor];
-    //let testnames = vec!["shim_parse", "no_shim", "shim_only", "decor"];
+    //let tests = &[TestDecor];
+    //let testnames = vec!["decor"];
+    let tests = vec![TestShimParse, TestNoShim, TestShim, TestDecor];
+    let testnames = vec!["shim_parse", "no_shim", "shim_only", "decor"];
 
     //let mut threads = vec![];
     let mut core = 2;

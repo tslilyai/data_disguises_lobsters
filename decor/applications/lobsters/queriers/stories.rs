@@ -11,7 +11,7 @@ pub fn read_story(db: &mut mysql::Conn, acting_as: Option<u64>, id : u64) -> Res
     let (author, story) : (u32, u32) = db.query_first(format!(
             "SELECT `stories`.`id`, `stories`.`user_id` \
              FROM `stories` \
-             WHERE `stories`.`short_id` = {}", id))?.unwrap();
+             WHERE `stories`.`short_id` = '{}'", id))?.unwrap();
     result.push(format!("({}, {})", story, author));
     
     db.query_drop(format!("SELECT `users`.* FROM `users` WHERE `users`.`id` = {}", author))?;
@@ -150,7 +150,7 @@ pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title:
     
     db.query_drop(format!(
         "SELECT  1 AS one FROM `stories` \
-         WHERE `stories`.`short_id` = {}",
+         WHERE `stories`.`short_id` = '{}'",
         id,)
     )?;
 
@@ -179,7 +179,7 @@ pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title:
              (`created_at`, `user_id`, `title`, \
              `description`, `short_id`, `upvotes`, `hotness`, \
              `markeddown_description`) \
-             VALUES (\'{}\', {}, \'{}\', \'{}\', {}, {}, {}, \'{}\')", chrono::Local::now().naive_local(),
+             VALUES (\'{}\', {}, \'{}\', \'{}\', \'{}\', {}, {}, \'{}\')", chrono::Local::now().naive_local(),
                 user,
                 title,
                 "to infinity", // lorem ipsum?

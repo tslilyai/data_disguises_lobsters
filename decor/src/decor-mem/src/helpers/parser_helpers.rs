@@ -152,24 +152,29 @@ pub fn string_vals_to_parser_vals(valstrs: &Vec<String>, columns: &Vec<views::Ta
     let mut valsvec = vec![];
     for ci in 0..columns.len() {
         let valstr = trim_quotes(&valstrs[ci]);
-        valsvec.push(
-            match columns[ci].column.data_type {
-                DataType::Decimal(..) 
-                    | DataType::Float(..)
-                    | DataType::Double 
-                    | DataType::BigInt 
-                    | DataType::SmallInt
-                    | DataType::TinyInt(..) 
-                    | DataType::Int => Value::Number(valstr.to_string()),
-                DataType::Timestamp 
-                    | DataType::Date 
-                    | DataType::Time 
-                    | DataType::Varchar(..) 
-                    | DataType::Blob(..) 
-                    | DataType::Char(..) => Value::String(trim_quotes(&valstr).to_string()),
-                DataType::Boolean => Value::Boolean(valstr == "1"),
-                _ => unimplemented!("type not supported yet")
-            });
+        if valstr == "NULL" {
+            valsvec.push(Value::Null);
+        } else {
+            valsvec.push(
+                match columns[ci].column.data_type {
+                    DataType::Decimal(..) 
+                        | DataType::Float(..)
+                        | DataType::Double 
+                        | DataType::BigInt 
+                        | DataType::SmallInt
+                        | DataType::TinyInt(..) 
+                        | DataType::Int => Value::Number(valstr.to_string()),
+                    DataType::Timestamp 
+                        | DataType::Date 
+                        | DataType::DateTime
+                        | DataType::Time 
+                        | DataType::Varchar(..) 
+                        | DataType::Blob(..) 
+                        | DataType::Char(..) => Value::String(trim_quotes(&valstr).to_string()),
+                    DataType::Boolean => Value::Boolean(valstr == "1"),
+                    _ => unimplemented!("type not supported yet {:?}", columns[ci].column.data_type)
+                });
+        }
     }
     valsvec
 }
