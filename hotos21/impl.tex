@@ -219,8 +219,8 @@ from a prior unsubscription.
 \sys{} verifies that the hash of the EID and data matches that from the latest unsubscription of
 this entity.
 
-\sys{} first re-inserts any completely
-decorrelated entities into both the datatables and materialized views. 
+\sys{} first re-inserts the completely decorrelated entities that were removed during unsubscription
+into both the datatables and materialized views. 
 
 Next, for all removed parent EID to GIDs mappings, \sys{} reinserts these mappings into the
 persistent and cached EID to GIDs mapping.
@@ -234,21 +234,25 @@ Finally, \sys{} removes any
 ghost entities from the datatables and materialized views that were created during unsubscription to
 lower sensitivity.
 
-\paragraph{Consistency and Recovering the Materialized Views}
-\lyt{This isn't actually implemented yet...}
+\subsection{Handling Crashes and Recovery}
 Upon a crash, the in-memory materialized views are rebuilt from the underlying datatables and ghost
-mapping. Non-children datatable entities are simply reinserted into the appropriate
+mapping. Any datatable entities without parents are simply reinserted into the appropriate
 materialized view. 
 
-If a datatable contains child entities, and these children have ghost parent GIDs as foreign
-keys (because their child-parent edges can be decorrelated), then \sys{} checks, for each child, whether a mapping
-from a real parent EID to this entity's foreign key GID exists in the persistent EID to GIDs
-mapping. If such a mapping exists, then this edge has not yet been decorrelated, and the real parent
-entity should be exposed to the application: \sys{} inserts the child entity with the real parent
+If a datatable's entities have parent entities, the parent foreign keys may be ghost parent GIDs. 
+This can happen for two reasons: 1) these child-parent edges can be decorrelated, and so ghost
+entities had been preemptively created in the datatable; or 2) these are ghost entities created to
+add noise to sensitive correlations during an unsubscription. 
+
+For each entity with ghost parent GIDs, \sys{} checks whether a mapping
+from a real parent EID to the parent GID exists in the persistent EID to GIDs mapping. 
+If such a mapping exists, then the real parent entity should be exposed to the application because
+the parent or its ancestors have not yet unsubscribed: \sys{} inserts the child entity with the real parent
 EID into the materialized view.
 
-If the mapping does not exist, then the link to the real parent entity must have been decorrelated at some point:
-\sys{} inserts the unmodified child entity with the GID as foreign key into the materialized view.
+Otherwise, if no mapping exists, then the ghost parent was generated during an unsubscription, and
+the top-level entity has not yet resubscribed. \sys{} thus exposes the ghost entity by inserting the
+unmodified child entity with the parent GID into the materialized view.
 Note that this may link a child entity with a \emph{different} ghost user than initially decided
 during unsubscription (where any one of the ghosts corresponding to the real parent could be used as
 a ghost parent for any child). 
@@ -259,5 +263,5 @@ also doesn't seem that important.}
 The parent-child graph is constructed appropriately on top of the materialized view, and the EID to
 GIDs mapping cache repopulated.
 
-\sys{} does not currently support atomic unsubscription, resubscription, or recovery behavior.
-\lyt{TODO}
+\lyt{TODO: Unsubscriptions and resubscriptions should be logged so that we can determine if they've
+completed or not upon crashing. Eventual consistency for persistent / MV state in unsub/resub.}
