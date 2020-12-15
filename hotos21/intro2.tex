@@ -74,13 +74,18 @@ in two ways: (1) directly via their content, and (2) indirectly via the structur
 identifying, such as posts written by a user, to subtly perilous: posts tagged with user-generated
 tags most likely belong to the tag's author, and posts liked by the same group of users likely
 belong to a friend of the group.
+
 %
-\sys provides unsubscription policy primitives to identify both sensitive correlations and content,
-and to specify the post-unsubscription state of the database at per-column and per-correlation
-granularity. Column values can be removed, anonymized, or modified in application-specific ways; and
-\sys provides a menu of \emph{decorrelation policies} allowing correlations to be broken, removed,
-or desensitized by adding noise.  This gives developers flexibility beyond either deleting of all of
-the user's data, or anonymizing the user and retaining all the user's data, and \sys hides the
+\sys provides a menu of unsubscription policy choices 
+that allow developers to choose how to \emph{ghost} individual data records
+(at column-level granularity), and how to
+\emph{decorrelate} sensitive correlations. Specifying the policy requires nothing more than the
+application schema: ghost generation policies act on individual application datatables, and
+decorrelation policies act on foreign key relationships between tables.
+Table column values can be removed, anonymized, or modified in application-specific ways; and
+correlations can be broken, removed, or desensitized by adding noise. T
+his gives developers flexibility beyond either deleting of all of
+the user's data, or anonymizing the user and retaining all the user's data; \sys hides the
 complexity of implementating such policies from the developer.
 
 %
