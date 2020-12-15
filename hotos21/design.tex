@@ -6,64 +6,73 @@ directly from its contents, and indirectly through its structural correlations t
 data. \sys must therefore pinpoint exactly which data and correlations may be identity-sensitive, and allow developers to
 specify exactly what the post-unsubscription state of the data should be.
 
-In order to capture exactly which data contents, and which data correlations may be identity-sensitive, 
-\sys models an application's schema as a graph of data \emph{entities}. Each entity type corresponds to
-an application datatable, such as a stories, users, or votes table. 
-Entities are linked in the entity graph by foreign key relationships: table columns that act as foreign keys to other tables create child-parent relationships between entities.
-\sys also includes abstract entities in the graph, where the keys may be non-referential
-identifiers that refer to abstract, non-table entities (e.g.,\ a \texttt{thread\_id} column in the
-comments table).
-Edges in the graph---foreign or abstract key relationships---represent correlations between the nodes of the graph,
-namely individual entities.
+In order to capture exactly which data contents, and which data correlations may be
+identity-sensitive, \sys models an application's data as a graph of \emph{entity} nodes and edges.
+Each entity type corresponds to an application datatable, such as a stories, users, or votes table.
+Entities are linked in the entity graph by foreign key relationships: table columns that act as
+foreign keys to other tables create child-parent relationships between entities.  \sys also includes
+abstract entities in the graph, where the keys may be non-referential identifiers that refer to
+abstract, non-table entities (e.g.,\ a \texttt{thread\_id} column in the comments table).  Edges in
+the graph---foreign or abstract key relationships---represent correlations between the nodes of the
+graph, namely individual entities.
 
-\sys traverses this abstract application entity graph with the top-level unsubscribing user node as
-the root in order to find all possible graph edges and nodes that may be sensitive. 
+While \sys operates on a specific instance of the application entity graph, the developer reasons
+only about the the \emph{types} of individual entities and the \emph{types} of entity edges that may
+be instantiated in the graph. This allows unsubscription policies to be specified statically, using
+only the application schema, while \sys ensures that any application entity graph instance satisfies
+the state specified in the policy.
 
+For each type of entity, the developer chooses a \emph{ghost entity generation policy} that
+specifies how the content of any entity of that type should be handled (i.e.,\ turned into a ghost). For each type of edge (\eg
+story to comment, or user to story), the developer chooses a \emph{decorrelation policy}.
 
+During unsubscription, \sys traverses the current instance of the application entity graph with the
+top-level unsubscribing user node as the root in order to find all possible graph edges and nodes
+that may be sensitive. \sys then applies the appropriate ghost policy to all sensitive nodes
+according to the nodes' types, and applies the appropriate decorrelation policy to all sensitive
+edges depending on the edge type.
 
-\subsection{Specifying Unsubscription Policies}
-The developer provides a two-part specification to \sys: 
-\begin{enumerate}
-    \item Ghost entity generation policies on entity types, specifying if and how much sensitive entity
-        content can remain when the entity unsubscribes and
-    \item Decorrelation policies for foreign/abstract key relationships specifying if and how
-        instances of these edge types should be decorrelated.
-\end{enumerate}
+We next describe the choices for ghost entity generation and decorrelation policies that \sys makes
+available.
 
-\noindent The following describes the options for the different parts of the developer-provided
-specification in more detail.
-
-\subsubsection{Ghost Entity Generation}
+\subsection{Ghost Entity Generation Policies}
 Developers can choose between the following ghost generation policies, which apply at 
 per-column granularity.
 \begin{itemize}
     \item \textbf{Cloned:} All ghosts have the same value as the original entity for this column.
-        Recorrelation returns an entity with the original value.
+        Resubscription resurrects the original entity value.
 
     \item \textbf{Generated:} All ghosts have a generated value for this column. Generated values are
 chosen to be random, a default value, or generated from the original value via a function provided by the developer.
-        If the developer provides a reversible function (e.g.,\ has encrypted the original value
-        with a user-specific key), then the original value is restored upon
-        recorrelation; otherwise, recorrelation returns a generated value in place of the original.
+        %If the developer provides a reversible function (e.g.,\ has encrypted the original value
+        %with a user-specific key), then the original value is restored upon
+        %resubscription; otherwise, 
 
         If the column represents a foreign key into another table, then either the referenced table must 
-        have a ghost generation policy, or the foreign key is set to an existing entity or placeholder ghost (e.g.,
-        the foreign key is set to point to ``deleted story''). It is up to the developer to ensure
-        referential integrity in the latter case.
+        have a ghost generation policy, or the foreign key is set to an existing entity or
+        placeholder ghost.
+        %(the foreign key is set to point to ``deleted story''). 
+        It is up to the developer to ensure referential integrity in the latter case.
+       
+        \sys returns a copy of the original value to the unsubscribing user, which if
+        returned upon resubscription, allows \sys to restore the original value. If the user does not wish to
+        store this data, resubscription retains the generated value in place of the original.
 
 \item \textbf{Single Clone, Generated Remainder:} One ghost has the same value as the original
-        entity; all other ghosts have generated values. Recorrelation returns an entity with the original value.
+        entity; all other ghosts have generated values. Resubscription resurrects the original entity value.
 \end{itemize}
-
 
 \subsubsection{Decorrelation Policies}
 \paragraph{Policy 1: Decorrelate.}
 Application developers specify that the relationship may be decorrelated.
 \sys generates a ghost parent entity for the child entity according to the parent entity's ghost
 generation policy, replacing the child's key with the new ghost parent key.
+\sys removes the parent entity and returns this data to the unsubscribing user. Note that any other
+edge types from this parent to other children or grandparents may be cloned in the ghost entities,
+so that \sys performs decorrelation only on this specific edge type.
 
-Resubscription (and recorrelation) removes any created ghost entities and restores the relationship
-back to the original parent key instance.
+Upon resubscription, the user returns the original parent entity data, and \sys removes any created
+ghost entities and restores the relationship back to the original parent key instance.
 
 %\lyt{There could also be an option to "decorrelate the minimum amount possible to reach a
 %certain sensitivity threshold"; not sure if it's useful since the edges can already be
@@ -72,17 +81,17 @@ back to the original parent key instance.
 \paragraph{Policy 2: Do not decorrelate.}
 Application developers specify that this foreign or abstract key relationship cannot be decorrelated.
 Developers select from the following subpolicy options: 
-\begin{itemize}
-    \item \textbf{Delete}: The child entity and its dependencies are deleted. This option should be
+    
+    \textbf{Delete}: The child entity and any descendants are removed. This option should be
         selected if this type of key relationship cannot be decorrelated while retaining application
         semantics, but keeping the relationship would reveal too much identifying information.
-        Upon recorrelation, however, these entities cannot be restored.
+        Upon resubscription, these entities cannot be restored.
 
-    \item \textbf{Retain}: Nothing is done on either side of the
+    \textbf{Retain}: Nothing is done on either side of the
         relationship. This option should only be selected if the developer knows that the
         relationship cannot leak identifying information.
 
-    \item \textbf{Achieve sensitivity threshold $0 \le \sigma \le 1$}:
+    \textbf{Achieve sensitivity threshold $\sigma$}:
         A sensitivity threshold for an foreign/abstract key relationships specifies the maximum
         proportion of edge instances of a relationship type that may connect to \emph{sensitive}
         entities (i.e.,\ entities transitively correlated to the initial entity being decorrelated). 
@@ -121,7 +130,6 @@ Developers select from the following subpolicy options:
         If $\sigma = 0$, then this corresponds to removing all edges of this type
         with sensitive children (equivalent to a Delete policy); if $\sigma = 1$, \sys does
         nothing (equivalent to a Retain policy).
-    \end{itemize}
 
 \subsubsection{\sys's Execution Algorithm}
 Given this specification and an entity to be decorrelated as input, \sys acts as follows:
@@ -198,8 +206,8 @@ edge type $t$,
     \end{itemize}
 
 Note that the initial sensitivity for an edge of type $t$ with parent $k$ from Step 2 (parent-child
-decorrelation) is 1! Because \sys traverses from parent to child, if one edge of type $t$ with
-parent $k$ was collected by \sys, then \emph{all} edges of type $t$ with parent $k$ were collected
+decorrelation) is always 1. Because \sys traverses from parent to child, if one edge of type $t$ with
+parent $k$ were collected by \sys, then \emph{all} edges of type $t$ with parent $k$ were collected
 by \sys. 
 
 However, the initial sensitivity for an edge of type $t$ with parent $k$ from Step 3 (child-parent
