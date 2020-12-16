@@ -18,40 +18,40 @@ knowledge or explicit consent.
 
 %
 For the first time, companies face both legal and societal demand to support \emph{unsubscription}
-of users from their services. Users can request to unsubscribe at any time, or even 
-automatically unsubscribe by granting a time-limited
-``lease'' of data to a web service instead of having a permanent service account, and preventing
-idle or forgotten accounts from retaining personal data indefinitely.
-\lyt{Users could do this without application support by themselves by programmatically setting a
-personal reminder to ``unsubscribe after x days'' every time they create an account}
+of users from their services. Users can request to unsubscribe at any time, preventing 
+idle or unused accounts from retaining personal data indefinitely. 
 %
 
 %
 Unsubscription, however, is only half the story. Users should not pay to regain ownership of their
-data: the cost of unsubscription cannot unduly restrict users' freedom to exercise their data
+data, which is rightly theirs: the cost of unsubscription cannot unduly restrict users' freedom to exercise their data
 rights. To meet the flexible privacy demands of users, web applications must allow users to
 unsubscribe \emph{and resubscribe} as they wish, switching between a privacy-preserving unsubscribed
 mode and an identity-revealing subscribed mode at any time without permanently losing their data, or
 needing to maintain their account data themselves. 
 %
+With flexible privacy, we can imagine a world where web services acquire time-limited ``leases'' of user
+data, instead of permanent user accounts. 
+\lyt{Users could do this without application support by themselves by programmatically setting a
+personal reminder to ``unsubscribe after x days'' every time they create an account.}
+%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-The failure of web applications to support privacy-preserving unsubscription and resubscription  
-highlights the many challenges of doing so correctly.
+The current failure of web applications to support privacy-preserving unsubscription and
+resubscription  highlights the many challenges of doing so correctly.
 %
-Unsubscription requires more than merely deleting a user's data: correct operation
-of a service often requires that some information remains, in transformed or
-anonymized form, after a user departs.
+Unsubscription requires more than merely deleting a user's data: correct operation of a service
+often requires that some information remains, in transformed or anonymized form, after a user
+departs.
 %
 \ms{Give an example!}
 %
-It is difficult for developers to determine and implement the database
-transformations required to correctly unsubscribe a user, and to continously
-maintain this feature.
+It is difficult for developers to determine and implement the database transformations required to
+correctly unsubscribe a user, and to continously maintain this feature.
 %
-Consequently, the majority of web services today either lack unsubscription support
-(requiring manual labor to handle \eg GDPR deletion requests), or leave substantial
-information behind that potentially harms user privacy.
+Consequently, the majority of web services today either lack unsubscription support (requiring
+manual labor to handle \eg GDPR deletion requests), or leave substantial information behind that
+potentially harms user privacy.
 %
 Resubscription either is impossible after a user leaves (\eg Reddit), or requires for all user data
 to be kept by the application (e.g.,\ account reactivation in Facebook and Twitter).
@@ -76,16 +76,15 @@ tags most likely belong to the tag's author, and posts liked by the same group o
 belong to a friend of the group.
 
 %
-\sys provides a menu of unsubscription policy choices 
-that allow developers to choose how to \emph{ghost} individual data records
-(at column-level granularity), and how to
-\emph{decorrelate} sensitive correlations. Specifying the policy requires nothing more than the
-application schema: ghost generation policies act on individual application datatables, and
-decorrelation policies act on foreign key relationships between tables.
-Table column values can be removed, anonymized, or modified in application-specific ways; and
-correlations can be broken, removed, or desensitized by adding noise. This gives developers flexibility beyond either deleting of all of
-the user's data, or anonymizing the user and retaining all the user's data; \sys hides the
-complexity of implementating such policies from the developer.
+\sys provides a menu of unsubscription policy choices that allow developers to choose how to
+\emph{ghost} individual data records (at column-level granularity), and how to \emph{decorrelate}
+sensitive correlations. Specifying the policy requires nothing more than the application schema:
+ghost generation policies act on individual application datatables, and decorrelation policies act
+on foreign key relationships between tables.  Table column values can be removed, anonymized, or
+modified in application-specific ways; and correlations can be broken, removed, or desensitized by
+adding noise.  This gives developers flexibility to choose policies other than deleting of all of the user's data,
+or retaining all the user's pseudonymized data, without needing to deal with the complexity of
+implementating such policies.
 
 %
 \sys goes beyond simply supporting unsubscription by automating resubscription as well.

@@ -5,7 +5,7 @@ We evaluate \sys{} on two metrics: (1) can desired decorrelation policies be eas
 provided decorrelation primitives for a range of practical applications?, and (2) can decorrelation
 be supported with low performance overhead?
 
-Our evaluation exemplifies how a suite of applications (Lobste.rs, \lyt{TODO}) can express a diverse
+Our evaluation exemplifies how a suite of applications can express a diverse
 range of privacy policies using \sys{} with low developer effort with low overhead.
 
 \subsection{Example policies}
@@ -86,7 +86,7 @@ HotCRP's current privacy policy~\cite{hotcrp_privacy} allows site managers (e.g.
 to indefinitely store and distribute submissions and reviews. Each HotCRP.com user has an associated
 global profile and a profile for every HotCRP.com site, and must contact the HotCRP maintainers
 directly to remove these profiles. This corresponds to key relationships with
-\texttt{NoDecorrelate:Retain} policies: a user simply cannot unsubscribe (or resubscribe).
+\texttt{NoDecor:Retain} policies: a user simply cannot unsubscribe (or resubscribe).
 
 With \sys{}, we can express better, more granular privacy policies that would otherwise be difficult to
 implement right in HotCRP. First, we specify that the top-level entity to decorrelate is a user
@@ -128,7 +128,7 @@ The final part of our policy ensures that review and paper artifacts remain pres
 correctly linked with other application entities: (subscribed) reviewers should still see the correct paper for each of
 their reviews, (subscribed) authors should see the correct reviews for their papers, and review and
 paper metadata should remain correctly associated. We specify
-\texttt{NoDecorrelation:Retain} policies for all edges that were not assigned a policy in the prior
+\texttt{NoDecor:Retain} policies for all edges that were not assigned a policy in the prior
 steps.
 
 \paragraph{PrestaShop.} 
