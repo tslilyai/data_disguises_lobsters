@@ -1,10 +1,11 @@
 %-------------------------------------------------------------------------------
 \section{Design}
 %-------------------------------------------------------------------------------
-\sys's design centers around the key observation that user data may expose identifying information both
-directly from its contents, and indirectly through its structural correlations to other application
-data. \sys must therefore pinpoint exactly which data and correlations may be identity-sensitive, and allow developers to
-specify exactly what the post-unsubscription state of the data should be.
+\sys's design centers around the key observation that user data may expose identifying information
+both directly from its contents, and indirectly through its structural correlations to other
+application data. \sys must therefore pinpoint exactly which data and correlations may be
+identity-sensitive, and allow developers to specify exactly what the post-unsubscription state of
+the data should be.
 
 In order to capture exactly which data contents, and which data correlations may be
 identity-sensitive, \sys models an application's data as a graph of \emph{entity} nodes and edges.
@@ -16,67 +17,100 @@ abstract, non-table entities (e.g.,\ a \texttt{thread\_id} column in the comment
 the graph---foreign or abstract key relationships---represent correlations between the nodes of the
 graph, namely individual entities.
 
+Unsubscription policies center around the abstraction of \emph{ghost entities}. A ghost entity is
+more than an anonymized version of a real entity: a real entity may be replaced by multiple ghost
+entities, breaking up correlations associated with the real entity; and ghost entities can be partially
+randomized, partially custom generated, and partially clones of the real entities, achieving
+fine-grained data retention and anonymization. Pre- and post-unsubscription state differ by the
+presence of ghost entities nodes and edges to ghost entities, which have taken the place of real
+entities and edges to these entities.
+
 While \sys operates on a specific instance of the application entity graph, the developer reasons
-only about the \emph{types} of individual entities and the \emph{types} of entity edges that may
-be instantiated in the graph. This allows unsubscription policies to be specified statically using
-only the application schema, while \sys ensures that any instance of the application entity graph satisfies
-the state specified in the policy.
+only about the \emph{types} of individual entities and the \emph{types} of entity edges that may be
+instantiated in the graph. This allows unsubscription policies to be specified statically using only
+the application schema, while \sys ensures that any instance of the application entity graph
+satisfies the state specified in the policy.
 
-For each type of entity, the developer chooses a \emph{ghost entity generation policy} that
-specifies how the content of any entity of that type should be handled (i.e.,\ turned into a ghost). For each type of edge (\eg
-story to comment, or user to story), the developer chooses a \emph{decorrelation policy}.
+\subsection{Ghosting Entity Attributes}
+Developers must first define how ghost entities are generated from a real entity.
+\sys assumes entities have three kinds of attributes: a unique identifier attribute; 
+value (non-referencing) attributes (such as a timestamp or username), and 
+edge (referential foreign key) attributes that identify correlations to parent entities. 
+Value attributes may directly expose identifying information from its
+contents, and edge attributes represent potentially sensitive structural correlations. 
 
-During unsubscription, \sys traverses the current instance of the application entity graph with the
-top-level unsubscribing user node as the root in order to find all possible graph edges and nodes
-that may be sensitive. \sys then applies the appropriate ghost policy to all sensitive nodes
-according to the nodes' types, and applies the appropriate decorrelation policy to all sensitive
-edges depending on the edge type.
+For every entity type, developers specify \emph{value ghosting policies} that apply at per-column
+granularity to non-referencing attributes. Value ghosting policies take as input a current entity's
+attribute value, and return a ghosted version. Developers can specify whether the ghosted
+replacement should be random, a default value, or generated from the original value via a custom
+function provided by the developer. 
 
-We next describe the choices for ghost entity generation and decorrelation policies that \sys makes
-available.
+For each edge attribute of the entity type, the developer specifies an 
+\emph{edge ghosting policy} that specifies how and when the edge can be decorrelated.
+%Using ghost generation policies, \sys creates ghost entities to replace unsubscribed entities. 
 
-\subsection{Ghost Entity Generation Policies}
-Developers can choose between the following ghost generation policies, which apply at 
-per-column granularity.
-\begin{itemize}
-    \item \textbf{Cloned:} All ghosts have the same value as the original entity for this column.
-        Resubscription resurrects the original entity value.
+Ghost entities always have unique values for their identifier attribute.
 
-    \item \textbf{Generated:} All ghosts have a generated value for this column. Generated values are
-chosen to be random, a default value, or generated from the original value via a function provided by the developer.
-        %If the developer provides a reversible function (e.g.,\ has encrypted the original value
-        %with a user-specific key), then the original value is restored upon
-        %resubscription; otherwise, 
+%During unsubscription, \sys traverses the current instance of the application entity graph with the
+%top-level unsubscribing user node as the root in order to find all possible graph edges and nodes
+%that may be sensitive. \sys then applies the applies the appropriate decorrelation policy to all
+%sensitive edges depending on the edge type, generating ghost nodes with ghosted attributes to
+%replace real nodes as specified.
+%
+%After ghosts are generated from the template entity, \sys returns a copy of the template entity to
+%the unsubscribing user, which if returned upon resubscription, allows \sys to restore the original
+%value. If the user does not wish to store this data, resubscription retains the ghosted value in
+%%place of the original.
+%Resubscription requires the user to return the original
+%data to restore the original value.
 
-        If the column represents a foreign key into another table, then either the referenced table must 
-        have a ghost generation policy, or the foreign key is set to an existing entity or
-        placeholder ghost.
-        %(the foreign key is set to point to ``deleted story''). 
-        It is up to the developer to ensure referential integrity in the latter case.
-       
-        \sys returns a copy of the original value to the unsubscribing user, which if
-        returned upon resubscription, allows \sys to restore the original value. If the user does not wish to
-        store this data, resubscription retains the generated value in place of the original.
+\subsection{Edge Ghosting Policies}
+Edge ghosting policies are specified on a particular edge type (a parent entity type and a child
+entity type). In database terms, edge ghosting policies are specified on referencing
+(foreign key) columns, namely the edge attributes of entity types.
 
-\item \textbf{Single Clone, Generated Remainder:} One ghost has the same value as the original
-        entity; all other ghosts have generated values. Resubscription resurrects the original entity value.
-\end{itemize}
-
-\subsubsection{Decorrelation Policies}
-Decorrelation policies are specified on a particular edge type (a parent entity type and a child
-entity type). 
+Developers can choose between options to either replace correlations with correlations 
+to ghost parents; retain correlations but ghost the attributes of the parent nodes; remove
+correlations entirely; or add false correlations to introduce noise. 
+The following sections explain each in more detail.
 
 \paragraph{Policy 1: Decorrelate.}
-Application developers specify that relationships of this type should be decorrelated.
-\sys generates a ghost parent entity for the child entity according to the parent entity's ghost
-generation policy, replacing the child's key with the new ghost parent key.
+Application developers specify that edges of this type should be decorrelated. \sys identifies all groups of
+children entities (of the edge's child type) that have foreign keys to the same parent (of the
+edge's parent type). For each child in the same group, \sys creates a ghost parent entity using
+the shared parent as a template entity, and
+rewrites the child's key attribute value to be the new ghost parent's identifier. 
 
-\sys then removes the parent entity and returns this data to the unsubscribing user. Note that any other
-edges from this parent to children of different types, or edges from this parent to grandparent
-entities may be cloned in the ghost entities, so that \sys performs decorrelation only on this specific edge type.
+To generate ghost parent entities' non-referencing attributes, developers can choose between the options, which apply at per-column
+granularity:
+\begin{itemize}
+    \item \textbf{Clone-All:} All ghost parents share the same value for this column attribute as the
+        template parent.
+    \item \textbf{Generate-All:} \sys uses the ghost attribute policy for this column to
+        generate the attribute value for all ghost parents.
+    \item \textbf{Clone-One:} One ghost parent shares the same value for the column attribute as the
+        template; \sys uses the ghost attribute policy for this column to
+        generate the attribute value for all other ghost parents.
+\end{itemize}
 
-Upon resubscription, the user returns the original parent entity data, and \sys removes any created
-ghost entities and restores the relationship back to the original parent key instance.
+All generated ghost entities initially clone the values of referencing---foreign key---attributes of the template parent entity. 
+\sys then looks up the appropriate decorrelation policy for that parent-to-grandparent edge type, and applies it to all the generated
+ghost parents. For example, if the parent entity has a decorrelatable edge to a grandparent entity,
+then all ghost parent entities will be re-linked to ghost grandparent entities.
+%If the column represents a foreign key into another table, then either the referenced table must 
+%have a ghost generation policy, or the foreign key is set to an existing entity or
+%placeholder ghost.
+%(the foreign key is set to point to ``deleted story''). 
+%It is up to the developer to ensure referential integrity in the latter case.
+
+%Note that any other
+%edges from this parent to children of different types, or edges from this parent to grandparent
+%entities may be cloned in the ghost entities, so that \sys performs decorrelation only on this specific edge type.
+%
+
+After generating ghost entities, \sys removes the parent entity and returns its data to the unsubscribing user. 
+Upon resubscription, the user returns the original parent entity data, allowing \sys to remove any created
+ghost entities and restore children's key attribute values back to the real parent's identifier.
 
 %\lyt{There could also be an option to "decorrelate the minimum amount possible to reach a
 %certain sensitivity threshold"; not sure if it's useful since the edges can already be

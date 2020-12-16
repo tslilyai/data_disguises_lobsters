@@ -13,7 +13,7 @@ to them.
 Users also increasingly perceive the dangers of leaving private data on the
 web: others can dig up embarrassing or compromising details from the past, web applications may
 suffer data leaks or hacks, and private data may be shared by web applications without the user's
-knowledge or explicit consent.
+knowledge or explicit consent\cite{nytimes_fb, npr_data}.
 %
 
 %
@@ -79,11 +79,11 @@ belong to a friend of the group.
 \sys provides a menu of unsubscription policy choices that allow developers to choose how to
 \emph{ghost} individual data records (at column-level granularity), and how to \emph{decorrelate}
 sensitive correlations. Specifying the policy requires nothing more than the application schema:
-ghost generation policies act on individual application datatables, and decorrelation policies act
-on foreign key relationships between tables.  Table column values can be removed, anonymized, or
-modified in application-specific ways; and correlations can be broken, removed, or desensitized by
-adding noise.  This gives developers flexibility to choose policies other than deleting of all of the user's data,
-or retaining all the user's pseudonymized data, without needing to deal with the complexity of
+ghosting policies act on application datatables and on foreign key relationships between tables.
+Table column values can be ``ghosted''---removed, anonymized, or modified---in application-specific
+ways; and correlations can be broken, removed, or desensitized by adding noise. This gives
+developers flexibility to choose policies other than deleting of all of the user's data, or
+retaining all the user's pseudonymized data, without needing to deal with the complexity of
 implementating such policies.
 
 %
