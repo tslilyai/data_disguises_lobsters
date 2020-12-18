@@ -1,0 +1,140 @@
+\subsection{Unsubscription \& Resubscription in Today's Web Applications}
+
+Although more applications now claim to be GDPR-compliant, the state of proper support for
+unsubscription and resubscription looks grim.  For each of the following applications, we evaluate
+whether the application supports unsubscription and, if so, how user data is removed or
+de-identified; and whether the application supports account resubscription.
+
+We look at a range of web services, including social media and news-feed applications such as
+Facebook, Instagram, Twitter, Reddit, Hacker News, and Lobsters; e-Commerce
+applications such as Amazon and PrestaShop; and other specialized services such as HotCRP, GitHub, Spotify, and Strava.
+
+%- Resubscription support
+%- Unsubscription: remove or retain user data (anonymized / unanonymized?)
+    %- Requires identifying information for functionality
+
+Facebook and Instagram~\cite{facebook:privacy} allow for account deletion and account deactivation:
+the former permanently removes all user content and has no option for resubscription, and the latter
+allows users to resubscribe at the cost of leaving all identifying information in the application.
+More specifically, account deletion deletes all user-added content, but retains some (unanonymized)
+data, including messages to friends. Any functionalities linked to having a user account are permanently lost,
+including any logins to Oculus and other applications. Account deactivation, on the other hand,
+allows users to resubscribe, but only hides user-added content from other users and all user data
+remains in the system. 
+
+Twitter~\cite{twitter:privacy} has similar account deactivation policies to Facebook, retaining all
+user data but hiding the content from other users. After 30 days of deactivation, users can no
+longer reactivate their account, and user data is deleted from their system.  However, like
+Facebook, Twitter still retains unanonymized private messages.
+
+Reddit~\cite{reddit:privacy} account deletion reassociates user data with a global ghost user, but
+all user posts, comments, and messages that have not been explicitly been removed by the user remain
+present but anonymized in the system. Users have no ability to resubscribe and regain
+ownership of these pieces of data that remain in the system. 
+
+Hacker News~\cite{hackernews:privacy} allows users to submit requests via email or phone to delete
+personal information, but reserves the right to refuse to delete content or remove associations with
+a user's identity.  Users cannot resubscribe and regain access to their prior profiles.
+
+Lobsters has no privacy policy~\cite{lobsters:privacy}. All user actions and moderations are
+logged, enforcing Lobster's culture of transparent user accountability. A user can request to delete
+their account, which deletes only a users' private messages and negatively-scored comments; all
+stories and comments can optionally be reassociated with a global ghost user instead of the original
+user. In all cases, Lobsters privately retains the user's unique username, and leave log entries of users'
+actions unmodified.
+
+Amazon~\cite{amazon:privacy} allows users to request to delete their personal data by contacting
+Customer Service, with the warning that services become limited or unavailable when the user does
+so. There is no option to unsubscribe or delete an Amazon account from a user's Amazon account
+management page.  A user can also choose to permanently close her account~\cite{amazon:close}. If
+so, Amazon specifies that content is deleted from Photos and Drive, but potentially retains all other types
+of data, such as order history. Even though Amazon can retain profile data, a user can never
+again regain access to her account.
+
+PrestaShop~\cite{prestashop:privacy} is an open-source e-commerce web service, and has explicit GDPR
+policies for its merchants when a customer requests to delete their account: their personal account
+details (age, email, address) are removed, but order invoices and abandoned carts are transferred to
+an anonymous account. Users cannot resubscribe.
+
+HotCRP's current privacy policy~\cite{hotcrp:privacy} allows site managers (e.g.,\ program chairs)
+to indefinitely store and distribute submissions and reviews. Each HotCRP.com user has an associated
+global profile and a profile for every HotCRP.com site, and must contact the HotCRP maintainers
+directly to remove these profiles.
+
+GitHub~\cite{github:privacy} reassociates some retained user content (contributions, comments on
+issues) with a global ghost user, and removes all other account information. However, user email
+addresses associated with commits remain unchanged. A user cannot resubscribe.
+
+Spotify~\cite{spotify:privacy} allows users to close their accounts, at the cost of permanently
+losing all account data (playlists, followers, etc.) Spotify promises to ``delete or anonymise...
+personal data so that it no longer identifies [the user], unless [they] are legally allowed or
+required to maintain certain personal data.'' Spotify does not specify exactly what data is
+retained.
+
+Strava~\cite{strava:privacy} users can request account deletion, which ``permanently and
+irreversibly'' deletes all personal data. Resubscription is not supported. Any content that is
+shared with others remains unanonymized after account deletion, as well as any ``necessary''
+information. Strava also retains unnecessary user data such as geolocation information, and promises
+to de-identify this data.
+
+\subsection{The Challenges of Unsubscription and Resubscription}
+
+While many web applications clearly strive to comply with legal requirements (GDPR and CCPA), 
+unsubscription clearly requires more than merely deleting a user's data: many of these services
+require that some information remains, in transformed or anonymized form, after a user departs.
+%
+Developers must determine and implement the database transformations required to
+correctly unsubscribe a user, and continously maintain this feature.
+%
+Consequently, the majority of web services today either lack automated unsubscription support
+(requiring manual labor to handle \eg GDPR deletion requests), or potentially leave substantial
+information behind that harms user privacy.
+
+Furthermore, all surveyed applications fail to support resubscription in a privacy-preserving way.
+When unsubscribing, users today must choose to either permanently lose their account functionality,
+or allow the application to retain all their personal data to be able to resubscribe.
+
+To help developers of databased-backed web applications achieve correct,
+privacy-compliant user unsubscription and resubscription without onerous labor, we present 
+\sys, a system that provides abstractions and mechanisms to automate unsubscription and
+resubscription.
+%
+Application developers using \sys specify a declarative \emph{unsubscription policy},
+which indicates how the database contents need to change to meet de-identification
+requirements on user unsubscription.
+%
+\sys then turns this policy into a set of concrete, executed database operations that remove,
+anonymize, and structurally \emph{decorrelate} user data.
+%
+When a user resubscribes, \sys both re-imports missing data and
+\emph{recorrelates} the remnants of the user's prior data with the user account,
+restoring the user to her original subscribed state as much as possible.
+
+Furthermore, \sys transparently supports unsubscription and resubscription while still achieving performance
+comparable to today’s widely-used databases and requiring no modification of application schemas.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Threat Model}
+\lyt{This seems important to put *somewhere*, but I'm not sure where it goes...}
+An adversary aims to relink decorrelated entities to unsubscribed users after \sys
+performs decorrelation. We make the following assumptions about such an adversary:
+\begin{itemize}
+    \item An adversary can perform only those queries allowed by the application API,
+i.e.,\ can access the application only via its public interface.
+%\lyt{Alternatively, an adversary could perform arbitrary queries on some public subset of the
+%application schema (e.g., all tables other than the mapping table, or all tables marked with some
+%compliance policy); arbitrary queries over the
+%entirety of the table are out of scope, unless ``private'' tables are removed and stored by
+%unsubscribing users.}
+
+    \item An adversary cannot perform application queries to the past or search web archives:
+    information from prior application snapshots may reveal
+    exactly how data records were decorrelated from unsubscribed users.
+
+    \item An adversary cannot gain identifying information from arbitrary user-generated content (for
+        example, a reposted screenshot, or text in user stories or comments). Decorrelation seeks to
+        remove identifying information from user-generated data that can be enumerated or follows a
+        specific pattern (e.g., a birthday or email address), and application metadata (e.g., date
+        of postings, database ID columns).
+\end{itemize}

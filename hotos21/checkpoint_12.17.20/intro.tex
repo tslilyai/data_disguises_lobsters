@@ -1,0 +1,136 @@
+%-------------------------------------------------------------------------------
+\section{Introduction}
+%-------------------------------------------------------------------------------
+
+%
+Web application operators increasingly face pressure from legal requirements
+that grant users new rights over their data.
+%
+For example, both the European Union's General Data Protection Regulation
+(GDPR)~\cite{eu:gdpr} and California's Consumer Privacy Act
+(CCPA)~\cite{ca:privacy-act} grant users the right to request erasure of
+information related to them.
+%
+These laws, for the first time, require companies to support \emph{unsubscription}
+of users from their services on request.
+%
+
+%
+Unsubscription requires more than merely deleting a user's data: correct operation
+of a service often requires that some information remains, in transformed or
+anonymized form, after a user departs.
+%
+\ms{Give an example!}
+%
+It is difficult for developers to determine and implement the database
+transformations required to correctly unsubscribe a user, and to continously
+maintain this feature.
+%
+Consequently, the majority of web services today either lack unsubscription support
+(requiring manual labor to handle \eg GDPR deletion requests), or leave substantial
+information behind that potentially harms user privacy.
+%
+
+%
+In this paper, we describe \sys, a system that provides abstractions and mechanisms
+that help developers of databased-backed web applications achieve correct,
+privacy-compliant user unsubscription without onerous labor.
+%
+Application developers using \sys specify a declarative \emph{unsubscription policy},
+which indicates how the database contents need to change to meet de-identification
+requirements on user unsubscription.
+%
+\sys then turns this policy into a set of concrete database operations that remove,
+anonymize, and structurally decorrelate user data, and executes them.
+%
+But \sys goes beyond simply unsubscribing users: it makes it possible for users to
+switch between a privacy-preserving unsubscribed mode and an
+identity-revealing subscribed mode at any time without permanently losing their data.
+%
+This facilitates new web service designs, such as the user granting a time-limited
+``lease'' of data to a web service instead of having a permanent service account.
+%
+When a user resubscribes, \sys both re-imports missing data and
+\emph{recorrelates} the remnants of the user's prior data with the user account,
+restoring the user to her original subscribed state as much as possible.
+%
+
+\sys makes the key observation that a user's data entities (e.g.,\ posts and upvotes) can leak identifying
+information in two ways: (1) directly via its content, and (2) indirectly via the correlations it has to
+other data entities in the system.
+Correlations can range from obviously identifying (e.g.,\ posts correlated
+with a user clearly belong to that user), to subtly perilous: posts correlated with a
+particular user-generated tag most likely belong to the tag's author, and posts liked by the
+same group of users likely belong to a friend of the group.
+
+Many web applications (e.g.,\ Lobst.rs and Reddit) have come up with solutions to de-identify direct
+content by anonymizing unique identifiers, leaving arbitrary user-generated content out of scope.
+Other applications (e.g.,\ Facebook and Twitter) delete (most of the) user's data. The former
+optimizes the amount of data the application keeps, but also retains all correlations between data
+entities; the latter can lead to confusing semantics for the application (e.g.,\ nonsensical comment
+threads) and the loss of useful application data. In both cases, accounts cannot be restored after
+deletion.
+\lyt{Applications such as Facebook or Twitter do support user account deactivation by hiding (most) of the
+user's data, but retain all user data with their identifiers in their databases.}
+
+Developers using \sys can specify policies that both anonymize unique identifiers, and remove
+identifying information stemming from correlations between data entities. \sys's support for
+fine-grained decorrelation policies gives developers options beyond either completely retaining
+these links or deleting of all of the user's data and their dependees (while still supporting
+these options). The complexity of implementating such policies is hidden from the developer:
+\sys automatically performs decorrelation in a way that allows for recorrelation upon
+resubscription, while still achieving performance comparable to today’s widely-used databases and
+requiring no modification of application schemas.
+
+\subsection{The goal of decorrelation}
+Decorrelation ideally breaks connections between data entities that would otherwise allow
+an adversary to determine that two entities belong to the same (unsubscribed) user:
+post-decorrelation, an adversary should not be able to distinguish between a scenario in which two data entities
+have been generated by two distinct users, and one in which they were both generated by the same
+(unsubscribed) user.  If two of a user's entities cannot be correlated back to the user, then at
+most one of these entities may leak identifying information about the user.\footnote{Assume for a
+contradition that both entities leak identifying information: then both entities are more likely to
+have been generated by a particular identity than any other, contradicting our assumption.}  Thus,
+if the content of individual data entities is appropriately anonymized, then perfect decorrelation prevents
+identifying information from being leaked via correlations.
+
+\subsubsection{Threat Model}
+An adversary aims to relink decorrelated entities to unsubscribed users after \sys
+performs decorrelation. We make the following assumptions about such an adversary:
+\begin{itemize}
+    \item An adversary can perform only those queries allowed by the application API,
+i.e.,\ can access the application only via its public interface.
+%\lyt{Alternatively, an adversary could perform arbitrary queries on some public subset of the
+%application schema (e.g., all tables other than the mapping table, or all tables marked with some
+%compliance policy); arbitrary queries over the
+%entirety of the table are out of scope, unless ``private'' tables are removed and stored by
+%unsubscribing users.}
+
+    \item An adversary cannot perform application queries to the past or search web archives:
+    information from prior application snapshots may reveal
+    exactly how data records were decorrelated from unsubscribed users.
+
+    \item An adversary cannot gain identifying information from arbitrary user-generated content (for
+        example, a reposted screenshot, or text in user stories or comments). Decorrelation seeks to
+        remove identifying information from user-generated data that can be enumerated or follows a
+        specific pattern (e.g., a birthday or email address), and application metadata (e.g., date
+        of postings, database ID columns).
+\end{itemize}
+
+\subsubsection{Problems with decorrelation taken too far.}
+Decorrelation taken to the extreme breaks all correlations between entities recursively related to
+the user being anonymized, replacing these correlations with ghost correlations.  This removes as
+much correlation-based identifying information as possible while keeping data entities present, but
+in practice, completely decorrelated data entities may be useless to the application.  Applications
+may lack a meaningful way to generate ghost entities: what does it mean for a story to become many
+ghost stories?  And even if ghosts can be generated, the noise and data pollution from ghost
+entities may instead affect the accuracy and semantics of the application: users may see meaningless
+content, comment threads may be disjoint and scattered, and highly-ranked content may suddenly lose
+votes.
+%On the other extreme, however, performing no decorrelation at all fails to adequately de-identify
+
+\sys offers developers a way to decorrelate as much as possible \emph{while still retaining
+application semantics}. As the next section describes, \sys provides decorrelation specification
+primitives with which developers can specify which (and how) entities can be decorrelated from other
+entities, and which correlations must be kept for application correctness.
+

@@ -1,33 +1,11 @@
 %-------------------------------------------------------------------------------
 \section{Design}
 %-------------------------------------------------------------------------------
-\lyt{TODO running example.}
-
-\sys's abstractions stem from the key observation that users' data can leak identifying information
-in two ways: (1) directly via their content, and (2) indirectly via the structural
-\emph{correlations} they have to other data in the system.  Correlations can range from obviously
-identifying, such as posts written by a user, to subtly perilous: posts tagged with user-generated
-tags most likely belong to the tag's author, and posts liked by the same group of users likely
-belong to a friend of the group.
-
-\sys must therefore pinpoint exactly which data and correlations may be
+\sys's design centers around the key observation that user data may expose identifying information
+both directly from its contents, and indirectly through its structural correlations to other
+application data. \sys must therefore pinpoint exactly which data and correlations may be
 identity-sensitive, and allow developers to specify exactly what the post-unsubscription state of
-this data should be.
-
-%
-%\sys provides a menu of unsubscription policy choices that allow developers to choose how to
-%\emph{ghost} individual data records (at column-level granularity), and how to \emph{decorrelate}
-%sensitive correlations. Specifying the policy requires nothing more than the application schema:
-%ghosting policies act on application datatables and on foreign key relationships between tables.
-%Table column values can be ``ghosted''---removed, anonymized, or modified---in application-specific
-%ways; and correlations can be broken, removed, or desensitized by adding noise. This gives
-%developers flexibility to choose policies other than deleting of all of the user's data, or
-%retaining all the user's pseudonymized data, without needing to deal with the complexity of
-%implementating such policies.
-%
-%\sys's design centers around the key observation that user data may expose identifying information
-%both directly from its contents, and indirectly through its structural correlations to other
-%application data. 
+the data should be.
 
 In order to capture exactly which data contents, and which data correlations may be
 identity-sensitive, \sys models an application's data as a graph of \emph{entity} nodes and edges.
