@@ -1,13 +1,37 @@
 \subsection{Unsubscription \& Resubscription in Today's Web Applications}
+\lyt{
+    Lily's plan for how this section should go:
+}
+\begin{itemize}
+    \item Many applications now claim to be GDPR compliant and have privacy policies allowing for
+    erasure of personal data 
+    \item Many of these applications do so manually, and still retain user data
+    (anonymized/unanonymized) for ``necessary'' application use.
+    \item A table showing applications and whether they have the following features: 
+    \begin{itemize}
+        \item GDPR-compliant unsubscription: yes-automated/yes-manual/no
+        \item Resubscription: yes (privacy preserving?) / no, 
+        \item Retains user data for necessary application use: yes (anonymized/not anonymized?) / no
+        \item Clear specification of what data remains and in what state (yes/no)
+    \end{itemize}
+    \item Argument that automated unsubscription is hard (only supported by large companies),
+    coarse-grained and underspecified (users cannot determine exactly what information is left, and
+    in what state), and too costly for users to freely unsubscribe. 
+    \item What we need is a way to allow developers to specify, at a high level, the state of the
+    application data post-unsubscription; and a system that automates the process of achieving this
+    state (unsubscribing) and restoring the original state (resubscription).
+\end{itemize}
+
+--------------------------------------
 
 Although more applications now claim to be GDPR-compliant, the state of proper support for
-unsubscription and resubscription looks grim.  For each of the following applications, we evaluate
+unsubscription and resubscription looks grim. For each of the following applications, we evaluate
 whether the application supports unsubscription and, if so, how user data is removed or
 de-identified; and whether the application supports account resubscription.
 
 We look at a range of web services, including social media and news-feed applications such as
-Facebook, Instagram, Twitter, Reddit, Hacker News, and Lobsters; e-Commerce
-applications such as Amazon and PrestaShop; and other specialized services such as HotCRP, GitHub, Spotify, and Strava.
+Facebook, Instagram, Twitter, Reddit, Hacker News, and Lobsters; e-Commerce applications such as
+Amazon and PrestaShop; and other specialized services such as HotCRP, GitHub, Spotify, and Strava.
 
 %- Resubscription support
 %- Unsubscription: remove or retain user data (anonymized / unanonymized?)
