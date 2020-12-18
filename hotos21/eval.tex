@@ -47,9 +47,8 @@ let edge_policies = vec![
     \caption{Excerpt of the Lobsters Application Policy}
 \end{figure}
 We provide several variants of an application policy for Lobsters, as well as example policies for a
-suite of other applications: (1) HotCRP, software for conference reviews; (2) PrestaShop, an
-open-source e-commerce web application; and (3) an Instagram clone with posts, likes, hashtags,
-shares, and groups.
+HotCRP, software for conference reviews, and PrestaShop, an
+open-source e-commerce web application.
 
 \paragraph{Lobsters}
 Lobsters has a total of 20 entities, and 
@@ -82,7 +81,7 @@ HotCRP entities include users (reviewers and paper authors), papers, and paper r
 entities, with 48 foreign key relationships between entities.
 %; specifying these key relationships (as a non-maintainer of the HotCRP site) required x hours
 
-HotCRP's current privacy policy~\cite{hotcrp_privacy} allows site managers (e.g.,\ program chairs)
+HotCRP's current privacy policy~\cite{hotcrp:privacy} allows site managers (e.g.,\ program chairs)
 to indefinitely store and distribute submissions and reviews. Each HotCRP.com user has an associated
 global profile and a profile for every HotCRP.com site, and must contact the HotCRP maintainers
 directly to remove these profiles. This corresponds to key relationships with
@@ -162,8 +161,6 @@ customers not related to the original user for noise).
 
 This process requires going through each of the individual key relationships, which must be done to
 generate the schema in the first place.
-
-\paragraph{Instagram Clone.}
 
 \subsection{Performance}
 
