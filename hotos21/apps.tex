@@ -113,28 +113,3 @@ restoring the user to her original subscribed state as much as possible.
 Furthermore, \sys transparently supports unsubscription and resubscription while still achieving performance
 comparable to today’s widely-used databases and requiring no modification of application schemas.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\subsection{Threat Model}
-\lyt{This seems important to put *somewhere*, but I'm not sure where it goes...}
-An adversary aims to relink decorrelated entities to unsubscribed users after \sys
-performs decorrelation. We make the following assumptions about such an adversary:
-\begin{itemize}
-    \item An adversary can perform only those queries allowed by the application API,
-i.e.,\ can access the application only via its public interface.
-%\lyt{Alternatively, an adversary could perform arbitrary queries on some public subset of the
-%application schema (e.g., all tables other than the mapping table, or all tables marked with some
-%compliance policy); arbitrary queries over the
-%entirety of the table are out of scope, unless ``private'' tables are removed and stored by
-%unsubscribing users.}
-
-    \item An adversary cannot perform application queries to the past or search web archives:
-    information from prior application snapshots may reveal
-    exactly how data records were decorrelated from unsubscribed users.
-
-    \item An adversary cannot gain identifying information from arbitrary user-generated content (for
-        example, a reposted screenshot, or text in user stories or comments). Decorrelation seeks to
-        remove identifying information from user-generated data that can be enumerated or follows a
-        specific pattern (e.g., a birthday or email address), and application metadata (e.g., date
-        of postings, database ID columns).
-\end{itemize}

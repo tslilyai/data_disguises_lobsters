@@ -3,13 +3,40 @@
 %-------------------------------------------------------------------------------
 
 \subsection{Limitations}
+
+Like all applications that provide some type of post-unsubscription privacy guarantees, \sys assumes
+that an adversary who aims to relink decorrelated entities to unsubscribed users, is limited in the
+following ways:
+\begin{itemize}
+    \item An adversary can perform only those queries allowed by the application API,
+i.e.,\ can access the application only via its public interface.
+%\lyt{Alternatively, an adversary could perform arbitrary queries on some public subset of the
+%application schema (e.g., all tables other than the mapping table, or all tables marked with some
+%compliance policy); arbitrary queries over the
+%entirety of the table are out of scope, unless ``private'' tables are removed and stored by
+%unsubscribing users.}
+
+    \item An adversary cannot perform application queries to the past or search web archives:
+    information from prior application snapshots may reveal
+    exactly how data records were decorrelated from unsubscribed users.
+
+    \item An adversary cannot gain identifying information from re-shared or arbitrary
+        user-generated content (for example, a reposted screenshot, or text in user stories or
+        comments) that developers have left unghosted. 
+        \sys gives developers the option to specify that unsubscription removes or replaces
+        user-generated data and application metadata (e.g., date of postings, database ID columns),
+        at the cost of losing this data.
+\end{itemize}
+
+Other limitations: 
 single-threaded;
 recovery / eventual consistency during un/resubscribe;
 subset of MySql;
 no support for schema updates / updates to policy
 
-\subsection{Maintaining Aggregate Accuracy.}
-\sys{} optionally allows for entities to be decorrelated without affecting queries which
+\subsection{Future work.}
+\paragraph{Maintaining Aggregate Accuracy.}
+As future work, \sys{} can optionally allow for entities to be decorrelated without affecting queries which
 specifically return aggregation results.
 
 Queries that specifically perform aggregations and return statistical measures (e.g.,
