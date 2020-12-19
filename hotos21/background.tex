@@ -1,7 +1,31 @@
 \subsection{Background}
-\lyt{
-    Lily's plan for how this section should go:
-}
+
+\begin{table*}[]
+\begin{tabular}{@{}rccccl@{}}
+\multicolumn{1}{c}{}                                                                      &
+\textbf{Automated} & \textbf{De-identifies User Data} & \textbf{Retains User Data} & \textbf{Supports Resubscription}                                          &  \\ \cmidrule(r){1-5}
+\textbf{\begin{tabular}[c]{@{}r@{}}Facebook/Instagram \\ Account Deletion\end{tabular}}     & \checkmark          & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
+\textbf{\begin{tabular}[c]{@{}r@{}}Facebook/Instagram \\ Account Deactivation\end{tabular}} & \checkmark          &                                  & \checkmark                  & \checkmark                                &  \\ \cmidrule(r){1-5}
+\textbf{\begin{tabular}[c]{@{}r@{}}Twitter \\ Account Deletion\end{tabular}}     & \checkmark          & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
+\textbf{\begin{tabular}[c]{@{}r@{}}Twitter \\ Account Deactivation\end{tabular}} & \checkmark          &                                  & \checkmark                  & \checkmark                                &  \\ \cmidrule(r){1-5}
+\textbf{Reddit}                                                                             & \checkmark          & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
+\textbf{Hacker News}                                                                        &                    & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
+\textbf{Lobsters}                                                                           & \checkmark          & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
+\textbf{Amazon}                                                                             &                    & ?                                & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
+\textbf{PrestaShop}                                                                         &                    & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
+\textbf{HotCRP}                                                                             &                    & ?                                & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
+\textbf{GitHub}                                                                             & \checkmark          & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
+\textbf{Spotify}                                                                            &                    & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
+\textbf{Strava}                                                                             &                    & ?                                & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
+\end{tabular}
+\end{table*}
+
+Need to discuss how much user data is retained (and whether well-defined), how user data is
+anonymized (what that means)
+
+? means that data is either not clearly specified to be de-identified, or only some data is
+de-identified
+
 \begin{itemize}
     \item Many applications now claim to be GDPR compliant and have privacy policies allowing for
     erasure of personal data 
@@ -98,40 +122,4 @@ irreversibly'' deletes all personal data. Resubscription is not supported. Any c
 shared with others remains unanonymized after account deletion, as well as any ``necessary''
 information. Strava also retains unnecessary user data such as geolocation information, and promises
 to de-identify this data.
-
-\subsection{Addressing the Challenges of Unsubscription and Resubscription}
-
-While many web applications make obvious efforts to comply with legal requirements (GDPR and CCPA), 
-unsubscription clearly requires more than merely deleting a user's data: many of these services
-require that some information remains, in transformed or anonymized form, after a user departs.
-%
-Developers must determine and implement the database transformations required to
-correctly unsubscribe a user, and continously maintain this feature.
-%
-Consequently, the majority of web services today either lack automated unsubscription support
-(requiring manual labor to handle \eg GDPR deletion requests), or potentially leave substantial
-information behind that harms user privacy.
-
-Furthermore, all surveyed applications fail to support resubscription in a privacy-preserving way.
-When unsubscribing, users today must choose to either permanently lose their account functionality,
-or allow the application to retain all their personal data to be able to resubscribe.
-
-To help developers of databased-backed web applications achieve correct,
-privacy-compliant user unsubscription and resubscription without onerous labor, we present 
-\sys, a system that provides abstractions and mechanisms to automate unsubscription and
-resubscription.
-%
-Application developers using \sys specify a declarative \emph{unsubscription policy},
-which indicates how the database contents need to change to meet de-identification
-requirements on user unsubscription.
-%
-\sys then turns this policy into a set of concrete, executed database operations that remove,
-anonymize, and structurally \emph{decorrelate} user data.
-%
-When a user resubscribes, \sys both re-imports missing data and
-\emph{recorrelates} the remnants of the user's prior data with the user account,
-restoring the user to her original subscribed state as much as possible.
-
-Furthermore, \sys transparently supports unsubscription and resubscription while still achieving performance
-comparable to today’s widely-used databases and requiring no modification of application schemas.
 

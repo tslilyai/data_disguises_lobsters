@@ -1,0 +1,39 @@
+\subsection{Addressing the Challenges of Unsubscription and Resubscription}
+
+While many web applications make obvious efforts to comply with legal requirements (GDPR and CCPA), 
+unsubscription clearly requires more than merely deleting a user's data: many of these services
+require that some information remains, in transformed or anonymized form, after a user departs.
+
+TODO why
+
+%
+Developers must determine and implement the database transformations required to
+correctly unsubscribe a user, and continously maintain this feature.
+%
+Consequently, the majority of web services today either lack automated unsubscription support
+(requiring manual labor to handle \eg GDPR deletion requests), or potentially leave substantial
+information behind that harms user privacy.
+
+Furthermore, all surveyed applications fail to support resubscription in a privacy-preserving way.
+When unsubscribing, users today must choose to either permanently lose their account functionality,
+or allow the application to retain all their personal data to be able to resubscribe.
+
+To help developers of databased-backed web applications achieve correct,
+privacy-compliant user unsubscription and resubscription without onerous labor, we present 
+\sys, a system that provides abstractions and mechanisms to automate unsubscription and
+resubscription.
+%
+Application developers using \sys specify a declarative \emph{unsubscription policy},
+which indicates how the database contents need to change to meet de-identification
+requirements on user unsubscription.
+%
+\sys then turns this policy into a set of concrete, executed database operations that remove,
+anonymize, and structurally \emph{decorrelate} user data.
+%
+When a user resubscribes, \sys both re-imports missing data and
+\emph{recorrelates} the remnants of the user's prior data with the user account,
+restoring the user to her original subscribed state as much as possible.
+
+Furthermore, \sys transparently supports unsubscription and resubscription while still achieving performance
+comparable to today’s widely-used databases and requiring no modification of application schemas.
+
