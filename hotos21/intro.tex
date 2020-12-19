@@ -13,40 +13,39 @@ suffered data leaks or hacks, and private data has be shared by web applications
 knowledge or explicit consent~\cite{nytimes:fb, npr:data}.
 
 %
-For the first time, companies face both legal and societal demand to support \emph{unsubscription}
-of users from their services. Users have the right to unsubscribe at any time, preventing 
-idle or unused accounts from retaining personal data indefinitely, and regaining control over who
-can access their data. 
+These growing legal and societal pressures demand companies to support \emph{unsubscription} of
+users from their services.  Users should have the right to unsubscribe at any time, preventing idle
+or unused accounts from retaining personal data indefinitely, and regaining control over who can
+access their data. 
 %
 
 %
 Unsubscription, however, is only half the story. Users cannot truly regain their data rights if they
-are impeded from exercising them.  In order to claim that users have regained ownership of their
-data, users must be able to \emph{freely} exercise their right to be forgotten. In particular, they should
-not have to pay a high price in order in order to unsubscribe whenever they wish: web services
-should not raise barriers to unsubscription that prevent users from choosing to do so, when they
-would have otherwise. These barriers can take several forms, from UI choices that make
-unsubscription cumbersome, to the threat of permanent deletion of years or decades of
-accumulated application data.
+are impeded from exercising them. In order to claim that users have regained ownership of their
+data, users must be able to \emph{freely} exercise their right to be forgotten. In particular, they
+should not have to pay a high price in order in order to unsubscribe whenever they wish: they should
+not encounter barriers to unsubscription that prevent them from choosing to do so, when they would have
+otherwise. 
 
-To empower users to freely exercise their data rights, web applications must allow users to easily
-unsubscribe \emph{and resubscribe} as they wish, switching between a privacy-preserving unsubscribed
-mode and an identity-revealing subscribed mode at any time without permanently losing their data, or
-needing to maintain their account data themselves. 
+Unfortunately, today's web services face many challenges that make this ideal of free and easy
+unsubscription hard.  Many do not support automated unsubscription, requiring users to go through a
+manual process of contacting the developers or customer support directly in order to unsubscribe.
+Services that do support de-identifying unsubscription permanently delete of years or decades of
+accumulated application data, a cost many users are not willing to pay.
+
+To empower users to freely exercise their data rights, web applications must solve these challenges
+and allow users to easily unsubscribe \emph{and resubscribe} as they wish, switching between a
+privacy-preserving unsubscribed mode and an identity-revealing subscribed mode at any time without
+permanently losing their data, or needing to maintain their account data themselves. 
+
 %
 With this model of flexible privacy, the balance of data ownership flips. Applications no longer
 control users' data choices by demanding that users choose between indefinitely giving up their data
 to use the application, or permanently losing their data and application utility.
-Instead, users lease out their data for limited periods of time in exchange for the ability to use the application for 
-that period, and lose no application utility between leases.
-%\lyt{Users could do this without
-%application support by themselves by programmatically setting a personal reminder to ``unsubscribe
-%after x days'' every time they create an account.}
-%
+Instead, users control when applications can obtain their data in exchange for the right to use the application, and do not permanently lose application utility when they remove access to their data.
 
-In the rest of this paper, we describe the current unsubscription and resubscription support (and
-lack of support) in today's web applications, and the challenges of doing so correctly.
-We then describe \sys, a system that provides abstractions and mechanisms
-that help developers of databased-backed web applications achieve correct,
-privacy-compliant user unsubscription and resubscription without onerous labor, and without adding
-undue overheads.
+In the rest of this paper, we describe the current support for unsubscription and resubscription in
+today's web applications, and the challenges of implementing it correctly.  We then describe \sys, a
+system that provides abstractions and mechanisms that help developers of databased-backed web
+applications achieve correct, privacy-compliant user unsubscription and resubscription without
+onerous labor, and without adding undue overheads.
