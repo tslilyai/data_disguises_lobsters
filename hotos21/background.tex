@@ -49,13 +49,14 @@ application developers or customer service directly?
 
 Fewer than half of the services surveyed provide automated unsubscription; all others require the
 user to email or call the application maintainers or support. This indicates the difficulty of
-application developers to automate unsubscription, and makes it more inconvenient for users to
-unsubscribe.
+automating unsubscription correctly, and consequently makes it more  
+inconvenient for users to unsubscribe.
 
 All applications retain some user information in some form: for example, Facebook retains copies of
 private messages for other users in the conversation; Reddit retains all posts and comments made by
 the user; Lobsters retains the user's unique username and logs of the user's actions; e-commerce
-sites retain a user's order history; and Strava retains All applications specify that any
+sites retain a user's order history; and Strava retains geolocation data and any
+``necessary'' information. All applications specify that any
 ``required'' information can be retained, for legal or applications correctness purposes (e.g., to
 process payments, or to keep the coherence of private messaging threads).
 
@@ -68,10 +69,56 @@ information will be de-identified.
 
 Of the applications surveyed, only Facebook/Instagram and Twitter support some form of
 resubscription. However, unsubscribing via account deactivation only hides user-added content from
-other users: all user data remains in the system without being de-identified. 
-All other forms of unsubscription permanently remove access to the user's account; even if the
+other users: all user data remains in the system without being de-identified.  All other forms of
+unsubscription across all applications permanently remove access to the user's account; even if the
 application retains user data (such as orders on Amazon, or posts on Reddit), the user cannot regain
 ownership of these records.
+
+\subsection{Challenges of Unsubscription and Resubscription}
+While many web applications make obvious efforts to comply with legal requirements (GDPR and CCPA),
+unsubscription clearly requires more than merely deleting a user's data. Many of these services
+require that some information remains, in transformed or anonymized form, after a user departs, for
+necessary application or legal reasons. 
+%
+Developers must determine how to selectively retain, decorrelate, and remove an unsubscribing user's data,
+without interfering with application correctness, and while preserving the user's privacy. They must 
+implement the database transformations required to correctly unsubscribe a user while
+preserving application semantics, and continously maintain this feature. 
+%
+From the lack of automatic unsubscription, the vague promises to decorrelate retained data, and the
+failure to support privacy-compliant resubscription, it is clear this is no easy task.
+%
+
+In this paper, we make the key observation that users' data can leak identifying information
+in two ways: (1) directly via their content, and (2) indirectly via the structural
+\emph{correlations} they have to other data in the system. Correlations can range from obviously
+identifying, such as posts written by a user, to subtly perilous: posts tagged with user-generated
+tags most likely belong to the tag's author, and posts liked by the same group of users likely
+belong to a friend of the group.
+Unsubscription must properly handle these information leaks, either through the removal of such data or
+the \emph{decorrelation} of the data from the user's identity, and do so while preserving
+application correctness.
+
+%
+To help developers of databased-backed web applications achieve correct, privacy-compliant user
+unsubscription and resubscription without onerous labor, we present \sys, a system that provides
+abstractions and mechanisms to automate unsubscription and resubscription.
+%
+Developers using \sys can pinpoint exactly which data and correlations may be identifying, and
+specify exactly what the post-unsubscription state of this data should be. \sys takes as input 
+a declarative \emph{unsubscription policy}, which indicates how the database contents need
+to change to meet de-identification requirements on user unsubscription.
+%
+\sys then turns this policy into a set of concrete, executed database operations that remove,
+anonymize, and structurally \emph{decorrelate} user data.
+
+
+When a user resubscribes, \sys both re-imports missing data and
+\emph{recorrelates} the remnants of the user's prior data with the user account,
+restoring the user to her original subscribed state as much as possible.
+
+Furthermore, \sys transparently supports unsubscription and resubscription while still achieving performance
+comparable to today’s widely-used databases and requiring no modification of application schemas.
 
 %Reddit~\cite{reddit:privacy} account deletion reassociates user data with a global ghost user, but
 %all user posts, comments, and messages that have not been explicitly been removed by the user remain
@@ -123,37 +170,4 @@ ownership of these records.
 %shared with others remains unanonymized after account deletion, as well as any ``necessary''
 %information. Strava also retains unnecessary user data such as geolocation information, and promises
 %to de-identify this data.
-
-\subsection{Challenges of Unsubscription and Resubscription}
-While many web applications make obvious efforts to comply with legal requirements (GDPR and CCPA),
-unsubscription clearly requires more than merely deleting a user's data. Many of these services
-require that some information remains, in transformed or anonymized form, after a user departs, for
-necessary application or legal reasons. Application developers must handle complex data
-relationships when selectively retaining, decorrelating, and removing an unsubscribing user's data,
-without interfering with application correctness, and while preserving the user's privacy.
-
-The lack of automatic unsubscription, and the vague or lacking promises to decorrelate retained data
-highlight the many challenges faced by developers: they must determine and implement the database
-transformations required to correctly unsubscribe a user while maintaining application semantics,
-and continously maintain this feature. Furthermore, no application has supported resubscription in a
-privacy-preserving way.
-
-To help developers of databased-backed web applications achieve correct,
-privacy-compliant user unsubscription and resubscription without onerous labor, we present 
-\sys, a system that provides abstractions and mechanisms to automate unsubscription and
-resubscription.
-%
-Application developers using \sys specify a declarative \emph{unsubscription policy},
-which indicates how the database contents need to change to meet de-identification
-requirements on user unsubscription.
-%
-\sys then turns this policy into a set of concrete, executed database operations that remove,
-anonymize, and structurally \emph{decorrelate} user data.
-%
-When a user resubscribes, \sys both re-imports missing data and
-\emph{recorrelates} the remnants of the user's prior data with the user account,
-restoring the user to her original subscribed state as much as possible.
-
-Furthermore, \sys transparently supports unsubscription and resubscription while still achieving performance
-comparable to today’s widely-used databases and requiring no modification of application schemas.
 
