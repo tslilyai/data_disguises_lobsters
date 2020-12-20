@@ -1,125 +1,126 @@
 \subsection{Background}
 
 \begin{table*}[]
+    \centering
+    \footnotesize
 \begin{tabular}{@{}rccccl@{}}
 \multicolumn{1}{c}{}                                                                      &
-\textbf{Automated} & \textbf{De-identifies User Data} & \textbf{Retains User Data} & \textbf{Supports Resubscription}                                          &  \\ \cmidrule(r){1-5}
-\textbf{\begin{tabular}[c]{@{}r@{}}Facebook/Instagram \\ Account Deletion\end{tabular}}     & \checkmark          & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
-\textbf{\begin{tabular}[c]{@{}r@{}}Facebook/Instagram \\ Account Deactivation\end{tabular}} & \checkmark          &                                  & \checkmark                  & \checkmark                                &  \\ \cmidrule(r){1-5}
-\textbf{\begin{tabular}[c]{@{}r@{}}Twitter \\ Account Deletion\end{tabular}}     & \checkmark          & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
-\textbf{\begin{tabular}[c]{@{}r@{}}Twitter \\ Account Deactivation\end{tabular}} & \checkmark          &                                  & \checkmark                  & \checkmark                                &  \\ \cmidrule(r){1-5}
-\textbf{Reddit}                                                                             & \checkmark          & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
-\textbf{Hacker News}                                                                        &                    & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
-\textbf{Lobsters}                                                                           & \checkmark          & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
-\textbf{Amazon}                                                                             &                    & ?                                & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
-\textbf{PrestaShop}                                                                         &                    & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
-\textbf{HotCRP}                                                                             &                    & ?                                & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
-\textbf{GitHub}                                                                             & \checkmark          & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
-\textbf{Spotify}                                                                            &                    & \checkmark                        & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
-\textbf{Strava}                                                                             &                    & ?                                & \checkmark                  &                                          &  \\ \cmidrule(r){1-5}
+\textbf{Automated} & \textbf{De-identifies} & \textbf{Retains Data} & \textbf{Resubscription}                                          &  \\ \cmidrule(r){1-5}
+\textbf{Facebook/Instagram Account Deletion}~\cite{facebook:privacy}    & \CIRCLE  & \LEFTcircle & \CIRCLE                  &                                          &  \\ \cmidrule(r){1-5}
+        \textbf{Facebook/Instagram Account
+Deactivation}~\cite{facebook:privacy} & \CIRCLE & & \CIRCLE                  & \CIRCLE                                &  \\ \cmidrule(r){1-5}
+\textbf{Twitter Account Deletion}~\cite{twitter:privacy}     & \CIRCLE &  \LEFTcircle & \CIRCLE                  &                                          &  \\ \cmidrule(r){1-5}
+\textbf{Twitter Account Deactivation}~\cite{twitter:privacy} & \CIRCLE          &                                  & \CIRCLE                  & \CIRCLE                                &  \\ \cmidrule(r){1-5}
+\textbf{Reddit}~\cite{reddit:privacy}                                                                             & \CIRCLE          & \CIRCLE                        & \CIRCLE                  &                                          &  \\ \cmidrule(r){1-5}
+    \textbf{Hacker News}~\cite{hackernews:privacy}
+    &                    & \LEFTcircle & \CIRCLE                  &                                          &  \\ \cmidrule(r){1-5}
+    \textbf{Lobsters}~\cite{lobsters:privacy}
+    & \CIRCLE          & \LEFTcircle & \CIRCLE                  &                                          &  \\ \cmidrule(r){1-5}
+    \textbf{Amazon}~\cite{amazon:privacy}                                                                             &                    & \LEFTcircle                                & \CIRCLE                  &                                          &  \\ \cmidrule(r){1-5}
+    \textbf{PrestaShop}~\cite{prestashop:privacy}                                                                         &                    & \CIRCLE                        & \CIRCLE                  &                                          &  \\ \cmidrule(r){1-5}
+    \textbf{HotCRP}~\cite{hotcrp:privacy}                                                                             &                    & \LEFTcircle                                & \CIRCLE                  &                                          &  \\ \cmidrule(r){1-5}
+    \textbf{GitHub}~\cite{github:privacy}                                                                             & \CIRCLE          & \CIRCLE                        & \CIRCLE                  &                                          &  \\ \cmidrule(r){1-5}
+    \textbf{Spotify}~\cite{spotify:privacy}                                                                            &                    & \CIRCLE                        & \CIRCLE                  &                                          &  \\ \cmidrule(r){1-5}
+    \textbf{Strava}~\cite{strava:privacy}                                                                             &                    & \LEFTcircle                                & \CIRCLE                  &                                          &  \\ \cmidrule(r){1-5}
 \end{tabular}
+    \caption{The characteristics of unsubscription in a range of web applications.
+    \LEFTcircle indicates that the application permits some user data to remain identifiable
+    post-subscription, but de-identifies other data in its privacy policy.}
+    \label{tab:apps}
 \end{table*}
 
-Need to discuss how much user data is retained (and whether well-defined), how user data is
-anonymized (what that means)
+We study support for unsubscription and resubscription in a range of web
+services, including enterprise and open-source social media and news-feed applications such as
+Facebook, Instagram, Twitter, Reddit, Hacker News, and Lobsters; e-Commerce applications such as
+Amazon and PrestaShop; and other specialized services such as HotCRP, GitHub, Spotify, and Strava.
+Table~\ref{tab:apps} summarizes the unsubscription characteristics of each application. We focus on
+four characteristics: 
+\begin{enumerate}
+    \item Is unsubscription automated, or does the user need to email or call the
+application developers or customer service directly? 
+    \item Does the application's privacy policy (or
+        code, when available) promise to de-identify all the unsubscribing user's data, 
+        either via deletion or
+        decorrelation of the data from the user's identity? 
+    \item Does the application retain any of the unsubscribing user data, or is all data removed?
+    \item Does unsubscription allow for resubscription, in which unsubscribed users can regain control of their
+        account and account data?
+\end{enumerate}
 
-? means that data is either not clearly specified to be de-identified, or only some data is
-de-identified
+Fewer than half of the services surveyed provide automated unsubscription; all others require the
+user to email or call the application maintainers or support. This indicates the difficulty of
+application developers to automate unsubscription, and makes it more inconvenient for users to
+unsubscribe.
 
-\begin{itemize}
-    \item Many applications now claim to be GDPR compliant and have privacy policies allowing for
-    erasure of personal data 
-    \item Many of these applications do so manually, and still retain user data
-    (anonymized/unanonymized) for ``necessary'' application use.
-    \item A table showing applications and whether they have the following features: 
-    \begin{itemize}
-        \item GDPR-compliant unsubscription: yes-automated/yes-manual/no
-        \item Resubscription: yes (privacy preserving?) / no, 
-        \item Retains user data for necessary application use: yes (anonymized/not anonymized?) / no
-        \item Clear specification of what data remains and in what state (yes/no)
-    \end{itemize}
-    \item Argument that automated unsubscription is hard (only supported by large companies, maybe
-    cite DELF), coarse-grained and underspecified (users cannot determine exactly what information
-    is left, and in what state), and too costly for users to freely unsubscribe due to the lack of
-    resubscription. 
-    \item What we need is a way to allow developers to specify, at a high level, the state of the
-    application data post-unsubscription; and a system that automates the process of achieving this
-    state (unsubscribing) and restoring the original state (resubscription).
-\end{itemize}
+All applications retain some user information in some form: for example, Facebook retains copies of
+private messages for other users in the conversation; Reddit retains all posts and comments made by
+the user; Lobsters retains the user's unique username and logs of the user's actions; e-commerce
+sites retain a user's order history; and Strava retains All applications specify that any
+``required'' information can be retained, for legal or applications correctness purposes (e.g., to
+process payments, or to keep the coherence of private messaging threads).
 
---------------------------------------
+Many applications state that some portions of the retained data will be decorrelated from the
+unsubscribed user's identity. For example, Reddit, PrestaShop, and GitHub explicitly state that all
+remaining posts, orders, and comments will be reassociated with a global placeholder user.
+However, as indicated in Table~\ref{tab:apps}, many applications either leave some data identifiable
+(e.g., private messages in Facebook and Twitter), or fail to specify whether some or all of the ``required''
+information will be de-identified.
 
-We study support for sunbuscription and users' ability to control their data in a range of web
-services, including social media and news-feed applications such as Facebook, Instagram, Twitter,
-Reddit, Hacker News, and Lobsters; e-Commerce applications such as Amazon and PrestaShop; and other
-specialized services such as HotCRP, GitHub, Spotify, and Strava.
+Of the applications surveyed, only Facebook/Instagram and Twitter support some form of
+resubscription. However, unsubscribing via account deactivation only hides user-added content from
+other users: all user data remains in the system without being de-identified. 
+All other forms of unsubscription permanently remove access to the user's account; even if the
+application retains user data (such as orders on Amazon, or posts on Reddit), the user cannot regain
+ownership of these records.
 
-%- Resubscription support
-%- Unsubscription: remove or retain user data (anonymized / unanonymized?)
-    %- Requires identifying information for functionality
-
-Facebook and Instagram~\cite{facebook:privacy} allow for account deletion and account deactivation:
-the former permanently removes all user content and has no option for resubscription, and the latter
-allows users to resubscribe at the cost of leaving all identifying information in the application.
-More specifically, account deletion deletes all user-added content, but retains some (unanonymized)
-data, including messages to friends. Any functionalities linked to having a user account are permanently lost,
-including any logins to Oculus and other applications. Account deactivation, on the other hand,
-allows users to resubscribe, but only hides user-added content from other users and all user data
-remains in the system. 
-
-Twitter~\cite{twitter:privacy} has similar account deactivation policies to Facebook, retaining all
-user data but hiding the content from other users. After 30 days of deactivation, users can no
-longer reactivate their account, and user data is deleted from their system.  However, like
-Facebook, Twitter still retains unanonymized private messages.
-
-Reddit~\cite{reddit:privacy} account deletion reassociates user data with a global ghost user, but
-all user posts, comments, and messages that have not been explicitly been removed by the user remain
-present but anonymized in the system. Users have no ability to resubscribe and regain
-ownership of these pieces of data that remain in the system. 
-
-Hacker News~\cite{hackernews:privacy} allows users to submit requests via email or phone to delete
-personal information, but reserves the right to refuse to delete content or remove associations with
-a user's identity.  Users cannot resubscribe and regain access to their prior profiles.
-
-Lobsters has no privacy policy~\cite{lobsters:privacy}. All user actions and moderations are
-logged, enforcing Lobster's culture of transparent user accountability. A user can request to delete
-their account, which deletes only a users' private messages and negatively-scored comments; all
-stories and comments can optionally be reassociated with a global ghost user instead of the original
-user. In all cases, Lobsters privately retains the user's unique username, and leave log entries of users'
-actions unmodified.
-
-Amazon~\cite{amazon:privacy} allows users to request to delete their personal data by contacting
-Customer Service, with the warning that services become limited or unavailable when the user does
-so. There is no option to unsubscribe or delete an Amazon account from a user's Amazon account
-management page.  A user can also choose to permanently close her account~\cite{amazon:close}. If
-so, Amazon specifies that content is deleted from Photos and Drive, but potentially retains all other types
-of data, such as order history. Even though Amazon can retain profile data, a user can never
-again regain access to her account, losing access to purchased e-books or movies, gift card
-balances, Prime shipping, and more.
-
-PrestaShop~\cite{prestashop:privacy} is an open-source e-commerce web service, and has explicit GDPR
-policies for its merchants when a customer requests to delete their account: their personal account
-details (age, email, address) are removed, but order invoices and abandoned carts are transferred to
-an anonymous account. Users cannot resubscribe.
-
-HotCRP's current privacy policy~\cite{hotcrp:privacy} allows site managers (e.g.,\ program chairs)
-to indefinitely store and distribute submissions and reviews. Each HotCRP.com user has an associated
-global profile and a profile for every HotCRP.com site, and must contact the HotCRP maintainers
-directly to remove these profiles.
-
-GitHub~\cite{github:privacy} reassociates some retained user content (contributions, comments on
-issues) with a global ghost user, and removes all other account information. However, user email
-addresses associated with commits remain unchanged. A user cannot resubscribe.
-
-Spotify~\cite{spotify:privacy} allows users to close their accounts, at the cost of permanently
-losing all account data (playlists, followers, etc.) Spotify promises to ``delete or anonymise...
-personal data so that it no longer identifies [the user], unless [they] are legally allowed or
-required to maintain certain personal data.'' Spotify does not specify exactly what data is
-retained.
-
-Strava~\cite{strava:privacy} users can request account deletion, which ``permanently and
-irreversibly'' deletes all personal data. Resubscription is not supported. Any content that is
-shared with others remains unanonymized after account deletion, as well as any ``necessary''
-information. Strava also retains unnecessary user data such as geolocation information, and promises
-to de-identify this data.
+%Reddit~\cite{reddit:privacy} account deletion reassociates user data with a global ghost user, but
+%all user posts, comments, and messages that have not been explicitly been removed by the user remain
+%present but anonymized in the system. Users have no ability to resubscribe and regain
+%ownership of these pieces of data that remain in the system. 
+%
+%Hacker News~\cite{hackernews:privacy} allows users to submit requests via email or phone to delete
+%personal information, but reserves the right to refuse to delete content or remove associations with
+%a user's identity.  Users cannot resubscribe and regain access to their prior profiles.
+%
+%Lobsters has no privacy policy~\cite{lobsters:privacy}. All user actions and moderations are
+%%logged, enforcing Lobster's culture of transparent user accountability. A user can request to delete
+%their account, which deletes only a users' private messages and negatively-scored comments; all
+%stories and comments can optionally be reassociated with a global ghost user instead of the original
+%user. In all cases, Lobsters privately retains the user's unique username, and leave log entries of users'
+%actions unmodified.
+%
+%Amazon~\cite{amazon:privacy} allows users to request to delete their personal data by contacting
+%Customer Service, with the warning that services become limited or unavailable when the user does
+%so. There is no option to unsubscribe or delete an Amazon account from a user's Amazon account
+%management page.  A user can also choose to permanently close her account~\cite{amazon:close}. If
+%so, Amazon specifies that content is deleted from Photos and Drive, but potentially retains all other types
+%of data, such as order history. Even though Amazon can retain profile data, a user can never
+%again regain access to her account, losing access to purchased e-books or movies, gift card
+%balances, Prime shipping, and more.
+%
+%%PrestaShop~\cite{prestashop:privacy} is an open-source e-commerce web service, and has explicit GDPR
+%policies for its merchants when a customer requests to delete their account: their personal account
+%details (age, email, address) are removed, but order invoices and abandoned carts are transferred to
+%an anonymous account. Users cannot resubscribe.
+%
+%HotCRP's current privacy policy~\cite{hotcrp:privacy} allows site managers (e.g.,\ program chairs)
+%to indefinitely store and distribute submissions and reviews. Each HotCRP.com user has an associated
+%global profile and a profile for every HotCRP.com site, and must contact the HotCRP maintainers
+%directly to remove these profiles.
+%
+%GitHub~\cite{github:privacy} reassociates some retained user content (contributions, comments on
+%issues) with a global ghost user, and removes all other account information. However, user email
+%addresses associated with commits remain unchanged. A user cannot resubscribe.
+%
+%Spotify~\cite{spotify:privacy} allows users to close their accounts, at the cost of permanently
+%losing all account data (playlists, followers, etc.) Spotify promises to ``delete or anonymise...
+%personal data so that it no longer identifies [the user], unless [they] are legally allowed or
+%required to maintain certain personal data.'' Spotify does not specify exactly what data is
+%retained.
+%
+%Strava~\cite{strava:privacy} users can request account deletion, which ``permanently and
+%irreversibly'' deletes all personal data. Resubscription is not supported. Any content that is
+%shared with others remains unanonymized after account deletion, as well as any ``necessary''
+%information. Strava also retains unnecessary user data such as geolocation information, and promises
+%to de-identify this data.
 
