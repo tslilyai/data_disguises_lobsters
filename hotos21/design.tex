@@ -74,6 +74,10 @@ entities created.  The following section describes edge ghosting policies in mor
 %Resubscription requires the user to return the original
 %data to restore the original value.
 
+\lyt{TODO ghost generation should be separated into two parts: generating ghost parents, and
+generating ghost children. The whole CLONE/GENERATE/CLONE-ONE menu should be per ghost entity type,
+rather than per edge ghosting policy, and apply to both value and edge attributes.}
+
 \subsection{Edge Ghosting Policies}
 Developers specify edge ghosting policies on a particular edge type, identified by a pair of parent
 entity type and child entity type. The edge ghosting policy is associated with an edge attribute,
@@ -85,6 +89,8 @@ the existing one with one to a ghost parent; (2) retain the edge but ghost the v
 parent node; (3) remove the edge entirely; or (4) add false edges to introduce noise.
 The following sections explain each policy in more detail, followed by a description of how \sys
 generates ghost edges for these policies.
+
+
 \lyt{TODO Figure~\ref{fig:edge_policies} depicts how the state of stories-users edge types changes depending
 on the policy.}
 
