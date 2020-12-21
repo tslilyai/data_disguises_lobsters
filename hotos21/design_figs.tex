@@ -1,0 +1,135 @@
+\begin{figure}
+\begin{lstlisting}[language=SQL, numbers=none]
+    CREATE TABLE `stories` (
+         `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, 
+         `created_at` datetime, 
+         `user_id` int, 
+         `url` varchar(250) DEFAULT '', 
+         `votes` int DEFAULT 0 NOT NULL, 
+    );
+    CREATE TABLE `users` (
+        `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, 
+        `username` varchar(50), 
+        `karma` int DEFAULT 0 NOT NULL
+    );
+    CREATE TABLE `votes` (
+        `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        `user_id` int NOT NULL, 
+        `story_id` int NOT NULL,
+        `vote` tinyint NOT NULL,
+    );
+\end{lstlisting}
+\caption{A simplified subset of the Lobsters schema.}
+\label{fig:schema}
+\end{figure}
+
+\begin{figure}
+\begin{lstlisting}[language=rust, numbers=none]
+    enum ValuePolicyType<T> {
+        Random,
+        Default(T),
+        Fxn(Box<dyn Fn(&T) -> T>),
+    }
+    struct ValueGhostingPolicy {
+        column: String,
+        policy: ValuePolicyType,
+    }
+    enum EntityPolicyType<T> {
+        Decorrelate,
+        Retain,
+        Delete,
+        Desensitize(f64),
+    }
+    struct EdgeGhostingPolicy {
+        parent_entity: String,
+        key_column: String,
+        policy: EdgePolicyType,
+    }
+    struct GhostGenerationPolicy {
+        name: String,
+        id: String,
+        values: Vec<ValueGhostingPolicy>,
+        edges: Vec<EdgeGhostingPolicy>,
+    }
+\end{lstlisting}
+    \caption{Policy choices given to the developer}
+\label{fig:policy}
+\end{figure}
+
+\begin{figure}
+\begin{lstlisting}[language=rust, numbers=none]
+GhostGenerationPolicy{
+    name: "users",
+    id: "id",
+    values: vec![
+        ValueGhostingPolicy: {
+            column: "username", 
+            policy: Random,
+        },
+        ValueGhostingPolicy: {
+            column: "karma", 
+            policy: Default(0),
+        }
+    ],
+    edges: vec![],
+}
+
+GhostGenerationPolicy{
+    name: "stories",
+    id: "id",
+    values: vec![
+        ValueGhostingPolicy: {
+            column: "created_at", 
+            policy: Random,
+        },
+        ValueGhostingPolicy: {
+            column: "url", 
+            policy: Fxn(|x| x),
+        }
+        ValueGhostingPolicy: {
+            column: "votes", 
+            policy: Default(0),
+        }
+    ],
+    edges: vec![
+        EdgeGhostingPolicy {
+            parent_entity: "users",
+            key_column: "user_id",
+            policy: Decorrelate,
+        }
+    ]
+}
+
+GhostGenerationPolicy{
+    name: "votes",
+    id: "id",
+    values: vec![
+        ValueGhostingPolicy: {
+            column: "vote", 
+            policy: Default(0),
+        }
+    ],
+    edges: vec![
+        EdgeGhostingPolicy {
+            parent_entity: "users",
+            key_column: "user_id",
+            policy: Decorrelate,
+        },
+        EdgeGhostingPolicy {
+            parent_entity: "stories",
+            key_column: "story_id",
+            policy: Retain,
+        }
+    ]
+}
+\end{lstlisting}
+    \caption{Example policy specification for the simplified Lobsters schema.}
+\label{fig:example}
+\end{figure}
+
+\begin{figure}
+\caption{The resulting post-unsubscription state of various edge ghosting policies.}
+\label{fig:edge_policies}
+\end{figure}
+
+
