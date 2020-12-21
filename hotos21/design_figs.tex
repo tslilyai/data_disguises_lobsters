@@ -1,22 +1,22 @@
 \begin{figure}
 \begin{lstlisting}[language=SQL, numbers=none]
 CREATE TABLE `stories` (
-     `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, 
-     `created_at` datetime, 
-     `user_id` int, 
-     `url` varchar(250) DEFAULT '', 
-     `votes` int DEFAULT 0 NOT NULL, 
+   `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, 
+   `created_at` datetime, 
+   `user_id` int, 
+   `url` varchar(250) DEFAULT '', 
+   `votes` int DEFAULT 0 NOT NULL, 
 );
 CREATE TABLE `users` (
-    `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, 
-    `username` varchar(50), 
-    `karma` int DEFAULT 0 NOT NULL
+  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, 
+  `username` varchar(50), 
+  `karma` int DEFAULT 0 NOT NULL
 );
 CREATE TABLE `votes` (
-    `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `user_id` int NOT NULL, 
-    `story_id` int NOT NULL,
-    `vote` tinyint NOT NULL,
+  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `user_id` int NOT NULL, 
+  `story_id` int NOT NULL,
+  `vote` tinyint NOT NULL,
 );
 \end{lstlisting}
 \caption{A simplified subset of the Lobsters schema.}
@@ -25,105 +25,149 @@ CREATE TABLE `votes` (
 
 \begin{figure}
 \begin{lstlisting}[language=rust, numbers=none]
-    enum ValuePolicyType<T> {
-        Random,
-        Default(T),
-        Fxn(Box<dyn Fn(&T) -> T>),
-    }
-    struct ValueGhostingPolicy {
-        column: String,
-        policy: ValuePolicyType,
-    }
-    enum EntityPolicyType<T> {
-        Decorrelate,
-        Retain,
-        Delete,
-        Desensitize(f64),
-    }
-    struct EdgeGhostingPolicy {
-        parent_entity: String,
-        key_column: String,
-        policy: EdgePolicyType,
-    }
-    struct GhostGenerationPolicy {
-        name: String,
-        id: String,
-        values: Vec<ValueGhostingPolicy>,
-        edges: Vec<EdgeGhostingPolicy>,
-    }
+  enum ValuePolicyType<T> {
+    Random,
+    Default(T),
+    Fxn(Box<dyn Fn(&T) -> T>),
+  }
+  struct ValueGhostingPolicy {
+    column: String,
+    policy: ValuePolicyType,
+  }
+  enum EntityPolicyType<T> {
+    Decorrelate,
+    Retain,
+    Delete,
+    DesensitizeAdd(f64),
+    DesensitizeRemove(f64),
+  }
+  enum ClonePolicyType {
+    CloneAll,
+    GenerateAll,
+    CloneOne,
+  }
+  struct ClonePolicy {
+    column: String,
+    policy: ClonePolicyType,
+  }
+  struct EdgeGhostingPolicy {
+    parent_entity: String,
+    key_column: String,
+    policy: EdgePolicyType,
+    clone_policies: Vec<ClonePolicy>,
+  }
+  struct GhostGenerationPolicy {
+    name: String,
+    id: String,
+    values: Vec<ValueGhostingPolicy>,
+    edges: Vec<EdgeGhostingPolicy>,
+  }
 \end{lstlisting}
-    \caption{Policy choices given to the developer}
+  \caption{Policy choices given to the developer}
 \label{fig:policy}
 \end{figure}
 
 \begin{figure}
 \begin{lstlisting}[language=rust, numbers=none]
 GhostGenerationPolicy{
-    name: "users",
-    id: "id",
-    values: vec![
-        ValueGhostingPolicy: {
-            column: "username", 
-            policy: Random,
-        },
-        ValueGhostingPolicy: {
-            column: "karma", 
-            policy: Default(0),
-        }
-    ],
-    edges: vec![],
+  name: "users",
+  id: "id",
+  values: vec![
+    ValueGhostingPolicy: {
+      column: "username", 
+      policy: Random,
+    },
+    ValueGhostingPolicy: {
+      column: "karma", 
+      policy: Default(0),
+    }
+  ],
+  edges: vec![],
 }
-
 GhostGenerationPolicy{
-    name: "stories",
-    id: "id",
-    values: vec![
-        ValueGhostingPolicy: {
-            column: "created_at", 
-            policy: Random,
+  name: "stories",
+  id: "id",
+  values: vec![
+    ValueGhostingPolicy: {
+      column: "created_at", 
+      policy: Random,
+    },
+    ValueGhostingPolicy: {
+      column: "url", 
+      policy: Fxn(|x| x),
+    }
+    ValueGhostingPolicy: {
+      column: "votes", 
+      policy: Default(0),
+    }
+  ],
+  edges: vec![
+    EdgeGhostingPolicy {
+      parent_entity: "users",
+      key_column: "user_id",
+      policy: Decorrelate,
+      clone_policies: vec![
+        ClonePolicy{
+          column: "username",
+          policy: GenerateAll,
         },
-        ValueGhostingPolicy: {
-            column: "url", 
-            policy: Fxn(|x| x),
-        }
-        ValueGhostingPolicy: {
-            column: "votes", 
-            policy: Default(0),
-        }
-    ],
-    edges: vec![
-        EdgeGhostingPolicy {
-            parent_entity: "users",
-            key_column: "user_id",
-            policy: Decorrelate,
-        }
-    ]
-}
-
-GhostGenerationPolicy{
-    name: "votes",
-    id: "id",
-    values: vec![
-        ValueGhostingPolicy: {
-            column: "vote", 
-            policy: Default(0),
-        }
-    ],
-    edges: vec![
-        EdgeGhostingPolicy {
-            parent_entity: "users",
-            key_column: "user_id",
-            policy: Decorrelate,
+        ClonePolicy{
+          column: "karma",
+          policy: CloneOne,
         },
-        EdgeGhostingPolicy {
-            parent_entity: "stories",
-            key_column: "story_id",
-            policy: Retain,
-        }
-    ]
+      ]
+    }
+  ]
 }
 \end{lstlisting}
-    \caption{Example policy specification for the simplified Lobsters schema.}
+\end{figure}
+
+\begin{figure}
+\ContinuedFloat
+\begin{lstlisting}[language=rust, numbers=none]
+GhostGenerationPolicy{
+  name: "votes",
+  id: "id",
+  values: vec![
+    ValueGhostingPolicy: {
+      column: "vote", 
+      policy: Default(0),
+    }
+  ],
+  edges: vec![
+    EdgeGhostingPolicy {
+      parent_entity: "users",
+      key_column: "user_id",
+      policy: Decorrelate,
+      clone_policies: vec![
+        ClonePolicy{
+          column: "username",
+          policy: GenerateAll,
+        },
+        ClonePolicy{
+          column: "karma",
+          policy: CloneOne,
+        },
+      ]
+    },
+    EdgeGhostingPolicy {
+      parent_entity: "stories",
+      key_column: "story_id",
+      policy: DesensitizeAdd(0.25),
+      // Clone policies are specified for 
+      // value attributes of *vote* entities,
+      // since ghost votes will be generated
+      clone_policies: vec![
+        ClonePolicy{
+          column: "vote",
+          policy: CloneOne,
+        },
+      ]
+    }
+  ]
+}
+\end{lstlisting}
+\caption{Example policy specification for the simplified Lobsters schema.}
 \label{fig:example}
 \end{figure}
 
@@ -131,5 +175,3 @@ GhostGenerationPolicy{
 \caption{The resulting post-unsubscription state of various edge ghosting policies.}
 \label{fig:edge_policies}
 \end{figure}
-
-
