@@ -110,12 +110,14 @@ a declarative \emph{unsubscription policy}, which indicates how the database con
 to change to meet de-identification requirements on user unsubscription.
 %
 \sys then turns this policy into a set of concrete, executed database operations that remove,
-anonymize, and structurally \emph{decorrelate} user data.
+anonymize, and structurally \emph{decorrelate} user data; \sys returns any decorrelated data to the
+unsubscribing user, and deletes it from the application.
+%
 
-
-When a user resubscribes, \sys both re-imports missing data and
-\emph{recorrelates} the remnants of the user's prior data with the user account,
-restoring the user to her original subscribed state as much as possible.
+%
+When a user resubscribes, \sys re-imports missing data and \emph{recorrelates} the data with the
+user account and other system data, restoring the user to her original subscribed state as much as
+possible.
 
 Furthermore, \sys transparently supports unsubscription and resubscription while still achieving performance
 comparable to today’s widely-used databases and requiring no modification of application schemas.

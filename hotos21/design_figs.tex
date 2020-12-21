@@ -1,23 +1,23 @@
 \begin{figure}
 \begin{lstlisting}[language=SQL, numbers=none]
-    CREATE TABLE `stories` (
-         `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, 
-         `created_at` datetime, 
-         `user_id` int, 
-         `url` varchar(250) DEFAULT '', 
-         `votes` int DEFAULT 0 NOT NULL, 
-    );
-    CREATE TABLE `users` (
-        `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, 
-        `username` varchar(50), 
-        `karma` int DEFAULT 0 NOT NULL
-    );
-    CREATE TABLE `votes` (
-        `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        `user_id` int NOT NULL, 
-        `story_id` int NOT NULL,
-        `vote` tinyint NOT NULL,
-    );
+CREATE TABLE `stories` (
+     `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, 
+     `created_at` datetime, 
+     `user_id` int, 
+     `url` varchar(250) DEFAULT '', 
+     `votes` int DEFAULT 0 NOT NULL, 
+);
+CREATE TABLE `users` (
+    `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, 
+    `username` varchar(50), 
+    `karma` int DEFAULT 0 NOT NULL
+);
+CREATE TABLE `votes` (
+    `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    `user_id` int NOT NULL, 
+    `story_id` int NOT NULL,
+    `vote` tinyint NOT NULL,
+);
 \end{lstlisting}
 \caption{A simplified subset of the Lobsters schema.}
 \label{fig:schema}
