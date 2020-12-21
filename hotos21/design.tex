@@ -44,7 +44,9 @@ edge (referential foreign key) attributes that identify correlations to parent e
 Value attributes may directly expose identifying information from its
 contents, and edge attributes represent potentially sensitive structural correlations. 
 Developers specify how \sys should generate each of these attributes in a ghost entity.
-Figure~\ref{fig:policy} shows pseudocode for \sys's policy specification types.
+
+\sys generates ghost entities for two reasons: to replace correlations to real parent entities,
+or to add new correlations from ghost children to real parents.
 
 \sys always generates ghost entities with unique identifier attribute values.
 
@@ -59,6 +61,7 @@ For each edge attribute, or foreign key relationship, of the entity type, the de
 \emph{edge ghosting policy} that specifies how and when the edge can be decorrelated and ghost
 entities created.  The following section describes edge ghosting policies in more detail.
 
+Figure~\ref{fig:policy} shows pseudocode for \sys's policy specification types.
 %Using ghost generation policies, \sys creates ghost entities to replace unsubscribed entities. 
 
 %During unsubscription, \sys traverses the current instance of the application entity graph with the
