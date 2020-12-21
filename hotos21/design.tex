@@ -7,19 +7,6 @@
 both directly from its contents, and indirectly through its structural correlations to other
 application data. 
 
-%\sys provides a menu of unsubscription policy choices that allow developers to choose how to
-%\emph{ghost} individual data record content, and how to \emph{decorrelate} sensitive correlations. 
-%Specifying the policy requires nothing more than the application schema: ghosting policies act on
-%application datatables and on foreign key relationships between tables.
-%Table column values can be ghosted---removed, anonymized, or modified---in application-specific
-%ways; and correlations can be broken, removed, or desensitized by adding noise. This gives
-%developers the flexibility to specify fine-grained policies that properly de-identify a user, while
-%retaining data as necessary for the application.
-
-%\sys must pinpoint exactly which data and correlations may be
-%identity-sensitive, and allow developers to specify exactly what the post-unsubscription state of
-%this data should be.
-
 In order to capture exactly which data contents, and which data correlations may be
 identity-sensitive, \sys models an application's data as a graph of \emph{entity} nodes and edges.
 Each entity type corresponds to an application datatable, such as a stories, users, or votes table.
@@ -33,11 +20,11 @@ graph, namely individual entities.
 
 Unsubscription policies center around the abstraction of \emph{ghost entities}. A ghost entity is
 more than an anonymized version of a real entity: a real entity may be replaced by multiple ghost
-entities, breaking up correlations associated with the real entity; and ghost entities can be partially
-randomized, partially custom generated, and partially clones of the real entities. 
+entities, breaking up correlations associated with the real entity; and ghost entities can be
+partially randomized, partially custom generated, and partially clones of the real entities. 
 %achieving fine-grained data retention and anonymization. 
-Pre- and post-unsubscription state differ by the presence of ghost entities nodes and edges to ghost
-entities, which have taken the place of real entities and edges to these entities.
+Pre- and post-unsubscription state differ by the presence of ghost entity nodes and edges, which
+have taken the place of real entities and edges.
 
 While \sys operates on a specific instance of the application entity graph, the developer reasons
 only about the \emph{types} of individual entities and the \emph{types} of entity edges that may be
@@ -323,3 +310,17 @@ decorrelated).
 %this cluster by location can have a different decorrelation policy that generates ghost locations by
 %randomizing the location, breaking up the cluster. 
 %
+
+%\sys provides a menu of unsubscription policy choices that allow developers to choose how to
+%\emph{ghost} individual data record content, and how to \emph{decorrelate} sensitive correlations. 
+%Specifying the policy requires nothing more than the application schema: ghosting policies act on
+%application datatables and on foreign key relationships between tables.
+%Table column values can be ghosted---removed, anonymized, or modified---in application-specific
+%ways; and correlations can be broken, removed, or desensitized by adding noise. This gives
+%developers the flexibility to specify fine-grained policies that properly de-identify a user, while
+%retaining data as necessary for the application.
+
+%\sys must pinpoint exactly which data and correlations may be
+%identity-sensitive, and allow developers to specify exactly what the post-unsubscription state of
+%this data should be.
+
