@@ -125,38 +125,42 @@ users---particularly reviewers---would prefer that their blinded reviews never b
 associated with their identity in the case of a data compromise. Currently, the only way to ensure
 this is to contact the HotCRP maintainers directly to manually remove their user profile: the HotCRP
 developers considered automating support for unsubscription and found it too cumbersome to
-implement. \lyt{(This isn't exactly what I want to say---sorry, Eddie!---but something like this is
-probably useful.)} When user accounts are removed, every piece of data ever associated with that
+implement. 
+%
+\lyt{(This isn't exactly what I want to say---sorry, Eddie!---but something like this is
+probably useful.)} 
+%
+When user accounts are removed, every piece of data ever associated with that
 user is deleted from the system: this model clearly would not work if all users freely
 unsubscribed at will, as the system would be left with no useful data for subscribed users.
 
-HotCRP developers must support unsubscription that both retains useful data for HotCRP and its
-users, and satisfies the desire of HotCRP users to de-identify their data. In particular, the HotCRP
+The desired HotCRP unsubscription behavior would both retain useful data for HotCRP and its users,
+and satisfy the desire of HotCRP users to de-identify their data. In particular, the HotCRP
 developers should be able to specify that unsubscription deletes only the user profile, and
-\emph{decorrelate} the links between the user and their reviews (and other user-associated data)
-while retaining the blinded reviews and data for other users to view.  Furthermore, HotCRP
-developers should not have bother with the complex implementation details necessary to implement
-unsubscription.
+\emph{decorrelates} the links between the user and their reviews (and other user-associated data)
+while retaining the blinded reviews and data for other users to view. While correlations between
+users and their reviews are obviously identifying, unsubscription must also handle more subtle
+correlations: a user's reviewer conflicts can identify the user's affiliation and recent
+collaborations, and in many cases, the user themselves. Implementing unsubscription that handles
+these complex data relationships correctly would not be trivial.
 
 %%%%%%%%%%%%%%%%%
-In this paper, we present \sys, a system that provides
+To solve these challenges, we present \sys, a system that provides
 abstractions and mechanisms to automate unsubscription and resubscription, and 
 help developers of databased-backed web applications achieve correct, privacy-compliant user
 unsubscription and resubscription without onerous labor.
 
 \sys is based on the key observation that users' data can leak identifying information in two ways:
 (1) directly via their content, and (2) indirectly via the structural \emph{correlations} they have
-to other data in the system. Correlations can range from obviously identifying, such as posts
-written by a user, to subtly perilous: posts tagged with user-generated tags most likely belong to
-the tag's author, and posts liked by the same group of users likely belong to a friend of the group.
+to other data in the system. 
 Unsubscription must properly handle these information leaks, either through the removal of such data
 or the \emph{decorrelation} of the data from the user's identity, and do so while preserving
 application correctness.
 
 %
-Developers using \sys can pinpoint exactly which data and correlations may be identifying, and
+Using \sys, developers pinpoint exactly which data and correlations may be identifying, and
 specify the post-unsubscription state of this data. Developers provide a declarative
-\emph{unsubscription policy}, which indicates how the database contents need to change to meet
+\emph{unsubscription policy} that indicates how the database contents need to change to meet
 de-identification requirements on user unsubscription.
 %
 \sys then turns this policy into a set of concrete, executed database operations that remove,
