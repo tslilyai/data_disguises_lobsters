@@ -108,42 +108,19 @@ The developer provides \sys this information in the form of edge policies, one p
 entity type and child entity type). 
 %Figure~\ref{fig:example} shows three different
 %child-parent edge types: stories-users, votes-users, and votes-stories.
-Developers choose between edge policy options that either (1) retain edges of this type, replacing a
-single parent with a single ghost; (2) decorrelate edges of this type, splitting a single parent
-into one ghost parent per edge; or (3) remove these edges.  For decorrelation and removal policies,
-developers can specify a \emph{sensitivity threshold} that tells \sys to only partially decorrelate or remove
-edges.
-The following sections explain each policy in more detail.
+Developers specify a
+\emph{sensitivity threshold} that tells \sys to partially (or fully) decorrelate or remove edges,
+retaining up to the threshold fraction of existing correlations.
+Developers can choose whether \sys decorrelates edges of this type, splitting a single parent
+into one ghost parent per edge, or simply removes these edges. 
+The following sections explain edge policies in more detail.
 
 \lyt{TODO Figure~\ref{fig:edge_policies} depicts how the state of stories-users edge types changes depending
 on the policy.}
 
-\paragraph{Policy 1: Retain.}
-Application developers specify that these types of edges cannot be decorrelated: children 
-that are correlated with the same, single parent should remain correlated with the same 
-parent. Developers should select this option only if the developer knows that these correlations
-cannot collectively leak identifying information, and/or if the application's functionality would be
-impacted by deleting or decorrelating this type of edge.
-
-For each parent, \sys generates a single ghost parent entity using the parent as a template, and
-links all children to this ghost by replacing the childrens' edge attribute with the ghost's
-identifier.
-
-\paragraph{Policy 2: Decorrelate.}
-Decorrelation breaking edges from a parent entity to its children.
-All edges to the same parent are replaced with edges to a unique ghost parent, generated using the
-real parent as a template. \sys links each child to a unique ghost by replacing each child's edge
-attribute (foreign key column) with a unique ghost parent's identifier. 
-
-\paragraph{Policy 3: Delete.}
-\sys deletes the edge by removing the child entity and any descendants. Developers should select
-this edge policy option only if this type of edge cannot be decorrelated while retaining application
-semantics, but retaining edges to a shared parent would reveal too much identifying information.
-
-\paragraph{Partial Decorrelation or Deletion.}
-For decorrelation and deletion policies, the developer has the option to specify a \emph{sensitivity
-threshold $\sigma$}; if no threshold is specified, \sys defaults to $\sigma=0$.  \sys decorrelates
-or deletes edges only enough to achieve the specified threshold.
+\paragraph{What is the Sensitivity Threshold?}
+For each edge policy, the developer specifies a \emph{sensitivity
+threshold $\sigma$}; if no threshold is specified, \sys defaults to $\sigma=0$. 
 
 The sensitivity threshold determines the maximum proportion of edge instances (of the policy's edge
 type) from a real parent entity that may remain correlated to \emph{sensitive} child entities (i.e.,\
@@ -178,47 +155,76 @@ key relationships: less than 10\% of all paper with a specific tag key should ha
 %actual entities, there is little privacy benefit from generating ghost entities to meet
 %the threshold.
 
-Depending on the policy, \sys either deletes or decorrelates sensitive children from the parent
-until the sensitivity threshold is met.  Note that if all children are sensitive (\eg all papers
-linked to a user), or if the sensitivity threshold is 0, \sys will decorrelate or delete all
-children.
+\paragraph{Achieving the Sensitivity Threshold.}
+The developer chooses between two options to achieve the sensitivity threshold: 
+\begin{enumerate}
+    \item \textbf{Decorrelate.}
+    \sys decorrelates edges from the parent entity to its children by 
+    replacing edges with ones to a unique ghost parent, generated using the
+    real parent as a template. \sys relinks the child to a unique ghost by replacing the child's edge
+    attribute (foreign key column) with a unique ghost parent's identifier. 
+
+\item \textbf{Delete.}
+    \sys deletes the edge by removing the child entity and any descendants. Developers should select
+    this edge policy option only if this type of edge cannot be decorrelated while retaining application
+    semantics, but retaining edges to a shared parent would reveal too much identifying information.
+\end{enumerate}
+
+For each parent, \sys decorrelates or deletes edges to children only enough to achieve the specified
+threshold, and retains the remaining edges. Note that if all children are sensitive (a user's papers
+are always sensitive), or if the sensitivity threshold is 0, \sys will decorrelate or delete all
+children. 
+
+On the other hand, if the developer specifies a sensitivity threshold of 1, \sys retains all
+correlations between children and the parent. Developers should select this option only if the
+developer knows that these correlations cannot collectively leak identifying information, and/or if
+the application's functionality would be impacted by deleting or decorrelating this type of edge.
+
+If \sys retains any edges from children to the parent, \sys generates a single ghost parent entity using the
+parent as a template. The ghost parent adopts all children that remained correlated with the real
+parent by replacing the childrens' edge attribute with the ghost's identifier.
+
+\paragraph{Returning User Data.}
+After applying the appropriate edge policies, \sys returns all 
+removed entity data back to the unsubscribing user. \sys also deletes and returns all parent entities that
+have been replaced by ghosts (when edges are retained or decorrelated).
+
+\sys additionally returns the identifier attributes of all generated ghosts, and a mapping from real
+entity to the set of ghosts that replaced that entity's correlations. 
 
 \subsection{Resubscription}
-After applying the appropriate edge policies, \sys returns all 
-removed entity data back to the unsubscribing user. \sys also deletes and returns any entities that
-have been \emph{completely} decorrelated: any children that were correlated with these entities have
-been reassigned to ghost parents.
+Upon resubscription, the user returns any ghost mappings and any removed entity data they received
+upon unsubscribing, allowing \sys to remove any created ghost entities, recorrelate entities back
+with the correct real entity, and restore removed entities and their descendants. 
 
-\sys additionally returns the identifier attributes of all
-generated ghosts, and, for each decorrelated entity, the set of ghosts that replaced that entity's
-correlations. 
-
-Upon resubscription, the user returns this ghost metadata and any removed entity data, allowing \sys
-to remove any created ghost entities, recorrelate entities back with the correct real entity, and
-restore removed entities and their descendants. 
-
-\sys allows the application developer or user to
-ignore any entity data returned by \sys upon unsubscription, but consequently cannot restore this
-data when the user resubscribes.  This choice reduces the amount of user-side storage required for
-resubscription when the data can be easily re-initialized, is simply too large to store, or plays no
-essential role in using the application.
+\sys allows the application developer or user to ignore any entity data returned by \sys upon
+unsubscription, but consequently cannot restore this data when the user resubscribes.  This choice
+reduces the amount of user-side storage required for resubscription when the data can be easily
+re-initialized, is simply too large to store, or plays no essential role in using the application.
 
 \subsection{\sys's Execution Algorithm}
-
-\lyt{NOTE---EVERYTHING PAST HERE IS OLD. (Need to modify to fit the rewritten above design.)}
-
-Given this specification and an entity to be decorrelated as input, \sys acts as follows:
+Given an application's schema and unsubscription policy, and an entity to be decorrelated as input,
+\sys executes unsubscription as follows:
 \begin{enumerate}
     \item \textbf{Parent-Child Traversal:} \sys traverses the entity graph starting from the input entity,
         going down parent to child edges (and halting if it detects a cycle).  As it traverses,
         \sys collects the edges it has traversed. 
     
-    \item \textbf{Parent-Child Decorrelation:} Post-traversal, \sys acts on each edge instance
-        according to the specified decorrelation relationship policy for that edge's type: if no
-        policy is specified, \sys does nothing. If edges can be decorrelated, \sys generates
-        ghost parent entities and new edges between child and ghost parent entities using the
-        appropriate ghost entity generation policy. If edges cannot be decorrelated and should be
-        retained or deleted, \sys does nothing or removes the child and edge respectively. 
+    \item \textbf{Parent-Child Edge Policy Application:} 
+        Post-traversal, \sys acts on each collected edge instance according to the specified
+        decorrelation relationship policy for that edge's type.
+
+        Given every unique parent entity, \sys applies policies as appropriate to the parent's edges
+        to children. Any edges that should be deleted removes the child entity and any descendants.
+        \sys generates new ghost parents using the real parent as template for any edges that should
+        be decorrelated, and rewrites the child's edge attribute to be the ghost parent's
+        identifier. If any edges are retained, \sys generates a ghost parent entity to replace the 
+        For every unique parent entity, \sys 
+
+        If edges can be decorrelated, \sys generates ghost parent entities and new edges between
+        child and ghost parent entities using the appropriate ghost entity generation policy. If
+        edges cannot be decorrelated and should be retained or deleted, \sys does nothing or removes
+        the child and edge respectively. 
     
         If there is a sensitivity threshold for the edge's type, \sys ensures the
         sensitivity of the edge is below $t$'s threshold, providing the edge type and the edge's
