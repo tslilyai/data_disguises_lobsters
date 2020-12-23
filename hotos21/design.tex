@@ -264,25 +264,25 @@ An example of these three decorrelation steps is shown in Figure~\ref{fig:algo}.
 
 \subsection{HotCRP's Unsubscription Policy}
 We next show how \sys's design works in the context of an unsubscription policy for HotCRP. 
-HotCRP entities include users (reviewers and paper authors), papers, and paper reviews. There are a total of 25
-entities, with 48 edge types between entities.
+HotCRP entities include users (reviewers and paper authors), papers, paper reviews, and paper
+conflicts. There are a total of 25 entities, with 48 edge types between entities.
 
 The first part of the unsubscription policy specifies that the top-level entity to decorrelate is a
 user (entities of the \texttt{ContactInfo} table). These include reviewers who may want to remove
 their connections with their reviews, papers, and other metadata (such as papers they have requested
 to review).
 
-All the entities such as reviews, papers, and review requests linked to unsubscribed users may leak
-the user's identity. The developers therefore should specify edge policies with a sensitivity
-threshold of 0 for edges of type users-to-reviews, users-to-papers, and so on. Because HotCRP
-should retain the paper and review data, and merely decorrelate these data from their author's
-identity, the developer specifies that \sys should decorrelate these edges to meet the threshold:
-\sys will replace any edges from papers or reviews to the unsubscribing user with an edge to a ghost
-user profile. The HotCRP developer further specifies that ghost user profiles are generated
-randomly, with the exception that the template user's roles are cloned once, and the user account's
-disabled status is cloned for all ghosts.
+All entities such as reviews, papers, and review requests directly correlated with unsubscribed users may
+leak the user's identity. The developers therefore should specify edge policies with a sensitivity
+threshold of 0 for edges of type users-to-reviews, users-to-papers, and so on. Because HotCRP should
+retain the paper and review data, and merely decorrelate these data from their author's identity,
+the developer specifies that \sys should decorrelate these edges to meet the threshold: \sys will
+replace any edges from papers or reviews to the unsubscribing user with an edge to a ghost user
+profile. The HotCRP developer further specifies that ghost user profiles are generated randomly,
+with the exception that the template user's roles are cloned once, and the user account's disabled
+status is cloned for all ghosts.
 
-Although parent-child links from users to their data should be decorrelated upon unsubscribing,
+Although parent-child links from users to their data should be decorrelated during unsubscription,
 HotCRP should maintain correlations between other subscribed users and sensitive papers, reviews,
 and other entities. Thus, the developer specifies a weaker edge policy in the child-parent
 direction (papers-to-users, reviews-to-users, etc.) with sensitivity threshold 1, allowing these
