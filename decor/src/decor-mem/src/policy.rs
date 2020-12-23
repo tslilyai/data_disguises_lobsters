@@ -103,26 +103,194 @@ For each edge policy, tpecifies : &) -> teT HashSet<String> = HashSet::new();
                     entities to  their ghost replacements, mplat (a user's papers are always
 
                                                                  to pu child_parent_ghosted_tables:
+
+                                                                 \subsection{'s Unsubscription Policy'HotCRP}
+                                                                 We next show how \sys's design works in the context of an unsubscription policy for HotCRP 
+                                                                 .
                                                                  HashMap<String, Vec<(String, how
-                                                                                      \sys provides
-                                                                                      two options
+                                                                                      tedge types w
                                                                                       to unlike the
-                                                                                      previous
-                                                                                      steps, this
-                                                                                      a particular
-                                                                                      tag may
-                                                                                      correlate
-                                                                                      with step
                                                                                       considers by
                                                                                       various
-                                                                                      parents that
-                                                                                      \
-                                                                                     textbf{tem[Decorrelate.}
-                                                                                                                        Cto be 
-   Note that while .hT prior step decorrelated or deleted all children given any sensitivity
-                                                                 sensitive)pplication } <
-  threshold .or c back to the unsubscribing user, which, if returned upon resubscription, allows
-   \sys to restore the user to their ori edges from sensitive children to parents not related to
-   the unsubscribing entity state\egmany stories by other authors may belong to sensitive particular children).
-   ones specified, \sys defaults  t; \sys therefore may retain given a sensitithreshold
-   greater than reviewsbut less than 1.  $\review =the review's recipients of 0parents, at least nsertr.ch and greater than 0il, unlike in the previouthey are decorrelated from their papersbut correlations of the papother 
+                                                                                     
+                                                                                     We Note that
+                                                                                     while .hT
+                                                                                     prior step
+                                                                                     decorrelated
+                                                                                     or deleted all
+                                                                                     children given
+                
+                                                                                     The first part
+                                                                                     of the
+                                                                                     unsubscription
+                                                                                     policy any
+                                                                                    Apecifies
+                                                                                   As observed
+                                                                                   earlier, } <
+                                                                                   threshold ..rTc
+                                                                                   back therefore
+                                                                                   should to the
+                                                                                   unsubscribing
+                                                                                   user, which, if
+                                                                                   returned upon
+                                                                                   resubscription,
+                                                                                   allows
+                                                                                       \syBecause s
+                                                                                       to resto re
+                                                                                       the user
+                                                                                       ,ottheir ori
+                                                                                       these data
+                                                                                       from
+                                                                                       sensitive
+                                                                                       choose to to
+                                                                                       parents
+                                                                                       specify that
+                                                                                       be
+                                                                                       decorrelated
+                                                                                       the
+                                                                                       unsubscribing
+                                                                                       thus \egmany
+                                                                                       specify edge
+                                                                                       policies
+                                                                                       from users
+                                                                                       to their
+                                                                                       reviews,
+                                                                                       develoeprs
+                                                                                           papers,
+                                                                                           and so
+                                                                                               on
+                                                                                               with
+                                                                                               a
+                                                                                               sensitivity
+                                                                                               threshold
+                                                                                               of
+                                                                                               0.
+                                                                                               HotCRP
+                                                                                               should
+                                                                                               retain
+                                                                                               the
+                                                                                               paper
+                                                                                               and
+                                                                                               review
+                                                                                               data,
+                                                                                               and
+                                                                                                   
+                                                                                                   merely
+                                                                                                  decorrelate
+                                                                                                   these
+                                                                                                   from
+                                                                                                   their
+                                                                                                   the
+                                                                                                   user
+                                                                                                   to
+                                                                                                   paperedge
+                                                                                                   policies
+                                                                                                   described
+                                                                                                   above
+                                                                                                   decorrelates
+                                                                                                   edges
+                                                                                                   ensures
+                                                                                                   that
+                                                                                                   users
+                                                                                                   are
+                                                                                                   decorrelated
+                                                                                                   from
+                                                                                                   theirany
+                                                                                                   
+                                                                                                   with a sensitivity threshold of 0 for edges of type 
+                                                                                               the developer specifiethat \sys should s
+                                                     
+                                                                                                 these
+                                                                                                 edges
+                                                                                                 All
+                                                                                                 decorrelate
+                                                                                                 attributes
+                                                                                                 are
+                                                                                                 :hosted
+                                                                                                 using
+                                                                                                 a
+                                                                                                 clone-one
+                                                                                                 policyghosting
+                                                                                                   :
+                                                                                                   that
+                                                                                                   aeach
+                                                                                                   sensitive
+                                                                                                   However,
+                                                                                                   the
+                                                                                                       developer
+                                                                                                       must
+                                                                                                       also
+                                                                                                       consider
+                                                                                                       edges
+                                                                                                       fom
+                                                                                                       these
+                                                                                                       sensitive
+                                                                                                       onlyents
+                                                                                                       one
+                                                                                                       child
+                                                                                                      edge
+                                                                                                      types  
+
+                                                                                                      Although
+                                                                                                      parentsubscribed
+                                                                                                      -child
+                                                                                                      links
+                                                                                                      from
+                                                                                                      users
+                                                                                                      to
+                                                                                                      their
+                                                                                                      data
+                                                                                                      should
+                                                                                                      be
+                                                                                                      decorrelated
+                                                                                                      upon
+                                                                                                      unsubscribing,
+                                                                                                      HotCRP
+                                                                                                          should
+                                                                                                          maintain
+                                                                                                          correlations
+                                                                                                          between
+                                                                                                          other
+                                                                                                          users
+                                                                                                          and
+                                                                                                          sensitive
+                                                                                                          papers,
+                                                                                                          reviews,
+                                                                                                          and
+                                                                                                              other
+                                                                                                              data
+                                                                                                              entities.
+                                                                                                              to
+                                                                                                              Thus,
+                                                                                                              the
+                                                                                                                  developer
+                                                                                                                  specifies
+                                                                                                                  a
+                                                                                                                  weaker
+                                                                                                                  edge
+                                                                                                                  policy
+                                                                                                                  in
+                                                                                                                  the
+                                                                                                                  child-parent
+                                                                                                                  direction
+                                                                                                                  (papers-to-users,
+                                                                                                                   reviews-to-users,
+                                                                                                                   etc.)
+                                                                                                                  with
+                                                                                                                  sensitivity
+                                                                                                                  threshold
+                                                                                                                  1,
+                                                                                                                  allowing
+                                                                                                                      these
+                                                                                                                      correlations
+                                                                                                                      to
+                                                                                                                      remain
+                                                                                                                      unchanged.
+                                                                                                                      be
+                                                                                                                      decorrelateThe
+                                                                                                                      developer
+                                                                                                                      specifiesa
+                                                                                                                      sensitivity
+                                                                                                                      threshold
+                                                                                                                      
+                                                                                                                     1cannot
