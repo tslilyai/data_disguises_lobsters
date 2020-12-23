@@ -83,7 +83,7 @@ For each edge policy, tpecifies : &) -> teT HashSet<String> = HashSet::new();
             } 
             DecorrelationPolicy::NoDecorRemove => {
                 if let Some(ghost_cols) = pc_sdts.get_mut(&kr.child.clone()) {
-                } else {
+                Note that a else {
                     pc_sdts.insert(kr.child.clone(), vec![(kr.column_name.clone(), kr.parent.clone(), 0.0)]);
                 }        
             DecorrelationPolicy::NoDecorSensitivitys) => {
@@ -102,43 +102,27 @@ For each edge policy, tpecifies : &) -> teT HashSet<String> = HashSet::new();
                 kr.parent.clone(), 0.0)); \sys returns the entity data, as well as a mapping from
                     entities to  their ghost replacements, mplat (a user's papers are always
 
-                                                                 to pu child_parent_ghosted_tables: HashMap<String, Vec<(String, how \sys provides two options to achieve the sensitivity threshold: 
-                                                                                                                         \begin{enumerate}
-                                                                                                                        \ \textbf{tem[Decorrelate.}
-   Cto be left edge-less    %let mut .t
-   
-   breaks value attributes, tached_parents                    cp_sdts.insert(kr.or c back to the unsubscribing user, which, if returned upon resubscription, allows \sys to restore the user to their original state by 
-replacing edges with ones specified, \sys defaults  to $\sigma=0$.threshold of 0.
-        What is theAchieving \textbf{the. 
-
-]
-                if relet  the (sensitive) = cp_sdts.get_mutthe krthese chilsclon; e2)) {
-                   
-                attached_children.insertr.child  sensitive.push((kr.column_name.clone(),
-                \end{enumerate}
-                                                                  sensitive)pplication } <
-Parent-Child 
-
-
-    .
-    // the are .
-    // hare the same edge to collected a parent entity.
-    
-
-Given every unique parent entity, \sys applies policies as appropriate to the parent's edges to children.Any edges that should be deleted removes the child entity and any descendants.
-\sys generates new ghost parents using the real parent as template for any edges that should be decorrelated, and rewrites the child's edge attribute to be the ghost parent's identifier. If any edges are retained, \sys a ghost parent entity to replace the 
-For every unique parent entity, \sys 
-    // value and which columns(+parent type) for whicdevelopers specify whether the rest of the
-        
-developers specify only
-                    enough to meet the specified empthreshold} that tells \to (or fully) only only The
-                    subsectiondecorrelate Resubscription(of the policy's edge type)the  
-                    Developers can choose whether \sys 
-                 
-   
-                   s kr.parent.clone(), s)); For decorrelation and removal ,
-                   remain from , real simply entitys connected a mappingreal  children to hat is
-                       theAchieviReturning User Datan .childedge cloiese());
-
-
-any mappings  they received upon unsubscribing 
+                                                                 to pu child_parent_ghosted_tables:
+                                                                 HashMap<String, Vec<(String, how
+                                                                                      \sys provides
+                                                                                      two options
+                                                                                      to unlike the
+                                                                                      previous
+                                                                                      steps, this
+                                                                                      a particular
+                                                                                      tag may
+                                                                                      correlate
+                                                                                      with step
+                                                                                      considers by
+                                                                                      various
+                                                                                      parents that
+                                                                                      \
+                                                                                     textbf{tem[Decorrelate.}
+                                                                                                                        Cto be 
+   Note that while .hT prior step decorrelated or deleted all children given any sensitivity
+                                                                 sensitive)pplication } <
+  threshold .or c back to the unsubscribing user, which, if returned upon resubscription, allows
+   \sys to restore the user to their ori edges from sensitive children to parents not related to
+   the unsubscribing entity state\egmany stories by other authors may belong to sensitive particular children).
+   ones specified, \sys defaults  t; \sys therefore may retain given a sensitithreshold
+   greater than reviewsbut less than 1.  $\review =the review's recipients of 0parents, at least nsertr.ch and greater than 0il, unlike in the previouthey are decorrelated from their papersbut correlations of the papother 
