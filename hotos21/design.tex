@@ -271,8 +271,14 @@ Given an application's schema and unsubscription policy, and an entity to be dec
         still be retained.
 \end{enumerate}
 
-\lyt{TODO clone once always associated with non-sensitive entities if any, optimization to just keep
-original entity in place and generate ghosts for other correlations that are broken}
+Note that \sys must decide \emph{which} ghost becomes the clone of the template entity when the
+developer selects a \texttt{CloneOne} ghosting policy. \sys always associates the cloned ghost with
+as many non-sensitive entities as possible. For example, if \sys decorrelates sensitive papers from
+a parent tag with a \texttt{CloneOne} policy, \sys clones the template to produce the ghost tag that
+remains associated with non-sensitive papers (as shown in Figure~\ref{fig:hotcrp}c). This decision
+ensures that any subscribed users and unsensitive application data remain as unaffected as possible
+by another user's unsubscription. To optimize \texttt{CloneOne} policies, \sys can simply retain the
+original template entity instead of producing a cloned ghost.
 
 \subsection{HotCRP's Unsubscription Policy}
 We next show how \sys's design works in the context of an unsubscription policy for HotCRP. 
@@ -338,6 +344,9 @@ threshold of 0.5: at most half the papers with that tag can be associated with t
 user. \sys decorrelates these edges until the threshold is met; all ghost tag attributes are
 generated using a clone-one ghosting policy.  Figure~\ref{fig:hotcrp}c shows how \sys partially
 decorrelates a user's papers from a shared tag parent.
+\lyt{I know this doesn't exactly reflect HotCRP's schema (which uses PaperTags to link papers to
+tags), but I found this example the most convincing to demonstrate partial decorrelation. This may
+be more relevant in a different application than HotCRP.}
 
 The final part of the unsubscription policy ensures that review and paper artifacts remain present
 and correctly linked with other application entities: (subscribed) reviewers should still see the
