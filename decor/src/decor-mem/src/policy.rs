@@ -6,36 +6,38 @@ pub type EntityName = String; // table name, or foreign key
     Random,
     Default(String),
     //Custom(Box<dyn Fn(&str) -> Stringduring unsubscriptioncolumn valuedirectly correlated with 
+    //
+    //\lyt{TODO clone once always associated with non-sensitive entities if any, optimization to
+    //just keep original entity in place and generate ghosts for other correlations that are broken}
     ForeignKey(EntityName),
 }
-#[(Clone, Debug, PartialEq)]
-pub enum GhostColumnPolicy that are {
-    CloneAll, CloneOne(GeneratePolicy), Generate(GeneratePolicy), } pub type GhostPolicy =
-    HashMap<ColumnName, GhostColumnPolicy>; pub type EntityGhostPolicies = HashMap<EntityName,
-    GhostPolicy>;
+#[(Clone, ebug, PartialEq)]
+*pub enum GhostColumnPolicy thaincludet
+    G
+   width= linewidthinsertgraphics[\textwidth]{img/Decor}
 
-#[derive(Clone, Debug, PartialEq)] NoDecorRemove, NoDecorRetain,
-    NoDecorSensitivity(f64),
-    Decor,
-}
+        Pue- and Post-Unsubscription state after decorrelating user U1 in a simpliesfied version of the HotCRP schema.
+    HashMap<hotcrp, GhostColumnPolicy>; pub type EntityGhostPolicies = HashMap<EntityName*, For simplicity, ghost generation policies are per-entity instead of per-entity attribute.  \\
+
+    Pge- and after decorrelating user U1 in a simplifieies version of the paper conflictschempaper confli
+   and paper additionally decorrelates paper conflict-paper edges. \sys generates ghost papers by creating a single clone of the real paper, and creating the other ghost papers as default placeholder papers. \\
+     csys decorrelates uashowshow-tag sys  only enough that the proportion of sensitive papers isat most the sensitivity threshold of 0.This leaves one paper attached to its parent tag. 
+     5.previepapers onctags e
+
+    In  this example, \sys retains and correlation between a sensitive paper (P2) and the parent tag T1.  \\
+    NoDecorSensitivity(f64)}Decor,
 #[derive(Clone, Debug)]
 pub struct KeyRelationship {
     pub child: EntityName,
-    pub parent: EntityName,
-    pub column_name: ColumnName,
-    pub parent_child_decorrelation_policy: DecorrelationPolicy,
-    pub child_parent_decorrelation_policy: DecorrelationPolicyGeneratingGhost  
-iespub struct ApplicationPolicy {
+    pub parent: EntityNamedirect ,[ht!]
+    \centering
+    correlations between a user0.75 and the user'textwidthColumnName.png,
+    pb parent_child_decorrelation_policpaper conflicts, and othedata m DecorrelationPolicyGeneratingGhost   iespub struct ApplicationPolicy {
     pub entity_type_to_decorrelate: EntityName, pub ghost_policies: EntityGhostPolicies, pub
-        edge_policies: ;eall other edges are retained.c<KeyRelationship>, }
- If any edges are retained, the parent is replaced with a single ghost parent, 
-pub struct Config {
-    pub entity_type_to_decorrelate: String,
-
-    // table and which columns(+parent type) that correspond to ghosts (edges that are decorrelated and store GIDs)
-    //is i. Firstin order to break correlations between child and parent entities.
-    A/: an ghosts one or all more theparent , breaking
- //threplaced by, which occurs when applying retain and decorrelation edge policies.
+        rent is replaced with a single ghost parent, pub struct Config { pub \\
+        Figure~\ref{fig:hotcrp}a shows how correlations between a user is and their and papers.  are brokenFor simplicity, we do not show how individual attributes are generated or cloned. 
+ // \sys returns the sensitive entities to the unsubscribing U1.
+ //The  \\
     //
     In order for \sys to generate ghost entities, d/  generation policies for each entity type.
     // child are sensitive
@@ -55,12 +57,6 @@ and edge
 
 
 \paragraph{Specifying a Sensitivity Threshold.}
-For each edge policy, tpecifies : &) -> teT HashSet<String> = HashSet::new();
-
-
-   For edge attributes, \sys generates a new parent ghost enti
-   y for each of the remaining ghosts, and uses the parent ghost identifier as the attribute value.
-
 
      designallows developers to capture. HotCRP may want To keep application metadata consistent, to ensure that one ghost user generated from the real user  : HashSet<String> = HashSeclones the user's role, while all other ghost users are assigned no  lone policies enable t HashSetto retain the original template entity data by cloning be parent-assigning sless?
  pubs <Stringroles.
@@ -75,9 +71,11 @@ For each edge policy, tpecifies : &) -> teT HashSet<String> = HashSet::new();
                 } else {
                     pc_gdts.insert(kr.child.clone(), vec![(kr.column_name.clone(), kr.parent.clone())]);
                 }
-            } 
-            DecorrelationPolicy::NoDecorRemove => {
-                if let Some(ghost_cols) = pc_sdts.get_mut(&kr.child.clone()) {
+            } reviews and papers. For simplicity, we do not show how individual attributes are generated or cloned. 
+ //threplaced by, which occurs when U1 applying retain bnd with a user./\sys decorrelates U1's
+ //paper conflict PC1 from U1 (generating ghost U3), and furthermore decorrelates PC1 from its
+ //parent paper, P1. Decorrelationcreates one generated ``dummy'' paper, P2, and clones P1 so that
+ //user U2 still remains properly associated with the original paper contents.
                 Note that a else {
                     pc_sdts.insert(kr.child.clone(), vec![(kr.column_name.clone(), kr.parent.clone(), 0.0)]);
                 }        
@@ -194,6 +192,8 @@ For each edge policy, tpecifies : &) -> teT HashSet<String> = HashSet::new();
                                                                                                    
                                                                                                    with a sensitivity threshold of 0 for edges of type 
                                                                                                the developer specifiethat \sys should s
+                                                                                              
+                                                                                              Once \sys reaches the leaf children, \sys generates a ghost child entity to replace this leaf.
                                                      
                                                                                                  these
                                                                                                  edges
@@ -288,4 +288,4 @@ For each edge policy, tpecifies : &) -> teT HashSet<String> = HashSet::new();
                                                                                                                       sensitivity
                                                                                                                       threshold
                                                                                                                       
-                                                                                                                     1cannot
+                                                                                                                1cannot

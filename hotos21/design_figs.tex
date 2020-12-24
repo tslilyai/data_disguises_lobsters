@@ -25,12 +25,17 @@ CREATE TABLE `votes` (
 
 \begin{figure}
 \begin{lstlisting}[language=rust, numbers=none]
-  enum ValuePolicyType<T> {
+enum ValueGenerationPolicy<T> {
     Random,
     Default(T),
     Fxn(Box<dyn Fn(&T) -> T>),
+}
+enum ClonePolicyType {
+    CloneAll,
+    GenerateAll,
+    CloneOne,
   }
-  struct ValueGhostingPolicy {
+  struct GhostingPolicy {
     column: String,
     policy: ValuePolicyType,
   }
@@ -41,11 +46,7 @@ CREATE TABLE `votes` (
     DesensitizeAdd(f64),
     DesensitizeRemove(f64),
   }
-  enum ClonePolicyType {
-    CloneAll,
-    GenerateAll,
-    CloneOne,
-  }
+  
   struct ClonePolicy {
     column: String,
     policy: ClonePolicyType,
@@ -171,7 +172,3 @@ GhostGenerationPolicy{
 \label{fig:example}
 \end{figure}
 
-\begin{figure}
-\caption{The resulting post-unsubscription state of various edge ghosting policies.}
-\label{fig:edge_policies}
-\end{figure}
