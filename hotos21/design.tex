@@ -24,7 +24,6 @@
     \label{fig:hotcrp}
 \end{figure*}
 
-
 \sys's design allows developers to capture exactly which data contents, and which data correlations may be
 identity-sensitive. \sys models an application's data as a graph of \emph{entity} nodes and edges.
 Each entity type corresponds to an application datatable, such as a users, papers, or reviews table.
@@ -132,8 +131,8 @@ The following sections explain edge policies in more detail.
 
 \paragraph{What is the Sensitivity Threshold?}
 For each edge policy, the developer specifies a \emph{sensitivity
-threshold $\sigma$}; if no threshold is specified, \sys defaults to $\sigma=0$. 
-
+threshold $\sigma$}. 
+%
 The sensitivity threshold determines the maximum proportion of edge instances (of the policy's edge
 type) from a real parent entity that may remain correlated to \emph{sensitive} child entities.
 Sensitive entities transitively correlate back to the initial entity being unsubscribed. 
@@ -159,6 +158,8 @@ threshold. For example, a reasonable sensitivity threshold might be $\sigma = 0.
 key relationships: less than 10\% of all paper with a specific tag key should have been correlated
 (even indirectly) with an (unsubscribed) user. 
 
+If no threshold is specified, \sys defaults to $\sigma=0$ and fully
+decorrelates all edges of this type. 
 %\textbf{Add ghost correlations}: For each parent of this edge type, \sys
 %generates ghost children ntities using the appropriate value ghosting policies and an
 %existing child entity as a template. All ghost children point to the parent (share the
@@ -195,6 +196,10 @@ the application's functionality would be impacted by deleting or decorrelating t
 If \sys retains any edges from children to the parent, \sys generates a single ghost parent entity using the
 parent as a template. The ghost parent adopts all children that remained correlated with the real
 parent by replacing the childrens' edge attribute with the ghost's identifier.
+
+To ensure that leaf children do not leak identifying information, 
+\sys replaces any retained children with ghost children according to the specified ghost generation
+policy.
 
 \paragraph{Returning User Data.}
 After applying the appropriate edge policies, \sys returns all 
@@ -333,9 +338,6 @@ generated are set to some default template paper, except for the ghost paper gen
 child remains to be decorrelated.  This last ghost paper is generated as a clone of the original
 paper, allowing HotCRP to retain information about the paper and non-user-related paper metadata in
 the system.  
-\lyt{I believe it might be incorrect to create all ghost papers as clones of the
-original (with different IDs, of course) because this would interfere with other paper attributes queried by the
-system (tags, topics, etc.)?}
 Figure~\ref{fig:hotcrp}b shows how \sys unsubscribes a user with paper conflicts. 
 
 The HotCRP developer may also determine that tags can identify a user if only that user's papers are
