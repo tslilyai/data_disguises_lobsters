@@ -5,7 +5,7 @@
     \footnotesize
 \begin{tabular}{@{}rccccl@{}}
 \multicolumn{1}{c}{}       &
-\textbf{Automated} & \textbf{De-identifies} & \textbf{Retains Data} & \textbf{Resubscription} &  
+\textbf{Automated} & \textbf{Removes Identifiers} & \textbf{Retains Data} & \textbf{Resubscription} &  
   \\ \cmidrule(r){1-5}
 \textbf{Facebook/Instagram Account Deletion}~\cite{facebook:privacy} 
   & \CIRCLE  & \LEFTcircle & \CIRCLE  &    &  
@@ -48,8 +48,8 @@
   \\ \cmidrule(r){1-5}
 \end{tabular}
  \caption{The characteristics of unsubscription in a range of web applications.
-    \LEFTcircle indicates that the application permits some user data to remain identifiable
-    post-subscription, but de-identifies other data in its privacy policy.}
+    \LEFTcircle indicates that the application permits some user identifiers to remain unchanged 
+    post-subscription, but anonymizes other identifiers for other data in its privacy policy.}
     \label{tab:apps}
 \end{table*}
 
@@ -62,10 +62,9 @@ four characteristics:
 \begin{enumerate}
     \item Is unsubscription automated, or does the user need to email or call the
 application developers or customer service directly? 
-    \item Does the application's privacy policy (or
-        code, when available) promise to de-identify all the unsubscribing user's data, 
-        either via deletion or
-        decorrelation of the data from the user's identity? 
+    \item Does the application's privacy policy (or code, when available) promise to de-identify 
+        unsubscribing users' data either by removing it or anonymizing users'
+        identifiers? 
     \item Does the application retain any of the unsubscribing user data, or is all data removed?
     \item Does unsubscription allow for resubscription, in which unsubscribed users can regain control of their
         account and account data?
@@ -84,19 +83,19 @@ sites retain a user's order history; and Strava retains geolocation data and any
 ``required'' information can be retained, for legal or applications correctness purposes (e.g., to
 process payments, or to keep the coherence of private messaging threads).
 
-Many applications state that some portions of the retained data will be decorrelated from the
+Many applications state that some portions of any retained data will be de-associated from the
 unsubscribed user's identity. For example, Reddit, PrestaShop, and GitHub explicitly state that all
-remaining posts, orders, and comments will be reassociated with a global placeholder user.
-However, as indicated in Table~\ref{tab:apps}, many applications either leave some data identifiable
-(e.g., private messages in Facebook and Twitter), or fail to specify whether some or all of the ``required''
-information will be de-identified.
+remaining posts, orders, and comments will be reassociated with a global placeholder identifier.
+However, as indicated in Table~\ref{tab:apps}, many applications either leave some identifiers
+unchanged (e.g., private messages in Facebook and Twitter), or fail to specify whether some or all
+of the identifiers associated with retained information will be anonymized.
 
 Of the applications surveyed, only Facebook/Instagram and Twitter support some form of
 resubscription. However, unsubscribing via account deactivation only hides user-added content from
-other users: all user data remains in the system without being de-identified.  All other forms of
-unsubscription across all applications permanently remove access to the user's account; even if the
-application retains user data (such as orders on Amazon, or posts on Reddit), the user cannot regain
-ownership of these records.
+other users: all user data remains in the system with their original identifiers.  All other forms
+of unsubscription across all applications permanently remove access to the user's account; even if
+the application retains user data (such as orders on Amazon, or posts on Reddit), the user cannot
+regain ownership of these records.
 
 %Reddit~\cite{reddit:privacy} account deletion reassociates user data with a global ghost user, but
 %all user posts, comments, and messages that have not been explicitly been removed by the user remain

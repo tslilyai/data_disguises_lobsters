@@ -1,47 +1,111 @@
 \section{Challenges}
 While many web applications make obvious efforts to comply with legal requirements (GDPR and CCPA),
-unsubscription clearly requires more than merely deleting a user's data. Many of these services
-require that some information remains, in transformed or anonymized form, after a user departs, for
-necessary application or legal reasons. 
-%
-Developers must determine how to selectively retain, decorrelate, and remove an unsubscribing user's data,
-without interfering with application correctness, and while preserving the user's privacy. They must 
-implement the database transformations required to correctly unsubscribe a user while
+unsubscription clearly requires more than merely deleting a user's data.  
+Developers must implement the database transformations required to correctly unsubscribe a user while
 preserving application semantics, and continously maintain this feature. 
+%
+They must ensure that any required information, for necessary application or legal reasons,
+remains in transformed or anonymized form after a user departs.
+Furthermore, developers must make these transformations reversible to support resubscription,
+while still properly de-identifing users.
 %
 From the lack of automatic unsubscription, the vague promises to decorrelate retained data, and the
 failure to support privacy-compliant resubscription, it is clear this is no easy task.
 %
 
-We use HotCRP as an example to make these challenges concrete. HotCRP is open-source software for
-managing conference reviews and paper submissions.  Reviewers and authors create user accounts to
-submit or review papers, and HotCRP supports program committee conflict detection, paper rebuttals
-and comments, review delegation, and other features necessary for the conference review process.
+Developers face three main challenges when implementing proper support for unsubscription and
+resubscription.
+\begin{enumerate}
+    \item \textbf{Selective Retention:}. Unsubscribed users' data needs to be selectively retained for necessary legal or application purposes.
+    \item \textbf{De-Identification:} Unsubscribed users must be properly de-identified: any
+        information that could possibly identify the user should be removed or, if retained, decorrelated from the user's identity.
+\item \textbf{Resubscription:} Unsubscribed users should be given the option to resubscribe without permanently losing their account
+data.
+\end{enumerate}
 
-HotCRP's current privacy policy~\cite{hotcrp:privacy} allows site managers (e.g.,\ program chairs)
-to indefinitely store and distribute submissions and reviews.  This is by request of its users:
-users want to be able to reference prior conference reviews and paper metadata.  However, many
-users---particularly reviewers---would prefer that their blinded reviews never become publically
-associated with their identity in the case of a data compromise. Currently, the only way to ensure
-this is to contact the HotCRP maintainers directly to manually remove their user profile: the HotCRP
-developers considered automating support for unsubscription and found it too cumbersome to
-implement. 
+\paragraph{Selective Retention.}
+Retained data can be categorized into two functionality groups. First, retained data preserves legal or
+necessary information about an individual user in isolation. The order history retained by
+e-commerce applications such as Amazon and PrestaShop for legal purposes falls into this category.
+
+Second, retained data also maintains application utility for other subscribed users of the
+application. Social media and news feed applications fit into this category: Facebook or Twitter
+preserve privates messages so that other subscribed users still see coherent conversations. Reddit
+and Lobsters retain all previously posted user content, as the essence of the application's utility
+is its site content.  Other non-feed applications also retain data for this reason. HotCRP,
+open-source software for managing conference reviews and paper submissions, indefinitely stores and
+distributes submissions and reviews from all conferences by request of its users: users want to be
+able to reference their past prior conference reviews and paper metadata. Strava, a social network
+for tracking workouts, retains users' geolocation data on public routes for other users to see which
+routes are popular.
+
+The application-specific nature of retained data means that any solution to unsubscription
+should enable developers to easily specify exactly which data to retain, and prevent developers
+from accidentally removing or retaining data unnecessarily.
+
+\paragraph{De-Identification.}
+While applications may want to retain data, this data should be properly de-identified. As shown in
+Table~\ref{tab:apps}, applications often fail to do so, and retain data still associated
+with users' identities. Other applications such as PrestaShop, Reddit, GitHub, and Lobsters do make
+attempts to de-identify retained data, replacing user identifiers with a placeholder user identifier. 
+
+However, even if we leave arbitrary user content (\eg users writing their legal names in a comment)
+out of scope, correlations from retained data to other application data or metadata can still
+identify unsubscribed users. For example, PrestaShop orders with the same timestamp, or ordered from
+the same location likely belong to the same user, and it is well-known that a user's order history
+can be clearly identifying. Anonymized posts with the same flairs or tags on Reddit or Lobsters can
+identify which posts probably belong to the same user. 
+
+Due to these subtle information leaks, some applications, such as Facebook, Twitter, and HotCRP
+simply delete the entire user profile and all associated data. When HotCRP users manually request to
+be de-associated from their blinded reviews or submissions (preventing public disclosure in case of
+a data compromise or hack), the HotCRP developers choose the nuclear option and remove the user's
+data completely, at the cost of removing useful review and paper data for other HotCRP users.  While
+the HotCRP developers would prefer to retain review and paper data, doing so while de-identifying
+the user is not easy: HotCRP cannot simply anonymize account identifiers, because
+correlations between any retained data and conflicts with other reviewers can identify the user's
+affiliation and recent collaborations, and in many cases, the user themselves.
+
+\paragraph{Resubscription.}
+Resubscription must recorrelate any retained data with the original owner and restore any removed
+data. Today, applications either retain all data and forgo data de-identification entirely
+(Facebook/Twitter Account Deactivation) to support resubscription, or remove and anonymize data
+permanently without allowing users to resubscribe. Correctly supporting resubscription requires the
+application or user to store additional information necessary for recorrelation, but must do so
+without unduly burdening the application or user, and without adding any identifying information
+about unsubscribing users to the system.
+
+%HotCRP
+%users---particularly reviewers---would prefer that their blinded reviews never become publically
+%associated with their identity in the case of a data compromise. 
 %
-\lyt{(This isn't exactly what I want to say---sorry to put words in your mouth, Eddie!---but something like this is
-probably useful.)} 
+
+%Reviewers and authors create user accounts to
+%ubmit or review papers, and HotCRP supports program committee conflict detection, paper rebuttals
+%nd comments, review delegation, and other features necessary for the conference review process.
+%HotCRP's current privacy policy~\cite{hotcrp:privacy} allows site managers (e.g.,\ program chairs)
+%to indefinitely store and distribute submissions and reviews.  This is by request of its users:
+%users want to be able to reference prior conference reviews and paper metadata.  
+
+%Currently, the only way to ensure this is to contact the HotCRP maintainers directly to manually
+%remove their user profile: the HotCRP developers considered automating support for unsubscription
+%and found it too cumbersome to implement. 
 %
-When user accounts are removed, every piece of data ever associated with that
-user is deleted from the system: this model clearly would not work if all users freely
-unsubscribed at will, as the system would be left with no useful data for subscribed users.
-
-The desired HotCRP unsubscription behavior would both retain useful data for HotCRP and its users,
-and satisfy the desire of HotCRP users to de-identify their data. In particular, the HotCRP
-developers should be able to specify that unsubscription deletes only the user profile, and
-\emph{decorrelates} the links between the user and their reviews (and other user-associated data)
-while retaining the blinded reviews and data for other users to view. While correlations between
-users and their reviews are obviously identifying, unsubscription must also handle more subtle
-correlations: a user's reviewer conflicts can identify the user's affiliation and recent
-collaborations, and in many cases, the user themselves. Implementing unsubscription that handles
-these complex data relationships correctly would not be trivial.
-
+%\lyt{(This isn't exactly what I want to say---sorry to put words in your mouth, Eddie!---but something like this is
+%probably useful.)} 
+%
+%When user accounts are removed, every piece of data ever associated with that
+%user is deleted from the system: this model clearly would not work if all users freely
+%unsubscribed at will, as the system would be left with no useful data for subscribed users.
+%
+%The desired HotCRP unsubscription behavior would both retain useful data for HotCRP and its users,
+%and satisfy the desire of HotCRP users to de-identify their data. In particular, the HotCRP
+%developers should be able to specify that unsubscription deletes only the user profile, and
+%\emph{decorrelates} the links between the user and their reviews (and other user-associated data)
+%while retaining the blinded reviews and data for other users to view. While correlations between
+%users and their reviews are obviously identifying, unsubscription must also handle more subtle
+%correlations: a user's reviewer conflicts can identify the user's affiliation and recent
+%collaborations, and in many cases, the user themselves. Implementing unsubscription that handles
+%these complex data relationships correctly would not be trivial.
+%
 
