@@ -1,29 +1,6 @@
 %-------------------------------------------------------------------------------
 \section{Design}
 %-------------------------------------------------------------------------------
-\begin{figure*}[ht!]
-    \centering
-    \includegraphics[width=\textwidth]{img/decor_hotcrp}
-
-    \caption{Pre- and post-unsubscription state of user, paper, review, paper conflict, and paper
-    tag entities based on a simplified variant of the HotCRP schema. 
-    For clarity, ghost generation policies are per-entity instead of per-entity
-    attribute, and tags are directly correlated with papers instead of connected via paper-tag
-    entities. \\ \\ 
-    \textbf{(a)} \sys decorrelates user-review and user-paper edges, and retains
-    review-paper edges, generating ghost users randomly, but cloning each review and paper. \\ \\
-    \textbf{(b)} \sys decorrelates user-conflict edges and sensitive conflict-paper edges. The ghost
-    paper associated with non-sensitive conflicts is a clone of the original; \sys generates a
-    default placeholder paper as the ghost paper parent for the sensitive conflict.  \\ \\
-    \textbf{(c)} \sys decorrelates paper-tag edges only enough that the proportion of sensitive
-    papers is at most the sensitivity threshold of 0.5. \sys retains one correlation between a
-    sensitive paper (P2) and the parent tag T1, and decorrelates the other paper (P1) from T1.  \sys
-    clones each sensitive paper to generate ghosts P4 and P5. \sys generates a cloned ghost tag T3
-    to remain associated with papers P3 and P5, and creates a default placeholder tag T2 as a ghost
-    parent tag for paper P4.}
-    \label{fig:hotcrp}
-\end{figure*}
-
 \sys's design allows developers to capture exactly which data contents, and which data correlations may be
 identity-sensitive. \sys models an application's data as a graph of \emph{entity} nodes and edges.
 Each entity type corresponds to an application datatable, such as a users, papers, or reviews table.
@@ -220,8 +197,20 @@ reduces the amount of user-side storage required for resubscription when the dat
 re-initialized, is simply too large to store, or plays no essential role in using the application.
 
 \subsection{\sys's Execution Algorithm}
+\begin{figure*}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{img/algo}
+
+    \caption{Stages of \sys's execution when unsubscribing user U1. In this example with users, papers,
+    and tags, \sys decorrelates paper-tag edges only enough that the proportion of sensitive papers
+    is at most the sensitivity threshold of 0.5, retaining one correlation between a sensitive
+    paper P2 and the parent tag T1, and decorrelating the other sensitive paper P1 from the tag.}
+    \label{fig:algo}
+\end{figure*}
+
+
 Given an application's schema and unsubscription policy, and an entity to be decorrelated as input,
-\sys executes unsubscription as follows:
+\sys executes unsubscription as follows. Figure~\ref{fig:algo} illustrates each step.
 \begin{enumerate}
     \item \textbf{Parent-Child Traversal:} \sys traverses the entity graph starting from the input entity,
         going down parent to child edges (and halting if it detects a cycle). 
@@ -241,10 +230,7 @@ Given an application's schema and unsubscription policy, and an entity to be dec
         be decorrelated, and rewrites the child's edge attribute to be the ghost parent's
         identifier. If any edges are retained, \sys generates a ghost parent entity to replace the
         parent.
-       
-        Once \sys reaches the leaf children, \sys generates a ghost child entity to replace this
-        leaf.
-
+      
     \item \textbf{Child-Parent Edge Policy Application:} 
         Next, \sys takes the children of all traversed edge instances, and considers the set of
         edges from these children to other parents \emph{not} traversed by \sys during the first
@@ -272,20 +258,46 @@ Given an application's schema and unsubscription policy, and an entity to be dec
         parent-to-child direction. This allows \sys to retain links if \emph{only the
         child} is sensitive, but decorrelate or remove the link if \emph{both} the
         child and parent are sensitive. For example, perhaps a user wants to ensure that they are
-        decorrelated from their reviews, but correlations of the review to the review's recipients can
-        still be retained.
+        decorrelated from their reviews, but correlations between the review and the the paper
+        authors can still be retained.
+
+    \item \textbf{Anonymizing Leaf Children:}
+        If any sensitive children that are leaves (have no children) remain, \sys generates a ghost child entity to replace this leaf.
+
+    \item \textbf{Returning User Data:} \sys collects all removed entities that have either been
+        replaced by ghost entities, or deleted entirely from the graph. \sys also records all
+        generated ghost entity identifiers, and which ghost entities replaced which real entity.
+        \sys returns both the removed entity data and this ghost entity metadata to the user.
 \end{enumerate}
 
 Note that \sys must decide \emph{which} ghost becomes the clone of the template entity when the
 developer selects a \texttt{CloneOne} ghosting policy. \sys always associates the cloned ghost with
-as many non-sensitive entities as possible. For example, if \sys decorrelates sensitive papers from
-a parent tag with a \texttt{CloneOne} policy, \sys clones the template to produce the ghost tag that
-remains associated with non-sensitive papers (as shown in Figure~\ref{fig:hotcrp}c). This decision
-ensures that any subscribed users and unsensitive application data remain as unaffected as possible
-by another user's unsubscription. To optimize \texttt{CloneOne} policies, \sys can simply retain the
-original template entity instead of producing a cloned ghost.
+as many non-sensitive entities as possible. For example, as shown in Figure~\ref{fig:algo} step 3b,
+if \sys decorrelates sensitive papers from a parent tag with a \texttt{CloneOne} policy, \sys
+chooses the ghost tag that remains associated with non-sensitive papers to be the clone. This
+decision ensures that any subscribed users and unsensitive application data remain as unaffected as
+possible by another user's unsubscription. To optimize \texttt{CloneOne} policies, \sys can simply
+retain the original template entity instead of producing a cloned ghost.
 
 \subsection{HotCRP's Unsubscription Policy}
+
+\begin{figure*}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{img/decor_hotcrp}
+
+    \caption{Pre- and post-unsubscription state of user, paper, review, paper conflict, and paper
+    tag entities based on a simplified variant of the HotCRP schema. 
+    For clarity, ghost generation policies are per-entity instead of per-entity
+    attribute. \\ \\ 
+    \textbf{(a)} \sys decorrelates user-review and user-paper edges, and retains
+    review-paper edges, generating ghost users randomly, but cloning each review and paper. \\ \\
+    \textbf{(b)} \sys decorrelates user-conflict edges and sensitive conflict-paper edges. The ghost
+    paper associated with non-sensitive conflicts is a clone of the original; \sys generates a
+    default placeholder paper as the ghost paper parent for the sensitive conflict.  \\ \\
+    }
+    \label{fig:hotcrp}
+\end{figure*}
+
 We next show how \sys's design works in the context of an unsubscription policy for HotCRP. 
 HotCRP entities include users (reviewers and paper authors), papers, paper reviews, and paper
 conflicts. There are a total of 25 entities, with 48 edge types between entities.
@@ -340,15 +352,15 @@ paper, allowing HotCRP to retain information about the paper and non-user-relate
 the system.  
 Figure~\ref{fig:hotcrp}b shows how \sys unsubscribes a user with paper conflicts. 
 
-The HotCRP developer may also determine that tags can identify a user if only that user's papers are
-associated with that tag. The developer thus specifies that paper-tag edges have a sensitivity
-threshold of 0.5: at most half the papers with that tag can be associated with the unsubscribing
-user. \sys decorrelates these edges until the threshold is met; all ghost tag attributes are
-generated using a clone-one ghosting policy.  Figure~\ref{fig:hotcrp}c shows how \sys partially
-decorrelates a user's papers from a shared tag parent.
-\lyt{I know this doesn't exactly reflect HotCRP's schema (which uses PaperTags to link papers to
-tags), but I found this example the most convincing to demonstrate partial decorrelation. This may
-be more relevant in a different application than HotCRP.}
+%The HotCRP developer may also determine that tags can identify a user if only that user's papers are
+%associated with that tag. The developer thus specifies that paper-tag edges have a sensitivity
+%threshold of 0.5: at most half the papers with that tag can be associated with the unsubscribing
+%user. \sys decorrelates these edges until the threshold is met; all ghost tag attributes are
+%generated using a clone-one ghosting policy.  Figure~\ref{fig:hotcrp}c shows how \sys partially
+%decorrelates a user's papers from a shared tag parent.
+%\lyt{I know this doesn't exactly reflect HotCRP's schema (which uses PaperTags to link papers to
+%tags), but I found this example the most convincing to demonstrate partial decorrelation. This may
+%be more relevant in a different application than HotCRP.}
 
 The final part of the unsubscription policy ensures that review and paper artifacts remain present
 and correctly linked with other application entities: (subscribed) reviewers should still see the
