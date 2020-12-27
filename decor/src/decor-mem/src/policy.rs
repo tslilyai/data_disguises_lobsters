@@ -1,24 +1,23 @@
 use std::*;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 pub type ColumnName = String; // column name
 pub type EntityName = String; // table name, or foreign key
 
-#[derive(Clone, Debug, PartialEq)]
 pub enum GeneratePolicy {
     Random,
     Default(String),
-    //Custom(Box<dyn Fn(&str) -> String>), // column value -> column value
+    Custom(Box<dyn Fn(&str) -> String>), // column value -> column value
     ForeignKey(EntityName),
 }
-#[derive(Clone, Debug, PartialEq)]
 pub enum GhostColumnPolicy {
     CloneAll,
     CloneOne(GeneratePolicy),
     Generate(GeneratePolicy),
 }
 pub type GhostPolicy = HashMap<ColumnName, GhostColumnPolicy>;
-pub type EntityGhostPolicies = HashMap<EntityName, GhostPolicy>;
+pub type EntityGhostPolicies = HashMap<EntityName, Rc<GhostPolicy>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum DecorrelationPolicy {

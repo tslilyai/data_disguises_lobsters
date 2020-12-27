@@ -104,8 +104,8 @@ pub fn generate_new_ghosts_with_gids(
     // NOTE : generating entities with foreign keys must also have ways to 
     // generate foreign key entity or this will panic
     let gp = ghost_policies.get(&template.table).unwrap();
-    warn!("Getting policies from {:?}, columns {:?}", gp, from_cols);
-    let policies : Vec<GhostColumnPolicy> = from_cols.iter().map(|col| gp.get(&col.to_string()).unwrap().clone()).collect();
+    warn!("Getting policies from columns {:?}", from_cols);
+    let policies : Vec<&GhostColumnPolicy> = from_cols.iter().map(|col| gp.get(&col.to_string()).unwrap()).collect();
     let num_entities = gids.len();
     let mut new_vals : RowPtrs = vec![]; 
     for _ in 0..num_entities {
@@ -136,8 +136,8 @@ pub fn generate_new_ghosts_with_gids(
 
         // otherwise, just follow policy
         let clone_val = &template.row.borrow()[i];
-        warn!("Generating value using {:?} for {}", policies[i], col);
-        match &policies[i] {
+        warn!("Generating value for {}", col);
+        match policies[i] {
             CloneAll => {
                 for n in 0..num_entities {
                     new_vals[n].borrow_mut()[i] = clone_val.clone();
@@ -145,6 +145,7 @@ pub fn generate_new_ghosts_with_gids(
             }
             CloneOne(gen) => {
                 // clone the value for the first row
+                // TODO which value is the one to clone????
                 new_vals[0].borrow_mut()[i] = template.row.borrow()[i].clone();
                 for n in 1..num_entities {
                     new_vals[n].borrow_mut()[i] = get_generated_val(views, ghost_policies, db, &gen, clone_val, &mut new_entities, nqueries)?;
@@ -244,7 +245,7 @@ pub fn get_generated_val(
     match gen {
         Random => Ok(helpers::get_random_parser_val_from(&base_val)),
         Default(val) => Ok(helpers::get_default_parser_val_with(&base_val, &val)),
-        //Custom(f) => helpers::get_computed_parser_val_with(&base_val, &f),
+        Custom(f) => Ok(helpers::get_computed_parser_val_with(&base_val, &f)),
         ForeignKey(table_name) => generate_foreign_key_val(views, ghost_policies, db, table_name, new_entities, nqueries),
     }
 }
