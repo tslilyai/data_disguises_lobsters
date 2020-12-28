@@ -46,14 +46,14 @@ from accidentally removing or retaining data unnecessarily.
 \paragraph{De-Identification.}
 While applications may want to retain data, this data should be properly de-identified. As shown in
 Table~\ref{tab:apps}, applications often fail to do so, and retain data still associated
-with users' identities. Other applications such as PrestaShop, Reddit, GitHub, and Lobsters do make
-attempts to de-identify retained data, replacing user identifiers with a placeholder user identifier. 
+with users' identities. Other applications such as PrestaShop, Reddit, GitHub, and Lobsters make
+attempts to decorrelate retained data, replacing user identifiers with a placeholder user identifier. 
 
-However, even if we leave arbitrary user content (\eg users writing their legal names in a comment)
-out of scope, correlations from retained data to other application data or metadata can still
-identify unsubscribed users. For example, PrestaShop orders with the same timestamp, or ordered from
-the same location likely belong to the same user, and it is well-known that a user's order history
-can be clearly identifying. Anonymized posts with the same flairs or tags on Reddit or Lobsters can
+However, it is insufficient to decorrelate only the direct correlations from users to their data:
+correlations from retained data to \emph{other} application data or metadata can still identify
+unsubscribed users. For example, PrestaShop orders with the same timestamp, or ordered from the same
+location likely belong to the same user, and it is well-known that a user's order history can be
+clearly identifying. Anonymized posts with the same flairs or tags on Reddit or Lobsters can
 identify which posts probably belong to the same user. 
 
 Due to these subtle information leaks, some applications, such as Facebook, Twitter, and HotCRP
@@ -62,8 +62,8 @@ be de-associated from their blinded reviews or submissions (preventing public di
 a data compromise or hack), the HotCRP developers choose the nuclear option and remove the user's
 data completely, at the cost of removing useful review and paper data for other HotCRP users.  While
 the HotCRP developers would prefer to retain review and paper data, doing so while de-identifying
-the user is not easy: HotCRP cannot simply anonymize account identifiers, because
-correlations between any retained data and conflicts with other reviewers can identify the user's
+the user is not easy. HotCRP cannot only decorrelate direct user correlations: 
+correlations between any retained data and conflicts with other reviewers can indirectly identify the user's
 affiliation and recent collaborations, and in many cases, the user themselves.
 
 \paragraph{Resubscription.}
