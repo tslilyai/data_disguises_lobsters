@@ -27,9 +27,6 @@ instantiated in the graph. This allows unsubscription policies to be specified s
 the application schema, while \sys ensures that any instance of the application entity graph
 satisfies the state specified in the policy.
 
-To exemplify \sys's policy choices, we demonstrate how each choice changes the entity graph of a
-simplified variant of the HotCRP schema, shown in Figure~\ref{fig:hotcrp}.
-
 \subsection{Generating Ghost Entities}
 \label{sec:ghosting}
 
@@ -49,22 +46,26 @@ attributes, given a template real entity.
 
 \sys always generates ghost entities with unique identifier attribute values.
 
-For each value and edge attribute of each entity type, developers specify a \emph{ghosting policy}.
-The developer chooses one of the following ghosting policies, which take as input a template
-entity's attribute value:
+For each value and edge attribute of each entity type, developers specify a \emph{ghosting policy},
+which take as input a template entity's attribute value.  Ghosting policies determine whether the
+template value should be \emph{cloned}---remain unchanged---in one or all ghost entities, or whether
+a new generated value should be created instead. Cloning enables the application to retain
+the original template entity data: for example, HotCRP may want to ensure that one ghost user
+generated from the real user clones the user's roles, while assigning all other ghosts no roles.
+\sys provides the following ghosting policies:
 \begin{itemize}
-    \item \textbf{Clone-All:} All ghosts generated from the same template share the template's 
+    \item \texttt{CloneAll:} All ghosts generated from the same template share the template's 
         attribute value. For edge attributes, this means that all ghosts generated will share the
         same edge to a parent entity.
 
-    \item \textbf{Generate-All:} 
+    \item \texttt{GenerateAll:} 
         For value attributes, developers specify whether the ghost attribute value should be
         random, a default value, or generated from the template value via a custom function.
         
         For edge attributes, \sys generates a new parent ghost entity, and uses the parent ghost
         identifier as the edge attribute value.
 
-    \item \textbf{Clone-One:} One ghost entity shares the same value for the attribute as the
+    \item \texttt{CloneOne:} One ghost entity shares the same value for the attribute as the
         template. 
         
         For value attributes, developers specify whether the rest of the ghosts' attribute value should be
@@ -72,12 +73,12 @@ entity's attribute value:
 
         For edge attributes, \sys generates a new parent ghost entity for each of the remaining
         ghosts, and uses the parent ghost identifier as the attribute value.
+
+        If multiple attributes have \texttt{CloneOne} ghosting policies, the same ghost entity will
+        contain the cloned values for all those attributes; all other ghost entities will have
+        generated values.
 \end{itemize}
-Clone policies enable the application to retain the original template entity data by cloning the value
-of the template entity. For example, HotCRP may want to generate ghost users that clone 
-the value attribute indicating whether the user account is disabled or enabled. To keep application
-metadata consistent, HotCRP may want to ensure that one ghost user generated from the real user
-clones the user's roles, while assigning all other ghosts no roles.
+
 
 %During unsubscription, \sys traverses the current instance of the application entity graph with the
 %top-level unsubscribing user node as the root in order to find all possible graph edges and nodes
@@ -97,8 +98,6 @@ While ghost generation policies inform \sys how to produce ghosts, developers mu
 \emph{when} \sys should produce ghosts. 
 The developer provides \sys this information in the form of edge policies, one per edge type (a pair of parent
 entity type and child entity type). 
-%Figure~\ref{fig:example} shows three different
-%child-parent edge types: stories-users, votes-users, and votes-stories.
 Developers specify a
 \emph{sensitivity threshold} that tells \sys to partially (or fully) decorrelate or remove edges,
 retaining up to the threshold fraction of existing correlations.
