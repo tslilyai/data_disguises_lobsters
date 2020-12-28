@@ -24,7 +24,7 @@ pub mod views;
 pub const INIT_CAPACITY: usize = 1000;
 pub const ID_COL: &str = "id";
 
-#[derive(Serialize, Deserialize, PartialOrd, Ord, PartialEq, Eq, Debug, Clone)]
+#[derive(Serialize, Deserialize, Hash, PartialOrd, Ord, PartialEq, Eq, Debug, Clone)]
 pub struct EntityData {
     pub table: String, 
     pub row_strs: Vec<String>
