@@ -37,20 +37,33 @@ to use the application, or permanently losing their data and application utility
 Instead, users control when applications can obtain their data in exchange for the right to use the application, and do not permanently lose application utility when they remove access to their data.
 
 Unfortunately, today's web services face many challenges that make free and easy unsubscription and
-resubscription hard. Many do not support automated unsubscription, requiring users to go through a
-manual process of contacting the developers or customer support directly in order to unsubscribe.
-Services that do support de-identifying unsubscription fail to support resubscription, thus 
-permanently deleting years or even decades of accumulated application data. 
+resubscription hard. Many do not support automated unsubscription, requiring users to 
+contact the developers or customer support directly in order to unsubscribe.
+Developers must manually implement unsubscription, leading to coarse-grained, error-prone data
+handling that can fail to completely de-identify the user. Many applications require that some
+information remains post-unsubscription, for legal or necessary application use, but retained data
+can identify a user in complex ways: both user identifiers (\eg usernames) and structural
+\emph{correlations} between application data records (\eg between users and posts, or posts and
+tags) may reveal identifying information.  Without a systematic way to anonymize user identifiers
+and \emph{decorrelate} these potentially identifying structural correlations, many developers have
+chosen to either entirely delete all sensitive data at the expense of other subscribed users, or
+leave identifying information unchanged at the expense of unsubscribed users.
 
-This permanent loss of user data costs both users and the web service, and creates little incentive
-to lower barriers to unsubscription.  Although legal penalties today create greater incentives to
-remove unnecessary data than ever before, we need solution that makes de-identifying unsubscription
-easy for both users and application developers, and allows users to resubscribe and regain their
-account data at any time.
+Even if de-identification were easy, services that do provide some amount of de-identification upon
+unsubscription fail to support resubscription, thus permanently deleting years or even decades of
+accumulated application data.  This permanent loss of user data costs both users and the web
+service, and creates little incentive to lower barriers to unsubscription.  
+
+Legal penalties today create greater incentives to remove unnecessary data than ever before.
+However, these incentives alone are not enough. The challenges and complexity of
+correct unsubscription highlight the need for new tools that allow developers to easily and
+systematically express how application data and structural correlations need to change when a user
+unsubscribes, and support automatic resubscription and recorrelation of users with their account
+data at any time.
 %
 
 In the rest of this paper, we describe the current support for unsubscription and resubscription in
 today's web applications, and the challenges of implementing it correctly.  We then describe \sys, a
-system that provides abstractions and mechanisms that help developers of databased-backed web
+system that provides abstractions and mechanisms to help developers of databased-backed web
 applications achieve correct, privacy-compliant user unsubscription and resubscription without
 onerous labor, and without adding undue overheads.
