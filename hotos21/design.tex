@@ -29,6 +29,25 @@ satisfies the state specified in the policy.
 
 \subsection{Generating Ghost Entities}
 \label{sec:ghosting}
+\begin{table*}[ht!]
+    \centering
+    \footnotesize
+\begin{tabular}{@{}ccccc@{}}
+\textbf{Paper Attribute} & \textbf{Ghosting Policy} & \textbf{Template Value} & \textbf{Ghost1 Value} & \textbf{Ghost2 Value} 
+  \\ \cmidrule(r){1-5}
+{title} & \texttt{CloneOne} + \texttt{Generate::Default("Ghost Paper")} & My Paper & My
+    Paper & Ghost Paper \\
+{outcome} & \texttt{CloneOne} + \texttt{Generate::Default(0)} & 1 & 1 & 0 \\
+{leadContactId} & \texttt{CloneOne} + \texttt{GenerateGhostParent} & 23 & 23 & 918 \\
+\end{tabular}
+    \caption{Generating two ghosts using ghosting policies for a simplified paper entity.
+    \sys clones the attribute values of the template entity to generate Ghost1, and generates
+    values for Ghost2 according to the specified attribute generation policy. To generate a new
+    value for an edge attribute such as leadContactId (which contains a foreign key to a user in the
+    ContactId table), \sys creates a new ghost user and uses its identifier attribute as the new
+    edge attribute value (918).}
+    \label{tab:ghosting}
+\end{table*}
 
 \sys generates ghost entities in order to break correlations between child and parent entities.  A
 ghost entity adopts one or more children of a real entity, removing the potentially identifying
@@ -78,7 +97,7 @@ generated from the real user clones the user's roles, while assigning all other 
         contain the cloned values for all those attributes; all other ghost entities will have
         generated values.
 \end{itemize}
-
+Table~\ref{tab:ghosting} demonstrates ghost generation using a potential policy for (simplified) paper entities.
 
 %During unsubscription, \sys traverses the current instance of the application entity graph with the
 %top-level unsubscribing user node as the root in order to find all possible graph edges and nodes
