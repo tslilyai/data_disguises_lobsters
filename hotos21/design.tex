@@ -349,46 +349,18 @@ HotCRP entities include users (reviewers and paper authors), papers, paper revie
 conflicts. There are a total of 25 entities, with 48 edge types between entities.
 We illustrate how unsubscription changes a simplified HotCRP entity graph with users, papers,
 reviews, paper conflicts, and tags in Figure~\ref{fig:hotcrp}.
+This example demonstrates the different tradeoffs and application-specific choices developers must
+consider when using \sys.
 
 The developer first specifies that the top-level entity to decorrelate is a user (entities of the
 \texttt{ContactInfo} table). Users include authors and reviewers who may want to remove their
 connections with their reviews, papers, and other metadata (such as papers they have requested to
 review).
 
-\paragraph{Generation Ghost Entities.}
-Next, the developer should decide how \sys generates ghost for all entities. 
-For simplicity, Figure~\ref{fig:hotcrp} shows entity-granularity ghosting policies
-rather than per-attribute ghosting policies, and does not display the generation method (\eg random, default, etc.).
-
-Most ghost user attributes should be assigned \texttt{GenerateAll} ghosting policies because no
-profile information about the unsubscribing user should be retained. The developer may choose to
-clone attributes such as the user's roles once, to ensure that the number of users with a certain
-role does not change; however, any cloned attributes should not reveal any identifying information.
-Finally, the developer should ensure that HotCRP never assigns ghost users papers to review: the
-\texttt{disabled} attribute should be generated with a default value \texttt{true} for all ghosts.
-
-In order to usefully retain paper and review information when a user unsubscribes, the developer chooses to
-entirely clone all paper attributes in one ghost, and generate the other ghost papers with default
-values for all attributes. Table~\ref{tab:ghosting} shows the partial specification for generation
-ghost papers. Cloning the paper or review once to retain its information is safe: the developer knows that
-paper attributes do not reveal identifying information.
-
-In particular, it is safe to clone edges to user parents because the developer knows that \sys will decorrelate
-edges to sensitive parents (replacing them with edges to ghost parents) \emph{prior} to ghosting the child
-entity (the paper). Thus, any cloned edge attributes will necessarily point to ghosts if
-there was a sensitive correlation between the paper and user parent.
-We see a concrete example of this in Figure~\ref{fig:algo}: step 3b ensures that the
-user and tag parents or any sensitive papers are appropriately ghosted prior to step 4, which ghosts
-the paper.
-
-Finally, the developer chooses to clone all paper conflicts. Paper conflicts have three attributes: one
-specifies the conflict type (author or reviewer conflict), and the other two are edge attributes
-that specify a user and a paper parent. It is safe to clone conflict types because this reveals
-little identifying information, and does not interfere with HotCRP's execution. As with paper
-entities, it is safe to clone edges to user and paper parents because any cloned edge attributes
-will necessarily point to ghosts if there was a sensitive correlation between paper conflicts and parent entity.
-
 \paragraph{Specifying Edge Policies.}
+Next, the developer considers all edge types, and whether edges may reveal identifying information
+about the user.
+
 All direct correlations between a user and the user's reviews, papers, paper conflicts, and other
 data may leak the user's identity. The developers therefore specifies edge policies with a
 sensitivity threshold of 0 for edges of with the user as a direct parent.  Because HotCRP should
@@ -445,7 +417,7 @@ To balance between maintaining application correctness and de-identifying the us
 second edge policy for paper-conflict to paper edges, shown in Figure~\ref{fig:hotcrp}b.
 If the user resubscribes, the decorrelated paper conflict is relinked to the user and the original
 paper, restoring the original state.  If all users with conflicts to the same paper decorrelate, the
-paper will have no associated user accounts.
+paper will have no associated paper conflicts.
 
 %The HotCRP developer may also determine that tags can identify a user if only that user's papers are
 %associated with that tag. The developer thus specifies that paper-tag edges have a sensitivity
@@ -463,6 +435,46 @@ correct paper for each of their reviews, (subscribed) authors should see the cor
 their papers, and review and paper metadata should remain correctly associated. The developer
 specifies a sensitivity threshold of 1 for all edge types that were not assigned a policy in the
 prior steps, indicating that \sys should leave these edges untouched.
+
+\paragraph{Generating Ghost Entities.}
+Finally, the developer should decide how \sys generates ghost for all entities. 
+For simplicity, Figure~\ref{fig:hotcrp} shows entity-granularity ghosting policies
+rather than per-attribute ghosting policies, and does not display the generation method (\eg random, default, etc.).
+
+Most ghost user attributes should be assigned \texttt{GenerateAll} ghosting policies because no
+profile information about the unsubscribing user should be retained. The developer may choose to
+clone attributes such as the user's roles once, to ensure that the number of users with a certain
+role does not change; however, any cloned attributes should not reveal any identifying information.
+Finally, the developer should ensure that HotCRP never assigns ghost users papers to review: the
+\texttt{disabled} attribute should be generated with a default value \texttt{true} for all ghosts.
+
+In order to usefully retain paper and review information when a user unsubscribes, the developer chooses to
+entirely clone all paper attributes in one ghost, and generate the other ghost papers with default
+values for all attributes. Table~\ref{tab:ghosting} shows the partial specification for generation
+ghost papers. Cloning the paper or review once to retain its information is safe: the developer knows that
+paper attributes do not reveal identifying information.
+
+In particular, it is safe to clone edges to user parents because the developer knows that \sys will
+decorrelate edges to sensitive parents (replacing them with edges to ghost parents) \emph{prior} to
+ghosting the child entity (the paper). Thus, any cloned edge attributes will necessarily point to
+ghosts if there was a sensitive correlation between the paper and user parent.  We see a concrete
+example of this in Figure~\ref{fig:algo}: step 3b ensures that the user and tag parents or any
+sensitive papers are appropriately ghosted prior to step 4, which ghosts the paper.
+
+Finally, the developer chooses to clone all paper conflicts. Paper conflicts have three attributes,
+a value attribute for the conflict type (authorship or reviewer conflict), and two edge attributes
+that specify a user parent and a paper parent respectively. It is safe to clone conflict types
+because this reveals little identifying information, and does not interfere with HotCRP's execution.
+As with paper entities, it is safe to clone edges to user and paper parents because any cloned edge
+attributes will necessarily point to ghosts if there was a sensitive correlation between paper
+conflicts and parent entity. 
+
+Note that had the developer chosen edge policy choice 1 for paper-conflict to paper edges
+(retaining the edge), then the conflict type \emph{must} be cloned in order to preserve HotCRP
+semantics. If the conflict type were a reviewer conflict, but the ghost paper conflict defaulted to an
+authorship conflict, this would cause HotCRP to report an extra author when one does not exist.
+With policy choice 2, both the user and paper parents are generated ghosts, and the conflict type is
+irrelevant to HotCRP.
 
 %\sys provides a menu of unsubscription policy choices that allow developers to choose how to
 %\emph{ghost} individual data record content, and how to \emph{decorrelate} sensitive correlations. 
