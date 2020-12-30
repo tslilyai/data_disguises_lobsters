@@ -461,13 +461,13 @@ ghosts if there was a sensitive correlation between the paper and user parent.  
 example of this in Figure~\ref{fig:algo}: step 3b ensures that the user and tag parents or any
 sensitive papers are appropriately ghosted prior to step 4, which ghosts the paper.
 
-Finally, the developer chooses to clone all paper conflicts. Paper conflicts have three attributes,
+Finally, the developer specifies a ghost generation policy for paper conflicts. Paper conflicts have three attributes,
 a value attribute for the conflict type (authorship or reviewer conflict), and two edge attributes
-that specify a user parent and a paper parent respectively. It is safe to clone conflict types
-because this reveals little identifying information, and does not interfere with HotCRP's execution.
+that specify a user parent and a paper parent respectively. The developer defaults conflict type
+attributes to be \texttt{ConflictAuthor}, and clones the two edge attributes for all ghosts.
 As with paper entities, it is safe to clone edges to user and paper parents because any cloned edge
-attributes will necessarily point to ghosts if there was a sensitive correlation between paper
-conflicts and parent entity. 
+attributes will necessarily point to ghosts if there was a sensitive correlation between the paper
+conflict and its parents. 
 
 Note that had the developer chosen edge policy choice 1 for paper-conflict to paper edges
 (retaining the edge), then the conflict type \emph{must} be cloned in order to preserve HotCRP
