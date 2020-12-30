@@ -1,6 +1,27 @@
 %-------------------------------------------------------------------------------
 \section{Design}
 %-------------------------------------------------------------------------------
+\begin{table*}[t!]
+    \centering
+    \footnotesize
+\begin{tabular}{@{}ccccc@{}}
+\textbf{Paper Attribute} & \textbf{Ghosting Policy} & \textbf{Template Value} & \textbf{Ghost1 Value} & \textbf{Ghost2 Value} 
+  \\ \cmidrule(r){1-5}
+{title} & \texttt{CloneOne} + \texttt{Generate::Default("Ghost Paper")} & My Paper & My
+    Paper & Ghost Paper \\
+{outcome} & \texttt{CloneOne} + \texttt{Generate::Default(0)} & 1 & 1 & 0 \\
+{leadContactId} & \texttt{CloneOne} + \texttt{GenerateGhostParent} & 23 & 23 & 918 \\
+\end{tabular}
+    \caption{Generating two ghosts using ghosting policies for a simplified paper entity.
+    \sys clones the attribute values of the template entity to generate Ghost1, and generates
+    values for Ghost2 according to the specified attribute generation policy. To generate a new
+    value for an edge attribute such as leadContactId (which contains a foreign key to a user in the
+    ContactId table), \sys creates a new ghost user and uses its identifier attribute as the new
+    edge attribute value (918).}
+    \label{tab:ghosting}
+\end{table*}
+
+
 \sys's design allows developers to capture exactly which data contents, and which data correlations may be
 identity-sensitive. \sys models an application's data as a graph of \emph{entity} nodes and edges.
 Each entity type corresponds to an application datatable, such as a users, papers, or reviews table.
@@ -29,25 +50,6 @@ satisfies the state specified in the policy.
 
 \subsection{Generating Ghost Entities}
 \label{sec:ghosting}
-\begin{table*}[ht!]
-    \centering
-    \footnotesize
-\begin{tabular}{@{}ccccc@{}}
-\textbf{Paper Attribute} & \textbf{Ghosting Policy} & \textbf{Template Value} & \textbf{Ghost1 Value} & \textbf{Ghost2 Value} 
-  \\ \cmidrule(r){1-5}
-{title} & \texttt{CloneOne} + \texttt{Generate::Default("Ghost Paper")} & My Paper & My
-    Paper & Ghost Paper \\
-{outcome} & \texttt{CloneOne} + \texttt{Generate::Default(0)} & 1 & 1 & 0 \\
-{leadContactId} & \texttt{CloneOne} + \texttt{GenerateGhostParent} & 23 & 23 & 918 \\
-\end{tabular}
-    \caption{Generating two ghosts using ghosting policies for a simplified paper entity.
-    \sys clones the attribute values of the template entity to generate Ghost1, and generates
-    values for Ghost2 according to the specified attribute generation policy. To generate a new
-    value for an edge attribute such as leadContactId (which contains a foreign key to a user in the
-    ContactId table), \sys creates a new ghost user and uses its identifier attribute as the new
-    edge attribute value (918).}
-    \label{tab:ghosting}
-\end{table*}
 
 \sys generates ghost entities in order to break correlations between child and parent entities.  A
 ghost entity adopts one or more children of a real entity, removing the potentially identifying
@@ -220,8 +222,12 @@ re-initialized, is simply too large to store, or plays no essential role in usin
     \includegraphics[width=\textwidth]{img/algo}
 
     \caption{Stages of \sys's execution when unsubscribing user U1. Entities and edges detected as
-    sensitive are outlined in bold red. In this example with users, papers,
-    and tags, \sys decorrelates paper-tag edges only enough that the proportion of sensitive papers
+    sensitive are outlined in red. Only the part of the entity graph relevant to unsubscription is shown.
+    For simplicity, the specified ghosting policies apply for all attributes
+    of the entity: a black ghost entity indicates that it is a full clone of the original.
+    New edges indicates that the edge (foreign-key) value of the child has been changed to
+    point to the specified parent.\\
+    In this example, \sys decorrelates paper-tag edges only enough that the proportion of sensitive papers
     is at most the sensitivity threshold of 0.5, retaining one correlation between a sensitive
     paper P2 and the parent tag T1, and decorrelating the other sensitive paper P1 from the tag.}
     \label{fig:algo}
@@ -272,16 +278,28 @@ Given an application's schema and unsubscription policy, and an entity to be dec
         authors).  \sys therefore may retain edges to sensitive children when given a sensitivity
         threshold less than 1 and greater than 0, unlike in the previous step.
 
-        \sys optionally allows developers to specify that edges have \emph{weaker} edge policies
-        (\ie higher sensitivity thresholds) in the child-to-parent direction than in the  
-        parent-to-child direction. This allows \sys to retain links if \emph{only the
-        child} is sensitive, but decorrelate or remove the link if \emph{both} the
-        child and parent are sensitive. For example, perhaps a user wants to ensure that they are
-        decorrelated from their reviews, but correlations between the review and the the paper
-        authors can still be retained.
+        \sys optionally allows developers to specify that edges have weaker or stronger edge
+        policies in the child-to-parent direction than in the  parent-to-child direction. Weaker
+        policies---higher sensitivity thresholds---allow \sys to retain links if \emph{only the
+        child} is sensitive, but decorrelate or remove the link if \emph{both} the child and parent
+        are sensitive. For example, perhaps a user wants to ensure that they are decorrelated from
+        their reviews, but correlations between the review and the the paper authors can still be
+        retained.
+
+        Stronger policies may specify that the parent connected to sensitive children should
+        decorrelate \emph{all} correlations to the paper even from non-sensitive correlations.
+        Developers specify such a policy with a sensitive threshold of -1. For
+        example, perhaps the set of users with review conflicts to the paper can identify the
+        author, even if the author is decorrelated from the paper. We see an example of this in
+        Section~\ref{sec:hotcrp_example} (Figure~\ref{fig:pcs}).
 
     \item \textbf{Anonymizing Leaf Children:}
         If any sensitive children that are leaves (have no children) remain, \sys generates a ghost child entity to replace this leaf.
+        
+        In Figure~\ref{fig:algo}, step 4, P1 and P2 are both leaves. \sys generates ghosts for both
+        these papers: since these papers have \texttt{CloneOne} ghosting policies, ghost papers gP1
+        and gP2 are identical to P1 and P2, and retain the edge attributes linking them to their
+        respective parent tags and users.
 
     \item \textbf{Returning User Data:} \sys collects all removed entities that have either been
         replaced by ghost entities, or deleted entirely from the graph. \sys also records all
@@ -289,30 +307,40 @@ Given an application's schema and unsubscription policy, and an entity to be dec
         \sys returns both the removed entity data and this ghost entity metadata to the user.
 \end{enumerate}
 
-Note that \sys must decide \emph{which} ghost becomes the clone of the template entity when the
-developer selects a \texttt{CloneOne} ghosting policy. \sys always associates the cloned ghost with
-as many non-sensitive entities as possible. For example, as shown in Figure~\ref{fig:algo} step 3b,
-if \sys decorrelates sensitive papers from a parent tag with a \texttt{CloneOne} policy, \sys
-chooses the ghost tag that remains associated with non-sensitive papers to be the clone. This
-decision ensures that any subscribed users and unsensitive application data remain as unaffected as
-possible by another user's unsubscription. To optimize \texttt{CloneOne} policies, \sys can simply
-retain the original template entity instead of producing a cloned ghost.
+Note that \sys must decide \emph{which} ghost clones the template entity's attributes when the
+developer selects a \texttt{CloneOne} ghosting policy for one or more attributes. \sys always
+associates the cloned ghost with as many non-sensitive entities as possible. For example, as shown
+in Figure~\ref{fig:algo} step 3b, if \sys decorrelates sensitive papers from a parent tag with a
+\texttt{CloneOne} policy, \sys chooses the ghost tag that remains associated with non-sensitive
+papers to be the clone. This decision ensures that any subscribed users and unsensitive application
+data remain as unaffected as possible by another user's unsubscription. To optimize
+\texttt{CloneOne} policies, \sys can simply retain the original template entity instead of producing
+a cloned ghost.
 
 \subsection{HotCRP's Unsubscription Policy}
+\label{sec:hotcrp_example}
+
+\begin{figure*}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{img/pcs}
+
+    \caption{Different potential edge policies for paper-conflict to paper edges in HotCRP.
+    (1) retains edges from sensitive paper conflicts to papers; (2) decorrelates the sensitive
+    paper conflicts from papers; (3) decorrelates all paper conflicts from papers.}
+    \label{fig:hotcrp}
+\end{figure*}
 
 \begin{figure*}[ht!]
     \centering
     \includegraphics[width=\textwidth]{img/decor_hotcrp}
 
     \caption{Pre- and post-unsubscription state of user, paper, review, paper conflict, and paper
-    tag entities based on a simplified variant of the HotCRP schema. 
-    For clarity, ghost generation policies are per-entity instead of per-entity
-    attribute. \\ \\ 
+    tag entities based on a simplified variant of the HotCRP schema. \\ 
     \textbf{(a)} \sys decorrelates user-review and user-paper edges, and retains
-    review-paper edges, generating ghost users randomly, but cloning each review and paper. \\ \\
+    review-paper edges, generating ghost users randomly, but cloning each review and paper. \\
     \textbf{(b)} \sys decorrelates user-conflict edges and sensitive conflict-paper edges. The ghost
     paper associated with non-sensitive conflicts is a clone of the original; \sys generates a
-    default placeholder paper as the ghost paper parent for the sensitive conflict.  \\ \\
+    default placeholder paper as the ghost paper parent for the sensitive conflict.
     }
     \label{fig:hotcrp}
 \end{figure*}
@@ -348,18 +376,42 @@ correlations to remain unchanged.
 As observed earlier, edges that are not directly linked to the user may also reveal identifying
 information about the user's identity: the group of collaborators or conflicting members of the PC
 may pinpoint the identity of the ``ghost user'' on a paper. Users are linked to papers via
-\emph{paper conflict} entities, which have both a user and a paper as a parent. 
+\emph{paper conflict} entities, which have both a user and a paper as a parent.  Paper conflicts can
+either indicate authorship or a reviewer conflict (prior collaborators or sharing an institution).
 When a user unsubscribes, the edge policies described above ensure that the user is decorrelated from
 their paper conflicts. However, the developer must also ensure that edges from these sensitive paper
-conflicts to other parents, namely their parent papers, cannot leak identifying information.
+conflicts their parent papers cannot leak identifying information.
 
-To ensure that any of their sensitive conflicts are not also correlated with a group of
-collaborators or conflicting PC members which might potentially identify the user, the developer
-specifies an edge policy from paper conflict to papers that decorrelates the paper conflict from the
-paper with a sensitivity threshold of 0.  This ensures that each sensitive paper conflict will be
-associated with a ghost paper parent after unsubscription.  To other subscribed users who can view
-the paper, it will appear as if there are no other users with paper conflicts for that paper.
+Here, the developer can make one of three choices. These choices demonstrate the tradeoff between
+retaining information for application correctness, and completely de-identifying the user.
+Figure~\ref{fig:pcs} shows the post-unsubscription state of the three choices.
+%
+The first choice leaves correlations between sensitive paper conflicts and papers in place.
+This allows other users to see that some ghost user has a conflict with the paper, and potentially
+derive the user's identity by deducing the users' affiliation or collaborators based on the
+paper conflicts between the paper and other users.
 
+The second choice decorrelates sensitive paper conflicts from the paper with a sensitivity threshold
+of 0. This ensures that each sensitive paper conflict will be associated with a ghost paper parent
+after unsubscription. To other users who can view the paper, it will appear as the sensitive paper
+conflict never existed. Unlike the first choice, this can lead to spurious, unexplained conflicts:
+for example, the PC may observe that a reviewer who works at BU has a conflict with a paper, but
+none of the paper's authors are from BU (because the author unsubscribed, and their conflict was
+decorrelated from the paper). Spurious conflicts can lead to identifying information leakage: in
+this case, observers can see at least one unsubscribed user likely works at BU. However, unlike the
+first choice, other users cannot be sure of exactly how many unsubscribed users and conflicts
+initially existed, and if no spurious conflicts are produced, cannot deduce that an unsubscribed
+user had a conflict at all. In addition, if the unsubscribed user had a reviewer conflict instead of
+a author conflict with the paper, then this choice leaks no identifying information at all.
+
+The third choice decorrelates \emph{all} paper conflicts correlations with the paper. While this
+certainly removes all potentially identifying information derivable from paper conflicts, this
+breaks HotCRP semantics: users who should not be able to view the paper (due to conflicts) will
+suddenly be able to.
+\lyt{TODO: right now, only sensitive children can be decorrelated in the child-parent direction}
+
+To balance between maintaining application correctness and de-identifying the user, we choose the
+second edge policy for paper-conflict to paper edges.
 If the user resubscribes, the decorrelated paper conflict is relinked to the user and the original
 paper, restoring the original state.  If all users with conflicts to the same paper decorrelate, the
 paper will have no associated user accounts.
