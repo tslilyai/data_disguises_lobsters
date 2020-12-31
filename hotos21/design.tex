@@ -441,6 +441,8 @@ Finally, the developer should decide how \sys generates ghost entities. This inv
 which entity attributes reveal identifying information (and thus cannot be cloned); which attributes
 should be cloned to retain information necessary to the application; and how to generate attribute
 values in ways that satisfy HotCRP semantics.
+If the developer concludes that ghost entities cannot be generated without breaking application
+semantics, the relevant edges should be deleted instead of decorrelated.
 For simplicity, Figure~\ref{fig:hotcrp} shows entity-granularity ghosting policies
 rather than per-attribute ghosting policies, and does not display the generation method (\eg random, default, etc.).
 
