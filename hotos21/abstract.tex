@@ -1,20 +1,15 @@
 \begin{abstract}
-We propose a new web service paradigm, in which users grant a time-limited ``lease'' of data to
-a service instead of having a permanent service account.  In this model, users flexibly switch
-between a privacy-preserving unsubscribed mode and an identity-revealing subscribed mode at any
-time without permanently losing their data.
+The paper proposes a new web service paradigm, in which users grant a time-limited ``lease'' of data
+to a service instead of having a permanent service account. Users flexibly switch between a
+privacy-preserving unsubscribed mode and an identity-revealing subscribed mode at any time
+without permanently losing their data. This model strikes a balance between one extreme of no
+privacy, in which applications have complete ownership of user data, and another extreme in
+which users own and store their data at the cost of application utility. 
 
 %
-But unsubscribing users without compromising either the leaving user's
-privacy or the application experience for remaining users is difficult.
-%
-Application developers must balance between retaining enough information so the application
-    correctly and usefully functions, and removing enough information to prevent disclosing the
-    identity of unsubscribed users via inference attacks.
-%Removing too much information meets privacy requirements, but may yield
-%surprising application behavior (e.g.,\ disappearing content); removing too
-%little risks exposing the identity of unsubscribed users via inference
-%attacks.
-To solve these challenges, we design \sys{}, a new system for safe unsubscription and
+However, achieving this balance is difficult.  Application developers must balance between retaining
+enough information so the application correctly and usefully functions, and removing enough
+information to prevent disclosing the identity of unsubscribed users via inference attacks.  To
+solve these challenges, we design \sys{}, a new system for safe unsubscription and
 resubscription of users in database-backed web services.
 \end{abstract}
