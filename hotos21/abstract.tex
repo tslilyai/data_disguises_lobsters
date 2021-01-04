@@ -1,13 +1,10 @@
 \begin{abstract}
-As users of web services grow increasingly aware of their data ownership and protection rights, web
-    services face greater legal and societal pressure to properly delete and anonymize users’ data
-    when a user requests to leave.
-%
-And truly putting ownership of personal data back in the hands of the user requires more than minimally
-    satisfying the current legal requirements: applications should grant the user the freedom to unsubscribe
-    from a web service at any time, with the opportunity to later
-    resubscribe without permanently losing their data.
+We propose a new web service paradigm, in which users grant a time-limited ``lease'' of data to
+a service instead of having a permanent service account.  In this model, users flexibly switch
+between a privacy-preserving unsubscribed mode and an identity-revealing subscribed mode at any
+time without permanently losing their data.
 
+%
 But unsubscribing users without compromising either the leaving user's
 privacy or the application experience for remaining users is difficult.
 %
@@ -18,17 +15,6 @@ Application developers must balance between retaining enough information so the 
 %surprising application behavior (e.g.,\ disappearing content); removing too
 %little risks exposing the identity of unsubscribed users via inference
 %attacks.
-
-In this paper, we propose \sys{}, a new system for safe unsubscription and
+To solve these challenges, we design \sys{}, a new system for safe unsubscription and
 resubscription of users in database-backed web services.
-%
-\sys{} helps application developers specify fine-grained privacy policies to
-meet de-identification requirements, and goes beyond: with \sys{}, 
-users can flexibly switch between a privacy-preserving unsubscribed mode
-and an identity-revealing subscribed mode at any time without permanently
-losing their data.
-%
-This facilitates important new web service paradigms, such as users granting
-a time-limited ``lease'' of data to a service instead of having a permanent
-service account.
 \end{abstract}
