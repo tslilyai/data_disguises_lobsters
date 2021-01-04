@@ -91,6 +91,7 @@ pub fn generate_new_ghosts_with_gids(
     views: &Views,
     ghost_policies: &EntityGhostPolicies,
     db: &mut mysql::Conn,
+
     template: &TemplateEntity, 
     gids: &Vec<Value>,
     nqueries: &mut usize,
@@ -145,7 +146,6 @@ pub fn generate_new_ghosts_with_gids(
             }
             CloneOne(gen) => {
                 // clone the value for the first row
-                // TODO which value is the one to clone????
                 new_vals[0].borrow_mut()[i] = template.row.borrow()[i].clone();
                 for n in 1..num_entities {
                     new_vals[n].borrow_mut()[i] = get_generated_val(views, ghost_policies, db, &gen, clone_val, &mut new_entities, nqueries)?;
@@ -200,30 +200,23 @@ pub fn generate_foreign_key_val(
     ghost_policies: &EntityGhostPolicies,
     db: &mut mysql::Conn,
     table_name: &str,
+    template_eid: u64,
     new_entities: &mut Vec<TableGhostEntities>,
     nqueries: &mut usize) 
     -> Result<Value, mysql::Error> 
 {
-    let viewcols= views.get_view_columns(table_name);
-    let viewptr = views.get_view(table_name).unwrap();
-    
-    // assumes there is at least once value here...
-    let random_row : RowPtr;
-    if viewptr.borrow().rows.borrow().len() > 0 {
-        random_row = viewptr.borrow().rows.borrow().iter().next().unwrap().1.clone();
-    } else {
-        random_row = Rc::new(RefCell::new(vec![Value::Null; viewcols.len()]));
-    }
+    // assumes there is at least one value here...
+    let parent_table_row = views.get_row_of_id(table_name, template_eid);
     let mut rng: ThreadRng = rand::thread_rng();
     let gid = rng.gen_range(GHOST_ID_START, GHOST_ID_MAX);
     let gidval = Value::Number(gid.to_string());
 
-    warn!("GHOSTS: Generating foreign key entity for {} {:?}", table_name, random_row);
+    warn!("GHOSTS: Generating foreign key entity for {} {:?}", table_name, parent_table_row);
     new_entities.append(&mut generate_new_ghosts_with_gids(
         views, ghost_policies, db, 
         &TemplateEntity{
             table: table_name.to_string(),
-            row: random_row,
+            row: parent_table_row,
             fixed_colvals: None,
         },
         &vec![gidval.clone()],
@@ -246,6 +239,9 @@ pub fn get_generated_val(
         Random => Ok(helpers::get_random_parser_val_from(&base_val)),
         Default(val) => Ok(helpers::get_default_parser_val_with(&base_val, &val)),
         Custom(f) => Ok(helpers::get_computed_parser_val_with(&base_val, &f)),
-        ForeignKey(table_name) => generate_foreign_key_val(views, ghost_policies, db, table_name, new_entities, nqueries),
+        ForeignKey(table_name) => generate_foreign_key_val(
+            views, ghost_policies, db, 
+            table_name, helpers::parser_val_to_u64(base_val),
+            new_entities, nqueries),
     }
 }

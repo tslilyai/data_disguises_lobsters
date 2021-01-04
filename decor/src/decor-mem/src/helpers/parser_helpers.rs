@@ -278,7 +278,7 @@ pub fn expr_to_col(e: &Expr) -> (String, String) {
     }
 }
 
-pub fn expr_to_ghosted_col(expr:&Expr, ghosted_cols : &Vec<(String, String)>) -> Option<(String, String)> {
+pub fn expr_to_ghost_parent_key(expr:&Expr, ghosted_cols : &Vec<(String, String)>) -> Option<(String, String)> {
     match expr {
         Expr::Identifier(ids) => {
             let col = ids[ids.len()-1].to_string();

@@ -2,39 +2,38 @@
 \section{Introduction}
 %-------------------------------------------------------------------------------
 
-Web application users are more aware of their data privacy rights than ever before. 
-Laws such as the European Union's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and
-California's Consumer Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' rights to 
-data ownership, granting users the right to request erasure of information related to them.
-%
-Public news around web services increasingly emphasize the dangers of leaving private data on the
-web: embarrassing or compromising details from the past has reemerged, web applications have
-suffered data leaks or hacks~\cite{breach:twitter, breach:fb, breach:marriott, breach:quora}, and
-private data has be shared by web applications without the user's knowledge or explicit
-consent~\cite{nytimes:fb, npr:data}.
+Web applications today own, store, and sell user data, often without the user's knowledge or
+explicit consent~\cite{nytimes:fb, npr:data}. This can have dangerous consequences, with data leaks or
+hacks~\cite{breach:twitter, breach:fb, breach:marriott, breach:quora} leading to loss of
+livelihoods and lawsuits. Clearly, granting web applications complete data ownership fails to
+protect users' privacy. To address this problem, laws such as the European Union's General Data
+Protection Regulation (GDPR)~\cite{eu:gdpr} and California's Consumer Privacy Act
+(CCPA)~\cite{ca:privacy-act} codify users' rights to data ownership, granting users the right to
+request erasure of information related to them, and moving toward a world where user data 
+ownership is fundamental and complete.
 
-%
-These legal and societal pressures increasingly demand that companies support \emph{unsubscription}
-of users from their services.  Users should have the right to unsubscribe at any time, preventing
-idle or unused accounts from retaining personal data indefinitely, and regaining control over who
-can access their data. 
-%
+However, a world in which the user has complete data ownership is equally problematic.
+Although feasible~\cite{amber, w5, blockstack, bstore, blockstack}, this model results in an
+arguably even less desirable world for users, leading to limited and slow applications, reduction of
+useful service-side computation over shared data, and the requirement on users to maintain long-term
+data storage themselves.  
+\lyt{Not sure if we should mention the business model here, without
+addressing how you could charge for user storage, or how applications could be open-sourced and
+funded via donations, etc.}
+%Furthermore, such a model lacks a prbusiness model for
+%companies to support applications of this nature.
 
-%
-Unsubscription, however, is only half the story. To empower users to freely exercise their data
-rights, web applications must allow users to easily unsubscribe \emph{and resubscribe} as they wish,
-switching between a privacy-preserving unsubscribed mode and an identity-revealing subscribed mode
-at any time without permanently losing their data, or needing to maintain their account data
-themselves.  Unsubscription without resubscription unduly impedes users from exercising their right
-to be forgotten: in order to claim that users have regained ownership of their data, users should
-not have to pay a high price in order in order to unsubscribe whenever they wish. They should not
-encounter barriers, such as permanently losing their data, that prevent them from choosing to
-unsubscribe when they would have otherwise. 
-
-With this model of flexible privacy, the balance of data ownership flips. Applications no longer
-control users' data choices by demanding that users choose between indefinitely giving up their data
-to use the application, or permanently losing their data and application utility.
-Instead, users control when applications can obtain their data in exchange for the right to use the application, and do not permanently lose application utility when they remove access to their data.
+This paper proposes a new model for web applications that balances users' desire for privacy with
+their desire for application utility. In this model, users subscribe to applications by granting a
+time-limited lease to their data, with the provision that the application may retain only
+de-identified information once the user unsubscribes. Users can switch between a privacy-preserving
+unsubscribed mode and an identity-revealing subscribed mode at any time without permanently losing
+their data, or needing to maintain their account data themselves.  This model clearly benefits the
+user: they can choose privacy at any time, without permanent loss of the application's storage and
+utility benefits. But more importantly, the model benefits application developers as well: user data
+can still be used to generate profit; the application retains less compromising data; and the
+application supports the right to be forgotten while still allowing those users who leave to
+easily come back.
 
 Unfortunately, today's web services face many challenges that make free and easy unsubscription and
 resubscription hard. Many do not support automated unsubscription, requiring users to 
@@ -51,16 +50,14 @@ leave identifying information unchanged at the expense of unsubscribed users.
 
 Even if de-identification were easy, services that do provide some amount of de-identification upon
 unsubscription fail to support resubscription, thus permanently deleting years or even decades of
-accumulated application data.  This permanent loss of user data costs both users and the web
+accumulated application data. This permanent loss of user data costs both users and the web
 service, and creates little incentive to lower barriers to unsubscription.  
 
-Legal penalties today create greater incentives to remove unnecessary data than ever before.
-However, these incentives alone are not enough. The challenges and complexity of
+The challenges and complexity of
 correct unsubscription highlight the need for new tools that allow developers to easily and
 systematically express how application data and structural correlations need to change when a user
 unsubscribes, and support automatic resubscription and recorrelation of users with their account
 data at any time.
-%
 
 In the rest of this paper, we describe the current support for unsubscription and resubscription in
 today's web applications, and the challenges of implementing it correctly.  We then describe \sys, a

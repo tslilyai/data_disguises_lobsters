@@ -10,7 +10,7 @@ use std::collections::{HashMap};
 
 // the ghosts table contains ALL ghost identifiers which map from any entity to its ghosts
 // this assumes that all entities have an integer identifying key
-const GHOST_ENTITY_COL : &'static str = "entity_id";
+const GHOST_EID_COL : &'static str = "entity_id";
 const GHOST_ID_COL: &'static str = "ghost_id";
 const GHOST_DATA_COL: &'static str = "ghost_data";
 
@@ -21,7 +21,7 @@ fn create_ghosts_table(name: String, db: &mut mysql::Conn, in_memory: bool) -> R
             `{}` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
             `{}` int unsigned, 
             `{}` varchar(4096), INDEX eid (`{}`))", 
-        name, GHOST_ID_COL, GHOST_ENTITY_COL, GHOST_DATA_COL, GHOST_ENTITY_COL);
+        name, GHOST_ID_COL, GHOST_EID_COL, GHOST_DATA_COL, GHOST_EID_COL);
     if in_memory {
         q.push_str(" ENGINE = MEMORY");
     }
@@ -126,12 +126,16 @@ impl GhostMap {
         }
         // insert into ghost table
         let insert_query = &format!("INSERT INTO {} ({}, {}, {}) VALUES {};", 
-                                    self.name, GHOST_ID_COL, GHOST_ENTITY_COL, GHOST_DATA_COL, pairs.join(","));
+                                    self.name, GHOST_ID_COL, GHOST_EID_COL, GHOST_DATA_COL, pairs.join(","));
         warn!("Inserting into ghosts table {}", insert_query);
         db.query_iter(insert_query)?;
         self.nqueries+=1;
         warn!("RESUB {} insert_gid_for_eid {}: {}, dur {}us", self.name, eid, insert_query, start.elapsed().as_micros());
         Ok(true)
+    }
+
+    fn contains_eid(&self, eid: u64) -> bool {
+        self.eid2gids.contains_key(&eid)
     }
 
     fn regenerate_cache_entry(&mut self, eid: u64, ghost_families: &Vec<GhostFamily>) {
@@ -188,7 +192,7 @@ impl GhostMap {
                 let update_stmt = Statement::Update(UpdateStatement {
                     table_name: helpers::string_to_objname(&self.name),
                     assignments: vec![Assignment{
-                        id: Ident::new(GHOST_ENTITY_COL),
+                        id: Ident::new(GHOST_EID_COL),
                         value: Expr::Value(Value::Number(neweid.to_string())),
                     }],
                     selection: Some(Expr::BinaryOp{
@@ -286,23 +290,27 @@ impl GhostMap {
         Ok(gid_vecs)
     }
 
-    pub fn insert_gid_for_eid(&mut self, 
+    pub fn insert_ghost_for_eid(&mut self, 
                                 views: &Views,
                                 gp: &EntityGhostPolicies,
                                 from_vals: RowPtr,
-                                eid: u64, db: &mut mysql::Conn) 
+                                eid: u64, 
+                                db: &mut mysql::Conn) 
         -> Result<u64, mysql::Error> 
     {
         let start = time::Instant::now();
        
         let gid = self.latest_gid.fetch_add(1, Ordering::SeqCst) + 1;
+
         let new_entities = ghosts::generate_new_ghosts_with_gids(
-            views, gp, db, &TemplateEntity{
+            views, gp, db, 
+            &TemplateEntity{
                 table: self.table_name.clone(), 
                 row: from_vals, 
                 fixed_colvals: None,
             },
-            &vec![Value::Number(gid.to_string())], &mut self.nqueries)?;
+            &vec![Value::Number(gid.to_string())], 
+            &mut self.nqueries)?;
 
         let new_family = GhostFamily{
             root_table: self.table_name.clone(),
@@ -316,13 +324,13 @@ impl GhostMap {
 
         // insert into DB
         let insert_query = &format!("INSERT INTO {} ({}, {}, {}) VALUES {};", 
-                                    self.name, GHOST_ID_COL, GHOST_ENTITY_COL, GHOST_DATA_COL, dbentry);
+                                    self.name, GHOST_ID_COL, GHOST_EID_COL, GHOST_DATA_COL, dbentry);
         warn!("Inserting into ghosts table {}", insert_query);
         db.query_drop(insert_query)?;
         self.nqueries+=1;
         let dur = start.elapsed();
         
-        warn!("{} insert_gid_for_eid {}, {}: {}us", self.name, gid, eid, dur.as_millis());
+        warn!("{} insert_ghost_for_eid {}, {}: {}us", self.name, gid, eid, dur.as_millis());
         Ok(gid)
     }
 }
@@ -346,14 +354,14 @@ impl GhostMaps {
         self.ghost_maps.insert(name.to_string(), GhostMap::new(name.to_string(), None, true));
     }
 
-    pub fn insert_gid_for_eid(&mut self, 
+    pub fn insert_ghost_for_eid(&mut self, 
                      views: &Views,
                      gp: &EntityGhostPolicies,
                      from_vals: RowPtr,
                     eid: u64, db: &mut mysql::Conn, table_name: &str) -> Result<u64, mysql::Error> 
     {
         let gm = self.ghost_maps.get_mut(table_name).unwrap();
-        gm.insert_gid_for_eid(views, gp, from_vals, eid, db)
+        gm.insert_ghost_for_eid(views, gp, from_vals, eid, db)
     }
 
     pub fn get_nqueries(&mut self) -> usize {
