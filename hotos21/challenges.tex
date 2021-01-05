@@ -1,18 +1,4 @@
 \section{Challenges}
-While many web applications make obvious efforts to comply with legal requirements (GDPR and CCPA),
-unsubscription clearly requires more than merely deleting a user's data.  
-Developers must implement the database transformations required to correctly unsubscribe a user while
-preserving application semantics, and continously maintain this feature. 
-%
-They must ensure that any required information, for necessary application or legal reasons,
-remains in transformed or anonymized form after a user departs.
-Furthermore, developers must make these transformations reversible to support resubscription,
-while still properly de-identifing users.
-%
-From the lack of automatic unsubscription, the vague promises to decorrelate retained data, and the
-failure to support privacy-compliant resubscription, it is clear this is no easy task.
-%
-
 Developers face three main challenges when implementing proper support for unsubscription and
 resubscription.
 \begin{enumerate}
