@@ -6,34 +6,37 @@ Web applications today own, store, and sell user data, often without the user's 
 explicit consent~\cite{nytimes:fb, npr:data}. This has dangerous consequences for both users and
 application developers: data leaks~\cite{breach:twitter, breach:fb, breach:marriott, breach:quora}
 has led to loss of livelihoods and lawsuits. Granting web applications such complete data
-ownership fails to protect users' privacy. To address this problem, laws such as the European
-Union's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's Consumer Privacy
-Act (CCPA)~\cite{ca:privacy-act} codify users' rights to data ownership, granting users the right to
-request erasure of information related to them, and moving toward a world where user data ownership
-is fundamental and complete.
+ownership clearly fails to protect users' privacy. 
 
 However, a world in which the user has complete data ownership is equally problematic. Although
 theoretically feasible~\cite{amber, w5, blockstack, bstore}, this model results in an arguably even
-less desirable world for users. Applications become slow and limited in their usefulness to perform 
-service-side computation over shared data, and users are burdened with long-term data
-maintenance and storage. \lyt{Not sure if we should mention the business model here, without addressing
-how one could charge for user storage/application use, or how applications could be open-source and
-funded via donations, etc.}
+less desirable world for users. 
+%
+Applications that must compute on per-user, filesystem-esque storage become slow and limited, run
+as JavaScript in users' browsers, and without the flexibility and easy of programming over SQL
+databases with application-specific schemas.  Service-side computation and data sharing between
+users---the main reason users use applications to begin with---becomes cumbersome, especially with
+the addition of access control and authentication needed in order to access each users' data
+individually. Furthermore, users are burdened with long-term data maintenance and storage: solutions
+that use PKI, such as Blockstack~\cite{blockstack}, require users to maintain a master private key,
+a cumbersome and fragile solution in which losing the key results in permanent loss of all the
+user's data.
+%
+Finally, the current business model in which applications profit from user data, becomes infeasible,
+requiring that users change the way they pay for services \lyt{this might not be a bad thing, though}.
 
 This paper proposes a new model for web applications that balances users' desire for privacy with
 their desire for application utility. In this model, users subscribe to applications by granting a
 time-limited lease to their data, with the provision that the application may retain only
-de-identified information once the user unsubscribes. Users flexibly switch between a privacy-preserving
-unsubscribed mode and an identity-revealing subscribed mode at any time without permanently losing
-their data, or needing to maintain their account data themselves. 
-
-This model clearly benefits the user: they can choose privacy at any time, without permanent loss of
-the application's storage and utility benefits. But more importantly, the model benefits application
-developers as well: user data can still be used to generate profit, the application retains less
-compromising data, and the application supports the (legally mandated) right to be forgotten while
-allowing its departing users to easily come back. Figure~\ref{fig:world} illustrates this
-flexible transfer of data ownership in our new model, as compared to the two extremes of complete
-user ownership and complete application ownership of user data.
+de-identified information once the user unsubscribes. Users flexibly switch between a
+privacy-preserving unsubscribed mode and an identity-revealing subscribed mode at any time without
+permanently losing their data. Applications can continue to operate using their current web
+architecture, retaining their revenue model, performance and reliability, and utility for their
+users. Applications do not need to access any removed unsubscribed users' data, simplifying the
+storage of this data when users enter privacy-preserving mode.
+Figure~\ref{fig:world} illustrates this flexible transfer of data ownership in our new model,
+compared to the two extremes of complete user ownership and complete application ownership of user
+data.
 
 \begin{figure*}[ht!]
     \centering
@@ -47,23 +50,35 @@ user ownership and complete application ownership of user data.
     \label{fig:world}
 \end{figure*}
 
-With legal and societal incentives pushing web applications toward such a model, we see applications
-taking the first steps by supporting GDPR unsubscription requests. However, we are far from
-achieving a world of easy unsubscription and resubscription: unsubscription is cumbersome (users
-often contact the developers or customer support directly in order to unsubscribe), and the
-implementation of unsubscription is manual, coarse-grained and error-prone, and can fail to
-completely de-identify the user.  Even worse, no existing application (to our knowledge) supports
-privacy-preserving unsubscription with the possiblity of resubscription.  Application unsubscription
-thus permanently deletes years or even decades of accumulated application data, costing both users
-and the web application, and creating little incentive to lower barriers to unsubscription. 
+This model clearly benefits the user: they can choose privacy at any time, without permanently
+losing their accounts or affecting the utility of the applications for others.  But more
+importantly, the model benefits application developers as well. Recent laws such as the European
+Union's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's Consumer Privacy
+Act (CCPA)~\cite{ca:privacy-act} codify users' rights to data ownership, granting users the right to
+request erasure of information related to them, and creating incentives web applications to adopt
+this model of flexible privacy. With this model, applications can support the (legally mandated)
+right to be forgotten, while allowing its departing users to easily come back. Applications can
+still use subscribed users' data to generate profit, and retain use of de-identified data even when
+users unsubscribe; this ensures that the application holds only identifying data for currently subscribed users,
+reducing the amount of compromising data in the system at any time.
+
+Although applications increasingly support GDPR unsubscription requests, the current state of
+unsubscription and resubscription is far from ideal. Unsubscription is often impossible or
+cumbersome (users often contact the developers or customer support directly in order to
+unsubscribe)~\cite{jdm}, and the implementation of unsubscription is manual, coarse-grained and
+error-prone, and can fail to completely de-identify the user.  Even worse, no existing application
+(to our knowledge) supports privacy-preserving unsubscription with the possiblity of resubscription.
+Application unsubscription thus permanently deletes years or even decades of accumulated application
+data, costing both users and the web application, and creating little incentive to lower barriers to
+unsubscription. 
 
 In order to make this model of flexible privacy and data ownership possible, we must solve the many
 challenges faced by application developers. Key among these are the requirements for applications to
 selectively retain unsubscribed users' data for legal purposes or application utility without also
 identifying the user, and to allow the user to resubscribe at any time to their last-known
 subscribed state. The complex data transformations required by user unsubscription and
-resubscription highlight the need for new tools that allow
-developers to easily and systematically automate the process.
+resubscription highlight the need for new tools that allow developers to easily and systematically
+automate the process.
 %For example, 
 %many applications require that some information remains
 %post-unsubscription, for legal or necessary application use, but retained data can identify a user
