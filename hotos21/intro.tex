@@ -62,17 +62,16 @@ still use subscribed users' data to generate profit, and retain use of de-identi
 users unsubscribe; this ensures that the application holds only identifying data for currently subscribed users,
 reducing the amount of compromising data in the system at any time.
 
-Although applications increasingly support GDPR unsubscription requests, the current state of
-unsubscription and resubscription is far from ideal. Unsubscription is often impossible or
-cumbersome (users often contact the developers or customer support directly in order to
-unsubscribe)~\cite{jdm}, and the implementation of unsubscription is manual, coarse-grained and
-error-prone, and can fail to completely de-identify the user.  Even worse, no existing application
-(to our knowledge) supports privacy-preserving unsubscription with the possiblity of resubscription.
-Application unsubscription thus permanently deletes years or even decades of accumulated application
-data, costing both users and the web application, and creating little incentive to lower barriers to
-unsubscription. 
+Although applications increasingly support GDPR unsubscription requests, this model is far from
+realized. Unsubscription is often impossible or cumbersome (users often contact the developers or
+customer support directly in order to unsubscribe)~\cite{jdm}, and the implementation of
+unsubscription is manual, coarse-grained and error-prone, and can fail to completely de-identify the
+user.  Even worse, no existing application (to our knowledge) supports privacy-preserving
+unsubscription with the possiblity of resubscription.  Application unsubscription thus permanently
+deletes years or even decades of accumulated application data, costing both users and the web
+application, and creating little incentive to lower barriers to unsubscription. 
 
-In order to make this model of flexible privacy and data ownership possible, we must solve the many
+In order to make flexible privacy and data ownership possible, we must solve the many
 challenges faced by application developers. Key among these are the requirements for applications to
 selectively retain unsubscribed users' data for legal purposes or application utility without also
 identifying the user, and to allow the user to resubscribe at any time to their last-known
