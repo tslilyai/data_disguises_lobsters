@@ -13,14 +13,14 @@ request erasure of information related to them, and moving toward a world where 
 ownership is fundamental and complete.
 
 However, a world in which the user has complete data ownership is equally problematic.
-Although feasible~\cite{amber, w5, blockstack, bstore, blockstack}, this model results in an
+Although feasible~\cite{amber, w5, blockstack, bstore}, this model results in an
 arguably even less desirable world for users, leading to limited and slow applications, reduction of
 useful service-side computation over shared data, and the requirement on users to maintain long-term
 data storage themselves.  
-\lyt{Not sure if we should mention the business model here, without
-addressing how you could charge for user storage, or how applications could be open-sourced and
-funded via donations, etc.}
-%Furthermore, such a model lacks a prbusiness model for
+\lyt{Not sure if we should mention the business model here, without addressing how you could charge
+for user storage/application use, or how applications could be open-sourced and funded via
+donations, etc.}
+%Furthermore, such a model lacks a business model for
 %companies to support applications of this nature.
 
 This paper proposes a new model for web applications that balances users' desire for privacy with
@@ -33,7 +33,22 @@ user: they can choose privacy at any time, without permanent loss of the applica
 utility benefits. But more importantly, the model benefits application developers as well: user data
 can still be used to generate profit; the application retains less compromising data; and the
 application supports the right to be forgotten while still allowing those users who leave to
-easily come back.
+easily come back. Figure~\ref{fig:world} illustrates this flexible transfer of data ownership in our
+new model, as compared to the two extremes of complete user ownership and complete application
+ownership of user data.
+
+\begin{figure*}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{img/worlds}
+
+    \caption{\textbf{(a)} The existing world of web applications, with applications maintaining and
+    owning user data; \textbf{(b)} A world in which users have complete ownership of their data in cloud or local
+    storage, and grant applications access to their data;
+    \textbf{(c)} Our proposed model, which allows users to switch between privacy-preserving unsubscribed
+    mode (right) and identity-revealing subscribed mode (left).}
+    \label{fig:world}
+\end{figure*}
+
 
 Unfortunately, today's web services face many challenges that make free and easy unsubscription and
 resubscription hard. Many do not support automated unsubscription, requiring users to 
