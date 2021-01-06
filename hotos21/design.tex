@@ -21,9 +21,7 @@
     \label{tab:ghosting}
 \end{table*}
 
-
-\sys's design allows developers to capture exactly which data contents, and which data correlations, may be
-identity-sensitive. \sys models an application's data as a graph of \emph{entity} nodes and edges.
+\sys models an application's data as a graph of \emph{entity} nodes and edges.
 Each entity type corresponds to an application datatable, such as a users, papers, or reviews table.
 Entities are linked in the entity graph by foreign key relationships: table columns that act as
 foreign keys to other tables create child-parent relationships between entities, where the child
@@ -37,6 +35,7 @@ Unsubscription policies center around the abstraction of \emph{ghost entities}. 
 more than an anonymized version of a real entity: a real entity may be replaced by multiple ghost
 entities, breaking up correlations associated with the real entity; and ghost entities can be
 partially randomized, partially custom generated, and partially clones of the real entities. 
+
 Pre- and post-unsubscription state differ by the presence of ghost entity nodes and edges, which
 have taken the place of real entities and edges. \sys returns the real entity data and a mapping
 from entities to their ghost replacements back to the unsubscribing user, which, if returned upon
@@ -51,9 +50,10 @@ satisfies the state specified in the policy.
 \subsection{Generating Ghost Entities}
 \label{sec:ghosting}
 
-\sys generates ghost entities in order to break correlations between child and parent entities.  A
-ghost entity adopts one or more children of a real entity, removing the potentially identifying
-correlation: for example, a different ghost user can adopt each of a user's reviews, thus
+\sys generates ghost entities in order to break correlations between child and parent entities, and
+to transform the contents of real entities. 
+A ghost entity adopts one or more children of a real entity, removing potentially identifying
+correlations: for example, a different ghost user can adopt each of a user's reviews, thus
 decorrelating any links between reviews and the user. \sys produces one or more ghosts for every
 template real entity that is ghosted. 
 
