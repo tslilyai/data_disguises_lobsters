@@ -1,30 +1,29 @@
 \section{Approach}
-To solve these challenges, we present \sys, a system that provides abstractions and mechanisms to
-help developers of databased-backed web applications achieve correct, privacy-compliant, and
-automatic unsubscription and resubscription without onerous labor.
+As a first step in solving these challenges, we present \sys, a system that provides abstractions
+and mechanisms to help developers of databased-backed web applications achieve correct,
+privacy-compliant, and automatic unsubscription and resubscription without onerous labor.
 
-\sys is based on the key observation that users' data can leak identifying information in two ways:
-(1) directly via their content, and (2) indirectly via the structural \emph{correlations} they have
-to other data in the system. 
-Unsubscription must properly handle these information leaks, either through deleting or
-\emph{decorrelating} such data, and do so while preserving
-application correctness.
+With \sys, developers write an \emph{unsubscription policy} that specifies the high-level,
+post-unsubscription state of application data.  The policy indicates how the database contents need
+to change to meet de-identification requirements on user unsubscription, while still retaining data
+necessary for the application to function. \sys then turns this policy into a set of concrete,
+executed database operations that systematically remove, anonymize, and structurally
+\emph{decorrelate} user data upon unsubscription to meet the resulting spec. \sys explicitly
+returns decorrelated or removed user data, encrypted with \lyt{TODO}, to the unsubscribing user, and
+deletes it from the application.
 
-%
-Using \sys, developers pinpoint exactly which data and correlations may be identifying, and
-specify the post-unsubscription state of this data. Developers provide a declarative
-\emph{unsubscription policy} that indicates how the database contents need to change to meet
-de-identification requirements on user unsubscription.
-%
-\sys then turns this policy into a set of concrete, executed database operations that systematically
-remove, anonymize, and structurally \emph{decorrelate} user data. \sys explicitly returns
-decorrelated or removed user data to the unsubscribing user, and deletes it from the application.
-%
+\sys's policy abstractions require knowledge of only the application schema and the high-level
+application's semantics. Using these abstractions, developers pinpoint how identifying information
+leaks either (1) directly via data content, or (2) indirectly via the structural \emph{correlations}
+(foreign key relationships) between data records. Developers then use their application expertise to
+select from a set of policy choices that alter these contents and correlations, choosing the policy
+that provides the greatest amount of de-identification while still preserving application
+correctness.
 
-%
-When a user resubscribes, \sys re-imports missing data and \emph{recorrelates} the data with the
-user account and other system data, restoring the user to her original subscribed state as much as
-possible.
+When a user resubscribes, \sys re-imports missing data (\lyt{TODO}) and automatically
+\emph{recorrelates} the data with the user account and other system data, restoring the user to her
+original subscribed state as much as possible.
 
 Furthermore, \sys transparently supports unsubscription and resubscription while still achieving performance
-comparable to today’s widely-used databases and requiring no modification of application schemas.
+comparable to today’s widely-used databases and requiring no modification to application schemas or
+architecture.
