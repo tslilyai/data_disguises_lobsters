@@ -1,6 +1,5 @@
 \section{Challenges}
-Developers face three main challenges when implementing proper support for unsubscription and
-resubscription.
+Three main challenges capture the complexity of correct, privacy-preserving unsubscription and resubscription.
 \begin{enumerate}
     \item \textbf{Selective Retention:}. Unsubscribed users' data needs to be selectively retained for necessary legal or application purposes.
     \item \textbf{De-Identification:} Unsubscribed users must be properly de-identified: any
@@ -10,51 +9,48 @@ data.
 \end{enumerate}
 
 \paragraph{Selective Retention.}
-Retained data can be categorized into two functionality groups. First, retained data preserves legal or
-necessary information about an individual user in isolation. The order history retained by
-e-commerce applications such as Amazon and PrestaShop for legal purposes falls into this category.
-
-Second, retained data also maintains application utility for other subscribed users of the
-application. Social media and news feed applications fit into this category: Facebook or Twitter
-preserve privates messages so that other subscribed users still see coherent conversations. Reddit
-and Lobsters retain all previously posted user content, as the essence of the application's utility
-is its site content.  Other non-feed applications also retain data for this reason. HotCRP,
-open-source software for managing conference reviews and paper submissions, indefinitely stores and
-distributes submissions and reviews from all conferences by request of its users: users want to be
-able to reference their past prior conference reviews and paper metadata. Strava, a social network
+Retained data has two main purposes. First, retained data preserves legal or
+necessary information about an individual user in isolation. For example, e-commerce applications
+retain order history for legal purposes.
+Retained data also maintains application utility for other subscribed users of the
+application. Social media and news feed applications preserve private messages for thread coherence; Reddit and Lobsters retain all previously posted user content, as the essence of the application's utility is its site content. 
+HotCRP, open-source software for managing conference reviews and paper submissions, indefinitely stores and
+distributes submissions and reviews from all conferences so that users can reference their past prior conference reviews and paper metadata. Strava, a social network
 for tracking workouts, retains users' geolocation data on public routes for other users to see which
 routes are popular.
 
-The application-specific nature of retained data means that any solution to unsubscription
-should enable developers to easily specify exactly which data to retain, and prevent developers
-from accidentally removing or retaining data unnecessarily.
+Developers must use their understanding of application semantics to pinpoint exactly what 
+to retain post-unsubscription, and prevent accidental deletion or retention of application
+data.
 
 \paragraph{De-Identification.}
 While applications may want to retain data, this data should be properly de-identified. As shown in
-Table~\ref{tab:apps}, applications often fail to do so, and retain data still associated
-with users' identities. Other applications such as PrestaShop, Reddit, GitHub, and Lobsters make
-attempts to decorrelate retained data, replacing user identifiers with a placeholder user identifier. 
+Table~\ref{tab:apps}, applications often fail to do so, and retain user identifiers along with their
+data. 
 
-However, it is insufficient to decorrelate only the direct correlations from users to their data:
-correlations from retained data to \emph{other} application data or metadata can still identify
-unsubscribed users. For example, PrestaShop orders with the same timestamp, or ordered from the same
-location likely belong to the same user, and it is well-known that a user's order history can be
-clearly identifying. Anonymized posts with the same flairs or tags on Reddit or Lobsters can
-identify which posts probably belong to the same user. 
+Some applications do make efforts to de-identify retained data by replacing user identifiers with a
+placeholder user identifier, or removing data associated with user identifiers.  However, simply
+removing or anonymizing user identifiers often fails to sufficiently de-identify retained data.
+Correlations from retained data to \emph{other} application data or metadata can still identify
+unsubscribed users. For example, PrestaShop orders with the same timestamp, or ordered to the same
+location likely belong to the same user, and a user's order history can be clearly identifying.
+Anonymized posts with the same flairs or custom tags on Reddit or Lobsters can identify which user
+made the posts.
 
-Due to these subtle information leaks, applications such as Facebook, Twitter, and HotCRP
-simply delete the entire user profile and all associated data. When HotCRP users manually request to
-be de-associated from their blinded reviews or submissions (preventing public disclosure in case of
-a data compromise or hack), the HotCRP developers choose the nuclear option and remove the user's
-data completely, at the cost of removing useful review and paper data for other HotCRP users.  While
-the HotCRP developers would prefer to retain review and paper data, doing so while de-identifying
-the user is not easy. HotCRP cannot only decorrelate direct links to users: 
-correlations between any retained data and conflicts with other reviewers can indirectly identify the user's
-affiliation and recent collaborations, and in many cases, the user themselves.
+Because of these subtle and complex indirect information leaks from data relationships, many
+applications choose to forgo data retention completely in order to ensure proper de-identification.
+For example, when HotCRP users request to be de-associated from their blinded reviews or
+submissions, HotCRP removes the user's data completely, at the cost of other users who reference
+those reviews and papers. While HotCRP developers would prefer to retain review and paper data,
+doing so while de-identifying the user is not easy. HotCRP cannot only remove user identifiers:
+correlations between retained data and data such as conflicts with other reviewers can indirectly
+identify the user's affiliation and recent collaborations, and in many cases, the user themselves.
+Instead, HotCRP chooses to reduce its utility for others users by removing data, a solution that
+clearly would not work in a world where users frequently unsubscribe at any time.
 
 \paragraph{Resubscription.}
-Resubscription must recorrelate any retained data with the original owner and restore any removed
-data. Today, applications either retain all data and forgo data de-identification entirely
+Resubscription must recorrelate any retained data with the original owner, and restore any removed
+data. Today, applications either retain all data and forgo de-identification entirely
 (Facebook/Twitter Account Deactivation) to support resubscription, or remove and anonymize data
 permanently without allowing users to resubscribe. Correctly supporting resubscription requires the
 application or user to store additional information necessary for recorrelation, but must do so
