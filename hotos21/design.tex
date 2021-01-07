@@ -200,7 +200,7 @@ policy.
 
 \paragraph{Returning User Data.}
 After applying the appropriate edge policies, \sys returns all 
-removed entity data back to the unsubscribing user. \sys also deletes and returns all parent entities that
+removed entity data back to the unsubscribing user, encrypted using \lyt{TODO}. \sys also deletes and returns all parent entities that
 have been replaced by ghosts (when edges are retained or decorrelated).
 
 \sys additionally returns the identifier attributes of all generated ghosts, and a mapping from real
@@ -210,6 +210,7 @@ entity to the set of ghosts that replaced that entity's correlations.
 Upon resubscription, the user returns any ghost mappings and any removed entity data they received
 upon unsubscribing, allowing \sys to remove any created ghost entities, recorrelate entities back
 with the correct real entity, and restore removed entities and their descendants. 
+\lyt{TODO decrypt, cloud storage, etc.?}
 
 \sys allows the application developer or user to ignore any entity data returned by \sys upon
 unsubscription, but consequently cannot restore this data when the user resubscribes.  This choice
@@ -317,7 +318,7 @@ data remain as unaffected as possible by another user's unsubscription. To optim
 \texttt{CloneOne} policies, \sys can simply retain the original template entity instead of producing
 a cloned ghost.
 
-\subsection{HotCRP's Unsubscription Policy}
+\subsection{Example: HotCRP's Unsubscription Policy}
 \label{sec:hotcrp_example}
 \begin{figure*}[t!]
     \centering
@@ -344,20 +345,20 @@ a cloned ghost.
     \label{fig:pcs}
 \end{figure*}
 
-We next show how a developer would use \sys's design to write an unsubscription policy for HotCRP. 
+We next show how a developer would use \sys to write an unsubscription policy for
+HotCRP, demonstrating the workflow and different application-specific choices developers must
+consider when using \sys.
 HotCRP entities include users (reviewers and paper authors), papers, paper reviews, and paper
 conflicts. There are a total of 25 entities, with 48 edge types between entities.
-We illustrate how unsubscription changes a simplified HotCRP entity graph with users, papers,
-reviews, paper conflicts, and tags in Figure~\ref{fig:hotcrp}.
-This example demonstrates the different tradeoffs and application-specific choices developers must
-consider when using \sys.
+Figure~\ref{fig:hotcrp} illustrates how unsubscription changes a simplified HotCRP entity graph with
+users, papers, reviews, and paper conflicts.
 
 The developer first specifies that the top-level entity to decorrelate is a user (entities of the
 \texttt{ContactInfo} table). Users include authors and reviewers who may want to remove their
 connections with their reviews, papers, and other metadata (such as papers they have requested to
 review).
 
-\paragraph{Specifying Edge Policies.}
+\paragraph{Edge Policies.}
 Next, the developer considers all edge types, and whether edges may reveal identifying information
 about the user.
 
