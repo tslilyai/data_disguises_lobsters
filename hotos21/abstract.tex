@@ -1,16 +1,17 @@
 \begin{abstract}
-    The paper proposes a new web service paradigm in which users grant a time-limited ``lease'' of data
-    to a service instead of having a permanent service account. Users flexibly switch between a
-    privacy-preserving unsubscribed mode and an identity-revealing subscribed mode at any time without
-    permanently losing their data. This model strikes a balance between one extreme in which
-    applications have complete ownership of user data, and another extreme in which users own and
-    store their data at the cost of application utility. 
+    The paper proposes a new web application paradigm in which users subscribe to applications by
+    granting a time-limited ``lease'' of their data, instead of having a permanent account. Users
+    flexibly switch between a privacy-preserving unsubscribed mode and an identity-revealing
+    subscribed mode at any time without permanently losing their data. This subscription paradigm
+    strikes a balance between one extreme in which applications have complete ownership of user
+    data, and another extreme in which users own and store their data at the cost of application
+    utility. 
 
 %
-    However, achieving this model of flexible privacy is difficult.  Application developers must
-    balance between retaining enough information so the application correctly and usefully
-    functions, and removing enough information to prevent disclosing the identity of unsubscribed
-    users via inference attacks. To begin to solve these challenges, we design \sys{}, a new system
-    that automates privacy-compliant unsubscription and resubscription of users in database-backed
-    web services.
+    However, achieving this subscription paradigm is difficult.  Application developers must balance
+    between retaining enough information so the application correctly and usefully functions, and
+    removing enough information to prevent disclosing the identity of unsubscribed users via
+    inference attacks. To begin to solve these challenges, we design \sys{}, a new system that
+    automates privacy-compliant unsubscription and resubscription of users in database-backed web
+    applications.
 \end{abstract}
