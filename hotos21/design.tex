@@ -14,11 +14,8 @@
 {leadContactId} & \texttt{CloneOne} + \texttt{GenerateGhostParent} & 23 & 23 & 918 \\
 \end{tabular}
     \caption{Generating two ghosts using ghosting policies for a simplified paper entity.
-    \sys clones the attribute values of the template entity to generate Ghost1, and generates
-    values for Ghost2 according to the specified attribute generation policy. To generate a new
-    value for an edge attribute such as leadContactId (which contains a foreign key to a user in the
-    ContactId table), \sys creates a new ghost user and uses its identifier attribute as the new
-    edge attribute value (918).}
+    \sys clones the attributes of the template entity to generate Ghost1, and generates
+    attribute values for Ghost2 according to the specified attribute generation policy. To generate edge attribute leadContactId, \sys creates a new ghost user and uses its identifier as the new value (918).}
     \label{tab:ghosting}
 \end{table*}
 
@@ -208,23 +205,27 @@ To ensure that leaf children do not leak identifying information,
 policy.
 
 \paragraph{Returning User Data.}
-After applying the appropriate edge policies, \sys returns all 
-removed entity data back to the unsubscribing user, encrypted using \lyt{TODO}. \sys also deletes and returns all parent entities that
-have been replaced by ghosts (when edges are retained or decorrelated).
-
-\sys additionally returns the identifier attributes of all generated ghosts, and a mapping from real
+After applying the appropriate edge policies, \sys collects all 
+removed entities (including parent entities that
+have been replaced by ghosts when edges are retained or decorrelated), as well as 
+the identifier attributes of all generated ghosts, and a mapping from real
 entity to the set of ghosts that replaced that entity's correlations. 
 
-\subsection{Resubscription}
-Upon resubscription, the user returns any ghost mappings and any removed entity data they received
-upon unsubscribing, allowing \sys to remove any created ghost entities, recorrelate entities back
-with the correct real entity, and restore removed entities and their descendants. 
-\lyt{TODO decrypt, cloud storage, etc.?}
+\sys encrypts the data with a per-user key, which is encrypted with a user password and stored by
+the application. \sys then returns the encrypted data to the application. \lyt{Or \sys can manage
+the storage of the data for the application?}
+The user can optionally store this encrypted data themselves, and be in charge of providing their
+key to DeCor to encrypt and decrypt the data.
 
-\sys allows the application developer or user to ignore any entity data returned by \sys upon
-unsubscription, but consequently cannot restore this data when the user resubscribes.  This choice
-reduces the amount of user-side storage required for resubscription when the data can be easily
-re-initialized, is simply too large to store, or plays no essential role in using the application.
+\subsection{Resubscription}
+Upon resubscription, the user allows \sys to decrypt the data by providing their password to decrypt
+their key. \sys then uses the decrypted data to remove any created ghost entities, recorrelate entities back
+with the correct real entity, and restore removed entities and their descendants. 
+
+%\sys allows the application developer or user to ignore any entity data returned by \sys upon
+%unsubscription, but consequently cannot restore this data when the user resubscribes.  This choice
+%reduces the amount of user-side storage required for resubscription when the data can be easily
+%re-initialized, is simply too large to store, or plays no essential role in using the application.
 
 \subsection{\sys's Execution Algorithm}
 \begin{figure*}[ht!]
