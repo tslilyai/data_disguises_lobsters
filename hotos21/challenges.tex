@@ -1,5 +1,5 @@
-\section{Challenges}
-Three main challenges capture the complexity of correct, privacy-preserving unsubscription and resubscription.
+\section{Goals and Challenges}
+A subscription paradigm should achieve the three following goals:
 \begin{enumerate}
     \item \textbf{Selective Retention:}. Unsubscribed users' data needs to be selectively retained for necessary legal or application purposes.
     \item \textbf{De-Identification:} Unsubscribed users must be properly de-identified: any
@@ -8,16 +8,20 @@ Three main challenges capture the complexity of correct, privacy-preserving unsu
 data.
 \end{enumerate}
 
+We next describe each goal and the challenges of achieving it in greater detail.
+
 \paragraph{Selective Retention.}
 Retained data has two main purposes. First, retained data preserves legal or
 necessary information about an individual user in isolation. For example, e-commerce applications
 retain order history for legal purposes.
-Retained data also maintains application utility for other subscribed users of the
-application. Social media and news feed applications preserve private messages for thread coherence; Reddit and Lobsters retain all previously posted user content, as the essence of the application's utility is its site content. 
-HotCRP, open-source software for managing conference reviews and paper submissions, indefinitely stores and
-distributes submissions and reviews from all conferences so that users can reference their past prior conference reviews and paper metadata. Strava, a social network
-for tracking workouts, retains users' geolocation data on public routes for other users to see which
-routes are popular.
+Retained data also maintains application utility for other subscribed users of the application.
+Social media and news feed applications preserve private messages for thread coherence; Reddit and
+Lobsters retain all previously posted user content, as the essence of the application's utility is
+its site content.  HotCRP, open-source software for managing conference reviews and paper
+submissions, indefinitely stores and distributes submissions and reviews from all conferences so
+that users can reference their past prior conference reviews and paper metadata. Strava, a social
+network for tracking workouts, retains users' geolocation data on public routes for other users to
+see which routes are popular.
 
 Developers must use their understanding of application semantics to pinpoint exactly what 
 to retain post-unsubscription, and prevent accidental deletion or retention of application
@@ -39,14 +43,16 @@ made the posts.
 
 Because of these subtle and complex indirect information leaks from data relationships, many
 applications choose to forgo data retention completely in order to ensure proper de-identification.
-For example, when HotCRP users request to be de-associated from their blinded reviews or
-submissions, HotCRP removes the user's data completely, at the cost of other users who reference
-those reviews and papers. While HotCRP developers would prefer to retain review and paper data,
-doing so while de-identifying the user is not easy. HotCRP cannot only remove user identifiers:
-correlations between retained data and data such as conflicts with other reviewers can indirectly
-identify the user's affiliation and recent collaborations, and in many cases, the user themselves.
-Instead, HotCRP chooses to reduce its utility for others users by removing data, a solution that
-clearly would not work in a world where users frequently unsubscribe at any time.
+For example, when HotCRP users unsubscribe, 
+%While HotCRP developers would prefer to
+%retain review and paper data, doing so while de-identifying the user is not easy. 
+HotCRP cannot only remove user identifiers: correlations with data such as
+conflicts with other reviewers can indirectly identify the user's affiliation and recent
+collaborations, and the user themselves. Instead, HotCRP chooses to reduce its
+utility for others users by completely removing the unsubscribing user's data, a solution that clearly would not work in a world where
+users frequently unsubscribe at any time.
+%HotCRP removes the user's data completely, at the
+%cost of other users who reference those reviews and papers. 
 
 \paragraph{Resubscription.}
 Resubscription must recorrelate any retained data with the original owner, and restore any removed

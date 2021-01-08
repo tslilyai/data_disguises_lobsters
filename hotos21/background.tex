@@ -71,24 +71,26 @@ application developers or customer service directly?
     \item Does unsubscription allow for resubscription, in which unsubscribed users can regain control of their
         account and account data?
 \end{enumerate}
-\lyt{JustDeleteMe~\cite{jdm} rates how easy it is to unsubscribe from a large set of different
-services; we could also include some stats from there here.}
-
 Fewer than half of the services surveyed provide automated unsubscription; all others require the
-user to email or call the application maintainers or support.  All applications retain some of the
-unsubscribed user' data: Facebook retains copies of private messages for other users in the
-conversation; Reddit retains all posts and comments made by the user; Lobsters retains the user's
-unique username and logs of the user's actions; e-commerce sites retain a user's order history; and
-Strava retains geolocation data and any ``necessary'' information. All applications specify that any
-``required'' information can be retained, for legal or applications correctness purposes (e.g., to
-process payments, or to keep the coherence of private messaging threads).
+user to email or call the application maintainers or support. As a more comprehensive study,
+JustDeleteMe~\cite{jdm} provides a growing list of applications (currently 868) and rates the ease
+of unsubscription (account deletion) in each: at the current time, 27\% required users to manually
+contact the company or developers, and 12\% did not support unsubscription at all. 
 
-Many applications state that they will remove any user identifiers from retained data.
-For example, Reddit, PrestaShop, and GitHub explicitly state that all remaining posts, orders, and
-comments will be decorrelated and reassociated with a global placeholder identifier.  However, as
-indicated in Table~\ref{tab:apps}, many applications either leave some identifiers unchanged (\eg
-private messages in Facebook and Twitter), or fail to specify whether they rewrite identifiers at
-all for some or all of the retained information.
+All applications retain some of the unsubscribed user' data: Facebook retains copies of private
+messages for other users in the conversation; Reddit retains all posts and comments made by the
+user; Lobsters retains the user's unique username and logs of the user's actions; e-commerce sites
+retain a user's order history; and Strava retains geolocation data and any ``necessary''
+information. All applications specify that any ``required'' information can be retained, for legal
+or applications correctness purposes (e.g., to process payments, or to keep the coherence of private
+messaging threads).  
+
+Many applications state that they will remove any user identifiers from retained data.  For example,
+Reddit, PrestaShop, and GitHub explicitly state that all remaining posts, orders, and comments will
+be decorrelated and reassociated with a global placeholder identifier.  However, as indicated in
+Table~\ref{tab:apps}, many applications either leave some identifiers unchanged (\eg private
+messages in Facebook and Twitter), or fail to specify whether they rewrite identifiers at all for
+some or all of the retained information.
 
 Of the applications surveyed, only Facebook/Instagram and Twitter support some form of
 resubscription via account reactivation. However, account deactivation only hides user-added content from
