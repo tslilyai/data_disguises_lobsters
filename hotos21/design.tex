@@ -7,6 +7,7 @@
 \begin{tabular}{@{}ccccc@{}}
 \textbf{Paper Attribute} & \textbf{Ghosting Policy} & \textbf{Template Value} & \textbf{Ghost1 Value} & \textbf{Ghost2 Value} 
   \\ \cmidrule(r){1-5}
+    {id} & N/A (identifier attribute) & 10 & 199 & 813 \\
 {title} & \texttt{CloneOne} + \texttt{Generate::Default("Ghost Paper")} & My Paper & My
     Paper & Ghost Paper \\
 {outcome} & \texttt{CloneOne} + \texttt{Generate::Default(0)} & 1 & 1 & 0 \\
@@ -21,20 +22,24 @@
     \label{tab:ghosting}
 \end{table*}
 
-\sys models an application's data as a graph of \emph{entity} nodes and edges.
-Each entity type corresponds to an application datatable, such as a users, papers, or reviews table.
-Entities are linked in the entity graph by foreign key relationships: table columns that act as
-foreign keys to other tables create child-parent relationships between entities, where the child
-entity holds the parent entity's identifier as a foreign key. \sys also includes
-abstract entities in the graph, where the keys may be non-referential identifiers that refer to
-abstract, non-table entities (e.g.,\ a \texttt{thread\_id} column in the comments table).  Edges in
-the graph---foreign or abstract key relationships---represent correlations between the nodes of the
+\sys models an application's data as a graph of \emph{entity} nodes and edges.  Each entity type
+corresponds to an application datatable, such as a users, papers, or reviews table.  Entities are
+linked in the entity graph by foreign key relationships: table columns that act as foreign keys to
+other tables create child-parent relationships between entities, where the child entity holds the
+parent entity's identifier as a foreign key. 
+%\sys also includes abstract entities in the graph, where the keys may be non-referential
+%identifiers that refer to abstract, non-table entities (e.g.,\ a \texttt{thread\_id} column in the
+%comments table).  
+Edges in the graph---foreign key relationships---represent correlations between the nodes of the
+%---foreign or abstract key relationships---
 graph, namely individual entities.
 
 Unsubscription policies center around the abstraction of \emph{ghost entities}. A ghost entity is
 more than an anonymized version of a real entity: a real entity may be replaced by multiple ghost
 entities, breaking up correlations associated with the real entity; and ghost entities can be
-partially randomized, partially custom generated, and partially clones of the real entities. 
+partially randomized, partially custom generated, and partially clones of the real entities.
+Table~\ref{tab:ghosting} shows an example of two ghosts based on a real paper entity; we describe
+how these ghosts are created in the following section.
 
 Pre- and post-unsubscription state differ by the presence of ghost entity nodes and edges, which
 have taken the place of real entities and edges. \sys returns the real entity data and a mapping
@@ -52,17 +57,20 @@ satisfies the state specified in the policy.
 
 \sys generates ghost entities in order to break correlations between child and parent entities, and
 to transform the contents of real entities. 
-A ghost entity adopts one or more children of a real entity, removing potentially identifying
-correlations: for example, a different ghost user can adopt each of a user's reviews, thus
-decorrelating any links between reviews and the user. \sys produces one or more ghosts for every
-template real entity that is ghosted. 
-
+%A ghost entity adopts one or more children of a real entity, removing potentially identifying
+%correlations: for example, a different ghost user can adopt each of a user's reviews, thus
+%decorrelating any links between reviews and the user. \sys produces one or more ghosts for every
+%template real entity that is ghosted. 
 In order for \sys to generate ghost entities, developers must define ghost generation policies for
 each entity type.  \sys assumes entities have three kinds of attributes: a unique identifier
 attribute; value (non-referential) attributes such as timestamps or usernames; and edge (referential
 foreign key) attributes that identify correlations to parent entities.  Value attributes may
 directly expose identifying information from its contents, and edge attributes represent potentially
-sensitive structural correlations.  Developers specify how \sys should generate each of these
+sensitive structural correlations. In Table~\ref{tab:ghosting}, the \texttt{id} attribute is the
+identifier attribute, the \texttt{title} and \texttt{outcome} attributes are value attributes, and
+\texttt{leadContactId} is an edge attribute, containing a foreign key to the ContactInfo (users)
+table.
+Developers specify how \sys should generate each of these
 attributes, given a template real entity.
 
 \sys always generates ghost entities with unique identifier attribute values.
@@ -99,7 +107,8 @@ generated from the real user clones the user's roles, while assigning all other 
         contain the cloned values for all those attributes; all other ghost entities will have
         generated values.
 \end{itemize}
-Table~\ref{tab:ghosting} demonstrates ghost generation using a potential policy for (simplified) paper entities.
+Table~\ref{tab:ghosting} demonstrates ghost generation using a \texttt{CloneOne} policies for paper
+value and edge attributes.
 
 %During unsubscription, \sys traverses the current instance of the application entity graph with the
 %top-level unsubscribing user node as the root in order to find all possible graph edges and nodes
