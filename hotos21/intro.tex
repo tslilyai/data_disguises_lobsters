@@ -15,24 +15,23 @@ in inefficient and reduced application utility, leading to a lack of adoption in
 \lyt{I moved the more extended explanation of this to after we bring up our subscription model, since I
 wanted to more quickly get to our contribution.}
 
-This paper proposes a new model that grants users flexible privacy in their interactions with web
-applications, balancing users' desire for privacy with their desire for application utility. In this
-\emph{subscription} model of interaction, users subscribe to applications by granting a time-limited
+This paper proposes a new paradigm that grants users flexible privacy when using web
+applications, balancing users' desire for privacy with their desire for application utility. In this \emph{subscription} paradigm of interaction, users subscribe to applications by granting a time-limited
 lease to their data, with the provision that the application may retain only de-identified
 information once the user unsubscribes. Users flexibly switch between a privacy-preserving
 unsubscribed mode and an identity-revealing subscribed mode at any time without permanently losing
 their data. 
-A subscription model contrasts with the current state of web application privacy today,
-in which applications have complete ownership of personal data, and the other extreme model of
+A subscription paradigm contrasts with the current state of web application privacy today,
+in which applications have complete ownership of personal data, and the other extreme world of
 strong privacy, in which the user has complete data ownership (see Figure~\ref{fig:world}). 
 
-A subscription model clearly benefits users: they can choose privacy at any time, without permanently
+A subscription paradigm clearly benefits users: they can choose privacy at any time, without permanently
 losing their accounts or affecting the utility of the applications for others.
-Just as importantly, a subscription model also benefits application developers. Recent laws
+Just as importantly, a subscription paradigm  also benefits application developers. Recent laws
 such as the European Union's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and
 California's Consumer Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' rights to data
-ownership, granting users the right to request erasure of information related to them. A subscription 
-model enables applications to comply with these legal mandates, while still allowing its departing users
+ownership, granting users the right to request erasure of information related to them. Supporting
+a subscription paradigm enables applications to comply with these legal mandates, while still allowing its departing users
 to easily come back: if applications must let users leave, it is in their best interest to make it
 easy for them to return.  
 
@@ -44,14 +43,17 @@ subscribed users. The application holds only identifying data for currently subs
 users, reducing the amount of compromising data in the system to only those users who have
 actively agreed to temporarily give up their privacy.
 
-However, even with legal incentives in place, this model is far from realized. Unsubscription is
-often impossible or cumbersome (users often contact the developers or customer support directly in
-order to unsubscribe)~\cite{jdm}, and developers manually implement coarse-grained, error-prone, and
-often incomplete unsubscription that fails to completely de-identify the user. Even worse, no existing
-application (to our knowledge) supports privacy-preserving unsubscription with the possiblity of
-resubscription.  Application unsubscription thus permanently deletes years or even decades of
-accumulated application data, costing both users and the web application, and creating little
-incentive for the application to support easy unsubscription. 
+\lyt{TODO make stronger---3step argument.}
+
+However, even with legal incentives in place, this subscription paradigm is far from realized.
+Unsubscription is often impossible or cumbersome (users often contact the developers or customer
+support directly in order to unsubscribe)~\cite{jdm}, and developers manually implement
+coarse-grained, error-prone, and often incomplete unsubscription that fails to completely
+de-identify the user. Even worse, no existing application (to our knowledge) supports
+privacy-preserving unsubscription with the possiblity of resubscription.  Application unsubscription
+thus permanently deletes years or even decades of accumulated application data, costing both users
+and the web application, and creating little incentive for the application to support easy
+unsubscription. 
 
 In order to make flexible data ownership possible, we must solve the many challenges faced by
 application developers. Key among these are the requirements to selectively retain unsubscribed
@@ -70,14 +72,13 @@ onerous labor, and without adding undue overheads.
     \caption{\textbf{(a)} The existing world of web applications, with applications maintaining and
     owning user data; \textbf{(b)} A world in which users have complete ownership of their data in cloud or local
     storage, and grant applications access to their data;
-    \textbf{(c)} Our proposed model, which allows users to switch between privacy-preserving unsubscribed
-    mode (right) and identity-revealing subscribed mode (left).}
+    \textbf{(c)} Our proposed subscription paradigm, which allows users to switch between privacy-preserving unsubscribed mode (right) and identity-revealing subscribed mode (left).}
     \label{fig:world}
 \end{figure*}
 
 \lyt{This paragraph seems more fitting for related work?}
-Our proposed subscription model contrasts with the current state of web application privacy today,
-in which applications have complete ownership of personal data, and the other extreme model of
+Our proposed subscription paradigm contrasts with the current state of web application privacy today,
+in which applications have complete ownership of personal data, and the other extreme world of
 strong privacy, in which the user has complete data ownership (see Figure~\ref{fig:world}).  While
 strong privacy is clearly desirable, complete user data ownership results in an arguably even less
 desirable world for users. While possible~\cite{amber, w5, blockstack, bstore}, applications
@@ -97,7 +98,7 @@ Finally, users must change the way they pay for services, as the current revenue
 applications relies on access to user data. 
 \lyt{this might not be a bad thing, though}.
 
-In a subscription model, applications do not need to access any removed unsubscribed users' data,
+By supporting a subscription paradigm, applications do not need to access any removed unsubscribed users' data,
 simplifying the secure storage of this data when users enter privacy-preserving mode. Applications
 can operate as they currently do, with the additional support for users to take back their data and
 privacy whenever they wish.
