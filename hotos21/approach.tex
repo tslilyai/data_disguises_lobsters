@@ -8,25 +8,22 @@ post-unsubscription state of application data.  The policy indicates how the dat
 to change to meet de-identification requirements on user unsubscription, while still retaining data
 necessary for the application to function. \sys then turns this policy into a set of concrete,
 executed database operations that systematically remove, anonymize, and structurally
-\emph{decorrelate} user data upon unsubscription to meet the resulting spec. \sys explicitly
-encrypts decorrelated or removed user data with a user-specific, password-protected key, returns the
-encrypted blob to the application, and deletes the plaintext data from the application.
-
-\lyt{This
-ends up trusting the application with the (encrypted/protected) key and encrypted data blob; since
-applications want users to return, they'd be willing to store the data for them? And users could
-optionally choose to dl their data and/or store their key themselves?}
+\emph{decorrelate} user data upon unsubscription to meet the resulting spec. \sys 
+encrypts decorrelated or removed user data with a user-specific key, which can be either
+password-encrypted by the application, or secret shared~\cite{secretsharing} with a trusted third
+party. \sys provides a way for the application to store the encrypted blob and deletes the plaintext
+data.
 
 \sys's policy abstractions require knowledge of only the application schema and the high-level
 application's semantics. Using these abstractions, developers pinpoint how identifying information
 leaks either (1) directly via data content, or (2) indirectly via the structural \emph{correlations}
-(foreign key relationships) between data records. Developers then use their application expertise to
+(foreign key relationships) between data records. Developers use their application expertise to
 select from a set of policy choices that alter these contents and correlations, choosing the policy
 that provides the greatest amount of de-identification while still preserving application
 utility and correctness.
 
-When a user resubscribes, \sys allows the application to re-import and decrypt missing data, and automatically
-\emph{recorrelates} the data with the user account and other system data, restoring the user to her
+When a user resubscribes, \sys decrypts and inserts missing data, automatically
+\emph{recorrelating} the data with the user account and other system data, and restoring the user to her
 original subscribed state as much as possible.
 
 Furthermore, \sys transparently supports unsubscription and resubscription while still achieving performance

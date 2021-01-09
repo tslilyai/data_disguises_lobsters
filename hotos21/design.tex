@@ -54,10 +54,6 @@ satisfies the state specified in the policy.
 
 \sys generates ghost entities in order to break correlations between child and parent entities, and
 to transform the contents of real entities. 
-%A ghost entity adopts one or more children of a real entity, removing potentially identifying
-%correlations: for example, a different ghost user can adopt each of a user's reviews, thus
-%decorrelating any links between reviews and the user. \sys produces one or more ghosts for every
-%template real entity that is ghosted. 
 In order for \sys to generate ghost entities, developers must define ghost generation policies for
 each entity type.  \sys assumes entities have three kinds of attributes: a unique identifier
 attribute; value (non-referential) attributes such as timestamps or usernames; and edge (referential
@@ -163,13 +159,6 @@ key relationships: less than 10\% of all paper with a specific tag key should ha
 
 If no threshold is specified, \sys defaults to $\sigma=0$ and fully
 decorrelates all edges of this type. 
-%\textbf{Add ghost correlations}: For each parent of this edge type, \sys
-%generates ghost children ntities using the appropriate value ghosting policies and an
-%existing child entity as a template. All ghost children point to the parent (share the
-%same edge attribute value).  \sys generates enough ghost children that the sensitivity
-%threshold is met.  Note that if the generated ghosts are easily distinguished from
-%actual entities, there is little privacy benefit from generating ghost entities to meet
-%the threshold.
 
 \paragraph{Achieving the Sensitivity Threshold.}
 The developer chooses between two options to achieve the sensitivity threshold: 
@@ -204,28 +193,29 @@ To ensure that leaf children do not leak identifying information,
 \sys replaces any retained children with ghost children according to the specified ghost generation
 policy.
 
-\paragraph{Returning User Data.}
+\subsection{Encrypting and Storing User Data.}
 After applying the appropriate edge policies, \sys collects all 
 removed entities (including parent entities that
 have been replaced by ghosts when edges are retained or decorrelated), as well as 
 the identifier attributes of all generated ghosts, and a mapping from real
 entity to the set of ghosts that replaced that entity's correlations. 
 
-\sys encrypts the data with a per-user key, which is encrypted with a user password and stored by
-the application. \sys then returns the encrypted data to the application. \lyt{Or \sys can manage
-the storage of the data for the application?}
-The user can optionally store this encrypted data themselves, and be in charge of providing their
-key to DeCor to encrypt and decrypt the data.
+\sys encrypts this data with a per-user key, and enables the application to store this encrypted
+blob. The user key is secret-shared using a (2, 3) threshold
+scheme~\cite{secretsharing} between the user, application, and a trusted third party (\eg Amazon S3), so that the
+user can authorize the application and the third party to restore the key if the user forgets their share. 
+Alternatively, the key can also be password-encrypted, which relies on the user not forgetting their
+password.
+
+The user can optionally choose to store this encrypted data themselves, and be in charge of providing their
+data and key to DeCor decrypt the data upon resubscription.
 
 \subsection{Resubscription}
-Upon resubscription, the user allows \sys to decrypt the data by providing their password to decrypt
-their key. \sys then uses the decrypted data to remove any created ghost entities, recorrelate entities back
-with the correct real entity, and restore removed entities and their descendants. 
-
-%\sys allows the application developer or user to ignore any entity data returned by \sys upon
-%unsubscription, but consequently cannot restore this data when the user resubscribes.  This choice
-%reduces the amount of user-side storage required for resubscription when the data can be easily
-%re-initialized, is simply too large to store, or plays no essential role in using the application.
+To resubscribe, a user authorizes the decryption of their data and associated ghost metadata by
+providing their share of the key (or authorizing the trusted third party to reconstruct the secret
+with the application). \sys decrypts the data with the key, and uses the decrypted data to remove
+any created ghost entities, recorrelate entities back with the correct real entity, and restore
+removed entities and their descendants. 
 
 \subsection{\sys's Execution Algorithm}
 \begin{figure*}[ht!]
