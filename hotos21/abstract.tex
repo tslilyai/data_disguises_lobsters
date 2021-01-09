@@ -3,12 +3,11 @@
     granting a time-limited ``lease'' of their data, instead of having a permanent account. Users
     flexibly switch between a privacy-preserving unsubscribed mode and an identity-revealing
     subscribed mode at any time without permanently losing their data. This subscription paradigm
-    strikes a balance between one extreme in which applications have complete ownership of user
-    data, and another extreme in which users own and store their data at the cost of application
-    utility. 
+    strikes a balance between applications having complete ownership of user
+    data, and users owning and storing their data at the cost of application utility. 
 
 %
-    Achieving this subscription paradigm is difficult. Application developers must balance
+    In order to achieve this subscription paradigm, application developers must balance
     between retaining enough information so the application correctly and usefully functions, and
     removing enough information to prevent disclosing the identity of unsubscribed users via
     inference attacks. To begin to solve these challenges, we design \sys{}, a new system that
