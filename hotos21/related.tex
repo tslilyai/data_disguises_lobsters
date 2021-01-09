@@ -2,10 +2,29 @@
 \section{Background and Related Work}
 %-------------------------------------------------------------------------------
 \subsection{Decoupling User Data from Web Applications}
-Amber~\cite{amber}
-W5~\cite{w5}
-Blockstack~\cite{blockstack}
-BStore~\cite{bstore}
+Our proposed subscription paradigm contrasts with a model of strong privacy in web appliactions, in
+which the user has complete data ownership (see Figure~\ref{fig:world}b). In proposals for this
+model~\cite{amber, w5, blockstack, bstore}, applications must compute on per-user, filesystem-esque
+storage, \eg as JavaScript in users' browsers in Blockstack~\cite{blockstack} and
+BStore~\cite{bstore}. Applications face the loss of the flexibility and ease of programming over SQL
+databases with application-specific schemas, and users must decide on appropriate access control and
+authentication policies. As a result, service-side computation and data sharing between users---a
+large reason users use applications to begin with---becomes inefficient and impractical. 
+%
+Furthermore, users are burdened with long-term data maintenance and storage: solutions that use PKI
+(\eg Blockstack~\cite{blockstack}) require users to maintain a
+master private key, a cumbersome and fragile solution in which losing the key results in permanent
+loss of all the user's data.
+%
+Finally, users must change the way they pay for services, as the current revenue model for
+applications relies on access to user data. 
+\lyt{this might not be a bad thing, though}.
+
+Under the subscription paradigm, applications do not need to access any data outside its own
+servers, simplifying the secure storage of this data when users enter privacy-preserving mode.
+Applications can operate as they do today, with the current web architecture's performance and
+programming flexibility benefits. However, unlike today's model of data privacy in web applications,
+users can freely reclaim their their data and privacy whenever they wish.
 
 \subsection{Anonymization in Web Applications}
 Today's web applications are incentivized to retain as much user data on their platform as possible,
