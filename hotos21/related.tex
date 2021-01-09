@@ -26,33 +26,6 @@ Applications can operate as they do today, with the current web architecture's p
 programming flexibility benefits. However, unlike today's model of data privacy in web applications,
 users can freely reclaim their their data and privacy whenever they wish.
 
-\subsection{Anonymization in Web Applications}
-Today's web applications are incentivized to retain as much user data on their platform as possible,
-both to sell and to process for the application's targeting, and to increase the utility of their
-platform for other users (e.g., keeping reviews or votes for other users of the application to use
-to judge a product).
-
-When users on web applications delete their accounts, some applications (e.g.,\ Lobst.rs and Reddit)
-choose to de-identify user data upon account deletion by replacing unique user identifiers such as
-usernames with global placeholders (``anonymous'') or a pseudonym (``anonymous\_mouse''). Such
-applications have privacy policies allowing them to retain a deleted users' content.
-Other applications (e.g.,\ Facebook and Twitter) delete (most of the) user's data and its
-dependencies~\cite{delf}. 
-The first choice optimizes the amount of data the application retains, while the second may lead to
-confusing semantics for the application (e.g.,\ nonsensical comment threads). In both cases,
-accounts cannot be restored after deletion. 
-
-Applications such as Facebook or Twitter do support user account deactivation by hiding the user's
-data, but retain all user data with their identifiers in their databases.  \lyt{Facebook keeps a
-``log'' of data versions, but this wouldn't be a problem if everything in the database is ghosted!}
-
-\sys{}'s decorrelation primitives provide a way for applications to state more flexible privacy
-policies, trading off data retention with de-identifying a user.
-%de-identification properties than a global placeholder, and
-%keeps as much data as possible in the application while still guaranteeing de-identification.
-\sys{} also supports resubscription without allowing the application to retain identifying user data
-in its database.
-
 \subsection{Data Anonymization}
 
 Prior research on k-anonymization, pseudonymization (more for static analysis purposes than used in
@@ -141,5 +114,4 @@ Potentially other related works:
     \item ML Unlearning
     \item Database IFC (sensitive data flowing down edges?)
     \item Graph databases
-    \item P2P web applications
 \end{itemize}
