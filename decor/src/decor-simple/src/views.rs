@@ -1,7 +1,7 @@
 use sql_parser::ast::*;
 use std::collections::{HashSet, HashMap};
 use std::cmp::Ordering;
-use crate::{select, helpers, ghosts, graph, INIT_CAPACITY};
+use crate::{select, helpers, graph, INIT_CAPACITY};
 use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::io::{Error, Write};
@@ -591,10 +591,6 @@ impl Views {
                     let mut max = id_val;
                     for row in val_rows {
                         let row = row.borrow();
-                        // only update if it's a UID!!!
-                        if ghosts::is_ghost_eidval(&row[col_index]) {
-                            continue;
-                        } 
                         match &row[col_index] {
                             Value::Number(n) => {
                                 let n = n.parse::<u64>().unwrap();
@@ -707,11 +703,8 @@ impl Views {
                     match &assign_vals[i] {
                         Expr::Value(Value::Number(n)) => {
                             let n = n.parse::<u64>().unwrap();
-                            if !ghosts::is_ghost_eid(n) {
-                                view.autoinc_col = Some((col_index, u64::max(id_val, n+1)));
-                            }
+                            view.autoinc_col = Some((col_index, u64::max(id_val, n+1)));
                         }
-                        
                         _ => (),
                     }
                     break;

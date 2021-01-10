@@ -5,7 +5,7 @@ use mysql::prelude::*;
 use std::*;
 use std::collections::{HashMap};
 use log::warn;
-use decor_mem::policy::{
+use decor_simple::policy::{
     KeyRelationship, GhostColumnPolicy, GeneratePolicy, 
     DecorrelationPolicy::{Decor, NoDecorSensitivity, NoDecorRetain}, ApplicationPolicy};
 
@@ -102,9 +102,9 @@ fn test_normal_execution() {
 
     let jh = thread::spawn(move || {
         if let Ok((s, _)) = listener.accept() {
-            decor_mem::Shim::run_on_tcp(
+            decor_simple::Shim::run_on_tcp(
                     "gdpr_normal", SCHEMA, init_policy(),
-                    decor_mem::TestParams{
+                    decor_simple::TestParams{
                         testname: "test_normal".to_string(), 
                         translate:true, parse:true, in_memory: true,
                         prime: true}, s).unwrap();

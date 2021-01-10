@@ -4,7 +4,7 @@ extern crate log;
 use mysql::prelude::*;
 use std::*;
 use log::warn;
-use decor_mem::{ghosts::GhostEidMapping, EntityData, helpers, policy::ApplicationPolicy};
+use decor_simple::{ghosts::GhostEidMapping, EntityData, helpers, policy::ApplicationPolicy};
 use std::collections::{HashSet};
 use std::str::FromStr;
 mod policies;
@@ -30,9 +30,9 @@ fn init_dbs(name: &'static str, policy: ApplicationPolicy, db: &mut mysql::Conn,
 
     let _jh = thread::spawn(move || {
         if let Ok((s, _)) = listener.accept() {
-            decor_mem::Shim::run_on_tcp(
+            decor_simple::Shim::run_on_tcp(
                     name, SCHEMA, policy, 
-                    decor_mem::TestParams{
+                    decor_simple::TestParams{
                         testname: name.to_string(), 
                         translate:true, parse:true, in_memory: true,
                         prime: true,}, s).unwrap();
@@ -71,9 +71,9 @@ fn restore_db(name: &'static str, policy: ApplicationPolicy, db: &mut mysql::Con
 
     let _jh = thread::spawn(move || {
         if let Ok((s, _)) = listener.accept() {
-            decor_mem::Shim::run_on_tcp(
+            decor_simple::Shim::run_on_tcp(
                     name, SCHEMA, policy, 
-                    decor_mem::TestParams{
+                    decor_simple::TestParams{
                         testname: name.to_string(), 
                         translate:true, parse:true, in_memory: true,
                         prime: false,}, s).unwrap();

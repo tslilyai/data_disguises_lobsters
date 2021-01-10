@@ -15,8 +15,8 @@ pub mod ghosts;
 pub mod graph;
 pub mod helpers;
 pub mod policy;
-pub mod query_transformer;
-pub mod sqlparser_cache;
+pub mod querier;
+pub mod query_simplifier;
 pub mod select;
 pub mod subscriber;
 pub mod views;
@@ -42,8 +42,7 @@ pub struct TestParams {
 pub struct Shim { 
     db: mysql::Conn,
 
-    qtrans: query_transformer::QueryTransformer,
-    sqlcache: sqlparser_cache::ParserCache,
+    querier: querier::Querier,
 
     // NOTE: not *actually* static, but tied to our connection's lifetime.
     schema: String,
@@ -52,7 +51,7 @@ pub struct Shim {
 
 impl Drop for Shim {
     fn drop(&mut self) {
-        helpers::stats::print_stats(&self.qtrans.stats, self.test_params.testname.clone());
+        helpers::stats::print_stats(&self.querier.stats, self.test_params.testname.clone());
         // drop the connection (implicitly done).
     }
 }
@@ -61,10 +60,9 @@ impl Shim {
     pub fn new(db: mysql::Conn, schema: &'static str, policy: policy::ApplicationPolicy, test_params: TestParams) 
         -> Self 
     {
-        let qtrans = query_transformer::QueryTransformer::new(policy, &test_params);
-        let sqlcache = sqlparser_cache::ParserCache::new();
+        let querier = querier::Querier::new(policy, &test_params);
         let schema = schema.to_string();
-        Shim{db, qtrans, sqlcache, schema, test_params}
+        Shim{db, querier, schema, test_params}
     }   
 
     pub fn run_on_tcp(
@@ -86,6 +84,23 @@ impl Shim {
                                     BufReader::new(rs), BufWriter::new(s))
     }
 
+    fn get_single_parsed_stmt(&mut self, stmt: &String) 
+        -> Result<Statement, mysql::Error> 
+    {
+        let asts = parse_statements(stmt.to_string());
+        match asts {
+            Err(e) => Err(mysql::Error::IoError(io::Error::new(
+                        io::ErrorKind::InvalidInput, e))),
+            Ok(asts) => {
+                if asts.len() != 1 {
+                    return Err(mysql::Error::IoError(io::Error::new(
+                        io::ErrorKind::InvalidInput, format!("More than one stmt {:?}", asts))));
+                }
+                Ok(asts[0].clone())
+            }
+        }
+    }
+
     /* 
      * Given schema in sql, issue queries to set up database.
      * Must be issued after select_db statement is issued.
@@ -105,7 +120,7 @@ impl Shim {
             stmt.push_str(line);
             if stmt.ends_with(';') {
                 stmt = helpers::process_schema_stmt(&stmt, self.test_params.in_memory);
-                let stmt_ast = self.sqlcache.get_single_parsed_stmt(&stmt)?;
+                                let stmt_ast = self.get_single_parsed_stmt(&stmt)?;
                 
                 // if we're not priming, the table already exists!
                 // add it as a MV
@@ -118,19 +133,19 @@ impl Shim {
                             indexes,
                             ..
                         }) => {
-                            self.qtrans.rebuild_view_with_all_rows(
+                            self.querier.rebuild_view_with_all_rows(
                                 &name.to_string(), columns, constraints, indexes, &mut self.db);
                         }
                         _ => (),
                     }
                 } else {
-                    self.qtrans.query_drop(&stmt_ast, &mut self.db)?;                
+                    self.querier.query_drop(&stmt_ast, &mut self.db)?;                
                 }
                 stmt = String::new();
             }
         }
         if !self.test_params.prime {
-            self.qtrans.reupdate_with_ghost_mappings(&mut self.db);
+            self.querier.reupdate_with_ghost_mappings(&mut self.db);
         } 
         Ok(())
     }
@@ -145,9 +160,9 @@ impl<W: io::Write> MysqlShim<W> for Shim {
      */
     fn on_unsubscribe(&mut self, uid: u64, w: QueryResultWriter<W>) -> Result<(), mysql::Error> {
         let start = time::Instant::now();
-        let res = self.qtrans.unsubscribe(uid, &mut self.db, w);
+        let res = self.querier.unsubscribe(uid, &mut self.db, w);
         let dur = start.elapsed();
-        self.qtrans.record_query_stats(helpers::stats::QueryType::Unsub, dur);
+        self.querier.record_query_stats(helpers::stats::QueryType::Unsub, dur);
         res
     }
 
@@ -172,15 +187,15 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let gidshard = serde_json::from_str(&gidshard).unwrap();
         let entity_data = serde_json::from_str(&entity_data).unwrap();
  
-        match self.qtrans.resubscribe(uid, &gidshard, &entity_data, &mut self.db) {
+        match self.querier.resubscribe(uid, &gidshard, &entity_data, &mut self.db) {
             Ok(()) => {
                 let dur = start.elapsed();
-                self.qtrans.record_query_stats(helpers::stats::QueryType::Resub, dur);
+                self.querier.record_query_stats(helpers::stats::QueryType::Resub, dur);
                 Ok(w.completed(gidshard.len() as u64 + entity_data.len() as u64, 0)?)
             }
             Err(e) => {
                 let dur = start.elapsed();
-                self.qtrans.record_query_stats(helpers::stats::QueryType::Resub, dur);
+                self.querier.record_query_stats(helpers::stats::QueryType::Resub, dur);
                 w.error(ErrorKind::ER_BAD_DB_ERROR, format!("b{}", e).as_bytes())?;
                 Ok(())
             }
@@ -209,7 +224,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             return Ok(());
         }   
         
-        self.qtrans.subscriber.init(&mut self.db, self.test_params.prime, self.test_params.in_memory)?;
+        self.querier.subscriber.init(&mut self.db, self.test_params.prime, self.test_params.in_memory)?;
 
         match self.create_schema() {
             Ok(_) => (),
@@ -228,21 +243,21 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let dur: time::Duration;
         
         if !self.test_params.parse {
-            self.qtrans.cur_stat.nqueries+=1;
+            self.querier.cur_stat.nqueries+=1;
             res = helpers::answer_rows(results, self.db.query_iter(query));
             dur = start.elapsed();
         } else {
             let parsestart = time::Instant::now();
-            let stmt_ast = self.sqlcache.get_single_parsed_stmt(&query.to_string())?;
+            let stmt_ast = self.get_single_parsed_stmt(&query.to_string())?;
             let parsedur = parsestart.elapsed();
             warn!("parse {} duration is {}", query, parsedur.as_micros());
             
             if !self.test_params.translate {
-                self.qtrans.cur_stat.nqueries+=1;
+                self.querier.cur_stat.nqueries+=1;
                 res = helpers::answer_rows(results, self.db.query_iter(stmt_ast.to_string()));
                 dur = start.elapsed();
             } else {
-                res = self.qtrans.query(results, &stmt_ast, &mut self.db);
+                res = self.querier.query(results, &stmt_ast, &mut self.db);
                 dur = start.elapsed();
             }
         }
@@ -250,7 +265,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             error!("Long query: {}: {}us", query, dur.as_micros());
         }*/
         let qtype = helpers::stats::get_qtype(query)?;
-        self.qtrans.record_query_stats(qtype, dur);
+        self.querier.record_query_stats(qtype, dur);
         res
     }
 }
