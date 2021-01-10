@@ -144,9 +144,6 @@ impl Shim {
                 stmt = String::new();
             }
         }
-        if !self.test_params.prime {
-            self.querier.reupdate_with_ghost_mappings(&mut self.db);
-        } 
         Ok(())
     }
 }

@@ -26,6 +26,17 @@ pub struct Querier {
     pub stats: Vec<helpers::stats::QueryStat>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct TraversedEntity {
+    pub table_name: String,
+    pub eid : u64,
+    pub hrptr: HashedRowPtr,
+
+    pub parent_table: String,
+    pub parent_col_index: usize,
+    pub sensitivity: OrderedFloat<f64>,
+}
+
 impl Querier {
     pub fn new(policy: policy::ApplicationPolicy, params: &super::TestParams) -> Self {
         Querier{
@@ -201,13 +212,10 @@ impl Querier {
         // table name of entity, eid, gids for eid
         let mut ghost_eid_mappings : Vec<GhostEidMapping> = vec![];
 
-        // all entities to be replaced with ghosted versions or removed
-        // this is updated prior to the entity's modification (eg, assigned a ghost parent)
+        // all entities to be replaced or removed, as they existed prior to unsubscription
         let mut nodes_to_remove : Vec<EntityData> = vec![];
        
-        // all entities to be replaced by ghosted versions, so we know
-        // to generate ghosts for them. only delete or retain policies generate new ghosts;
-        // decorrelated entities already have ghosts created
+        // all entities to be replaced by ghosted versions
         let mut nodes_to_ghost : Vec<EntityData> = vec![];
 
         // track all parent-children edges, may have repeat children
@@ -225,7 +233,7 @@ impl Querier {
         children_to_traverse.push(TraversedEntity{
                 table_name: self.policy.decor_etype.clone(),
                 eid : uid,
-                vals: matching_row.clone(),
+                hrptr: matching_row.clone(),
                 from_table: "".to_string(),
                 from_col_index: 0,
                 sensitivity: OrderedFloat(-1.0),
@@ -236,49 +244,16 @@ impl Querier {
          * TODO could parallelize to reduce time to traverse?
          */
         while children_to_traverse.len() > 0 {
+            let start = time::Instant::now();
+
             let node = children_to_traverse.pop().unwrap();
             let nodedata = EntityData{
                 table: node.table_name,
-                row_strs: node.vals.row().borrow().iter().map(|v| v.to_string()).collect(),
+                row_strs: node.hrptr.row().borrow().iter().map(|v| v.to_string()).collect(),
             };
-            let start = time::Instant::now();
-
             nodes_to_remove.push(nodedata);
-
-            /* 
-             * 2. Get all sibling GIDs corresponding to this EID if this entity has not already been unsubscribed
-             */
-            let mut gid_values = vec![];
-            if let Some(ghost_families) = self.ghost_maps.unsubscribe(node.eid, db, &node.table_name)? {
-                for ghost_family in &ghost_families {
-                    let mut family_ghost_names = vec![];
-                    for ghost_entities in &ghost_family.family_members { 
-                        /* 
-                         * Update this node's MV to have an entry for all its ghost entities 
-                         * Assumes: entries must already be in the datatables
-                         *
-                         * We must ensure that any parent ghosts of these ghost entities also
-                         * become visible in the MVs for referential integrity
-                         */
-                        self.views.insert(&ghost_entities.table, None, &ghost_entities.rptrs)?;
            
-                        for gid in &ghost_entities.gids {
-                            family_ghost_names.push((ghost_entities.table.clone(), *gid));
-                        }
-                    }
-                    gid_values.push(Value::Number(ghost_family.root_gid.to_string()));
-
-                    // save the ghost mappings to return to the user
-                    ghost_eid_mappings.push(GhostEidMapping{
-                        table: node.table_name.clone(), 
-                        eid2gidroot: Some((node.eid, ghost_family.root_gid)), 
-                        ghosts: family_ghost_names, 
-                    });
-                    
-                    // TODO update ghost entities if they had cloned attributes of the template 
-                }
-            }
-            let mut gid_index = 0;
+            // get children of this node
             let children : EntityTypeRows;
             match self.views.graph.get_children_of_parent(&node.table_name, node.eid) {
                 None => continue,
@@ -306,8 +281,8 @@ impl Querier {
                             table_name: child_table.clone(),
                             eid: helpers::parser_val_to_u64(&rptr.row().borrow()[view_ptr.borrow().primary_index]),
                             vals: rptr.clone(),
-                            from_table: node.table_name.clone(), 
-                            from_col_index: ci,
+                            parent_table: node.table_name.clone(), 
+                            parent_col_index: ci,
                             sensitivity: OrderedFloat(0.0),
                         };
 
@@ -323,6 +298,12 @@ impl Querier {
 
                                 self.views.update_index_and_row_of_view(&child_table, rptr.row().clone(), ci, Some(&val));
                                 gid_index += 1;
+
+                                ghost_eid_mappings.push(GhostEidMapping{
+                                    table: node.table_name.clone(), 
+                                    eid2gidroot: Some((node.eid, ghost_family.root_gid)), 
+                                    ghosts: family_ghost_names, 
+                                });
 
                                 // if child hasn't been seen yet, traverse
                                 if traversed_children.insert((child.table_name.clone(), child.eid)) {
@@ -571,7 +552,7 @@ impl Querier {
 
             seen_children.insert(EntityData {
                 table: node.table_name,
-                row_strs: node.vals.row().borrow().iter().map(|v| v.to_string()).collect(),
+                row_strs: node.hrptr.row().borrow().iter().map(|v| v.to_string()).collect(),
             });
         }
         seen_children
@@ -847,7 +828,7 @@ impl Querier {
         );
         let viewptr = self.views.get_view(name).unwrap();
         
-        // 1. get all rows of this table; some may be ghosts
+        // 1. get all rows of this table
         let get_all_rows_query = Query::select(Select{
             distinct: true,
             projection: vec![SelectItem::Wildcard],
@@ -873,108 +854,8 @@ impl Querier {
                 &viewptr.borrow().columns);
             rptrs.push(Rc::new(RefCell::new(parsed_row)));    
         }
-        // 3. insert all eid rows AND potentially ghost rows back into the view
-        // We need to remove mapped-to ghosts and rewrite foreign key columns to point to EIDs at a later step
+        // 3. insert all rows 
         warn!("Rebuilding view {} with all rows {:?}", name, rptrs);
         self.views.insert(name, None, &rptrs).unwrap();
-    }
-
-    pub fn reupdate_with_ghost_mappings(&mut self, db: &mut mysql::Conn) {
-        // All views have been populated with BOTH ghost and real entities. In addition, none of
-        // the real entities have any children yet: child view entities always point to their ghost
-        // counterparts. 
-        //
-        // Only some of these view ghosts should be kept in the view, namely those that have no
-        // real counterpart (which has unsubscribed).
-        //
-        // For those that do have a real counterpart, we need to remove these ghosts from the view,
-        // and rewrite child view entities to point to the actual entity.
-
-        // collect the GIDs of each table that are currently mapped to a real EID
-        let mut table2gids_to_delete: HashMap<String, Vec<u64>> = HashMap::new();
-        let mut table_to_eid_to_fam: Vec<(String, u64, GhostFamily)> = vec![];
-        for table in self.views.get_table_names() {
-            self.ghost_maps.new_ghost_map_cache_only(table.to_string());
-            let mappings : Vec<GhostEidMapping> = self.ghost_maps.get_ghost_eid_mappings(db, &table).unwrap();
-            for mut mapping in mappings {
-                let mut family_members = vec![];
-
-                let mut cur_table_ghost_entities = TableGhostEntities{
-                    table: mapping.ghosts[0].0.clone(), 
-                    gids: vec![],
-                    rptrs: vec![],
-                };
-                mapping.ghosts.sort();
-                for (ghost_table, gid) in mapping.ghosts {
-
-                    // update current table entities with rptr
-                    if ghost_table != cur_table_ghost_entities.table {
-                        family_members.push(cur_table_ghost_entities); 
-                        cur_table_ghost_entities = TableGhostEntities {
-                            table: ghost_table.clone(),
-                            gids: vec![],
-                            rptrs: vec![],
-                        };
-                    } 
-                    let rptr = self.views.get_row_of_id(&ghost_table, gid);
-                    cur_table_ghost_entities.gids.push(gid);
-                    cur_table_ghost_entities.rptrs.push(rptr);
-
-                    // remember to delete this gid from the MV
-                    if let Some(gids) = table2gids_to_delete.get_mut(&ghost_table) {
-                        gids.push(gid);
-                    } else {
-                        table2gids_to_delete.insert(ghost_table, vec![gid]);
-                    }
-                }
-                family_members.push(cur_table_ghost_entities);
-                let (eid, gidroot) = mapping.eid2gidroot.unwrap();
-                table_to_eid_to_fam.push((table.clone(), eid, 
-                    GhostFamily {
-                        root_table: mapping.table.clone(),
-                        root_gid: gidroot,
-                        family_members: family_members,
-                    }
-                ));
-
-                // get children of this parent
-                // update assignments in MV to use EID again for this gid
-                warn!("Getting children of ghost entity with gid {}", gidroot);
-                let children : EntityTypeRows;
-                match self.views.graph.get_children_of_parent(&mapping.table, gidroot) {
-                    None => continue,
-                    Some(cs) => children = cs,
-                }
-                // for each child row
-                for ((child_table, child_ci), child_hrptrs) in children.iter() {
-                    let child_viewptr = self.views.get_view(&child_table).unwrap();
-                    let ghost_parent_keys = helpers::get_ghost_parent_key_indices_of_datatable(
-                        &self.policy, &child_table, &child_viewptr.borrow().columns);
-                    
-                    // if the child has a column that is ghosted and the ghost ID matches this gid
-                    for (ci, parent_table) in &ghost_parent_keys {
-                        if ci == child_ci && &mapping.table == parent_table {
-                            for hrptr in child_hrptrs {
-                                if hrptr.row().borrow()[*ci].to_string() == gidroot.to_string() {
-                                    
-                                    // then update this child to use the actual real EID
-                                    self.views.update_index_and_row_of_view(
-                                        &child_table, hrptr.row().clone(), 
-                                        *ci, Some(&Value::Number(eid.to_string())));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // remove the ghosts that are mapped to read IDs
-        for (table, gids) in table2gids_to_delete.iter() {
-            self.views.delete_rptrs_with_ids(table, &gids).unwrap();
-        }
-
-        // all families into ghost maps cache to recreate in-memory mapping
-        self.ghost_maps.regenerate_cache_entries(&table_to_eid_to_fam);
     }
 }

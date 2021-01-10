@@ -787,6 +787,7 @@ KeysImpl	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_js
 KeysImpl	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^type KeysImpl<'a> = indexmap::map::Keys<'a, String, Value>;$/;"	T
 KindVisitor	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.114/src/de/impls.rs	/^                struct KindVisitor;$/;"	s
 L	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/ed25519.rs	/^static L: [u8; 32] =$/;"	c
+LAST_GID	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^static LAST_GID: AtomicU64 = AtomicU64::new(GHOST_ID_START);$/;"	c
 LEN_CUTOFF_PROPORTION	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/literal/imp.rs	/^        const LEN_CUTOFF_PROPORTION: usize = 4;$/;"	c
 LEVEL_PARSE_ERROR	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/log-0.4.11/src/lib.rs	/^static LEVEL_PARSE_ERROR: &str =$/;"	c
 LIP	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql_common-0.22.1/src/packets.rs	/^        const LIP: &[u8] = b"\\xfbfile_name";$/;"	c
@@ -1604,6 +1605,7 @@ TransactionIsolationLevel	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/dec
 TransactionMode	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/sql-parser/src/ast/defs/statement.rs	/^pub enum TransactionMode {$/;"	g
 Transitions	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/dfa.rs	/^struct Transitions {$/;"	s
 TransitionsRow	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/dfa.rs	/^struct TransitionsRow<'a>(&'a [StatePtr]);$/;"	s
+TraversedEntity	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^pub struct TraversedEntity {$/;"	s
 Triangular	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/triangular.rs	/^pub struct Triangular {$/;"	s
 TupleInPlaceVisitor	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.114/src/de/impls.rs	/^                    struct TupleInPlaceVisitor<'a, $($name: 'a,)+>(&'a mut ($($name,)+));$/;"	s
 TupleTrait	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/ser.rs	/^enum TupleTrait {$/;"	g
@@ -2449,7 +2451,6 @@ consume_and_return	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/
 consume_token	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/sql-parser/src/parser.rs	/^    fn consume_token(&mut self, expected: &Token) -> bool {$/;"	f
 contains	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/sparse.rs	/^    pub fn contains(&self, value: usize) -> bool {$/;"	f
 contains_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    fn contains_eid(&self, eid: u64) -> bool {$/;"	f
-contains_ghost_parent_keys	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/column_helpers.rs	/^pub fn contains_ghost_parent_keys(decor_config: &policy::Config, table_name: &str) -> bool {$/;"	f
 contains_key	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^    pub fn contains_key<Q>(&self, key: &Q) -> bool$/;"	f
 contains_query	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/stmt_cache.rs	/^    pub fn contains_query<T>(&self, key: &T) -> bool$/;"	f
 content	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.114/src/private/de.rs	/^mod content {$/;"	m
@@ -3964,6 +3965,7 @@ insert	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json
 insert	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^    pub fn insert(&mut self, value: Value) -> Value {$/;"	f
 insert	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^    pub fn insert(self, value: Value) -> &'a mut Value {$/;"	f
 insert	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn insert(&mut self, table_name: &str, columns_opt: Option<&Vec<Ident>>, val_rows: &RowPtrs) -> Result<(), Error> {$/;"	f
+insert_ghost_for_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub fn insert_ghost_for_eid(template: &TemplateEntity,$/;"	f
 insert_ghost_for_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn insert_ghost_for_eid(&mut self, $/;"	f
 insert_gid_into_caches	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn insert_gid_into_caches(&mut self, eid:u64, gfam: GhostFamily) {$/;"	f
 insert_into_index	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn insert_into_index(&mut self, row: Rc<RefCell<Row>>, col_index: usize) {$/;"	f
@@ -5514,7 +5516,6 @@ result	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypt
 result	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/sha3.rs	/^    fn result(&mut self, out: &mut [u8]) {$/;"	f
 result	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/whirlpool.rs	/^    fn result(&mut self, out: &mut [u8]) {$/;"	f
 result_str	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/digest.rs	/^    fn result_str(&mut self) -> String {$/;"	f
-reupdate_with_ghost_mappings	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn reupdate_with_ghost_mappings(&mut self, db: &mut mysql::Conn) {$/;"	f
 reverse	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/compile.rs	/^    pub fn reverse(mut self, yes: bool) -> Self {$/;"	f
 reverse	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/dfa.rs	/^    pub fn reverse($/;"	f
 rewind	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/buffer.rs	/^    fn rewind(&mut self, distance: usize) { self.pos -= distance; }$/;"	f

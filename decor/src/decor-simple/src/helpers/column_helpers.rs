@@ -3,18 +3,6 @@ use std::*;
 use log::{debug, warn};
 use crate::{policy, views};
 
-pub fn contains_ghost_parent_keys(decor_config: &policy::Config, table_name: &str) -> bool {
-    if let Some(policies) = decor_config.table2policies.get(&table_name.to_string()) {
-        for policy in policies {
-            match policy.pc_policy {
-                policy::UnsubscribePolicy::Decorrelate(_) => return true,
-                _ => ()
-            }
-
-        }      
-    }
-    false
-}
 pub fn get_ghost_parent_key_names_of_datatable(decor_config: &policy::Config, table_name: &ObjectName) -> Vec<(String, String)> {
     let mut c = vec![];
     if let Some(policies) = decor_config.table2policies.get(&table_name.to_string()) {

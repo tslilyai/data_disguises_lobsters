@@ -7,6 +7,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use rand::distributions::{Distribution, Uniform};
 use log::{debug, warn, error};
+use std::sync::atomic::{Ordering, AtomicU64};
 
 use crate::{helpers, views, ID_COL};
 use crate::views::{Views, RowPtrs, RowPtr};
@@ -14,6 +15,7 @@ use crate::policy::{GhostColumnPolicy, GeneratePolicy, EntityGhostPolicies};
 
 pub const GHOST_ID_START : u64 = 1<<20;
 pub const GHOST_ID_MAX: u64 = 1<<30;
+static LAST_GID: AtomicU64 = AtomicU64::new(GHOST_ID_START);
 
 /* 
  * a single table's ghosts and their rptrs
@@ -77,12 +79,34 @@ pub fn is_ghost_eidval(val: &Value) -> bool {
     gid >= GHOST_ID_START
 }
 
+pub fn insert_ghost_for_eid(template: &TemplateEntity,
+                            views: &Views,
+                            gp: &EntityGhostPolicies,
+                            db: &mut mysql::Conn) 
+    -> Result<u64, mysql::Error> 
+{
+    let start = time::Instant::now();
+    let gid = self.LAST_GID.fetch_add(1, Ordering::SeqCst) + 1;
+    let new_entities = generate_new_ghosts_with_gids(
+        views, gp, db, template,
+        &vec![Value::Number(gid.to_string())], 
+        &mut self.nqueries)?;
+
+    let new_family = GhostFamily{
+        root_table: self.table_name.clone(),
+        root_gid: gid,
+        family_members: new_entities,
+    };
+    
+    warn!("{} insert_ghost_for_eid {}, {}: {}us", self.name, gid, eid, dur.as_millis());
+    Ok(gid)
+}
+
 pub fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {
-    let between = Uniform::from(GHOST_ID_START..GHOST_ID_MAX);
-    let mut rng = rand::thread_rng();
     let mut gids = vec![];
-    for _ in 0..needed {
-        gids.push(Value::Number(between.sample(&mut rng).to_string()));
+    let first_gid = self.LAST_GID.fetch_add(needed, Ordering::SeqCst) + 1;
+    for n in 0..needed {
+        gids.push(Value::Number((first_gid + n).to_string()));
     }
     gids
 }
