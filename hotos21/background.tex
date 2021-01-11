@@ -1,41 +1,74 @@
 \section{Background}
 
+\subsection{Decoupling User Data from Applications}
+Prior work~\cite{solid, amber, w5, blockstack, bstore} decouples the storage of user data
+from application logic. Applications agree upon a standard format for data storage, and compute on
+decentralized, per-user datastores hosted by a trusted third-party provider or the user.
+Application logic runs on user clients (\eg JavaScript in users' browsers~\cite{solid,
+blockstack, bstore}), and queries individual datastores to access user data (see Figure~\ref{fig:world}b).
+
+Although this paradigm grants users more control over applications' access to their data, users must
+decide on appropriate access control and authentication policies, and are burdened with long-term
+data maintenance and storage. If users do not self-host, they must trust (and
+potentially pay for) a third party provider to manage their data. Current providers in
+Solid~\cite{solid} provide no security or stability guarantees, and others that use PKI (\eg Blockstack~\cite{blockstack}) require users to maintain a master private key, a fragile solution in which losing the key results in permanent loss of all the user's data.
+
+Many applications that perform data-intensive service-side computation and rely on data sharing
+between users (\eg online stores or social networks) experience large performance loss due to the
+additional access control checks and remote queries to user datastores. Application
+developers can no longer program over application-specific SQL databases, and lose the flexibility and performance that results from specialized schemas and data storage.
+Decoupling user data also eliminates the current revenue model for web applications, which relies on access
+to user data. Projects such as Solid~\cite{solid} currently rely on open-source application
+development, and free hosting by providers, a revenue model that may be unsustainable
+long-term.
+
+Our proposed subscription paradigm provides a middle ground between the current way users interact
+with web applications, and the complete decoupling of user data from web applications. While a
+subscription paradigm lacks the single, unified data location where users store all their data,
+users can still control applications' access to their personal data by removing it at will, without
+any permanent consequences.  A subscription paradigm preserves the current web architecture and all
+its performance benefits, removing the need for applications to compute over and query for remote
+data.  When users enter privacy-preserving mode, a subscription paradigm does not require the user
+to secure or manage this data, or handle the intricacies of access control (described in
+Section~\ref{sec:design:storage}).
+
+\subsection{Subscription Support in Applications Today}
 \begin{table*}[]
     \centering
     \footnotesize
 \begin{tabular}{@{}rccccl@{}}
 \multicolumn{1}{c}{}       &
-\textbf{Automated} & \textbf{Removes User Identifier} & \textbf{Retains Data} & \textbf{Resubscription} &  
+    \textbf{Automated} & \textbf{Retains Data} & \textbf{Removes User Identifiers} & \textbf{Resubscription} &  
   \\ \cmidrule(r){1-5}
 \textbf{Facebook/Instagram Account Deletion}~\cite{facebook:privacy} 
-  & \CIRCLE  & \LEFTcircle & \CIRCLE  &    &  
+  & \CIRCLE  & \CIRCLE & \LEFTcircle &    &  
   \\ \cmidrule(r){1-5}
   \textbf{Facebook/Instagram Account Deactivation}~\cite{facebook:privacy} 
-  & \CIRCLE & & \CIRCLE  & \CIRCLE    &  
+  & \CIRCLE & \CIRCLE & & \CIRCLE    &  
   \\ \cmidrule(r){1-5}
 \textbf{Twitter Account Deletion}~\cite{twitter:privacy}  
-  & \CIRCLE &  \LEFTcircle & \CIRCLE  &    &  
+  & \CIRCLE  & \CIRCLE & \LEFTcircle &    &  
   \\ \cmidrule(r){1-5}
 \textbf{Twitter Account Deactivation}~\cite{twitter:privacy} 
-  & \CIRCLE  &    & \CIRCLE  & \CIRCLE    &  
+  & \CIRCLE & \CIRCLE & & \CIRCLE    &  
   \\ \cmidrule(r){1-5}
 \textbf{Reddit}~\cite{reddit:privacy}        
   & \CIRCLE  & \CIRCLE  & \CIRCLE  &    
   &  \\ \cmidrule(r){1-5}
  \textbf{Hacker News}~\cite{hackernews:privacy}
-  &   & \LEFTcircle & \CIRCLE  &    &  
+    &   & \CIRCLE & \LEFTcircle &    &  
   \\ \cmidrule(r){1-5}
  \textbf{Lobsters}~\cite{lobsters:privacy}
-  & \CIRCLE  & \LEFTcircle & \CIRCLE  &    &  
+    & \CIRCLE  & \CIRCLE & \LEFTcircle &    &  
   \\ \cmidrule(r){1-5}
  \textbf{Amazon}~\cite{amazon:privacy}        
-  &   & \LEFTcircle    & \CIRCLE  &    &  
+  &   & \CIRCLE  & \LEFTcircle   &    &  
   \\ \cmidrule(r){1-5}
  \textbf{PrestaShop}~\cite{prestashop:privacy}       
   &   & \CIRCLE  & \CIRCLE  &    &  
   \\ \cmidrule(r){1-5}
  \textbf{HotCRP}~\cite{hotcrp:privacy}        
-  &   & \LEFTcircle    & \CIRCLE  &    &  
+    &   & \CIRCLE & \LEFTcircle    &    &  
   \\ \cmidrule(r){1-5}
  \textbf{GitHub}~\cite{github:privacy}        
   & \CIRCLE  & \CIRCLE  & \CIRCLE  &    &  
@@ -44,7 +77,7 @@
   &   & \CIRCLE  & \CIRCLE  &    &  
   \\ \cmidrule(r){1-5}
  \textbf{Strava}~\cite{strava:privacy}        
-  &   & \LEFTcircle    & \CIRCLE  &    &  
+    &   & \CIRCLE & \LEFTcircle    &    &  
   \\ \cmidrule(r){1-5}
 \end{tabular}
  \caption{The characteristics of unsubscription in a range of web applications.
@@ -52,24 +85,18 @@
     identifier post-unsubscription, but makes efforts to remove it from other data.}
     \label{tab:apps}
 \end{table*}
-
 We study support for unsubscription and resubscription in a range of widely-used 
 enterprise and open-source applications, including social media and news-feed applications, e-Commerce
 applications, and other specialized services.
-%such as
-%Facebook, Instagram, Twitter, Reddit, Hacker News, and Lobsters; e-Commerce applications such as
-%Amazon and PrestaShop; and other specialized services such as HotCRP, GitHub, Spotify, and Strava.
 Table~\ref{tab:apps} summarizes the unsubscription characteristics of each application. We focus on
 four characteristics: 
 \begin{enumerate}
     \item Is unsubscription automated, or does the user need to email or call the
 application developers or customer service directly? 
-    \item Does the application's privacy policy (or code, when available) remove all traces of user
-        identifiers (\eg username, user IDs, emails) either by removing it or replacing it with an
-        anonymized identifier?
-    \item Does the application retain any of the unsubscribing user data, or is all data removed?
-    \item Does unsubscription allow for resubscription, in which unsubscribed users can regain control of their
-        account and account data?
+    \item Does the application retain any of the unsubscribing user's data, or is all data removed?
+    \item Does the application promise to remove all traces of user identifiers (\eg username, user
+    IDs, emails) either by removing it or replacing it with an anonymized identifier?  
+    \item Can users resubscribe, \ie regain control of their account and account data?
 \end{enumerate}
 Fewer than half of the services surveyed provide automated unsubscription; all others require the
 user to email or call the application maintainers or support. As a more comprehensive study,

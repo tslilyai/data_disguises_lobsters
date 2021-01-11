@@ -3621,8 +3621,8 @@ generate_and_set	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/
 generate_blocks	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/fortuna.rs	/^    fn generate_blocks(&mut self, k: usize, out: &mut [u8]) {$/;"	f
 generate_foreign_key_val	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub fn generate_foreign_key_val($/;"	f
 generate_iter	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/hex-0.4.2/src/lib.rs	/^fn generate_iter(len: usize) -> impl Iterator<Item = (usize, usize)> {$/;"	f
-generate_new_ghost_gids	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {$/;"	f
-generate_new_ghosts_with_gids	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub fn generate_new_ghosts_with_gids($/;"	f
+generate_new_ghost_gids	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {$/;"	f
+generate_new_ghosts_from	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub fn generate_new_ghosts_from($/;"	f
 generate_random_data	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/fortuna.rs	/^    fn generate_random_data(&mut self, out: &mut [u8]) {$/;"	f
 get	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/env_logger-0.7.1/src/lib.rs	/^    fn get(&self) -> Option<String> {$/;"	f
 get	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/log-0.4.11/src/kv/source.rs	/^        fn get() {$/;"	f
@@ -3965,8 +3965,8 @@ insert	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json
 insert	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^    pub fn insert(&mut self, value: Value) -> Value {$/;"	f
 insert	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^    pub fn insert(self, value: Value) -> &'a mut Value {$/;"	f
 insert	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn insert(&mut self, table_name: &str, columns_opt: Option<&Vec<Ident>>, val_rows: &RowPtrs) -> Result<(), Error> {$/;"	f
-insert_ghost_for_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub fn insert_ghost_for_eid(template: &TemplateEntity,$/;"	f
 insert_ghost_for_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn insert_ghost_for_eid(&mut self, $/;"	f
+insert_ghost_for_template	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn insert_ghost_for_template(&mut self, $/;"	f
 insert_gid_into_caches	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn insert_gid_into_caches(&mut self, eid:u64, gfam: GhostFamily) {$/;"	f
 insert_into_index	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn insert_into_index(&mut self, row: Rc<RefCell<Row>>, col_index: usize) {$/;"	f
 insert_into_unsubscribed_table	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^pub fn insert_into_unsubscribed_table(db: &mut mysql::Conn, eid: u64, hash1: &str, hash2: &str) -> Result<(), mysql::Error> {$/;"	f

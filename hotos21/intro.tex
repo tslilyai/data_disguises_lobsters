@@ -2,6 +2,16 @@
 \section{Introduction}
 %-------------------------------------------------------------------------------
 
+\begin{figure*}[ht!]
+    \centering
+    \includegraphics[width=\textwidth]{img/worlds}
+
+    \caption{\textbf{(a)} The current web application paradigm, in which applications maintain and
+    own user data; \textbf{(b)} A paradigm that decouples user data from web applications, giving users ownership of their data;
+    \textbf{(c)} A subscription paradigm, which allows users to switch between privacy-preserving unsubscribed mode (right) and identity-revealing subscribed mode (left).}
+    \label{fig:world}
+\end{figure*}
+
 Web applications today own, store, and sell user data, often without the user's knowledge or
 explicit consent~\cite{nytimes:fb, npr:data}. This both violates users' right for privacy, and has
 dangerous consequences for both users and application developers as data leaks lead to loss of
@@ -10,11 +20,10 @@ breach:quora}.
 %Granting web applications complete ownership of personal data clearly fails to
 %protect users' privacy. 
 
-Although users want stronger privacy, giving users complete ownership of their data and removing
-data from applications results in a potentially even less desirable world. While
-possible~\cite{amber, w5, blockstack, bstore}, such a model hinders service-side computation
-and application performance, and requires users to manage long-time security and storage of their
-data, leading to a lack of adoption in practice.  
+Although users want stronger privacy, completely decoupling user data from applications results in a
+potentially even less desirable world. While possible~\cite{solid, amber, w5, blockstack, bstore}, such a
+model hinders service-side computation and application performance, and requires users to manage
+long-time security and storage of their data, leading to a lack of adoption in practice.  
 
 This paper proposes a new paradigm that grants users flexible privacy when using web applications,
 balancing users' desire for privacy with their desire for application utility. In this
@@ -65,15 +74,4 @@ systematically automate the process for new and existing applications. As a firs
 \sys, a practical system that provides abstractions and mechanisms to help developers of databased-backed web
 applications achieve correct, privacy-compliant user unsubscription and resubscription without
 onerous labor.
-
-\begin{figure*}[ht!]
-    \centering
-    \includegraphics[width=\textwidth]{img/worlds}
-
-    \caption{\textbf{(a)} The existing world of web applications, with applications maintaining and
-    owning user data; \textbf{(b)} A world in which users have complete ownership of their data in cloud or local
-    storage, and grant applications access to their data;
-    \textbf{(c)} Our proposed subscription paradigm, which allows users to switch between privacy-preserving unsubscribed mode (right) and identity-revealing subscribed mode (left).}
-    \label{fig:world}
-\end{figure*}
 

@@ -57,7 +57,8 @@ impl GhostFamily {
 #[derive(Serialize, Deserialize, PartialOrd, Ord, PartialEq, Eq, Clone, Debug)]
 pub struct GhostEidMapping {
     pub table: String,
-    pub eid2gidroot: Option<(u64, u64)>,
+    pub eid: u64,
+    pub root_gid: u64,
     pub ghosts: Vec<(String, u64)>,
 }
 
@@ -79,30 +80,7 @@ pub fn is_ghost_eidval(val: &Value) -> bool {
     gid >= GHOST_ID_START
 }
 
-pub fn insert_ghost_for_eid(template: &TemplateEntity,
-                            views: &Views,
-                            gp: &EntityGhostPolicies,
-                            db: &mut mysql::Conn) 
-    -> Result<u64, mysql::Error> 
-{
-    let start = time::Instant::now();
-    let gid = self.LAST_GID.fetch_add(1, Ordering::SeqCst) + 1;
-    let new_entities = generate_new_ghosts_with_gids(
-        views, gp, db, template,
-        &vec![Value::Number(gid.to_string())], 
-        &mut self.nqueries)?;
-
-    let new_family = GhostFamily{
-        root_table: self.table_name.clone(),
-        root_gid: gid,
-        family_members: new_entities,
-    };
-    
-    warn!("{} insert_ghost_for_eid {}, {}: {}us", self.name, gid, eid, dur.as_millis());
-    Ok(gid)
-}
-
-pub fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {
+fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {
     let mut gids = vec![];
     let first_gid = self.LAST_GID.fetch_add(needed, Ordering::SeqCst) + 1;
     for n in 0..needed {
@@ -111,20 +89,20 @@ pub fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {
     gids
 }
 
-pub fn generate_new_ghosts_with_gids(
+pub fn generate_new_ghosts_from(
     views: &Views,
     ghost_policies: &EntityGhostPolicies,
     db: &mut mysql::Conn,
 
     template: &TemplateEntity, 
-    gids: &Vec<Value>,
-    nqueries: &mut usize,
+    num_ghosts: usize,
 ) -> Result<Vec<TableGhostEntities>, mysql::Error>
 {
     use GhostColumnPolicy::*;
     let start = time::Instant::now();
     let mut new_entities : Vec<TableGhostEntities> = vec![];
     let from_cols = views.get_view_columns(&template.table);
+    let gids = generate_new_ghost_gids(num_ghosts);
 
     // NOTE : generating entities with foreign keys must also have ways to 
     // generate foreign key entity or this will panic
@@ -172,41 +150,16 @@ pub fn generate_new_ghosts_with_gids(
                 // clone the value for the first row
                 new_vals[0].borrow_mut()[i] = template.row.borrow()[i].clone();
                 for n in 1..num_entities {
-                    new_vals[n].borrow_mut()[i] = get_generated_val(views, ghost_policies, db, &gen, clone_val, &mut new_entities, nqueries)?;
+                    new_vals[n].borrow_mut()[i] = get_generated_val(views, ghost_policies, &gen, clone_val, &mut new_entities)?;
                 }
             }
             Generate(gen) => {
                 for n in 0..num_entities {
-                    new_vals[n].borrow_mut()[i] = get_generated_val(views, ghost_policies, db, &gen, clone_val, &mut new_entities, nqueries)?;
+                    new_vals[n].borrow_mut()[i] = get_generated_val(views, ghost_policies, &gen, clone_val, &mut new_entities)?;
                 }
             }
         }
     }
- 
-    // insert new rows into actual data tables 
-    let mut parser_rows = vec![];
-    for row in &new_vals {
-        let parser_row = row.borrow().iter()
-            .map(|v| Expr::Value(v.clone()))
-            .collect();
-        parser_rows.push(parser_row);
-    }
-    let source = InsertSource::Query(Box::new(Query{
-        ctes: vec![],
-        body: SetExpr::Values(Values(parser_rows)),
-        order_by: vec![],
-        limit: None,
-        fetch: None,
-        offset: None,
-    }));
-    let dt_stmt = Statement::Insert(InsertStatement{
-        table_name: helpers::string_to_objname(&template.table),
-        columns : from_cols.clone(),
-        source : source, 
-    });
-    warn!("new entities issue_insert_dt_stmt: {} dur {}", dt_stmt, start.elapsed().as_micros());
-    db.query_drop(dt_stmt.to_string())?;
-    *nqueries+=1;
 
     new_entities.push(TableGhostEntities{
         table: template.table.to_string(), 
@@ -225,8 +178,7 @@ pub fn generate_foreign_key_val(
     db: &mut mysql::Conn,
     table_name: &str,
     template_eid: u64,
-    new_entities: &mut Vec<TableGhostEntities>,
-    nqueries: &mut usize) 
+    new_entities: &mut Vec<TableGhostEntities>)
     -> Result<Value, mysql::Error> 
 {
     // assumes there is at least one value here...
@@ -237,14 +189,13 @@ pub fn generate_foreign_key_val(
 
     warn!("GHOSTS: Generating foreign key entity for {} {:?}", table_name, parent_table_row);
     new_entities.append(&mut generate_new_ghosts_with_gids(
-        views, ghost_policies, db, 
+        views, ghost_policies, 
         &TemplateEntity{
             table: table_name.to_string(),
             row: parent_table_row,
             fixed_colvals: None,
         },
         &vec![gidval.clone()],
-        nqueries,
     )?);
     Ok(gidval)
 }
@@ -256,7 +207,6 @@ pub fn get_generated_val(
     gen: &GeneratePolicy, 
     base_val: &Value,
     new_entities: &mut Vec<TableGhostEntities>,
-    nqueries: &mut usize
 ) -> Result<Value, mysql::Error> {
     use GeneratePolicy::*;
     match gen {
@@ -264,8 +214,8 @@ pub fn get_generated_val(
         Default(val) => Ok(helpers::get_default_parser_val_with(&base_val, &val)),
         Custom(f) => Ok(helpers::get_computed_parser_val_with(&base_val, &f)),
         ForeignKey(table_name) => generate_foreign_key_val(
-            views, ghost_policies, db, 
+            views, ghost_policies, 
             table_name, helpers::parser_val_to_u64(base_val),
-            new_entities, nqueries),
+            new_entities),
     }
 }
