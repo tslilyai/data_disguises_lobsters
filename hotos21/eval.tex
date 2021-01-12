@@ -177,7 +177,7 @@ the paper conflict and its parents.
 %
 
 \subsection{\proto Performance}
-We write a prototype implementation for \proto in Rust, which acts as an in-memory shim layer on top
+We implemented a prototype for \proto as an in-memory shim layer on top
 of a MySQL database, allowing \sys to intercept and process queries sent by the application frontend. 
 %To amortize the cost of unsubscription and resubscription, \sys preemptively creates, stores, and
 %links ghost parent entities to child entities if an update creates an edge that may be decorrelated.
@@ -186,7 +186,7 @@ of a MySQL database, allowing \sys to intercept and process queries sent by the 
 %propagate to the materialized views when the underlying database is updated. \sys answers
 %application queries using these materialized views, hiding the complexity of ghost entity and
 %decorrelation management.
-\sys is build in 5K LoC of Rust, and adds \texttt{UNSUBSCRIBE
+Our prototype consists of 5K LoC of Rust, and adds \texttt{UNSUBSCRIBE
 [user]} and \texttt{RESUBSCRIBE [user] WITH [user\_data]} calls as supported database queries.
 
 \begin{itemize}
