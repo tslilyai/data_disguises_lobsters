@@ -90,19 +90,18 @@ how these ghosts are created next.
     \label{tab:ghosting}
 \end{table*}
 
-\sys generates ghost entities in order to break correlations between child and parent entities, and
-to transform the contents of real entities. 
-In order for \sys to generate ghost entities, developers must define ghost generation policies for
-each entity type.  \sys assumes entities have three kinds of attributes: a unique identifier
-attribute; value (non-referential) attributes such as timestamps or usernames; and edge (referential
-foreign key) attributes that identify correlations to parent entities.  Value attributes may
-directly expose identifying information from its contents, and edge attributes represent potentially
-sensitive structural correlations. In Table~\ref{tab:ghosting}, the \texttt{id} attribute is the
-identifier attribute, the \texttt{title} and \texttt{outcome} attributes are value attributes, and
-\texttt{leadContactId} is an edge attribute, containing a foreign key to the ContactInfo (users)
-table.
-Developers specify how \sys should generate each of these
-attributes, given a template real entity.
+\sys generates ghost entities in order to break correlations between child and parent entities
+(reassigning the child to a ghost parent), and to transform the contents of real entities (\eg
+anonymization). In order for \sys to generate ghost entities,
+developers must define ghost generation policies for each entity type.  \sys assumes entities have
+three kinds of attributes: a unique identifier attribute; value (non-referential) attributes such as
+timestamps or usernames; and edge (referential foreign key) attributes that identify correlations to
+parent entities.  Value attributes may directly expose identifying information from its contents,
+and edge attributes represent potentially sensitive structural correlations. In
+Table~\ref{tab:ghosting}, the \texttt{id} attribute is the identifier attribute, the \texttt{title}
+and \texttt{outcome} attributes are value attributes, and \texttt{leadContactId} is an edge
+attribute, containing a foreign key to the ContactInfo (users) table.  Developers specify how \sys
+should generate each of these attributes, given a template real entity.
 
 \sys always generates ghost entities with unique identifier attribute values.
 
@@ -110,8 +109,11 @@ For each value and edge attribute of each entity type, developers specify a \emp
 which take as input a template entity's attribute value.  Ghosting policies determine whether the
 template value should be \emph{cloned}---remain unchanged---in one or all ghost entities, or whether
 a new generated value should be created instead. Cloning enables the application to retain
-the original template entity data: for example, HotCRP may want to ensure that one ghost user
-generated from the real user clones the user's roles, while assigning all other ghosts no roles.
+the original template entity data. For example, Table~\ref{tab:ghosting} shows a policy that clones
+paper attributes once, retaining the paper's information, but breaking correlations between entities
+that have edges (foreign key relationships) to the paper.\lyt{This example might be hard to
+understand, since edge policies/decorrelation haven't been introduced yet?}
+
 \sys provides the following ghosting policies:
 \begin{itemize}
     \item \texttt{CloneAll:} All ghosts generated from the same template share the template's 
@@ -121,25 +123,18 @@ generated from the real user clones the user's roles, while assigning all other 
     \item \texttt{GenerateAll:} 
         For value attributes, developers specify whether the ghost attribute value should be
         random, a default value, or generated from the template value via a custom function.
-        
         For edge attributes, \sys generates a new parent ghost entity, and uses the parent ghost
         identifier as the edge attribute value.
 
     \item \texttt{CloneOne:} One ghost entity shares the same value for the attribute as the
-        template. 
-        
-        For value attributes, developers specify whether the rest of the ghosts' attribute value should be
-        random, a default value, or generated from the template value via a custom function.
+        template. For value attributes, developers specify whether the rest of the ghosts' attribute
+        value should be random, a default value, or generated from the template value via a custom
+        function.  For edge attributes, \sys generates a new parent ghost entity for each of the
+        remaining ghosts, and uses the parent ghost identifier as the attribute value.
 
-        For edge attributes, \sys generates a new parent ghost entity for each of the remaining
-        ghosts, and uses the parent ghost identifier as the attribute value.
-
-        If multiple attributes have \texttt{CloneOne} ghosting policies, the same ghost entity will
-        contain the cloned values for all those attributes; all other ghost entities will have
-        generated values.
+        The same ghost entity will have cloned values for all attributes with a
+        \texttt{CloneOne} policy.
 \end{itemize}
-Table~\ref{tab:ghosting} demonstrates ghost generation using a \texttt{CloneOne} policies for paper
-value and edge attributes.
 
 %During unsubscription, \sys traverses the current instance of the application entity graph with the
 %top-level unsubscribing user node as the root in order to find all possible graph edges and nodes
