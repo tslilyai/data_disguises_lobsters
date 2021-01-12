@@ -1,65 +1,63 @@
-\section{Subscription Paradigm Requirements and Challenges}
+\section{\sys Requirements \& Challenges}
 
-A subscription paradigm should meet three requirements: (1) applications must \emph{selectively
-retain} unsubscribed users' data for necessary legal or application
-purposes; (2) unsubscription must properly \emph{de-identify} the user by
-removing any possibly identifiable information, or decorrelating this information from the user's
-identity; and (3) users must be allowed to \emph{resubscribe} without losing their account history
-or data; unsubscription should have no permanent consequences. We next describe each requirement and its
-challenges in greater detail.
+To achieve \sys, a system must meet three requirements: it must (1) enable applications to
+\emph{selectively retain} unsubscribed users' data for necessary legal or application purposes; (2)
+properly \emph{de-identify} the user upon unsubscription by removing any possibly identifiable
+information, or decorrelating this information from the user's identity; and (3) allow users to
+\emph{resubscribe} without losing their account history or data, so unsubscription has no permanent
+consequences. We next describe each requirement and the challenges to achieve it in greater detail.
 
 \paragraph{Selective Retention.}
-Retained data has two main purposes. First, retained data preserves legal or
-necessary information about an individual user in isolation. For example, e-commerce applications
-retain order history for legal purposes.
-Retained data also maintains application utility for other subscribed users of the application.
-Social media and news feed applications preserve private messages for thread coherence; Reddit and
-Lobsters retain all previously posted user content, as the essence of the application's utility is
-its site content.  HotCRP, open-source software for managing conference reviews and paper
-submissions, indefinitely stores and distributes submissions and reviews from all conferences so
-that users can reference their past prior conference reviews and paper metadata. Strava, a social
-network for tracking workouts, retains users' geolocation data on public routes for other users to
-see which routes are popular.
+Retained data has two main purposes, to preserve legal or
+necessary information about an individual user (\eg order history in e-commerce applications), and
+to maintains application utility for other subscribed users of the application.  Social media
+applications retain private messages for thread coherence; news feed applications like Reddit retain
+previous posts, the main source of utility for other users of the sites.  HotCRP, conference review
+and paper submission software, indefinitely stores and distributes submissions and reviews so users
+can reference their past reviews and paper feedback. Strava, a workout tracking social network,
+retains geolocation data for other users to see which routes are popular.
 
-Developers must use their understanding of application semantics to pinpoint exactly what 
-to retain post-unsubscription, and prevent accidental deletion or retention of application
-data.
+Under \sys, developers should be able to to specify exactly what data to retain 
+post-unsubscription, and prevent accidental data deletion or retention.
 
 \paragraph{De-Identification.}
-While applications may want to retain data, this data should be properly de-identified. As shown in
-Table~\ref{tab:apps}, applications often fail to do so, and retain user identifiers along with their
-data. 
-
-Some applications do make efforts to de-identify retained data by replacing user identifiers with a
-placeholder user identifier, or removing data associated with user identifiers.  However, simply
-removing or anonymizing user identifiers often fails to sufficiently de-identify retained data.
-Correlations from retained data to \emph{other} application data or metadata can still identify
-unsubscribed users. For example, PrestaShop orders with the same timestamp, or ordered to the same
-location likely belong to the same user, and a user's order history can be clearly identifying.
-Anonymized posts with the same flairs or custom tags on Reddit or Lobsters can identify which user
-made the posts.
+If applications retain data, this data should be properly de-identified. As shown in
+Table~\ref{tab:apps}, applications often fail to do so.
+Those applications that do make efforts to de-identify data replace user identifiers with a
+placeholder user identifier, or remove user-associated data. However, simply removing or
+anonymizing user identifiers often fails to sufficiently de-identify retained data. Correlations
+from retained data to \emph{other} application data or metadata can still identify unsubscribed
+users. For example, PrestaShop orders with the same timestamp, or ordered to the same location
+likely belong to the same user, and a user's order history can be clearly identifying.  Anonymized
+posts with the same flairs or custom tags on Reddit or Lobsters can identify which user made the
+posts.
 
 Because of these subtle and complex indirect information leaks from data relationships, many
 applications choose to forgo data retention completely in order to ensure proper de-identification.
 For example, when HotCRP users unsubscribe, 
-%While HotCRP developers would prefer to
-%retain review and paper data, doing so while de-identifying the user is not easy. 
-HotCRP cannot only remove user identifiers: correlations with data such as
-conflicts with other reviewers can indirectly identify the user's affiliation and recent
-collaborations, and the user themselves. Instead, HotCRP chooses to reduce its
-utility for others users by completely removing the unsubscribing user's data, a solution that clearly would not work in a world where
-users frequently unsubscribe at any time.
-%HotCRP removes the user's data completely, at the
-%cost of other users who reference those reviews and papers. 
+%While HotCRP developers would prefer to retain review and paper data, doing so while de-identifying
+%the user is not easy. 
+HotCRP cannot only remove user identifiers: correlations with data such as conflicts with other
+reviewers can indirectly identify the user's affiliation and recent collaborations, and the user
+themselves. Instead, HotCRP chooses to reduce its utility for others users by completely removing
+the unsubscribing user's data, a solution that clearly would not work in a world where users
+frequently unsubscribe at any time.
+%HotCRP removes the user's data completely, at the cost of other users who reference those reviews
+%and papers. 
+
+Under \sys, developers should be able to easily detect, specify, and modify or remove problematic
+content or correlations, and users should know exactly what identifying information may be left
+behind. However, the \sys paradigm does not aim to completely solve the open problem of achieving sufficient
+de-identification and anonymization.
 
 \paragraph{Resubscription.}
 Resubscription must recorrelate any retained data with the original owner, and restore any removed
 data. Today, applications either retain all data and forgo de-identification entirely
 (Facebook/Twitter Account Deactivation) to support resubscription, or remove and anonymize data
-permanently without allowing users to resubscribe. Correctly supporting resubscription requires the
-application or user to store additional information necessary for recorrelation, but must do so
-without unduly burdening the application or user, and without adding any identifying information
-about unsubscribing users to the system.
+permanently without allowing users to resubscribe. Supporting resubscription requires storing
+information necessary for recorrelation and restoring users' accounts, but should not unduly burden
+either the application or user, or add any identifying information about unsubscribing users to the
+system.
 
 %HotCRP
 %users---particularly reviewers---would prefer that their blinded reviews never become publically

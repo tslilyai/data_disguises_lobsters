@@ -8,7 +8,7 @@
 
     \caption{\textbf{(a)} The current web application paradigm, in which applications maintain and
     own user data; \textbf{(b)} A paradigm that decouples user data from web applications, giving users ownership of their data;
-    \textbf{(c)} A subscription paradigm, which allows users to switch between privacy-preserving unsubscribed mode (right) and identity-revealing subscribed mode (left).}
+    \textbf{(c)} \sys, which allows users to switch between privacy-preserving unsubscribed mode (right) and identity-revealing subscribed mode (left).}
     \label{fig:world}
 \end{figure*}
 
@@ -25,22 +25,22 @@ potentially even less desirable world. While possible~\cite{solid, amber, w5, bl
 model hinders service-side computation and application performance, and requires users to manage
 long-time security and storage of their data, leading to a lack of adoption in practice.  
 
-This paper proposes a new paradigm that grants users flexible privacy when using web applications,
-balancing users' desire for privacy with their desire for application utility. In this
-\emph{subscription} paradigm, users subscribe to applications by granting a time-limited lease to
-their data, with the provision that the application may retain only de-identified information once
-the user unsubscribes. Users flexibly switch between a privacy-preserving unsubscribed mode and an
-identity-revealing subscribed mode at any time without permanently losing their data. A
-subscription paradigm contrasts with the current state of web application privacy today, in which
-applications have complete ownership of personal data, and the other extreme world of strong
-privacy, in which the user has complete data ownership (see Figure~\ref{fig:world}). 
+This paper proposes \sys, a new paradigm that grants users flexible privacy when using web
+applications, balancing users' desire for privacy with their desire for application utility. In
+\sys, users subscribe to applications by granting a time-limited lease to their data, with the
+provision that the application may retain only de-identified information once the user unsubscribes.
+Users flexibly switch between a privacy-preserving unsubscribed mode and an identity-revealing
+subscribed mode at any time without permanently losing their data. \sys contrasts
+with the current state of web application privacy today, in which applications have complete
+ownership of personal data, and the other extreme world of strong privacy, in which the user has
+complete data ownership (see Figure~\ref{fig:world}). 
 
-A subscription paradigm benefits users: they can choose privacy at any time, without
+\sys benefits users: they can choose privacy at any time, without
 permanently losing their accounts or affecting the utility of the applications for others.  Just as
-importantly, a subscription paradigm  also benefits application developers. Recent laws such as the
+importantly, \sys also benefits application developers. Recent laws such as the
 European Union's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's Consumer
 Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' rights to data ownership, granting users the
-right to request erasure of information related to them. Supporting a subscription paradigm enables
+right to request erasure of information related to them. Supporting \sys enables
 applications to comply with these legal mandates, while still allowing its departing users to easily
 come back: if applications must let users leave, it is in their best interest to make it easy for
 them to return.  
@@ -53,7 +53,7 @@ application holds only identifying data for subscribed users, reducing the amoun
 compromising data in the system to only those users who have actively agreed to temporarily give up
 their privacy.
 
-Even with legal incentives in place, this subscription paradigm is far from realized.
+Even with legal incentives in place, \sys is far from realized.
 Unsubscription and resubscription requires complex and fragile data transformations: 
 developers must selectively retain unsubscribed users' data for legal or application purposes while
 properly de-identifying this data, a non-trivial task in the face of subtle inference attacks (\eg
@@ -69,8 +69,8 @@ unsubscription thus permanently deletes years or even decades of accumulated app
 costing both users and the web application, and creating little incentive for the application to
 support easy unsubscription. 
 
-To make a subscription paradigm a reality, we need new tools that allow developers to easily and
-systematically automate the process for new and existing applications. As a first step, we propose
-\sys, a practical system that provides abstractions and mechanisms to help developers of databased-backed web
+To make \sys a reality, we need new tools that allow developers to easily and
+systematically automate the process for new and existing applications. As a first step, we design 
+\proto, a practical system that provides abstractions and mechanisms to help developers of databased-backed web
 applications achieve correct, privacy-compliant user unsubscription and resubscription without
 onerous labor.

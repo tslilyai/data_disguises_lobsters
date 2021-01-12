@@ -1,20 +1,24 @@
 \section{Approach}
-As a first step in solving these challenges, we present \sys, a system that provides abstractions
-and mechanisms to help developers of databased-backed web applications achieve correct,
-privacy-compliant, and automatic unsubscription and resubscription without onerous labor.
+To solve these challenges, we present \proto, a system designed to achieve the \sys paradigm.
+\proto provides abstractions and mechanisms to help developers of databased-backed web applications
+achieve correct, privacy-compliant, and automatic unsubscription and resubscription without onerous
+labor.
+\proto transparently supports unsubscription and resubscription while still achieving performance
+comparable to today’s widely-used databases, and requiring no modification to application schemas or
+architecture.
 
-With \sys, developers write an \emph{unsubscription policy} that specifies the high-level,
+With \proto, developers write an \emph{unsubscription policy} that specifies the high-level,
 post-unsubscription state of application data.  The policy indicates how the database contents need
 to change to meet de-identification requirements on user unsubscription, while still retaining data
-necessary for the application to function. \sys then turns this policy into a set of concrete,
-executed database operations that systematically remove, anonymize, and structurally
-\emph{decorrelate} user data upon unsubscription to meet the resulting spec. \sys 
+necessary for the application to function. \proto then turns this policy into a set of concrete,
+executed database operations that prototematically remove, anonymize, and structurally
+\emph{decorrelate} user data upon unsubscription to meet the resulting spec. \proto 
 encrypts decorrelated or removed user data with a user-specific key, which can be either
 password-encrypted by the application, or secret shared~\cite{secretsharing} with a trusted third
-party. \sys provides a way for the application to store the encrypted blob, and deletes the plaintext
+party. \proto provides a way for the application to store the encrypted blob, and deletes the plaintext
 data.
 
-\sys's policy abstractions require knowledge of only the application schema and the high-level
+\proto's policy abstractions require knowledge of only the application schema and the high-level
 application's semantics. Using these abstractions, developers pinpoint how identifying information
 leaks either (1) directly via data content, or (2) indirectly via the structural \emph{correlations}
 (foreign key relationships) between data records. Developers use their application expertise to
@@ -22,10 +26,8 @@ select from a set of policy choices that alter these contents and correlations, 
 that provides the greatest amount of de-identification while still preserving application
 utility and correctness.
 
-When a user resubscribes, \sys decrypts and inserts missing data, automatically
-\emph{recorrelating} the data with the user account and other system data, and restoring the user to her
+When a user resubscribes, \proto decrypts and inserts missing data, automatically
+\emph{recorrelating} the data with the user account and other prototem data, and restoring the user to her
 original subscribed state as much as possible.
 
-Furthermore, \sys transparently supports unsubscription and resubscription while still achieving performance
-comparable to today’s widely-used databases, and requiring no modification to application schemas or
-architecture.
+

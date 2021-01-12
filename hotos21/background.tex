@@ -1,17 +1,21 @@
 \section{Background}
 
-\subsection{Decoupling User Data from Applications}
-Prior work~\cite{solid, amber, w5, blockstack, bstore} decouples the storage of user data
-from application logic. Applications agree upon a standard format for data storage, and compute on
-decentralized, per-user datastores hosted by a trusted third-party provider or the user.
-Application logic runs on user clients (\eg JavaScript in users' browsers~\cite{solid,
-blockstack, bstore}), and queries individual datastores to access user data (see Figure~\ref{fig:world}b).
+\subsection{Alternative Data Ownership Paradigms}
+Prior work~\cite{solid, amber, w5, blockstack, bstore} has proposed more extreme data ownership
+paradigms, all of which decouple the storage of user data from application logic. Applications agree
+upon a standard format for data storage, and compute on decentralized, per-user datastores hosted by
+a trusted third-party provider or the user.  Application logic runs on user clients (\eg JavaScript
+in users' browsers~\cite{solid, blockstack, bstore}), and queries individual datastores to access
+user data (see Figure~\ref{fig:world}b).
 
-Although this paradigm grants users more control over applications' access to their data, users must
-decide on appropriate access control and authentication policies, and are burdened with long-term
-data maintenance and storage. If users do not self-host, they must trust (and
-potentially pay for) a third party provider to manage their data. Current providers in
-Solid~\cite{solid} provide no security or stability guarantees, and others that use PKI (\eg Blockstack~\cite{blockstack}) require users to maintain a master private key, a fragile solution in which losing the key results in permanent loss of all the user's data.
+Although these paradigms grant users more control over applications' access to their data, users
+must decide on appropriate access control and authentication policies, and are burdened with
+long-term data maintenance and storage. If users do not self-host, they must trust (and potentially
+pay for) a third party provider to manage their data. Current providers in Solid~\cite{solid}
+provide no security or stability guarantees, and others that use PKI (\eg
+Blockstack~\cite{blockstack}) require users to maintain a master private key, a fragile solution in
+which losing the key results in permanent loss of all the user's data.
+%https://www.nytimes.com/2021/01/12/technology/bitcoin-passwords-wallets-fortunes.html
 
 Many applications that perform data-intensive service-side computation and rely on data sharing
 between users (\eg online stores or social networks) experience large performance loss due to the
@@ -22,13 +26,13 @@ to user data. Projects such as Solid~\cite{solid} currently rely on open-source 
 development, and free hosting by providers, a revenue model that may be unsustainable
 long-term.
 
-A subscription paradigm provides a middle ground between the current way users interact
-with web applications, and the complete decoupling of user data from web applications. While a
-subscription paradigm lacks the single, unified data location where users store all their data,
-users can still control applications' access to their personal data by removing it at will, without
-any permanent consequences.  A subscription paradigm preserves the current web architecture and all
+In constrast, \sys provides a middle ground between the current data ownership paradigm (web
+applications owning all user data), and these paradigms which decouple of user data from web applications. 
+While \sys lacks a single, unified data location where users store all their data,
+users gain control access to their personal data by taking it back from applications at will, without
+any permanent consequences.  \sys preserves the current web architecture and all
 its performance benefits, removing the need for applications to compute over and query for remote
-data.  When users enter privacy-preserving mode, a subscription paradigm does not require the user
+data.  When users enter privacy-preserving mode, \sys does not require the user
 to secure or manage this data, or handle the intricacies of access control (described in
 Section~\ref{sec:design:storage}).
 
@@ -85,11 +89,14 @@ Section~\ref{sec:design:storage}).
     identifier post-unsubscription, but makes efforts to remove it from other data.}
     \label{tab:apps}
 \end{table*}
-We study support for unsubscription and resubscription in a range of widely-used 
-enterprise and open-source applications, including social media and news-feed applications, e-Commerce
-applications, and other specialized services.
-Table~\ref{tab:apps} summarizes the unsubscription characteristics of each application. We focus on
-four characteristics: 
+
+Legal incentives (GDPR/CCPA) and user interests have pushed applications to support at least
+unsubscription. To see how large a gap remains between current data ownership paradigms and \sys, we
+study support for unsubscription and resubscription in a range of widely-used enterprise and
+open-source applications. 
+%including social media and news-feed applications, e-Commerce
+%applications, and other specialized services.
+Table~\ref{tab:apps} summarizes four characteristics of each application: 
 \begin{enumerate}
     \item Is unsubscription automated, or does the user need to email or call the
 application developers or customer service directly? 
@@ -99,10 +106,10 @@ application developers or customer service directly?
     \item Can users resubscribe, \ie regain control of their account and account data?
 \end{enumerate}
 Fewer than half of the services surveyed provide automated unsubscription; all others require the
-user to email or call the application maintainers or support. As a more comprehensive study,
-JustDeleteMe~\cite{jdm} provides a growing list of applications (currently 868) and rates the ease
-of unsubscription (account deletion) in each: at the current time, 27\% required users to manually
-contact the company or developers, and 12\% did not support unsubscription at all. 
+user to email or call the application maintainers or support. For a more comprehensive study,
+JustDeleteMe~\cite{jdm} provides a growing list of applications (currently 868) and rates ease
+of unsubscription (account deletion) for each; 27\% of applications required users to manually
+contact the company or developers, and 12\% did not support unsubscription. 
 
 All applications retain some of the unsubscribed user' data: Facebook retains copies of private
 messages for other users in the conversation; Reddit retains all posts and comments made by the
