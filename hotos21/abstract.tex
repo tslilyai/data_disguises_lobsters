@@ -28,11 +28,15 @@ efficiently and with low burden for application developers.
 %
 \ms{We should give our paradigm a name!}
 
-%
-%    In order to achieve this subscription paradigm, application developers must balance
-%    between retaining enough information so the application correctly and usefully functions, and
-%    removing enough information to prevent disclosing the identity of unsubscribed users via
-%    inference attacks. To begin to solve these challenges, we design \sys{}, a new system that
-%    automates privacy-compliant unsubscription and resubscription of users in database-backed web
-%    applications.
+=======
+%The paper proposes a new web application \emph{subscription paradigm}, in which users subscribe to
+%applications by granting a time-limited ``lease'' of their data, instead of having a permanent
+%account. Users flexibly switch between a privacy-preserving unsubscribed mode and an
+%identity-revealing subscribed mode at any time without permanently losing their data. 
+%This subscription paradigm strikes a balance between applications having complete ownership of user
+%data, and completely decoupling user data from applications at the cost of application utility. 
+%To solve the complex data retention and de-identification challenges associated with subscription,
+%we design \sys{}, a practical system that provides abstractions and mechanisms to help
+%developers of databased-backed web applications achieve correct, privacy-compliant user
+%unsubscription and resubscription without onerous labor.
 \end{abstract}

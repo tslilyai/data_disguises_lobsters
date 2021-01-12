@@ -11,7 +11,7 @@ executed database operations that systematically remove, anonymize, and structur
 \emph{decorrelate} user data upon unsubscription to meet the resulting spec. \sys 
 encrypts decorrelated or removed user data with a user-specific key, which can be either
 password-encrypted by the application, or secret shared~\cite{secretsharing} with a trusted third
-party. \sys provides a way for the application to store the encrypted blob and deletes the plaintext
+party. \sys provides a way for the application to store the encrypted blob, and deletes the plaintext
 data.
 
 \sys's policy abstractions require knowledge of only the application schema and the high-level
@@ -27,5 +27,5 @@ When a user resubscribes, \sys decrypts and inserts missing data, automatically
 original subscribed state as much as possible.
 
 Furthermore, \sys transparently supports unsubscription and resubscription while still achieving performance
-comparable to today’s widely-used databases and requiring no modification to application schemas or
+comparable to today’s widely-used databases, and requiring no modification to application schemas or
 architecture.
