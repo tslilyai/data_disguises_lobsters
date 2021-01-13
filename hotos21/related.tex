@@ -34,7 +34,7 @@ web applications).
 %\url{https://www.aclweb.org/anthology/2020.coling-main.32.pdf}
 
 While psuedo/anonymization
-techniques still allow for reidentification/reconstruction attacks), \name{} provides better
+techniques still allow for reidentification/reconstruction attacks), \name provides better
 anonymization than prior approaches, which decorrelate only coarsely by associating remnants of data
 with a global placeholder for all deleted users, or do not decorrelate at all (e.g., replacing
 usernames with a pseudonym, as in the AOL dataset case~\lyt{TODO}%\cite{aol}).
@@ -52,14 +52,14 @@ a predefined privacy budget, PINQ refuses to execute the query.
 
 Differential privacy provides a formal framework that defines the privacy loss a user incurs
 when the user's data is included in the dataset. However, the setting of differential privacy
-that of \name{} in several important ways. 
+that of \name in several important ways. 
 
 First, web applications' utility often derives from visibility into individual data records. PINQ
 restricts JOIN transformation and exposes information only through differentially-private
 aggregation mechanisms. While sufficient for many data analyses, this approach severely hinders web
-application functionality. \name{} supports all application queries, even ones that expose individual
+application functionality. \name supports all application queries, even ones that expose individual
 records, such as \texttt{SELECT story.content, story.tag FROM stories LIMIT 10}.  
-However, this makes formally defining the privacy guarantees of \name{} more complex than
+However, this makes formally defining the privacy guarantees of \name more complex than
 simply applying DP.  DP provides formal guarantees for results such as sums or averages because such
 results are computed using well-defined mathematics, allowing us to neatly capture the total
 knowledge gained by the adversary. However, in the world of web applications, the knowledge gained
@@ -72,26 +72,26 @@ queries change with the presence of a users' decorrelated data?'' While we can p
 data records an adversary sees with and without a user's decorrelated data, we cannot numerically
 quantify the knowledge gained by the adversary in the same way as we can quantify the percentage
 change to a sum or average.
-Instead, \name{} reduces identifying information in the changes induced by a users' (decorrelated)
+Instead, \name reduces identifying information in the changes induced by a users' (decorrelated)
 data, rather than reducing the amount of change itself.
 
-This is demonstrated by how PINQ and \name{} differ in masking entities associated with unique keys.
+This is demonstrated by how PINQ and \name differ in masking entities associated with unique keys.
 PINQ restricts JOINs to group by unique keys. As an (imperfect) example, selecting a JOIN of stories
 with users via the UID would result in a record, one per UID, which represents the ``group'' of all
 stories associated with a user. A normal join would create a separate record per story, each
 associated with the user of that UID.
 
-Instead of lumping all matching stories together, \name{} explodes the users' UID into individual
+Instead of lumping all matching stories together, \name explodes the users' UID into individual
 unique keys (ghosts), one per story. By PINQ's analysis of stable transformations, this leads to
 unbounded stability (as the number of different results produced by queries is proportional to the
 potentially very large number of stories for that user). In PINQ's DP framework, such unbounded
 stability leads to unbounded privacy loss: one users' data could change aggregation results in
 ``significant'' ways unless huge amounts of noise were added. 
 
-\name{} and PINQ's approaches can be seen as complementary: for queries that are more analytic in nature (for example,
-population statistics used by the web application to measure usage or trends), \name{} can utilize
+\name and PINQ's approaches can be seen as complementary: for queries that are more analytic in nature (for example,
+population statistics used by the web application to measure usage or trends), \name can utilize
 PINQ's technique to provide differentially private guarantees (for a particular snapshot of the
-dataset).  \name{}'s decorrelation, in fact, adds more noise than necessary in these cases: a count
+dataset).  \name's decorrelation, in fact, adds more noise than necessary in these cases: a count
 of unique users who posted about cats will be more imprecise because each post by a decorrelated
 user is now associated with a unique (ghost) user.
 
@@ -100,7 +100,7 @@ The right to be forgotten has also been formally defined by Garg et
 al.~\cite{garg}, where correct deletion corresponds to the notion of
 leave-no-trace: the state of the data collection system after a user requests to be forgotten should
 be left (nearly) indistinguishable from that where the user never existed to begin with. While
-\name{} uses a similar comparison, Garg et al.'s formalization assumes that users operate
+\name uses a similar comparison, Garg et al.'s formalization assumes that users operate
 independently, and that the centralized data collector prevents one user's data from influencing
 another's.
 

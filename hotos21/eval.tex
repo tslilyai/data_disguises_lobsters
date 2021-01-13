@@ -181,8 +181,8 @@ the paper conflict and its original parents.
 %
 
 \subsection{\sys Performance}
-We implemented a prototype for \sys as an in-memory shim layer on top
-of a MySQL database, allowing \name to intercept and process queries sent by the application frontend. 
+We implemented a \sys prototype, which acts as an in-memory shim layer on top
+of a MySQL database. \sys intercepts and processes queries sent by the application frontend. 
 %To amortize the cost of unsubscription and resubscription, \name preemptively creates, stores, and
 %links ghost parent entities to child entities if an update creates an edge that may be decorrelated.
 %\name builds in-memory materialized views on top of the underlying database, exposing ghost
@@ -194,11 +194,14 @@ Our prototype consists of 5K LoC of Rust, and adds \texttt{UNSUBSCRIBE
 [user]} and \texttt{RESUBSCRIBE [user]} calls as supported database queries.
 
 \begin{itemize}
-    \item Lobsters' benchmarks? Time to unsubscribe/resubscribe?
-    \item LoC to write HotCRP/Lobsters' policies?
-    \item Read/Insert/Update performance? (Would just measure the performance of adding a shim in
-        this case)
+    \item LoC to write HotCRP/Lobsters' policies
+    \item Normal performance of read/updates (Lobsters? HotCRP would be ideal but might not be
+        properly set up in time)
+    \item Time to unsubscribe/resubscribe w/different numbers of users
 \end{itemize}
+Our prototype takes only the first step to implement \sys. \sys should support eventually
+consistent, crash-recoverable unsubscription and resubscription; and scale in performance by
+supporting sharding and multicore parallelism.
 
 \iffalse
 We evaluate \sys on two metrics: (1) can desired decorrelation policies be easily specified using the

@@ -2,27 +2,29 @@
 \section{Discussion and Future Work}
 %-------------------------------------------------------------------------------
 \name provides users with control over when and how applications access their data, without
-overhauling the current web architecture and business model. However, \name has several limitations,
-For one, \name's privacy-preserving unsubscribed mode assumes that adversaries do not access
-external copies of user data (\eg screenshots), data from web archives, or applications snapshots
-prior to a user's unsubscription, which can be used to identify an unsubscribed user. In addition,
-\name assumes that legal and societal incentives will sufficiently convince applications to adopt
-\name, instead of continuing to make unsubscription difficult or impossible for users.
-       
-Our prototype design takes only the first step to realizing the \name paradigm.
-The highly application-specific nature of data retention and de-identification means that \sys 
-must trust developers to correctly specify unsubscription policies. Users cannot blindly
-trust that their privacy is guaranteed after subscription, although they can more easily vet
-application privacy properties via the application's unsubscription policy. 
+overhauling the current web architecture and business model. However, the \name paradigm has several limitations,
 
-\sys also does not yet support updates to the application schema or privacy policy which 
-change the unsubscription policy, as \sys has no way to restore data from the old policy upon
-resubscription.
+%\name assumes that legal and societal incentives will sufficiently convince applications to adopt
+%\name, and that 
+For one, \name does not provide privacy against adversaries that have information from web archive
+application snapshots or applications queries prior to a user's unsubscription. \name also cannot
+promise complete de-identification of unsubscribed users: the highly application-specific nature of
+data retention and de-identification means that \name must trust developers to appropriate
+de-identify user data (\eg to write appropriate unsubscription policies in \sys). Users cannot
+blindly assume complete privacy after unsubscription. 
 
-\lyt{Future work regarding performance? \eg limits of unsubscription/resubscription frequency at
-large scale?}
+Our design, \sys, currently helps users more easily vet application privacy properties via its unsubscription
+policy, and helps developers systematically retain and de-identify data. However, providing formal
+de-identification guarantees in application-specific settings remains an open question. Ideas from
+differential privacy~\cite{pinq} can help define post-unsubscription adversary knowledge,
+but only in the limited setting of numerical aggregate values.  Without removing all application
+data, even the best-intentioned developer may write policies that still retain identifying
+information (\eg retaining a screenshot with the user's identifiers). We imagine that a number of heuristics and data analysis tools can help developers catch more, but likely not all, of these identity leaks.
 
-\lyt{Support for maintaining aggregate accuracy in the presence of ghosts?}
+\sys also does not yet support updates to the application schema or privacy policy which change the
+unsubscription policy, since \sys cannot restore data removed using the old policy upon
+resubscription. Work in the area of database schema evolution and migration~\cite{schema:evo}
+may offer insights into supporting resubscribe after such updates.
 
 \iffalse
 \subsection{Limitations}
