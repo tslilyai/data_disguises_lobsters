@@ -1,28 +1,15 @@
 %-------------------------------------------------------------------------------
 \section{Evaluation}
 %-------------------------------------------------------------------------------
-We evaluate \sys on two fronts: (1) does \sys meet the requirements of \name,  
-allowing the developer to sufficiently and easily express how data should be retained and
-de-identified, and supporting resubscription without burdening the developer or user? and (2) 
-does \sys support unsubscription and resubscription with low performance overhead?
-
-We observe that \sys meets the requirement for automatic resubscription, handling
-data encryption for the application and user without requiring the user to manage private keys or
-data storage. We show that \sys meets the other two requirements by evaluating the
-expressiveness of unsubscription policies in practical applications.
-
-\subsection{Unsubscription Policies in Practice}
-\label{sec:hotcrp_example}
 \begin{figure*}[t!]
     \centering
     \includegraphics[width=\textwidth]{img/decor_hotcrp}
 
     \caption{Relevant pre- and post-unsubscription state of a simplified variant of the HotCRP schema. \\ 
     \textbf{(a)} \sys decorrelates user-review and user-paper edges, and retains
-    review-paper edges, generating ghost users randomly, but cloning each review and paper. \\
-    \textbf{(b)} \sys decorrelates user-conflict edges and sensitive conflict-paper edges. The ghost
-    paper associated with non-sensitive conflicts is a clone of the original; \sys generates a
-    default placeholder paper as the ghost paper parent for the sensitive conflict.
+    review-paper edges. Ghost users are randomly generated, and each review and paper is cloned once. \\
+    \textbf{(b)} \sys decorrelates user-conflict edges and sensitive conflict-paper edges. One ghost
+    paper is a clone of the original; the other is a default placeholder paper.
     }
     \label{fig:hotcrp}
 \end{figure*}
@@ -37,6 +24,20 @@ expressiveness of unsubscription policies in practical applications.
     \label{fig:pcs}
 \end{figure*}
 
+
+We evaluate \sys on two fronts: (1) does \sys meet the requirements of \name,  
+allowing the developer to sufficiently and easily express how data should be retained and
+de-identified, and supporting resubscription without burdening the developer or user? and (2) 
+does \sys support unsubscription and resubscription with low performance overhead?
+
+We observe that \sys meets the requirement for automatic resubscription, handling
+data encryption for the application and user without requiring the user to manage private keys or
+data storage. We show that \sys can meet the other two requirements by evaluating the
+expressiveness of unsubscription policies in HotCRP, a popular conference review management
+application.
+
+\subsection{Unsubscription Policies in Practice}
+\label{sec:hotcrp_example}
 We use \sys to write an unsubscription policy for HotCRP, demonstrating that \sys's abstractions
 are indeed expressive enough to handle realistic and subtle data policies.  This example also
 illustrates the workflow and different application-specific choices developers must consider when
