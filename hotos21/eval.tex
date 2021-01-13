@@ -146,12 +146,13 @@ role does not change.
 Finally, the developer should ensure that HotCRP never assigns ghost users papers to review: the
 \texttt{disabled} attribute should be generated with a default value \texttt{true} for all ghosts.
 
-In order to usefully retain paper and review information when a user unsubscribes, the developer chooses to
-entirely clone all paper attributes in one ghost, and generate the other ghost papers with default
-values for all attributes. Table~\ref{tab:ghosting} shows the partial specification for generation
-ghost papers. Cloning the paper or review once to retain its information is safe: the developer knows that
-paper attributes do not reveal identifying information, and that all edges to sensitive parents will
-be decorrelated.
+In order to usefully retain paper and review information without creating duplicates, the developer
+chooses to entirely clone all paper attributes in one ghost, and generate the other ghost papers
+with default values for all attributes. 
+%Table~\ref{tab:ghosting} shows the partial specification for
+%generation ghost papers. 
+%Cloning papers or reviews once to retain their information will not reveal
+%identifying information, and all edges to sensitive parents will be decorrelated.
 
 %In particular, it is safe to clone edges to user parents because the developer knows that \proto will
 %decorrelate edges to sensitive parents (replacing them with edges to ghost parents) \emph{prior} to
@@ -164,9 +165,11 @@ Finally, the developer specifies a ghost generation policy for paper conflicts. 
 three attributes, a value attribute for the conflict type (authorship or reviewer conflict), and two
 edge attributes that specify a user parent and a paper parent respectively. The developer defaults
 conflict type attributes to be \texttt{ConflictAuthor}, and clones the two edge attributes for all
-ghosts. As with paper entities, it is safe to clone edges to user and paper parents because any
-cloned edge attributes will necessarily point to ghosts if there was a sensitive correlation between
-the paper conflict and its parents. 
+ghosts; edge policies ensure that cloned edges will point to ghosts if there was a sensitive correlation between
+the paper conflict and its original parents. 
+%As with paper entities, it is safe to clone edges to user and paper parents because any
+%cloned edge attributes will necessarily point to ghosts if there was a sensitive correlation between
+%the paper conflict and its parents. 
 
 %Note that had the developer chosen edge policy choice 1 for paper-conflict to paper edges
 %(retaining the edge), then the conflict type \emph{must} be cloned in order to preserve HotCRP
@@ -187,7 +190,7 @@ of a MySQL database, allowing \sys to intercept and process queries sent by the 
 %application queries using these materialized views, hiding the complexity of ghost entity and
 %decorrelation management.
 Our prototype consists of 5K LoC of Rust, and adds \texttt{UNSUBSCRIBE
-[user]} and \texttt{RESUBSCRIBE [user] WITH [user\_data]} calls as supported database queries.
+[user]} and \texttt{RESUBSCRIBE [user]} calls as supported database queries.
 
 \begin{itemize}
     \item Lobsters' benchmarks? Time to unsubscribe/resubscribe?
