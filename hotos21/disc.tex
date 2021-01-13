@@ -15,8 +15,14 @@ must trust developers to correctly specify unsubscription policies. Users cannot
 trust that their privacy is guaranteed after subscription, although they can more easily vet
 application privacy properties via the application's unsubscription policy. 
 
+\sys also does not yet support updates to the application schema or privacy policy which 
+change the unsubscription policy, as \sys has no way to restore data from the old policy upon
+resubscription.
+
 \lyt{Future work regarding performance? \eg limits of unsubscription/resubscription frequency at
 large scale?}
+
+\lyt{Support for maintaining aggregate accuracy in the presence of ghosts?}
 
 \iffalse
 \subsection{Limitations}
