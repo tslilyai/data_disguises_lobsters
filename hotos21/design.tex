@@ -1,18 +1,18 @@
 %-------------------------------------------------------------------------------
 \section{Design}
 %-------------------------------------------------------------------------------
-This section elaborates on how \proto interacts with application developers and users, and describes
-\proto's abstractions for unsubscription policies.
-\proto sits between the application logic and the application database, adding support for
+This section elaborates on how \sys interacts with application developers and users, and describes
+\sys's abstractions for unsubscription policies.
+\sys sits between the application logic and the application database, adding support for
 \texttt{UNSUBSCRIBE} and \texttt{RESUBSCRIBE} queries, and applying the appropriate data transformations
 during unsubscription and resubscription.
 
-\proto models application data as a graph of \emph{entity}
+\sys models application data as a graph of \emph{entity}
 nodes and edges, where each entity type corresponds to an application datatable, such as a users,
 papers, or reviews table.  Entities are linked in the entity graph by foreign key relationships:
 table columns that act as foreign keys to other tables create child-parent relationships between
 entities, where the child entity holds the parent entity's identifier as a foreign key. 
-%\proto also includes abstract entities in the graph, where the keys may be non-referential
+%\sys also includes abstract entities in the graph, where the keys may be non-referential
 %identifiers that refer to abstract, non-table entities (e.g.,\ a \texttt{thread\_id} column in the
 %comments table).  
 Edges---foreign key relationships---represent correlations between the nodes (entities) of the
@@ -22,16 +22,16 @@ graph.
 \subsection{Application Developer Responsibilities}
 Application developers statically specify an unsubscription policy on top of the application schema.
 The developer reasons only about the \emph{types} of entities
-and the \emph{types} of entity edges that may be instantiated in the graph; \proto acts on individual
+and the \emph{types} of entity edges that may be instantiated in the graph; \sys acts on individual
 instances of the entity graph, and ensures that any instance satisfies the state specified in the
 policy by transparently rewriting application queries, and applying the proper queries during
 unsubscription.
 
 Developers use their application expertise to determine the appropriate post-unsubscription state,
 specifying which entities and edges should remain, and how these entities and edges should modified
-for de-identification while retaining application correctness. \proto provides a menu of choices  
+for de-identification while retaining application correctness. \sys provides a menu of choices  
 for removing or modifying entity content and edges (Section~\ref{sec:design:unsub}).
-The developer remains responsible for specifying an appropriate unsubscription policy: \proto
+The developer remains responsible for specifying an appropriate unsubscription policy: \sys
 guarantees that the policy is correctly and automatically applied upon unsubscription and reversed
 upon resubscription. The developer can use the unsubscription policy as a specification of
 application database state to more precisely convey privacy guarantees to its user in \eg
@@ -39,8 +39,8 @@ application privacy policies.
 
 \subsection{User Data Management}
 \label{sec:design:storage}
-While unsubscribing a user, \proto collects all deleted data and tracks any modifications performed
-on retained data.  \proto encrypts this information with a per-user key, and stores this encrypted
+While unsubscribing a user, \sys collects all deleted data and tracks any modifications performed
+on retained data.  \sys encrypts this information with a per-user key, and stores this encrypted
 blob in a dedicated datastore of the application. The user key is secret-shared using a (2, 3)
 threshold scheme~\cite{secretsharing} between the user, application, and a trusted third party (\eg
 Amazon S3), so that the user can authorize the application and the third party to restore the key if
@@ -48,9 +48,9 @@ the user forgets their share.  Alternatively, the key can also be password-encry
 on the user not forgetting their password.
 
 The user can optionally choose to store this encrypted data themselves (or in a third party cloud
-provider), and be in charge of providing their data and key to \proto to decrypt the data upon
+provider), and be in charge of providing their data and key to \sys to decrypt the data upon
 resubscription.
-%After applying the appropriate edge policies, \proto collects all 
+%After applying the appropriate edge policies, \sys collects all 
 %removed entities (including parent entities that
 %have been replaced by ghosts when edges are retained or decorrelated), as well as 
 %the identifier attributes of all generated ghosts, and a mapping from real
@@ -59,7 +59,7 @@ resubscription.
 \subsection{Resubscription}
 To resubscribe, a user authorizes the decryption of their data and associated metadata by
 providing their share of the key (or authorizing a trusted third party to reconstruct the secret
-with the application). \proto decrypts the data with the key, and systematically reverses 
+with the application). \sys decrypts the data with the key, and systematically reverses 
 the modifications made during unsubscription, restoring removed entities and correlations between
 entities.
 
@@ -72,11 +72,11 @@ entities may replace a real entity to break any correlations with the real entit
 partially custom generated or partially clones of real entities.
 %Pre- and post-unsubscription state differ by the presence of ghost entity nodes and edges, which
 %have taken the place of real entities and edges. 
-Developers provide a two-part unsubscription policy to \proto, consisting of a \emph{ghost
+Developers provide a two-part unsubscription policy to \sys, consisting of a \emph{ghost
 generation policy} for each entity type, and an \emph{edge policy} for each edge type. We describe each in detail next.
-%\proto returns the real entity data and a mapping
+%\sys returns the real entity data and a mapping
 %from entities to their ghost replacements back to the unsubscribing user, which, if returned upon
-%resubscription, allows \proto to restore the user to their original state.
+%resubscription, allows \sys to restore the user to their original state.
 %Table~\ref{tab:ghosting} shows an example of two ghosts based on a real template paper entity; we describe
 %how these ghosts are created next.
 
@@ -96,17 +96,17 @@ generation policy} for each entity type, and an \emph{edge policy} for each edge
 {leadContactId} & \texttt{CloneOne} + \texttt{GenerateGhostParent} & 23 & 23 & 918 \\
 \end{tabular}
     \caption{Generating two ghosts using ghosting policies for a simplified paper entity.
-    \proto clones the attributes of the template entity to generate Ghost1, and generates
-    attribute values for Ghost2. To generate edge attribute leadContactId, \proto creates a new ghost user and uses its identifier as the new value (918).}
+    \sys clones the attributes of the template entity to generate Ghost1, and generates
+    attribute values for Ghost2. To generate edge attribute leadContactId, \sys creates a new ghost user and uses its identifier as the new value (918).}
     \label{tab:ghosting}
 \end{table*}
 
-\proto generates ghost entities in order to transform the contents of real entities, and to
+\sys generates ghost entities in order to transform the contents of real entities, and to
 decorrelate children from parent entities by reassigning the child to a ghost parent
 (Section~\ref{design:edgepol}). Developers define a ghost generation policy for each entity type to
-inform \proto how to generate ghost entities.
+inform \sys how to generate ghost entities.
 
-\proto assumes entities have three kinds of attributes: a unique identifier attribute; value
+\sys assumes entities have three kinds of attributes: a unique identifier attribute; value
 (non-referential) attributes such as timestamps or usernames; and edge (foreign key)
 attributes that identify correlations to parent entities.  Value attributes contents may expose
 identifying information, and edge attributes may be sensitive structural correlations.
@@ -114,9 +114,9 @@ In Table~\ref{tab:ghosting}, the \texttt{id} attribute is the identifier attribu
 \texttt{title} and \texttt{outcome} attributes are value attributes, and \texttt{leadContactId} is
 an edge attribute, containing a foreign key to the ContactInfo (users) table. 
 
-Developers specify how \proto should generate each of these attributes, given a template real
+Developers specify how \sys should generate each of these attributes, given a template real
 entity.
-\proto always generates ghost entities with unique identifier attribute values.
+\sys always generates ghost entities with unique identifier attribute values.
 
 For each value and edge attribute of each entity type, developers specify an \emph{attribute ghosting policy},
 which take as input a template entity's attribute value. Ghosting policies determine whether the
@@ -126,7 +126,7 @@ the original template entity data: Table~\ref{tab:ghosting} shows a policy that 
 paper attributes once, allowing the application to retain the paper's information. Other ghosts
 generated from the same paper have default attribute values, preventing duplicate papers.
 
-\proto provides the following ghosting policies:
+\sys provides the following ghosting policies:
 \begin{itemize}
     \item \texttt{CloneAll:} Ghosts generated from the same template all share the template's 
         attribute value. If there is an edge attribute, all ghosts will share the
@@ -135,7 +135,7 @@ generated from the same paper have default attribute values, preventing duplicat
     \item \texttt{GenerateAll:} 
         For value attributes, developers specify whether the ghost attribute value should be
         random, a default value, or generated from the template value via a custom function.
-        For edge attributes, \proto generates a new parent ghost entity, and uses the parent ghost
+        For edge attributes, \sys generates a new parent ghost entity, and uses the parent ghost
         identifier as the edge attribute value.
 
     \item \texttt{CloneOne:} One ghost entity shares the same value for the attribute as the
@@ -147,19 +147,19 @@ generated from the same paper have default attribute values, preventing duplicat
 
 \subsubsection{When should ghosts be generated?}
 \label{design:edgepol}
-While ghost generation policies inform \proto how to produce ghosts, developers must also specify
-\emph{when} \proto should produce ghosts. 
-By default, \proto finds all \emph{sensitive} entities,
+While ghost generation policies inform \sys how to produce ghosts, developers must also specify
+\emph{when} \sys should produce ghosts. 
+By default, \sys finds all \emph{sensitive} entities,
 namely entities which transitively connect via parent-child edges to the unsubscribing user, and
-replaces them with a ghost entity according to the specified ghost generation policy. \proto also
+replaces them with a ghost entity according to the specified ghost generation policy. \sys also
 replaces any entity that is a parent of a sensitive child with a ghost.
 
-\proto then applies developer-specified \emph{edge policies}, which determine when \proto should
+\sys then applies developer-specified \emph{edge policies}, which determine when \sys should
 create ghosts to break correlations between sensitive children and their parents.
-Edge policies consist of a \emph{sensitivity threshold}, which tells \proto what
+Edge policies consist of a \emph{sensitivity threshold}, which tells \sys what
 proportion of existing correlations to sensitive entities to retain. Developers choose
 whether to delete or decorrelate edges of this type to reach the threshold. Decorrelation requires
-\proto to generate ghost entities and reassign children with the same parent entity to different
+\sys to generate ghost entities and reassign children with the same parent entity to different
 ghost parents.
 
 \paragraph{What is the Sensitivity Threshold?}
@@ -186,50 +186,50 @@ reasonable sensitivity threshold might be $0.1$ for paper-tag key relationships:
 all paper with a specific tag key should have been correlated (even indirectly) with an
 (unsubscribed) user. 
 
-%If no threshold is specified, \proto defaults to a threshold of $0$ and fully
+%If no threshold is specified, \sys defaults to a threshold of $0$ and fully
 %decorrelates all edges of this type. 
 
 \paragraph{Achieving the Sensitivity Threshold.}
 The developer chooses between two options to achieve the sensitivity threshold: 
 \begin{enumerate}
     \item \textbf{Decorrelate.}
-    \proto decorrelates edges from sensitive children by replacing edges to the real parent with
+    \sys decorrelates edges from sensitive children by replacing edges to the real parent with
         ones to a unique ghost parent, generated using the real parent as a template:
         the childrens' edge attribute values now identify unique ghost parents. 
 
 \item \textbf{Delete.}
-    \proto deletes the edge by removing the child entity and any descendants. 
+    \sys deletes the edge by removing the child entity and any descendants. 
         %Developers should select
     %this edge policy option only if this type of edge cannot be decorrelated while retaining application
     semantics.%, but retaining edges to a shared parent would reveal too much identifying information.
 \end{enumerate}
 
-For each parent, \proto decorrelates or deletes edges to children only enough to achieve the specified
+For each parent, \sys decorrelates or deletes edges to children only enough to achieve the specified
 threshold, and retains the remaining edges. 
 %Note that if all children are sensitive (a user's papers
-%are always sensitive), or if the sensitivity threshold is 0, \proto will decorrelate or delete all
+%are always sensitive), or if the sensitivity threshold is 0, \sys will decorrelate or delete all
 %children. 
-%On the other hand, if the developer specifies a sensitivity threshold of 1, \proto retains all
+%On the other hand, if the developer specifies a sensitivity threshold of 1, \sys retains all
 %correlations between children and the parent. Developers should select this option only if the
 %developer knows that these correlations cannot collectively leak identifying information, and/or if
 %the application's functionality would be impacted by deleting or decorrelating this type of edge.
-%If \proto retains any edges from children to the parent, \proto generates a single ghost parent entity using the
+%If \sys retains any edges from children to the parent, \sys generates a single ghost parent entity using the
 %parent as a template. The ghost parent adopts all children that remained correlated with the real
 %parent by replacing the childrens' edge attribute with the ghost's identifier.
 
 \iffalse
-\subsection{\proto's Execution Algorithm}
+\subsection{\sys's Execution Algorithm}
 \begin{figure*}[ht!]
     \centering
     \includegraphics[width=\textwidth]{img/algo}
 
-    \caption{Stages of \proto's execution when unsubscribing user U1. Entities and edges detected as
+    \caption{Stages of \sys's execution when unsubscribing user U1. Entities and edges detected as
     sensitive are outlined in red. Only the part of the entity graph relevant to unsubscription is shown.
     For simplicity, the specified ghosting policies apply for all attributes
     of the entity: a black ghost entity indicates that it is a full clone of the original.
     New edges indicates that the edge (foreign-key) value of the child has been changed to
     point to the specified parent.\\
-    In this example, \proto decorrelates paper-tag edges only enough that the proportion of sensitive papers
+    In this example, \sys decorrelates paper-tag edges only enough that the proportion of sensitive papers
     is at most the sensitivity threshold of 0.5, retaining one correlation between a sensitive
     paper P2 and the parent tag T1, and decorrelating the other sensitive paper P1 from the tag.}
     \label{fig:algo}
@@ -237,52 +237,52 @@ threshold, and retains the remaining edges.
 
 
 Given an application's schema and unsubscription policy, and an entity to be decorrelated as input,
-\proto executes unsubscription as follows. Figure~\ref{fig:algo} illustrates each step.
+\sys executes unsubscription as follows. Figure~\ref{fig:algo} illustrates each step.
 \begin{enumerate}
-    \item \textbf{Parent-Child Traversal:} \proto traverses the entity graph starting from the input entity,
+    \item \textbf{Parent-Child Traversal:} \sys traverses the entity graph starting from the input entity,
         going down parent to child edges (and halting if it detects a cycle). 
-        \proto collects traversed edges as it traverses the graph. 
+        \sys collects traversed edges as it traverses the graph. 
     
     \item \textbf{Parent-Child Edge Policy Application:} 
-        Post-traversal, \proto acts on each collected edge instance according to the specified
+        Post-traversal, \sys acts on each collected edge instance according to the specified
         decorrelation relationship policy for that edge's type.
 
-        \proto takes all edges of every unique parent entity, and applies policies as appropriate.
+        \sys takes all edges of every unique parent entity, and applies policies as appropriate.
         Note that any sensitivity threshold less than $1$ requires that \emph{all} edges be decorrelated or
         deleted, depending on the developer's specified choice: all the children of this parent are
-        sensitive due to the nature of \proto's parent-child traversal.
+        sensitive due to the nature of \sys's parent-child traversal.
 
         Any edges that should be deleted removes the child entity and any descendants.
-        \proto generates new ghost parents using the real parent as template for any edges that should
+        \sys generates new ghost parents using the real parent as template for any edges that should
         be decorrelated, and rewrites the child's edge attribute to be the ghost parent's
-        identifier. If any edges are retained, \proto generates a ghost parent entity to replace the
+        identifier. If any edges are retained, \sys generates a ghost parent entity to replace the
         parent.
       
     \item \textbf{Child-Parent Edge Policy Application:} 
-        Next, \proto takes the children of all traversed edge instances, and considers the set of
-        edges from these children to other parents \emph{not} traversed by \proto during the first
+        Next, \sys takes the children of all traversed edge instances, and considers the set of
+        edges from these children to other parents \emph{not} traversed by \sys during the first
         traversal phase. In other words, these children have multiple parents, at least one of which
         is transitively connected to the input entity.
 
-        Intuitively, children of edges traversed by \proto share a connection with the initial
+        Intuitively, children of edges traversed by \sys share a connection with the initial
         entity being decorrelated. Edges \emph{from} these children to other parent entities may
         thus leak sensitive identifying information. 
 
-        \proto acts on these child-parent edges according to the specified edge policy for each edge's
-        type. For each unique parent, \proto limits the proportion of edges of each type that connect
+        \sys acts on these child-parent edges according to the specified edge policy for each edge's
+        type. For each unique parent, \sys limits the proportion of edges of each type that connect
         to sensitive entities (the children of traversed edge instances) to below the policy's
         sensitivity threshold by either decorrelating or deleting the children. 
-        If \proto retains any edges from sensitive children to the real parent, then \proto generates a
+        If \sys retains any edges from sensitive children to the real parent, then \sys generates a
         ghost parent entity to replace the parent.
         
         Note that unlike the previous steps, this step considers edges from parents that may have
         many non-sensitive children (\eg a particular tag may correlate with many stories by various
-        authors).  \proto therefore may retain edges to sensitive children when given a sensitivity
+        authors).  \sys therefore may retain edges to sensitive children when given a sensitivity
         threshold less than 1 and greater than 0, unlike in the previous step.
 
-        \proto optionally allows developers to specify that edges have weaker or stronger edge
+        \sys optionally allows developers to specify that edges have weaker or stronger edge
         policies in the child-to-parent direction than in the  parent-to-child direction. Weaker
-        policies---higher sensitivity thresholds---allow \proto to retain links if \emph{only the
+        policies---higher sensitivity thresholds---allow \sys to retain links if \emph{only the
         child} is sensitive, but decorrelate or remove the link if \emph{both} the child and parent
         are sensitive. For example, perhaps a user wants to ensure that they are decorrelated from
         their reviews, but correlations between the review and the the paper authors can still be
@@ -296,30 +296,30 @@ Given an application's schema and unsubscription policy, and an entity to be dec
         Section~\ref{sec:hotcrp_example} (Figure~\ref{fig:pcs}).
 
     \item \textbf{Anonymizing Leaf Children:}
-        If any sensitive children that are leaves (have no children) remain, \proto generates a ghost child entity to replace this leaf.
+        If any sensitive children that are leaves (have no children) remain, \sys generates a ghost child entity to replace this leaf.
         
-        In Figure~\ref{fig:algo}, step 4, P1 and P2 are both leaves. \proto generates ghosts for both
+        In Figure~\ref{fig:algo}, step 4, P1 and P2 are both leaves. \sys generates ghosts for both
         these papers: since these papers have \texttt{CloneOne} ghosting policies, ghost papers gP1
         and gP2 are identical to P1 and P2, and retain the edge attributes linking them to their
         respective parent tags and users.
 
-    \item \textbf{Returning User Data:} \proto collects all removed entities that have either been
-        replaced by ghost entities, or deleted entirely from the graph. \proto also records all
+    \item \textbf{Returning User Data:} \sys collects all removed entities that have either been
+        replaced by ghost entities, or deleted entirely from the graph. \sys also records all
         generated ghost entity identifiers, and which ghost entities replaced which real entity.
-        \proto returns both the removed entity data and this ghost entity metadata to the user.
+        \sys returns both the removed entity data and this ghost entity metadata to the user.
 \end{enumerate}
 
-Note that \proto must decide \emph{which} ghost clones the template entity's attributes when the
-developer selects a \texttt{CloneOne} ghosting policy for one or more attributes. \proto always
+Note that \sys must decide \emph{which} ghost clones the template entity's attributes when the
+developer selects a \texttt{CloneOne} ghosting policy for one or more attributes. \sys always
 associates the cloned ghost with as many non-sensitive entities as possible. For example, as shown
-in Figure~\ref{fig:algo} step 3b, if \proto decorrelates sensitive papers from a parent tag with a
-\texttt{CloneOne} policy, \proto chooses the ghost tag that remains associated with non-sensitive
+in Figure~\ref{fig:algo} step 3b, if \sys decorrelates sensitive papers from a parent tag with a
+\texttt{CloneOne} policy, \sys chooses the ghost tag that remains associated with non-sensitive
 papers to be the clone. This decision ensures that any subscribed users and unsensitive application
 data remain as unaffected as possible by another user's unsubscription. To optimize
-\texttt{CloneOne} policies, \proto can simply retain the original template entity instead of producing
+\texttt{CloneOne} policies, \sys can simply retain the original template entity instead of producing
 a cloned ghost.
 \fi
-%\proto provides a menu of unsubscription policy choices that allow developers to choose how to
+%\sys provides a menu of unsubscription policy choices that allow developers to choose how to
 %\emph{ghost} individual data record content, and how to \emph{decorrelate} sensitive correlations. 
 %Specifying the policy requires nothing more than the application schema: ghosting policies act on
 %application datatables and on foreign key relationships between tables.
@@ -328,6 +328,6 @@ a cloned ghost.
 %developers the flexibility to specify fine-grained policies that properly de-identify a user, while
 %retaining data as necessary for the application.
 
-%\proto must pinpoint exactly which data and correlations may be
+%\sys must pinpoint exactly which data and correlations may be
 %identity-sensitive, and allow developers to specify exactly what the post-unsubscription state of
 %this data should be.

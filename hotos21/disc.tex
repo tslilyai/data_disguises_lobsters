@@ -5,7 +5,7 @@
 \iffalse
 \subsection{Limitations}
 
-Like all applications that provide some type of post-unsubscription privacy guarantees, \sys assumes
+Like all applications that provide some type of post-unsubscription privacy guarantees, \name assumes
 that an adversary who aims to relink decorrelated entities to unsubscribed users, is limited in the
 following ways:
 \begin{itemize}
@@ -24,7 +24,7 @@ i.e.,\ can access the application only via its public interface.
     \item An adversary cannot gain identifying information from re-shared or arbitrary
         user-generated content (for example, a reposted screenshot, or text in user stories or
         comments) that developers have left unghosted. 
-        \sys gives developers the option to specify that unsubscription removes or replaces
+        \name gives developers the option to specify that unsubscription removes or replaces
         user-generated data and application metadata (e.g., date of postings, database ID columns),
         at the cost of losing this data.
 \end{itemize}
@@ -40,7 +40,7 @@ no support for schema updates / updates to policy
 
 \subsection{Future work.}
 \paragraph{Maintaining Aggregate Accuracy.}
-As future work, \proto can optionally allow for entities to be decorrelated without affecting queries which
+As future work, \sys can optionally allow for entities to be decorrelated without affecting queries which
 specifically return aggregation results.
 
 Queries that specifically perform aggregations and return statistical measures (e.g.,
@@ -52,7 +52,7 @@ entities are ghosts: for example, an abnormally low count of stories per tag mig
 adversary that these tags are ghost tags.  \lyt{But perhaps it's ok if an adversary can tell what's
 a ghost, as long as it can't tell which user each ghost is correlated with.}
 
-\proto stores and separately updates answers to aggregation queries;
+\sys stores and separately updates answers to aggregation queries;
 these answers are updated when queries update the data tables, and these queries do not read from
 the application tables (which may contain ghost records).
 
@@ -60,7 +60,7 @@ An alternate solution might analyze the aggregations performed by application qu
 introduce ghosts that lead to the same (or close-enough) aggregation result. For example, if a tag
 is split into ghost tags, one per story associated with the tag, but the application still would
 like the count of stories for this tag to be high, one of the ghost tags can be populated with many
-ghost stories to retain the count of stories per tag.  \proto would remove any ghost stories that
+ghost stories to retain the count of stories per tag.  \sys would remove any ghost stories that
 were created upon recorrelation. Note that this solution 1) requires that generating ghosts is
 admissible, and 2) may be impossible for certain combinations of aggregations (e.g., queries that
 return both the average stories per tag and also the total number of stories).

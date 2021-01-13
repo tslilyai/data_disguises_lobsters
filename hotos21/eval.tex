@@ -1,21 +1,27 @@
 %-------------------------------------------------------------------------------
 \section{Evaluation}
 %-------------------------------------------------------------------------------
-We evaluate \proto on two fronts: (1) does \proto's unsubscription policy abstractions allow the
-developer to sufficiently and easily express how data should be retained and de-identified?; and (2) 
-can \proto support unsubscription and resubscription with low performance overhead?
+We evaluate \sys on two fronts: (1) does \sys meet the requirements of \name,  
+allowing the developer to sufficiently and easily express how data should be retained and
+de-identified, and supporting resubscription without burdening the developer or user? and (2) 
+does \sys support unsubscription and resubscription with low performance overhead?
 
-\subsection{Writing Practical Unsubscription Policies}
+We observe that \sys meets the requirement for automatic resubscription, handling
+data encryption for the application and user without requiring the user to manage private keys or
+data storage. We show that \sys meets the other two requirements by evaluating the
+expressiveness of unsubscription policies in practical applications.
+
+\subsection{Unsubscription Policies in Practice}
 \label{sec:hotcrp_example}
 \begin{figure*}[t!]
     \centering
     \includegraphics[width=\textwidth]{img/decor_hotcrp}
 
     \caption{Relevant pre- and post-unsubscription state of a simplified variant of the HotCRP schema. \\ 
-    \textbf{(a)} \proto decorrelates user-review and user-paper edges, and retains
+    \textbf{(a)} \sys decorrelates user-review and user-paper edges, and retains
     review-paper edges, generating ghost users randomly, but cloning each review and paper. \\
-    \textbf{(b)} \proto decorrelates user-conflict edges and sensitive conflict-paper edges. The ghost
-    paper associated with non-sensitive conflicts is a clone of the original; \proto generates a
+    \textbf{(b)} \sys decorrelates user-conflict edges and sensitive conflict-paper edges. The ghost
+    paper associated with non-sensitive conflicts is a clone of the original; \sys generates a
     default placeholder paper as the ghost paper parent for the sensitive conflict.
     }
     \label{fig:hotcrp}
@@ -31,30 +37,25 @@ can \proto support unsubscription and resubscription with low performance overhe
     \label{fig:pcs}
 \end{figure*}
 
-We use \proto to write an unsubscription policy for HotCRP, demonstrating that \proto's abstractions
+We use \sys to write an unsubscription policy for HotCRP, demonstrating that \sys's abstractions
 are indeed expressive enough to handle realistic and subtle data policies.  This example also
 illustrates the workflow and different application-specific choices developers must consider when
-using \proto. 
+using \sys. 
 
 HotCRP entities include users (reviewers and authors), papers, paper reviews, and
 paper conflicts. There are a total of 25 entities, with 48 edge types between entities.
 %Figure~\ref{fig:hotcrp} illustrates how unsubscription changes a simplified HotCRP entity graph
 %with users, papers, reviews, and paper conflicts.
-The developer first specifies that the top-level entity to decorrelate is a user.
-
-\lyt{For brevity, I've removed a lot of details/corner cases of the policy.}
+%The developer specifies that the top-level entity to decorrelate is a user.
 
 \paragraph{Edge Policies.} 
-Next, the developer considers all edge types, and whether edges may
-reveal identifying information about the user.
-All direct correlations between a user and other entities 
-may leak the user's identity. The developer therefore specifies edge policies with a
-sensitivity threshold of 0 for edges with the user as a direct parent. 
-Because HotCRP should retain the paper and review data, and merely decorrelate these data from their
-author's identity, the developer specifies that \proto should decorrelate these edges to meet the
-threshold: \proto will replace any edges from papers or reviews to the unsubscribing user with an
-edge to a ghost user profile. Figure~\ref{fig:hotcrp}a shows how \proto decorrelates a user from
-their reviews and papers.
+To specify edge policies, the developer considers whether edges of each type may reveal identifying
+information about the user.  All direct correlations between a user and other entities may leak the
+user's identity. The developer therefore specifies edge policies with a sensitivity threshold of 0
+for edges with the user as a direct parent.  Because HotCRP should retain the paper and review data,
+the developer specifies that \sys should decorrelate, rather than delete, these edges to meet the
+threshold: \sys will replace any edges from papers or reviews to the unsubscribing user with an edge
+to a ghost user profile, as shown in Figure~\ref{fig:hotcrp}a.
 
 %Although parent-child links from users to their data should be decorrelated during unsubscription,
 %HotCRP should maintain correlations between other subscribed users and sensitive papers, reviews,
@@ -63,20 +64,19 @@ their reviews and papers.
 %correlations to remain unchanged.
 
 As observed earlier, edges that are not directly linked to the user may also reveal identifying
-information about the user's identity: the group of collaborators or conflicting members of the PC
-may pinpoint the identity of the ``ghost user'' on a paper. Users are linked to papers via
-\emph{paper conflict} entities, which have both a user and a paper as a parent.  Paper conflicts can
-either indicate authorship or a reviewer conflict (prior collaborators or sharing an institution).
-When a user unsubscribes, the developer must also ensure that edges from these sensitive paper
-conflicts their parent papers cannot leak identifying information.
-%the edge policies described above ensure that the user is decorrelated from
-%their paper conflicts. However, the developer must also ensure that edges from these sensitive paper
-%conflicts their parent papers cannot leak identifying information.
+information: collaborators or conflicting members of the PC on a ``ghost user'''s paper may reveal
+the ghost's identity. Users are linked to papers via \emph{paper conflict} entities, which have both
+a user and a paper as a parent, and indicate either a collaborator, or a reviewer
+conflict (prior collaborators or sharing an institution). When a user unsubscribes, the developer
+must also ensure that edges from these sensitive paper conflicts their parent papers cannot leak
+identifying information.
+%the edge policies described above ensure that the user is decorrelated from their paper conflicts.
+%However, the developer must also ensure that edges from these sensitive paper conflicts their
+%parent papers cannot leak identifying information.
 
 Here, the developer can make one of three choices. 
-These choices demonstrate the tradeoff between
-retaining information for application correctness, and completely de-identifying the user.
-Figure~\ref{fig:pcs} shows how each choice choices affects the post-unsubscription application state.
+These choices demonstrate the tradeoff between retaining information for application correctness, and completely de-identifying the user.
+Figure~\ref{fig:pcs} shows the post-unsubscription application state resulting from each choice.
 %
 (1) retains correlations between sensitive paper conflicts and papers, at the cost of
 user privacy; (2) decorrelates sensitive paper conflicts from the paper so each
@@ -115,36 +115,36 @@ stronger user privacy and acceptable semantics for HotCRP.
 %The HotCRP developer may also determine that tags can identify a user if only that user's papers are
 %associated with that tag. The developer thus specifies that paper-tag edges have a sensitivity
 %threshold of 0.5: at most half the papers with that tag can be associated with the unsubscribing
-%user. \proto decorrelates these edges until the threshold is met; all ghost tag attributes are
-%generated using a clone-one ghosting policy.  Figure~\ref{fig:hotcrp}c shows how \proto partially
+%user. \sys decorrelates these edges until the threshold is met; all ghost tag attributes are
+%generated using a clone-one ghosting policy.  Figure~\ref{fig:hotcrp}c shows how \sys partially
 %decorrelates a user's papers from a shared tag parent.
 %\lyt{I know this doesn't exactly reflect HotCRP's schema (which uses PaperTags to link papers to
 %tags), but I found this example the most convincing to demonstrate partial decorrelation. This may
 %be more relevant in a different application than HotCRP.}
 
-The final group of edge policies ensure that review and paper artifacts remain present and correctly
-linked with other application entities: (subscribed) reviewers should still see the correct paper
-for each of their reviews, (subscribed) authors should see the correct reviews for their papers, and
-review and paper metadata should remain correctly associated. The developer specifies a sensitivity
-threshold of 1 for these edge types, indicating that \proto should leave these edges untouched.
+Finally, the developer specifies a sensitivity threshold of 1 for all other edge types, ensuring that review
+and paper artifacts remain present and correctly linked: (subscribed) reviewers should still see the
+correct paper for each of their reviews, (subscribed) authors should see the correct reviews for
+their papers, and review and paper metadata should remain correctly associated. 
 
 \paragraph{Generating Ghost Entities.}
-The developer also specifies how \proto generates ghost entities. This involves determining
-which entity attributes reveal identifying information (and thus cannot be cloned); which attributes
-should be cloned to retain information necessary to the application; and how to generate attribute
-values in ways that satisfy HotCRP semantics.
-If the developer concludes that ghost entities cannot be generated without breaking application
-semantics, the relevant edges should be deleted instead of decorrelated.  For simplicity,
-Figure~\ref{fig:hotcrp} shows entity-granularity ghosting policies rather than per-attribute
-ghosting policies, and does not display the generation method (\eg random, default, etc.).
+The developer also specifies how \sys generates ghost entities by determining which entity
+attributes reveal identifying information (and thus cannot be cloned); which attributes should be
+cloned to retain information necessary to the application; and how to generate attribute values in
+ways that satisfy HotCRP semantics. 
+%If ghost entities cannot be generated without breaking
+%application semantics, the relevant edges should be deleted instead of decorrelated.  
+For simplicity, Figure~\ref{fig:hotcrp} shows entity-granularity ghosting policies rather than
+per-attribute ghosting policies, and does not display the generation method (\eg random, default,
+etc.).
 
 Most ghost user attributes should be assigned \texttt{GenerateAll} ghosting policies because no
 profile information about the unsubscribing user should be retained. The developer may choose to
 clone attributes such as the user's roles once, to ensure that the number of users with a certain
 role does not change.
 %; however, any cloned attributes should not reveal any identifying information.
-Finally, the developer should ensure that HotCRP never assigns ghost users papers to review: the
-\texttt{disabled} attribute should be generated with a default value \texttt{true} for all ghosts.
+Finally, the developer should ensure that HotCRP never assigns ghost users papers to review, giving
+all ghosts a default value of \texttt{true} for the \texttt{disabled} attribute. 
 
 In order to usefully retain paper and review information without creating duplicates, the developer
 chooses to entirely clone all paper attributes in one ghost, and generate the other ghost papers
@@ -154,7 +154,7 @@ with default values for all attributes.
 %Cloning papers or reviews once to retain their information will not reveal
 %identifying information, and all edges to sensitive parents will be decorrelated.
 
-%In particular, it is safe to clone edges to user parents because the developer knows that \proto will
+%In particular, it is safe to clone edges to user parents because the developer knows that \sys will
 %decorrelate edges to sensitive parents (replacing them with edges to ghost parents) \emph{prior} to
 %ghosting the child entity (the paper). Thus, any cloned edge attributes will necessarily point to
 %ghosts if there was a sensitive correlation between the paper and user parent.  We see a concrete
@@ -179,14 +179,14 @@ the paper conflict and its original parents.
 %irrelevant to HotCRP.
 %
 
-\subsection{\proto Performance}
-We implemented a prototype for \proto as an in-memory shim layer on top
-of a MySQL database, allowing \sys to intercept and process queries sent by the application frontend. 
-%To amortize the cost of unsubscription and resubscription, \sys preemptively creates, stores, and
+\subsection{\sys Performance}
+We implemented a prototype for \sys as an in-memory shim layer on top
+of a MySQL database, allowing \name to intercept and process queries sent by the application frontend. 
+%To amortize the cost of unsubscription and resubscription, \name preemptively creates, stores, and
 %links ghost parent entities to child entities if an update creates an edge that may be decorrelated.
-%\sys builds in-memory materialized views on top of the underlying database, exposing ghost
+%\name builds in-memory materialized views on top of the underlying database, exposing ghost
 %entities only if the true entity has been decorrelated, and real entities otherwise. Updates
-%propagate to the materialized views when the underlying database is updated. \sys answers
+%propagate to the materialized views when the underlying database is updated. \name answers
 %application queries using these materialized views, hiding the complexity of ghost entity and
 %decorrelation management.
 Our prototype consists of 5K LoC of Rust, and adds \texttt{UNSUBSCRIBE
@@ -200,12 +200,12 @@ Our prototype consists of 5K LoC of Rust, and adds \texttt{UNSUBSCRIBE
 \end{itemize}
 
 \iffalse
-We evaluate \proto on two metrics: (1) can desired decorrelation policies be easily specified using the
+We evaluate \sys on two metrics: (1) can desired decorrelation policies be easily specified using the
 provided decorrelation primitives for a range of practical applications?, and (2) can decorrelation
 be supported with low performance overhead?
 
 Our evaluation exemplifies how a suite of applications can express a diverse
-range of privacy policies using \proto with low developer effort with low overhead.
+range of privacy policies using \sys with low developer effort with low overhead.
 
 \subsection{Example policies}
 \begin{figure}
@@ -286,7 +286,7 @@ global profile and a profile for every HotCRP.com site, and must contact the Hot
 directly to remove these profiles. This corresponds to key relationships with
 \texttt{NoDecor:Retain} policies: a user simply cannot unsubscribe (or resubscribe).
 
-With \proto, we can express better, more granular privacy policies that would otherwise be difficult to
+With \sys, we can express better, more granular privacy policies that would otherwise be difficult to
 implement right in HotCRP. First, we specify that the top-level entity to decorrelate is a user
 (entities of the \texttt{ContactInfo} table). These include reviewers who may want
 to remove their connections with their reviews, papers, and other metadata (such as papers they
@@ -335,7 +335,7 @@ many other entities such as product categories, languages, countries, shopping c
 214 total different entities. 
 
 Due to the large scope of the schema, we automatically generate policies for the 324 key relationships between them 
-with \texttt{NoDecorrelation:Retain} policies, which means that \proto does, by default, no work upon
+with \texttt{NoDecorrelation:Retain} policies, which means that \sys does, by default, no work upon
 decorrelation and recorrelation. (We could also imagine that a \texttt{Decorrelate} or
 \texttt{NoDecorrelate:Remove} policy could be
 the default here, but we choose a policy by default that will not break application semantics,
@@ -348,11 +348,11 @@ Currently, PrestaShop has explicit GDPR policies for its merchants when a custom
 their account: their personal account details (age, email, address) are removed, but order invoices
 and abandoned carts are transferred to an anonymous account
 \lyt{TODO \url{https://doc.prestashop.com/display/PS17/Complying+with+the+GDPR}}.
-\proto allows PrestaShop to go beyond pseudonymity, creating individual (ghost) accounts for each
+\sys allows PrestaShop to go beyond pseudonymity, creating individual (ghost) accounts for each
 cart and order invoices of a customer, and also allowing a customer to retrieve these orders and
 abandoned carts if she rejoins the application.
 
-\proto also can help PrestaShop keep attributes such as the country or language of a user for
+\sys also can help PrestaShop keep attributes such as the country or language of a user for
 statistical analyses (used by merchants to analyze product popularity). Ghost customers can generate
 links to countries nearby a set of countries similar to the original user; if this still reveals too
 much sensitive information, the location can be desensitized (adding additional generated ghost
@@ -368,12 +368,12 @@ generate the schema in the first place.
 \includegraphics[width=.32\textwidth]{img/shim_parse}
 \includegraphics[width=.32\textwidth]{img/shim_only}
     \label{fig:results}
-    \caption{Comparison of \proto's latency during normal execution.}
+    \caption{Comparison of \sys's latency during normal execution.}
 \end{figure*}
 
 \paragraph{Experimental Setup.}
 The performance experiments reported are run on Intel Xeon E5-2660 v3 CPUs, with a
-single-threaded client and \proto's shim layer each pinned to a single core. \proto runs on top of 
+single-threaded client and \sys's shim layer each pinned to a single core. \sys runs on top of 
 MariaDB (v10.4.13). 
 
 We compare the application execution performance on four systems, all of which configure MariaDB to
@@ -386,19 +386,19 @@ store the database on a ramdisk to avoid disk IO overheads.
     \item \texttt{ShimParsing}: queries are intercepted the shim layer, parsed into a
         SQL AST (which is discarded), and then sent to the MariaDB instance; the shim then returns the results to the
         client. 
-    \item \texttt{\proto}: queries are intercepted by the shim layer and parsed into a SQL AST. \proto
+    \item \texttt{\sys}: queries are intercepted by the shim layer and parsed into a SQL AST. \sys
         then processes the parsed query, potentially introducing ghost entities and sending additional queries to the MariaDB backend.
-        \proto then returns results to the client.
+        \sys then returns results to the client.
 \end{enumerate}
 
 We compare \texttt{NoShim} and \texttt{Shim} to define the cost of query interception; \texttt{Shim}
 and \texttt{ShimParsing} to define the cost of query parsing; and \texttt{ShimParsing} and
-\texttt{\proto} to define the cost of adding decorrelation and recorrelation support.  \texttt{Shim}
-provides an upper bound for \proto's (single-threaded) performance, as the costs of query parsing
+\texttt{\sys} to define the cost of adding decorrelation and recorrelation support.  \texttt{Shim}
+provides an upper bound for \sys's (single-threaded) performance, as the costs of query parsing
 and decorrelation are not necessarily fundamental.
 
 \paragraph{Lobste.rs Performance}
-\proto utilizes the trawler workload~\cite{trawler} for Lobsters, which emulates production
+\sys utilizes the trawler workload~\cite{trawler} for Lobsters, which emulates production
 Lobsters traffic according to a recorded production workload. The database initially begins with 3K
 users, 20K stories, and 60K comments (1/2 the size of the the real Lobsters deployment), and issues
 queries according to the recorded traffic distribution. The query distribution skews towards reads
@@ -408,12 +408,12 @@ comment, and vote.
 
 The benchmarks perform 10000 actions, each performing on average 8 application queries. 
 We measure (1) overall throughput, (2) the distribution of application query
-latencies, (3) the query multiplication per application query performed by \proto, and (4) the
+latencies, (3) the query multiplication per application query performed by \sys, and (4) the
 storage cost (in-memory and on-disk).
 
-The first benchmark measures \proto's performance during \emph{normal execution}, namely when only
+The first benchmark measures \sys's performance during \emph{normal execution}, namely when only
 read and update actions performed by Lobsters are executed. 
-The second benchmark measures \proto's performance with users unsubscribing 10\% of the time
+The second benchmark measures \sys's performance with users unsubscribing 10\% of the time
 (approximately 1000 actions are unsubscriptions). If an unsubscribed user is chosen to perform an action, this user is first resubscribed.
 \texttt{NoShim}, \texttt{Shim}, and \texttt{ShimParsing} simply delete or insert the chosen user on
 unsubscription or resubscription respectively; this provides a very conservative estimate of the
@@ -421,13 +421,13 @@ amount of work these baseline systems would need to do if a user withdrew their 
 
 \lyt{Currently debugging the benchmark... (some error with repeat keys, hopefully won't take too long)}
 To complete 10K actions during normal execution, \texttt{NoShim} takes 293s, \texttt{ShimOnly} takes
-TODO, \texttt{ShimParse} takes 316s; and \texttt{\proto} takes 185s.
+TODO, \texttt{ShimParse} takes 316s; and \texttt{\sys} takes 185s.
 We show the latency results of the second of the Lobsters policies described above in
 Figure~\ref{fig:results}. 
 \lyt{TODO memory usage}
 \lyt{Should we also record the amount of time to initialize?}
 
 To complete 10K actions with 10\% of actions being unsubscribe, \texttt{NoShim} takes 263s, \texttt{ShimOnly} takes 277s, \texttt{ShimParse}
-takes 284s; and \texttt{\proto} takes TODO.
+takes 284s; and \texttt{\sys} takes TODO.
 \lyt{TODO memory usage}
 \fi

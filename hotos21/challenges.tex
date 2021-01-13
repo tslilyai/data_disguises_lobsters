@@ -1,6 +1,6 @@
-\section{\sys Requirements \& Challenges}
+\section{\name Requirements \& Challenges}
 
-To achieve \sys, a system must (1) enable applications to \emph{selectively retain} unsubscribed
+To achieve \name, a system must (1) enable applications to \emph{selectively retain} unsubscribed
 users' data for necessary legal or application purposes; (2) properly \emph{de-identify} the user
 upon unsubscription by removing any possibly identifiable information, or decorrelating this
 information from the user's identity; and (3) allow users to \emph{resubscribe} without losing their
@@ -17,7 +17,7 @@ and paper submission software, indefinitely stores and distributes submissions a
 can reference their past reviews and paper feedback. Strava, a workout tracking social network,
 retains geolocation data for other users to see which routes are popular.
 
-Under \sys, developers should be able to to specify exactly what data to retain 
+Under \name, developers should be able to to specify exactly what data to retain 
 post-unsubscription, and prevent accidental data deletion or retention.
 
 \paragraph{De-Identification.}
@@ -43,9 +43,9 @@ any time.
 %HotCRP removes the user's data completely, at the cost of other users who reference those reviews
 %and papers. 
 
-Under \sys, developers should be able to easily detect, specify, and modify or remove problematic
+Under \name, developers should be able to easily detect, specify, and modify or remove problematic
 content or correlations, even when these may be subtle; users should know exactly what identifying
-information may be left behind. However, the \sys paradigm does not aim to completely solve the open
+information may be left behind. However, the \name paradigm does not aim to completely solve the open
 problem of guaranteeing complete de-identification.
 
 \paragraph{Resubscription.}
