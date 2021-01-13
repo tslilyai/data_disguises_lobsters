@@ -1,6 +1,22 @@
 %-------------------------------------------------------------------------------
 \section{Discussion and Future Work}
 %-------------------------------------------------------------------------------
+\name provides users with control over when and how applications access their data, without
+overhauling the current web architecture and business model. However, \name has several limitations,
+For one, \name's privacy-preserving unsubscribed mode assumes that adversaries do not access
+external copies of user data (\eg screenshots), data from web archives, or applications snapshots
+prior to a user's unsubscription, which can be used to identify an unsubscribed user. In addition,
+\name assumes that legal and societal incentives will sufficiently convince applications to adopt
+\name, instead of continuing to make unsubscription difficult or impossible for users.
+       
+Our prototype design takes only the first step to realizing the \name paradigm.
+The highly application-specific nature of data retention and de-identification means that \sys 
+must trust developers to correctly specify unsubscription policies. Users cannot blindly
+trust that their privacy is guaranteed after subscription, although they can more easily vet
+application privacy properties via the application's unsubscription policy. 
+
+\lyt{Future work regarding performance? \eg limits of unsubscription/resubscription frequency at
+large scale?}
 
 \iffalse
 \subsection{Limitations}
