@@ -1,28 +1,30 @@
 %-------------------------------------------------------------------------------
 \section{Evaluation}
 %-------------------------------------------------------------------------------
-\begin{figure*}[t!]
+\begin{figure}[t!]
     \centering
-    \includegraphics[width=\textwidth]{img/decor_hotcrp}
+    \includegraphics[width=.5\textwidth]{img/decor_hotcrp}
 
     \caption{Relevant pre- and post-unsubscription state of a simplified variant of the HotCRP schema. \\ 
     \textbf{(a)} \sys decorrelates user-review and user-paper edges, and retains
-    review-paper edges. Ghost users are randomly generated, and each review and paper is cloned once. \\
+    review-paper edges. Ghost users are randomly generated. Reviews and papers are cloned once. \\
     \textbf{(b)} \sys decorrelates user-conflict edges and sensitive conflict-paper edges. One ghost
     paper is a clone of the original; the other is a default placeholder paper.
     }
     \label{fig:hotcrp}
-\end{figure*}
+\end{figure}
 
-\begin{figure*}[ht!]
+\begin{figure}[ht!]
     \centering
-    \includegraphics[width=\textwidth]{img/pcs}
+    \includegraphics[width=.5\textwidth]{img/pcs}
 
-    \caption{Different potential edge policies for paper-conflict to paper edges in HotCRP.
+    \caption{Potential edge policies for paper-conflict to paper edges in HotCRP.
     (1) retains edges from sensitive conflicts to papers; (2) decorrelates sensitive
-    conflicts from papers; (3) decorrelates all conflicts from papers.}
+    conflicts from papers; (3) decorrelates all conflicts from papers.
+    In (3), a negative sensitive threshold causes \sys to
+decorrelate \emph{all} children, including non-sensitive ones.}
     \label{fig:pcs}
-\end{figure*}
+\end{figure}
 
 
 We evaluate \sys on two fronts: (1) does \sys meet the requirements of \name,  
