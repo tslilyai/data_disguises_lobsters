@@ -3,7 +3,7 @@
     \centering
     \includegraphics[width=0.5\textwidth]{img/releaser_arch}
 
-    \caption{High level architecture of \sys. Developers specify the grayed-out components (app logic, DB table schema, and
+    \caption{High-level \sys architecture. Developers specify the grayed-out components (app logic, DB table schema, and
     unsubscription policy).}
     \label{fig:arch}
 \end{figure}
@@ -14,15 +14,15 @@ As shown in Figure~\ref{fig:arch}, \sys sits between the application logic and t
 during unsubscription and resubscription.
 
 \sys models application data as a graph of \emph{entity} nodes and edges, where each entity type
-corresponds to an application datatable, such as a users, papers, or reviews table.  Entities are
-linked in the entity graph by foreign key relationships: table columns that act as foreign keys to
-other tables create child-parent relationships between entities, where the child entity holds the
+corresponds to an application datatable, such as a users, papers, or reviews table. Edges between
+entities are foreign key relationships: foreign key table columns 
+create child-parent correlations, where the child entity holds the
 parent entity's identifier as a foreign key. 
 %\sys also includes abstract entities in the graph, where the keys may be non-referential
 %identifiers that refer to abstract, non-table entities (e.g.,\ a \texttt{thread\_id} column in the
 %comments table).  
-Edges---foreign key relationships---represent correlations between the nodes (entities) of the
-graph.
+%Edges---foreign key relationships---represent correlations between the nodes (entities) of the
+%graph.
 %---foreign or abstract key relationships---
 
 Developers use their application expertise to determine an appropriate post-unsubscription state,
