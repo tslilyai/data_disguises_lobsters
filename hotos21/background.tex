@@ -1,43 +1,5 @@
-\section{Background}
-
-\subsection{Alternative Data Ownership Paradigms}
-Prior work~\cite{solid, amber, w5, blockstack, bstore} has proposed user-centric data ownership
-paradigms, all of which decouple the storage of user data from application logic. Applications agree
-upon a standard format for data storage, and compute on decentralized, per-user datastores hosted by
-a trusted third-party provider or the user.  Application logic runs on user clients (\eg JavaScript
-in users' browsers~\cite{solid, blockstack, bstore}), and queries individual datastores to access
-user data.% (see Figure~\ref{fig:world}b).
-
-Although these paradigms grant users more control over applications' access to their data, users
-must decide on appropriate access control and authentication policies, and are burdened with
-long-term data maintenance and storage. If users do not self-host, they must trust (and potentially
-pay for) a third party provider to manage their data. Current providers in Solid~\cite{solid}
-provide no security or stability guarantees, and others that use PKI (\eg
-Blockstack~\cite{blockstack}) require users to maintain a master private key, a fragile solution in
-which losing the key results in permanent loss of all the user's data.
-%https://www.nytimes.com/2021/01/12/technology/bitcoin-passwords-wallets-fortunes.html
-
-Many applications that perform data-intensive service-side computation and rely on data sharing
-between users (\eg online stores or social networks) experience large performance loss due to the
-additional access control checks and remote queries to user datastores. Application
-developers can no longer program over application-specific SQL databases, and lose the flexibility and performance that results from specialized schemas and data storage.
-Decoupling user data also eliminates the current revenue model for web applications, which relies on access
-to user data. Projects such as Solid~\cite{solid} currently rely on open-source application
-development, and free hosting by providers, a revenue model that may be unsustainable
-long-term.
-
-In constrast, \name provides a middle ground between the current data ownership paradigm (web
-applications owning all user data), and these paradigms which decouple of user data from web applications. 
-While \name lacks a single, unified data location where users store all their data,
-users gain control access to their personal data by taking it back from applications at will, without
-any permanent consequences.  \name preserves the current web architecture and all
-its performance benefits, removing the need for applications to compute over and query for remote
-data.  When users enter privacy-preserving mode, \name does not require the user
-to secure or manage this data, or handle the intricacies of access control (described in
-Section~\ref{sec:design:storage}).
-
-\subsection{Subscription Support in Applications Today}
-\begin{table*}[]
+\section{Subscription Support in Applications Today}
+\begin{table*}[ht!]
     \centering
     \footnotesize
 \begin{tabular}{@{}rccccl@{}}
@@ -67,13 +29,22 @@ Section~\ref{sec:design:storage}).
     identifier post-unsubscription, but makes efforts to remove it from other data.}
     \label{tab:apps}
 \end{table*}
-
+%Unsubscription and resubscription support is often impossible
+%or cumbersome (users must contact the developers or customer support directly in order to
+%unsubscribe)~\cite{jdm}.  Developer's manual unsubscription implementions are often coarse-grained
+%and fail to completely de-identify the user. Furthermore, no existing application (to our knowledge)
+%supports privacy-preserving unsubscription with the possiblity of resubscription. Application
+%unsubscription thus permanently deletes years or even decades of accumulated application data,
+%costing both users and the web application, and creating little incentive for the application to
+%support easy unsubscription. 
+%including social media and news-feed applications, e-Commerce
+%applications, and other specialized services.
+%
 Legal incentives (GDPR/CCPA) and user interests have pushed applications to support at least
 unsubscription. To see how large a gap remains between current data ownership paradigms and \name, we
 study support for unsubscription and resubscription in a range of widely-used enterprise and
 open-source applications. 
-%including social media and news-feed applications, e-Commerce
-%applications, and other specialized services.
+%
 Table~\ref{tab:apps} summarizes four characteristics of each application: 
 \begin{enumerate}
     \item Is unsubscription automated, or does the user need to email or call the

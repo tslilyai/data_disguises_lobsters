@@ -22,7 +22,7 @@ breach:quora}.
 Although users want stronger privacy, completely decoupling user data from applications results in a
 potentially even less desirable world. While possible~\cite{solid, amber, w5, blockstack, bstore}, such a
 model hinders service-side computation and application performance, and requires users to manage
-long-time security and storage of their data, leading to a lack of adoption in practice.  
+long-time security and storage of their data, leading to a lack of adoption in practice (Section~\ref{sec:related}).  
 
 This paper proposes \name, a new paradigm that grants users flexible privacy when using web
 applications, balancing users' desire for privacy with their desire for application utility. In
@@ -51,24 +51,15 @@ application holds only identifying data for subscribed users, reducing the amoun
 compromising data in the system to only those users who have actively agreed to temporarily give up
 their privacy.
 
-Even with legal incentives in place, \name is far from realized.
-Unsubscription and resubscription requires complex and fragile data transformations: 
-developers must selectively retain unsubscribed users' data for legal or application purposes while
-properly de-identifying this data, a non-trivial task in the face of subtle inference attacks (\eg
-tags on a user's post can identify the user). De-identification and data removal needs to be
-reversible, allowing the user to resubscribe at any time to their last-known subscribed state.
+Even with legal incentives in place, realizing \name poses a number of challenges.
+Unsubscription and resubscription requires complex and fragile data transformations: developers must
+selectively retain unsubscribed users' data for legal or application purposes while properly
+de-identifying this data, a non-trivial task in the face of subtle inference attacks (\eg tags on a
+user's post can identify the user). De-identification and data removal needs to be reversible,
+allowing the user to resubscribe at any time to their last-known subscribed state.
 
-These challenges have resulted in unsubscription and resubscription support that is often impossible
-or cumbersome (users must contact the developers or customer support directly in order to
-unsubscribe)~\cite{jdm}.  Developer's manual unsubscription implementions are often coarse-grained
-and fail to completely de-identify the user. Furthermore, no existing application (to our knowledge)
-supports privacy-preserving unsubscription with the possiblity of resubscription. Application
-unsubscription thus permanently deletes years or even decades of accumulated application data,
-costing both users and the web application, and creating little incentive for the application to
-support easy unsubscription. 
-
-To make \name a reality, we need new tools that allow developers to easily and
-systematically automate the process for new and existing applications. As a first step, we design 
-\sys, a practical system that provides abstractions and mechanisms to help developers of databased-backed web
-applications achieve correct, privacy-compliant user unsubscription and resubscription without
-onerous labor.
+To make \name a reality, we need new tools that allow developers to easily and systematically
+automate the process for new and existing applications. As a first step, we design \sys, a practical
+system that introduces \emph{ghost entity} and \emph{ghost policy} abstractions to help developers
+of databased-backed web applications automatically achieve correct, privacy-compliant user unsubscription and
+resubscription without onerous labor.

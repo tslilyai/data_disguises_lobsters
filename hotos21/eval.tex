@@ -1,6 +1,7 @@
 %-------------------------------------------------------------------------------
-\section{Evaluation}
+\section{Case Studies}
 %-------------------------------------------------------------------------------
+\label{sec:hotcrp_example}
 \begin{figure}[t!]
     \centering
     \includegraphics[width=.5\textwidth]{img/decor_hotcrp}
@@ -26,20 +27,16 @@ decorrelate \emph{all} children, including non-sensitive ones.}
     \label{fig:pcs}
 \end{figure}
 
-
-We evaluate \sys on two fronts: (1) does \sys meet the requirements of \name,  
+We evaluate whether \sys meets the requirements of \name,  
 allowing the developer to sufficiently and easily express how data should be retained and
-de-identified, and supporting resubscription without burdening the developer or user? and (2) 
-does \sys support unsubscription and resubscription with low performance overhead?
-
-We observe that \sys meets the requirement for automatic resubscription, handling
+de-identified, and supporting resubscription without burdening the developer or user. 
+%and (2) %does \sys support unsubscription and resubscription with low performance overhead?
+\sys meets the requirement for automatic resubscription, handling
 data encryption for the application and user without requiring the user to manage private keys or
 data storage. We show that \sys can meet the other two requirements by evaluating the
-expressiveness of unsubscription policies in HotCRP, a popular conference review management
-application.
+ease of writing and expressiveness of unsubscription policies in HotCRP, a popular conference review management
+application. \lyt{and Lobsters and/or PrestaShop?}
 
-\subsection{Unsubscription Policies in Practice}
-\label{sec:hotcrp_example}
 We use \sys to write an unsubscription policy for HotCRP, demonstrating that \sys's abstractions
 are indeed expressive enough to handle realistic and subtle data policies.  This example also
 illustrates the workflow and different application-specific choices developers must consider when
@@ -181,7 +178,7 @@ the paper conflict and its original parents.
 %irrelevant to HotCRP.
 %
 
-\subsection{\sys Performance}
+\subsection{\sys Prototype}
 We implemented a \sys prototype, which acts as an in-memory shim layer on top
 of a MySQL database. \sys intercepts and processes queries sent by the application frontend. 
 %To amortize the cost of unsubscription and resubscription, \name preemptively creates, stores, and
@@ -204,6 +201,10 @@ Our prototype takes only the first step to implement \sys. \sys should support e
 consistent, crash-recoverable unsubscription and resubscription; and scale in performance by
 supporting sharding and multicore parallelism.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \iffalse
 We evaluate \sys on two metrics: (1) can desired decorrelation policies be easily specified using the
 provided decorrelation primitives for a range of practical applications?, and (2) can decorrelation

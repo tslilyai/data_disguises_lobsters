@@ -1,71 +1,7 @@
 %-------------------------------------------------------------------------------
-\section{Design}
+\section{Unsubscription Policy Design}
 %-------------------------------------------------------------------------------
-This section elaborates on how \sys interacts with application developers and users, and describes
-\sys's abstractions for unsubscription policies.
-\sys sits between the application logic and the application database, adding support for
-\texttt{UNSUBSCRIBE} and \texttt{RESUBSCRIBE} queries, and applying the appropriate data transformations
-during unsubscription and resubscription.
-
-\sys models application data as a graph of \emph{entity}
-nodes and edges, where each entity type corresponds to an application datatable, such as a users,
-papers, or reviews table.  Entities are linked in the entity graph by foreign key relationships:
-table columns that act as foreign keys to other tables create child-parent relationships between
-entities, where the child entity holds the parent entity's identifier as a foreign key. 
-%\sys also includes abstract entities in the graph, where the keys may be non-referential
-%identifiers that refer to abstract, non-table entities (e.g.,\ a \texttt{thread\_id} column in the
-%comments table).  
-Edges---foreign key relationships---represent correlations between the nodes (entities) of the
-graph.
-%---foreign or abstract key relationships---
-
-\subsection{Application Developer Responsibilities}
-Application developers statically specify an unsubscription policy on top of the application schema.
-The developer reasons only about the \emph{types} of entities
-and the \emph{types} of entity edges that may be instantiated in the graph; \sys acts on individual
-instances of the entity graph, and ensures that any instance satisfies the state specified in the
-policy by transparently rewriting application queries, and applying the proper queries during
-unsubscription.
-
-Developers use their application expertise to determine the appropriate post-unsubscription state,
-specifying which entities and edges should remain, and how these entities and edges should modified
-for de-identification while retaining application correctness. \sys provides a menu of choices  
-for removing or modifying entity content and edges (Section~\ref{sec:design:unsub}).
-The developer remains responsible for specifying an appropriate unsubscription policy: \sys
-guarantees that the policy is correctly and automatically applied upon unsubscription and reversed
-upon resubscription. The developer can use the unsubscription policy as a specification of
-application database state to more precisely convey privacy guarantees to its user in \eg
-application privacy policies.
-
-\subsection{User Data Management}
-\label{sec:design:storage}
-While unsubscribing a user, \sys collects all deleted data and tracks any modifications performed
-on retained data.  \sys encrypts this information with a per-user key, and stores this encrypted
-blob in a dedicated datastore of the application. The user key is secret-shared using a (2, 3)
-threshold scheme~\cite{secretsharing} between the user, application, and a trusted third party (\eg
-Amazon S3), so that the user can authorize the application and the third party to restore the key if
-the user forgets their share.  Alternatively, the key can also be password-encrypted, which relies
-on the user not forgetting their password.
-
-The user can optionally choose to store this encrypted data themselves (or in a third party cloud
-provider), and be in charge of providing their data and key to \sys to decrypt the data upon
-resubscription.
-%After applying the appropriate edge policies, \sys collects all 
-%removed entities (including parent entities that
-%have been replaced by ghosts when edges are retained or decorrelated), as well as 
-%the identifier attributes of all generated ghosts, and a mapping from real
-%entity to the set of ghosts that replaced that entity's correlations. 
-
-\subsection{Resubscription}
-To resubscribe, a user authorizes the decryption of their data and associated metadata by
-providing their share of the key (or authorizing a trusted third party to reconstruct the secret
-with the application). \sys decrypts the data with the key, and systematically reverses 
-the modifications made during unsubscription, restoring removed entities and correlations between
-entities.
-
-\subsection{Unsubscription Policies}
 \label{sec:design:unsub}
-
 Unsubscription policies center around the abstraction of \emph{ghost entities}. A ghost entity is
 more than an anonymized version of a real entity: multiple ghost
 entities may replace a real entity to break any correlations with the real entity; and ghost entities can be
@@ -81,7 +17,7 @@ describe these in detail next.
 %Table~\ref{tab:ghosting} shows an example of two ghosts based on a real template paper entity; we describe
 %how these ghosts are created next.
 
-\subsubsection{How should ghost entities be generated?}
+\subsection{How should ghost entities be generated?}
 \label{sec:ghosting}
 
 \begin{table*}[t!]
@@ -145,7 +81,7 @@ generated from the same paper have default attribute values, preventing duplicat
         Ghost1 in Table~\ref{tab:ghosting}.
 \end{itemize}
 
-\subsubsection{When should ghosts be generated?}
+\subsection{When should ghosts be generated?}
 \label{design:edgepol}
 While ghost generation policies inform \sys how to produce ghosts, developers must also specify
 \emph{when} \sys should produce ghosts. 
@@ -214,6 +150,10 @@ threshold, and retains the remaining edges.
 %If \sys retains any edges from children to the parent, \sys generates a single ghost parent entity using the
 %parent as a template. The ghost parent adopts all children that remained correlated with the real
 %parent by replacing the childrens' edge attribute with the ghost's identifier.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \iffalse
 \subsection{\sys's Execution Algorithm}

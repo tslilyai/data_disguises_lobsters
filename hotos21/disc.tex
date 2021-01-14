@@ -1,16 +1,16 @@
 %-------------------------------------------------------------------------------
-\section{Discussion and Future Work}
+\section{Discussion}
 %-------------------------------------------------------------------------------
 \name paradigm has several limitations.
 %\name assumes that legal and societal incentives will sufficiently convince applications to adopt
 %\name, and that 
-For one, \name does not provide privacy against adversaries that have information from web archive
-application snapshots or applications queries prior to a user's unsubscription. \name also cannot
-promise complete de-identification of unsubscribed users: the highly application-specific nature of
-data retention and de-identification means that \name must trust developers to appropriate
-de-identify user data (\eg to write appropriate unsubscription policies in \sys). Users cannot
-blindly assume complete privacy after unsubscription, although with a design like \sys, they can
-more easily vet application privacy properties via its unsubscription policy.
+\name assumes a threat model in which adversaries cannot get information from web archive
+application snapshots or applications queries prior to a user's unsubscription. 
+\name also cannot promise complete de-identification of unsubscribed users: the highly
+application-specific nature of data retention and de-identification means that \name must trust
+developers to appropriate de-identify user data (\eg to write appropriate unsubscription policies in
+\sys). Users cannot blindly assume complete privacy after unsubscription, although with a design
+like \sys, they can more easily vet application privacy properties via its unsubscription policy.
 
 \sys helps developers systematically retain and de-identify data, but providing formal
 de-identification guarantees in application-specific settings remains an open question. Ideas from
@@ -24,17 +24,6 @@ analysis tools can help developers catch more, but likely not all, of these iden
 unsubscription policy, since \sys cannot restore data removed using the old policy upon
 resubscription. Work in the area of database schema evolution and migration~\cite{schema:evo} may
 offer insights into supporting resubscribe after such updates.
-
-%-------------------------------------------------------------------------------
-\section{Conclusion}
-%-------------------------------------------------------------------------------
-We propose \name, a new paradigm of data ownership on the web that provides users with control over
-when and how applications access their data, without overhauling the current web architecture and
-business model. To realize \name, we design \sys, which minimizes the burden upon users to store or
-manage their data, and makes it easy for developers to systematically express and automate the
-subtle and complex data transformations needed for unsubscription and resubscription. We demonstrate
-how \sys can be used in practical web applications with low overhead.
-
 \iffalse
 \subsection{Limitations}
 

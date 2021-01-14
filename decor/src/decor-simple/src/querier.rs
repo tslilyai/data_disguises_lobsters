@@ -203,14 +203,15 @@ impl Querier {
      *******************************************************/
     pub fn insert_ghost_for_template(&mut self, 
                                 template: &TemplateEntity,
-                                num_ghosts: usize,
+                                // TODO make more than one ghost family at a time
+                                //num_ghosts: usize, 
                                 views: &Views,
                                 gp: &EntityGhostPolicies,
                                 db: &mut mysql::Conn) 
         -> Result<GhostEidMapping, mysql::Error> 
     {
         let start = time::Instant::now();
-        let new_entities = generate_new_ghosts_from(views, gp, template, num_ghosts)?;
+        let new_entities = ghosts::generate_new_ghosts_from(views, gp, template, 1)?;
 
         let mut ghost_names = vec![];
         let mut root_gid = 0;
@@ -260,7 +261,6 @@ impl Querier {
         warn!("{} insert_ghost_for_eid {}, {}: {}us", self.name, gid, template.eid, dur.as_millis());
         Ok(gem)
     }
-
 
     pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) 
         -> Result<(), mysql::Error> 
@@ -354,13 +354,14 @@ impl Querier {
                         match policy.pc_policy {
                             Decorrelate(f) => {
                                 assert!(f < 1.0); 
-                                                   
+                                               
+                                // TODO could create all these ghosts at once?
                                 let gem = self.insert_ghost_for_template(
                                     TemplateEntity {
                                         table: node.table_name.clone(),
                                         row: node.vals.row().clone(), 
                                         fixed_colvals: None,
-                                    }, 1, &self.views, gp, db)?;
+                                    }, &self.views, &policy.ghost_policies, db)?;
                                 
                                 let gid = gem.root_gid;
                                 
@@ -414,7 +415,7 @@ impl Querier {
         self.unsubscribe_child_parent_edges(&traversed_entities, &mut ghost_eid_mappings, &mut nodes_to_remove, &mut nodes_to_ghost, db)?;
 
         /*
-         * Step 4: Change itermediate and leaf entities to ghosts TODO
+         * Step 4: Change intermediate and leaf entities to ghosts TODO
          */
         for entity in nodes_to_ghost {
 
@@ -460,14 +461,14 @@ impl Querier {
                 let ci = child_columns.iter().position(|c| policy.column == c.to_string()).unwrap();
      
                 // group all table children by EID
-                let mut parent_eid_counts : HashMap<u64, usize> = HashMap::new();
+                let mut parent_eid_counts : HashMap<u64, Vec<&TraversedEntity>> = HashMap::new();
                 for child in table_children {
                     let parent_eid_val = &child.vals.row().borrow()[ci];
                     let parent_eid = helpers::parser_val_to_u64(parent_eid_val);
                     if let Some(count) = parent_eid_counts.get_mut(&parent_eid) {
-                        *count += 1;
+                        count.append(child);
                     } else {
-                        parent_eid_counts.insert(parent_eid, 1);
+                        parent_eid_counts.insert(parent_eid, vec![child]);
                     }
                 }
 
@@ -481,7 +482,7 @@ impl Querier {
                 // if we're retaining all edges, we just need to ghost the parent
                 if sensitivity = 1.0 {
                     for (parent_eid, _) in parent_eid_counts.iter() {
-                        // get parent entity
+                        // get parent entity, add it to nodes to ghost
                         let parent_rptr = self.views.get_row_of_id(&policy.parent, parent_eid);
                         nodes_to_ghost.insert(TraversedEntity{
                             table_name: policy.parent.clone(),
@@ -495,37 +496,56 @@ impl Querier {
                 }
 
                 // otherwise, decorrelate/delete as necessary
-                for (parent_eid, sensitive_count) in parent_eid_counts.iter() {
+                for (parent_eid, sensitive_children) in parent_eid_counts.iter() {
                     // get all children of this type with the same parent entity eid
-                    let childrows = self.views.graph.get_children_of_parent(&parent_table, *parent_eid).unwrap();
+                    let childrows = self.views.graph.get_children_of_parent(&policy.parent, *parent_eid).unwrap();
                     let total_count = childrows.get(&(poster_child.table_name.clone(), ci)).unwrap().len();
+                    let sensitive_count = sensitive_children.len();
                     warn!("Found {} total and {} sensitive children of type {} with parent {}", 
-                          total_count, sensitive_count, poster_child.table_name, parent_eid);
+                          total_count, sensitive_count, policy.parent, parent_eid);
                     
                     let number_to_desensitize = (((*sensitive_count as f64 * (1.0-sensitivity)) - (total_count * sensitivity)) / (1.0-sensitivity)).ceil() as i64;
                     if number_to_desensitize > 0 {
-                        // TODO
-                        /*for i in 0..needed {
-                            warn!("Unsub parent-child Removing {:?}", table_children[i as usize]);
-                            removed.extend(self.recursive_remove(&table_children[i as usize], children, db)?);
-                        }*/
-                    }                         // insert all ghost ancestors created into the MV
-                        let mut ancestor_table_ghosts = vec![];
-                        for ghost_entities in &new_entities {
-                            self.views.insert(&ghost_entities.table, None, &ghost_entities.rptrs)?;
-                            for gid in &ghost_entities.gids {
-                                ancestor_table_ghosts.push((ghost_entities.table.clone(), *gid));
+                        let parent_rptr = view_ptr.borrow().get_row_of_id(&policy.parent, parent_eid);
+                        
+                        if number_to_desensitize > sensitive_count {
+                            unimplemented("No support for decorrelated or removing non-sensitive children");
+                        }
+                        // some children still remain, so the original parent is
+                        // still around, and should be ghosted
+                        if number_to_desensitize < total_count {
+                            nodes_to_ghost.insert(TraversedEntity{
+                                table_name: policy.parent.clone(),
+                                eid: parent_eid,
+                                rptr: parent_rptr,
+                                parent_table: "".to_string(),
+                                parent_col_index: 0,
+                            });
+                        }
+
+                        for child in sensitive_children[..number_to_desensitize] {
+                            match policy.pc_policy {
+                                Decorrelate(_) => {
+                                    let gem = self.insert_ghost_for_template(
+                                        TemplateEntity {
+                                            table: node.table_name.clone(),
+                                            row: node.vals.row().clone(), 
+                                            fixed_colvals: None,
+                                        }, &self.views, &policy.ghost_policies, db)?;
+                                    let gid = gem.root_gid;
+                                    ghost_eid_mappings.push(gem);
+                                    self.views.update_index_and_row_of_view(&child.table, child.rptr.clone(), ci, Some(&gid));
+                                }
+                                Delete(_) => {
+                                    // add all the sensitive removed entities to return to the user 
+                                    nodes_to_remove.append(&mut self.get_tree_from_child(&child).into_iter().collect());
+                                }
+                                _ => unimplemented("Shouldn't have a retain policy with a positive number to desensitize")
                             }
                         }
-                        ghost_eid_mappings.push(GhostEidMapping{
-                            table: poster_child.table_name.clone(), 
-                            eid2gidroot: None, 
-                            ghosts: ancestor_table_ghosts,
-                        });
                     }
                 }
             }
-            let mut removed = HashSet::new();
         }
         warn!("UNSUB: Duration to look at and remove/desensitize child-parent edges: {}us", start.elapsed().as_micros());
         Ok(())
