@@ -73,7 +73,8 @@ partially custom generated or partially clones of real entities.
 %Pre- and post-unsubscription state differ by the presence of ghost entity nodes and edges, which
 %have taken the place of real entities and edges. 
 Developers provide a two-part unsubscription policy to \sys, consisting of a \emph{ghost
-generation policy} for each entity type, and an \emph{edge policy} for each edge type. We describe each in detail next.
+generation policy} for each entity type, and an \emph{edge policy} for each edge type. We
+describe these in detail next.
 %\sys returns the real entity data and a mapping
 %from entities to their ghost replacements back to the unsubscribing user, which, if returned upon
 %resubscription, allows \sys to restore the user to their original state.
@@ -101,11 +102,11 @@ generation policy} for each entity type, and an \emph{edge policy} for each edge
     \label{tab:ghosting}
 \end{table*}
 
-\sys generates ghost entities in order to transform the contents of real entities, and to
-decorrelate children from parent entities by reassigning the child to a ghost parent
-(Section~\ref{design:edgepol}). Developers define a ghost generation policy for each entity type to
+%\sys generates ghost entities in order to transform the contents of real entities, and to
+%decorrelate children from parent entities by reassigning the child to a ghost parent
+%(Section~\ref{design:edgepol}). 
+Developers define a ghost generation policy for each entity type to
 inform \sys how to generate ghost entities.
-
 \sys assumes entities have three kinds of attributes: a unique identifier attribute; value
 (non-referential) attributes such as timestamps or usernames; and edge (foreign key)
 attributes that identify correlations to parent entities.  Value attributes contents may expose
@@ -117,7 +118,6 @@ an edge attribute, containing a foreign key to the ContactInfo (users) table.
 Developers specify how \sys should generate each of these attributes, given a template real
 entity.
 \sys always generates ghost entities with unique identifier attribute values.
-
 For each value and edge attribute of each entity type, developers specify an \emph{attribute ghosting policy},
 which take as input a template entity's attribute value. Ghosting policies determine whether the
 template value should be \emph{cloned} in one or all ghost entities, or whether
@@ -149,10 +149,10 @@ generated from the same paper have default attribute values, preventing duplicat
 \label{design:edgepol}
 While ghost generation policies inform \sys how to produce ghosts, developers must also specify
 \emph{when} \sys should produce ghosts. 
-By default, \sys finds all \emph{sensitive} entities,
-namely entities which transitively connect via parent-child edges to the unsubscribing user, and
+By default, \sys finds all \emph{sensitive} entities---entities transitively connected via
+parent-child edges to the unsubscribing user---and
 replaces them with a ghost entity according to the specified ghost generation policy. \sys also
-replaces any entity that is a parent of a sensitive child with a ghost.
+replaces any parent of a sensitive child with a ghost.
 
 \sys then applies developer-specified \emph{edge policies}, which determine when \sys should
 create ghosts to break correlations between sensitive children and their parents.
@@ -162,7 +162,7 @@ whether to delete or decorrelate edges of this type to reach the threshold. Deco
 \sys to generate ghost entities and reassign children with the same parent entity to different
 ghost parents.
 
-\paragraph{What is the Sensitivity Threshold?}
+%\paragraph{What is the Sensitivity Threshold?}
 %For each edge policy, the developer specifies a \emph{sensitivity
 %threshold}. 
 %
@@ -182,15 +182,13 @@ But the tag may also indicate nothing about who may have authored the papers.  I
 answer may lie somewhere in the middle: it is problematic if \emph{all} of children of edge of this
 type are sensitive, but perhaps it is acceptable if only a fraction of children of this edge type
 are sensitive. The maximum acceptable fraction is the sensitivity threshold. For example, a
-reasonable sensitivity threshold might be $0.1$ for paper-tag key relationships: less than 10\% of
-all paper with a specific tag key should have been correlated (even indirectly) with an
-(unsubscribed) user. 
+reasonable sensitivity threshold might be $0.1$ for paper-tag correlations: less than 10\% of
+all papers with a specific tag key should be correlated with an (unsubscribed) user. 
 
 %If no threshold is specified, \sys defaults to a threshold of $0$ and fully
 %decorrelates all edges of this type. 
 
-\paragraph{Achieving the Sensitivity Threshold.}
-The developer chooses between two options to achieve the sensitivity threshold: 
+The developer chooses one of two ways to achieve the sensitivity threshold: 
 \begin{enumerate}
     \item \textbf{Decorrelate.}
     \sys decorrelates edges from sensitive children by replacing edges to the real parent with

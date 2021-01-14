@@ -14,7 +14,7 @@
     \label{fig:hotcrp}
 \end{figure}
 
-\begin{figure}[ht!]
+\begin{figure}[t!]
     \centering
     \includegraphics[width=.5\textwidth]{img/pcs}
 
@@ -150,8 +150,7 @@ Finally, the developer should ensure that HotCRP never assigns ghost users paper
 all ghosts a default value of \texttt{true} for the \texttt{disabled} attribute. 
 
 In order to usefully retain paper and review information without creating duplicates, the developer
-chooses to entirely clone all paper attributes in one ghost, and generate the other ghost papers
-with default values for all attributes. 
+chooses to clone all paper attributes in one ghost, and generate default values for other ghosts.
 %Table~\ref{tab:ghosting} shows the partial specification for
 %generation ghost papers. 
 %Cloning papers or reviews once to retain their information will not reveal
