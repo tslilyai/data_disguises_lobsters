@@ -1,14 +1,23 @@
 \section{Overview}
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width=0.5\textwidth]{img/releaser_arch}
+
+    \caption{High level architecture of \sys. Developers specify the grayed-out components (app logic, DB table schema, and
+    unsubscription policy).}
+    \label{fig:arch}
+\end{figure}
+
 To solve these challenges, we present \sys, a system designed to achieve the \name paradigm.
-\sys sits between the application logic and the application database, adding support for
+As shown in Figure~\ref{fig:arch}, \sys sits between the application logic and the application database, adding support for
 \texttt{UNSUBSCRIBE} and \texttt{RESUBSCRIBE} queries, and applying the appropriate data transformations
 during unsubscription and resubscription.
 
-\sys models application data as a graph of \emph{entity}
-nodes and edges, where each entity type corresponds to an application datatable, such as a users,
-papers, or reviews table.  Entities are linked in the entity graph by foreign key relationships:
-table columns that act as foreign keys to other tables create child-parent relationships between
-entities, where the child entity holds the parent entity's identifier as a foreign key. 
+\sys models application data as a graph of \emph{entity} nodes and edges, where each entity type
+corresponds to an application datatable, such as a users, papers, or reviews table.  Entities are
+linked in the entity graph by foreign key relationships: table columns that act as foreign keys to
+other tables create child-parent relationships between entities, where the child entity holds the
+parent entity's identifier as a foreign key. 
 %\sys also includes abstract entities in the graph, where the keys may be non-referential
 %identifiers that refer to abstract, non-table entities (e.g.,\ a \texttt{thread\_id} column in the
 %comments table).  
@@ -26,21 +35,20 @@ resubscription.
 The unsubscription policy can also act as a specification of
 application database state to precisely convey privacy guarantees to users.
 
-%\label{sec:design:storage}
 \sys also handles user data management and storage.
-While unsubscribing a user, \sys collects all deleted data and tracks any modifications performed
-on retained data. \sys encrypts this information with a per-user key, and stores this encrypted
-blob in a dedicated application datastore. The user key is secret-shared using a (2, 3)
-threshold scheme~\cite{secretsharing} between the user, application, and a trusted third party (\eg
-Amazon S3), so that the user can authorize the application and the third party to restore the key if
-the user forgets their share. Alternatively, the key can also be password-encrypted, which relies
-on the user not forgetting their password.
-
-The user can optionally choose to store this encrypted data themselves (or in a third party cloud
-provider), and be in charge of providing their data and key to \sys to decrypt the data upon
+While unsubscribing a user, \sys tracks all deletions and modifications to the database. 
+\sys encrypts this log with a per-user key, and stores this encrypted
+blob in a dedicated application datastore (Figure~\ref{fig:arch}, step 5). The user key is secret-shared using a (2, 3)
+threshold scheme~\cite{secretsharing} between the user, \sys, and a trusted third party (\eg
+Amazon S3), so that the user can authorize \sys and the third party to restore the key if
+the user forgets their share. 
+%Alternatively, the key can also be password-encrypted, which relies
+%on the user not forgetting their password.
+The user can optionally choose to store this encrypted data themselves 
+%(or in a third party cloud provider), 
+and be in charge of providing their data and key to \sys to decrypt the data upon
 resubscription.
 
-%\subsection{Resubscription}
 To resubscribe, a user authorizes the decryption of their data and associated metadata by
 providing their share of the key (or authorizing a trusted third party to reconstruct the secret
 with the application). \sys decrypts the data with the key, and systematically reverses 
