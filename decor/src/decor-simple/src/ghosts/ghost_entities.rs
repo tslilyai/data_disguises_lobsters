@@ -1,11 +1,8 @@
 use std::*;
-use rand::prelude::*;
-use mysql::prelude::*;
 use sql_parser::ast::*;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
-use rand::distributions::{Distribution, Uniform};
 use log::{debug, warn, error};
 use std::sync::atomic::{Ordering, AtomicU64};
 
@@ -82,9 +79,9 @@ pub fn is_ghost_eidval(val: &Value) -> bool {
 
 fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {
     let mut gids = vec![];
-    let first_gid = self.LAST_GID.fetch_add(needed, Ordering::SeqCst) + 1;
+    let first_gid = LAST_GID.fetch_add(needed as u64, Ordering::SeqCst) + 1;
     for n in 0..needed {
-        gids.push(Value::Number((first_gid + n).to_string()));
+        gids.push(Value::Number((first_gid + n as u64).to_string()));
     }
     gids
 }
@@ -92,7 +89,6 @@ fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {
 pub fn generate_new_ghosts_from(
     views: &Views,
     ghost_policies: &EntityGhostPolicies,
-    db: &mut mysql::Conn,
 
     template: &TemplateEntity, 
     num_ghosts: usize,
@@ -176,7 +172,6 @@ pub fn generate_new_ghosts_from(
 pub fn generate_foreign_key_val(
     views: &views::Views,
     ghost_policies: &EntityGhostPolicies,
-    db: &mut mysql::Conn,
     table_name: &str,
     template_eid: u64,
     new_entities: &mut Vec<TableGhostEntities>)
@@ -184,27 +179,23 @@ pub fn generate_foreign_key_val(
 {
     // assumes there is at least one value here...
     let parent_table_row = views.get_row_of_id(table_name, template_eid);
-    let mut rng: ThreadRng = rand::thread_rng();
-    let gid = rng.gen_range(GHOST_ID_START, GHOST_ID_MAX);
-    let gidval = Value::Number(gid.to_string());
 
     warn!("GHOSTS: Generating foreign key entity for {} {:?}", table_name, parent_table_row);
-    new_entities.append(&mut generate_new_ghosts_with_gids(
-        views, ghost_policies, 
+    let mut ghost_parent_fam = generate_new_ghosts_from(
+        views, ghost_policies,
         &TemplateEntity{
             table: table_name.to_string(),
             row: parent_table_row,
             fixed_colvals: None,
-        },
-        &vec![gidval.clone()],
-    )?);
+        }, 1)?;
+    let gidval = Value::Number(ghost_parent_fam[0].gids[0].to_string());
+    new_entities.append(&mut ghost_parent_fam);
     Ok(gidval)
 }
 
 pub fn get_generated_val(
     views: &views::Views,
     ghost_policies: &EntityGhostPolicies,
-    db: &mut mysql::Conn,
     gen: &GeneratePolicy, 
     base_val: &Value,
     new_entities: &mut Vec<TableGhostEntities>,

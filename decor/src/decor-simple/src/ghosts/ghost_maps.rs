@@ -302,15 +302,16 @@ impl GhostMap {
        
         let gid = self.latest_gid.fetch_add(1, Ordering::SeqCst) + 1;
 
-        let new_entities = ghosts::generate_new_ghosts_with_gids(
-            views, gp, db, 
+        let new_entities = ghosts::generate_new_ghosts_from(
+            views, gp, 
             &TemplateEntity{
                 table: self.table_name.clone(), 
                 row: from_vals, 
                 fixed_colvals: None,
-            },
-            &vec![Value::Number(gid.to_string())], 
-            &mut self.nqueries)?;
+            }, 1);
+            //&vec![Value::Number(gid.to_string())], 
+            //&mut self.nqueries)?;
+        // TODO will need to insert into datatables
 
         let new_family = GhostFamily{
             root_table: self.table_name.clone(),

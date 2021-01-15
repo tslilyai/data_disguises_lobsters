@@ -1,3 +1,10 @@
+use sql_parser::ast::*;
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::*;
+use crate::views::*;
+use crate::helpers;
+
 /**************************************** 
  **** Converts Queries/Exprs to Values **
  ****************************************/
@@ -125,7 +132,7 @@ fn expr_to_value_expr(expr: &Expr, views: &Views)
             expr: Box::new(expr_to_value_expr(&expr, views)?),
             collation: collation.clone(),
         },
-        Expr::Nested(expr) => Expr::Nested(Box::new(expr_to_value_expr(&expr, views)?),
+        Expr::Nested(expr) => Expr::Nested(Box::new(expr_to_value_expr(&expr, views)?)),
         Expr::Row{
             exprs,
         } => {
@@ -192,13 +199,13 @@ fn expr_to_value_expr(expr: &Expr, views: &Views)
             }
             Expr::Case{
                 operand: match operand {
-                    Some(e) => Some(Box::new(expr_to_value_expr(&e, views)?),
+                    Some(e) => Some(Box::new(expr_to_value_expr(&e, views)?)),
                     None => None,
                 },
                 conditions: new_cond ,
                 results: new_res, 
                 else_result: match else_result {
-                    Some(e) => Some(Box::new(expr_to_value_expr(&e));
+                    Some(e) => Some(Box::new(expr_to_value_expr(&e))),
                     None => None,
                 },
             }
@@ -267,7 +274,7 @@ fn expr_to_value_expr(expr: &Expr, views: &Views)
 /* 
  * Convert all expressions to insert to primitive values
  */
-fn insert_source_query_to_rptrs(q: &Query, views: &Views) 
+pub fn insert_source_query_to_rptrs(q: &Query, views: &Views) 
     -> Result<RowPtrs, mysql::Error> 
 {
     let mut vals_vec : RowPtrs = vec![];
@@ -278,7 +285,7 @@ fn insert_source_query_to_rptrs(q: &Query, views: &Views)
             for row in expr_vals {
                 let mut vals_row : Row = vec![];
                 for val in row {
-                    let value_expr = expr_to_value_expr(&val)?;
+                    let value_expr = expr_to_value_expr(&val, views)?;
                     match value_expr {
                         Expr::Subquery(q) => {
                             match q.body {
