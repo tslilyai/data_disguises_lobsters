@@ -8,9 +8,9 @@ entities may replace a real entity to break any correlations with the real entit
 partially custom generated or partially clones of real entities.
 %Pre- and post-unsubscription state differ by the presence of ghost entity nodes and edges, which
 %have taken the place of real entities and edges. 
-Developers provide a two-part unsubscription policy to \sys, consisting of a \emph{ghost
-generation policy} for each entity type, and an \emph{edge policy} for each edge type. We
-describe these in detail next.
+Developers specify a two-part unsubscription policy, consisting of per-entity-type \emph{ghost
+generation policies} describing how to create ghosts, and per-edge-type \emph{edge policies}
+describing when to create ghosts. We describe these in detail next.
 %\sys returns the real entity data and a mapping
 %from entities to their ghost replacements back to the unsubscribing user, which, if returned upon
 %resubscription, allows \sys to restore the user to their original state.
@@ -77,8 +77,7 @@ generated from the same paper have default attribute values, preventing duplicat
     \item \texttt{CloneOne:} One ghost entity shares the same value for the attribute as the
         template. All other ghosts have generated values (as described above).
         The same ghost entity will have cloned values for all attributes with a
-        \texttt{CloneOne} policy. For example, clones of all value and edge attributes belong to
-        Ghost1 in Table~\ref{tab:ghosting}.
+        \texttt{CloneOne} policy. For example, Ghost1 clones all value and edge attributes in Table~\ref{tab:ghosting}.
 \end{itemize}
 
 \subsection{When should ghosts be generated?}
@@ -88,7 +87,7 @@ While ghost generation policies inform \sys how to produce ghosts, developers mu
 By default, \sys finds all \emph{sensitive} entities---entities transitively connected via
 parent-child edges to the unsubscribing user---and
 replaces them with a ghost entity according to the specified ghost generation policy. \sys also
-replaces any parent of a sensitive child with a ghost.
+ghosts any parent of a sensitive child.
 
 \sys then applies developer-specified \emph{edge policies}, which determine when \sys should
 create ghosts to break correlations between sensitive children and their parents.
@@ -107,19 +106,17 @@ type) from a real parent entity that may remain correlated to sensitive child en
 %Sensitive entities transitively correlate back to the initial entity being unsubscribed. 
 At a high level, the sensitivity threshold estimates how much identifying information may leak from
 edge instances of that type.  Developers use their knowledge of application semantics to determine
-appropriate thresholds for each edge type.  Developers can determine an appropriate sensitivity
-threshold for each edge type by approximating how identifying these correlations may be if
-all of these edges' children to the same parent are sensitive.
-
-For example, consider the edge from papers to tags. If all the papers tagged with the same parent
-tag belong to some (unsubscribed) user, would these paper-tag correlations be identifying? If tags
-are customizable by the user, any paper with that tag will clearly belong to the unsubscribed user.
-But the tag may also indicate nothing about who may have authored the papers.  In many cases, the
-answer may lie somewhere in the middle: it is problematic if \emph{all} of children of edge of this
-type are sensitive, but perhaps it is acceptable if only a fraction of children of this edge type
-are sensitive. The maximum acceptable fraction is the sensitivity threshold. For example, a
-reasonable sensitivity threshold might be $0.1$ for paper-tag correlations: less than 10\% of
-all papers with a specific tag key should be correlated with an (unsubscribed) user. 
+appropriate thresholds for each edge type. 
+%Developers can determine an appropriate sensitivity
+%threshold for each edge type by approximating how identifying these correlations may be if
+%all of these edges' children to the same parent are sensitive.
+For example, if all papers with the same parent tag are authored by an (unsubscribed) user, would
+the tagging identify the user? If tags are user-customizable, the answer may be yes; in other cases, the tag
+may indicate nothing about the paper author. The answer likely lies somewhere in the middle: it is
+problematic if \emph{all} of papers with a tag have the user as author, but it is acceptable if only
+a fraction do.  The maximum acceptable fraction is the sensitivity threshold. In this example, a
+reasonable sensitivity threshold might be $0.1$: less than 10\% of all papers with a specific tag
+key should be correlated with an (unsubscribed) user. 
 
 %If no threshold is specified, \sys defaults to a threshold of $0$ and fully
 %decorrelates all edges of this type. 
@@ -138,8 +135,8 @@ The developer chooses one of two ways to achieve the sensitivity threshold:
     %semantics, but retaining edges to a shared parent would reveal too much identifying information.
 \end{enumerate}
 
-For each parent, \sys decorrelates or deletes edges to children only enough to achieve the specified
-threshold, and retains the remaining edges. 
+%For each parent, \sys decorrelates or deletes edges to children only enough to achieve the specified
+%threshold, and retains the remaining edges. 
 %Note that if all children are sensitive (a user's papers
 %are always sensitive), or if the sensitivity threshold is 0, \sys will decorrelate or delete all
 %children. 

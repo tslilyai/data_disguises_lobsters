@@ -7,14 +7,65 @@
     \includegraphics[width=.5\textwidth]{img/decor_hotcrp}
 
     \caption{Relevant pre- and post-unsubscription state of a simplified variant of the HotCRP schema. \\ 
-    \textbf{(a)} \sys decorrelates user-review and user-paper edges, and retains
-    review-paper edges. Ghost users are randomly generated. Reviews and papers are cloned once. \\
-    \textbf{(b)} \sys decorrelates user-conflict edges and sensitive conflict-paper edges. One ghost
-    paper is a clone of the original; the other is a default placeholder paper.
+    \textbf{(a)} \sys decorrelates user-to-review and user-to-paper edges, and retains
+    review-paper edges. \\%Ghost users are randomly generated. Reviews and papers are cloned once. \\
+    \textbf{(b)} \sys decorrelates user-to-conflict edges and conflict-to-paper edges. One ghost
+    paper clones the original; the other is a default placeholder paper. %Paper conflicts are cloned.
     }
     \label{fig:hotcrp}
 \end{figure}
 
+We evaluate whether \sys meets the requirements of \name in practice,  
+allowing developers to sufficiently and easily express how data should be retained and
+de-identified, and supporting resubscription without burdening the developer or user. 
+%and (2) %does \sys support unsubscription and resubscription with low performance overhead?
+\sys meets the requirement for automatic resubscription, handling
+data encryption for the application and user without requiring the user to manage private keys or
+data storage. We show that \sys can meet the other two requirements by evaluating the
+ease of writing and expressiveness of unsubscription policies in HotCRP, a popular conference review management
+application. \lyt{and Lobsters and/or PrestaShop?}
+
+%We use \sys to write an unsubscription policy for HotCRP, demonstrating that \sys's abstractions
+%are indeed expressive enough to handle realistic and subtle data policies. 
+%This example illustrates the workflow and different application-specific choices developers must consider when
+%using \sys. 
+%
+HotCRP entities include users (reviewers and authors), papers, paper reviews, and
+paper conflicts. There are a total of 25 entities, with 48 edge types between entities.
+
+%To specify edge policies, the developer considers whether edges of each type may reveal identifying
+%information about the user.  
+For edges with the user as a direct parent, the developer first specifies edge policies with a
+sensitivity threshold of 0: all direct correlations between a user and other entities may leak the
+user's identity. Because HotCRP should retain the paper and review data,
+the developer specifies that \sys should decorrelate, rather than delete, these edges to meet the
+threshold: \sys will replace any edges from papers or reviews to the unsubscribing user with an edge
+to a ghost user profile, as shown in Figure~\ref{fig:hotcrp}a.
+
+%Although parent-child links from users to their data should be decorrelated during unsubscription,
+%HotCRP should maintain correlations between other subscribed users and sensitive papers, reviews,
+%and other entities. Thus, the developer specifies a weaker edge policy in the child-parent
+%direction (papers-to-users, reviews-to-users, etc.) with sensitivity threshold 1, allowing these
+%correlations to remain unchanged.
+
+As observed earlier, edges not directly connected to the user also reveal identifying information:
+collaborators or reviewers with conflicts on a paper may reveal a ghost author's identity. 
+%Users are linked to papers via \emph{paper conflict} entities, which have both a user and a paper
+%as a parent, and indicate either a collaborator, or a reviewer conflict (prior collaborators or
+%sharing an institution). 
+When a user unsubscribes, the developer must ensure that edges from sensitive paper conflicts to
+papers cannot leak identifying information. To do so, the developer specifies that \sys should
+decorrelate all sensitive paper conflicts from the paper so each sensitive paper conflict is
+reassociated with a ghost paper parent (Figure~\ref{fig:hotcrp}b). The developer determines that
+HotCRP can allow any spurious conflicts that may arise as a result.
+
+For all other edge types, the developer specifies a sensitivity threshold of 1. This ensures that review
+and paper artifacts remain correctly linked: (subscribed) reviewers still see the
+correct paper for their reviews, and (subscribed) authors see the correct reviews for
+their papers.%, and review and paper metadata should remain correctly associated. 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\iffalse
 \begin{figure}[t!]
     \centering
     \includegraphics[width=.5\textwidth]{img/pcs}
@@ -26,53 +77,6 @@
 decorrelate \emph{all} children, including non-sensitive ones.}
     \label{fig:pcs}
 \end{figure}
-
-We evaluate whether \sys meets the requirements of \name,  
-allowing the developer to sufficiently and easily express how data should be retained and
-de-identified, and supporting resubscription without burdening the developer or user. 
-%and (2) %does \sys support unsubscription and resubscription with low performance overhead?
-\sys meets the requirement for automatic resubscription, handling
-data encryption for the application and user without requiring the user to manage private keys or
-data storage. We show that \sys can meet the other two requirements by evaluating the
-ease of writing and expressiveness of unsubscription policies in HotCRP, a popular conference review management
-application. \lyt{and Lobsters and/or PrestaShop?}
-
-We use \sys to write an unsubscription policy for HotCRP, demonstrating that \sys's abstractions
-are indeed expressive enough to handle realistic and subtle data policies.  This example also
-illustrates the workflow and different application-specific choices developers must consider when
-using \sys. 
-
-HotCRP entities include users (reviewers and authors), papers, paper reviews, and
-paper conflicts. There are a total of 25 entities, with 48 edge types between entities.
-%Figure~\ref{fig:hotcrp} illustrates how unsubscription changes a simplified HotCRP entity graph
-%with users, papers, reviews, and paper conflicts.
-%The developer specifies that the top-level entity to decorrelate is a user.
-
-\paragraph{Edge Policies.} 
-To specify edge policies, the developer considers whether edges of each type may reveal identifying
-information about the user.  All direct correlations between a user and other entities may leak the
-user's identity. The developer therefore specifies edge policies with a sensitivity threshold of 0
-for edges with the user as a direct parent.  Because HotCRP should retain the paper and review data,
-the developer specifies that \sys should decorrelate, rather than delete, these edges to meet the
-threshold: \sys will replace any edges from papers or reviews to the unsubscribing user with an edge
-to a ghost user profile, as shown in Figure~\ref{fig:hotcrp}a.
-
-%Although parent-child links from users to their data should be decorrelated during unsubscription,
-%HotCRP should maintain correlations between other subscribed users and sensitive papers, reviews,
-%and other entities. Thus, the developer specifies a weaker edge policy in the child-parent
-%direction (papers-to-users, reviews-to-users, etc.) with sensitivity threshold 1, allowing these
-%correlations to remain unchanged.
-
-As observed earlier, edges that are not directly linked to the user may also reveal identifying
-information: collaborators or conflicting members of the PC on a ``ghost user'''s paper may reveal
-the ghost's identity. Users are linked to papers via \emph{paper conflict} entities, which have both
-a user and a paper as a parent, and indicate either a collaborator, or a reviewer
-conflict (prior collaborators or sharing an institution). When a user unsubscribes, the developer
-must also ensure that edges from these sensitive paper conflicts their parent papers cannot leak
-identifying information.
-%the edge policies described above ensure that the user is decorrelated from their paper conflicts.
-%However, the developer must also ensure that edges from these sensitive paper conflicts their
-%parent papers cannot leak identifying information.
 
 Here, the developer can make one of three choices. 
 These choices demonstrate the tradeoff between retaining information for application correctness, and completely de-identifying the user.
@@ -121,37 +125,27 @@ stronger user privacy and acceptable semantics for HotCRP.
 %\lyt{I know this doesn't exactly reflect HotCRP's schema (which uses PaperTags to link papers to
 %tags), but I found this example the most convincing to demonstrate partial decorrelation. This may
 %be more relevant in a different application than HotCRP.}
+\fi
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Finally, the developer specifies a sensitivity threshold of 1 for all other edge types, ensuring that review
-and paper artifacts remain present and correctly linked: (subscribed) reviewers should still see the
-correct paper for each of their reviews, (subscribed) authors should see the correct reviews for
-their papers, and review and paper metadata should remain correctly associated. 
-
-\paragraph{Generating Ghost Entities.}
-The developer also specifies how \sys generates ghost entities by determining which entity
-attributes reveal identifying information (and thus cannot be cloned); which attributes should be
+%\paragraph{Generating Ghost Entities.}
+The developer also specifies how \sys generates ghost entities. The developer determines which entity
+attributes reveal identifying information (and should be generated); which attributes should be
 cloned to retain information necessary to the application; and how to generate attribute values in
 ways that satisfy HotCRP semantics. 
 %If ghost entities cannot be generated without breaking
 %application semantics, the relevant edges should be deleted instead of decorrelated.  
 For simplicity, Figure~\ref{fig:hotcrp} shows entity-granularity ghosting policies rather than
-per-attribute ghosting policies, and does not display the generation method (\eg random, default,
-etc.).
+per-attribute ghosting policies.
+%, and does not display the generation method (\eg random, default, etc.). 
+\sys generates ghost users' attributes, giving all ghosts a default value of \texttt{disabled=true}
+to ensure ghosts never review papers. \sys clones all paper and review attributes once, retaining
+paper and review information without creating duplicates, and clones paper conflicts because no conflict
+value attributes are identifying.
 
-Most ghost user attributes should be assigned \texttt{GenerateAll} ghosting policies because no
-profile information about the unsubscribing user should be retained. The developer may choose to
-clone attributes such as the user's roles once, to ensure that the number of users with a certain
-role does not change.
-%; however, any cloned attributes should not reveal any identifying information.
-Finally, the developer should ensure that HotCRP never assigns ghost users papers to review, giving
-all ghosts a default value of \texttt{true} for the \texttt{disabled} attribute. 
-
-In order to usefully retain paper and review information without creating duplicates, the developer
-chooses to clone all paper attributes in one ghost, and generate default values for other ghosts.
-%Table~\ref{tab:ghosting} shows the partial specification for
-%generation ghost papers. 
-%Cloning papers or reviews once to retain their information will not reveal
-%identifying information, and all edges to sensitive parents will be decorrelated.
+%The developer may choose to
+%clone attributes such as the user's roles once, to ensure that the number of users with a certain
+%role does not change.
 
 %In particular, it is safe to clone edges to user parents because the developer knows that \sys will
 %decorrelate edges to sensitive parents (replacing them with edges to ghost parents) \emph{prior} to
@@ -160,12 +154,12 @@ chooses to clone all paper attributes in one ghost, and generate default values 
 %example of this in Figure~\ref{fig:algo}: step 3b ensures that the user and tag parents or any
 %sensitive papers are appropriately ghosted prior to step 4, which ghosts the paper.
 %
-Finally, the developer specifies a ghost generation policy for paper conflicts. Paper conflicts have
-three attributes, a value attribute for the conflict type (authorship or reviewer conflict), and two
-edge attributes that specify a user parent and a paper parent respectively. The developer defaults
-conflict type attributes to be \texttt{ConflictAuthor}, and clones the two edge attributes for all
-ghosts; edge policies ensure that cloned edges will point to ghosts if there was a sensitive correlation between
-the paper conflict and its original parents. 
+%Finally, the developer specifies a ghost generation policy for paper conflicts. Paper conflicts have
+%three attributes, a value attribute for the conflict type (authorship or reviewer conflict), and two
+%edge attributes that specify a user parent and a paper parent respectively. The developer defaults
+%conflict type attributes to be \texttt{ConflictAuthor}, and clones the two edge attributes for all
+%ghosts; edge policies ensure that cloned edges will point to ghosts if there was a sensitive correlation between
+%the paper conflict and its original parents. 
 %As with paper entities, it is safe to clone edges to user and paper parents because any
 %cloned edge attributes will necessarily point to ghosts if there was a sensitive correlation between
 %the paper conflict and its parents. 
@@ -188,18 +182,17 @@ of a MySQL database. \sys intercepts and processes queries sent by the applicati
 %propagate to the materialized views when the underlying database is updated. \name answers
 %application queries using these materialized views, hiding the complexity of ghost entity and
 %decorrelation management.
-Our prototype consists of 5K LoC of Rust, and adds \texttt{UNSUBSCRIBE
-[user]} and \texttt{RESUBSCRIBE [user]} calls as supported database queries.
+Our prototype consists of 5K LoC of Rust, and supports SQL queries as well as \texttt{UNSUBSCRIBE
+[user]} and \texttt{RESUBSCRIBE [user]} queries.
 
 \begin{itemize}
     \item LoC to write HotCRP/Lobsters' policies
-    \item Normal performance of read/updates (Lobsters? HotCRP would be ideal but might not be
-        properly set up in time)
-    \item Time to unsubscribe/resubscribe w/different numbers of users
+    \item Normal performance of read/updates (Lobsters? HotCRP?), Time to perform unsub/resub.
+        Ideally would have an experiment with frequent unsub/resub occurring in parallel with normal execution
+        of other users.
 \end{itemize}
 Our prototype takes only the first step to implement \sys. \sys should support eventually
-consistent, crash-recoverable unsubscription and resubscription; and scale in performance by
-supporting sharding and multicore parallelism.
+consistent, crash-recoverable unsubscription and resubscription, sharding, and multicore parallelism.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
