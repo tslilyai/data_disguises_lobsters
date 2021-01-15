@@ -20,8 +20,11 @@ impl EntityGraph {
         }
     }
     pub fn add_edge(&mut self, 
-                    childrptr: HashedRowPtr, child_table: &str,  
-                    parent_table: &str, parent_eid: u64, parent_col_index: usize) {
+                    childrptr: HashedRowPtr, 
+                    child_table: &str,  
+                    parent_table: &str, 
+                    parent_eid: u64, 
+                    parent_col_index: usize) {
         warn!("Adding edge from {} col {} val {} to {} val {:?}", parent_table, parent_col_index, parent_eid, child_table, childrptr);
         if let Some(edges) = self.parents_to_children.get_mut(parent_table) {
             if let Some(typ2rows) = edges.get_mut(&parent_eid) {

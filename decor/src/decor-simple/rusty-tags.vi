@@ -5408,7 +5408,7 @@ regex_strings	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/reg
 register_fork_handler	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/rngs/adapter/reseeding.rs	/^    pub fn register_fork_handler() {$/;"	f
 register_fork_handler	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/rngs/adapter/reseeding.rs	/^    pub fn register_fork_handler() {}$/;"	f
 regular_packet	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql_common-0.22.1/src/proto/codec/mod.rs	/^    fn regular_packet() -> Result<(), error::PacketCodecError> {$/;"	f
-reinsert_view_rows	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn reinsert_view_rows(&mut self, curtable: &str, curvals: &Vec<Vec<String>>, db: &mut mysql::Conn) $/;"	f
+reinsert_entities	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn reinsert_entities(&mut self, curtable: &str, curvals: &Vec<Vec<String>>, db: &mut mysql::Conn) $/;"	f
 reject_invalid	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/utf8.rs	/^    fn reject_invalid() {$/;"	f
 reject_invalid_last	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/utf8.rs	/^    fn reject_invalid_last() {$/;"	f
 rem	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/ordered-float-2.0.0/src/lib.rs	/^    fn rem(self, other: Self) -> Self {$/;"	f
@@ -5497,7 +5497,7 @@ restore_unsubscribed_cache	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/de
 resubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn resubscribe(&mut self, $/;"	f
 resubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn resubscribe(&mut self, eid: u64, families: &Vec<GhostFamily>, db: &mut mysql::Conn, parent_table: &str) -> Result<bool, mysql::Error> {$/;"	f
 resubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn resubscribe(&mut self, uid: u64, ghost_eid_mappings: &Vec<GhostEidMapping>, entity_data: &Vec<EntityData>, db: &mut mysql::Conn) -> $/;"	f
-resubscribe_ghosts_map	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn resubscribe_ghosts_map(&mut self, curtable: &str, eid2gidroot: &Option<(u64, u64)>, ghosts: &Vec<Vec<(String, u64)>>, db: &mut mysql::Conn) -> Result<(), mysql::Error> $/;"	f
+resubscribe_ghosts_map	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn resubscribe_ghosts_map(&mut self, curtable: &str, eid: u64, root_gid: u64, ghosts: &Vec<Vec<(String, u64)>>, db: &mut mysql::Conn) -> Result<(), mysql::Error> $/;"	f
 result	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blake2b.rs	/^    fn result(&mut self) -> MacResult {$/;"	f
 result	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blake2b.rs	/^    fn result(&mut self, out: &mut [u8]) { self.finalize(out); }$/;"	f
 result	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blake2s.rs	/^    fn result(&mut self) -> MacResult {$/;"	f

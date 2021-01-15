@@ -116,7 +116,8 @@ pub fn generate_new_ghosts_from(
     }
     'col_loop: for (i, col) in from_cols.iter().enumerate() {
         let colname = col.to_string();
-        // put in ID if specified
+        
+        // put gid for ID attribute
         if colname == ID_COL {
             for n in 0..num_entities {
                 new_vals[n].borrow_mut()[i] = gids[n].clone();
