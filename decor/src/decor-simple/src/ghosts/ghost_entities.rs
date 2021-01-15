@@ -186,6 +186,7 @@ pub fn generate_foreign_key_val(
         views, ghost_policies,
         &TemplateEntity{
             table: table_name.to_string(),
+            eid: template_eid,
             row: parent_table_row,
             fixed_colvals: None,
         }, 1)?;

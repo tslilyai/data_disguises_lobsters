@@ -8,7 +8,7 @@ pub fn get_ghost_parent_key_names_of_datatable(decor_config: &policy::Applicatio
     if let Some(policies) = decor_config.edge_policies.get(&table_name.to_string()) {
         for policy in policies {
             match policy.pc_policy {
-                policy::UnsubscribePolicy::Decorrelate(_) => c.push((policy.column, policy.parent)),
+                policy::UnsubscribePolicy::Decorrelate(_) => c.push((policy.column.clone(), policy.parent.clone())),
                 _ => ()
             }
         }

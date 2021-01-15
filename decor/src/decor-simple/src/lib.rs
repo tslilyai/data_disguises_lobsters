@@ -84,7 +84,7 @@ impl Shim {
                                     BufReader::new(rs), BufWriter::new(s))
     }
 
-    fn get_single_parsed_stmt(&mut self, stmt: &String) 
+    fn get_single_parsed_stmt(&self, stmt: &String) 
         -> Result<Statement, mysql::Error> 
     {
         let asts = sql_parser::parser::parse_statements(stmt.to_string());
@@ -120,7 +120,7 @@ impl Shim {
             stmt.push_str(line);
             if stmt.ends_with(';') {
                 stmt = helpers::process_schema_stmt(&stmt, self.test_params.in_memory);
-                                let stmt_ast = self.get_single_parsed_stmt(&stmt)?;
+                let stmt_ast = self.get_single_parsed_stmt(&stmt)?;
                 
                 // if we're not priming, the table already exists!
                 // add it as a MV

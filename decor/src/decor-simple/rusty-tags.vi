@@ -3069,7 +3069,7 @@ expr_is_missing	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/s
 expr_is_value	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/parser_helpers.rs	/^pub fn expr_is_value(expr:&Expr) -> bool {$/;"	f
 expr_to_col	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/parser_helpers.rs	/^pub fn expr_to_col(e: &Expr) -> (String, String) {$/;"	f
 expr_to_ghost_parent_key	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/parser_helpers.rs	/^pub fn expr_to_ghost_parent_key(expr:&Expr, ghosted_cols : &Vec<(String, String)>) -> Option<(String, String)> {$/;"	f
-expr_to_value_expr	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/query_simplifier.rs	/^fn expr_to_value_expr(expr: &Expr, views: &Views) $/;"	f
+expr_to_value_expr	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/query_simplifier.rs	/^pub fn expr_to_value_expr(expr: &Expr, views: &Views) $/;"	f
 extend	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^    fn extend<T>(&mut self, iter: T)$/;"	f
 extend	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/msql-srv/src/packet.rs	/^    fn extend(&mut self, bytes: &'a [u8]) {$/;"	f
 extract	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/utils.rs	/^    fn extract(self, index: usize) -> Self { debug_assert_eq!(index, 0); self }$/;"	f
@@ -3738,7 +3738,7 @@ get_rptrs_of_col	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/de
 get_ser_and_de	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/internals/attr.rs	/^fn get_ser_and_de<'a, 'b, T, F>($/;"	f
 get_serde_meta_items	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/internals/attr.rs	/^pub fn get_serde_meta_items(cx: &Ctxt, attr: &syn::Attribute) -> Result<Vec<syn::NestedMeta>, ()> {$/;"	f
 get_setexpr_results	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/select/select.rs	/^fn get_setexpr_results(views: &HashMap<String, Rc<RefCell<View>>>, se: &SetExpr, order_by: &Vec<OrderByExpr>) $/;"	f
-get_single_parsed_stmt	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/lib.rs	/^    fn get_single_parsed_stmt(&mut self, stmt: &String) $/;"	f
+get_single_parsed_stmt	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/lib.rs	/^    fn get_single_parsed_stmt(&self, stmt: &String) $/;"	f
 get_small	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/lexical/cached.rs	/^    pub fn get_small(&self, index: usize) -> ExtendedFloat {$/;"	f
 get_small_int	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/lexical/cached.rs	/^    pub fn get_small_int(&self, index: usize) -> u64 {$/;"	f
 get_socket	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/opts.rs	/^    pub fn get_socket(&self) -> Option<&str> {$/;"	f
@@ -5442,6 +5442,7 @@ replace_append	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/re
 replace_append	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_unicode.rs	/^    fn replace_append(&mut self, _: &Captures, dst: &mut String) {$/;"	f
 replace_append	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_unicode.rs	/^    fn replace_append(&mut self, caps: &Captures, dst: &mut String) {$/;"	f
 replace_append	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_unicode.rs	/^    fn replace_append(&mut self, caps: &Captures, dst: &mut String);$/;"	f
+replace_ghosts	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn replace_ghosts(&mut self, curtable: &str, eid: u64, root_gid: u64, ghosts: &Vec<Vec<(String, u64)>>, db: &mut mysql::Conn) -> Result<(), mysql::Error> $/;"	f
 replacement	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/try.rs	/^pub fn replacement() -> TokenStream {$/;"	f
 replacen	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_bytes.rs	/^    pub fn replacen<'t, R: Replacer>($/;"	f
 replacen	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_unicode.rs	/^    pub fn replacen<'t, R: Replacer>($/;"	f
@@ -5497,7 +5498,6 @@ restore_unsubscribed_cache	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/de
 resubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn resubscribe(&mut self, $/;"	f
 resubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn resubscribe(&mut self, eid: u64, families: &Vec<GhostFamily>, db: &mut mysql::Conn, parent_table: &str) -> Result<bool, mysql::Error> {$/;"	f
 resubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn resubscribe(&mut self, uid: u64, ghost_eid_mappings: &Vec<GhostEidMapping>, entity_data: &Vec<EntityData>, db: &mut mysql::Conn) -> $/;"	f
-resubscribe_ghosts_map	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn resubscribe_ghosts_map(&mut self, curtable: &str, eid: u64, root_gid: u64, ghosts: &Vec<Vec<(String, u64)>>, db: &mut mysql::Conn) -> Result<(), mysql::Error> $/;"	f
 result	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blake2b.rs	/^    fn result(&mut self) -> MacResult {$/;"	f
 result	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blake2b.rs	/^    fn result(&mut self, out: &mut [u8]) { self.finalize(out); }$/;"	f
 result	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blake2s.rs	/^    fn result(&mut self) -> MacResult {$/;"	f

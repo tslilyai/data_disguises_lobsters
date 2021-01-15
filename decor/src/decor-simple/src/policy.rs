@@ -34,7 +34,7 @@ pub struct EdgePolicy {
 }
 
 pub struct ApplicationPolicy {
-    pub entity_type_to_decorrelate: EntityName,
+    pub unsub_entity_type: EntityName,
     pub ghost_policies: EntityGhostPolicies, 
     // child to parent edges
     pub edge_policies: HashMap<EntityName, Vec<EdgePolicy>>,

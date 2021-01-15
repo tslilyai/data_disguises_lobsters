@@ -306,6 +306,7 @@ impl GhostMap {
             views, gp, 
             &TemplateEntity{
                 table: self.table_name.clone(), 
+                eid: eid,
                 row: from_vals, 
                 fixed_colvals: None,
             }, 1)?;

@@ -32,7 +32,7 @@ fn query_to_value_query(query: &Query, views: &Views) -> Result<Query, mysql::Er
  * This changes any nested queries to the corresponding VALUE 
  * (read from the MVs), if any exist.
  */
-fn expr_to_value_expr(expr: &Expr, views: &Views) 
+pub fn expr_to_value_expr(expr: &Expr, views: &Views) 
     -> Result<Expr, mysql::Error> 
 {
     let new_expr = match expr {
@@ -205,7 +205,7 @@ fn expr_to_value_expr(expr: &Expr, views: &Views)
                 conditions: new_cond ,
                 results: new_res, 
                 else_result: match else_result {
-                    Some(e) => Some(Box::new(expr_to_value_expr(&e))),
+                    Some(e) => Some(Box::new(expr_to_value_expr(&e, views)?)),
                     None => None,
                 },
             }
