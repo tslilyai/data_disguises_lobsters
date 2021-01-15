@@ -308,7 +308,7 @@ impl GhostMap {
                 table: self.table_name.clone(), 
                 row: from_vals, 
                 fixed_colvals: None,
-            }, 1);
+            }, 1)?;
             //&vec![Value::Number(gid.to_string())], 
             //&mut self.nqueries)?;
         // TODO will need to insert into datatables
@@ -428,7 +428,8 @@ impl GhostMaps {
             let family_ghost_names = serde_json::from_str(&ghostdata).unwrap();
             let mapping = GhostEidMapping {
                 table: table.to_string(),
-                eid2gidroot: Some((eid, root_gid)),
+                eid: eid,
+                root_gid: root_gid,
                 ghosts: family_ghost_names,
             };
             mappings.push(mapping);

@@ -64,6 +64,7 @@ pub struct GhostEidMapping {
  */
 pub struct TemplateEntity {
     pub table: String,
+    pub eid: u64,
     pub row: RowPtr,
     pub fixed_colvals: Option<Vec<(usize, Value)>>,
 }

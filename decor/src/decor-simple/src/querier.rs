@@ -243,7 +243,7 @@ impl Querier {
             });
             warn!("new entities issue_insert_dt_stmt: {} dur {}", dt_stmt, start.elapsed().as_micros());
             db.query_drop(dt_stmt.to_string())?;
-            *self.cur_stat.nqueries+=1;
+            self.cur_stat.nqueries+=1;
         
             self.views.insert(&table_entities.table, None, &table_entities.rptrs)?;
         
@@ -256,7 +256,7 @@ impl Querier {
         }
 
         let gem = GhostEidMapping{
-            table: self.table_name.clone(),
+            table: template.table.clone(),
             eid: template.eid,
             root_gid: root_gid,
             ghosts: ghost_names,
@@ -353,6 +353,7 @@ impl Querier {
                                 let gem = self.insert_ghost_for_template(
                                     TemplateEntity {
                                         table: node.table_name.clone(),
+                                        eid: node.eid,
                                         row: node.hrptr.clone(), 
                                         fixed_colvals: None,
                                     }, &self.views, &self.policy.ghost_policies, db)?;
@@ -416,6 +417,7 @@ impl Querier {
             let gem = self.insert_ghost_for_template(
                 TemplateEntity {
                     table: entity.table_name.clone(),
+                    eid: entity.eid,
                     row: entity.hrptr.row().clone(), 
                     fixed_colvals: None,
                 }, &self.views, &self.policy.ghost_policies, db)?;
@@ -551,6 +553,7 @@ impl Querier {
                                     let gem = self.insert_ghost_for_template(
                                         TemplateEntity {
                                             table: policy.parent.clone(),
+                                            eid: parent_eid,
                                             row: parent_rptr.clone(), 
                                             fixed_colvals: None,
                                         }, &self.views, &self.policy.ghost_policies, db)?;
