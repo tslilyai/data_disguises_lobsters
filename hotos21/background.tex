@@ -1,4 +1,4 @@
-\section{Subscription Support in Applications Today}
+\section{Subscription in Applications Today}
 \begin{table*}[t!]
     \centering
     \footnotesize
@@ -46,35 +46,31 @@ unsubscription. To see how large a gap remains between current data ownership pa
 study support for unsubscription and resubscription in a range of widely-used enterprise and
 open-source applications. 
 %
-Table~\ref{tab:apps} summarizes four characteristics of each application: 
+Table~\ref{tab:apps} summarizes four subscription characteristics: 
 \begin{enumerate}
-    \item Is unsubscription automated, or does the user need to email or call the
-application developers or customer service directly? 
-    \item Does the application retain any of the unsubscribing user's data, or is all data removed?
-    \item Does the application promise to remove all traces of user identifiers (\eg username, user
-    IDs, emails) either by removing it or replacing it with an anonymized identifier?  
+    \item Is unsubscription automated, or does the user need to manually email or call? 
+    \item Does the application retain unsubscribing user data?
+    \item Does the application remove or anonymize user identifiers (\eg username and email)?
     \item Can users resubscribe, \ie regain control of their account and account data?
 \end{enumerate}
-Fewer than half of the services surveyed provide automated unsubscription; all others require the
-user to email or call support, or actively make dissuade users from unsubscribing~\cite{nytimes:amazonsub}. For a more comprehensive study,
-JustDeleteMe~\cite{jdm} provides a growing list of applications (currently 868) and rates ease
-of unsubscription (account deletion) for each; 27\% of applications required users to manually
+JustDeleteMe~\cite{jdm} rates ease of unsubscription in 868 applications: 27\% required users to manually
 contact the company or developers, and 12\% did not support unsubscription. 
+Out of our surveyed applications, fewer than half provide automated unsubscription, and some even actively dissuade users from unsubscribing~\cite{nytimes:amazonsub}. 
+%; The others require %users to email or call support, or %For a more comprehensive study,
 
-All applications retain some of the unsubscribed user' data: Facebook retains copies of private
-messages for other users in the conversation; Reddit retains all posts and comments made by the
-user; Lobsters retains the user's unique username and logs of the user's actions; e-commerce sites
-retain a user's order history; and Strava retains geolocation data and any ``necessary''
-information. All applications specify that any ``required'' information can be retained, for legal
-or applications correctness purposes (e.g., to process payments, or to keep the coherence of private
-messaging threads).  
+All applications retain some unsubscribed user data: Facebook retains copies of private messages for
+other users in the conversation; Reddit retains all user postss and comments; Lobsters retains the
+user's unique username and logs of the user's actions; e-commerce sites retain a user's order
+history; and Strava retains geolocation data and any ``necessary'' information. All applications
+specify that ``required'' information can be retained, for legal or applications correctness
+purposes.% (e.g., to process payments, or to keep the coherence of private messaging threads).  
 
 Many applications state that they will remove any user identifiers from retained data.  For example,
 Reddit, PrestaShop, and GitHub explicitly state that all remaining posts, orders, and comments will
-be decorrelated and reassociated with a global placeholder identifier.  However, as indicated in
-Table~\ref{tab:apps}, many applications either leave some identifiers unchanged (\eg private
-messages in Facebook and Twitter), or fail to specify whether they rewrite identifiers at all for
-some or all of the retained information.
+be decorrelated and reassociated with a global placeholder identifier.  However, 
+many applications either leave some identifiers unchanged (\eg private
+messages in Facebook and Twitter), or fail to specify whether they modify identifiers. 
+%for some or all of the retained information.
 
 Of the applications surveyed, only Facebook/Instagram and Twitter support some form of
 resubscription via account reactivation. However, account deactivation only hides user-added content from

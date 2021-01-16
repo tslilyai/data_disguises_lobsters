@@ -1,19 +1,5 @@
-\section{Overview}
-\begin{figure}[t!]
-    \centering
-    \includegraphics[width=0.5\textwidth]{img/releaser_arch}
-
-    \caption{High-level \sys architecture. Developers specify the grayed-out components (app logic, DB table schema, and
-    unsubscription policy).}
-    \label{fig:arch}
-\end{figure}
-
-To solve these challenges, we present \sys, a system designed to achieve the \name paradigm.
-As shown in Figure~\ref{fig:arch}, \sys sits between the application logic and the application database, adding support for
-\texttt{UNSUBSCRIBE} and \texttt{RESUBSCRIBE} queries, and applying the appropriate data transformations
-during unsubscription and resubscription.
-
-\sys models application data as a graph of \emph{entity} nodes and edges, where each entity type
+\section{Approach}
+To solve these challenges, we model application data as a graph of \emph{entity} nodes and edges, where each entity type
 corresponds to an application table, such as a users, papers, or reviews table. Edges between
 entities are foreign key relationships: foreign key table columns 
 create child-parent correlations, where the child entity holds the
@@ -21,15 +7,12 @@ parent entity's identifier as a foreign key.
 %\sys also includes abstract entities in the graph, where the keys may be non-referential
 %identifiers that refer to abstract, non-table entities (e.g.,\ a \texttt{thread\_id} column in the
 %comments table).  
-%Edges---foreign key relationships---represent correlations between the nodes (entities) of the
-%graph.
-%---foreign or abstract key relationships---
 
 Developers use their application expertise to determine an appropriate post-unsubscription state,
 specifying how entities and edges should be modified to achieve both de-identification and application correctness. 
 \sys provides a menu of choices for removing or modifying entity content and edges (Section~\ref{sec:design:unsub}).
 Developers reason only about the \emph{types} of entities and the \emph{types} of entity edges
-in the application schema, while \sys acts on individual instances of the resulting entity graph. \sys and
+in the application schema, while \sys acts on individual instances of the resulting entity graph. \sys 
 ensures that unsubscription achieves the state specified in the policy, and can be reversed upon
 resubscription. 
 The unsubscription policy can also act as a specification of
@@ -54,6 +37,21 @@ providing their share of the key (or authorizing a trusted third party to recons
 with the application). \sys decrypts the data with the key, and systematically reverses 
 the modifications made during unsubscription, restoring removed entities and correlations between
 entities.
+
+Unsubscription policies center around the abstraction of \emph{ghost entities}. A ghost entity is
+more than an anonymized version of a real entity: multiple ghost
+entities may replace a real entity to break any correlations with the real entity; and ghost entities can be
+partially custom generated or partially clones of real entities.
+%Pre- and post-unsubscription state differ by the presence of ghost entity nodes and edges, which
+%have taken the place of real entities and edges. 
+Developers specify a two-part unsubscription policy, consisting of per-entity-type \emph{ghost
+generation policies} describing how to create ghosts, and per-edge-type \emph{edge policies}
+describing when to create ghosts. We describe these in detail next.
+%\sys returns the real entity data and a mapping
+%from entities to their ghost replacements back to the unsubscribing user, which, if returned upon
+%resubscription, allows \sys to restore the user to their original state.
+%Table~\ref{tab:ghosting} shows an example of two ghosts based on a real template paper entity; we describe
+%how these ghosts are created next.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -58,8 +58,13 @@ de-identifying this data, a non-trivial task in the face of subtle inference att
 user's post can identify the user). De-identification and data removal needs to be reversible,
 allowing the user to resubscribe at any time to their last-known subscribed state.
 
-To make \name a reality, we need new tools that allow developers to easily and systematically
-automate the process for new and existing applications. As a first step, we design \sys, a practical
-system that introduces \emph{ghost entity} and \emph{ghost policy} abstractions to help developers
-of databased-backed web applications automatically achieve correct, privacy-compliant user unsubscription and
-resubscription without onerous labor.
+To make \name a reality, we model application data as an abstract \emph{entity graph}, and
+represent unsubscription and resubscription as transformations of this graph.
+\emph{Ghost entities} allow transformations to achieve both data retention and de-identification,
+and declarative \emph{ghost policies} specify reversible transformations upon unsubscription.
+We design and implement \sys, a practical system that systematically automates this transformation for new and existing applications, helping developers realize the \name paradigm without onerous labor.
+%that takes a developer-specified unsubscription policy for the application's entity
+%graph, and ensures that 
+%that requires developers only to specify an abstract unsubscription policy on the 
+%helps developers of databased-backed web applications automatically achieve correct, privacy-compliant user unsubscription and
+%resubscription without onerous labor.

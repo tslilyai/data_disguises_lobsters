@@ -1,7 +1,21 @@
 %-------------------------------------------------------------------------------
-\section{Unsubscription Policy Design}
+\section{Design}
 %-------------------------------------------------------------------------------
 \label{sec:design:unsub}
+
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width=0.5\textwidth]{img/releaser_arch}
+
+    \caption{High-level \sys architecture. Developers specify grayed-out components.}
+    \label{fig:arch}
+\end{figure}
+
+We design and implement \sys, a system designed to achieve the \name paradigm.
+As shown in Figure~\ref{fig:arch}, \sys sits between the application logic and the application database, adding support for
+\texttt{UNSUBSCRIBE} and \texttt{RESUBSCRIBE} queries, and applying the appropriate data transformations
+during unsubscription and resubscription.
+
 Unsubscription policies center around the abstraction of \emph{ghost entities}. A ghost entity is
 more than an anonymized version of a real entity: multiple ghost
 entities may replace a real entity to break any correlations with the real entity; and ghost entities can be

@@ -8,53 +8,41 @@ account history or data, so unsubscription has no permanent consequences. We nex
 requirement and the challenges to achieve it in greater detail.
 
 \paragraph{Selective Retention.}
-Retained data has two main purposes, to preserve legal or
+Retained data serves two purposes: to preserve legal or
 necessary information about an individual user (\eg order history in e-commerce applications), and
-to maintains application utility for other subscribed users of the application.  Social media
-applications retain private messages for thread coherence; news feed applications like Reddit retain
-previous posts, the main source of utility for other users of the sites.  HotCRP, conference review
-and paper submission software, indefinitely stores and distributes submissions and reviews so users
-can reference their past reviews and paper feedback. Strava, a workout tracking social network,
-retains geolocation data for other users to see which routes are popular.
-
-Under \name, developers should be able to to specify exactly what data to retain 
-post-unsubscription, and prevent accidental data deletion or retention.
+to maintains application utility for subscribed users (\eg private messages
+for thread coherence, or crowdsourced reviews and popular news posts).
+Developers must ensure that post-unsubscription state avoids accidental data deletion or retention.
+%Developers should easily determine what data to retain %post-unsubscription, and 
 
 \paragraph{De-Identification.}
-If applications retain data, this data should be properly de-identified. 
-Some applications make efforts to do so by replacing user identifiers with a placeholder user
-identifier, or removing data with user identifiers. However, this often fails to sufficiently
-de-identify retained data. Correlations from retained data to \emph{other} application data or
-metadata can still identify unsubscribed users. For example, orders with the same
-timestamp or same address likely belong to the same user, and a user's order
-history can be clearly identifying. Anonymized posts with the same flairs or custom tags 
-can identify which user made the posts.
+Any retained data must be properly de-identified. The surveyed applications often remove or replace
+user identifiers with a placeholder user identifier. However, this can still fail to sufficiently
+de-identify retained data: \emph{structural correlations} from or to retained data can still identify
+unsubscribed users. For example, orders tagged with the same location likely belong to the same
+user, and order history can identify the user. 
+%Anonymized posts with the same flairs or custom tags can identify which user made the posts.
 
-Because of these subtle and complex indirect information leaks, many applications choose to forgo
-data retention completely in order to ensure proper de-identification. For example, when HotCRP
-users unsubscribe, 
-%While HotCRP developers would prefer to retain review and paper data, doing so while de-identifying
-%the user is not easy. 
-HotCRP cannot just remove user identifiers: correlations between papers and conflicting  reviewers
-can indirectly identify the user's affiliation and recent collaborations, and often the user
-themselves. Instead, HotCRP chooses to reduce its utility by completely removing the unsubscribing
-user's data, a solution that clearly would not work in a world where users frequently unsubscribe at
-any time.
-%HotCRP removes the user's data completely, at the cost of other users who reference those reviews
-%and papers. 
+Detecting and correctly modifying even subtly problematic content and correlations pose technical
+challenges that can prevent developers from retaining data in privacy-preserving ways, or force
+developers to forgo data retention completely.  For example, HotCRP cannot just remove unsubscribing
+users' identifiers: correlations between users' papers and conflicting reviewers indirectly identify
+the user via the conflicts' affiliations and recent collaborations.  HotCRP chooses to reduce its
+utility by completely removing the papers, rather than deal with these potentially identifying
+correlations.
+%, a solution that clearly would not
+%work in a world where users frequently unsubscribe at any time.
 
-Under \name, developers should be able to easily detect, specify, and modify or remove problematic
-content or correlations, even when these may be subtle; users should know exactly what identifying
-information may be left behind. 
+These complex data transformations also make it difficult for developers to specify exactly 
+what identifying information may be left behind for the user, leading to vague privacy policies.
 
 \paragraph{Resubscription.}
 Resubscription must recorrelate any retained data with the original owner, and restore any removed
-data. Today, applications either retain all data and forgo de-identification entirely
-(Facebook/Twitter Account Deactivation) in order to support resubscription, or permanently remove
-and anonymize data without resubscription support. Supporting resubscription requires storing
-information necessary for recorrelation and restoring users' accounts, but should not unduly burden
-either the application or user, nor add any identifying information about unsubscribing users to the
-system.
+data. Today, applications either retain all data and forgo de-identification entirely in order to
+support resubscription, or permanently remove and anonymize data.
+Supporting resubscription requires storing information necessary for recorrelation and restoring
+users' accounts, but should not unduly burden either the application or user, nor add any
+identifying information about unsubscribing users to the system.
 
 %HotCRP
 %users---particularly reviewers---would prefer that their blinded reviews never become publically
