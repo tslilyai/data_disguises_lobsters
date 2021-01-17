@@ -17,7 +17,7 @@ unsubscription policy transformations during unsubscription.
 \sys records these unsubscription transformations, and encrypts and stores this
 log in an additional table. The encrypting key is secret-shared~\cite{secretsharing} among the user,
 \sys, and a trusted third party so that the user can retrieve a lost key without trusting the
-application or \sys. Upon resubscription, \sys decrypts this log and reverses the transformations,
+application or \sys. To resubscribe, \sys decrypts this log and reverses the transformations,
 restoring the user's data to its original state.
 
 \sys consists of 5K LoC of Rust, and supports SQL queries as well as \texttt{UNSUBSCRIBE
