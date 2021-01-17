@@ -3,7 +3,7 @@ use sql_parser::ast::*;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
-use log::{debug, warn, error};
+use log::{warn};
 use std::sync::atomic::{Ordering, AtomicU64};
 
 use crate::{helpers, views, ID_COL};

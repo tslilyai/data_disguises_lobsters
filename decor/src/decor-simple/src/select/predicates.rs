@@ -1,6 +1,6 @@
 use crate::views::{View, TableColumnDef, HashedRowPtrs, HashedRowPtr, Row, RowPtrs};
 use crate::{helpers};
-use log::{warn, debug};
+use log::{warn};
 use std::collections::{HashSet};
 use std::cmp::Ordering;
 use std::time;

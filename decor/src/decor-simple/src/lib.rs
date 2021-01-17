@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::io::{self, BufReader, BufWriter};
 use std::*;
 use sql_parser::ast::*;
-use log::{warn, error};
+use log::{warn};
 
 pub mod ghosts;
 pub mod graph;

@@ -3,7 +3,7 @@ use crypto::sha3::Sha3;
 use mysql::prelude::*;
 use std::collections::{HashMap};
 use std::*;
-use log::{warn, error};
+use log::{warn};
 use msql_srv::{QueryResultWriter};
 use crate::{helpers, EntityData, ghosts::GhostEidMapping, querier::TraversedEntity}; 
 

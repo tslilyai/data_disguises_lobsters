@@ -4,7 +4,7 @@ use crate::{ghosts, helpers, policy::EntityGhostPolicies, views::{Views, RowPtr}
 use crate::ghosts::{GhostEidMapping, GhostFamily, TemplateEntity};
 use std::sync::atomic::Ordering;
 use std::*;
-use log::{warn, error};
+use log::{warn};
 use std::sync::atomic::{AtomicU64};
 use std::collections::{HashMap};
 
@@ -132,10 +132,6 @@ impl GhostMap {
         self.nqueries+=1;
         warn!("RESUB {} insert_gid_for_eid {}: {}, dur {}us", self.name, eid, insert_query, start.elapsed().as_micros());
         Ok(true)
-    }
-
-    fn contains_eid(&self, eid: u64) -> bool {
-        self.eid2gids.contains_key(&eid)
     }
 
     fn regenerate_cache_entry(&mut self, eid: u64, ghost_families: &Vec<GhostFamily>) {

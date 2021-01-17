@@ -10,7 +10,6 @@ use log::{warn};
 
 use crate::{policy, helpers, subscriber, query_simplifier, EntityData, ID_COL};
 use crate::views::*;
-use crate::policy::*;
 use crate::ghosts::*;
 use crate::policy::UnsubscribePolicy::{Delete, Retain, Decorrelate};
 use crate::graph::*;

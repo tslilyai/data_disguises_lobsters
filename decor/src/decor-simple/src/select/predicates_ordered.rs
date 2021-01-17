@@ -1,6 +1,6 @@
 use crate::views::{View, TableColumnDef, HashedRowPtrs, HashedRowPtr, RowPtrs};
 use crate::{helpers, select::predicates, select::predicates::IndexedPredicate, select::predicates::NamedPredicate};
-use log::{warn, debug};
+use log::{debug};
 use std::collections::{HashSet, BTreeMap};
 use std::cmp::Ordering;
 use std::time;
