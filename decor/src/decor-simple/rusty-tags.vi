@@ -1194,6 +1194,7 @@ S7	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.
 S8	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/chacha20.rs	/^static S8:u32x4 = u32x4(8, 8, 8, 8);$/;"	c
 S9	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/salsa20.rs	/^const S9:u32x4 = u32x4(9, 9, 9, 9);$/;"	c
 SCALE	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/bernoulli.rs	/^const SCALE: f64 = 2.0 * (1u64 << 63) as f64;$/;"	c
+SCHEMA	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/normal_execution_test.rs	/^const SCHEMA : &'static str = include_str!(".\/schema.sql");$/;"	c
 SEED	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql_common-0.22.1/src/crypto/rsa.rs	/^    const SEED: &[u8; 64] = b"\\x03\\x2e\\x45\\x32\\x6f\\xa8\\x59\\xa7\\x2e\\xc2\\x35\\xac\\xff\\x92\\x9b\\x15\\xd1\\$/;"	c
 SEEDS	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand_core-0.4.2/src/lib.rs	/^        const SEEDS: [u64; N] = [0u64, 1, 2, 3, 4, 8, 16, -1i64 as u64];$/;"	c
 SERDE	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/internals/symbol.rs	/^pub const SERDE: Symbol = Symbol("serde");$/;"	c
@@ -3932,6 +3933,7 @@ init	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/msql-srv/src/l
 init0	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blake2b.rs	/^    fn init0(param: Blake2bParam, digest_length: u8, key: &[u8]) -> Blake2b {$/;"	f
 init0	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blake2s.rs	/^    fn init0(param: Blake2sParam, digest_length: u8, key: &[u8]) -> Blake2s {$/;"	f
 init_from_env	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/env_logger-0.7.1/src/lib.rs	/^pub fn init_from_env<'a, E>(env: E)$/;"	f
+init_logger	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/normal_execution_test.rs	/^fn init_logger() {$/;"	f
 init_param	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blake2b.rs	/^    fn init_param( p: Blake2bParam, key: &[u8] ) -> Blake2b {$/;"	f
 init_param	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blake2s.rs	/^    fn init_param( p: Blake2sParam, key: &[u8] ) -> Blake2s {$/;"	f
 init_state	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blowfish.rs	/^    pub fn init_state() -> Blowfish {$/;"	f
@@ -6618,6 +6620,7 @@ test_misc	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.
 test_nacl_vector	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/poly1305.rs	/^    fn test_nacl_vector() {$/;"	f
 test_new	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/triangular.rs	/^    fn test_new() {$/;"	f
 test_normal	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/normal.rs	/^    fn test_normal() {$/;"	f
+test_normal_execution	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/normal_execution_test.rs	/^fn test_normal_execution() {$/;"	f
 test_normal_invalid_sd	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/normal.rs	/^    fn test_normal_invalid_sd() {$/;"	f
 test_not_nan	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/ordered-float-2.0.0/src/lib.rs	/^    fn test_not_nan() {$/;"	f
 test_one_ping	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/msql-srv/src/packet.rs	/^    fn test_one_ping() {$/;"	f
