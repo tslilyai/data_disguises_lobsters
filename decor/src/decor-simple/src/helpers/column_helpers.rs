@@ -6,9 +6,9 @@ use crate::{policy, views};
 pub fn get_ghost_parent_key_names_of_datatable(decor_config: &policy::ApplicationPolicy, table_name: &ObjectName) -> Vec<(String, String)> {
     let mut c = vec![];
     if let Some(policies) = decor_config.edge_policies.get(&table_name.to_string()) {
-        for policy in policies {
+        for policy in &*policies.clone() {
             match policy.pc_policy {
-                policy::UnsubscribePolicy::Decorrelate(_) => c.push((policy.column.clone(), policy.parent.clone())),
+                policy::EdgePolicyType::Decorrelate(_) => c.push((policy.column.clone(), policy.parent.clone())),
                 _ => ()
             }
         }
@@ -21,9 +21,9 @@ pub fn get_ghost_parent_key_indices_of_datatable(decor_config: &policy::Applicat
 {
     let mut cis = vec![];
     if let Some(policies) = decor_config.edge_policies.get(table_name) {
-        for policy in policies {
+        for policy in &*policies.clone() {
             match policy.pc_policy {
-                policy::UnsubscribePolicy::Decorrelate(_) => cis.push(
+                policy::EdgePolicyType::Decorrelate(_) => cis.push(
                     (get_col_index(&policy.column, columns).unwrap(),
                         policy.parent.clone())),
                 _ => (),
@@ -38,7 +38,7 @@ pub fn get_parent_col_indices_of_datatable(decor_config: &policy::ApplicationPol
 {
     let mut cis = vec![];
     if let Some(policies) = decor_config.edge_policies.get(&table_name.to_string()) {
-        for policy in policies {
+        for policy in &*policies.clone() {
             cis.push(
                 (columns.iter().position(|c| c.name.to_string() == policy.column).unwrap(), 
                  policy.parent.clone()));

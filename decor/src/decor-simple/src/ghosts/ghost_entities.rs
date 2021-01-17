@@ -206,7 +206,7 @@ pub fn get_generated_val(
     match gen {
         Random => Ok(helpers::get_random_parser_val_from(&base_val)),
         Default(val) => Ok(helpers::get_default_parser_val_with(&base_val, &val)),
-        Custom(f) => Ok(helpers::get_computed_parser_val_with(&base_val, &f)),
+        //Custom(f) => Ok(helpers::get_computed_parser_val_with(&base_val, &f)),
         ForeignKey(table_name) => generate_foreign_key_val(
             views, ghost_policies, 
             table_name, helpers::parser_val_to_u64(base_val),

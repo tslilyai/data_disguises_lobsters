@@ -3,12 +3,10 @@ extern crate log;
 
 use mysql::prelude::*;
 use std::*;
-use log::warn;
-use decor_simple::{ghosts::GhostEidMapping, EntityData, helpers, policy::ApplicationPolicy};
+use decor_simple::{ghosts::GhostEidMapping, EntityData, helpers};
 use std::collections::{HashSet};
 use std::str::FromStr;
 mod policies;
-mod transformer_test;
 
 const SCHEMA : &'static str = include_str!("./schema.sql");
 const GHOST_ID_START : u64 = 1<<20;
@@ -23,15 +21,20 @@ fn init_logger() {
         .try_init();
 }
 
-fn init_dbs(name: &'static str, policy: ApplicationPolicy, db: &mut mysql::Conn, db_actual: &mut mysql::Conn) {
+fn init_dbs(name: &'static str, policy: policies::PolicyType, db: &mut mysql::Conn, db_actual: &mut mysql::Conn) {
     init_logger();
     let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
 
     let _jh = thread::spawn(move || {
         if let Ok((s, _)) = listener.accept() {
+            let app_policy = match policy {
+                policies::PolicyType::Noop => policies::noop_policy(),
+                policies::PolicyType::Combined => policies::combined_policy(),
+            };
+
             decor_simple::Shim::run_on_tcp(
-                    name, SCHEMA, policy, 
+                    name, SCHEMA, app_policy, 
                     decor_simple::TestParams{
                         testname: name.to_string(), 
                         translate:true, parse:true, in_memory: true,
@@ -65,14 +68,19 @@ fn init_dbs(name: &'static str, policy: ApplicationPolicy, db: &mut mysql::Conn,
     db.query_drop(r"INSERT INTO moderations (moderator_user_id, story_id, user_id, action) VALUES (2, 2, 1, 'worst story!');").unwrap();
 }
 
-fn restore_db(name: &'static str, policy: ApplicationPolicy, db: &mut mysql::Conn) {
+fn restore_db(name: &'static str, policy: policies::PolicyType, db: &mut mysql::Conn) {
     let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
 
     let _jh = thread::spawn(move || {
         if let Ok((s, _)) = listener.accept() {
+            let app_policy = match policy {
+                policies::PolicyType::Noop => policies::noop_policy(),
+                policies::PolicyType::Combined => policies::combined_policy(),
+            };
+
             decor_simple::Shim::run_on_tcp(
-                    name, SCHEMA, policy, 
+                    name, SCHEMA, app_policy, 
                     decor_simple::TestParams{
                         testname: name.to_string(), 
                         translate:true, parse:true, in_memory: true,
@@ -89,7 +97,7 @@ fn restore_db(name: &'static str, policy: ApplicationPolicy, db: &mut mysql::Con
 fn test_init_noop() {
     let mut db: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
     let mut db_actual: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
-    init_dbs("test_reinit_noop", policies::noop_policy(), &mut db, &mut db_actual);
+    init_dbs("test_reinit_noop", policies::PolicyType::Noop, &mut db, &mut db_actual);
 
     // perform some inserts, updates
     db.query_drop(r"INSERT INTO stories (user_id, url) VALUES (1, 'nytimes.com');").unwrap();
@@ -149,7 +157,7 @@ fn test_init_noop() {
     
     // reinitialize
     let mut db: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
-    restore_db("test_reinit_noop", policies::noop_policy(), &mut db);
+    restore_db("test_reinit_noop", policies::PolicyType::Noop, &mut db);
  
     // check that all data returns correctly
     let mut results = vec![];
@@ -184,7 +192,7 @@ fn test_init_noop() {
 fn test_init_complex() {
     let mut db: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
     let mut db_actual: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
-    init_dbs("test_reinit_complex", policies::combined_policy(), &mut db, &mut db_actual);
+    init_dbs("test_reinit_complex", policies::PolicyType::Combined, &mut db, &mut db_actual);
 
     // one more update just for fun
     db.query_drop(r"UPDATE users SET karma=10 WHERE username='hello_1'").unwrap();
@@ -219,7 +227,7 @@ fn test_init_complex() {
     
     // reinitialize
     let mut db: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
-    restore_db("test_reinit_complex", policies::combined_policy(), &mut db);
+    restore_db("test_reinit_complex", policies::PolicyType::Combined, &mut db);
  
     // check that all data returns correctly
     let mod1 : (String, String, String, String, String) = 
@@ -294,17 +302,14 @@ fn test_init_complex() {
     }
     for mapping in &unsubscribed_gids {
         if mapping.table == "users" {
-            assert_eq!(mapping.eid2gidroot.unwrap().0, 1);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 1);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 0);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
         } else if mapping.table == "stories" {
-            assert!(mapping.eid2gidroot.is_some());
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 1);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 1);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
         } else if mapping.table == "moderations" {
-            assert_eq!(mapping.eid2gidroot, None);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 2);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 2);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 4);
@@ -336,7 +341,7 @@ fn test_init_complex() {
  
     // reinitialize
     let mut db: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
-    restore_db("test_reinit_complex", policies::combined_policy(), &mut db);
+    restore_db("test_reinit_complex", policies::PolicyType::Combined, &mut db);
 
     // check unsubscribed restored state
     let mut results = HashSet::new();

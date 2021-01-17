@@ -8,7 +8,7 @@ pub type EntityName = String; // table name, or foreign key
 pub enum GeneratePolicy {
     Random,
     Default(String),
-    Custom(Box<dyn Fn(&str) -> String>), // column value -> column value
+    //Custom(Box<dyn Fn(&str) -> String>), // column value -> column value
     ForeignKey(EntityName),
 }
 pub enum GhostColumnPolicy {
@@ -20,7 +20,7 @@ pub type GhostPolicy = HashMap<ColumnName, GhostColumnPolicy>;
 pub type EntityGhostPolicies = HashMap<EntityName, Rc<GhostPolicy>>;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum UnsubscribePolicy{
+pub enum EdgePolicyType {
     Decorrelate(f64),
     Delete(f64),
     Retain,
@@ -29,13 +29,13 @@ pub enum UnsubscribePolicy{
 pub struct EdgePolicy {
     pub parent: EntityName,
     pub column: ColumnName,
-    pub pc_policy: UnsubscribePolicy,
-    pub cp_policy: UnsubscribePolicy,
+    pub pc_policy: EdgePolicyType,
+    pub cp_policy: EdgePolicyType,
 }
 
 pub struct ApplicationPolicy {
     pub unsub_entity_type: EntityName,
     pub ghost_policies: EntityGhostPolicies, 
     // child to parent edges
-    pub edge_policies: HashMap<EntityName, Vec<EdgePolicy>>,
+    pub edge_policies: HashMap<EntityName, Rc<Vec<EdgePolicy>>>,
 }

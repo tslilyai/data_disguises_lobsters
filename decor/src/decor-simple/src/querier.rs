@@ -11,7 +11,7 @@ use log::{warn};
 use crate::{policy, helpers, subscriber, query_simplifier, EntityData, ID_COL};
 use crate::views::*;
 use crate::ghosts::*;
-use crate::policy::UnsubscribePolicy::{Delete, Retain, Decorrelate};
+use crate::policy::EdgePolicyType::{Delete, Retain, Decorrelate};
 use crate::graph::*;
 
 /* 
@@ -265,7 +265,7 @@ impl Querier {
     pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) 
         -> Result<(), mysql::Error> 
     {
-        use policy::UnsubscribePolicy::*;
+        use policy::EdgePolicyType::*;
 
         warn!("Unsubscribing uid {}", uid);
 
@@ -325,7 +325,7 @@ impl Querier {
                 view_ptr = self.views.get_view(&child_table).unwrap();
 
                 for rptr in child_hrptrs {
-                    for policy in &child_table_epolicies {
+                    for policy in &*child_table_epolicies {
                         let ci = helpers::get_col_index(&policy.column, &view_ptr.borrow().columns).unwrap();
                         
                         // skip any policies for edges not to this parent table type
@@ -473,7 +473,7 @@ impl Querier {
             let poster_child = table_children[0];
             let child_columns = self.views.get_view_columns(&poster_child.table_name);
     
-            for policy in edge_policies {
+            for policy in &*edge_policies {
                 let ci = child_columns.iter().position(|c| policy.column == c.to_string()).unwrap();
      
                 // group all table children by EID
