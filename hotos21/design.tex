@@ -1,7 +1,7 @@
 %-------------------------------------------------------------------------------
-\section{Design}
+\section{Prototype Design}
 %-------------------------------------------------------------------------------
-\label{sec:design:unsub}
+\label{sec:proto}
 
 \begin{figure}[t!]
     \centering
@@ -11,272 +11,26 @@
     \label{fig:arch}
 \end{figure}
 
-We design and implement \sys, a system designed to achieve the \name paradigm.
-As shown in Figure~\ref{fig:arch}, \sys sits between the application logic and the application database, adding support for
-\texttt{UNSUBSCRIBE} and \texttt{RESUBSCRIBE} queries, and applying the appropriate data transformations
-during unsubscription and resubscription.
+As shown in Figure~\ref{fig:arch}, \sys sits between the application logic and its database. \sys
+models the application schema as an entity graph, and systematically applies the specified
+unsubscription policy transformations during unsubscription and resubscription.
 
-Unsubscription policies center around the abstraction of \emph{ghost entities}. A ghost entity is
-more than an anonymized version of a real entity: multiple ghost
-entities may replace a real entity to break any correlations with the real entity; and ghost entities can be
-partially custom generated or partially clones of real entities.
-%Pre- and post-unsubscription state differ by the presence of ghost entity nodes and edges, which
-%have taken the place of real entities and edges. 
-Developers specify a two-part unsubscription policy, consisting of per-entity-type \emph{ghost
-generation policies} describing how to create ghosts, and per-edge-type \emph{edge policies}
-describing when to create ghosts. We describe these in detail next.
-%\sys returns the real entity data and a mapping
-%from entities to their ghost replacements back to the unsubscribing user, which, if returned upon
-%resubscription, allows \sys to restore the user to their original state.
-%Table~\ref{tab:ghosting} shows an example of two ghosts based on a real template paper entity; we describe
-%how these ghosts are created next.
+\sys records the transformations performed upon unsubscribing a user, and encrypts and stores this
+log for the application. The encrypting key is secret-shared~\cite{secretsharing} among the user,
+\sys, and a trusted third party so that the user can retrieve a lost key without trusting the
+application or \sys.
 
-\subsection{How should ghost entities be generated?}
-\label{sec:ghosting}
+\sys consists of 5K LoC of Rust, and supports SQL queries as well as \texttt{UNSUBSCRIBE
+[user]} and \texttt{RESUBSCRIBE [user]} queries.
+Although we show that \sys performs reasonably (Section~\ref{sec:perf}), \sys should support eventually
+consistent, crash-recoverable unsubscription and resubscription, sharding, and multicore parallelism.
 
-\begin{table*}[t!]
-    \centering
-    \footnotesize
-\begin{tabular}{@{}ccccc@{}}
-\textbf{Paper Attribute} & \textbf{Ghosting Policy} & \textbf{Template Value} & \textbf{Ghost1 Value} & \textbf{Ghost2 Value} 
-  \\ \cmidrule(r){1-5}
-    {id} & N/A (identifier attribute) & 10 & 199 & 813 \\
-{title} & \texttt{CloneOne} + \texttt{Generate::Default("Ghost Paper")} & My Paper & My
-    Paper & Ghost Paper \\
-{outcome} & \texttt{CloneOne} + \texttt{Generate::Default(0)} & 1 & 1 & 0 \\
-{leadContactId} & \texttt{CloneOne} + \texttt{GenerateGhostParent} & 23 & 23 & 918 \\
-\end{tabular}
-    \caption{Generating two ghosts using ghosting policies for a simplified paper entity.
-    \sys clones the attributes of the template entity to generate Ghost1, and generates
-    attribute values for Ghost2. To generate edge attribute leadContactId, \sys creates a new ghost user and uses its identifier as the new value (918).}
-    \label{tab:ghosting}
-\end{table*}
-
-%\sys generates ghost entities in order to transform the contents of real entities, and to
-%decorrelate children from parent entities by reassigning the child to a ghost parent
-%(Section~\ref{design:edgepol}). 
-Developers define a ghost generation policy for each entity type to
-inform \sys how to generate ghost entities.
-\sys assumes entities have three kinds of attributes: a unique identifier attribute; value
-(non-referential) attributes such as timestamps or usernames; and edge (foreign key)
-attributes that identify correlations to parent entities.  Value attributes contents may expose
-identifying information, and edge attributes may be sensitive structural correlations.
-In Table~\ref{tab:ghosting}, the \texttt{id} attribute is the identifier attribute, the
-\texttt{title} and \texttt{outcome} attributes are value attributes, and \texttt{leadContactId} is
-an edge attribute, containing a foreign key to the ContactInfo (users) table. 
-
-Developers specify how \sys should generate each of these attributes, given a template real
-entity.
-\sys always generates ghost entities with unique identifier attribute values.
-For each value and edge attribute of each entity type, developers specify an \emph{attribute ghosting policy},
-which take as input a template entity's attribute value. Ghosting policies determine whether the
-template value should be \emph{cloned} in one or all ghost entities, or whether
-a new value should be generated. Cloning enables the application to retain
-the original template entity data: Table~\ref{tab:ghosting} shows a policy that clones
-paper attributes once, allowing the application to retain the paper's information. Other ghosts
-generated from the same paper have default attribute values, preventing duplicate papers.
-
-\sys provides the following ghosting policies:
-\begin{itemize}
-    \item \texttt{CloneAll:} Ghosts generated from the same template all share the template's 
-        attribute value. If there is an edge attribute, all ghosts will share the
-        same parent entity.
-
-    \item \texttt{GenerateAll:} 
-        For value attributes, developers specify whether the ghost attribute value should be
-        random, a default value, or generated from the template value via a custom function.
-        For edge attributes, \sys generates a new parent ghost entity, and uses the parent ghost
-        identifier as the edge attribute value.
-
-    \item \texttt{CloneOne:} One ghost entity shares the same value for the attribute as the
-        template. All other ghosts have generated values (as described above).
-        The same ghost entity will have cloned values for all attributes with a
-        \texttt{CloneOne} policy. For example, Ghost1 clones all value and edge attributes in Table~\ref{tab:ghosting}.
-\end{itemize}
-
-\subsection{When should ghosts be generated?}
-\label{design:edgepol}
-While ghost generation policies inform \sys how to produce ghosts, developers must also specify
-\emph{when} \sys should produce ghosts. 
-By default, \sys finds all \emph{sensitive} entities---entities transitively connected via
-parent-child edges to the unsubscribing user---and
-replaces them with a ghost entity according to the specified ghost generation policy. \sys also
-ghosts any parent of a sensitive child.
-
-\sys then applies developer-specified \emph{edge policies}, which determine when \sys should
-create ghosts to break correlations between sensitive children and their parents.
-Edge policies consist of a \emph{sensitivity threshold}, which tells \sys what
-proportion of existing correlations to sensitive entities to retain. Developers choose
-whether to delete or decorrelate edges of this type to reach the threshold. Decorrelation requires
-\sys to generate ghost entities and reassign children with the same parent entity to different
-ghost parents.
-
-%\paragraph{What is the Sensitivity Threshold?}
-%For each edge policy, the developer specifies a \emph{sensitivity
-%threshold}. 
-%
-The sensitivity threshold determines the maximum proportion of edge instances (of the policy's edge
-type) from a real parent entity that may remain correlated to sensitive child entities.
-%Sensitive entities transitively correlate back to the initial entity being unsubscribed. 
-At a high level, the sensitivity threshold estimates how much identifying information may leak from
-edge instances of that type.  Developers use their knowledge of application semantics to determine
-appropriate thresholds for each edge type. 
-%Developers can determine an appropriate sensitivity
-%threshold for each edge type by approximating how identifying these correlations may be if
-%all of these edges' children to the same parent are sensitive.
-For example, if all papers with the same parent tag are authored by an (unsubscribed) user, would
-the tagging identify the user? If tags are user-customizable, the answer may be yes; in other cases, the tag
-may indicate nothing about the paper author. The answer likely lies somewhere in the middle: it is
-problematic if \emph{all} of papers with a tag have the user as author, but it is acceptable if only
-a fraction do.  The maximum acceptable fraction is the sensitivity threshold. In this example, a
-reasonable sensitivity threshold might be $0.1$: less than 10\% of all papers with a specific tag
-key should be correlated with an (unsubscribed) user. 
-
-%If no threshold is specified, \sys defaults to a threshold of $0$ and fully
-%decorrelates all edges of this type. 
-
-The developer chooses one of two ways to achieve the sensitivity threshold: 
-\begin{enumerate}
-    \item \textbf{Decorrelate.}
-    \sys decorrelates edges from sensitive children by replacing edges to the real parent with
-        ones to a unique ghost parent, generated using the real parent as a template:
-        the childrens' edge attribute values now identify unique ghost parents. 
-
-\item \textbf{Delete.}
-    \sys deletes the edge by removing the child entity and any descendants. 
-        %Developers should select
-    %this edge policy option only if this type of edge cannot be decorrelated while retaining application
-    %semantics, but retaining edges to a shared parent would reveal too much identifying information.
-\end{enumerate}
-
-%For each parent, \sys decorrelates or deletes edges to children only enough to achieve the specified
-%threshold, and retains the remaining edges. 
-%Note that if all children are sensitive (a user's papers
-%are always sensitive), or if the sensitivity threshold is 0, \sys will decorrelate or delete all
-%children. 
-%On the other hand, if the developer specifies a sensitivity threshold of 1, \sys retains all
-%correlations between children and the parent. Developers should select this option only if the
-%developer knows that these correlations cannot collectively leak identifying information, and/or if
-%the application's functionality would be impacted by deleting or decorrelating this type of edge.
-%If \sys retains any edges from children to the parent, \sys generates a single ghost parent entity using the
-%parent as a template. The ghost parent adopts all children that remained correlated with the real
-%parent by replacing the childrens' edge attribute with the ghost's identifier.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-\iffalse
-\subsection{\sys's Execution Algorithm}
-\begin{figure*}[ht!]
-    \centering
-    \includegraphics[width=\textwidth]{img/algo}
-
-    \caption{Stages of \sys's execution when unsubscribing user U1. Entities and edges detected as
-    sensitive are outlined in red. Only the part of the entity graph relevant to unsubscription is shown.
-    For simplicity, the specified ghosting policies apply for all attributes
-    of the entity: a black ghost entity indicates that it is a full clone of the original.
-    New edges indicates that the edge (foreign-key) value of the child has been changed to
-    point to the specified parent.\\
-    In this example, \sys decorrelates paper-tag edges only enough that the proportion of sensitive papers
-    is at most the sensitivity threshold of 0.5, retaining one correlation between a sensitive
-    paper P2 and the parent tag T1, and decorrelating the other sensitive paper P1 from the tag.}
-    \label{fig:algo}
-\end{figure*}
+%To amortize the cost of unsubscription and resubscription, \name preemptively creates, stores, and
+%links ghost parent entities to child entities if an update creates an edge that may be decorrelated.
+%\name builds in-memory materialized views on top of the underlying database, exposing ghost
+%entities only if the true entity has been decorrelated, and real entities otherwise. Updates
+%propagate to the materialized views when the underlying database is updated. \name answers
+%application queries using these materialized views, hiding the complexity of ghost entity and
+%decorrelation management.
 
 
-Given an application's schema and unsubscription policy, and an entity to be decorrelated as input,
-\sys executes unsubscription as follows. Figure~\ref{fig:algo} illustrates each step.
-\begin{enumerate}
-    \item \textbf{Parent-Child Traversal:} \sys traverses the entity graph starting from the input entity,
-        going down parent to child edges (and halting if it detects a cycle). 
-        \sys collects traversed edges as it traverses the graph. 
-    
-    \item \textbf{Parent-Child Edge Policy Application:} 
-        Post-traversal, \sys acts on each collected edge instance according to the specified
-        decorrelation relationship policy for that edge's type.
-
-        \sys takes all edges of every unique parent entity, and applies policies as appropriate.
-        Note that any sensitivity threshold less than $1$ requires that \emph{all} edges be decorrelated or
-        deleted, depending on the developer's specified choice: all the children of this parent are
-        sensitive due to the nature of \sys's parent-child traversal.
-
-        Any edges that should be deleted removes the child entity and any descendants.
-        \sys generates new ghost parents using the real parent as template for any edges that should
-        be decorrelated, and rewrites the child's edge attribute to be the ghost parent's
-        identifier. If any edges are retained, \sys generates a ghost parent entity to replace the
-        parent.
-      
-    \item \textbf{Child-Parent Edge Policy Application:} 
-        Next, \sys takes the children of all traversed edge instances, and considers the set of
-        edges from these children to other parents \emph{not} traversed by \sys during the first
-        traversal phase. In other words, these children have multiple parents, at least one of which
-        is transitively connected to the input entity.
-
-        Intuitively, children of edges traversed by \sys share a connection with the initial
-        entity being decorrelated. Edges \emph{from} these children to other parent entities may
-        thus leak sensitive identifying information. 
-
-        \sys acts on these child-parent edges according to the specified edge policy for each edge's
-        type. For each unique parent, \sys limits the proportion of edges of each type that connect
-        to sensitive entities (the children of traversed edge instances) to below the policy's
-        sensitivity threshold by either decorrelating or deleting the children. 
-        If \sys retains any edges from sensitive children to the real parent, then \sys generates a
-        ghost parent entity to replace the parent.
-        
-        Note that unlike the previous steps, this step considers edges from parents that may have
-        many non-sensitive children (\eg a particular tag may correlate with many stories by various
-        authors).  \sys therefore may retain edges to sensitive children when given a sensitivity
-        threshold less than 1 and greater than 0, unlike in the previous step.
-
-        \sys optionally allows developers to specify that edges have weaker or stronger edge
-        policies in the child-to-parent direction than in the  parent-to-child direction. Weaker
-        policies---higher sensitivity thresholds---allow \sys to retain links if \emph{only the
-        child} is sensitive, but decorrelate or remove the link if \emph{both} the child and parent
-        are sensitive. For example, perhaps a user wants to ensure that they are decorrelated from
-        their reviews, but correlations between the review and the the paper authors can still be
-        retained.
-
-        Stronger policies may specify that the parent connected to sensitive children should
-        decorrelate \emph{all} correlations to the paper even from non-sensitive correlations.
-        Developers specify such a policy with a sensitive threshold of -1. For
-        example, perhaps the set of users with review conflicts to the paper can identify the
-        author, even if the author is decorrelated from the paper. We see an example of this in
-        Section~\ref{sec:hotcrp_example} (Figure~\ref{fig:pcs}).
-
-    \item \textbf{Anonymizing Leaf Children:}
-        If any sensitive children that are leaves (have no children) remain, \sys generates a ghost child entity to replace this leaf.
-        
-        In Figure~\ref{fig:algo}, step 4, P1 and P2 are both leaves. \sys generates ghosts for both
-        these papers: since these papers have \texttt{CloneOne} ghosting policies, ghost papers gP1
-        and gP2 are identical to P1 and P2, and retain the edge attributes linking them to their
-        respective parent tags and users.
-
-    \item \textbf{Returning User Data:} \sys collects all removed entities that have either been
-        replaced by ghost entities, or deleted entirely from the graph. \sys also records all
-        generated ghost entity identifiers, and which ghost entities replaced which real entity.
-        \sys returns both the removed entity data and this ghost entity metadata to the user.
-\end{enumerate}
-
-Note that \sys must decide \emph{which} ghost clones the template entity's attributes when the
-developer selects a \texttt{CloneOne} ghosting policy for one or more attributes. \sys always
-associates the cloned ghost with as many non-sensitive entities as possible. For example, as shown
-in Figure~\ref{fig:algo} step 3b, if \sys decorrelates sensitive papers from a parent tag with a
-\texttt{CloneOne} policy, \sys chooses the ghost tag that remains associated with non-sensitive
-papers to be the clone. This decision ensures that any subscribed users and unsensitive application
-data remain as unaffected as possible by another user's unsubscription. To optimize
-\texttt{CloneOne} policies, \sys can simply retain the original template entity instead of producing
-a cloned ghost.
-\fi
-%\sys provides a menu of unsubscription policy choices that allow developers to choose how to
-%\emph{ghost} individual data record content, and how to \emph{decorrelate} sensitive correlations. 
-%Specifying the policy requires nothing more than the application schema: ghosting policies act on
-%application datatables and on foreign key relationships between tables.
-%Table column values can be ghosted---removed, anonymized, or modified---in application-specific
-%ways; and correlations can be broken, removed, or desensitized by adding noise. This gives
-%developers the flexibility to specify fine-grained policies that properly de-identify a user, while
-%retaining data as necessary for the application.
-
-%\sys must pinpoint exactly which data and correlations may be
-%identity-sensitive, and allow developers to specify exactly what the post-unsubscription state of
-%this data should be.

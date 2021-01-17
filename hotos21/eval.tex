@@ -25,16 +25,9 @@ data storage. We show that \sys can meet the other two requirements by evaluatin
 ease of writing and expressiveness of unsubscription policies in HotCRP, a popular conference review management
 application. \lyt{and Lobsters and/or PrestaShop?}
 
-%We use \sys to write an unsubscription policy for HotCRP, demonstrating that \sys's abstractions
-%are indeed expressive enough to handle realistic and subtle data policies. 
-%This example illustrates the workflow and different application-specific choices developers must consider when
-%using \sys. 
-%
 HotCRP entities include users (reviewers and authors), papers, paper reviews, and
 paper conflicts. There are a total of 25 entities, with 48 edge types between entities.
 
-%To specify edge policies, the developer considers whether edges of each type may reveal identifying
-%information about the user.  
 For edges with the user as a direct parent, the developer first specifies edge policies with a
 sensitivity threshold of 0: all direct correlations between a user and other entities may leak the
 user's identity. Because HotCRP should retain the paper and review data,
@@ -63,6 +56,26 @@ For all other edge types, the developer specifies a sensitivity threshold of 1. 
 and paper artifacts remain correctly linked: (subscribed) reviewers still see the
 correct paper for their reviews, and (subscribed) authors see the correct reviews for
 their papers.%, and review and paper metadata should remain correctly associated. 
+
+The developer also specifies how \sys generates ghost entities. The developer determines which entity
+attributes reveal identifying information (and should be generated); which attributes should be
+cloned to retain information necessary to the application; and how to generate attribute values in
+ways that satisfy HotCRP semantics. 
+For clarify, Figure~\ref{fig:hotcrp} shows simplified, entity-granularity ghosting policies rather than
+per-attribute ghosting policies.
+\sys generates ghost users' attributes, giving all ghosts a default value of \texttt{disabled=true}
+to ensure ghosts never review papers. \sys clones all paper and review attributes once, retaining
+paper and review information without creating duplicates, and clones paper conflicts because no conflict
+value attributes are identifying.
+
+\subsection{Performance}
+\label{sec:perf}
+\begin{itemize}
+    \item LoC to write HotCRP/Lobsters' policies
+    \item Normal performance of read/updates (Lobsters? HotCRP?), Time to perform unsub/resub.
+        Ideally would have an experiment with frequent unsub/resub occurring in parallel with normal execution
+        of other users.
+\end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \iffalse
@@ -125,8 +138,6 @@ stronger user privacy and acceptable semantics for HotCRP.
 %\lyt{I know this doesn't exactly reflect HotCRP's schema (which uses PaperTags to link papers to
 %tags), but I found this example the most convincing to demonstrate partial decorrelation. This may
 %be more relevant in a different application than HotCRP.}
-\fi
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %\paragraph{Generating Ghost Entities.}
 The developer also specifies how \sys generates ghost entities. The developer determines which entity
@@ -172,33 +183,10 @@ value attributes are identifying.
 %irrelevant to HotCRP.
 %
 
-\subsection{\sys Prototype}
-We implemented a \sys prototype, which acts as an in-memory shim layer on top
-of a MySQL database. \sys intercepts and processes queries sent by the application frontend. 
-%To amortize the cost of unsubscription and resubscription, \name preemptively creates, stores, and
-%links ghost parent entities to child entities if an update creates an edge that may be decorrelated.
-%\name builds in-memory materialized views on top of the underlying database, exposing ghost
-%entities only if the true entity has been decorrelated, and real entities otherwise. Updates
-%propagate to the materialized views when the underlying database is updated. \name answers
-%application queries using these materialized views, hiding the complexity of ghost entity and
-%decorrelation management.
-Our prototype consists of 5K LoC of Rust, and supports SQL queries as well as \texttt{UNSUBSCRIBE
-[user]} and \texttt{RESUBSCRIBE [user]} queries.
-
-\begin{itemize}
-    \item LoC to write HotCRP/Lobsters' policies
-    \item Normal performance of read/updates (Lobsters? HotCRP?), Time to perform unsub/resub.
-        Ideally would have an experiment with frequent unsub/resub occurring in parallel with normal execution
-        of other users.
-\end{itemize}
-Our prototype takes only the first step to implement \sys. \sys should support eventually
-consistent, crash-recoverable unsubscription and resubscription, sharding, and multicore parallelism.
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\iffalse
 We evaluate \sys on two metrics: (1) can desired decorrelation policies be easily specified using the
 provided decorrelation primitives for a range of practical applications?, and (2) can decorrelation
 be supported with low performance overhead?
