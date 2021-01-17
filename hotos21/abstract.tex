@@ -1,26 +1,21 @@
 \begin{abstract}
 %
-\name is a new data ownership paradigm for web services that achieves
-better user privacy and data protection than today's services, but without
-making impractical assumptions or breaking current business models.
+\name is a new data ownership paradigm for web services in which users subscribe to
+services by granting a \emph{lease} of their data, instead of having a permanent account.
 %
-
-%
-Users subscribe to a service by granting a \emph{lease} to their data,
-instead of having a permanent account.
-%
-When the lease ends, the service switches the user from the identity-revealing
+When the lease ends, the user switches from an identity-revealing
 subscribed mode into a privacy-preserving unsubscribed mode, where the
 service only retains anonymized data about them.
 %
-Users can thus withdraw from a service without permanently losing access,
-as they can resubscribe at any time, and a user's withdrawal does not affect
-the service's utility for other users.
+This paradigm strikes a balance between the current paradigm, in which services own user data
+    and users have minimal data privacy, and the other extreme, which decouples user data from
+    services for strong privacy while breaking current business models and reducing service utility.
+%achieves better user privacy and data protection than today's services, 
+%but without making impractical assumptions or breaking current business models.
 %
-%This subscription paradigm strikes a balance between applications having
-%complete ownership of user data, and users owning and storing their data at
-%the cost of application utility.
-%
+Under \name, users withdraw from a service without permanently losing access,
+as they can resubscribe at any time, and one user's withdrawal does not affect
+the service's utility for others.
 
 %
 A prototype design and implementation for \name suggests it can be realized
@@ -28,9 +23,7 @@ efficiently and with low burden for application developers.
 %
 %\ms{We should give our paradigm a name!}
 
-%The paper proposes a new web application \emph{subscription paradigm}, in which users subscribe to
-%applications by granting a time-limited ``lease'' of their data, instead of having a permanent
-%account. Users flexibly switch between a privacy-preserving unsubscribed mode and an
+%The paper proposes a new web application \emph{subscription paradigm},  Users flexibly switch between a privacy-preserving unsubscribed mode and an
 %identity-revealing subscribed mode at any time without permanently losing their data. 
 %This subscription paradigm strikes a balance between applications having complete ownership of user
 %data, and completely decoupling user data from applications at the cost of application utility. 

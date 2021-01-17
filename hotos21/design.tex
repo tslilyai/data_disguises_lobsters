@@ -13,16 +13,16 @@
 
 As shown in Figure~\ref{fig:arch}, \sys sits between the application logic and its database. \sys
 models the application schema as an entity graph, and systematically applies the specified
-unsubscription policy transformations during unsubscription and resubscription.
-
-\sys records the transformations performed upon unsubscribing a user, and encrypts and stores this
-log for the application. The encrypting key is secret-shared~\cite{secretsharing} among the user,
+unsubscription policy transformations during unsubscription.
+\sys records these unsubscription transformations, and encrypts and stores this
+log in an additional table. The encrypting key is secret-shared~\cite{secretsharing} among the user,
 \sys, and a trusted third party so that the user can retrieve a lost key without trusting the
-application or \sys.
+application or \sys. Upon resubscription, \sys decrypts this log and reverses the transformations,
+restoring the user's data to its original state.
 
 \sys consists of 5K LoC of Rust, and supports SQL queries as well as \texttt{UNSUBSCRIBE
 [user]} and \texttt{RESUBSCRIBE [user]} queries.
-Although we show that \sys performs reasonably (Section~\ref{sec:perf}), \sys should support eventually
+We show that \sys performs reasonably (Section~\ref{sec:perf}), and we plan to support eventually
 consistent, crash-recoverable unsubscription and resubscription, sharding, and multicore parallelism.
 
 %To amortize the cost of unsubscription and resubscription, \name preemptively creates, stores, and

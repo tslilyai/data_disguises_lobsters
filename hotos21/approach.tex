@@ -12,19 +12,19 @@ Unsubscription transforms this graph by introducing \emph{ghost entities}, which
 entities with (partially or fully) anonymized content, and break structural correlations. Data
 retention and de-identification can be fully captured by specifying how to generate ghost
 entities from real entities, and how to restructure the entity graph with edges to ghost entities.
-Resubscription performs the inverse transformation of the graph using the log of
-unsubscription graph transformations.
+Resubscription reverses the transformation using a log of graph modifications performed by 
+unsubscription.
 
 Modeling application data and un/resubscription as graph transformations with ghost entities allows
-developers to declaratively specify the effects of unsubscription, and this specification precisely
-conveys post-unsubscription privacy guarantees to users.  Developers use their application expertise
+developers to declaratively specify the effects of unsubscription, and this specification 
+acts as a precise post-unsubscription privacy policy for users. Developers use their application expertise
 to determine an appropriate post-unsubscription state that achieves both de-identification and
 application correctness, and reason at the level of entity and edge \emph{types}, instead of
 about any one specific entity graph instance. Developers specify transformations via an unsubscription policy, 
 choosing appropriate policies from a menu of \emph{ghost generation policies} for each entity type, and
 \emph{edge policies} for each edge type (Section~\ref{sec:unsub}).
 
-To further reduce developer burden, we design and implement \sys, a prototype that takes an unsubscription policy and a concrete
+To demonstrate how this approach works in practice, we design \sys, a prototype that takes an unsubscription policy and a concrete
 application schema, and systematically transforms instances of the application entity graph upon
 unsubscription and resubscription to achieve the state specified in the policy
 (Section~\ref{sec:proto}).
@@ -35,7 +35,7 @@ unsubscription and resubscription to achieve the state specified in the policy
 \label{sec:unsub}
 
 This section describes the abstractions underlying unsubscription policies, which consist of ghost
-generation policies (specifying transformations of graph nodes), and edge policies (specifying
+generation policies (specifying graph node transformations), and edge policies (specifying
 structural transformations).
 
 \subsubsection{Ghost Generation Policies}
