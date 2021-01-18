@@ -35,7 +35,8 @@ pub struct EdgePolicy {
 
 pub struct ApplicationPolicy {
     pub unsub_entity_type: EntityName,
-    pub ghost_policies: EntityGhostPolicies, 
+    pub pc_ghost_policies: EntityGhostPolicies, 
+    pub cp_ghost_policies: EntityGhostPolicies, 
     // child to parent edges
     pub edge_policies: HashMap<EntityName, Rc<Vec<EdgePolicy>>>,
 }

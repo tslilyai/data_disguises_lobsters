@@ -37,6 +37,7 @@ pub struct TraversedEntity {
 
     pub parent_table: String,
     pub parent_col_index: usize,
+    pub from_pc_edge: bool,
 }
 impl Hash for TraversedEntity {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -220,11 +221,15 @@ impl Querier {
                                 template: &TemplateEntity,
                                 // TODO make more than one ghost family at a time
                                 //num_ghosts: usize, 
+                                is_pc: bool,
                                 db: &mut mysql::Conn) 
         -> Result<GhostEidMapping, mysql::Error> 
     {
         let start = time::Instant::now();
-        let new_entities = generate_new_ghosts_from(&self.views, &self.policy.ghost_policies, template, 1)?;
+        let new_entities = match is_pc {
+            true => generate_new_ghosts_from(&self.views, &self.policy.pc_ghost_policies, template, 1)?
+            false => generate_new_ghosts_from(&self.views, &self.policy.cp_ghost_policies, template, 1)?
+        };
 
         let mut ghost_names = vec![];
         let mut root_gid = 0;
@@ -306,6 +311,7 @@ impl Querier {
                 hrptr: matching_row.clone(),
                 parent_table: "".to_string(),
                 parent_col_index: 0,
+                from_pc_edge: true,
         });
 
         /* 
@@ -352,6 +358,7 @@ impl Querier {
                             hrptr: rptr.clone(),
                             parent_table: node.table_name.clone(), 
                             parent_col_index: ci,
+                            from_pc_edge: true,
                         };
 
                         // we decorrelate or delete *all* in the parent-child direction
@@ -366,7 +373,7 @@ impl Querier {
                                         eid: node.eid,
                                         row: node.hrptr.row().clone(), 
                                         fixed_colvals: None,
-                                    }, db)?;
+                                    }, true, db)?;
                                 
                                 let gid = gem.root_gid;
                                 

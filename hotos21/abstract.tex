@@ -1,4 +1,22 @@
 \begin{abstract}
+    Web applications face increasing legal and user demands to properly protect and manage user
+    data, whether through supporting user's right to be forgotten, removing unnecessary or old user
+    data, or moderating user content.
+    %
+    Meeting these demands requires that applications perform the appropriate data transformations to
+    sufficiently de-identify content, while retaining data required for application utility or legal
+    purposes (\eg purchase order history).  Because such transformations are necessarily
+    application-specific and require handling complex data correlations, today's applications
+    often forgo support for these demands, or use ad-hoc methods with unclear guarantees to achieve
+    them.
+    %
+    To help developers flexibly support data protection transformations in new and existing
+    applications, we propose \sys, which provides a set of abstractions and mechanisms---the
+    application \emph{entity graph} and \emph{ghost entities}---and systematically automates these
+    transformations.
+\end{abstract}
+
+\iffalse
 %
 \name is a new data ownership paradigm for web services in which users subscribe to
 services by granting a \emph{lease} of their data, instead of having a permanent account.
@@ -31,4 +49,4 @@ efficiently and with low burden for application developers.
 %we design \name{}, a practical system that provides abstractions and mechanisms to help
 %developers of databased-backed web applications achieve correct, privacy-compliant user
 %unsubscription and resubscription without onerous labor.
-\end{abstract}
+\fi

@@ -1,6 +1,46 @@
 %-------------------------------------------------------------------------------
 \section{Introduction}
 %-------------------------------------------------------------------------------
+Web applications today own, store, and manage user data~\cite{nytimes:fb, npr:data}. 
+This places a great responsibility on application developers to protect user privacy rights
+and moderate user content.
+%
+Recent developments have made meeting these responsibilities more pressing.  Laws such as the EU's
+General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's Consumer Privacy Act
+(CCPA)~\cite{ca:privacy-act} codify users' rights to data ownership and right to be forgotten,
+mandating that applications support privacy-preserving user unsubscription. This motivates support
+for resubscription: if applications must let users leave, it is in their best interest to make it
+easy for them to return, and to not require users to permanently give up their accounts.
+%
+Applications also face increasing incentives to keep as little identifying information as possible
+around that could compromise users, as data leaks have led of the loss of livelihoods and
+lawsuits~\cite{breach:amazon,breach:twitter, breach:fb, breach:marriott, breach:quora}, .
+%
+Finally, ever-growing usage of web applications as a platform for harmful content push 
+applications to better transparently moderate user content~\cite{contentmod, sasb}.
+
+Achieving these \emph{data protection transformations} of application data is not easy.
+For example, applications must selectively retain unsubscribing users' data for legal or application purposes while properly
+de-identifying this data, a non-trivial task in the face of subtle inference attacks.
+Because these transformations are necessarily application-specific and require handling complex data
+correlations, today's applications often forgo support for these demands, or use ad-hoc methods to
+achieve them, often with unclear guarantees.
+
+To help developers of new and existing applications support data privacy transformations, we propose
+\sys, which makes the key insight to model application data as an abstract \emph{entity graph}, and
+represent data protection transformations as transformations of this graph.  \emph{Ghost entities}
+allow transformations to achieve both data retention and de-identification, and declarative
+\emph{ghost policies} specify (reversible) transformations to the graph.
+
+With \sys, developers specify a declarative, high-level data transformation policy by choosing from a menu of
+provided edge and node transformations. This policy specifies the post-transformation state of any instance of the
+entity graph. \sys then systematically automates these transformations according to the policy when
+the policy is invoked.
+
+A prototype design and implementation for \sys suggests it can be realized
+efficiently and with low burden for application developers.
+
+\iffalse
 %\begin{figure*}[ht!]
 %    \centering
 %    \includegraphics[width=\textwidth]{img/worlds}
@@ -68,3 +108,4 @@ We design and implement \sys, a practical system that systematically automates t
 %that requires developers only to specify an abstract unsubscription policy on the 
 %helps developers of databased-backed web applications automatically achieve correct, privacy-compliant user unsubscription and
 %resubscription without onerous labor.
+\fi
