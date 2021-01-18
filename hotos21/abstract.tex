@@ -4,12 +4,13 @@
     data, or moderating user content.
     %
     Meeting these demands requires that applications perform the appropriate data transformations to
-    sufficiently de-identify or modify content, while retaining data required for application utility or legal
-    purposes (\eg purchase order history).  Because such transformations are necessarily
+    sufficiently de-identify or modify data, while still retaining the data required for application utility or legal
+    purposes. Because such transformations are necessarily
     application-specific and require handling complex data correlations, today's applications
-    often forgo support for these demands, or use ad-hoc methods with unclear guarantees to achieve
+    often forgo these transformations, or use ad-hoc methods with unclear guarantees to achieve
     them.
     %
+
     To help developers flexibly support data protection transformations in new and existing
     applications, we design and implement \sys, a system that takes as input a high-level
     specification of a transformation, and automatically applies it to the application database.
