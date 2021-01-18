@@ -1,5 +1,57 @@
-\section{\name Requirements \& Challenges}
+\section{Requirements \& Challenges}
 
+Data protection transformations serve a number of purposes. They allow users to switch between
+privacy-preserving unsubscribed mode and identity-revealing subscribed mode; inactive or stale data
+to expire; and modifications to harmful content that violate application terms of service.
+
+These transformations all have similar requirements, namely that (1) applications can
+\emph{selectively retain} data for application utility or legal purposes; (2) data modification and
+removal to properly de-identify or moderate content, and (3) transformations do not break
+application semantics. We next describe each requirement and the challenges to achieve it in greater
+detail.
+
+\paragraph{Selective Retention.}
+Retained data serves two purposes: to preserve legal or necessary information about an individual
+user (\eg order history in e-commerce applications), and to maintains application utility for
+subscribed users (\eg private messages for thread coherence, or crowdsourced reviews and popular
+news posts).  For example, Facebook and Twitter retain copies of private messages for other users in the
+conversation~\cite{fb:privacy, twitter:privacy}; Reddit retains all user posts and comments; Lobsters retains the
+user's unique username and logs of the user's actions~\cite{reddit:privacy}; Amazon and Prestashop retain
+a user's order history~\cite{amazon:privacy, prestashop:privacy}; and Strava retains geolocation
+data and any ``necessary'' information~\cite{strava:privacy}. 
+
+Developers must ensure that post-unsubscription state avoids accidental data deletion or retention.
+
+\paragraph{De-Identification.}
+Any retained data must be properly de-identified. The surveyed applications often remove or replace
+user identifiers with a placeholder user identifier. However, this can still fail to sufficiently
+de-identify retained data: \emph{structural correlations} from or to retained data can still identify
+unsubscribed users. For example, orders tagged with the same location likely belong to the same
+user, and order history can identify the user. 
+%Anonymized posts with the same flairs or custom tags can identify which user made the posts.
+
+Detecting and correctly modifying even subtly problematic content and correlations pose technical
+challenges that can prevent developers from retaining data in privacy-preserving ways, or force
+developers to forgo data retention completely.  For example, HotCRP cannot just remove unsubscribing
+users' identifiers: correlations between users' papers and conflicting reviewers indirectly identify
+the user via the conflicts' affiliations and recent collaborations.  HotCRP chooses to reduce its
+utility by completely removing the papers, rather than deal with these potentially identifying
+correlations.
+%, a solution that clearly would not
+%work in a world where users frequently unsubscribe at any time.
+
+These complex data transformations also make it difficult for developers to specify exactly 
+what identifying information may be left behind for the user, leading to vague privacy policies.
+
+\paragraph{Resubscription.}
+Resubscription must recorrelate any retained data with the original owner, and restore any removed
+data. Today, applications either retain all data and forgo de-identification entirely in order to
+support resubscription, or permanently remove and anonymize data.
+Supporting resubscription requires storing information necessary for recorrelation and restoring
+users' accounts, but should not unduly burden either the application or user, nor add any
+identifying information about unsubscribing users to the system.
+
+\iffalse
 To achieve \name, a system must (1) enable applications to \emph{selectively retain} unsubscribed
 users' data for necessary legal or application purposes; (2) properly \emph{de-identify} the user
 upon unsubscription by removing any possibly identifiable information, or decorrelating this
@@ -77,4 +129,4 @@ identifying information about unsubscribing users to the system.
 %collaborations, and in many cases, the user themselves. Implementing unsubscription that handles
 %these complex data relationships correctly would not be trivial.
 %
-
+\fi
