@@ -28,17 +28,17 @@ achieve them, often with unclear guarantees.
 
 To help developers of new and existing applications support data privacy transformations, we propose
 \sys, which makes the key insight to model application data as an abstract \emph{entity graph}, and
-represent data protection transformations as transformations of this graph.  \emph{Ghost entities}
+represent data protection transformations as transformations of this graph. \emph{Ghost entities}
 allow transformations to achieve both data retention and de-identification, and declarative
 \emph{ghost policies} specify (reversible) transformations to the graph.
 
 With \sys, developers specify a declarative, high-level data transformation policy by choosing from a menu of
 provided edge and node transformations. This policy specifies the post-transformation state of any instance of the
-entity graph. \sys then systematically automates these transformations according to the policy when
-the policy is invoked.
+entity graph. When the policy is invoked, \sys automatically and systematically applies these transformations to the
+current entity graph instance according to the policy.
 
-A prototype design and implementation for \sys suggests it can be realized
-efficiently and with low burden for application developers.
+We evaluate a prototype design and implementation for \sys, finding that \sys performs automatic data
+protection transformations efficiently, and that policies can be expressed with low burden for application developers.
 
 \iffalse
 %\begin{figure*}[ht!]

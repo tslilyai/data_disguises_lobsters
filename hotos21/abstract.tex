@@ -4,16 +4,18 @@
     data, or moderating user content.
     %
     Meeting these demands requires that applications perform the appropriate data transformations to
-    sufficiently de-identify content, while retaining data required for application utility or legal
+    sufficiently de-identify or modify content, while retaining data required for application utility or legal
     purposes (\eg purchase order history).  Because such transformations are necessarily
     application-specific and require handling complex data correlations, today's applications
     often forgo support for these demands, or use ad-hoc methods with unclear guarantees to achieve
     them.
     %
     To help developers flexibly support data protection transformations in new and existing
-    applications, we propose \sys, which provides a set of abstractions and mechanisms---the
-    application \emph{entity graph} and \emph{ghost entities}---and systematically automates these
-    transformations.
+    applications, we design and implement \sys, a system that takes as input a high-level
+    specification of a transformation, and automatically applies it to the application database.
+    \sys relies on the key abstractions of application \emph{entity graphs} and \emph{ghost
+    entities}, which allow developers to express and automate practical data protection transformations without
+    onerous labor.
 \end{abstract}
 
 \iffalse
