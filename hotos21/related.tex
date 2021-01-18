@@ -2,6 +2,8 @@
 \section{Related Paradigms}
 %-------------------------------------------------------------------------------
 \label{sec:related}
+\lyt{Should we also cite the GDPR-related DB papers? \eg Malte's paper regarding user shards, SchengenDB,
+etc?}
 
 \paragraph{Decoupling User Data.}
 Prior work~\cite{solid, amber, w5, blockstack, bstore} has proposed user-centric data ownership
@@ -56,12 +58,11 @@ correct application semantics, developers must provide input into how to generat
 
 Instead of constantly maintaining data partitions, our approach to \name encrypts a record of the changes made
 (often to PII) during unsubscription, incurring little overhead during normal execution. A future
-implementation may preemptively create ghost data, but this implementation strategy is not
-fundamental.
+implementation may preemptively create ghost data and result in a system design vaguely similar to
+Sypse, but this implementation strategy is not fundamental.
 
 Sypse also does not support resubscription, although we observe that a similar approach to ours
 would allow Sypse to do so.
-
 
 \iffalse
 Key ideas:
