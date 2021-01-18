@@ -1,7 +1,7 @@
 use crypto::digest::Digest;
 use crypto::sha3::Sha3;
 use mysql::prelude::*;
-use std::collections::{HashMap};
+use std::collections::{HashMap, HashSet};
 use std::*;
 use log::{warn};
 use msql_srv::{QueryResultWriter};
@@ -101,7 +101,7 @@ impl Subscriber {
         writer: QueryResultWriter<W>,
         eid: u64,
         ghost_eid_mappings: &mut Vec<GhostEidMapping>,
-        removed_entities: &Vec<TraversedEntity>,
+        removed_entities: &HashSet<TraversedEntity>,
         db: &mut mysql::Conn,
     ) -> Result<(), mysql::Error> {
         // cache the hash of the gids we are returning

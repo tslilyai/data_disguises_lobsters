@@ -88,25 +88,6 @@ fn test_unsub_noop() {
          "worst story!".to_string());
 
     /* 
-     * Check: No ghost entities have been created
-     */
-    let res = db_actual.query_iter(r"SELECT * FROM ghostusers ORDER BY entity_id;").unwrap();
-    for row in res {
-        warn!("Found row for ghostusers {:?}", row);
-        assert!(false);
-    }
-    let res = db_actual.query_iter(r"SELECT * FROM ghoststories ORDER BY entity_id;").unwrap();
-    for row in res {
-        warn!("Found row for ghoststories {:?}", row);
-        assert!(false);
-    }
-    let res = db_actual.query_iter(r"SELECT * FROM ghostmoderations ORDER BY entity_id;").unwrap();
-    for row in res {
-        warn!("Found row for ghostmods {:?}", row);
-        assert!(false);
-    }
-
-    /* 
      *  Unsubscribe of user 1 does nothing
      */
     let mut unsubscribed_gids : Vec<GhostEidMapping>; 
@@ -121,8 +102,11 @@ fn test_unsub_noop() {
         let s2 = s2.trim_end_matches('\'').trim_start_matches('\'');
         unsubscribed_gids = serde_json::from_str(s1).unwrap();
         entity_data = serde_json::from_str(s2).unwrap();
-        assert!(unsubscribed_gids.is_empty());
-        assert!(entity_data.is_empty());
+        for entity in &entity_data {
+            println!("Entity! {:?}", entity);
+        }
+        assert_eq!(entity_data.len(), 5);
+        assert_eq!(unsubscribed_gids.len(), 5);
     }
     
     let mut results = vec![];
@@ -155,8 +139,8 @@ fn test_unsub_noop() {
         warn!("Serialized values are {}, {}", s1, s2);
         unsubscribed_gids = serde_json::from_str(s1).unwrap();
         entity_data = serde_json::from_str(s2).unwrap();
-        assert!(unsubscribed_gids.is_empty());
-        assert!(entity_data.is_empty());
+         assert_eq!(unsubscribed_gids.len(), 5);
+        assert_eq!(entity_data.len(), 5);
     }
     
     let mut results = vec![];

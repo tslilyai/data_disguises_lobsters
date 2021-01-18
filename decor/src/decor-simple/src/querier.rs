@@ -7,6 +7,7 @@ use std::time::Duration;
 use std::*;
 use msql_srv::{QueryResultWriter};
 use log::{warn};
+use std::hash::{Hash, Hasher};
 
 use crate::{policy, helpers, subscriber, query_simplifier, EntityData, ID_COL};
 use crate::views::*;
@@ -28,7 +29,7 @@ pub struct Querier {
     pub stats: Vec<helpers::stats::QueryStat>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct TraversedEntity {
     pub table_name: String,
     pub eid : u64,
@@ -37,6 +38,18 @@ pub struct TraversedEntity {
     pub parent_table: String,
     pub parent_col_index: usize,
 }
+impl Hash for TraversedEntity {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.table_name.hash(state);
+        self.eid.hash(state);
+    }
+}
+impl PartialEq for TraversedEntity {
+    fn eq(&self, other: &TraversedEntity) -> bool {
+        self.table_name == other.table_name && self.eid == other.eid
+    }
+}
+impl Eq for TraversedEntity {} 
 
 impl Querier {
     pub fn new(policy: policy::ApplicationPolicy, params: &super::TestParams) -> Self {
@@ -238,14 +251,14 @@ impl Querier {
                 columns : self.views.get_view_columns(&table_entities.table),
                 source : source, 
             });
-            warn!("new entities issue_insert_dt_stmt: {} dur {}", dt_stmt, start.elapsed().as_micros());
+            warn!("insert_ghosts_for_template: {} dur {}", dt_stmt, start.elapsed().as_micros());
             db.query_drop(dt_stmt.to_string())?;
             self.cur_stat.nqueries+=1;
         
             self.views.insert(&table_entities.table, None, &table_entities.rptrs)?;
         
             for gid in table_entities.gids {
-                if root_gid == 0 {
+                if table_entities.table == template.table && root_gid == 0 {
                     root_gid = gid;
                 }
                 ghost_names.push((table_entities.table.clone(), gid));
@@ -267,13 +280,13 @@ impl Querier {
     {
         use policy::EdgePolicyType::*;
 
-        warn!("Unsubscribing uid {}", uid);
+        warn!("UNSUB: Unsubscribing uid {}", uid);
 
         // table name of entity, eid, gids for eid
         let mut ghost_eid_mappings : Vec<GhostEidMapping> = vec![];
 
         // all entities to be replaced or removed, as they existed prior to unsubscription
-        let mut nodes_to_remove : Vec<TraversedEntity> = vec![];
+        let mut nodes_to_remove : HashSet<TraversedEntity> = HashSet::new();
        
         // all entities to be replaced by ghosted versions
         let mut nodes_to_ghost : HashSet<TraversedEntity> = HashSet::new();
@@ -317,7 +330,7 @@ impl Querier {
                 }
                 Some(cs) => children = cs,
             }
-            warn!("Found children {:?} of {:?}", children, node);
+            warn!("UNSUB {} STEP 1: Traversing {:?}, found children {:?}", uid, node, children);
 
             // TODO make a pointer so we don't have to clone
             for ((child_table, child_ci), child_hrptrs) in children.iter() {
@@ -373,7 +386,7 @@ impl Querier {
                             Delete(f) => {
                                 assert!(f < 1.0); 
                                 // add all the sensitive removed entities to return to the user 
-                                nodes_to_remove.append(&mut self.get_tree_from_child(&child).into_iter().collect());
+                                self.get_tree_from_child(&child, &mut nodes_to_remove);
 
                                 // replace this node with a ghost node
                                 nodes_to_ghost.insert(node.clone());
@@ -394,12 +407,12 @@ impl Querier {
                     }
                 }
             }
-            warn!("UNSUB {}: Duration to traverse+decorrelate {}, {:?}: {}us", 
+            warn!("UNSUB {} STEP 1: Duration to traverse+decorrelate {}, {:?}: {}us", 
                       uid, node.table_name.clone(), node, start.elapsed().as_micros());
         }
         
         /* 
-         * Step 3: Child->Parent Decorrelation. 
+         * Step 2: Child->Parent Decorrelation. 
          * For all edges to the parent entity that need to reach a particular sensitivity
          * threshold, decorrelate or remove the children; if retained, ghost the parent. 
          */
@@ -407,9 +420,10 @@ impl Querier {
         self.unsubscribe_child_parent_edges(&traversed_entities, &mut ghost_eid_mappings, &mut nodes_to_remove, &mut nodes_to_ghost, db)?;
 
         /*
-         * Step 4: Change intermediate and leaf entities to ghosts TODO
+         * Step 3: Change intermediate and leaf entities to ghosts TODO
          */
         for entity in nodes_to_ghost {
+            warn!("UNSUB {} STEP 3: Changing {:?} to ghost", uid, entity);
             // create ghost for this entity
             let gem = self.insert_ghost_for_template(
                 &TemplateEntity {
@@ -434,7 +448,7 @@ impl Querier {
 
             // TODO optimize policies where all values are cloned
             // we ghosted this node, we want to remove it and return to the user
-            nodes_to_remove.push(entity.clone());
+            nodes_to_remove.insert(entity.clone());
         }
 
         /*
@@ -451,7 +465,7 @@ impl Querier {
     pub fn unsubscribe_child_parent_edges(&mut self, 
         children: &HashSet<TraversedEntity>, 
         ghost_eid_mappings: &mut Vec<GhostEidMapping>,
-        nodes_to_remove: &mut Vec<TraversedEntity>,
+        nodes_to_remove: &mut HashSet<TraversedEntity>,
         nodes_to_ghost: &mut HashSet<TraversedEntity>,
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
@@ -517,7 +531,7 @@ impl Querier {
                     let childrows = self.views.graph.get_children_of_parent(&policy.parent, *parent_eid).unwrap();
                     let total_count = childrows.get(&(poster_child.table_name.clone(), ci)).unwrap().len() as f64;
                     let sensitive_count = sensitive_children.len() as f64;
-                    warn!("Found {} total and {} sensitive children of type {} with parent {}", 
+                    warn!("UNSUB STEP 2: Found {} total and {} sensitive children of type {} with parent {}", 
                           total_count, sensitive_count, policy.parent, parent_eid);
                     
                     let number_to_desensitize = (((sensitive_count * (1.0-sensitivity)) 
@@ -542,6 +556,7 @@ impl Querier {
                         }
 
                         for child in &sensitive_children[0..number_to_desensitize as usize] {
+                            warn!("UNSUB STEP 2: Unsubscribe child parent edges child {:?}", child);
                             match policy.pc_policy {
                                 Decorrelate(_) => {
                                     let gem = self.insert_ghost_for_template(
@@ -558,7 +573,7 @@ impl Querier {
                                 }
                                 Delete(_) => {
                                     // add all the sensitive removed entities to return to the user 
-                                    nodes_to_remove.append(&mut self.get_tree_from_child(&child).into_iter().collect());
+                                    self.get_tree_from_child(&child, nodes_to_remove);
                                 }
                                 _ => unimplemented!("Shouldn't have a retain policy with a positive number to desensitize")
                             }
@@ -567,15 +582,13 @@ impl Querier {
                 }
             }
         }
-        warn!("UNSUB: Duration to look at and remove/desensitize child-parent edges: {}us", start.elapsed().as_micros());
+        warn!("UNSUB Step 2: Duration {}us", start.elapsed().as_micros());
         Ok(())
     }
 
-    pub fn get_tree_from_child(&mut self, child: &TraversedEntity)
-        -> Vec<TraversedEntity>
+    pub fn get_tree_from_child(&mut self, child: &TraversedEntity, nodes: &mut HashSet<TraversedEntity>)
     {
         let mut children_to_traverse: Vec<TraversedEntity> = vec![];
-        let mut entities_to_remove: Vec<TraversedEntity> = vec![];
         children_to_traverse.push(child.clone());
         let mut node: TraversedEntity;
 
@@ -599,31 +612,42 @@ impl Querier {
                     }
                 }
             }
-            entities_to_remove.push(node.clone());
+            nodes.insert(node.clone());
         }
-        entities_to_remove 
     }
 
-    fn remove_entities(&mut self, nodes: &Vec<TraversedEntity>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    fn remove_entities(&mut self, nodes: &HashSet<TraversedEntity>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         let id_col = Expr::Identifier(helpers::string_to_idents(ID_COL));
-        let eid_exprs : Vec<Expr> = nodes.iter().map(|node| Expr::Value(Value::Number(node.eid.to_string()))).collect();
-        let ids: Vec<u64> = nodes.iter().map(|node| node.eid).collect();
-        let selection = Some(Expr::InList{
-                expr: Box::new(id_col),
-                list: eid_exprs,
-                negated: false,
-        });
-     
-        warn!("UNSUB remove: deleting {:?} {:?}", nodes, ids);
-        self.views.delete_rptrs_with_ids(&nodes[0].table_name, &ids)?;
+        let mut table_to_nodes : HashMap<String, Vec<u64>> = HashMap::new();
 
-        let delete_eid_from_table = Statement::Delete(DeleteStatement {
-            table_name: helpers::string_to_objname(&nodes[0].table_name),
-            selection: selection.clone(),
-        });
-        warn!("UNSUB remove: {}", delete_eid_from_table);
-        db.query_drop(format!("{}", delete_eid_from_table.to_string()))?;
-        self.cur_stat.nqueries+=1;
+        for node in nodes {
+            match table_to_nodes.get_mut(&node.table_name) {
+                Some(ids) => ids.push(node.eid),
+                None => {
+                    table_to_nodes.insert(node.table_name.clone(), vec![node.eid]);
+                }
+            }
+        }
+
+        for (table, ids) in table_to_nodes.iter() {
+            let eid_exprs : Vec<Expr> = ids.iter().map(|id| Expr::Value(Value::Number(id.to_string()))).collect();
+            let selection = Some(Expr::InList{
+                    expr: Box::new(id_col.clone()),
+                    list: eid_exprs,
+                    negated: false,
+            });
+         
+            warn!("UNSUB STEP 4: deleting {:?} {:?}", table, ids);
+            self.views.delete_rptrs_with_ids(&table, &ids)?;
+
+            let delete_eid_from_table = Statement::Delete(DeleteStatement {
+                table_name: helpers::string_to_objname(&table),
+                selection: selection.clone(),
+            });
+            warn!("UNSUB STEP 4 delete: {}", delete_eid_from_table);
+            db.query_drop(format!("{}", delete_eid_from_table.to_string()))?;
+            self.cur_stat.nqueries+=1;
+        }
         Ok(())
     }
 

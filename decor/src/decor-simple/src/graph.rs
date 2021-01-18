@@ -59,7 +59,8 @@ impl EntityGraph {
                        new_parent_eid: Option<u64>, 
                        parent_col_index: usize) 
     {
-        warn!("Updating edge from {} col {} val {} to new val {:?}, child {} {:?}", parent_table, parent_col_index, old_parent_eid, new_parent_eid, child_table, child_rptr);
+        warn!("Updating edge from parent {} (child {}, col {} val {}) to new val {:?}", 
+              parent_table, child_table, parent_col_index, old_parent_eid, new_parent_eid);
         // remove old edges from both directions
         if let Some(edges) = self.parents_to_children.get_mut(parent_table) {
             if let Some(typ2rows) = edges.get_mut(&old_parent_eid) {

@@ -2,10 +2,12 @@
 \section{Related Paradigms}
 %-------------------------------------------------------------------------------
 \label{sec:related}
+
+\paragraph{Decoupling User Data.}
 Prior work~\cite{solid, amber, w5, blockstack, bstore} has proposed user-centric data ownership
-paradigms, all of which decouple the storage of user data from application logic. Applications agree
+paradigms which decouple user data from applications. Applications agree
 upon a standard format for data storage, and compute on decentralized, per-user datastores hosted by
-a trusted third-party provider or the user.  Application logic runs on user clients (\eg JavaScript
+a trusted third-party provider or the user. Application logic runs on user clients (\eg JavaScript
 in users' browsers~\cite{solid, blockstack, bstore}), and queries individual datastores to access
 user data.% (see Figure~\ref{fig:world}b).
 
@@ -37,7 +39,86 @@ applications owning all user data), and these paradigms which decouple of user d
 %to secure or manage this data, or handle the intricacies of access control (described in
 %Section~\ref{sec:design:storage}).
 
+\paragraph{Pseudonymization of User Data.}
+Sypse~\cite{sypse} pseudonymizes user data, partitioning personally identifying information (PII)
+from non-identifying data, and allowing the application to use the latter for legal or processing
+purposes. Similar to our approach to \name, Sypse breaks up foreign key relationships and objects
+grouped by user; however, Sypse assumes a specification of which objects to anonymize and which
+connections to break, whereas we propose abstractions to express such policies that capture
+application-specific behavior and requirements. We concretely define the application entity graph
+and abstractions that allow developers to reason about it, whereas Sypse leaves this as future work.
+%
+
+Sypse's proposed synthetic data generation is similar to our idea of ghost entities, but their data
+synthesis is random and application-oblivious; we make the observation that in order to maintain
+correct application semantics, developers must provide input into how to generate ghost entities.
+%
+
+Instead of constantly maintaining data partitions, our approach to \name encrypts a record of the changes made
+(often to PII) during unsubscription, incurring little overhead during normal execution. A future
+implementation may preemptively create ghost data, but this implementation strategy is not
+fundamental.
+
+Sypse also does not support resubscription, although we observe that a similar approach to ours
+would allow Sypse to do so.
+
+
 \iffalse
+Key ideas:
+    pseudonymization 
+    data partitioning
+    synthetic data
+
+Similarities:
+- privacy guarantees weaker than DP, no constraints on queries
+- pseudonymization --> overwrite a portion or all of data for individual, difficult to reassociate
+    only a small fraction of data?
+    breaking up objects grouped by user identifier key
+    breaking connections between tables (just like )
+
+- try to ensure that database still useful even w/pseudonymization
+    synthetic data (ghosts in \name) 
+- use of in-memory caches to avoid expensive joins (materialized views)
+
+Differences
+- design for \name puts data in hands of user, Sypse has a separate partitioned table (not
+necessarily )
+- Sypse has synthetic data generation instead of ghosts to replace data taken out
+    - foreign keys point to random records
+    - VS ghost records
+    - not developer-specified? might lead to incorrect behavior?
+- what are partitions?
+    - limited access, the queries will be run against pseudonymized or syntheticdata only 
+    - Detail Database: anything that isn't PII (pseudonymous)
+        - perform analysis, data mining, etc. on these
+    - PII Database: anything tied to specific individual (username, user identifiers)
+        - replaces with surrogate keys
+        - geological / biometric information
+        - breaking up objects grouped by user identifier key (direct edge policies)
+        - breaking connections between tables (non-direct edge policies)
+    - backed up separately, different access control mechanisms
+- assumes annotated schema, but doesn't actually describe it!!! just says requires analysis, or is
+relatively straightforward
+    -made automatically through a continuous analysis ofthe database schema and the data within it,
+    visible to users
+    - lack of schema discipline in practice (Database decay and how to avoid it.)
+    - no undersatnding of multiple entities and how they relate to each other
+- no support for resubscription
+
+Partition strategies:
+- split table into multiple tables, additional joins to reconnect different partitions, doubled updates, forgetting requires multiple
+updates
+- encrypt certain attributes, add as new attributes, encrypted keys stored in user->key mapping: joins limited
+- us: we don't care about size of "PII" table --> this data is given to user
+
+Other related work to cite: 
+- secure/encrypted databases(?)
+- differential privacy
+- Kraska SchengenDB: A Data Protection Database Proposal.
+- GDPR by compliance: user shard model  
+- ScrambleDB: ScrambleDB: Oblivious (Chameleon) Pseudonymization-as-a-Service
+- Sieve: A Middleware Approach to Scalable Access Control for DatabaseManagement Systems. 
+
 \subsection{Decoupling User Data from Web Applications}
 Our proposed subscription paradigm contrasts with a model of strong privacy in web appliactions, in
 which the user has complete data ownership (see Figure~\ref{fig:world}b). In proposals for this
