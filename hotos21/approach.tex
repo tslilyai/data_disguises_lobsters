@@ -104,8 +104,10 @@ Developers choose from the following ghosting policies:
 While ghost generation policies specify \emph{how} to produce ghosts, developers must also specify
 \emph{when} \sys should produce ghosts. 
 By default, all \emph{sensitive} entities---entities transitively connected via
-parent-child edges to the unsubscribing user---are replaced with a ghost entity. Any 
-parent of a sensitive child is ghosted as well.
+parent-child edges to the unsubscribing user---are replaced with a ghost entity. 
+Any parent of a sensitive child is ghosted as well. \lyt{Child-to-Parent edges can have different
+ghost generation policies + edge policies than Parent-to-Child edges. I'm not sure if we should
+mention that here (seems too detailed?)}
 
 The developer additionally specifies \emph{edge policies}, which determine when ghosts need to be
 generated to break correlations between sensitive children and their parents.

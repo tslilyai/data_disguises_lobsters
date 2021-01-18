@@ -105,8 +105,8 @@ fn test_unsub_noop() {
         for entity in &entity_data {
             println!("Entity! {:?}", entity);
         }
-        assert_eq!(entity_data.len(), 5);
-        assert_eq!(unsubscribed_gids.len(), 5);
+        assert_eq!(entity_data.len(), 6);
+        assert_eq!(unsubscribed_gids.len(), 6);
     }
     
     let mut results = vec![];
@@ -139,8 +139,8 @@ fn test_unsub_noop() {
         warn!("Serialized values are {}, {}", s1, s2);
         unsubscribed_gids = serde_json::from_str(s1).unwrap();
         entity_data = serde_json::from_str(s2).unwrap();
-         assert_eq!(unsubscribed_gids.len(), 5);
-        assert_eq!(entity_data.len(), 5);
+        assert_eq!(unsubscribed_gids.len(), 6);
+        assert_eq!(entity_data.len(), 6);
     }
     
     let mut results = vec![];
