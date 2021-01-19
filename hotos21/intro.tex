@@ -2,11 +2,11 @@
 \section{Introduction}
 %-------------------------------------------------------------------------------
 Web applications today own, store, and manage user data~\cite{nytimes:fb, npr:data}. 
-This places a great responsibility on application developers to enforce the data protection rights
-of users, through protecting users' rights to privacy and by moderating data content.
+This places a great responsibility on application developers to protect users' rights to privacy and
+moderate data content.
 %
-Recent developments have renewed efforts to improve the state of data protection in web
-applications, creating incentives to support different forms of \emph{data protection
+Recent developments have renewed efforts to improve the state of data protection and management in
+web applications, creating incentives to support different forms of \emph{data privacy
 transformations}. 
 
 One such transformation performs privacy-preserving user unsubscription from a service, as mandated
@@ -21,10 +21,10 @@ incentivized by the requirement to keep as little identifying information as pos
 around that could compromise users, and prevent the data leaks that have led of the loss of livelihoods and
 lawsuits~\cite{breach:amazon,breach:twitter, breach:fb, breach:marriott, breach:quora}, .
 
-Finally, applications increasingly perform content moderation of harmful, plagiarised, or protected
-data, which requires web applications to transform data contents~\cite{contentmod, sasb}.
+Finally, applications increasingly perform content moderation of harmful data, which requires web
+applications to hide or modify data contents~\cite{contentmod, sasb}.
 
-Achieving these various data protection transformations is not easy.  For example, applications must
+Achieving these various data privacy transformations is not easy.  For example, applications must
 selectively retain unsubscribing users' data for legal or application purposes while properly
 de-identifying this data, a non-trivial task in the face of subtle inference attacks.  Because these
 transformations are necessarily application-specific and require handling complex data correlations,
@@ -33,7 +33,7 @@ them, often with unclear guarantees.
 
 To help developers of new and existing applications support data privacy transformations, we propose
 \sys, which makes the key insight to model application data as an abstract \emph{entity graph}, and
-represent data protection transformations as transformations of this graph. \emph{Ghost entities}
+represent data privacy transformations as transformations of this graph. \emph{Ghost entities}
 allow transformations to achieve both data retention and de-identification, and declarative
 \emph{ghost policies} specify (reversible) transformations to the graph.
 
@@ -44,7 +44,7 @@ systematically applies these transformations to the current entity graph instanc
 policy.
 
 We evaluate a prototype design and implementation for \sys, finding that \sys performs automatic
-data protection transformations efficiently, and that policies can be expressed with low burden for
+data privacy transformations efficiently, and that policies can be expressed with low burden for
 application developers.
 
 \iffalse
