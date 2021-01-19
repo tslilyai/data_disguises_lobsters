@@ -6,10 +6,10 @@ This places a great responsibility on application developers to protect users' r
 moderate data content.
 %
 Recent developments have renewed efforts to improve the state of data protection and management in
-web applications, creating incentives to support different forms of \emph{data privatization 
+web applications, creating incentives to support different forms of \emph{data masking 
 transformations}. 
 
-One such transformation performs privacy-preserving user unsubscription from a service, as mandated
+One such transformation masks a users' identity, performing privacy-preserving user unsubscription from a service as mandated
 by laws such as the EU's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's
 Consumer Privacy Act (CCPA)~\cite{ca:privacy-act} that codify users' rights to data ownership and
 right to be forgotten.  Unsubscription motivates a need for an identify-revealing resubscription
@@ -21,22 +21,22 @@ incentivized by the requirement to keep as little identifying information as pos
 around that could compromise users, and prevent the data leaks that have led of the loss of livelihoods and
 lawsuits~\cite{breach:amazon,breach:twitter, breach:fb, breach:marriott, breach:quora}, .
 
-Finally, applications increasingly perform content moderation of harmful data, which requires web
+Finally, applications increasingly perform mask harmful data through content moderation, which requires web
 applications to hide or modify data contents~\cite{contentmod, sasb}.
 
-Achieving these various data privitization transformations is not easy.  For example, applications must
+Achieving these various data masking transformations is not easy.  For example, applications must
 selectively retain unsubscribing users' data for legal or application purposes while properly
 de-identifying this data, a non-trivial task in the face of subtle inference attacks.  Because these
 transformations are necessarily application-specific and require handling complex data correlations,
 today's applications often lack support for these transformations, or use ad-hoc methods to achieve
 them, often with unclear guarantees.
 
-To help developers of new and existing applications support privatization transformations, we
-propose \sys, a framework that, given only a high-level, declarative specification of the
-relationships between entities in a database, generates and applies complex privacy transformation
-that would be laborious to implement manually. We make the key insight that applications already encode
-entity relations in an \emph{entity graph} via foreign key relationships, and this graph provides a
-means for \sys to systematically reason about and automate a wide variety of privacy transformations.
+To help developers of new and existing applications support data masking transformations, we propose
+\sys, a framework that, given only a high-level, declarative specification of the relationships
+between entities in a database, generates and applies complex transformations that would be
+laborious to implement manually. We make the key insight that applications already encode entity
+relations in an \emph{entity graph} via foreign key relationships, and this graph provides a means
+for \sys to systematically reason about and automate a wide variety of masking transformations.
 %To help developers of new and existing applications support privatization transformations, we
 %propose \sys, which makes the key insight to model application data as an abstract \emph{entity
 %graph}, and represent privatization transformations as transformations of this graph that render
@@ -51,7 +51,7 @@ systematically applies these transformations to the current entity graph instanc
 specified state.
 
 We evaluate a prototype design and implementation for \sys, finding that \sys performs automatic
-data privatization transformations efficiently, and that policies can be expressed with low burden for
+data masking transformations efficiently, and that policies can be expressed with low burden for
 application developers.
 
 \iffalse

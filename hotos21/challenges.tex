@@ -1,8 +1,8 @@
 \section{Requirements \& Challenges}
 
-Data privatization transformations all have similar requirements, namely to (1) selectively
+Data masking transformations all have similar requirements, namely to (1) selectively
 retain data for application utility or legal purposes; (2) render data sufficiently private, \ie
-de-identified (in the context of user data) or hidden (in the context of moderated data); and (3)
+de-identified (in the context of user data) or unreachable (in the context of moderated data); and (3)
 not break application semantics. We next describe each requirement and the challenges to achieve it
 in greater detail.
 
@@ -22,17 +22,16 @@ Amazon and Prestashop retain a user's order history~\cite{amazon:privacy, presta
 Strava retains geolocation data and any ``necessary'' information~\cite{strava:privacy}. 
 Developers must ensure that post-unsubscription state avoids accidental data deletion or retention.
 
-\paragraph{Data Privatization.}
-Any retained data should keep any sensitive data contents (\eg user identity or harmful information)
-private. In many cases, however, simply modifying data contents (\eg simply removing or replacing
+\paragraph{Data Masking.}
+Any retained data should mask any sensitive data contents (\eg user identity or harmful information). In many cases, however, simply modifying data contents (\eg simply removing or replacing
 identifiers with an anonymized placeholder for de-identification), fails to sufficiently guarantee
-data privacy: \emph{structural correlations} from or to retained data can still leak sensitive
+that the data is hidden: \emph{structural correlations} from or to retained data can still leak sensitive
 information. For example, orders tagged with the same location likely belong to the same user, and
 order history can identify the user. 
 %Anonymized posts with the same flairs or custom tags can identify which user made the posts.
 
 Detecting and correctly modifying even subtly problematic content and correlations pose technical
-challenges that can prevent developers from achieving sufficient data privacy, or force developers
+challenges that can prevent developers from sufficiently masking data, or force developers
 to forgo data retention completely. For example, HotCRP chooses to reduce its utility by completely
 removing papers correlated with unsubscribing users, rather than deal with potentially identifying
 correlations between users' papers and conflicting reviewers that may indirectly identify the user
@@ -48,7 +47,7 @@ Transformations must clearly maintain application correctness, even when modifyi
 content and correlations. For example, HotCRP's unsubscription transformation could remove all
 conflicting reviewers with an unsubscribed user's paper to completely de-identify the retained
 paper; however, this incorrectly allows paper reviews to be assigned with potential conflicts.
-Careful selection of which data to retain while ensuring that sensitive data is privatized through
+Careful selection of which data to retain while ensuring that sensitive data is masked through
 modification or removal, all without breaking application semantics, requires application-specific
 expertise and a thorough understanding of exactly what state changes the transformation causes.
 

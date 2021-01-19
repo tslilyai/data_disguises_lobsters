@@ -8,21 +8,21 @@ identifier as a foreign key.
 %identifiers that refer to abstract, non-table entities (e.g.,\ a \texttt{thread\_id} column in the
 %comments table).  
 
-Privatization transforms this graph by introducing \emph{ghost entities}, which both
+Masking transforms this graph by introducing \emph{ghost entities}, which both
 replace real entities with (partially or fully) modified content, and break structural correlations.
-Data retention and data privatization (de-identification or content removal) can be fully captured
+Data retention and data masking (de-identification or content removal) can be fully captured
 by specifying how to generate ghost entities from real entities, and how to restructure the entity
 graph with edges to ghost entities. 
 Furthermore, transformations are reversable given a log of graph
 modifications performed by during the transformation, allowing \eg resubscription after
 unsubscription.
 
-Modeling privatization as graph transformations with ghost entities allows
-developers to declaratively specify the effects the privatization transformation, and this specification 
-acts as a precise post-transformation privacy policy for users and developers. 
+Modeling masking as graph transformations with ghost entities allows developers to declaratively
+specify the effects the masking transformation. This specification acts as a precise
+post-transformation privacy policy for users and developers.
 Developers use their application expertise to determine an appropriate post-transformation state
-that balances data retention with data privatization, all while maintaining application correctness.
-This state is expressed as a \emph{data privatization transformation policy}, which consists of a set of
+that balances data retention with data masking, all while maintaining application correctness.
+This state is expressed as a \emph{data masking policy}, which consists of a set of
 \emph{ghost generation policies} for each entity type, and \emph{edge policies} for each edge type
 (Section~\ref{sec:policies}). 
 Choosing appropriate policies and reasoning about post-transformation state requires the developer
@@ -30,16 +30,16 @@ to reason only at the level of entity and edge \emph{types}, instead of about sp
 graph instances.
 
 To demonstrate how this approach works in practice, we design \sys, a prototype that takes a
-privatization transformation policy and a concrete application schema, and automatically applies the
+masking policy and a concrete application schema, and automatically applies the
 transformation to instances of the application entity graph to achieve the state specified
 in the policy (Section~\ref{sec:proto}).
 
 %-------------------------------------------------------------------------------
-\subsection{Data Privatization Transformation Policies}
+\subsection{Data Masking Policies}
 %-------------------------------------------------------------------------------
 \label{sec:policies}
 
-This section describes the abstractions underlying transformation policies, which consist of ghost
+This section describes the abstractions underlying masking policies, which consist of ghost
 generation policies for each entity type (specifying graph node transformations), and edge policies
 (specifying structural transformations) for each edge type.
 
@@ -287,7 +287,7 @@ associates the cloned ghost with as many non-sensitive entities as possible. For
 in Figure~\ref{fig:algo} step 3b, if \sys decorrelates sensitive papers from a parent tag with a
 \texttt{CloneOne} policy, \sys chooses the ghost tag that remains associated with non-sensitive
 papers to be the clone. This decision ensures that any unsensitive application
-data remain as unaffected as possible by another entity's privatization.
+data remain as unaffected as possible when masking another entity.
 To optimize
 \texttt{CloneOne} policies, \sys can simply retain the original template entity instead of producing
 a cloned ghost.
