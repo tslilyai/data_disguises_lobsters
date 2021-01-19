@@ -6,7 +6,7 @@ This places a great responsibility on application developers to protect users' r
 moderate data content.
 %
 Recent developments have renewed efforts to improve the state of data protection and management in
-web applications, creating incentives to support different forms of \emph{data privacy
+web applications, creating incentives to support different forms of \emph{data privatization 
 transformations}. 
 
 One such transformation performs privacy-preserving user unsubscription from a service, as mandated
@@ -24,18 +24,19 @@ lawsuits~\cite{breach:amazon,breach:twitter, breach:fb, breach:marriott, breach:
 Finally, applications increasingly perform content moderation of harmful data, which requires web
 applications to hide or modify data contents~\cite{contentmod, sasb}.
 
-Achieving these various data privacy transformations is not easy.  For example, applications must
+Achieving these various data privitization transformations is not easy.  For example, applications must
 selectively retain unsubscribing users' data for legal or application purposes while properly
 de-identifying this data, a non-trivial task in the face of subtle inference attacks.  Because these
 transformations are necessarily application-specific and require handling complex data correlations,
 today's applications often lack support for these transformations, or use ad-hoc methods to achieve
 them, often with unclear guarantees.
 
-To help developers of new and existing applications support data privacy transformations, we propose
-\sys, which makes the key insight to model application data as an abstract \emph{entity graph}, and
-represent data privacy transformations as transformations of this graph. \emph{Ghost entities}
-allow transformations to achieve both data retention and de-identification, and declarative
-\emph{ghost policies} specify (reversible) transformations to the graph.
+To help developers of new and existing applications support privatization transformations, we
+propose \sys, which makes the key insight to model application data as an abstract \emph{entity
+graph}, and represent privatization transformations as transformations of this graph that render
+particular entities private. \emph{Ghost entities} allow transformations to achieve both data
+retention and de-identification, and declarative \emph{ghost policies} specify (reversible)
+transformations to the graph.
 
 With \sys, developers specify a declarative, high-level data transformation policy by choosing from
 a menu of provided edge and node transformations. This policy specifies the post-transformation
@@ -44,7 +45,7 @@ systematically applies these transformations to the current entity graph instanc
 policy.
 
 We evaluate a prototype design and implementation for \sys, finding that \sys performs automatic
-data privacy transformations efficiently, and that policies can be expressed with low burden for
+data privatization transformations efficiently, and that policies can be expressed with low burden for
 application developers.
 
 \iffalse
