@@ -13,25 +13,24 @@ replace real entities with (partially or fully) modified content, and break stru
 Data retention and data masking (de-identification or content removal) can be fully captured
 by specifying how to generate ghost entities from real entities, and how to restructure the entity
 graph with edges to ghost entities. 
-Furthermore, transformations are reversable given a log of graph
+Furthermore, transformations are reversible given a log of graph
 modifications performed by during the transformation, allowing \eg resubscription after
 unsubscription.
 
 Modeling masking as graph transformations with ghost entities allows developers to declaratively
-specify the effects the masking transformation. This specification acts as a precise
+specify the effects of the data mask. This specification acts as a precise
 post-transformation privacy policy for users and developers.
-Developers use their application expertise to determine an appropriate post-transformation state
+Developers use their application expertise to determine an appropriate post-masking state
 that balances data retention with data masking, all while maintaining application correctness.
 This state is expressed as a \emph{data masking policy}, which consists of a set of
 \emph{ghost generation policies} for each entity type, and \emph{edge policies} for each edge type
 (Section~\ref{sec:policies}). 
-Choosing appropriate policies and reasoning about post-transformation state requires the developer
+Choosing appropriate policies and reasoning about post-masking state requires the developer
 to reason only at the level of entity and edge \emph{types}, instead of about specific entity
 graph instances.
 
 To demonstrate how this approach works in practice, we design \sys, a prototype that takes a
-masking policy and a concrete application schema, and automatically applies the
-transformation to instances of the application entity graph to achieve the state specified
+masking policy and a concrete application schema, and automatically transforms instances of the application entity graph to achieve the state specified
 in the policy (Section~\ref{sec:proto}).
 
 %-------------------------------------------------------------------------------

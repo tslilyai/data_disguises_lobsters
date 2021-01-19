@@ -31,23 +31,23 @@ transformations are necessarily application-specific and require handling comple
 today's applications often lack support for these transformations, or use ad-hoc methods to achieve
 them, often with unclear guarantees.
 
-To help developers of new and existing applications support data masking transformations, we propose
+To help developers of new and existing applications support data masking, we propose
 \sys, a framework that, given only a high-level, declarative specification of the relationships
 between entities in a database, generates and applies complex transformations that would be
 laborious to implement manually. We make the key insight that applications already encode entity
 relations in an \emph{entity graph} via foreign key relationships, and this graph provides a means
-for \sys to systematically reason about and automate a wide variety of masking transformations.
+for \sys to systematically reason about and automate a wide variety of data masks.
 %To help developers of new and existing applications support privatization transformations, we
 %propose \sys, which makes the key insight to model application data as an abstract \emph{entity
 %graph}, and represent privatization transformations as transformations of this graph that render
 %particular entities private. 
 
-With \sys, developers specify a transformation policies by choosing from a menu of provided edge and
+With \sys, developers specify a masking policies by choosing from a menu of provided edge and
 node transformations. To determine an appropriate policy, developers reason about the creation of
-\emph{ghost entities} in the entity graph, which allow transformations to both retain and
-de-identify or hide data. The policy acts as a specification of the post-transformation state of any
+\emph{ghost entities} in the entity graph, which allow the masking to both retain and
+de-identify or hide data. The policy acts as a specification of the post-masking state of any
 instance of the entity graph. When invoked with a particular policy, \sys automatically and
-systematically applies these transformations to the current entity graph instance to achieve this
+systematically applies transformations to the current entity graph instance to achieve this
 specified state.
 
 We evaluate a prototype design and implementation for \sys, finding that \sys performs automatic

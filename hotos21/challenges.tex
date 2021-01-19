@@ -1,6 +1,6 @@
 \section{Requirements \& Challenges}
 
-Data masking transformations all have similar requirements, namely to (1) selectively
+Data masks all have similar requirements, namely to (1) selectively
 retain data for application utility or legal purposes; (2) render data sufficiently private, \ie
 de-identified (in the context of user data) or unreachable (in the context of moderated data); and (3)
 not break application semantics. We next describe each requirement and the challenges to achieve it
@@ -43,13 +43,13 @@ sensitive information may remain after the transformation, leading to \eg vague 
 the case of user unsubscription transformations.
 
 \paragraph{Maintaining Application Correctness.}
-Transformations must clearly maintain application correctness, even when modifying or removing data
-content and correlations. For example, HotCRP's unsubscription transformation could remove all
+Data masks must clearly maintain application correctness, even when modifying or removing data
+content and correlations. For example, unsubscription in HotCRP could remove all
 conflicting reviewers with an unsubscribed user's paper to completely de-identify the retained
 paper; however, this incorrectly allows paper reviews to be assigned with potential conflicts.
 Careful selection of which data to retain while ensuring that sensitive data is masked through
 modification or removal, all without breaking application semantics, requires application-specific
-expertise and a thorough understanding of exactly what state changes the transformation causes.
+expertise and a thorough understanding of exactly how the data mask changes state.
 
 \iffalse
 To achieve \name, a system must (1) enable applications to \emph{selectively retain} unsubscribed
