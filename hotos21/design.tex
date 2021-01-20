@@ -3,19 +3,11 @@
 %-------------------------------------------------------------------------------
 \label{sec:policies}
 
-This section describes the abstractions underlying mask policies, which consist of a set of
-transformation policies for each entity type, and for each edge type.
-Policies for entity types specify how to generate \emph{ghost entities} of that type, while policies
-for edge types specify whether edges should be deleted, retained, or decorrelated (and replaced with edges to ghost entities).
-
-\subsection{Entity Type Transformations}
-\label{sec:ghosting}
-
-\begin{table*}[t!]
+\begin{table*}[h!]
     \centering
     \footnotesize
 \begin{tabular}{@{}ccccc@{}}
-\textbf{Paper Attribute} & \textbf{Ghosting Policy} & \textbf{Template Value} & \textbf{Ghost1 Value} & \textbf{Ghost2 Value} 
+\textbf{Paper Attribute} & \textbf{Ghosting Transformation} & \textbf{Template Value} & \textbf{Ghost1 Value} & \textbf{Ghost2 Value} 
   \\ \cmidrule(r){1-5}
     {id} & N/A (identifier attribute) & 10 & 199 & 813 \\
 {title} & \texttt{CloneOne} + \texttt{Generate::Default("Ghost Paper")} & My Paper & My
@@ -23,11 +15,19 @@ for edge types specify whether edges should be deleted, retained, or decorrelate
 {outcome} & \texttt{CloneOne} + \texttt{Generate::Default(0)} & 1 & 1 & 0 \\
 {leadContactId} & \texttt{CloneOne} + \texttt{GenerateGhostParent} & 23 & 23 & 918 \\
 \end{tabular}
-    \caption{Generating two ghosts using ghosting policies for a simplified paper entity.
+    \caption{Generating two for a simplified paper entity.
     \sys clones the attributes of the template entity to generate Ghost1, and generates
     attribute values for Ghost2. To generate edge attribute leadContactId, \sys creates a new ghost user and uses its identifier as the new value (918).}
     \label{tab:ghosting}
 \end{table*}
+
+This section describes the abstractions underlying mask policies, which consist of a set of
+transformation policies for each entity type, and for each edge type.
+Policies for entity types specify how to generate \emph{ghost entities} of that type, while policies
+for edge types specify whether edges should be deleted, retained, or decorrelated (and replaced with edges to ghost entities).
+
+\subsection{Entity Type Transformations}
+\label{sec:ghosting}
 
 Real entities transform into one or more ghost entities, allowing developers to modify entity
 content and to break structural correlations. 
@@ -95,7 +95,8 @@ Developers use their knowledge of application semantics to determine appropriate
 edge type, estimating how much sensitive information may leak from edge instances of that type. 
 For example, if all papers with a particular user-customizable tag are authored by an (unsubscribed)
 user, the developer may deem it problematic if \emph{all} of papers with a tag have the user as
-author, but acceptable if only a fraction do.  The maximum acceptable fraction is the sensitivity threshold. In this example, a reasonable sensitivity threshold might be $0.1$: less than 10\% of all papers with a specific tag key should be correlated with an (unsubscribed) user. 
+author, but acceptable if only a fraction do.  The maximum acceptable fraction is the sensitivity
+threshold. In this example, a reasonable sensitivity threshold might be $0.1$: fewer than 10\% of all papers with a specific tag key should be correlated with an (unsubscribed) user. 
 
 The developer chooses one of two ways to achieve the sensitivity threshold: 
 \begin{enumerate}
@@ -264,42 +265,5 @@ a cloned ghost.
 %\sys must pinpoint exactly which data and correlations may be
 %identity-sensitive, and allow developers to specify exactly what the post-unsubscription state of
 %this data should be.
-
-
-%-------------------------------------------------------------------------------
-\section{Prototype Design}
-%-------------------------------------------------------------------------------
-\label{sec:proto}
-
-\begin{figure}[t!]
-    \centering
-    \includegraphics[width=0.5\textwidth]{img/releaser_arch}
-
-    \caption{High-level \sys architecture. Developers specify grayed-out components.}
-    \label{fig:arch}
-\end{figure}
-
-As shown in Figure~\ref{fig:arch}, \sys sits between the application logic and its database. \sys
-models the application schema as an entity graph, and systematically applies the transformation
-policies when invoked with the policy. 
-If prompted, \sys will record the modifications performed during the transformation, and encrypts and
-stores this log in an additional table. The encrypting key can be kept by the application for \eg content
-moderation transformations, or in the case of user unsubscription, secret-shared~\cite{secretsharing}
-among the user, \sys, and a trusted third party so that the user can retrieve a lost key without
-trusting the application or \sys. To undo the transformation, \sys decrypts this log and reverses the
-modifications, restoring the affected portion of the entity graph to its original state.
-
-\sys consists of 5K LoC of Rust, and supports SQL queries as well as \texttt{TRANSFORM
-[entity\_id]} and \texttt{REVERSE TRANSFORM [entity\_id]} queries.
-We show that \sys performs reasonably (Section~\ref{sec:perf}), and we plan to support eventually
-consistent, crash-recoverable transformations, sharding, and multicore parallelism.
-
-%To amortize the cost of unsubscription and resubscription, \name preemptively creates, stores, and
-%links ghost parent entities to child entities if an update creates an edge that may be decorrelated.
-%\name builds in-memory materialized views on top of the underlying database, exposing ghost
-%entities only if the true entity has been decorrelated, and real entities otherwise. Updates
-%propagate to the materialized views when the underlying database is updated. \name answers
-%application queries using these materialized views, hiding the complexity of ghost entity and
-%decorrelation management.
 
 
