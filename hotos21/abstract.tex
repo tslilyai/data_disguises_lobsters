@@ -1,19 +1,19 @@
 \begin{abstract}
-    Web applications face increasing legal and user demands to properly protect and manage user
-    data, whether through supporting user's right to be forgotten, removing unnecessary or old user
-    data, or moderating user content.
+    Web applications face increasing legal and user demands to transparently manage user data,
+    whether through supporting user's right to be forgotten, removing unnecessary or old user data,
+    or moderating user content.
     %
-    Meeting these demands to \emph{mask} data requires that applications perform the appropriate
-    data transformations to remove or modify data, while still retaining data required for
-    application utility or legal purposes. Because such transformations are necessarily
-    application-specific and require handling complex data correlations, today's applications often
-    forgo these transformations, or use ad-hoc methods with unclear guarantees to achieve them.
+    Meeting these demands to \emph{mask} data requires applications to
+    remove or modify data, while still retaining data required for application
+    utility or legal purposes. Because such transformations are necessarily application-specific and
+    require handling complex data correlations, today's applications often forgo these
+    transformations, or use ad-hoc methods with unclear guarantees to achieve them.
     %
 
-    To help developers flexibly support data masks in new and existing applications, we design and
+    To help developers support data masks in new and existing applications, we design and
     implement \sys, a system that takes as input a high-level specification of a data mask, and
-    automatically applies it to the application database.  \sys relies on the key abstractions of
-    application \emph{entity graphs} and \emph{ghost entities}, which allow developers to express
+    automatically applies the mask to the application database.  \sys relies on the key abstractions of
+    application \emph{entity graphs} and \emph{ghost entities}, which allow developers to flexibly express
     and automate practical data masks without onerous labor.
 \end{abstract}
 
