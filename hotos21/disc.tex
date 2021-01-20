@@ -1,28 +1,27 @@
 %-------------------------------------------------------------------------------
 \section{Discussion}
 %-------------------------------------------------------------------------------
-The \name paradigm has several limitations.
+\name has several limitations. \name assumes that transformations on the entity graph captures all possible masks developers may
+wish to apply, and does not captured masks that modify data in application snapshots,
+backups, or copies. 
+
 %\name assumes that legal and societal incentives will sufficiently convince applications to adopt
 %\name, and that 
-\name assumes a threat model in which adversaries cannot get information from web archive
-application snapshots or applications queries prior to a user's unsubscription. 
-\name also cannot promise complete de-identification of unsubscribed users: the highly
-application-specific nature of data retention and de-identification means that \name must trust
-developers to appropriate de-identify user data (\eg to write appropriate unsubscription policies in
-\sys). Users cannot blindly assume complete privacy after unsubscription, although with a design
-like \sys, they can more easily vet application privacy properties via its unsubscription policy.
+\name importantly only helps developers systematically retain and modify data, and does not provide
+de-identification or content moderation \emph{guarantees}. Developers are responsibly for specifying
+appropriate masks, tuned to application-specific needs to retain or hide data. Without removing all
+application data, even the best-intentioned developer may write policies that still retain
+sensitive information or correlations. We imagine that a number of heuristics and data analysis
+tools can help developers catch more, but likely not all, of these leaks. Users of applications that
+use \sys cannot blindly assume that unsubscription or anonymization masks entail complete privacy,
+although with a framework like \sys, they can more easily vet application privacy properties via the  
+mask policy.
 
-\sys helps developers systematically retain and de-identify data, but providing formal
-de-identification guarantees in application-specific settings remains an open question. Without removing all application data, even
-the best-intentioned developer may write policies that still retain identifying information (\eg
-retaining a screenshot with the user's identifiers). We imagine that a number of heuristics and data
-analysis tools can help developers catch more, but likely not all, of these identity leaks.
-
-\sys does not support yet updates to the application schema or privacy policy which change the
+Finally, \sys does not support updates to the application schema or privacy policy which change the
 unsubscription policy.
 %, since \sys cannot restore data removed using the old policy upon resubscription. 
-Work in the area of database schema evolution and migration~\cite{schema:evo} may
-offer insights into supporting resubscribe after such updates.
+Work in the area of database schema evolution and migration~\cite{schema:evo} may offer insights
+into supporting resubscribe after such updates.
 
 \iffalse
 \subsection{Limitations}
