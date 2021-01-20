@@ -21,20 +21,21 @@ de-identified, and supporting resubscription without burdening the developer or 
 %and (2) %does \sys support unsubscription and resubscription with low performance overhead?
 Our approach satisfies automatic resubscription, handling data encryption for the application and
 user without requiring the user to manage private keys or data storage. We show that \sys can meet
-the other two requirements by evaluating the ease of writing and expressiveness of unsubscription
-policies in HotCRP, a popular conference review management application, and Lobsters, an open-source
-news feed application. \lyt{and PrestaShop?}
+the other two requirements by evaluating the ease of writing and expressiveness of a mask policy for
+user unsubscription in HotCRP, a popular conference review management application, and Lobsters, an
+open-source news feed application. \lyt{and PrestaShop?}
 
 \textbf{HotCRP} entities include users (reviewers and authors), papers, paper reviews, and
 paper conflicts. There are a total of 25 entities, with 48 edge types between entities. A
-unsubscription policy specified in \sys requires \lyt{TODO} lines of code.
+mask policy for unsubscription specified in \sys requires \lyt{TODO} lines of code.
 
-We first consider what information must to be removed to unsubscribe the user.  Clearly, all direct
-correlations between a user and their papers, reviews, and paper conflicts may leak the user's
-identity, and must be broken: we assign edge policies with a sensitivity threshold of 0 to edges
-with the user as a direct parent. Because HotCRP should retain the paper and review data for other
-users, these edge policies decorrelate, rather than delete, direct edges from user to papers and reviews: 
-\sys will replace these edges with an edge to a generated ghost user profile (Figure~\ref{fig:hotcrp}a).
+The developer first decides what information should be modified during unsubscription. 
+This includes all direct correlations between a user and their papers, reviews, and paper conflicts,
+which may leak the user's identity: the developer chooses edge transformations with a sensitivity
+threshold of 0 to all edge types with the user as a direct parent. 
+Because the developer wants to retain paper and review data for other users, these edge policies
+decorrelate, rather than delete, direct edges from user to papers and reviews: \sys will replace
+these edges with an edge to a generated ghost user profile (Figure~\ref{fig:hotcrp}a).
 
 %Although parent-child links from users to their data should be decorrelated during unsubscription,
 %HotCRP should maintain correlations between other subscribed users and sensitive papers, reviews,
@@ -42,39 +43,37 @@ users, these edge policies decorrelate, rather than delete, direct edges from us
 %direction (papers-to-users, reviews-to-users, etc.) with sensitivity threshold 1, allowing these
 %correlations to remain unchanged.
 
-As observed earlier, breaking direct correlations to the user is not sufficient. HotCRP has paper
-conflict entities, which link to both a user and a paper. Paper conflicts identify users who either
-coauthor the paper, or cannot review the paper because of a conflict of interest. If HotCRP retains
-paper entities, we cannot simply decorrelate a user from their paper conflicts, because the paper's
-other conflicts can identify even anonymized paper conflict users. Instead, we specify an edge
-policy for paper-to-paper conflict edge types that \emph{deletes} all edges between sensitive paper
-conflicts and papers (Figure~\ref{fig:hotcrp}b). 
+As observed earlier, HotCRP may also want to handle non-user edges such as edges between paper
+conflict entities and papers. Paper conflicts identify users who either coauthor the paper, or
+cannot review the paper because of a conflict of interest. If HotCRP retains paper entities, the
+paper's other conflicts can identify ghost users on the paper. The developer thus specifies an edge
+transformation for paper-to-paper conflict edge types that \emph{deletes} all edges between
+sensitive paper conflicts and papers (Figure~\ref{fig:hotcrp}b). 
 
-Although spurious conflicts may arise as a result (\eg no coauthor is affiliated with NYU, but
-reviewers from NYU have conflicts), this does not interfere with HotCRP semantics. This may still
-leak identifying information, but less so than if the sensitive conflict were retained: spurious
-conflicts may not always arise (\eg subscribed coauthors are also from NYU), and PC chairs viewing
-conflicts will not know \emph{how many} paper conflicts have been removed (how many users have
-unsubscribed). To ensure complete removal of all identifying information, we would need to delete
-\emph{all} the paper's conflicts, which would incorrectly allow users with reviewer conflicts to
-review a paper and break HotCRP semantics.
+The developer must ensure that this edge transformation does not break HotCRP's invariants. Deleting edges
+between sensitive paper conflicts and papers can lead to spurious conflicts (\eg no coauthor is
+affiliated with NYU, but reviewers from NYU have conflicts), but does not break paper access 
+invariants in HotCRP, a key aspect of HotCRP's correctness. 
+We note that a transformation resulting in a more complete removal of identifying correlations would
+to delete \emph{all} the paper's conflicts. However, this would incorrectly allow users with reviewer
+conflicts to review a paper and break HotCRP semantics.
+
+For all other edge types, the developer specifies a sensitivity threshold of 1. This ensures that review
+and paper artifacts remain correctly linked: (subscribed) reviewers still see the
+correct paper for their reviews, and (subscribed) authors see the correct reviews for
+their papers.
  
 %Users are linked to papers via \emph{paper conflict} entities, which have both a user and a paper
 %as a parent, and indicate either a collaborator, or a reviewer conflict (prior collaborators or
 %sharing an institution). 
 %Thus, correlations from the user's papers to paper conflicts should be broken: we specify 
-For all other edge types, the developer specifies a sensitivity threshold of 1. This ensures that review
-and paper artifacts remain correctly linked: (subscribed) reviewers still see the
-correct paper for their reviews, and (subscribed) authors see the correct reviews for
-their papers.%, and review and paper metadata should remain correctly associated. 
+%, and review and paper metadata should remain correctly associated. 
 
-We also specify how \sys generates ghost entities, determing which entity
-attributes reveal identifying information (and should be generated); which attributes should be
-cloned to retain information necessary to the application; and how to generate attribute values in
-ways that satisfy HotCRP semantics. 
-For clarify, Figure~\ref{fig:hotcrp} shows simplified, entity-granularity ghosting policies rather than
-per-attribute ghosting policies.
-We generates ghost users' attributes, giving all ghosts a default value of \texttt{disabled=true}
+The developer also chooses entity transformations to specify how \sys generates ghost entities.
+The developer deterimes which entity attributes reveal identifying information (and should be generated); which attributes should be cloned to retain information necessary to the application; and how to generate attribute values in ways that satisfy HotCRP semantics. 
+For clarify, Figure~\ref{fig:hotcrp} shows simplified, entity-granularity ghosting policies rather
+than per-attribute ghosting policies.
+Ghost users' attributes are generated with a default attribute value of \texttt{disabled=true}
 to ensure ghosts never review papers. We clone all paper and review attributes once, retaining
 paper and review information without creating duplicates. 
 %and clones paper conflicts because no conflict
