@@ -1,9 +1,8 @@
-\section{Requirements \& Challenges}
+\section{Data Mask Goals \& Challenges}
 
-Data masks all have similar requirements. They need to (1) selectively retain data for application
-utility or legal purposes; (2) and modify, delete and/or decorrelate sensitive data, all while
-maintaining correct application semantics. We describe each requirement and the challenges to
-achieve them in greater detail.
+Data masks all have similar goals, namely to (1) selectively retain data for application
+utility or legal purposes; and (2) and modify, delete and/or decorrelate sensitive data, all while
+maintaining correct application semantics.
 
 \paragraph{Selective Retention.}
 Retained data serves two purposes: to preserve legal or necessary information about an individual
@@ -36,7 +35,7 @@ To avoid the complexity of implementing fine-grained masks that both retain and 
 for other users and delete all papers correlated with unsubscribing users, rather than deal with
 paper conflicts.
 %
-Furthermore, developers ad-hoc methods to implement masks, scattering data modifications throughout
+Furthermore, developers implement masks using ad-hoc methods, scattering data modifications throughout
 application code. This leads to a lack of a clear, centralized specification of how the mask modifies
 sensitive information and results in \eg vague privacy policies.
 
@@ -47,8 +46,6 @@ sensitive information and results in \eg vague privacy policies.
 %order history can identify the user. 
 %Anonymized posts with the same flairs or custom tags can identify which user made the posts.
 %, a solution that clearly would not work in a world where users frequently unsubscribe at any time.
-
-
 
 \iffalse
 To achieve \name, a system must (1) enable applications to \emph{selectively retain} unsubscribed
