@@ -13,9 +13,7 @@ developers to appropriate de-identify user data (\eg to write appropriate unsubs
 like \sys, they can more easily vet application privacy properties via its unsubscription policy.
 
 \sys helps developers systematically retain and de-identify data, but providing formal
-de-identification guarantees in application-specific settings remains an open question. Ideas from
-differential privacy~\cite{pinq} can help define post-unsubscription adversary knowledge, but only
-in the limited setting of numerical aggregate values.  Without removing all application data, even
+de-identification guarantees in application-specific settings remains an open question. Without removing all application data, even
 the best-intentioned developer may write policies that still retain identifying information (\eg
 retaining a screenshot with the user's identifiers). We imagine that a number of heuristics and data
 analysis tools can help developers catch more, but likely not all, of these identity leaks.

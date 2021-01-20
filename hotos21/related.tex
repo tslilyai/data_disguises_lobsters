@@ -1,17 +1,66 @@
 %-------------------------------------------------------------------------------
-\section{Related Paradigms}
+\section{Related Work}
 %-------------------------------------------------------------------------------
 \label{sec:related}
-\lyt{Should we also cite the GDPR-related DB papers? \eg Malte's paper regarding user shards, SchengenDB,
-etc?}
 
-\paragraph{Decoupling User Data.}
-Prior work~\cite{solid, amber, w5, blockstack, bstore} has proposed user-centric data ownership
-paradigms which decouple user data from applications. Applications agree
-upon a standard format for data storage, and compute on decentralized, per-user datastores hosted by
-a trusted third-party provider or the user. Application logic runs on user clients (\eg JavaScript
-in users' browsers~\cite{solid, blockstack, bstore}), and queries individual datastores to access
-user data.% (see Figure~\ref{fig:world}b).
+\paragraph{Designs for GDPR Compliance.}
+Several systems propose designs to make it easier for applications to comply with the GDPR right to
+be forgotten.
+
+Sypse~\cite{sypse} pseudonymizes user data, partitioning personally identifying information (PII)
+from non-identifying data, and allowing the application to use the latter for legal or processing
+purposes. Similar to our approach, Sypse sits between application's logic and data, and breaks
+foreign key relationships and objects grouped by user; however, Sypse assumes a specification of
+which objects to anonymize and which connections to break, whereas we believe that writing these
+specifications is itself a challenging problem, and propose abstractions that allow developers to
+precisely capture application-specific behavior. We concretely define the application entity graph
+and abstractions that allow developers to reason about it, whereas Sypse leaves this as future work.
+
+Sypse proposes synthetic data generation, similar to our idea of ghost entities. However, their data
+synthesis is random and application-oblivious; we make the observation that in order to maintain
+correct application semantics, developers must provide input into how to generate ghost entities.
+
+Instead of constantly maintaining data partitions, \sys performs data masking at  when invoked, and
+incurs little overhead during normal execution. A future implementation may preemptively create
+ghost data and result in a system design vaguely similar to Sypse, but this implementation strategy
+is not fundamental.
+%Sypse also does not support resubscription, although we observe that a similar approach to ours
+%would allow Sypse to do so.
+
+%---------------------------
+Schwartzkopf et al.~\cite{usershards} propose a data model for GDPR compliant-by-construction
+systems, splitting application data into user shards. This model is orthogonal to \sys's design:
+\sys's mask policy abstractions support revocation of data that must be retained or shared in this
+model.
+
+%---------------------------
+SchengenDB~\cite{schengendb} identifies PII and restricts query access to PII using purpose-based
+access control. SchengenDB performs fine-grained tracking of PII copies and data derived
+from PII, going beyond correlations visible in the entity relation graph of foreign key
+relationships; SchengenDB deletes records tracked with the owner when the owner unsubscribes.
+While similar tracking can be added to \sys to support derived data not visible in the entity graph,
+\sys focuses on automating data masking transformations that require more than PII data deletion. 
+
+%---------------------------
+
+Jeeves~\cite{jeeves} is a language for specifying and automatically enforcing privacy policies about
+how sensitive values should be disclosed; \sys creates a similar programming model for
+the transformation of data in web application databases, instead of information flow and disclosure.
+\lyt{I'm not sure that this is that related, but it came up in PDOS...}
+
+%Sieve~\cite{sieve} focus on defining access control to PII, but doesn't actually change data. 
+
+%ScrambleDB~\cite{scrambledb} generates oblivious pseudonyms for distributed settings, so there does
+%not need to be one trusted central pseudonym/linking server.
+
+%---------------------------
+
+\paragraph{Decoupling User Data from Web Applications.} 
+Prior work~\cite{diy, solid, amber, oort, w5, blockstack, bstore, databox} has proposed user-centric data
+ownership paradigms which decouple user data from applications. Applications agree upon a standard
+format for data storage, and compute on decentralized, per-user datastores hosted by a trusted
+third-party provider or the user. Application logic runs on user clients (\eg JavaScript in users'
+browsers~\cite{solid, blockstack, bstore}), and queries individual datastores to access user data.
 
 Although these paradigms grant users more control over applications' access to their data, users
 must decide on appropriate access control and authentication policies, and are burdened with
@@ -41,28 +90,14 @@ applications owning all user data), and these paradigms which decouple of user d
 %to secure or manage this data, or handle the intricacies of access control (described in
 %Section~\ref{sec:design:storage}).
 
-\paragraph{Pseudonymization of User Data.}
-Sypse~\cite{sypse} pseudonymizes user data, partitioning personally identifying information (PII)
-from non-identifying data, and allowing the application to use the latter for legal or processing
-purposes. Similar to our approach to \name, Sypse breaks up foreign key relationships and objects
-grouped by user; however, Sypse assumes a specification of which objects to anonymize and which
-connections to break, whereas we propose abstractions to express such policies that capture
-application-specific behavior and requirements. We concretely define the application entity graph
-and abstractions that allow developers to reason about it, whereas Sypse leaves this as future work.
-%
+%---------------------------
 
-Sypse's proposed synthetic data generation is similar to our idea of ghost entities, but their data
-synthesis is random and application-oblivious; we make the observation that in order to maintain
-correct application semantics, developers must provide input into how to generate ghost entities.
-%
-
-Instead of constantly maintaining data partitions, our approach to \name encrypts a record of the changes made
-(often to PII) during unsubscription, incurring little overhead during normal execution. A future
-implementation may preemptively create ghost data and result in a system design vaguely similar to
-Sypse, but this implementation strategy is not fundamental.
-
-Sypse also does not support resubscription, although we observe that a similar approach to ours
-would allow Sypse to do so.
+\paragraph{Statistical Privacy Guarantees.}
+Approaches for privacy-preserving data mining, such as $k$-anonymity, $l$-diversity, and
+differential privacy~\cite{dataminingmodels}, are complementary to \sys: for queries that are
+analytic in nature, \name can utilize techniques like PINQ~\cite{pinq} to provide differentially
+private guarantees. However, \sys allows arbitrary application queries over arbitrary content, where
+these statistical techniques no longer apply. 
 
 \iffalse
 Key ideas:
@@ -116,6 +151,13 @@ Other related work to cite:
 - secure/encrypted databases(?)
 - differential privacy
 - Kraska SchengenDB: A Data Protection Database Proposal.
+    - identify all personal data via tracking / entity relation graphs
+    - tables and columns with PII declared w/schema notations
+    - purposes restrict what PII you can access
+    - sandboxing
+    - also has entity relation graph
+    - we assume that data isn't copied, whereas they support data copies by tracking ownership
+    beyond foreign key relationships
 - GDPR by compliance: user shard model  
 - ScrambleDB: ScrambleDB: Oblivious (Chameleon) Pseudonymization-as-a-Service
 - Sieve: A Middleware Approach to Scalable Access Control for DatabaseManagement Systems. 
