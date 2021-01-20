@@ -1,54 +1,54 @@
 \section{Requirements \& Challenges}
 
-Data masks all have similar requirements, namely to (1) selectively retain data for application
-utility or legal purposes; (2) delete and/or decorrelate sensitive data; and (3) maintain correct application semantics. We next describe each
-requirement and the challenges to achieve it in greater detail.
-
-%serve a number of purposes, allowing users to switch between
-%privacy-preserving unsubscribed mode and identity-revealing subscribed mode, inactive or stale data
-%to expire, and harmful content to be hidden or modified.
-%
+Data masks all have similar requirements. They need to (1) selectively retain data for application
+utility or legal purposes; (2) and modify, delete and/or decorrelate sensitive data, all while
+maintaining correct application semantics. We describe each requirement and the challenges to
+achieve them in greater detail.
 
 \paragraph{Selective Retention.}
 Retained data serves two purposes: to preserve legal or necessary information about an individual
 user (\eg order history in e-commerce applications), and to maintains application utility for
-subscribed users (\eg private messages for thread coherence, or crowdsourced reviews and popular
-news posts).  For example, Facebook and Twitter retain copies of private messages for other users in
+subscribed users.  For example, Facebook and Twitter retain copies of private messages for other users in
 the conversation~\cite{facebook:privacy, twitter:privacy}; Reddit retains all user posts and comments;
 Lobsters retains the user's unique username and logs of the user's actions~\cite{reddit:privacy};
 Amazon and Prestashop retain a user's order history~\cite{amazon:privacy, prestashop:privacy}; and
 Strava retains geolocation data and any ``necessary'' information~\cite{strava:privacy}. 
-Developers must ensure that post-unsubscription state avoids accidental data deletion or retention.
+Developers must ensure that masked state avoids accidentally deleting or retaining data, and convey
+to the user exactly what data the mask leaves behind.
 
 \paragraph{Data Deletion and Decorrelation.}
-\lyt{TODO}
-Any retained data should mask any sensitive data contents (\eg user identity or harmful information). In many cases, however, simply modifying data contents (\eg simply removing or replacing
-identifiers with an anonymized placeholder for de-identification), fails to sufficiently guarantee
-that the data is hidden: \emph{structural correlations} from or to retained data can still leak sensitive
-information. For example, orders tagged with the same location likely belong to the same user, and
-order history can identify the user. 
-%Anonymized posts with the same flairs or custom tags can identify which user made the posts.
+Masks both remove and modify individual data records, and break up \emph{structural correlations}
+from or to sensitive data, which can also leak sensitive information. For example, orders tagged
+with the same location likely belong to the same user, and order history can identify the user. 
 
-Detecting and correctly modifying even subtly problematic content and correlations pose technical
-challenges that can prevent developers from sufficiently masking data, or force developers
-to forgo data retention completely. For example, HotCRP chooses to reduce its utility by completely
-removing papers correlated with unsubscribing users, rather than deal with potentially identifying
-correlations between users' papers and conflicting reviewers that may indirectly identify the user
-via the conflicts' affiliations and recent collaborations. 
+Ensuring these modifications do not break application semantics, and balancing data removal with
+data retention, requires developers to reason about complex data relationships and application
+invariants.  For example, developers implementing unsubscription in HotCRP may want to handle
+potentially identifying correlations between users' papers and conflicting reviewers, which can
+identify the user via the conflicts' affiliations and recent collaborations However, developers
+cannot simply remove all conflicting reviewers with an unsubscribed user's paper: this incorrectly
+allows paper reviews to be assigned with potential conflicts. Careful selection of which data to
+retain while ensuring that sensitive data is masked through modification or removal, all without
+breaking application semantics, requires application-specific expertise and a thorough understanding
+of exactly how the data mask changes state.
+
+To avoid the complexity of implementing fine-grained masks that both retain and modify data, developers often revert to coarse-grained masks (\eg delete everything). For example, HotCRP chooses to reduce utility
+for other users and delete all papers correlated with unsubscribing users, rather than deal with
+paper conflicts.
+%
+Furthermore, developers ad-hoc methods to implement masks, scattering data modifications throughout
+application code. This leads to a lack of a clear, centralized specification of how the mask modifies
+sensitive information and results in \eg vague privacy policies.
+
+%Retained data should mask any sensitive data contents (\eg user identity or harmful information). In many cases, however, simply modifying data contents (\eg simply removing or replacing
+%identifiers with an anonymized placeholder for de-identification), fails to sufficiently guarantee
+%that the data is hidden: \emph{structural correlations} from or to retained data can still leak sensitive
+%information. For example, orders tagged with the same location likely belong to the same user, and
+%order history can identify the user. 
+%Anonymized posts with the same flairs or custom tags can identify which user made the posts.
 %, a solution that clearly would not work in a world where users frequently unsubscribe at any time.
 
-These complex data transformations also make it difficult for developers to specify exactly what
-sensitive information may remain after the transformation, leading to \eg vague privacy policies in
-the case of user unsubscription transformations.
 
-\paragraph{Maintaining Application Semantics.}
-Data masks must clearly maintain correct application semantics, even when modifying or removing data
-content and correlations. For example, unsubscription in HotCRP could remove all
-conflicting reviewers with an unsubscribed user's paper to completely de-identify the retained
-paper; however, this incorrectly allows paper reviews to be assigned with potential conflicts.
-Careful selection of which data to retain while ensuring that sensitive data is masked through
-modification or removal, all without breaking application semantics, requires application-specific
-expertise and a thorough understanding of exactly how the data mask changes state.
 
 \iffalse
 To achieve \name, a system must (1) enable applications to \emph{selectively retain} unsubscribed
