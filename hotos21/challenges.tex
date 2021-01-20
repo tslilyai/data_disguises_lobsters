@@ -1,10 +1,8 @@
 \section{Requirements \& Challenges}
 
-Data masks all have similar requirements, namely to (1) selectively
-retain data for application utility or legal purposes; (2) render data sufficiently private, \ie
-de-identified (in the context of user data) or unreachable (in the context of moderated data); and (3)
-not break application semantics. We next describe each requirement and the challenges to achieve it
-in greater detail.
+Data masks all have similar requirements, namely to (1) selectively retain data for application
+utility or legal purposes; (2) delete and/or decorrelate sensitive data; and (3) maintain correct application semantics. We next describe each
+requirement and the challenges to achieve it in greater detail.
 
 %serve a number of purposes, allowing users to switch between
 %privacy-preserving unsubscribed mode and identity-revealing subscribed mode, inactive or stale data
@@ -22,7 +20,8 @@ Amazon and Prestashop retain a user's order history~\cite{amazon:privacy, presta
 Strava retains geolocation data and any ``necessary'' information~\cite{strava:privacy}. 
 Developers must ensure that post-unsubscription state avoids accidental data deletion or retention.
 
-\paragraph{Data Masking.}
+\paragraph{Data Deletion and Decorrelation.}
+\lyt{TODO}
 Any retained data should mask any sensitive data contents (\eg user identity or harmful information). In many cases, however, simply modifying data contents (\eg simply removing or replacing
 identifiers with an anonymized placeholder for de-identification), fails to sufficiently guarantee
 that the data is hidden: \emph{structural correlations} from or to retained data can still leak sensitive
@@ -42,8 +41,8 @@ These complex data transformations also make it difficult for developers to spec
 sensitive information may remain after the transformation, leading to \eg vague privacy policies in
 the case of user unsubscription transformations.
 
-\paragraph{Maintaining Application Correctness.}
-Data masks must clearly maintain application correctness, even when modifying or removing data
+\paragraph{Maintaining Application Semantics.}
+Data masks must clearly maintain correct application semantics, even when modifying or removing data
 content and correlations. For example, unsubscription in HotCRP could remove all
 conflicting reviewers with an unsubscribed user's paper to completely de-identify the retained
 paper; however, this incorrectly allows paper reviews to be assigned with potential conflicts.
