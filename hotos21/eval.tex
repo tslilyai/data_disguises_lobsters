@@ -79,16 +79,16 @@ paper and review information without creating duplicates.
 %and clones paper conflicts because no conflict
 %value attributes are identifying.
 
-\textbf{Lobsters} has a total of 20 entities, and has a \lyt{TODO} LoC unsubscription policy.
-The policy replicates what the behavior of the current Lobsters deployment upon user
-unsubscription, with the exception that we replace users with ghost users rather than a global
-placeholder, and we desensitize tags so that sensitive stories comprise at most 25\% the number of
-stories with a particular tag. This limits how much a particular tag topic can be used to identify a
-user who often posts about that topic (e.g.,\ a researcher in visualization). 
-All edges directly to the user have policies that decorrelate to a sensitivity threshold of 0; edges
-between stories and tags have policies that decorrelate to a sensitivity threshold of 0.25 (with ghost tags generated
-as some default tag); and edges between all other entities have policies that retain the edge
-(sensitivity threshold of 1).
+\textbf{Lobsters} has a total of 20 entities, and a \lyt{TODO} LoC mask policy for unsubscription.
+The policy replicates what the behavior of the current Lobsters deployment upon user unsubscription,
+with the exception that we replace users with ghost users rather than a global placeholder, and we
+desensitize tags so that sensitive stories comprise at most 25\% the number of stories with a
+particular tag. This limits how much a particular tag topic can be used to identify a user who often
+posts about that topic (e.g.,\ a researcher in visualization).  All edges directly to the user have
+policies that decorrelate to a sensitivity threshold of 0; edges between stories and tags have
+policies that decorrelate to a sensitivity threshold of 0.25 (with ghost tags generated as some
+default tag); and edges between all other entities have policies that retain the edge (sensitivity
+threshold of 1).
 
 \subsection{Performance}
 \label{sec:perf}
