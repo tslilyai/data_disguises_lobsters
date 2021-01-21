@@ -220,15 +220,14 @@ impl Querier {
     pub fn insert_ghost_for_template(&mut self, 
                                 template: &TemplateEntity,
                                 // TODO make more than one ghost family at a time
-                                //num_ghosts: usize, 
                                 is_pc: bool,
                                 db: &mut mysql::Conn) 
         -> Result<GhostEidMapping, mysql::Error> 
     {
         let start = time::Instant::now();
         let new_entities = match is_pc {
-            true => generate_new_ghosts_from(&self.views, &self.policy.pc_ghost_policies, template, 1)?
-            false => generate_new_ghosts_from(&self.views, &self.policy.cp_ghost_policies, template, 1)?
+            true => generate_new_ghosts_from(&self.views, &self.policy.pc_ghost_policies, template, 1)?,
+            false => generate_new_ghosts_from(&self.views, &self.policy.cp_ghost_policies, template, 1)?,
         };
 
         let mut ghost_names = vec![];
@@ -438,7 +437,7 @@ impl Querier {
                     eid: entity.eid,
                     row: entity.hrptr.row().clone(), 
                     fixed_colvals: None,
-                }, db)?;
+                }, entity.from_pc_edge, db)?;
             let gid = gem.root_gid;
             ghost_eid_mappings.push(gem);
            
@@ -527,6 +526,7 @@ impl Querier {
                             hrptr: HashedRowPtr::new(parent_rptr, self.views.get_view_pi(&policy.parent)),
                             parent_table: "".to_string(),
                             parent_col_index: 0,
+                            from_pc_edge: false,
                         });
                     }
                     continue;
@@ -559,6 +559,7 @@ impl Querier {
                                 hrptr: HashedRowPtr::new(parent_rptr.clone(), self.views.get_view_pi(&policy.parent)),
                                 parent_table: "".to_string(),
                                 parent_col_index: 0,
+                                from_pc_edge: false,
                             });
                         }
 
@@ -572,7 +573,7 @@ impl Querier {
                                             eid: *parent_eid,
                                             row: parent_rptr.clone(), 
                                             fixed_colvals: None,
-                                        }, db)?;
+                                        }, false, db)?;
                                     let gid = gem.root_gid;
                                     ghost_eid_mappings.push(gem);
                                     self.views.update_index_and_row_of_view(
@@ -615,6 +616,7 @@ impl Querier {
                             hrptr: hrptr.clone(),
                             parent_table: node.table_name.clone(), 
                             parent_col_index: *child_ci,
+                            from_pc_edge: true,
                         });
                     }
                 }

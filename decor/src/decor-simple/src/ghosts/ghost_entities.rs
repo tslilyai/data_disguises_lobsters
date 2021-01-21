@@ -90,7 +90,6 @@ fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {
 pub fn generate_new_ghosts_from(
     views: &Views,
     ghost_policies: &EntityGhostPolicies,
-
     template: &TemplateEntity, 
     num_ghosts: usize,
 ) -> Result<Vec<TableGhostEntities>, mysql::Error>
