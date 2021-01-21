@@ -568,13 +568,14 @@ impl Querier {
                 for (parent_eid, sensitive_children) in parent_eid_counts.iter() {
                     // get all children of this type with the same parent entity eid
                     let childrows = self.views.graph.get_children_of_parent(&policy.parent, *parent_eid).unwrap();
-                    let total_count = childrows.get(&(poster_child.table_name.clone(), ci)).unwrap().len() as f64;
-                    let sensitive_count = sensitive_children.len() as f64;
+                    let all_children = childrows.get(&(poster_child.table_name.clone(), ci)).unwrap();
+                    let total_count = all_children.len();
+                    let sensitive_count = sensitive_children.len();
                     warn!("UNSUB STEP 2: Found {} total and {} sensitive children of type {} with parent {}", 
                           total_count, sensitive_count, policy.parent, parent_eid);
                     
-                    let number_to_desensitize = (((sensitive_count * (1.0-sensitivity)) 
-                                                  - (total_count * sensitivity)) 
+                    let number_to_desensitize = (((sensitive_count as f64 * (1.0-sensitivity)) 
+                                                  - (total_count  as f64* sensitivity)) 
                                                  / (1.0-sensitivity)).ceil() as i64;
                     if number_to_desensitize > 0 {
                         let parent_rptr = self.views.get_row_of_id(&policy.parent, *parent_eid);
@@ -587,6 +588,11 @@ impl Querier {
                             Decorrelate(f) => { 
                                 // generate all ghost parents
                                 assert!(f < 1.0); 
+
+                                let number_of_ghosts = match number_to_desensitize {
+                                    total_count => number_to_desensitize,
+                                    _ => number_to_desensitize+1,
+                                } as usize;
                                                
                                 // create all these ghosts at once
                                 let gem = self.insert_ghosts_for_template(
@@ -595,16 +601,29 @@ impl Querier {
                                         eid: *parent_eid,
                                         row: parent_rptr.clone(), 
                                         fixed_colvals: None,
-                                    }, false, number_to_desensitize as usize + 1, db)?; // hmmmm XXX
+                                    }, false, number_of_ghosts, db)?;
                                
                                 let gids = gem.root_gids;
 
                                 ghost_eid_mappings.push(gem); 
-
-                                // TODO update all remaining correlated children w/first parent
-                                // (which may be a clone)
                                 
-                                let mut gid_index = 1;
+                                let mut gid_index = 0;
+                                
+                                let children_to_decorrelate : HashSet<TraversedEntity> = 
+                                    &sensitive_children[0..number_to_desensitize as usize].collect();
+
+                                // update all remaining correlated children w/first parent
+                                // (which may be a clone)
+                                if number_to_desensitize < total_count as i64 {
+                                    for child_hrptr in all_children {
+                                        if child_hrptr.id() 
+                                        self.views.update_index_and_row_of_view(
+                                            &poster_child.table_name, child_hrptr.row().clone(), ci, 
+                                            Some(&Value::Number(gids[gid_index].to_string())));
+                                    }
+                                    gid_index += 1;
+                                }
+                                
                                 for child in &sensitive_children[0..number_to_desensitize as usize] {
                                     self.views.update_index_and_row_of_view(
                                         &child.table_name, child.hrptr.row().clone(), ci, 
@@ -747,23 +766,23 @@ impl Querier {
         // parse gids into table eids -> set of gids
         let mut table = ghost_eid_mappings[0].table.clone();
         let mut eid = ghost_eid_mappings[0].eid;
-        let mut root_gid = ghost_eid_mappings[0].root_gid;
+        let mut root_gids = ghost_eid_mappings[0].root_gids;
         let mut ghosts : Vec<Vec<(String, u64)>> = vec![];
         for mapping in ghost_eid_mappings {
             // do all the work for this eid at once!
             if !(table == mapping.table && eid == mapping.eid) {
-                self.replace_ghosts(&table, eid, root_gid, &ghosts, db)?;
+                self.replace_ghosts(&table, eid, root_gids, &ghosts, db)?;
 
                 // reset 
                 eid = mapping.eid.clone();
-                root_gid = mapping.root_gid.clone();
+                root_gids = mapping.root_gids.clone();
                 table = mapping.table.clone();
                 ghosts = vec![mapping.ghosts.clone()];
             } else {
                 ghosts.push(mapping.ghosts.clone());
             }
         }
-        self.replace_ghosts(&table, eid, root_gid, &ghosts, db)?;
+        self.replace_ghosts(&table, eid, root_gids, &ghosts, db)?;
 
         Ok(())
     }
@@ -807,7 +826,7 @@ impl Querier {
     }
  
 
-    fn replace_ghosts(&mut self, curtable: &str, eid: u64, root_gid: u64, ghosts: &Vec<Vec<(String, u64)>>, db: &mut mysql::Conn) -> Result<(), mysql::Error> 
+    fn replace_ghosts(&mut self, curtable: &str, eid: u64, root_gids: Vec<u64>, ghosts: &Vec<Vec<(String, u64)>>, db: &mut mysql::Conn) -> Result<(), mysql::Error> 
     {
         let start = time::Instant::now();
         
@@ -834,21 +853,23 @@ impl Querier {
             
         // Note: all ghosts in families will be deleted from the MV, so we only need to restore
         // the EID value for the root level GID entries
-        if let Some(children) = self.views.graph.get_children_of_parent(curtable, root_gid) {
-            warn!("Get children of table {} GID {}: {:?}", curtable, root_gid, children);
-            // for each child row
-            for ((child_table, child_ci), child_hrptrs) in children.iter() {
-                let child_viewptr = self.views.get_view(&child_table).unwrap();
-                let ghost_parent_keys = helpers::get_ghost_parent_key_indices_of_datatable(
-                    &self.policy, &child_table, &child_viewptr.borrow().columns);
-                // if the child has a column that is ghosted and the ghost ID matches this gid
-                for (ci, parent_table) in &ghost_parent_keys {
-                    if ci == child_ci && parent_table == &curtable {
-                        for hrptr in child_hrptrs {
-                            if hrptr.row().borrow()[*ci].to_string() == root_gid.to_string() {
-                                // then update this child to use the actual real EID
-                                warn!("Updating child row with GID {} to point to actual eid {}", root_gid, eid_val);
-                                self.views.update_index_and_row_of_view(&child_table, hrptr.row().clone(), *ci, Some(&eid_val));
+        for root_gid in root_gids {
+            if let Some(children) = self.views.graph.get_children_of_parent(curtable, root_gid) {
+                warn!("Get children of table {} GID {}: {:?}", curtable, root_gid, children);
+                // for each child row
+                for ((child_table, child_ci), child_hrptrs) in children.iter() {
+                    let child_viewptr = self.views.get_view(&child_table).unwrap();
+                    let ghost_parent_keys = helpers::get_ghost_parent_key_indices_of_datatable(
+                        &self.policy, &child_table, &child_viewptr.borrow().columns);
+                    // if the child has a column that is ghosted and the ghost ID matches this gid
+                    for (ci, parent_table) in &ghost_parent_keys {
+                        if ci == child_ci && parent_table == &curtable {
+                            for hrptr in child_hrptrs {
+                                if hrptr.row().borrow()[*ci].to_string() == root_gid.to_string() {
+                                    // then update this child to use the actual real EID
+                                    warn!("Updating child row with GID {} to point to actual eid {}", root_gid, eid_val);
+                                    self.views.update_index_and_row_of_view(&child_table, hrptr.row().clone(), *ci, Some(&eid_val));
+                                }
                             }
                         }
                     }

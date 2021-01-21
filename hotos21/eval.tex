@@ -1,5 +1,5 @@
 %-------------------------------------------------------------------------------
-\section{Case Studies}
+\section{Evaluation}
 %-------------------------------------------------------------------------------
 \label{sec:hotcrp_example}
 \begin{figure}[t!]
@@ -15,15 +15,9 @@
     \label{fig:hotcrp}
 \end{figure}
 
-We evaluate whether our approach meets the requirements of \name in practice,  
-allowing developers to sufficiently and easily express how data should be retained and
-de-identified, and supporting resubscription without burdening the developer or user. 
-%and (2) %does \sys support unsubscription and resubscription with low performance overhead?
-Our approach satisfies automatic resubscription, handling data encryption for the application and
-user without requiring the user to manage private keys or data storage. We show that \sys can meet
-the other two requirements by evaluating the ease of writing and expressiveness of a mask policy for
-user unsubscription in HotCRP, a popular conference review management application, and Lobsters, an
-open-source news feed application. \lyt{and PrestaShop?}
+We evaluate whether \name enables developers to easily express and automate practical data masks by
+writing mask policies for user unsubscription in HotCRP, a popular conference review management
+application, and Lobsters, an open-source news feed application. \lyt{and PrestaShop?}
 
 \textbf{HotCRP} entities include users (reviewers and authors), papers, paper reviews, and
 paper conflicts. There are a total of 25 entities, with 48 edge types between entities. A
@@ -90,7 +84,7 @@ policies that decorrelate to a sensitivity threshold of 0.25 (with ghost tags ge
 default tag); and edges between all other entities have policies that retain the edge (sensitivity
 threshold of 1).
 
-\subsection{Performance}
+\subsection{\sys Performance}
 \label{sec:perf}
 \begin{itemize}
     \item LoC to write HotCRP/Lobsters' policies
