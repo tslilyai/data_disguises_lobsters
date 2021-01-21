@@ -43,10 +43,13 @@ While similar tracking can be added to \sys to support derived data not visible 
 
 %---------------------------
 
-Jeeves~\cite{jeeves} is a language for specifying and automatically enforcing privacy policies about
-how sensitive values should be disclosed; \sys creates a similar programming model for
-the transformation of data in web application databases, instead of information flow and disclosure.
-\lyt{I'm not sure that this is that related, but it came up in PDOS...}
+Frameworks such as Jeeves~\cite{jeeves} aid developers in enforcing privacy policies that specify
+how sensitive values should be disclosed by a program. Like \sys, the framework also relies on developers to
+specify appropriate policies, and simply enforces them. However, \sys works in the domain of
+database data transformations and applies mask policies only when invoked, whereas Jeeves does not modify
+data and instead monitors program behavior at runtime to track where and how data is disclosed.
+\lyt{I'm not sure that this is that related, but it
+came up in PDOS...}
 
 %Sieve~\cite{sieve} focus on defining access control to PII, but doesn't actually change data. 
 

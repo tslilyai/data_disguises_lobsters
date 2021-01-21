@@ -3967,7 +3967,7 @@ insert	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json
 insert	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^    pub fn insert(self, value: Value) -> &'a mut Value {$/;"	f
 insert	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn insert(&mut self, table_name: &str, columns_opt: Option<&Vec<Ident>>, val_rows: &RowPtrs) -> Result<(), Error> {$/;"	f
 insert_ghost_for_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn insert_ghost_for_eid(&mut self, $/;"	f
-insert_ghost_for_template	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn insert_ghost_for_template(&mut self, $/;"	f
+insert_ghosts_for_template	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn insert_ghosts_for_template(&mut self, $/;"	f
 insert_gid_into_caches	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn insert_gid_into_caches(&mut self, eid:u64, gfam: GhostFamily) {$/;"	f
 insert_into_index	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn insert_into_index(&mut self, row: Rc<RefCell<Row>>, col_index: usize) {$/;"	f
 insert_into_unsubscribed_table	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^pub fn insert_into_unsubscribed_table(db: &mut mysql::Conn, eid: u64, hash1: &str, hash2: &str) -> Result<(), mysql::Error> {$/;"	f

@@ -55,7 +55,7 @@ impl GhostFamily {
 pub struct GhostEidMapping {
     pub table: String,
     pub eid: u64,
-    pub root_gid: u64,
+    pub root_gids: Vec<u64>,
     pub ghosts: Vec<(String, u64)>,
 }
 

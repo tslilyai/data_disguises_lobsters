@@ -217,21 +217,21 @@ impl Querier {
     /*******************************************************
      ****************** UNSUBSCRIPTION *********************
      *******************************************************/
-    pub fn insert_ghost_for_template(&mut self, 
+    pub fn insert_ghosts_for_template(&mut self, 
                                 template: &TemplateEntity,
-                                // TODO make more than one ghost family at a time
                                 is_pc: bool,
+                                num_ghosts: usize,
                                 db: &mut mysql::Conn) 
         -> Result<GhostEidMapping, mysql::Error> 
     {
         let start = time::Instant::now();
         let new_entities = match is_pc {
-            true => generate_new_ghosts_from(&self.views, &self.policy.pc_ghost_policies, template, 1)?,
-            false => generate_new_ghosts_from(&self.views, &self.policy.cp_ghost_policies, template, 1)?,
+            true => generate_new_ghosts_from(&self.views, &self.policy.pc_ghost_policies, template, num_ghosts)?,
+            false => generate_new_ghosts_from(&self.views, &self.policy.cp_ghost_policies, template, num_ghosts)?,
         };
 
         let mut ghost_names = vec![];
-        let mut root_gid = 0;
+        let mut root_gids = vec![];
    
         for table_entities in new_entities {
             // insert new rows into actual data tables 
@@ -262,8 +262,8 @@ impl Querier {
             self.views.insert(&table_entities.table, None, &table_entities.rptrs)?;
         
             for gid in table_entities.gids {
-                if table_entities.table == template.table && root_gid == 0 {
-                    root_gid = gid;
+                if table_entities.table == template.table {
+                    root_gids.push(gid);
                 }
                 ghost_names.push((table_entities.table.clone(), gid));
             }
@@ -341,44 +341,50 @@ impl Querier {
             for ((child_table, child_ci), child_hrptrs) in children.iter() {
                 let child_table_epolicies = self.policy.edge_policies.get(child_table).unwrap().clone();
                 view_ptr = self.views.get_view(&child_table).unwrap();
+                
+                // first, check if anypolicy is decorrelate, so we can create these parent entities
+                // all at once to satisfy CloneOne policies
+                for policy in &*child_table_epolicies {
+                    let ci = helpers::get_col_index(&policy.column, &view_ptr.borrow().columns).unwrap();
+                    
+                    // skip any policies for edges not to this parent table type
+                    if ci != *child_ci ||  policy.parent != node.table_name {
+                        continue;
+                    }
 
-                for rptr in child_hrptrs {
-                    for policy in &*child_table_epolicies {
-                        let ci = helpers::get_col_index(&policy.column, &view_ptr.borrow().columns).unwrap();
-                        
-                        // skip any policies for edges not to this parent table type
-                        if ci != *child_ci ||  policy.parent != node.table_name {
-                            continue;
-                        }
-                        
-                        let child = TraversedEntity {
-                            table_name: child_table.clone(),
-                            eid: helpers::parser_val_to_u64(&rptr.row().borrow()[view_ptr.borrow().primary_index]),
-                            hrptr: rptr.clone(),
-                            parent_table: node.table_name.clone(), 
-                            parent_col_index: ci,
-                            from_pc_edge: true,
-                        };
+                    match policy.pc_policy {
+                        Decorrelate(f) => { 
+                            // generate all ghost parents
+                            assert!(f < 1.0); 
+                                           
+                            // create all these ghosts at once
+                            let gem = self.insert_ghosts_for_template(
+                                &TemplateEntity {
+                                    table: node.table_name.clone(),
+                                    eid: node.eid,
+                                    row: node.hrptr.row().clone(), 
+                                    fixed_colvals: None,
+                                }, true, child_hrptrs.len(), db)?;
+                           
+                            let gids = gem.root_gids;
 
-                        // we decorrelate or delete *all* in the parent-child direction
-                        match policy.pc_policy {
-                            Decorrelate(f) => {
-                                assert!(f < 1.0); 
-                                               
-                                // TODO could create all these ghosts at once?
-                                let gem = self.insert_ghost_for_template(
-                                    &TemplateEntity {
-                                        table: node.table_name.clone(),
-                                        eid: node.eid,
-                                        row: node.hrptr.row().clone(), 
-                                        fixed_colvals: None,
-                                    }, true, db)?;
-                                
-                                let gid = gem.root_gid;
-                                
-                                ghost_eid_mappings.push(gem);
-                                
-                                self.views.update_index_and_row_of_view(&child_table, rptr.row().clone(), ci, Some(&Value::Number(gid.to_string())));
+                            ghost_eid_mappings.push(gem); 
+
+                            let mut gid_index = 0;
+                            for hrptr in child_hrptrs {
+                                let child = TraversedEntity {
+                                    table_name: child_table.clone(),
+                                    eid: helpers::parser_val_to_u64(&hrptr.row().borrow()[view_ptr.borrow().primary_index]),
+                                    hrptr: hrptr.clone(),
+                                    parent_table: node.table_name.clone(), 
+                                    parent_col_index: ci,
+                                    from_pc_edge: true,
+                                };
+
+                                self.views.update_index_and_row_of_view(
+                                    &child_table, hrptr.row().clone(), ci, 
+                                    Some(&Value::Number(gids[gid_index].to_string())));
+                                gid_index += 1;
 
                                 // if child hasn't been seen yet, traverse
                                 if traversed_entities.get(&child).is_none() {
@@ -388,21 +394,43 @@ impl Querier {
 
                                 // we don't add this to the nodes to ghost because we've already
                                 // decorrelated it
-                            },
-                            Delete(f) => {
-                                assert!(f < 1.0); 
+                            }
+                        }
+                        Delete(f) => {
+                            assert!(f < 1.0); 
+
+                            // replace this node with a ghost node
+                            nodes_to_ghost.insert(node.clone());
+
+                            for hrptr in child_hrptrs {
+                                let child = TraversedEntity {
+                                    table_name: child_table.clone(),
+                                    eid: helpers::parser_val_to_u64(&hrptr.row().borrow()[view_ptr.borrow().primary_index]),
+                                    hrptr: hrptr.clone(),
+                                    parent_table: node.table_name.clone(), 
+                                    parent_col_index: ci,
+                                    from_pc_edge: true,
+                                };
                                 // add all the sensitive removed entities to return to the user 
                                 self.get_tree_from_child(&child, &mut nodes_to_remove);
-
-                                // replace this node with a ghost node
-                                nodes_to_ghost.insert(node.clone());
                                 
                                 // don't add child to traversal queue
-                            },
-                            Retain => {
-                                // replace this node with a ghost node
-                                nodes_to_ghost.insert(node.clone());
-                                
+                            }
+                        }
+                        Retain => {
+                            // replace this node with a ghost node
+                            nodes_to_ghost.insert(node.clone());
+
+                            for hrptr in child_hrptrs {
+                                let child = TraversedEntity {
+                                    table_name: child_table.clone(),
+                                    eid: helpers::parser_val_to_u64(&hrptr.row().borrow()[view_ptr.borrow().primary_index]),
+                                    hrptr: hrptr.clone(),
+                                    parent_table: node.table_name.clone(), 
+                                    parent_col_index: ci,
+                                    from_pc_edge: true,
+                                };
+                                                        
                                 // if child hasn't been seen yet, traverse
                                 if traversed_entities.get(&child).is_none() {
                                     warn!("Adding traversed child {}, {}", child.table_name, child.eid);
@@ -422,7 +450,8 @@ impl Querier {
          * For all edges to the parent entity that need to reach a particular sensitivity
          * threshold, decorrelate or remove the children; if retained, ghost the parent. 
          */
-        // TODO add to nodes_to_ghost(?)
+        // TODO add to nodes_to_ghost(?) NO , we should handle decorrelating parents in this
+        // function to ensure clone policies are correct
         self.unsubscribe_child_parent_edges(&traversed_entities, &mut ghost_eid_mappings, &mut nodes_to_remove, &mut nodes_to_ghost, db)?;
 
         /*
@@ -431,14 +460,15 @@ impl Querier {
         for entity in nodes_to_ghost {
             warn!("UNSUB {} STEP 3: Changing {:?} to ghost", uid, entity);
             // create ghost for this entity
-            let gem = self.insert_ghost_for_template(
+            let gem = self.insert_ghosts_for_template(
                 &TemplateEntity {
                     table: entity.table_name.clone(),
                     eid: entity.eid,
                     row: entity.hrptr.row().clone(), 
                     fixed_colvals: None,
-                }, entity.from_pc_edge, db)?;
-            let gid = gem.root_gid;
+                }, entity.from_pc_edge, 1, db)?;
+            
+            let gids = gem.root_gids;
             ghost_eid_mappings.push(gem);
            
             // update children to point to the new ghost
@@ -447,7 +477,9 @@ impl Querier {
                 for ((child_table, child_ci), child_hrptrs) in children.iter() {
                     for hrptr in child_hrptrs {
                         assert!(hrptr.row().borrow()[*child_ci].to_string() == entity.eid.to_string());
-                        self.views.update_index_and_row_of_view(&child_table, hrptr.row().clone(), *child_ci, Some(&Value::Number(gid.to_string())));
+                        self.views.update_index_and_row_of_view(
+                            &child_table, hrptr.row().clone(), *child_ci, 
+                            Some(&Value::Number(gids[0].to_string())));
                     }
                 }
             }
@@ -551,40 +583,55 @@ impl Querier {
                             unimplemented!("No support for decorrelated or removing non-sensitive children");
                         }
                         
-                        // some children still remain, so original parent should be ghosted
-                        if number_to_desensitize < total_count as i64 {
-                            nodes_to_ghost.insert(TraversedEntity{
-                                table_name: policy.parent.clone(),
-                                eid: *parent_eid,
-                                hrptr: HashedRowPtr::new(parent_rptr.clone(), self.views.get_view_pi(&policy.parent)),
-                                parent_table: "".to_string(),
-                                parent_col_index: 0,
-                                from_pc_edge: false,
-                            });
-                        }
+                        match policy.pc_policy {
+                            Decorrelate(f) => { 
+                                // generate all ghost parents
+                                assert!(f < 1.0); 
+                                               
+                                // create all these ghosts at once
+                                let gem = self.insert_ghosts_for_template(
+                                    &TemplateEntity {
+                                        table: policy.parent.clone(),
+                                        eid: *parent_eid,
+                                        row: parent_rptr.clone(), 
+                                        fixed_colvals: None,
+                                    }, false, number_to_desensitize as usize + 1, db)?; // hmmmm XXX
+                               
+                                let gids = gem.root_gids;
 
-                        for child in &sensitive_children[0..number_to_desensitize as usize] {
-                            warn!("UNSUB STEP 2: Unsubscribe child parent edges child {:?}", child);
-                            match policy.pc_policy {
-                                Decorrelate(_) => {
-                                    let gem = self.insert_ghost_for_template(
-                                        &TemplateEntity {
-                                            table: policy.parent.clone(),
-                                            eid: *parent_eid,
-                                            row: parent_rptr.clone(), 
-                                            fixed_colvals: None,
-                                        }, false, db)?;
-                                    let gid = gem.root_gid;
-                                    ghost_eid_mappings.push(gem);
+                                ghost_eid_mappings.push(gem); 
+
+                                // TODO update all remaining correlated children w/first parent
+                                // (which may be a clone)
+                                
+                                let mut gid_index = 1;
+                                for child in &sensitive_children[0..number_to_desensitize as usize] {
                                     self.views.update_index_and_row_of_view(
-                                        &child.table_name, child.hrptr.row().clone(), ci, Some(&Value::Number(gid.to_string())));
+                                        &child.table_name, child.hrptr.row().clone(), ci, 
+                                        Some(&Value::Number(gids[gid_index].to_string())));
+                                    gid_index += 1;
+
                                 }
-                                Delete(_) => {
-                                    // add all the sensitive removed entities to return to the user 
+                                // we don't add the parent to the nodes to ghost because we've already
+                                // decorrelated it
+                            }
+                            Delete(_) => {
+                                // add all the sensitive removed entities to return to the user 
+                                for child in &sensitive_children[0..number_to_desensitize as usize] {
                                     self.get_tree_from_child(&child, nodes_to_remove);
                                 }
-                                _ => unimplemented!("Shouldn't have a retain policy with a positive number to desensitize")
+
+                                // ghost the parent node
+                                nodes_to_ghost.insert(TraversedEntity{
+                                    table_name: policy.parent.clone(),
+                                    eid: *parent_eid,
+                                    hrptr: HashedRowPtr::new(parent_rptr.clone(), self.views.get_view_pi(&policy.parent)),
+                                    parent_table: "".to_string(),
+                                    parent_col_index: 0,
+                                    from_pc_edge: false,
+                                });
                             }
+                            _ => unimplemented!("Shouldn't have a retain policy with a positive number to desensitize")
                         }
                     }
                 }
