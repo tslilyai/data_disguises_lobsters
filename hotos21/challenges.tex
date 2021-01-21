@@ -22,7 +22,7 @@ with the same location likely belong to the same user, and order history can ide
 
 Ensuring these modifications do not break application semantics, and balancing data removal with
 data retention, requires developers to reason about complex data relationships and application
-invariants.  For example, developers implementing unsubscription in HotCRP may want to handle
+invariants. For example, developers implementing unsubscription in HotCRP may want to handle
 potentially identifying correlations between users' papers and conflicting reviewers, which can
 identify the user via the conflicts' affiliations and recent collaborations However, developers
 cannot simply remove all conflicting reviewers with an unsubscribed user's paper: this incorrectly
