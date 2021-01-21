@@ -25,12 +25,12 @@ harmful data (\eg inappropriate content or misinformation) that hide or modify d
 contents~\cite{contentmod, sasb}, and face increasing pressure from users who want to
 hold them legally liable for appropriately moderating content~\cite{nytimes:230}.
 
-Properly specifying and implementing these various data masks is not easy. Masks are necessarily
+Properly specifying and implementing these various data masks is challenging. Masks are necessarily
 application-specific and require the developer to reason about and handle complex data correlations.
 For example, developers must selectively retain unsubscribing users' data for legal or application
-purposes, while still de-identifying this data as much as possible.  Today's applications often
-support only coarse-grained masks implemented with ad-hoc methods, resulting in a lack of a clear
-specification of exactly what and how the mask transforms data.
+purposes, while de-identifying this data as much as possible and maintaining application semantics.
+Today's applications often support only coarse-grained masks implemented with ad-hoc methods,
+resulting in a lack of a clear specification of exactly what and how the mask transforms data.
 
 To help developers of new and existing applications support clearly specified data masks, we propose
 \sys, a framework that, given only a high-level, declarative specification of the relationships
@@ -44,9 +44,8 @@ for \sys to systematically reason about and automate a variety of data masks.
 %particular entities private. 
 
 With \sys, developers specify a \emph{mask policy} by choosing from a menu of provided edge and node
-transformations. To determine an appropriate policy, developers reason about the creation of
-\emph{ghost entities} in the entity graph, which allow the mask to both retain, decorrelate, modify,
-and remove data.  The policy acts as a specification for the masked state of any instance of the
+transformations. To determine an appropriate policy, developers introduce \emph{ghost entities} in the entity graph, which allow the mask to both retain, decorrelate, modify,
+and remove data. The policy acts as a specification for the masked state of any instance of the
 entity graph. When invoked with a particular mask policy, \sys automatically and systematically
 applies transformations to the current entity graph instance to achieve this specified state.
 
