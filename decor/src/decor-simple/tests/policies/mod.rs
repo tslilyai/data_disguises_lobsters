@@ -37,7 +37,6 @@ fn pc_ghost_gen_policies() -> EntityGhostPolicies {
     ghost_policies
 }
 
-
 fn cp_ghost_gen_policies() -> EntityGhostPolicies {
     let mut ghost_policies = HashMap::new();
     
