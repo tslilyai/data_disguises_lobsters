@@ -9,21 +9,23 @@ be forgotten.
 
 Sypse~\cite{sypse} pseudonymizes user data, partitioning personally identifying information (PII)
 from non-identifying data, and allowing the application to use the latter for legal or processing
-purposes. Similar to our approach, Sypse sits between application's logic and data, and breaks
-foreign key relationships and objects grouped by user; however, Sypse assumes a specification of
-which objects to anonymize and which connections to break, whereas we believe that writing these
+purposes. 
+Unlike Sypse's partitioning scheme, \sys does not keep PII after a data mask, or change the
+application schema in any way.
+Sypse, like \sys, sits between application's logic and data, and breaks
+foreign key relationships and objects grouped by user. However, Sypse assumes a specification of
+which objects to pseudonymize and which correlations to break, whereas we observe that writing these
 specifications is itself a challenging problem, and propose abstractions that allow developers to
-precisely capture application-specific behavior. We concretely define the application entity graph
-and abstractions that allow developers to reason about it, whereas Sypse leaves this as future work.
+precisely capture application-specific behavior. 
+%We concretely define the application entity graph
+%and abstractions that allow developers to reason about it, whereas Sypse leaves this as future work.
+Sypse creates synthetic data similar to ghost entities; however,
+Sypse's synthesis is random and application-oblivious. We make the observation that in order to maintain correct application semantics, developers must provide input into how to generate ghost entities.
 
-Sypse proposes synthetic data generation, similar to our idea of ghost entities. However, their data
-synthesis is random and application-oblivious; we make the observation that in order to maintain
-correct application semantics, developers must provide input into how to generate ghost entities.
-
-Instead of constantly maintaining data partitions, \sys performs data masking at  when invoked, and
-incurs little overhead during normal execution. A future implementation may preemptively create
-ghost data and result in a system design vaguely similar to Sypse, but this implementation strategy
-is not fundamental.
+%Instead of constantly maintaining data partitions, \sys performs data masking when invoked and
+%incurs little overhead during normal execution. A future implementation may preemptively create
+%ghost data and result in a system design vaguely similar to Sypse, but this implementation strategy
+%is not fundamental.
 %Sypse also does not support resubscription, although we observe that a similar approach to ours
 %would allow Sypse to do so.
 
@@ -43,13 +45,12 @@ While similar tracking can be added to \sys to support derived data not visible 
 
 %---------------------------
 
-Frameworks such as Jeeves~\cite{jeeves} aid developers in enforcing privacy policies that specify
-how sensitive values should be disclosed by a program. Like \sys, the framework also relies on developers to
-specify appropriate policies, and simply enforces them. However, \sys works in the domain of
-database data transformations and applies mask policies only when invoked, whereas Jeeves does not modify
-data and instead monitors program behavior at runtime to track where and how data is disclosed.
-\lyt{I'm not sure that this is that related, but it
-came up in PDOS...}
+Frameworks such as Jeeves~\cite{jeeves} aid developers in enforcing IFC policies that specify how
+sensitive values should be disclosed by a program. Like \sys, the framework also relies on
+developers to specify appropriate policies, and simply enforces them. However, \sys works in the
+domain of database data transformations and applies mask policies only when invoked, whereas Jeeves
+does not modify data and instead monitors program behavior at runtime to track where and how data is
+disclosed.  \lyt{I'm not sure that this is that related, but it came up in PDOS...}
 
 %Sieve~\cite{sieve} focus on defining access control to PII, but doesn't actually change data. 
 
