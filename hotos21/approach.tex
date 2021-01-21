@@ -1,7 +1,16 @@
 \section{Approach}
-To enable clearly specified data masks that allow developers to achieve both selective retention and
-fine-grained data modification, we observe that masks can be thought of as transformations of
-application data \emph{entity graphs}.  Application data naturally encodes \emph{entity graph} of
+
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width=0.5\textwidth]{img/muffle}
+
+    \caption{High-level \sys architecture. Developers specify grayed-out components.}
+    \label{fig:arch}
+\end{figure}
+
+To enable developers to clearly specify data masks that can achieve both selective retention and
+fine-grained data modification, we represent masks as transformations of
+application data \emph{entity graphs}. Application data naturally encodes \emph{entity graph} of
 entity nodes and edges, where each entity type corresponds to an application table, such as a users,
 papers, or reviews table. Edges between entities are foreign key relationships: foreign key table
 columns create child-parent correlations, where the child entity holds the parent entity's
@@ -14,18 +23,17 @@ Masks transform the entity graph by introducing \emph{ghost entities}, which bot
 entities with (partially or fully) modified content, and break structural correlations. Data
 retention, modification, and removal can be fully captured by specifying how to generate ghost
 entities from real entities, and how to restructure the entity graph with edges to ghost entities.
-Furthermore, transformations are reversible given a log of graph modifications performed by during
-the transformation, allowing \eg resubscription after unsubscription.
+Furthermore, \sys provides support for reversible transformations: developers can specify whether
+\sys should log graph modifications performed by the mask. This allows \eg resubscription after unsubscription.
 
 Developers declaratively specify the effects of the data mask as a \emph{data mask policy},
 consisting of a set of transformation policies on entity types and edge types
 (Section~\ref{sec:policies}). This declarative policy provides a precise post-mask specification for
 users and developers. Developers use their application expertise to determine an acceptable
 post-mask state that balances data retention with data modification and removal, all while
-maintaining application correctness.  Specifying post-mask state requires the developer to reason
+maintaining application correctness. Specifying post-mask state requires the developer to reason
 only at the level of entity and edge \emph{types}, instead of about specific entity graph instances.
 
-To demonstrate how this approach works in practice, we design \sys, a prototype that takes a masking
-policy and a concrete application schema, and automatically transforms instances of the application
-entity graph to achieve the state specified in the policy (Section~\ref{sec:proto}).
-
+As shown in Figure~\ref{fig:arch}, \sys sits between the application logic and its database. 
+\sys takes a mask policy and schema annotations describing the application entity graph,
+and systematically applies the appropriate mask transformations when invoked. 

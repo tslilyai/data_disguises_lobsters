@@ -2,33 +2,20 @@
 \section{Prototype Implementation}
 %-------------------------------------------------------------------------------
 \label{sec:proto}
+Our initial prototype for \sys consists of 5K LoC of Rust, and supports SQL queries as well as \texttt{TRANSFORM [entity\_id]} and \texttt{REVERSE TRANSFORM [entity\_id]} queries.
+%We show that \sys performs reasonably (Section~\ref{sec:perf}) for 
+%, and we plan to support eventually
+%consistent, crash-recoverable transformations, sharding, and multicore parallelism.
 
-\begin{figure}[t!]
-    \centering
-    \includegraphics[width=0.5\textwidth]{img/muffle}
-
-    \caption{High-level \sys architecture. Developers specify grayed-out components.}
-    \label{fig:arch}
-\end{figure}
-
-\sys sits between the application logic and its database, and uses the developer mask policy to
-model the application schema as an entity graph. \sys systematically applies the appropriate
-mask transformations when invoked with the policy. 
-
-If prompted, \sys will record the modifications performed during the transformation, and encrypts and
-stores this log in an additional table. The encrypting key can be kept by the application for \eg content
-moderation transformations, or in the case of user unsubscription, secret-shared~\cite{secretsharing}
-among the user, \sys, and a trusted third party so that the user can retrieve a lost key without
-trusting the application or \sys. To undo the transformation, \sys decrypts this log and reverses the
-modifications, restoring the affected portion of the entity graph to its original state.
-
-Figure~\ref{fig:arch} shows an example of a mask for user unsubscription, that supports reversing
-the mask for resubscription.
-
-\sys consists of 5K LoC of Rust, and supports SQL queries as well as \texttt{TRANSFORM
-[entity\_id]} and \texttt{REVERSE TRANSFORM [entity\_id]} queries.
-We show that \sys performs reasonably (Section~\ref{sec:perf}), and we plan to support eventually
-consistent, crash-recoverable transformations, sharding, and multicore parallelism.
+If prompted, \sys will record the modifications performed during the transformation. This log can be
+encrypted and stored in an additional table. The encrypting key can be kept by the application for
+\eg content moderation transformations, or in the case of user unsubscription,
+secret-shared~\cite{secretsharing} among the user, \sys, and a trusted third party so that the user
+can retrieve a lost key without trusting the application or \sys. To undo the transformation, \sys
+decrypts this log and reverses the modifications, restoring the affected portion of the entity graph
+to its original state.
+\lyt{I'm not sure about including this section---I could potentially add it to the prototype, I
+suppose?}
 
 \iffalse
 %-------------------------------------------------------------------------------
