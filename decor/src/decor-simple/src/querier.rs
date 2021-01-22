@@ -272,10 +272,10 @@ impl Querier {
         let gem = GhostEidMapping{
             table: template.table.clone(),
             eid: template.eid,
-            root_gid: root_gid,
+            root_gids: root_gids.clone(),
             ghosts: ghost_names,
         };
-        warn!("insert_ghost_for_eid {}, {}: {}us", root_gid, template.eid, start.elapsed().as_micros());
+        warn!("insert_ghost_for_eid gids {}, {:?}: {}us", template.eid, root_gids, start.elapsed().as_micros());
         Ok(gem)
     }
 
@@ -366,7 +366,7 @@ impl Querier {
                                     fixed_colvals: None,
                                 }, true, child_hrptrs.len(), db)?;
                            
-                            let gids = gem.root_gids;
+                            let gids = gem.root_gids.clone();
 
                             ghost_eid_mappings.push(gem); 
 
@@ -468,7 +468,7 @@ impl Querier {
                     fixed_colvals: None,
                 }, entity.from_pc_edge, 1, db)?;
             
-            let gids = gem.root_gids;
+            let gids = gem.root_gids.clone();
             ghost_eid_mappings.push(gem);
            
             // update children to point to the new ghost
@@ -588,10 +588,17 @@ impl Querier {
                             Decorrelate(f) => { 
                                 // generate all ghost parents
                                 assert!(f < 1.0); 
+                                
+                                let children_to_decorrelate : HashSet<HashedRowPtr> = 
+                                    sensitive_children[0..number_to_desensitize as usize]
+                                        .iter()
+                                        .map(|c| c.hrptr.clone())
+                                        .collect();
 
-                                let number_of_ghosts = match number_to_desensitize {
-                                    total_count => number_to_desensitize,
-                                    _ => number_to_desensitize+1,
+                                let number_of_ghosts = if number_to_desensitize == total_count as i64 {
+                                    number_to_desensitize
+                                } else {
+                                    number_to_desensitize+1
                                 } as usize;
                                                
                                 // create all these ghosts at once
@@ -603,20 +610,19 @@ impl Querier {
                                         fixed_colvals: None,
                                     }, false, number_of_ghosts, db)?;
                                
-                                let gids = gem.root_gids;
-
+                                let gids = gem.root_gids.clone();
                                 ghost_eid_mappings.push(gem); 
-                                
                                 let mut gid_index = 0;
                                 
-                                let children_to_decorrelate : HashSet<TraversedEntity> = 
-                                    &sensitive_children[0..number_to_desensitize as usize].collect();
-
                                 // update all remaining correlated children w/first parent
                                 // (which may be a clone)
                                 if number_to_desensitize < total_count as i64 {
                                     for child_hrptr in all_children {
-                                        if child_hrptr.id() 
+                                        // don't update children that will be assigned unique ghost
+                                        // parents
+                                        if children_to_decorrelate.contains(child_hrptr) {
+                                            continue;
+                                        }
                                         self.views.update_index_and_row_of_view(
                                             &poster_child.table_name, child_hrptr.row().clone(), ci, 
                                             Some(&Value::Number(gids[gid_index].to_string())));
@@ -624,9 +630,9 @@ impl Querier {
                                     gid_index += 1;
                                 }
                                 
-                                for child in &sensitive_children[0..number_to_desensitize as usize] {
+                                for child_hrptr in children_to_decorrelate {
                                     self.views.update_index_and_row_of_view(
-                                        &child.table_name, child.hrptr.row().clone(), ci, 
+                                        &poster_child.table_name, child_hrptr.row().clone(), ci, 
                                         Some(&Value::Number(gids[gid_index].to_string())));
                                     gid_index += 1;
 
@@ -766,7 +772,7 @@ impl Querier {
         // parse gids into table eids -> set of gids
         let mut table = ghost_eid_mappings[0].table.clone();
         let mut eid = ghost_eid_mappings[0].eid;
-        let mut root_gids = ghost_eid_mappings[0].root_gids;
+        let mut root_gids = ghost_eid_mappings[0].root_gids.clone();
         let mut ghosts : Vec<Vec<(String, u64)>> = vec![];
         for mapping in ghost_eid_mappings {
             // do all the work for this eid at once!

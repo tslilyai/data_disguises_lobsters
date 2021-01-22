@@ -417,8 +417,9 @@ impl GhostMaps {
         for row in res {
             let vals = row.unwrap().unwrap();
             assert!(vals.len()==3);
-            
-            let root_gid = helpers::mysql_val_to_u64(&vals[0])?;
+           
+            // TODO this is wrong
+            let root_gids = vec![helpers::mysql_val_to_u64(&vals[0])?];
             let eid = helpers::mysql_val_to_u64(&vals[1])?;
             let ghostdata = helpers::mysql_val_to_string(&vals[2]);
             let ghostdata = ghostdata.trim_end_matches('\'').trim_start_matches('\'');
@@ -426,7 +427,7 @@ impl GhostMaps {
             let mapping = GhostEidMapping {
                 table: table.to_string(),
                 eid: eid,
-                root_gid: root_gid,
+                root_gids: root_gids,
                 ghosts: family_ghost_names,
             };
             mappings.push(mapping);
