@@ -463,7 +463,6 @@ impl Querier {
             &traversed_entities, 
             &mut ghost_eid_mappings, 
             &mut nodes_to_remove, 
-            &mut nodes_to_ghost, 
             db,
         )?;
 
@@ -519,7 +518,6 @@ impl Querier {
         children: &HashSet<TraversedEntity>, 
         ghost_eid_mappings: &mut Vec<GhostEidMapping>,
         nodes_to_remove: &mut HashSet<EntityData>,
-        nodes_to_ghost: &mut HashSet<TraversedEntity>,
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
@@ -569,28 +567,9 @@ impl Querier {
                     Retain => sensitivity = 1.0,
                 }
 
-                // if we're retaining all edges, we just need to ghost the parent
+                // if we're retaining all edges, we don't do anything (we don't ghost parents in
+                // the child->parent direction)
                 if sensitivity == 1.0 {
-                    for (parent_eid, _) in parent_eid_counts.iter() {
-                        // get parent entity, add it to nodes to ghost
-                        let parent_rptr = self.views.get_row_of_id(&policy.parent, *parent_eid);
-                        let parent = TraversedEntity{
-                            table_name: policy.parent.clone(),
-                            eid: *parent_eid,
-                            hrptr: HashedRowPtr::new(parent_rptr, self.views.get_view_pi(&policy.parent)),
-                            parent_table: "".to_string(),
-                            parent_col_index: 0,
-                            from_pc_edge: false,
-                        };
- 
-                        // we want to remove the template parent
-                        nodes_to_remove.insert(subscriber::traversed_entity_to_entitydata(&parent));
-
-                        nodes_to_ghost.insert(parent);
-
-                        warn!("UNSUB STEP 2: Retaining all edges from {} to parent {}.{}",
-                          table_name, policy.parent, *parent_eid);
-                    }
                     continue;
                 }
 
@@ -613,15 +592,6 @@ impl Querier {
                         if number_to_desensitize > sensitive_count as i64 {
                             unimplemented!("No support for decorrelated or removing non-sensitive children");
                         }
-
-                        let parent = TraversedEntity{
-                            table_name: policy.parent.clone(),
-                            eid: *parent_eid,
-                            hrptr: HashedRowPtr::new(parent_rptr.clone(), self.views.get_view_pi(&policy.parent)),
-                            parent_table: "".to_string(),
-                            parent_col_index: 0,
-                            from_pc_edge: false,
-                        };
                 
                         match policy.cp_policy {
                             Decorrelate(f) => { 
@@ -651,24 +621,10 @@ impl Querier {
                                
                                 let gids = gem.root_gids.clone();
                                 ghost_eid_mappings.push(gem); 
-                                let mut gid_index = 0;
-                                
-                                // update all remaining correlated children w/first parent
-                                // (which may be a clone)
-                                if number_to_desensitize < total_count as i64 {
-                                    for child_hrptr in all_children {
-                                        // don't update children that will be assigned unique ghost
-                                        // parents
-                                        if children_to_decorrelate.contains(child_hrptr) {
-                                            continue;
-                                        }
-                                        self.views.update_index_and_row_of_view(
-                                            &poster_child.table_name, child_hrptr.row().clone(), ci, 
-                                            Some(&Value::Number(gids[gid_index].to_string())));
-                                    }
-                                    gid_index += 1;
-                                }
-                                
+
+                                // we ignore the first parent (which might be a clone) because
+                                // we're actually retaining the original parent entity
+                                let mut gid_index = 1;
                                 for child_hrptr in children_to_decorrelate {
                                     self.views.update_index_and_row_of_view(
                                         &poster_child.table_name, child_hrptr.row().clone(), ci, 
@@ -676,23 +632,12 @@ impl Querier {
                                     gid_index += 1;
 
                                 }
-                                // we don't add the parent to the nodes to ghost because we've already
-                                // decorrelated it
-                                 
-                                // but we do want to remove the template parent
-                                nodes_to_remove.insert(subscriber::traversed_entity_to_entitydata(&parent));
                             }
                             Delete(_) => {
                                 // add all the sensitive removed entities to return to the user 
                                 for child in &sensitive_children[0..number_to_desensitize as usize] {
                                     self.get_tree_from_child(&child, nodes_to_remove);
                                 }
-         
-                                // we want to remove the template parent
-                                nodes_to_remove.insert(subscriber::traversed_entity_to_entitydata(&parent));
-
-                                // ghost the parent node
-                                nodes_to_ghost.insert(parent);
                             }
                             _ => unimplemented!("Shouldn't have a retain policy with a positive number to desensitize")
                         }
