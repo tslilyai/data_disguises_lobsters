@@ -1,20 +1,36 @@
 \begin{abstract}
-    Web applications face increasing legal and user demands to transparently manage user data,
-    whether through supporting user's right to be forgotten, removing unnecessary or old user data,
-    or moderating user content.
-    %
-    Meeting these demands to \emph{mask} data requires applications to
-    remove or modify data, while still retaining data required for application
-    utility or legal purposes. Because such transformations are necessarily application-specific and
-    require handling complex data correlations, today's applications often forgo these
-    transformations, or use ad-hoc methods with unclear guarantees to achieve them.
-    %
-
-    To help developers support data masks in new and existing applications, we design and
-    implement \sys, a system that takes as input a high-level specification of a data mask, and
-    automatically applies the mask to the application database.  \sys relies on the key abstractions of
-    application \emph{entity graphs} and \emph{ghost entities}, which allow developers to flexibly express
-    and automate practical data masks without onerous labor.
+Web applications face increasing legal and user demands to transparently manage user data,
+whether through supporting user's right to be forgotten, removing unnecessary or old user data,
+or moderating user content.
+%
+Meeting these demands to \emph{mask} data requires applications to
+remove or modify data, while still retaining data required for legal purposes or
+to preserve application utility.
+%
+Because such transformations are necessarily application-specific and
+require handling complex data correlations, today's applications often forgo these
+transformations, or implement ad-hoc transformations with unclear guarantees.
+\ms{sets us up to specify what guarantees we make}
+%
+\ms{propose to rewrite following paragraph to make it more HotOS-y:
+We propose \emph{data masking}, a systematic approach that helps developers
+generate concrete privacy transformations for database-backed web applications from
+a high-level specification.
+%
+%
+Data masking tools address use cases that require onerous manual labor today, such
+as GDPR compliance, user unsubscription, or data deidentification.
+%
+Importantly, data masks enable reversible transformations that permit returning to
+an identity-revealing state at any time.
+%
+A prototype demonstrates that data masking can be practical.
+}
+To help developers support data masks in new and existing applications, we design and
+implement \sys, a system that takes as input a high-level specification of a data mask, and
+automatically applies the mask to the application database.  \sys relies on the key abstractions of
+application \emph{entity graphs} and \emph{ghost entities}, which allow developers to flexibly express
+and automate practical data masks without onerous labor.
 \end{abstract}
 
 \iffalse
@@ -29,7 +45,7 @@ service only retains anonymized data about them.
 This paradigm strikes a balance between current practices that give services control over user
     data with low user privacy; and the opposite extreme that decouples user data from
     services for strong privacy, but breaks current business models and reduces service utility.
-%achieves better user privacy and data protection than today's services, 
+%achieves better user privacy and data protection than today's services,
 %but without making impractical assumptions or breaking current business models.
 %
 Under \name, users withdraw from a service without permanently losing access,
@@ -43,9 +59,9 @@ efficiently and with low burden for application developers.
 %\ms{We should give our paradigm a name!}
 
 %The paper proposes a new web application \emph{subscription paradigm},  Users flexibly switch between a privacy-preserving unsubscribed mode and an
-%identity-revealing subscribed mode at any time without permanently losing their data. 
+%identity-revealing subscribed mode at any time without permanently losing their data.
 %This subscription paradigm strikes a balance between applications having complete ownership of user
-%data, and completely decoupling user data from applications at the cost of application utility. 
+%data, and completely decoupling user data from applications at the cost of application utility.
 %To solve the complex data retention and de-identification challenges associated with subscription,
 %we design \name{}, a practical system that provides abstractions and mechanisms to help
 %developers of databased-backed web applications achieve correct, privacy-compliant user
