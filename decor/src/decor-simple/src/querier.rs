@@ -458,6 +458,10 @@ impl Querier {
          * Step 3: Change intermediate and leaf entities to ghosts TODO
          */
         for entity in nodes_to_ghost {
+            // this was already ghosted in a prior unsubscription
+            if entity.eid >= GHOST_ID_START {
+                continue;
+            }
             warn!("UNSUB {} STEP 3: Changing {:?} to ghost", uid, entity);
             // create ghost for this entity
             let gem = self.insert_ghosts_for_template(
@@ -560,6 +564,8 @@ impl Querier {
                             parent_col_index: 0,
                             from_pc_edge: false,
                         });
+                        warn!("UNSUB STEP 2: Retaining all edges from {} to parent {}.{}",
+                          poster_child.table_name, policy.parent, *parent_eid);
                     }
                     continue;
                 }
@@ -662,7 +668,7 @@ impl Querier {
                 }
             }
         }
-        warn!("UNSUB Step 2: Duration {}us", start.elapsed().as_micros());
+        warn!("UNSUB STEP 2: Duration {}us", start.elapsed().as_micros());
         Ok(())
     }
 
