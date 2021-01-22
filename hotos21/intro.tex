@@ -3,10 +3,11 @@
 %-------------------------------------------------------------------------------
 Web applications today own, process, and store user data~\cite{nytimes:fb, npr:data}.  This places a
 great responsibility on application developers to transparently convey to users how they manage this
-data via their privacy policies and terms of use. 
+data via their privacy policies and terms of use.
 %
+\ms{next sentence doesn't follow: privacy policies + ToS doesn't imply data masks.}
 Recent developments have renewed efforts to improve the state of data management in web
-applications, creating incentives to support different forms of \emph{data masks}. 
+applications, creating incentives to support different forms of \emph{data masks}.
 
 For example, applications mask data to hide a users' identity, performing privacy-preserving user
 unsubscription from a service as mandated by laws such as the EU's General Data Protection
@@ -41,7 +42,7 @@ for \sys to systematically reason about and automate a variety of data masks.
 %To help developers of new and existing applications support privatization transformations, we
 %propose \sys, which makes the key insight to model application data as an abstract \emph{entity
 %graph}, and represent privatization transformations as transformations of this graph that render
-%particular entities private. 
+%particular entities private.
 
 With \sys, developers specify a \emph{mask policy} by choosing from a menu of provided edge and node
 transformations. To determine an appropriate policy, developers introduce \emph{ghost entities} in the entity graph, which allow the mask to both retain, decorrelate, modify,
@@ -68,14 +69,14 @@ Web applications today own, store, and sell user data, often without the user's 
 explicit consent~\cite{nytimes:fb, npr:data}. This both violates users' right for privacy, and has
 dangerous consequences for both users and application developers as data leaks lead to loss of
 livelihoods and lawsuits~\cite{breach:amazon,breach:twitter, breach:fb, breach:marriott,
-breach:quora}. 
+breach:quora}.
 %Granting web applications complete ownership of personal data clearly fails to
-%protect users' privacy. 
+%protect users' privacy.
 
 Although users want stronger privacy, completely decoupling user data from applications results in a
 potentially even less desirable world. While possible~\cite{solid, amber, w5, blockstack, bstore}, such a
 model hinders service-side computation and application performance, and requires users to manage
-long-time security and storage of their data, leading to a lack of adoption in practice (Section~\ref{sec:related}).  
+long-time security and storage of their data, leading to a lack of adoption in practice (Section~\ref{sec:related}).
 
 This paper proposes \name, a new paradigm that grants users flexible privacy when using web
 applications, balancing users' desire for privacy with their desire for application utility. In
@@ -84,7 +85,7 @@ provision that the application may retain only de-identified information once th
 Users flexibly switch between a privacy-preserving unsubscribed mode and an identity-revealing
 subscribed mode at any time without permanently losing their data. \name contrasts
 with the current web application paradigm for data ownership, in which applications have complete
-ownership, and the other extreme in which the user has complete data ownership.% (see Figure~\ref{fig:world}). 
+ownership, and the other extreme in which the user has complete data ownership.% (see Figure~\ref{fig:world}).
 
 \name benefits users: they can choose privacy at any time, without
 permanently losing their accounts or affecting the utility of the applications for others.  Just as
@@ -94,7 +95,7 @@ Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' rights to data ownership,
 right to request erasure of information related to them. Supporting \name enables
 applications to comply with these legal mandates, while still allowing its departing users to easily
 come back: if applications must let users leave, it is in their best interest to make it easy for
-them to return.  
+them to return.
 
 Furthermore, applications can continue to operate using their current revenue model, maintaining
 performance, reliability, and utility for their users.  Because applications retain use of
@@ -117,8 +118,8 @@ represent unsubscription and resubscription as transformations of this graph.
 and declarative \emph{ghost policies} specify reversible transformations upon unsubscription.
 We design and implement \sys, a practical system that systematically automates this transformation for new and existing applications, helping developers realize the \name paradigm without onerous labor.
 %that takes a developer-specified unsubscription policy for the application's entity
-%graph, and ensures that 
-%that requires developers only to specify an abstract unsubscription policy on the 
+%graph, and ensures that
+%that requires developers only to specify an abstract unsubscription policy on the
 %helps developers of databased-backed web applications automatically achieve correct, privacy-compliant user unsubscription and
 %resubscription without onerous labor.
 \fi
