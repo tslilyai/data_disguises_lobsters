@@ -80,6 +80,14 @@ pub fn answer_rows<W: io::Write>(
     Ok(())
 }
 
+pub fn traversed_entity_to_entitydata(entity: &TraversedEntity) -> EntityData {
+    EntityData{
+        table: entity.table_name.clone(),
+        eid: entity.eid,
+        row_strs: entity.hrptr.row().borrow().iter().map(|v| v.to_string()).collect(),
+    }
+}
+
 impl Subscriber {
     pub fn new() -> Self {
         Subscriber {
@@ -101,7 +109,7 @@ impl Subscriber {
         writer: QueryResultWriter<W>,
         eid: u64,
         ghost_eid_mappings: &mut Vec<GhostEidMapping>,
-        removed_entities: &HashSet<TraversedEntity>,
+        entity_data: &mut HashSet<EntityData>,
         db: &mut mysql::Conn,
     ) -> Result<(), mysql::Error> {
         // cache the hash of the gids we are returning
@@ -112,15 +120,8 @@ impl Subscriber {
         warn!("Hashing {}, got {}", serialized1, result1);
         self.hasher.reset();
     
-        let mut entity_data = vec![];
-        for entity in removed_entities {
-            entity_data.push(EntityData{
-                table: entity.table_name.clone(),
-                row_strs: entity.hrptr.row().borrow().iter().map(|v| v.to_string()).collect(),
-            });
-        }
-
         // note, the recipient has to just return the entities in order...
+        let mut entity_data : Vec<&EntityData> = entity_data.iter().collect();
         entity_data.sort();
         let serialized2 = serde_json::to_string(&entity_data).unwrap();
         self.hasher.input_str(&serialized2);

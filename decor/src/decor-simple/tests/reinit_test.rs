@@ -322,16 +322,19 @@ fn test_init_complex() {
     assert_eq!(entity_data[0], 
                EntityData{
                     table: "stories".to_string(),
+                    eid: 0,
                     row_strs: vec!["1".to_string(), "1".to_string(), "'google.com'".to_string(), "0".to_string()],
                });
     assert_eq!(entity_data[1], 
                EntityData{
                     table: "stories".to_string(),
+                    eid: 0,
                     row_strs: vec!["2".to_string(), "1".to_string(), "'bing.com'".to_string(), "0".to_string()],
                });
     assert_eq!(entity_data[2], 
                EntityData{
                     table: "users".to_string(), 
+                    eid: 0,
                     row_strs: vec!["1".to_string(), "'hello_1'".to_string(), "10".to_string()],
                 });
 

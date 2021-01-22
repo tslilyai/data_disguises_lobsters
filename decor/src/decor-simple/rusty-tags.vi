@@ -3754,7 +3754,7 @@ get_tcp_nodelay	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/m
 get_tcp_port	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/opts.rs	/^    pub fn get_tcp_port(&self) -> u16 {$/;"	f
 get_test_vectors	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/aes_gcm.rs	/^    fn get_test_vectors()-> [TestVector; 5]{$/;"	f
 get_test_vectors	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/chacha20poly1305.rs	/^  fn get_test_vectors()-> Vec<TestVector>{$/;"	f
-get_tree_from_child	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn get_tree_from_child(&mut self, child: &TraversedEntity, nodes: &mut HashSet<TraversedEntity>)$/;"	f
+get_tree_from_child	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn get_tree_from_child(&mut self, child: &TraversedEntity, nodes: &mut HashSet<EntityData>)$/;"	f
 get_user	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/opts.rs	/^    pub fn get_user(&self) -> Option<&str> {$/;"	f
 get_value_for_row_closure	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/select/select.rs	/^pub fn get_value_for_row_closure(e: &Expr, columns: &Vec<TableColumnDef>) -> Box<dyn Fn(&Vec<Value>) -> Value> {$/;"	f
 get_view	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn get_view(&self, name: &str) -> Option<Rc<RefCell<View>>> {$/;"	f
@@ -5425,7 +5425,7 @@ remote	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_deri
 remove	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/stmt_cache.rs	/^    pub fn remove(&mut self, id: u32) {$/;"	f
 remove	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^    pub fn remove(self) -> Value {$/;"	f
 remove	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^    pub fn remove<Q>(&mut self, key: &Q) -> Option<Value>$/;"	f
-remove_entities	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn remove_entities(&mut self, nodes: &HashSet<TraversedEntity>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {$/;"	f
+remove_entities	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn remove_entities(&mut self, nodes: &HashSet<EntityData>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {$/;"	f
 remove_escaped_chars	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/mysql_helpers.rs	/^pub fn remove_escaped_chars(s: &str) -> String {$/;"	f
 remove_views	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn remove_views(&mut self, names: &Vec<ObjectName>) {$/;"	f
 rename_all_rules	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/internals/attr.rs	/^    pub fn rename_all_rules(&self) -> &RenameAllRules {$/;"	f
@@ -6878,6 +6878,7 @@ tokenize_string	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/sql
 tokenize_word	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/sql-parser/src/tokenizer.rs	/^    fn tokenize_word(&self, first_char: char, chars: &mut PeekableChars) -> String {$/;"	f
 trace	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/log-0.4.11/src/macros.rs	/^macro_rules! trace {$/;"	d
 transparent	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/internals/attr.rs	/^    pub fn transparent(&self) -> bool {$/;"	f
+traversed_entity_to_entitydata	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^pub fn traversed_entity_to_entitydata(entity: &TraversedEntity) -> EntityData {$/;"	f
 tri	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/lib.rs	/^macro_rules! tri {$/;"	d
 trim_quotes	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/parser_helpers.rs	/^pub fn trim_quotes(s: &str) -> &str {$/;"	f
 truncate	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/buffer.rs	/^    fn truncate(&mut self, amount: usize) { self.len -= amount; }$/;"	f

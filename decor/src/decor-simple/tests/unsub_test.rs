@@ -238,47 +238,62 @@ fn test_complex() {
         unsubscribed_gids = serde_json::from_str(&gidshardstr).unwrap();
         entity_data = serde_json::from_str(&entitydatastr).unwrap();
     }
-    warn!("user 1 gidshard: {:?}", unsubscribed_gids);
-    warn!("user 1 entity data: {:?}", entity_data);
+    for ugid in &unsubscribed_gids{
+        println!("User1 {:?}", ugid);
+    }
+    for entity in &entity_data {
+        println!("User1 {:?}", entity);
+    }
     for mapping in &unsubscribed_gids {
         if mapping.table == "users" {
-            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 1);
+            // two ghosts for two stories
+            // one ghost for each moderation
+            assert!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count() <= 2);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 0);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
             user_counts += 1;
         } else if mapping.table == "stories" {
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 1);
-            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 1);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 0);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
             story_counts += 1;
         } else if mapping.table == "moderations" {
-            warn!("Mapping for moderations table: {:?}", mapping);
-            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 2);
-            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 2);
-            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 4);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 0);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 1);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 0);
             mod_counts += 1;
         } else {
             assert!(false, "bad table! {}", mapping.table);
         }
     }
     assert_eq!(unsubscribed_gids.len(), 8);
-    assert_eq!(user_counts, 4);
-    assert_eq!(story_counts, 2); // decorrelated two stories
+    assert_eq!(user_counts, 4); 
+    assert_eq!(story_counts, 2); // generated two stories
     assert_eq!(mod_counts, 2); // generated two moderations
-    assert_eq!(entity_data.len(), 3);
+    assert_eq!(entity_data.len(), 6); // two users, two stories, two moderations
     assert_eq!(entity_data[0], 
                EntityData{
-                    table: "stories".to_string(),
-                    row_strs: vec!["1".to_string(), "1".to_string(), "'google.com'".to_string(), "0".to_string()],
+                    table: "moderations".to_string(),
+                    eid: 1,
+                    row_strs: vec!["1".to_string(), "1".to_string(), "2".to_string(), "'bad story!'".to_string()],
                });
+
     assert_eq!(entity_data[1], 
                EntityData{
                     table: "stories".to_string(),
-                    row_strs: vec!["2".to_string(), "1".to_string(), "'bing.com'".to_string(), "0".to_string()],
+                    eid: 0,
+                    row_strs: vec!["1".to_string(), "1".to_string(), "'google.com'".to_string(), "0".to_string()],
                });
     assert_eq!(entity_data[2], 
                EntityData{
+                    table: "stories".to_string(),
+                    eid: 0,
+                    row_strs: vec!["2".to_string(), "1".to_string(), "'bing.com'".to_string(), "0".to_string()],
+               });
+    assert_eq!(entity_data[3], 
+               EntityData{
                     table: "users".to_string(), 
+                    eid: 0,
                     row_strs: vec!["1".to_string(), "'hello_1'".to_string(), "0".to_string()],
                 });
    

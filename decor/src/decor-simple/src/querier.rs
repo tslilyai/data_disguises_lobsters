@@ -290,7 +290,7 @@ impl Querier {
         let mut ghost_eid_mappings : Vec<GhostEidMapping> = vec![];
 
         // all entities to be replaced or removed, as they existed prior to unsubscription
-        let mut nodes_to_remove : HashSet<TraversedEntity> = HashSet::new();
+        let mut nodes_to_remove : HashSet<EntityData> = HashSet::new();
        
         // all entities to be replaced by ghosted versions
         let mut nodes_to_ghost : HashSet<TraversedEntity> = HashSet::new();
@@ -391,6 +391,9 @@ impl Querier {
                                     warn!("Adding traversed child {}, {}", child.table_name, child.eid);
                                     children_to_traverse.push(child);
                                 }
+                                
+                                // we want to remove the template parent
+                                nodes_to_remove.insert(subscriber::traversed_entity_to_entitydata(&node));
 
                                 // we don't add this to the nodes to ghost because we've already
                                 // decorrelated it
@@ -401,6 +404,9 @@ impl Querier {
 
                             // replace this node with a ghost node
                             nodes_to_ghost.insert(node.clone());
+ 
+                            // we want to eventually remove the template parent
+                            nodes_to_remove.insert(subscriber::traversed_entity_to_entitydata(&node));
 
                             for hrptr in child_hrptrs {
                                 let child = TraversedEntity {
@@ -420,6 +426,9 @@ impl Querier {
                         Retain => {
                             // replace this node with a ghost node
                             nodes_to_ghost.insert(node.clone());
+                            
+                            // we want to eventually remove the template parent
+                            nodes_to_remove.insert(subscriber::traversed_entity_to_entitydata(&node));
 
                             for hrptr in child_hrptrs {
                                 let child = TraversedEntity {
@@ -450,18 +459,24 @@ impl Querier {
          * For all edges to the parent entity that need to reach a particular sensitivity
          * threshold, decorrelate or remove the children; if retained, ghost the parent. 
          */
-        // TODO add to nodes_to_ghost(?) NO , we should handle decorrelating parents in this
-        // function to ensure clone policies are correct
-        self.unsubscribe_child_parent_edges(&traversed_entities, &mut ghost_eid_mappings, &mut nodes_to_remove, &mut nodes_to_ghost, db)?;
+        self.unsubscribe_child_parent_edges(
+            &traversed_entities, 
+            &mut ghost_eid_mappings, 
+            &mut nodes_to_remove, 
+            &mut nodes_to_ghost, 
+            db,
+        )?;
 
         /*
-         * Step 3: Change intermediate and leaf entities to ghosts TODO
+         * Step 3: Change intermediate and leaf entities to ghosts 
+         *  TODO optimize policies where all values are cloned
          */
         for entity in nodes_to_ghost {
             // this was already ghosted in a prior unsubscription
             if entity.eid >= GHOST_ID_START {
                 continue;
             }
+            // XXX we're going to save "nodes to remove"
             warn!("UNSUB {} STEP 3: Changing {:?} to ghost", uid, entity);
             // create ghost for this entity
             let gem = self.insert_ghosts_for_template(
@@ -487,10 +502,6 @@ impl Querier {
                     }
                 }
             }
-
-            // TODO optimize policies where all values are cloned
-            // we ghosted this node, we want to remove it and return to the user
-            nodes_to_remove.insert(entity.clone());
         }
 
         /*
@@ -507,7 +518,7 @@ impl Querier {
     pub fn unsubscribe_child_parent_edges(&mut self, 
         children: &HashSet<TraversedEntity>, 
         ghost_eid_mappings: &mut Vec<GhostEidMapping>,
-        nodes_to_remove: &mut HashSet<TraversedEntity>,
+        nodes_to_remove: &mut HashSet<EntityData>,
         nodes_to_ghost: &mut HashSet<TraversedEntity>,
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
@@ -527,7 +538,7 @@ impl Querier {
         for (table_name, table_children) in tables_to_children.iter() {
             let edge_policies = self.policy.edge_policies.get(table_name).unwrap().clone();
             let poster_child = table_children[0];
-            let child_columns = self.views.get_view_columns(&poster_child.table_name);
+            let child_columns = self.views.get_view_columns(&table_name);
     
             for policy in &*edge_policies {
                 let ci = child_columns.iter().position(|c| policy.column == c.to_string()).unwrap();
@@ -535,6 +546,13 @@ impl Querier {
                 // group all table children by EID
                 let mut parent_eid_counts : HashMap<u64, Vec<&TraversedEntity>> = HashMap::new();
                 for child in table_children {
+                    
+                    // make sure that we don't accidentally decorrelate or delete edges from the parent
+                    // that led to this child
+                    if child.parent_col_index == ci {
+                        continue;
+                    }
+
                     let parent_eid_val = &child.hrptr.row().borrow()[ci];
                     let parent_eid = helpers::parser_val_to_u64(parent_eid_val);
                     if let Some(count) = parent_eid_counts.get_mut(&parent_eid) {
@@ -545,7 +563,7 @@ impl Querier {
                 }
 
                 let sensitivity : f64;
-                match policy.pc_policy {
+                match policy.cp_policy {
                     Decorrelate(f) => sensitivity = f,
                     Delete(f) => sensitivity = f,
                     Retain => sensitivity = 1.0,
@@ -556,16 +574,22 @@ impl Querier {
                     for (parent_eid, _) in parent_eid_counts.iter() {
                         // get parent entity, add it to nodes to ghost
                         let parent_rptr = self.views.get_row_of_id(&policy.parent, *parent_eid);
-                        nodes_to_ghost.insert(TraversedEntity{
+                        let parent = TraversedEntity{
                             table_name: policy.parent.clone(),
                             eid: *parent_eid,
                             hrptr: HashedRowPtr::new(parent_rptr, self.views.get_view_pi(&policy.parent)),
                             parent_table: "".to_string(),
                             parent_col_index: 0,
                             from_pc_edge: false,
-                        });
+                        };
+ 
+                        // we want to remove the template parent
+                        nodes_to_remove.insert(subscriber::traversed_entity_to_entitydata(&parent));
+
+                        nodes_to_ghost.insert(parent);
+
                         warn!("UNSUB STEP 2: Retaining all edges from {} to parent {}.{}",
-                          poster_child.table_name, policy.parent, *parent_eid);
+                          table_name, policy.parent, *parent_eid);
                     }
                     continue;
                 }
@@ -574,11 +598,11 @@ impl Querier {
                 for (parent_eid, sensitive_children) in parent_eid_counts.iter() {
                     // get all children of this type with the same parent entity eid
                     let childrows = self.views.graph.get_children_of_parent(&policy.parent, *parent_eid).unwrap();
-                    let all_children = childrows.get(&(poster_child.table_name.clone(), ci)).unwrap();
+                    let all_children = childrows.get(&(table_name.clone(), ci)).unwrap();
                     let total_count = all_children.len();
                     let sensitive_count = sensitive_children.len();
-                    warn!("UNSUB STEP 2: Found {} total and {} sensitive children of type {} with parent {}", 
-                          total_count, sensitive_count, policy.parent, parent_eid);
+                    warn!("UNSUB STEP 2: Found {} total and {} sensitive children of type {} of parent {}.{}", 
+                          total_count, sensitive_count, poster_child.table_name, policy.parent, parent_eid);
                     
                     let number_to_desensitize = (((sensitive_count as f64 * (1.0-sensitivity)) 
                                                   - (total_count  as f64* sensitivity)) 
@@ -589,8 +613,17 @@ impl Querier {
                         if number_to_desensitize > sensitive_count as i64 {
                             unimplemented!("No support for decorrelated or removing non-sensitive children");
                         }
-                        
-                        match policy.pc_policy {
+
+                        let parent = TraversedEntity{
+                            table_name: policy.parent.clone(),
+                            eid: *parent_eid,
+                            hrptr: HashedRowPtr::new(parent_rptr.clone(), self.views.get_view_pi(&policy.parent)),
+                            parent_table: "".to_string(),
+                            parent_col_index: 0,
+                            from_pc_edge: false,
+                        };
+                
+                        match policy.cp_policy {
                             Decorrelate(f) => { 
                                 // generate all ghost parents
                                 assert!(f < 1.0); 
@@ -645,22 +678,21 @@ impl Querier {
                                 }
                                 // we don't add the parent to the nodes to ghost because we've already
                                 // decorrelated it
+                                 
+                                // but we do want to remove the template parent
+                                nodes_to_remove.insert(subscriber::traversed_entity_to_entitydata(&parent));
                             }
                             Delete(_) => {
                                 // add all the sensitive removed entities to return to the user 
                                 for child in &sensitive_children[0..number_to_desensitize as usize] {
                                     self.get_tree_from_child(&child, nodes_to_remove);
                                 }
+         
+                                // we want to remove the template parent
+                                nodes_to_remove.insert(subscriber::traversed_entity_to_entitydata(&parent));
 
                                 // ghost the parent node
-                                nodes_to_ghost.insert(TraversedEntity{
-                                    table_name: policy.parent.clone(),
-                                    eid: *parent_eid,
-                                    hrptr: HashedRowPtr::new(parent_rptr.clone(), self.views.get_view_pi(&policy.parent)),
-                                    parent_table: "".to_string(),
-                                    parent_col_index: 0,
-                                    from_pc_edge: false,
-                                });
+                                nodes_to_ghost.insert(parent);
                             }
                             _ => unimplemented!("Shouldn't have a retain policy with a positive number to desensitize")
                         }
@@ -672,7 +704,7 @@ impl Querier {
         Ok(())
     }
 
-    pub fn get_tree_from_child(&mut self, child: &TraversedEntity, nodes: &mut HashSet<TraversedEntity>)
+    pub fn get_tree_from_child(&mut self, child: &TraversedEntity, nodes: &mut HashSet<EntityData>)
     {
         let mut children_to_traverse: Vec<TraversedEntity> = vec![];
         children_to_traverse.push(child.clone());
@@ -699,19 +731,19 @@ impl Querier {
                     }
                 }
             }
-            nodes.insert(node.clone());
+            nodes.insert(subscriber::traversed_entity_to_entitydata(&node));
         }
     }
 
-    fn remove_entities(&mut self, nodes: &HashSet<TraversedEntity>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    fn remove_entities(&mut self, nodes: &HashSet<EntityData>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         let id_col = Expr::Identifier(helpers::string_to_idents(ID_COL));
         let mut table_to_nodes : HashMap<String, Vec<u64>> = HashMap::new();
 
         for node in nodes {
-            match table_to_nodes.get_mut(&node.table_name) {
+            match table_to_nodes.get_mut(&node.table) {
                 Some(ids) => ids.push(node.eid),
                 None => {
-                    table_to_nodes.insert(node.table_name.clone(), vec![node.eid]);
+                    table_to_nodes.insert(node.table.clone(), vec![node.eid]);
                 }
             }
         }

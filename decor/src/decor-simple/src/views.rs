@@ -601,8 +601,8 @@ impl Views {
                     }
                     // TODO ensure self.latest_uid never goes above GID_START
                     if max > id_val {
-                        warn!("Autoinc col of view {} is set to {:?}", view.name, view.autoinc_col);
                         view.autoinc_col = Some((col_index, max+1));
+                        warn!("Autoinc col of view {} is set to {:?}", view.name, view.autoinc_col);
                     } 
                     found = true;
                     break;

@@ -222,19 +222,19 @@ pub fn combined_policy() -> ApplicationPolicy {
             parent: "users".to_string(),
             column: "user_id".to_string(),
             pc_policy: Decorrelate(0.0),
-            cp_policy: Decorrelate(0.4),
+            cp_policy: Retain,
         },
         EdgePolicy{
             parent: "users".to_string(),
             column: "moderator_user_id".to_string(),
             pc_policy: Delete(0.0),
-            cp_policy: Decorrelate(0.4),
+            cp_policy: Retain,
         },
         EdgePolicy{
             parent: "stories".to_string(),
             column: "story_id".to_string(),
-            pc_policy: Decorrelate(0.0),
-            cp_policy: Decorrelate(0.0),
+            pc_policy: Decorrelate(0.5),
+            cp_policy: Retain,
         }
     ]));
     edge_policies.insert("stories".to_string(), Rc::new(vec![
