@@ -109,11 +109,14 @@ fn test_unsub_noop() {
         let s2 = s2.trim_end_matches('\'').trim_start_matches('\'');
         unsubscribed_gids = serde_json::from_str(s1).unwrap();
         entity_data = serde_json::from_str(s2).unwrap();
-        for entity in &entity_data {
+        for ugid in &unsubscribed_gids{
+            println!("User1 {:?}", ugid);
+        }
+        for entity in &entity_data { 
             println!("Entity! {:?}", entity);
         }
-        assert_eq!(entity_data.len(), 6);
-        assert_eq!(unsubscribed_gids.len(), 6);
+        assert_eq!(entity_data.len(), 5); // user, two stories, two moderations
+        assert_eq!(unsubscribed_gids.len(), 5);
     }
     
     let mut results = vec![];
@@ -151,12 +154,15 @@ fn test_unsub_noop() {
         let s2 = s2.trim_end_matches('\'').trim_start_matches('\'');
         unsubscribed_gids = serde_json::from_str(s1).unwrap();
         entity_data = serde_json::from_str(s2).unwrap();
+        for ugid in &unsubscribed_gids{
+            println!("User2 {:?}", ugid);
+        }
         for entity in &entity_data {
             println!("Entity! {:?}", entity);
         }
-        // note: we don't ghost entities twice
-        assert_eq!(entity_data.len(), 2);
-        assert_eq!(unsubscribed_gids.len(), 2);
+        // note: we don't ghost entities twice, so we're only going to see user + two stories
+        assert_eq!(entity_data.len(), 3);
+        assert_eq!(unsubscribed_gids.len(), 3);
     }
     
     let mut results = vec![];
@@ -270,27 +276,32 @@ fn test_complex() {
     assert_eq!(user_counts, 4); 
     assert_eq!(story_counts, 2); // generated two stories
     assert_eq!(mod_counts, 2); // generated two moderations
-    assert_eq!(entity_data.len(), 6); // two users, two stories, two moderations
+    assert_eq!(entity_data.len(), 3); // one user, two stories, two moderations
     assert_eq!(entity_data[0], 
                EntityData{
                     table: "moderations".to_string(),
                     eid: 1,
                     row_strs: vec!["1".to_string(), "1".to_string(), "2".to_string(), "'bad story!'".to_string()],
                });
-
     assert_eq!(entity_data[1], 
                EntityData{
-                    table: "stories".to_string(),
-                    eid: 0,
-                    row_strs: vec!["1".to_string(), "1".to_string(), "'google.com'".to_string(), "0".to_string()],
+                    table: "moderations".to_string(),
+                    eid: 2,
+                    row_strs: vec!["2".to_string(), "2".to_string(), "1".to_string(), "'worst story!'".to_string()],
                });
     assert_eq!(entity_data[2], 
                EntityData{
                     table: "stories".to_string(),
                     eid: 0,
-                    row_strs: vec!["2".to_string(), "1".to_string(), "'bing.com'".to_string(), "0".to_string()],
+                    row_strs: vec!["1".to_string(), "1".to_string(), "'google.com'".to_string(), "0".to_string()],
                });
     assert_eq!(entity_data[3], 
+               EntityData{
+                    table: "stories".to_string(),
+                    eid: 0,
+                    row_strs: vec!["2".to_string(), "1".to_string(), "'bing.com'".to_string(), "0".to_string()],
+               });
+    assert_eq!(entity_data[4], 
                EntityData{
                     table: "users".to_string(), 
                     eid: 0,

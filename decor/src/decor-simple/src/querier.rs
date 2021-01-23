@@ -321,6 +321,7 @@ impl Querier {
             let start = time::Instant::now();
 
             let node = children_to_traverse.pop().unwrap();
+            let nodedata = subscriber::traversed_entity_to_entitydata(&node);
                                    
             // add entity to seen 
             traversed_entities.insert(node.clone()); 
@@ -329,7 +330,8 @@ impl Querier {
             let children : EntityTypeRows;
             match self.views.graph.get_children_of_parent(&node.table_name, node.eid) {
                 None => {
-                    // this is a leaf node, we want to ghost it
+                    // this is a leaf node, we want to ghost it and remove the template
+                    nodes_to_remove.insert(nodedata);
                     nodes_to_ghost.insert(node);
                     continue;
                 }
@@ -386,14 +388,17 @@ impl Querier {
                                     Some(&Value::Number(gids[gid_index].to_string())));
                                 gid_index += 1;
 
-                                // if child hasn't been seen yet, traverse
-                                if traversed_entities.get(&child).is_none() {
+                                // if child hasn't been seen and hasn't been ghosted yet, traverse
+                                // child would only be ghosted if it itself had children that had
+                                // to be decorrelated---if it's a ghost, this means that a prior
+                                // unsubscription already took care of it!
+                                if traversed_entities.get(&child).is_none() && !is_ghost_eid(child.eid) {
                                     warn!("Adding traversed child {}, {}", child.table_name, child.eid);
                                     children_to_traverse.push(child);
                                 }
                                 
                                 // we want to remove the template parent
-                                nodes_to_remove.insert(subscriber::traversed_entity_to_entitydata(&node));
+                                nodes_to_remove.insert(nodedata.clone());
 
                                 // we don't add this to the nodes to ghost because we've already
                                 // decorrelated it
@@ -406,7 +411,7 @@ impl Querier {
                             nodes_to_ghost.insert(node.clone());
  
                             // we want to eventually remove the template parent
-                            nodes_to_remove.insert(subscriber::traversed_entity_to_entitydata(&node));
+                            nodes_to_remove.insert(nodedata.clone());
 
                             for hrptr in child_hrptrs {
                                 let child = TraversedEntity {
@@ -428,7 +433,7 @@ impl Querier {
                             nodes_to_ghost.insert(node.clone());
                             
                             // we want to eventually remove the template parent
-                            nodes_to_remove.insert(subscriber::traversed_entity_to_entitydata(&node));
+                            nodes_to_remove.insert(nodedata.clone());
 
                             for hrptr in child_hrptrs {
                                 let child = TraversedEntity {
@@ -441,7 +446,7 @@ impl Querier {
                                 };
                                                         
                                 // if child hasn't been seen yet, traverse
-                                if traversed_entities.get(&child).is_none() {
+                                if traversed_entities.get(&child).is_none() && !is_ghost_eid(child.eid) {
                                     warn!("Adding traversed child {}, {}", child.table_name, child.eid);
                                     children_to_traverse.push(child);
                                 }
@@ -472,10 +477,9 @@ impl Querier {
          */
         for entity in nodes_to_ghost {
             // this was already ghosted in a prior unsubscription
-            if entity.eid >= GHOST_ID_START {
+            if is_ghost_eid(entity.eid) {
                 continue;
             }
-            // XXX we're going to save "nodes to remove"
             warn!("UNSUB {} STEP 3: Changing {:?} to ghost", uid, entity);
             // create ghost for this entity
             let gem = self.insert_ghosts_for_template(
