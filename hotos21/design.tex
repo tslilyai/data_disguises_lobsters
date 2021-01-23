@@ -73,7 +73,7 @@ Developers choose from the following ghosting transformations:
 \subsection{Edge Type Transformations}
 \label{design:edgepol}
 While entity type transformations specify \emph{how} to produce ghosts, developers must also specify
-how and when these ghosts rewrite the structure of the entity graph.
+how and when these to rewrite the structure of the entity graph using ghosts.
 
 By default, \sys replaces all \emph{sensitive} entities---entities transitively connected via parent-child edges
 to the top-level entity targeted by the transformation---with a ghost entity.
@@ -83,30 +83,29 @@ to the top-level entity targeted by the transformation---with a ghost entity.
 %generation policies + edge policies than Parent-to-Child edges. I'm not sure if we should mention
 %that here (seems too detailed?)}
 
-The developer additionally specifies transformations for each edge type, which consist of a
-\emph{sensitivity threshold} specifying what proportion of existing correlations to sensitive
-entities should be retained. Developers select to either delete or decorrelate edges of this type to reach
-the threshold, and a threshold of 1 retains all edges of this type.
+The developer specifies transformations for each parent-child edge type, choosing from the following:
+\begin{enumerate}
+    \item \textbf{Decorrelate} edges from sensitive children by replacing edges to the parent with
+        ones to a unique ghost parent, generated using the parent as a template:
+        child edge attribute values will identify unique ghost parents.
+    \item \textbf{Delete} edges from sensitive children by removing the child and its descendants.
+    \item \textbf{Retain} edges from sensitive children to the parent.
+\end{enumerate}
+
+Some policies also need to decorrelate or delete edges from sensitive children to parents that are
+not descendants of the user. For example, papers have both tags and users as parents. If an
+unsubscribed user authors all papers with a particular tag, the developer may deem it problematic
+because the tag can reidentify the user, and wish to decorrelate the paper from the tag.
+
+To enable this, the developer specifies transformations for child-parent edge types which consist of
+a \emph{sensitivity threshold}. This threshold specifies the allowable proportion of correlations to
+sensitive entities. The developer chooses whether to decorrelate or delete edges to meet this
+threshold.  In the paper-tag example, a reasonable sensitivity threshold might be $0.1$: fewer than
+10\% of all papers with a specific tag key should be correlated with an (unsubscribed) user.
+%Developers use their knowledge of application semantics to determine appropriate thresholds for each
+%edge type, estimating how much sensitive information may leak from edge instances of that type.
 %Decorrelation requires
 %reassigning children with the same parent entity to different generated ghost parents.
-
-The sensitivity threshold determines the maximum proportion of edge instances (of the policy's edge
-type) from a real parent entity that may remain correlated to sensitive child entities.
-Developers use their knowledge of application semantics to determine appropriate thresholds for each
-edge type, estimating how much sensitive information may leak from edge instances of that type.
-For example, if all papers with a particular user-customizable tag are authored by an (unsubscribed)
-user, the developer may deem it problematic if \emph{all} of papers with a tag have the user as
-author, but acceptable if only a fraction do.  The maximum acceptable fraction is the sensitivity
-threshold. In this example, a reasonable sensitivity threshold might be $0.1$: fewer than 10\% of all papers with a specific tag key should be correlated with an (unsubscribed) user.
-
-The developer chooses one of two ways to achieve the sensitivity threshold:
-\begin{enumerate}
-    \item \textbf{Decorrelate} edges from sensitive children by replacing edges to the real parent with
-        ones to a unique ghost parent, generated using the real parent as a template:
-        the childrens' edge attribute values now identify unique ghost parents.
-
-    \item \textbf{Delete} edges from sensitive children by removing the child and its descendants.
-\end{enumerate}
 
 %For each parent, \sys decorrelates or deletes edges to children only enough to achieve the specified
 %threshold, and retains the remaining edges.
