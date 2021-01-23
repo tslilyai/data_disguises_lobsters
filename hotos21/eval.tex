@@ -6,7 +6,10 @@
     \centering
     \includegraphics[width=.5\textwidth]{img/decor_hotcrp}
 
-    \caption{Relevant pre- and post-unsubscription state of a simplified variant of the HotCRP schema. \\ 
+    \caption{Pre- and post-unsubscription state of a simplified HotCRP schema. For clarity,
+    we show only relevant parts of the entity graph, use entity-granularity ghosting
+    transformations rather than per-attribute ones, and assume the same edge transformation in both
+    the parent-child and child-parent directions.\\
     \textbf{(a)} \sys decorrelates user-to-review and user-to-paper edges, and retains
     review-paper edges. \\%Ghost users are randomly generated. Reviews and papers are cloned once. \\
     \textbf{(b)} \sys deletes sensitive user-to-conflict edges and conflict-to-paper edges. One ghost
@@ -104,8 +107,6 @@ paper for their reviews, and (subscribed) authors see the correct reviews for th
 
 We also choose entity transformations to specify how \sys generates ghost entities 
 %by determining which entity attributes reveal identifying information (and should be generated); which attributes should be cloned to retain information necessary to the application; and how to generate attribute values in ways that satisfy HotCRP semantics. 
-For clarify, Figure~\ref{fig:hotcrp} shows simplified, entity-granularity ghosting
-transformations rather than per-attribute ones.
 We generate all of a ghost users' attributes with default values, in particular setting \texttt{disabled=true} to ensure ghosts never review papers. We clone all paper and review attributes once, retaining paper and review information without creating duplicates. 
 %and clones paper conflicts because no conflict
 %value attributes are identifying.
