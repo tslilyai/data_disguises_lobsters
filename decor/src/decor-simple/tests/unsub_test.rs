@@ -252,9 +252,8 @@ fn test_complex() {
     }
     for mapping in &unsubscribed_gids {
         if mapping.table == "users" {
-            // two ghosts for two stories
-            // one ghost for each moderation
-            assert!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count() <= 2);
+            // four ghosts for two stories, two moderations
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 4);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 0);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
             user_counts += 1;
@@ -272,11 +271,11 @@ fn test_complex() {
             assert!(false, "bad table! {}", mapping.table);
         }
     }
-    assert_eq!(unsubscribed_gids.len(), 8);
-    assert_eq!(user_counts, 4); 
-    assert_eq!(story_counts, 2); // generated two stories
-    assert_eq!(mod_counts, 2); // generated two moderations
-    assert_eq!(entity_data.len(), 3); // one user, two stories, two moderations
+    assert_eq!(unsubscribed_gids.len(), 5);
+    assert_eq!(user_counts, 1); 
+    assert_eq!(story_counts, 2); // generated two ghost stories
+    assert_eq!(mod_counts, 2); // generated two ghost moderations
+    assert_eq!(entity_data.len(), 5); // one user, two stories, two moderations
     assert_eq!(entity_data[0], 
                EntityData{
                     table: "moderations".to_string(),

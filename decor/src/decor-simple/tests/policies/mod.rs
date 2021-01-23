@@ -227,7 +227,7 @@ pub fn combined_policy() -> ApplicationPolicy {
         EdgePolicy{
             parent: "users".to_string(),
             column: "moderator_user_id".to_string(),
-            pc_policy: Delete(0.0),
+            pc_policy: Decorrelate(0.0),
             cp_policy: Retain,
         },
         EdgePolicy{

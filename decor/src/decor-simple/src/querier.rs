@@ -322,6 +322,9 @@ impl Querier {
 
             let node = children_to_traverse.pop().unwrap();
             let nodedata = subscriber::traversed_entity_to_entitydata(&node);
+            let mut children_to_decorrelate = vec![];
+            let mut children_to_retain = vec![];
+            let mut children_to_delete = vec![];
                                    
             // add entity to seen 
             traversed_entities.insert(node.clone()); 
@@ -354,107 +357,92 @@ impl Querier {
                         continue;
                     }
 
-                    match policy.pc_policy {
-                        Decorrelate(f) => { 
-                            // generate all ghost parents
-                            assert!(f < 1.0); 
-                                           
-                            // create all these ghosts at once
-                            let gem = self.insert_ghosts_for_template(
-                                &TemplateEntity {
-                                    table: node.table_name.clone(),
-                                    eid: node.eid,
-                                    row: node.hrptr.row().clone(), 
-                                    fixed_colvals: None,
-                                }, true, child_hrptrs.len(), db)?;
-                           
-                            let gids = gem.root_gids.clone();
+                    for child_hrptr in child_hrptrs {
+                        let child = TraversedEntity {
+                            table_name: child_table.clone(),
+                            eid: helpers::parser_val_to_u64(&child_hrptr.row().borrow()[view_ptr.borrow().primary_index]),
+                            hrptr: child_hrptr.clone(),
+                            parent_table: node.table_name.clone(), 
+                            parent_col_index: ci,
+                            from_pc_edge: true,
+                        };
 
-                            ghost_eid_mappings.push(gem); 
-
-                            let mut gid_index = 0;
-                            for hrptr in child_hrptrs {
-                                let child = TraversedEntity {
-                                    table_name: child_table.clone(),
-                                    eid: helpers::parser_val_to_u64(&hrptr.row().borrow()[view_ptr.borrow().primary_index]),
-                                    hrptr: hrptr.clone(),
-                                    parent_table: node.table_name.clone(), 
-                                    parent_col_index: ci,
-                                    from_pc_edge: true,
-                                };
-
-                                self.views.update_index_and_row_of_view(
-                                    &child_table, hrptr.row().clone(), ci, 
-                                    Some(&Value::Number(gids[gid_index].to_string())));
-                                gid_index += 1;
-
-                                // if child hasn't been seen and hasn't been ghosted yet, traverse
-                                // child would only be ghosted if it itself had children that had
-                                // to be decorrelated---if it's a ghost, this means that a prior
-                                // unsubscription already took care of it!
-                                if traversed_entities.get(&child).is_none() && !is_ghost_eid(child.eid) {
-                                    warn!("Adding traversed child {}, {}", child.table_name, child.eid);
-                                    children_to_traverse.push(child);
-                                }
-                                
-                                // we want to remove the template parent
-                                nodes_to_remove.insert(nodedata.clone());
-
-                                // we don't add this to the nodes to ghost because we've already
-                                // decorrelated it
+                        match policy.pc_policy {
+                            Decorrelate(f) => { 
+                                assert!(f < 1.0); 
+                                children_to_decorrelate.push(child);
                             }
-                        }
-                        Delete(f) => {
-                            assert!(f < 1.0); 
-
-                            // replace this node with a ghost node
-                            nodes_to_ghost.insert(node.clone());
- 
-                            // we want to eventually remove the template parent
-                            nodes_to_remove.insert(nodedata.clone());
-
-                            for hrptr in child_hrptrs {
-                                let child = TraversedEntity {
-                                    table_name: child_table.clone(),
-                                    eid: helpers::parser_val_to_u64(&hrptr.row().borrow()[view_ptr.borrow().primary_index]),
-                                    hrptr: hrptr.clone(),
-                                    parent_table: node.table_name.clone(), 
-                                    parent_col_index: ci,
-                                    from_pc_edge: true,
-                                };
+                            Delete(f) => {
+                                assert!(f < 1.0); 
                                 // add all the sensitive removed entities to return to the user 
                                 self.get_tree_from_child(&child, &mut nodes_to_remove);
                                 
                                 // don't add child to traversal queue
+                                children_to_delete.push(child);
                             }
-                        }
-                        Retain => {
-                            // replace this node with a ghost node
-                            nodes_to_ghost.insert(node.clone());
-                            
-                            // we want to eventually remove the template parent
-                            nodes_to_remove.insert(nodedata.clone());
-
-                            for hrptr in child_hrptrs {
-                                let child = TraversedEntity {
-                                    table_name: child_table.clone(),
-                                    eid: helpers::parser_val_to_u64(&hrptr.row().borrow()[view_ptr.borrow().primary_index]),
-                                    hrptr: hrptr.clone(),
-                                    parent_table: node.table_name.clone(), 
-                                    parent_col_index: ci,
-                                    from_pc_edge: true,
-                                };
-                                                        
+                            Retain => {
                                 // if child hasn't been seen yet, traverse
                                 if traversed_entities.get(&child).is_none() && !is_ghost_eid(child.eid) {
                                     warn!("Adding traversed child {}, {}", child.table_name, child.eid);
-                                    children_to_traverse.push(child);
+                                    children_to_traverse.push(child.clone());
                                 }
-                           }
+                                
+                                children_to_retain.push(child);
+                            }
                         }
                     }
                 }
             }
+
+            // create and rewrite ghosts for all children that need to be decorrelated
+            // create all these ghosts at once
+            if !children_to_decorrelate.is_empty() {
+                let gem = self.insert_ghosts_for_template(
+                    &TemplateEntity {
+                        table: node.table_name.clone(),
+                        eid: node.eid,
+                        row: node.hrptr.row().clone(), 
+                        fixed_colvals: None,
+                    }, true, children_to_decorrelate.len(), db)?;
+                // generate all ghost parents
+                let gids = gem.root_gids.clone();
+                ghost_eid_mappings.push(gem); 
+
+                let mut gid_index = 0;
+                for child in &children_to_decorrelate {
+                    self.views.update_index_and_row_of_view(
+                        &child.table_name, child.hrptr.row().clone(), child.parent_col_index, 
+                        Some(&Value::Number(gids[gid_index].to_string())));
+                    gid_index += 1;
+
+                    // if child hasn't been seen and hasn't been ghosted yet, traverse
+                    // child would only be ghosted if it itself had children that had
+                    // to be decorrelated---if it's a ghost, this means that a prior
+                    // unsubscription already took care of it!
+                    if traversed_entities.get(&child).is_none() && !is_ghost_eid(child.eid) {
+                        warn!("Adding traversed child {}, {}", child.table_name, child.eid);
+                        children_to_traverse.push(child.clone());
+                    }
+                }
+
+                // any retained children now point to the first generated ghost
+                // this means that retained edges will point to the clone if there is a CloneOne
+                // policy
+                for child in &children_to_retain {
+                     self.views.update_index_and_row_of_view(
+                        &child.table_name, child.hrptr.row().clone(), child.parent_col_index, 
+                        Some(&Value::Number(gids[0].to_string())));
+                }
+                
+            } else {
+
+                // replace this node with a ghost node because we haven't yet in decorrelation
+                // we want to remove the template parent
+                nodes_to_ghost.insert(node.clone());
+
+            }
+            // we want to remove the template parent in any case
+            nodes_to_remove.insert(nodedata.clone());
             warn!("UNSUB {} STEP 1: Duration to traverse+decorrelate {}, {:?}: {}us", 
                       uid, node.table_name.clone(), node, start.elapsed().as_micros());
         }
@@ -601,18 +589,19 @@ impl Querier {
                             Decorrelate(f) => { 
                                 // generate all ghost parents
                                 assert!(f < 1.0); 
-                                
-                                let children_to_decorrelate : HashSet<HashedRowPtr> = 
-                                    sensitive_children[0..number_to_desensitize as usize]
-                                        .iter()
-                                        .map(|c| c.hrptr.clone())
-                                        .collect();
-
-                                let number_of_ghosts = if number_to_desensitize == total_count as i64 {
-                                    number_to_desensitize
-                                } else {
-                                    number_to_desensitize+1
-                                } as usize;
+                               
+                                /* 
+                                 * We ignore the first parent (which might be a clone) because
+                                 * we're actually retaining the original parent entity
+                                 *
+                                 * NOTE 1: this means that we can actually decorrelate each type of
+                                 * child entity SEPARATELY, rather than having to do all children
+                                 * together, as we do in the PC direction 
+                                 *
+                                 * NOTE 2: this means that we generate an extra ghost because
+                                 * CloneOne policies no longer make a difference here
+                                 */
+                                let number_of_ghosts = (number_to_desensitize+1) as usize;
                                                
                                 // create all these ghosts at once
                                 let gem = self.insert_ghosts_for_template(
@@ -626,12 +615,10 @@ impl Querier {
                                 let gids = gem.root_gids.clone();
                                 ghost_eid_mappings.push(gem); 
 
-                                // we ignore the first parent (which might be a clone) because
-                                // we're actually retaining the original parent entity
                                 let mut gid_index = 1;
-                                for child_hrptr in children_to_decorrelate {
+                                for child in &sensitive_children[0..number_to_desensitize as usize] {
                                     self.views.update_index_and_row_of_view(
-                                        &poster_child.table_name, child_hrptr.row().clone(), ci, 
+                                        &poster_child.table_name, child.hrptr.row().clone(), ci, 
                                         Some(&Value::Number(gids[gid_index].to_string())));
                                     gid_index += 1;
 
