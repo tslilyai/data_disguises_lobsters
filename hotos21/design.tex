@@ -94,15 +94,16 @@ The developer specifies transformations for each parent-child edge type, choosin
 
 Some policies also need to decorrelate or delete edges from sensitive children to parents that are
 not descendants of the user. For example, papers have both tags and users as parents. If an
-unsubscribed user authors all papers with a particular tag, the developer may deem it problematic
-because the tag can reidentify the user, and wish to decorrelate the paper from the tag.
+unsubscribed user authors all papers with a particular tag, the developer may realize that the tag
+can reidentify the user, and want to decorrelate the paper from the tag.
 
-To enable this, the developer specifies transformations for child-parent edge types which consist of
-a \emph{sensitivity threshold}. This threshold specifies the allowable proportion of correlations to
+\sys supports these transformations on child-parent edge types, in which developers specify  a
+\emph{sensitivity threshold}. This threshold sets the allowable proportion of correlations to
 sensitive entities. The developer chooses whether to decorrelate or delete edges to meet this
-threshold.  In the paper-tag example, a reasonable sensitivity threshold might be $0.1$: fewer than
+threshold. In the paper-tag example, a reasonable sensitivity threshold might be $0.1$: fewer than
 10\% of all papers with a specific tag key should be correlated with an (unsubscribed) user.
-%Developers use their knowledge of application semantics to determine appropriate thresholds for each
+%Developers use their knowledge of application semantics to determine appropriate thresholds for
+%each
 %edge type, estimating how much sensitive information may leak from edge instances of that type.
 %Decorrelation requires
 %reassigning children with the same parent entity to different generated ghost parents.
