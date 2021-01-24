@@ -217,6 +217,31 @@ impl Querier {
     /*******************************************************
      ****************** UNSUBSCRIPTION *********************
      *******************************************************/
+
+    pub fn update_child_with_parent(&mut self, 
+                                    child_table: &str,
+                                    child_eid: u64,
+                                    child_row: RowPtr,
+                                    parent_col_index: usize,
+                                    gid: u64, 
+                                    db: &mut mysql::Conn) 
+        -> Result<(), mysql::Error> 
+    {
+        self.views.update_index_and_row_of_view(
+                        child_table, child_row.clone(), parent_col_index, 
+                        Some(&Value::Number(gid.to_string())));
+
+        let parent_colname = self.views.get_view_colname(child_table, parent_col_index);
+        let db_stmt = format!("UPDATE {} SET {} = {} WHERE {} = {}", 
+                              child_table, 
+                              parent_colname, 
+                              gid,
+                              ID_COL,
+                              child_eid);
+        db.query_drop(db_stmt)?;
+        Ok(())
+    }
+
     pub fn insert_ghosts_for_template(&mut self, 
                                 template: &TemplateEntity,
                                 is_pc: bool,
@@ -426,9 +451,7 @@ impl Querier {
 
                 let mut gid_index = 0;
                 for child in &children_to_decorrelate {
-                    self.views.update_index_and_row_of_view(
-                        &child.table_name, child.hrptr.row().clone(), child.parent_col_index, 
-                        Some(&Value::Number(gids[gid_index].to_string())));
+                    self.update_child_with_parent(&child.table_name, child.eid, child.hrptr.row().clone(), child.parent_col_index, gids[gid_index], db)?;
                     gid_index += 1;
                 }
 
@@ -436,9 +459,7 @@ impl Querier {
                 // this means that retained edges will point to the clone if there is a CloneOne
                 // policy
                 for child in &children_to_retain {
-                     self.views.update_index_and_row_of_view(
-                        &child.table_name, child.hrptr.row().clone(), child.parent_col_index, 
-                        Some(&Value::Number(gids[0].to_string())));
+                    self.update_child_with_parent(&child.table_name, child.eid, child.hrptr.row().clone(), child.parent_col_index, gids[0], db)?;
                 }
                 
             } else {
@@ -491,9 +512,7 @@ impl Querier {
                 for ((child_table, child_ci), child_hrptrs) in children.iter() {
                     for hrptr in child_hrptrs {
                         assert!(hrptr.row().borrow()[*child_ci].to_string() == entity.eid.to_string());
-                        self.views.update_index_and_row_of_view(
-                            &child_table, hrptr.row().clone(), *child_ci, 
-                            Some(&Value::Number(gids[0].to_string())));
+                        self.update_child_with_parent(&child_table, entity.eid, hrptr.row().clone(), *child_ci, gids[0], db)?;
                     }
                 }
             }
@@ -621,11 +640,8 @@ impl Querier {
 
                                 let mut gid_index = 1;
                                 for child in &sensitive_children[0..number_to_desensitize as usize] {
-                                    self.views.update_index_and_row_of_view(
-                                        &poster_child.table_name, child.hrptr.row().clone(), ci, 
-                                        Some(&Value::Number(gids[gid_index].to_string())));
+                                    self.update_child_with_parent(&poster_child.table_name, child.eid, child.hrptr.row().clone(), ci, gids[gid_index], db)?;
                                     gid_index += 1;
-
                                 }
                             }
                             Delete(_) => {
@@ -831,8 +847,6 @@ impl Querier {
             }
         }
         // we need to update child in the MV to now show the EID
-        let eid_val = Value::Number(eid.to_string());
-            
         // Note: all ghosts in families will be deleted from the MV, so we only need to restore
         // the EID value for the root level GID entries
         for root_gid in root_gids {
@@ -849,8 +863,8 @@ impl Querier {
                             for hrptr in child_hrptrs {
                                 if hrptr.row().borrow()[*ci].to_string() == root_gid.to_string() {
                                     // then update this child to use the actual real EID
-                                    warn!("Updating child row with GID {} to point to actual eid {}", root_gid, eid_val);
-                                    self.views.update_index_and_row_of_view(&child_table, hrptr.row().clone(), *ci, Some(&eid_val));
+                                    warn!("Updating child row with GID {} to point to actual eid {}", root_gid, eid);
+                                    self.update_child_with_parent(&child_table, root_gid, hrptr.row().clone(), *ci, eid, db)?;
                                 }
                             }
                         }

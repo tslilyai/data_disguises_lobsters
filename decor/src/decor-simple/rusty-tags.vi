@@ -3759,6 +3759,7 @@ get_tree_from_child	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src
 get_user	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/opts.rs	/^    pub fn get_user(&self) -> Option<&str> {$/;"	f
 get_value_for_row_closure	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/select/select.rs	/^pub fn get_value_for_row_closure(e: &Expr, columns: &Vec<TableColumnDef>) -> Box<dyn Fn(&Vec<Value>) -> Value> {$/;"	f
 get_view	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn get_view(&self, name: &str) -> Option<Rc<RefCell<View>>> {$/;"	f
+get_view_colname	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn get_view_colname(&self, name: &str, ci: usize) -> String {$/;"	f
 get_view_columns	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn get_view_columns(&self, name: &str) -> Vec<Ident> {$/;"	f
 get_view_pi	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn get_view_pi(&self, name: &str) -> usize {$/;"	f
 get_weight	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/seq/mod.rs	/^        fn get_weight<T>(item: &(u32, T)) -> u32 {$/;"	f
@@ -6979,6 +6980,7 @@ update	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypt
 update	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/chacha20.rs	/^    fn update(&mut self) {$/;"	f
 update	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/ghash.rs	/^fn update(state: &mut Gf128, len: &mut usize, data: &[u8], srest: &mut Option<[u8; 16]>,$/;"	f
 update	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn update(&mut self, $/;"	f
+update_child_with_parent	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn update_child_with_parent(&mut self, $/;"	f
 update_edge	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^    pub fn update_edge(&mut self, child_table: &str, parent_table: &str,$/;"	f
 update_eid2gids_with	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn update_eid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn)$/;"	f
 update_eid2gids_with	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn update_eid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn, parent_table: &str)$/;"	f

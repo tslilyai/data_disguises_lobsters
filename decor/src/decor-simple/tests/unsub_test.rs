@@ -376,7 +376,7 @@ fn test_unsub_complex() {
   
     /* 
      *  Test 2: Resubscribe of user 1 adds uid to user table, removes gids from user table, 
-     *  unanonymizes both moderation entries
+     *  unanonymizes stories and moderation entries
      */
     warn!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 1, 
           helpers::escape_quotes_mysql(&gidshardstr), 
@@ -408,6 +408,20 @@ fn test_unsub_complex() {
                             format!("{}", 1), 
                             "worst story!".to_string()));
 
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT id FROM stories ORDER BY stories.id;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        let id = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        results.push(id)
+    }
+    assert_eq!(results.len(), 4);
+    assert_eq!(results[0], 1);
+    assert_eq!(results[1], 2);
+    assert_eq!(results[2], 3);
+    assert_eq!(results[3], 4);
+
     // users are restored in users
     let mut results = vec![];
     let res = db.query_iter(r"SELECT id FROM users ORDER BY id ASC;").unwrap();
@@ -433,13 +447,13 @@ fn test_unsub_complex() {
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 1);
-        let uid = helpers::mysql_val_to_string(&vals[0]);
+        let uid = helpers::mysql_val_to_u64(&vals[0]).unwrap();
         results.push(uid);
     }
     assert_eq!(results.len(), 3);
-    assert_eq!(results[0], format!("{}", 2));
-    assert_eq!(results[1], format!("{}", 10));
-    assert_eq!(results[2], format!("{}", 11));
+    assert_eq!(results[0], 2); 
+    assert_eq!(results[1], 10); 
+    assert_eq!(results[2], 11); 
     drop(db);
     //jh.join().unwrap();
 }

@@ -1,7 +1,7 @@
 use sql_parser::ast::*;
 use std::collections::{HashSet, HashMap};
 use std::cmp::Ordering;
-use crate::{select, helpers, graph, INIT_CAPACITY};
+use crate::{select, helpers, graph, INIT_CAPACITY, ghosts};
 use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::io::{Error, Write};
@@ -532,6 +532,11 @@ impl Views {
         columns
     }
 
+    pub fn get_view_colname(&self, name: &str, ci: usize) -> String {
+        let view_ptr = self.get_view(&name).unwrap();
+        let col = view_ptr.borrow().columns[ci].colname.clone(); col
+    }
+
     pub fn add_view(&mut self, 
                     name: String, 
                     columns: &Vec<ColumnDef>, 
@@ -594,7 +599,9 @@ impl Views {
                         match &row[col_index] {
                             Value::Number(n) => {
                                 let n = n.parse::<u64>().unwrap();
-                                max = u64::max(max, n);
+                                if !ghosts::is_ghost_eid(n) {
+                                    max = u64::max(max, n);
+                                }
                             }
                             _ => (),
                         }
@@ -703,7 +710,9 @@ impl Views {
                     match &assign_vals[i] {
                         Expr::Value(Value::Number(n)) => {
                             let n = n.parse::<u64>().unwrap();
-                            view.autoinc_col = Some((col_index, u64::max(id_val, n+1)));
+                            if !ghosts::is_ghost_eid(n) {
+                                view.autoinc_col = Some((col_index, u64::max(id_val, n+1)));
+                            }
                         }
                         _ => (),
                     }
