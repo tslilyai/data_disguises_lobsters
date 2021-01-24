@@ -253,8 +253,11 @@ fn test_unsub_complex() {
      *      Story 1
      *      Story 2
      */
-    let mut gidshardstr : String = String::new(); 
-    let mut entitydatastr : String = String::new();
+    let mut gidshardstr1 : String = String::new(); 
+    let mut entitydatastr1 : String = String::new();
+    let mut gidshardstr2 : String = String::new(); 
+    let mut entitydatastr2 : String = String::new();
+
     let mut unsubscribed_gids : Vec<GhostEidMapping> = vec![];
     let mut entity_data : Vec<EntityData> = vec![];
     let mut user_counts = 0;
@@ -274,10 +277,10 @@ fn test_unsub_complex() {
         assert_eq!(vals.len(), 2);
         let s1 = helpers::mysql_val_to_string(&vals[0]);
         let s2 = helpers::mysql_val_to_string(&vals[1]);
-        gidshardstr = s1.trim_end_matches('\'').trim_start_matches('\'').to_string();
-        entitydatastr = s2.trim_end_matches('\'').trim_start_matches('\'').to_string();
-        unsubscribed_gids = serde_json::from_str(&gidshardstr).unwrap();
-        entity_data = serde_json::from_str(&entitydatastr).unwrap();
+        gidshardstr1 = s1.trim_end_matches('\'').trim_start_matches('\'').to_string();
+        entitydatastr1 = s2.trim_end_matches('\'').trim_start_matches('\'').to_string();
+        unsubscribed_gids = serde_json::from_str(&gidshardstr1).unwrap();
+        entity_data = serde_json::from_str(&entitydatastr1).unwrap();
     }
     for ugid in &unsubscribed_gids{
         println!("User1 {:?}", ugid);
@@ -351,16 +354,31 @@ fn test_unsub_complex() {
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 5);
-        let id = helpers::mysql_val_to_string(&vals[0]);
-        let mod_id = helpers::mysql_val_to_string(&vals[1]);
-        let story_id = helpers::mysql_val_to_string(&vals[2]);
-        let user_id = helpers::mysql_val_to_string(&vals[3]);
-        let action = helpers::mysql_val_to_string(&vals[4]);
-        results.insert((id, mod_id, story_id, user_id, action));
+        let id = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        let mod_id = helpers::mysql_val_to_u64(&vals[1]).unwrap();
+        let story_id = helpers::mysql_val_to_u64(&vals[2]).unwrap();
+        let user_id = helpers::mysql_val_to_u64(&vals[3]).unwrap();
+        assert!((user_id >= GHOST_ID_START && mod_id == 2)
+            || (user_id == 2 && mod_id >= GHOST_ID_START));
+        assert!(id >= GHOST_ID_START);
+        assert!((story_id > 2 && story_id < GHOST_ID_START) || story_id >= GHOST_ID_START);
+        results.insert((id, mod_id, story_id, user_id));
     }
     warn!("Moderations returned {:?}", results);
     assert_eq!(results.len(), 2);
-    
+   
+    // check stories
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT id FROM stories ORDER BY stories.id;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        let id = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        assert!(id >= GHOST_ID_START || (id > 2 && id < GHOST_ID_START));
+        results.push(id)
+    }
+    assert_eq!(results.len(), 4);
+
     // users modified appropriately: ghosts added to users 
     let mut results = vec![];
     let res = db.query_iter(r"SELECT id FROM users ORDER BY users.id;").unwrap();
@@ -374,16 +392,138 @@ fn test_unsub_complex() {
     warn!("Users returned {:?}", results);
     assert_eq!(results.len(), 5); // two stories, two moderations, one real
   
+    /*
+     * Test 1.5: Unsubscribe User 2
+     */
+    let mut uid = 0; 
+    let res = db.query_iter(r"SELECT id FROM users WHERE username = 'hello_2';").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        uid = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+    }
+    let res = db.query_iter(format!("UNSUBSCRIBE UID {};", uid)).unwrap();
+    user_counts = 0;
+    story_counts = 0;
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 2);
+        let s1 = helpers::mysql_val_to_string(&vals[0]);
+        let s2 = helpers::mysql_val_to_string(&vals[1]);
+        gidshardstr2 = s1.trim_end_matches('\'').trim_start_matches('\'').to_string();
+        entitydatastr2 = s2.trim_end_matches('\'').trim_start_matches('\'').to_string();
+        unsubscribed_gids = serde_json::from_str(&gidshardstr2).unwrap();
+        entity_data = serde_json::from_str(&entitydatastr2).unwrap();
+    }
+    for ugid in &unsubscribed_gids{
+        println!("User2 {:?}", ugid);
+    }
+    for entity in &entity_data {
+        println!("User2 {:?}", entity);
+    }
+    for mapping in &unsubscribed_gids {
+        if mapping.table == "users" {
+            // four ghosts for two stories, two moderations
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 4);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 0);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
+            user_counts += 1;
+        } else if mapping.table == "stories" {
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 1);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 0);
+            assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
+            story_counts += 1;
+        } else if mapping.table == "moderations" {
+            assert!(false, "moderations should all be ghosts!");
+        } else {
+            assert!(false, "bad table! {}", mapping.table);
+        }
+    }
+    assert_eq!(unsubscribed_gids.len(), 3);
+    assert_eq!(user_counts, 1); 
+    assert_eq!(story_counts, 2); 
+    assert_eq!(entity_data.len(), 3); // one user, two stories
+    assert_eq!(entity_data[0], 
+       EntityData{
+            table: "stories".to_string(),
+            eid: 3,
+            row_strs: vec!["3".to_string(), "1".to_string(), "'reddit.com'".to_string(), "0".to_string()],
+       });
+    assert_eq!(entity_data[1], 
+       EntityData{
+            table: "stories".to_string(),
+            eid: 4,
+            row_strs: vec!["4".to_string(), "1".to_string(), "'fb.com'".to_string(), "0".to_string()],
+       });
+    assert_eq!(entity_data[2], 
+       EntityData{
+            table: "users".to_string(), 
+            eid: 2,
+            row_strs: vec!["2".to_string(), "'hello_2'".to_string(), "0".to_string()],
+        });
+   
+    /*
+     * Check that the moderations have one both ghost parents
+     */
+    let mut results = HashSet::new();
+    let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.user_id;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 5);
+        let id = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        let mod_id = helpers::mysql_val_to_u64(&vals[1]).unwrap();
+        let story_id = helpers::mysql_val_to_u64(&vals[2]).unwrap();
+        let user_id = helpers::mysql_val_to_u64(&vals[3]).unwrap();
+        assert!(user_id >= GHOST_ID_START && mod_id >= GHOST_ID_START);
+        assert!(id >= GHOST_ID_START);
+        assert!(story_id >= GHOST_ID_START);
+        results.insert((id, mod_id, story_id, user_id));
+    }
+    warn!("Moderations returned {:?}", results);
+    assert_eq!(results.len(), 2);
+
+    // check stories
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT id FROM stories ORDER BY stories.id;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        let id = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        assert!(id >= GHOST_ID_START);
+        results.push(id)
+    }
+    assert_eq!(results.len(), 4);
+    
+    // users modified appropriately: ghosts added to users 
+    let mut results = vec![];
+    let res = db.query_iter(r"SELECT id FROM users ORDER BY users.id;").unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        let uid = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        assert!(uid >= GHOST_ID_START);
+        results.push(uid);
+    }
+    warn!("Users returned {:?}", results);
+    assert_eq!(results.len(), 8); // for each user, we have two stories + two moderations ghost parents
+
     /* 
-     *  Test 2: Resubscribe of user 1 adds uid to user table, removes gids from user table, 
-     *  unanonymizes stories and moderation entries
+     *  Test 2: Resubscribe of user 1 and 2 adds uid to user table, removes gids from user table, 
+     *  unanonymizes stories and moderation entries (back to initial state)
      */
     warn!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 1, 
-          helpers::escape_quotes_mysql(&gidshardstr), 
-          helpers::escape_quotes_mysql(&entitydatastr));
+          helpers::escape_quotes_mysql(&gidshardstr1), 
+          helpers::escape_quotes_mysql(&entitydatastr1));
     db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 1, 
-                            helpers::escape_quotes_mysql(&gidshardstr),
-                            helpers::escape_quotes_mysql(&entitydatastr))).unwrap();
+                            helpers::escape_quotes_mysql(&gidshardstr1),
+                            helpers::escape_quotes_mysql(&entitydatastr1))).unwrap();
+    warn!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 2, 
+          helpers::escape_quotes_mysql(&gidshardstr2), 
+          helpers::escape_quotes_mysql(&entitydatastr2));
+    db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 2, 
+                            helpers::escape_quotes_mysql(&gidshardstr2),
+                            helpers::escape_quotes_mysql(&entitydatastr2))).unwrap();
+
     let mut results = vec![];
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.id;").unwrap();
     for row in res {
