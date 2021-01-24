@@ -21,9 +21,51 @@
 \begin{lstlisting}[language=Rust]
 let entity_transforms = vec![
     GhostGenerationPolicy {
+        entity_type: "ContactId",
+        attribute_transforms: vec![
+            ("username", Generate(Random)),
+            ("email", Generate(Default(nobody@gmail.com))),
+            ("disabled", Generate(Default(true))),
+            ...
+        ],
+    },
+    ...
+];
+
+let edge_transforms = vec![
+  EdgeTransform {
+    child: "PaperConflict",
+    parent: "ContactId",
+    column_name: "contact_id",
+    parent_child_transform: Delete,
+    child_parent_transform: Retain,
+  },
+  EdgeTransform {
+    child: "PaperConflict",
+    parent: "Paper",
+    column_name: "paper_id",
+    parent_child_transform: Retain,
+    child_parent_transform: Delete,
+  },
+  ...
+];
+
+let hotcrp_unsub_mask_policy = MaskPolicy {
+  unsub_entity_type: "ContactId",
+  entity_transforms: entity_transforms, 
+  edge_transforms: edge_transforms,
+};
+\end{lstlisting}
+    \label{fig:hotcrp_policy}
+    \caption{Excerpt of the HotCRP mask policy for unsubscription}
+\end{figure}
+
+\begin{figure}
+\begin{lstlisting}[language=Rust]
+let entity_transforms = vec![
+    GhostGenerationPolicy {
         entity_type: "users",
         attribute_transforms: vec![
-            ("id", Generate(Random)),
             ("username", Generate(Random)),
             ("karma", Generate(Default(0)))
         ],
@@ -44,7 +86,7 @@ let edge_transforms = vec![
     parent: "tags",
     column_name: "tag_id",
     parent_child_transform: Decorrelate,
-    child_parent_transform: Decorrelate(0.25),
+    child_parent_transform: Decorrelate_Sensitive(0.25),
   },
   ...
 ];
@@ -55,7 +97,7 @@ let lobsters_unsub_mask_policy = MaskPolicy {
   edge_transforms: edge_transforms,
 };
 \end{lstlisting}
-    \label{fig:policy}
+    \label{fig:lobsters_policy}
     \caption{Excerpt of the Lobsters mask policy for unsubscription}
 \end{figure}
 
@@ -86,10 +128,12 @@ profiles (Figure~\ref{fig:hotcrp}a).
 
 As observed earlier, paper conflicts can also identify unsubscribed users. We specify  
 an edge transformation for paper-to-paper conflict edge types that \emph{deletes} all
-edges between sensitive paper conflicts and papers (Figure~\ref{fig:hotcrp}b).
-Deleting edges between sensitive paper conflicts and papers can lead to spurious conflicts (\eg no
+edges from sensitive paper conflicts to (non-sensitive) papers (Figure~\ref{fig:hotcrp}b).
+Deleting these edges can lead to spurious conflicts (\eg no
 coauthor is affiliated with NYU, but reviewers from NYU have conflicts), but does not break paper
 visibility or review assignment invariants because all other paper conflicts remain. 
+The policy excerpt in Figure~\ref{fig:hotcrp_policy} shows the specified edge transformations for paper
+conflicts to user (\texttt{ContactId}) and paper entities.
 %A more complete de-identification would to delete \emph{all} the paper's
 %conflicts, but incorrectly allows users with reviewer conflicts to review a paper and
 %break HotCRP semantics.
@@ -110,7 +154,8 @@ We generate all of a ghost users' attributes with default values, in particular 
 %and clones paper conflicts because no conflict
 %value attributes are identifying.
 
-\textbf{Lobsters} has a total of 20 entities, and a \lyt{TODO} LoC mask policy for unsubscription.
+\textbf{Lobsters} has a total of 20 entities, and a \lyt{TODO} LoC mask policy for unsubscription
+(excerpt shown in Figure~\ref{fig:lobster_policy}).
 The policy replicates what the behavior of the current Lobsters deployment upon user unsubscription,
 with the exception that we replace users with ghost users rather than a global placeholder, and we
 desensitize tags so that sensitive stories comprise at most 25\% the number of stories with a
@@ -281,7 +326,7 @@ let edge_policies = vec![
     edge_policies: edge_policies,
  }
 \end{lstlisting}
-    \label{fig:policy}
+    \label{fig:lobsters_policy}
     \caption{Excerpt of the Lobsters Application Policy}
 \end{figure}
 We provide several variants of an application policy for Lobsters, as well as example policies for a
@@ -291,7 +336,7 @@ open-source e-commerce web application.
 \paragraph{Lobsters}
 Lobsters has a total of 20 entities, and 
 these Lobsters policies require specifying at most 17 key
-relationships and at most 5 ghost entity generation policies (see Figure~\ref{fig:policy} for an example
+relationships and at most 5 ghost entity generation policies (see Figure~\ref{fig:lobsters_policy} for an example
 of these policy specifications).
 
 The first policy replicates what the behavior of the current Lobsters deployment upon user
