@@ -73,26 +73,13 @@ fn test_unsub_noop() {
     let mut db: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
     let mut db_actual: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
     init_dbs("test_unsub_noop", policies::PolicyType::Noop, &mut db, &mut db_actual);
-    
-    let mod1 : (String, String, String, String, String) = 
-        ("1".to_string(), 
-         "1".to_string(), 
-         "1".to_string(), 
-         "2".to_string(), 
-         "bad story!".to_string());
-    let mod2 : (String, String, String, String, String) = 
-        ("2".to_string(), 
-         "2".to_string(), 
-         "2".to_string(), 
-         "1".to_string(), 
-         "worst story!".to_string());
 
     /* 
      *  Unsubscribe of user 1 does nothing
      */
     let mut uid = 0; 
     let mut unsubscribed_gids : Vec<GhostEidMapping>; 
-    let mut entity_data : Vec<EntityData>; 
+    let mut entity_data : Vec<EntityData> = vec![]; 
     let res = db.query_iter(r"SELECT id FROM users WHERE username = 'hello_1';").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
@@ -118,22 +105,53 @@ fn test_unsub_noop() {
         assert_eq!(entity_data.len(), 5); // user, two stories, two moderations
         assert_eq!(unsubscribed_gids.len(), 5);
     }
+    assert_eq!(entity_data[0], 
+       EntityData{
+            table: "moderations".to_string(),
+            eid: 1,
+            row_strs: vec!["1".to_string(), "1".to_string(), "1".to_string(), "2".to_string(), "'bad story!'".to_string()],
+       });
+    assert_eq!(entity_data[1], 
+       EntityData{
+            table: "moderations".to_string(),
+            eid: 2,
+            row_strs: vec!["2".to_string(), "2".to_string(), "2".to_string(), "1".to_string(), "'worst story!'".to_string()],
+       });
+    assert_eq!(entity_data[2], 
+       EntityData{
+            table: "stories".to_string(),
+            eid: 1,
+            row_strs: vec!["1".to_string(), "1".to_string(), "'google.com'".to_string(), "0".to_string()],
+       });
+    assert_eq!(entity_data[3], 
+       EntityData{
+            table: "stories".to_string(),
+            eid: 2,
+            row_strs: vec!["2".to_string(), "1".to_string(), "'bing.com'".to_string(), "0".to_string()],
+       });
+    assert_eq!(entity_data[4], 
+       EntityData{
+            table: "users".to_string(), 
+            eid: 1,
+            row_strs: vec!["1".to_string(), "'hello_1'".to_string(), "0".to_string()],
+        });
     
     let mut results = vec![];
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.user_id;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 5);
-        let id = helpers::mysql_val_to_string(&vals[0]);
-        let mod_id = helpers::mysql_val_to_string(&vals[1]);
-        let story_id = helpers::mysql_val_to_string(&vals[2]);
-        let user_id = helpers::mysql_val_to_string(&vals[3]);
-        let action = helpers::mysql_val_to_string(&vals[4]);
-        results.push((id, mod_id, story_id, user_id, action));
+        let id = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        let mod_id = helpers::mysql_val_to_u64(&vals[1]).unwrap();
+        let story_id = helpers::mysql_val_to_u64(&vals[2]).unwrap();
+        let user_id = helpers::mysql_val_to_u64(&vals[3]).unwrap();
+        assert!((user_id >= GHOST_ID_START && mod_id == 2)
+            || (user_id == 2 && mod_id >= GHOST_ID_START));
+        assert!(id >= GHOST_ID_START);
+        assert!((story_id > 2 && story_id < GHOST_ID_START) || story_id >= GHOST_ID_START);
+        results.push((id, mod_id, story_id, user_id));
     }
     assert_eq!(results.len(), 2);
-    //assert_eq!(results[0], mod2);
-    //assert_eq!(results[1], mod1);
   
     /* 
      *  Unsubscribe of user 2 does nothing
@@ -163,6 +181,24 @@ fn test_unsub_noop() {
         // note: we don't ghost entities twice, so we're only going to see user + two stories
         assert_eq!(entity_data.len(), 3);
         assert_eq!(unsubscribed_gids.len(), 3);
+        assert_eq!(entity_data[0], 
+           EntityData{
+                table: "stories".to_string(),
+                eid: 3,
+                row_strs: vec!["3".to_string(), "2".to_string(), "'reddit.com'".to_string(), "0".to_string()],
+           });
+        assert_eq!(entity_data[1], 
+           EntityData{
+                table: "stories".to_string(),
+                eid: 4,
+                row_strs: vec!["4".to_string(), "2".to_string(), "'fb.com'".to_string(), "0".to_string()],
+           });
+        assert_eq!(entity_data[2], 
+           EntityData{
+                table: "users".to_string(), 
+                eid: 2,
+                row_strs: vec!["2".to_string(), "'hello_2'".to_string(), "0".to_string()],
+            });
     }
     
     let mut results = vec![];
@@ -170,16 +206,16 @@ fn test_unsub_noop() {
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 5);
-        let id = helpers::mysql_val_to_string(&vals[0]);
-        let mod_id = helpers::mysql_val_to_string(&vals[1]);
-        let story_id = helpers::mysql_val_to_string(&vals[2]);
-        let user_id = helpers::mysql_val_to_string(&vals[3]);
-        let action = helpers::mysql_val_to_string(&vals[4]);
-        results.push((id, mod_id, story_id, user_id, action));
+        let id = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        let mod_id = helpers::mysql_val_to_u64(&vals[1]).unwrap();
+        let story_id = helpers::mysql_val_to_u64(&vals[2]).unwrap();
+        let user_id = helpers::mysql_val_to_u64(&vals[3]).unwrap();
+        assert!(user_id >= GHOST_ID_START && mod_id >= GHOST_ID_START);
+        assert!(id >= GHOST_ID_START);
+        assert!(story_id >= GHOST_ID_START);
+        results.push((id, mod_id, story_id, user_id));
     }
     assert_eq!(results.len(), 2);
-    //assert_eq!(results[0], mod2);
-    //assert_eq!(results[1], mod1);
   
     /*
      * Check users for the heck of it
@@ -201,7 +237,7 @@ fn test_unsub_noop() {
 }
 
 #[test]
-fn test_complex() {
+fn test_unsub_complex() {
     let mut db: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
     let mut db_actual: mysql::Conn = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
     init_dbs("test_complex", policies::PolicyType::Combined, &mut db, &mut db_actual);
