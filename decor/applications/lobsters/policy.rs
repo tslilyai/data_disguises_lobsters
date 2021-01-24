@@ -46,36 +46,36 @@ fn get_cp_ghost_policies() -> EntityGhostPolicies {
     let mut ghost_policies : EntityGhostPolicies = HashMap::new();
 
     let mut users_map = HashMap::new();
-    users_map.insert("id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
-    users_map.insert("username".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
-    users_map.insert("karma".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    users_map.insert("id".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Random));
+    users_map.insert("username".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Random));
+    users_map.insert("karma".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Default(0.to_string())));
     ghost_policies.insert("users".to_string(), Rc::new(users_map));
 
     let mut stories_map = HashMap::new();
-    stories_map.insert("id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
-    stories_map.insert("created_at".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Custom(Box::new(|time| time.to_string())))); 
-    stories_map.insert("user_id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::ForeignKey("users".to_string())));
+    stories_map.insert("id".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Random));
+    stories_map.insert("created_at".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Custom(Box::new(|time| time.to_string())))); 
+    stories_map.insert("user_id".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::ForeignKey("users".to_string())));
     stories_map.insert("url".to_string(), GhostColumnPolicy::CloneAll);
     stories_map.insert("title".to_string(), GhostColumnPolicy::CloneAll);
     stories_map.insert("description".to_string(), GhostColumnPolicy::CloneAll);
-    stories_map.insert("short_id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
-    stories_map.insert("is_expired".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
+    stories_map.insert("short_id".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Random));
+    stories_map.insert("is_expired".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Random));
     stories_map.insert("upvotes".to_string(), GhostColumnPolicy::CloneAll);
     stories_map.insert("downvotes".to_string(), GhostColumnPolicy::CloneAll);
     stories_map.insert("is_moderated".to_string(), GhostColumnPolicy::CloneAll);
     stories_map.insert("hotness".to_string(), GhostColumnPolicy::CloneAll);
     stories_map.insert("markeddown_description".to_string(), GhostColumnPolicy::CloneAll);
     stories_map.insert("story_cache".to_string(), GhostColumnPolicy::CloneAll);
-    stories_map.insert("comments_count".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
-    stories_map.insert("merged_story_id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    stories_map.insert("comments_count".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Default(0.to_string())));
+    stories_map.insert("merged_story_id".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Default("NULL".to_string())));
     stories_map.insert("unavailable_at".to_string(), GhostColumnPolicy::CloneAll);
-    stories_map.insert("twitter_id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
-    stories_map.insert("user_is_author".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    stories_map.insert("twitter_id".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Default("NULL".to_string())));
+    stories_map.insert("user_is_author".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Default(0.to_string())));
     ghost_policies.insert("stories".to_string(), Rc::new(stories_map));
 
     let mut taggings_map = HashMap::new();
-    taggings_map.insert("id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
-    taggings_map.insert("story_id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::ForeignKey("stories".to_string())));
+    taggings_map.insert("id".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Random));
+    taggings_map.insert("story_id".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::ForeignKey("stories".to_string())));
     taggings_map.insert("tag_id".to_string(), GhostColumnPolicy::CloneAll);
     ghost_policies.insert("taggings".to_string(), Rc::new(taggings_map));
     

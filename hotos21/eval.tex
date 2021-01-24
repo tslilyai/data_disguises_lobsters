@@ -7,13 +7,12 @@
     \includegraphics[width=.5\textwidth]{img/decor_hotcrp}
 
     \caption{Pre- and post-unsubscription state of a simplified HotCRP schema. For clarity,
-    we show only relevant parts of the entity graph, use entity-granularity ghosting
-    transformations rather than per-attribute ones, and assume the same edge transformation in both
-    the parent-child and child-parent directions.\\
-    \textbf{(a)} \sys decorrelates user-to-review and user-to-paper edges, and retains
-    review-paper edges. \\%Ghost users are randomly generated. Reviews and papers are cloned once. \\
-    \textbf{(b)} \sys deletes sensitive user-to-conflict edges and conflict-to-paper edges. One ghost
-    paper clones the original; the other is a default placeholder paper. %Paper conflicts are cloned.
+        we show only relevant parts of the entity graph, use entity-granularity ghosting
+        transformations rather than per-attribute ones, and assume the same edge transformation in both
+        the parent-child and child-parent directions.\\
+        \textbf{(a)} \sys decorrelates user-to-review and user-to-paper edges, and retains
+        review-paper edges. \\%Ghost users are randomly generated. Reviews and papers are cloned once. \\
+        \textbf{(b)} \sys deletes sensitive user-to-conflict edges and conflict-to-paper edges. 
     }
     \label{fig:hotcrp}
 \end{figure}

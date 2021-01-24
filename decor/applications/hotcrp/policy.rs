@@ -1,368 +1,370 @@
-use decor::policy::{GeneratePolicy, GhostColumnPolicy, EntityGhostPolicies, KeyRelationship, ApplicationPolicy};
+use decor::policy::{GeneratePolicy, GhostColumnPolicy, EntityGhostPolicies, EdgePolicy, MaskPolicy, EntityName};
 use std::collections::HashMap;
+use std::rc::Rc;
 
-fn get_ghost_policies() -> EntityGhostPolicies {
+fn get_pc_ghost_policies() -> EntityGhostPolicies {
     let mut ghost_policies : EntityGhostPolicies = HashMap::new();
     ghost_policies 
 }
 
-fn get_hotcrp_policy() -> ApplicationPolicy {
-    use decor::policy::DecorrelationPolicy::*;
-    ApplicationPolicy{
-        entity_type_to_decorrelate: "ContactInfo".to_string(), 
-        ghost_policies : get_ghost_policies(), 
-        edge_policies : vec![
-            /*
-             * ACTION LOG
-             *  
-             * Foreign keys:
-             *      - contactId = the user performing the action
-             *      - destContactId = user recipient of action 
-             *      - trueContactId = either contactId or -1, indicating action was from link
-             *      - paperId = paper acted upon
-             * 
-             *  When a user unsubscribes, all associated action log entries should no longer refer
-             *  to this user. All parent-child (user->log entry) correlations should be broken.
-             *
-             *  However, the action log entry may still be correlated with *other* real users in
-             *  the system; child-parent (log->user) correlations can remain. For example, if an
-             *  unsubscribed user disables another real user account, the action log would reflect
-             *  that a *ghost* user disabled the real user account. 
-             *
-             *  Action logs may link to a sensitive papers because the log records paper
-             *  *deletions*. We can retain the (parent-child) link between a sensitive paper---a
-             *  paper authored or reviewed by an unsubscribing user---and a log entry that records
-             *  the paper's deletion. This is because any link between the paper and the
-             *  unsubscribing user has already been decorrelated, and the delete action does not
-             *  reveal information about who may have reviewed the paper. 
-             *  
-             *  Sensitive log entries in which the delete action is *performed* by the
-             *  unsubscribing user can also retain links to paper IDs because the action has been
-             *  decorrelated from the user by the policies specified above. 
-             *
-             *  Note that for all retained links, it does not make sense to add log entries for
-             *  "noise" (to reduce sensitivity): a paper can only be deleted once, and adding more
-             *  actions falsely "created by" or "sent to" other real users would reduce the log's
-             *  utility.
-             */
-            KeyRelationship{
-                child: "ActionLog".to_string(),
-                parent: "ContactInfo".to_string(),
-                column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
-            },
+fn get_cp_ghost_policies() -> EntityGhostPolicies {
+    let mut ghost_policies : EntityGhostPolicies = HashMap::new();
+    ghost_policies 
+}
 
-            KeyRelationship{
-                child: "ActionLog".to_string(),
-                parent: "ContactInfo".to_string(),
-                column_name: "destContactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
-            },
+fn get_edge_policies() -> HashMap<EntityName, Rc<Vec<EdgePolicy>>> {
+    use decor::policy::EdgePolicyType::*;
 
-            KeyRelationship{
-                child: "ActionLog".to_string(),
+    let mut edge_policies = HashMap::new();
+    /*
+     * ACTION LOG
+     *  
+     * Foreign keys:
+     *      - contactId = the user performing the action
+     *      - destContactId = user recipient of action 
+     *      - trueContactId = either contactId or -1, indicating action was from link
+     *      - paperId = paper acted upon
+     * 
+     *  When a user unsubscribes, all associated action log entries should no longer refer
+     *  to this user. All parent-child (user->log entry) correlations should be broken.
+     *
+     *  However, the action log entry may still be correlated with *other* real users in
+     *  the system; child-parent (log->user) correlations can remain. For example, if an
+     *  unsubscribed user disables another real user account, the action log would reflect
+     *  that a *ghost* user disabled the real user account. 
+     *
+     *  Action logs may link to a sensitive papers because the log records paper
+     *  *deletions*. We can retain the (parent-child) link between a sensitive paper---a
+     *  paper authored or reviewed by an unsubscribing user---and a log entry that records
+     *  the paper's deletion. This is because any link between the paper and the
+     *  unsubscribing user has already been decorrelated, and the delete action does not
+     *  reveal information about who may have reviewed the paper. 
+     *  
+     *  Sensitive log entries in which the delete action is *performed* by the
+     *  unsubscribing user can also retain links to paper IDs because the action has been
+     *  decorrelated from the user by the policies specified above. 
+     *
+     *  Note that for all retained links, it does not make sense to add log entries for
+     *  "noise" (to reduce sensitivity): a paper can only be deleted once, and adding more
+     *  actions falsely "created by" or "sent to" other real users would reduce the log's
+     *  utility.
+     */
+    edge_policies.insert("ActionLog".to_string(),
+        Rc::new(vec![
+            EdgePolicy{
                 parent: "ContactInfo".to_string(),
-                column_name: "trueContactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "contactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
-
-            KeyRelationship{
-                child: "ActionLog".to_string(),
+            EdgePolicy{
+                parent: "ContactInfo".to_string(),
+                column: "destContactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
+            },
+            EdgePolicy{
+                parent: "ContactInfo".to_string(),
+                column: "trueContactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
+            },
+            EdgePolicy{
                 parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
-            
-            /*
-             * CAPABILITY 
-             *  
-             * Foreign keys:
-             *      - contactId = user granted the capabilty
-             *      - paperId = paper for which the capability is granted
-             * 
-             *  When a user unsubscribes, all associated capabilities are decorrelated. A user's
-             *  capabilities (and to which papers) can identify the user.
-             *
-             *  Capabilities associated with sensitive papers (authored or reviewed by
-             *  unsubscribing users) can remain associated: if I have the capability to view a
-             *  paper whose reviewer has unsubscribed, I should still be able to view the paper.
-             */
-            KeyRelationship{
-                child: "Capability".to_string(),
-                parent: "ContactInfo".to_string(),
-                column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
-            },
-
-            KeyRelationship{
-                child: "Capability".to_string(),
-                parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
-            },
-            
-            /*
-             * DELETED CONTACT INFO 
-             *  
-             * Foreign keys:
-             *      - contactId = user deleted
-             * 
-             * XXX Shouldn't this information not be kept (when a user deletes their account, or when
-             * accounts are merged)? it seems like it's being used for log
-             * purposes?
-             *
-             * In any case, this should probably be removed when the specified contactId user
-             * unsubscribes.
-             */
-            KeyRelationship{
-                child: "DeletedContactInfo".to_string(),
-                parent: "ContactInfo".to_string(),
-                column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRemove,
-                child_parent_decorrelation_policy: NoDecorRemove,
-            },
+        ])
+    );
  
-            /*
-             * DOCUMENT LINK
-             *  
-             * Foreign keys:
-             *      - paperId = paper 
-             *      - documentId = paper storage identifier
-             *
-             * XXX Lily's understanding of links: they connect together a paper with the actual
-             * paper contents (PaperStorage) and the comments for the paper. I'm not exactly sure
-             * what linkType does, other than it has to be between COMMENT_BEGIN and COMMENT_END
-             *
-             * Links between papers and their paper storage should be retained. 
-             * Links between papers and paper comments should also be retained:
-             *      We want the conversation thread of a particular paper to still be consistent
-             *      even if one of the comment authors, reviewers, or paper authors unsubscribes.
-             *      I believe that links between papers and paper comments reveals little
-             *      information about the authors of either (unlike links between papers and
-             *      collaborators)
-             * 
-             */
-            KeyRelationship{
-                child: "DocumentLink".to_string(),
-                parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+    /*
+     * CAPABILITY 
+     *  
+     * Foreign keys:
+     *      - contactId = user granted the capabilty
+     *      - paperId = paper for which the capability is granted
+     * 
+     *  When a user unsubscribes, all associated capabilities are decorrelated. A user's
+     *  capabilities (and to which papers) can identify the user.
+     *
+     *  Capabilities associated with sensitive papers (authored or reviewed by
+     *  unsubscribing users) can remain associated: if I have the capability to view a
+     *  paper whose reviewer has unsubscribed, I should still be able to view the paper.
+     */
+    edge_policies.insert("Capability".to_string(),
+        Rc::new(vec![
+            EdgePolicy{
+                parent: "ContactInfo".to_string(),
+                column: "contactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
-
-            KeyRelationship{
-                child: "DocumentLink".to_string(),
+            EdgePolicy{
+                parent: "Paper".to_string(),
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
+            },
+        ])
+    );
+    
+    /*
+     * DELETED CONTACT INFO 
+     *  
+     * Foreign keys:
+     *      - contactId = user deleted
+     * 
+     * XXX Shouldn't this information not be kept (when a user deletes their account, or when
+     * accounts are merged)? it seems like it's being used for log
+     * purposes?
+     *
+     * In any case, this should probably be removed when the specified contactId user
+     * unsubscribes.
+     */
+    edge_policies.insert("DeletedContactInfo".to_string(),
+        Rc::new(vec![
+            EdgePolicy{
+                parent: "ContactInfo".to_string(),
+                column: "contactId".to_string(),
+                pc_policy: Delete(0.0),
+                cp_policy: Delete(0.0),
+            },
+        ])
+    );
+    
+    /*
+     * DOCUMENT LINK
+     *  
+     * Foreign keys:
+     *      - paperId = paper 
+     *      - documentId = paper storage identifier
+     *
+     * XXX Lily's understanding of links: they connect together a paper with the actual
+     * paper contents (PaperStorage) and the comments for the paper. I'm not exactly sure
+     * what linkType does, other than it has to be between COMMENT_BEGIN and COMMENT_END
+     *
+     * Links between papers and their paper storage should be retained. 
+     * Links between papers and paper comments should also be retained:
+     *      We want the conversation thread of a particular paper to still be consistent
+     *      even if one of the comment authors, reviewers, or paper authors unsubscribes.
+     *      I believe that links between papers and paper comments reveals little
+     *      information about the authors of either (unlike links between papers and
+     *      collaborators)
+     * 
+     */
+    edge_policies.insert("DocumentLink".to_string(),
+        Rc::new(vec![
+            EdgePolicy{
+                parent: "Paper".to_string(),
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
+            },
+            EdgePolicy{
                 parent: "PaperComment".to_string(),
-                column_name: "linkId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "linkId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
+            EdgePolicy{
+                parent: "PaperStorage".to_string(),
+                column: "documentId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
+            },
+        ])
+    );
 
-            KeyRelationship{
-                child: "DocumentLink".to_string(),
+    /*
+     * FILTERED DOCUMENT 
+     *  
+     * Foreign keys:
+     *      - inDocId = paper storage id to look up
+     *      - outDocId = paper storage id found by filter search
+     *
+     * Just keep the links
+     */
+    edge_policies.insert("FilteredDocument".to_string(),
+        Rc::new(vec![
+            EdgePolicy{
                 parent: "PaperStorage".to_string(),
-                column_name: "documentId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "inDocId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
- 
-            /*
-             * FILTERED DOCUMENT 
-             *  
-             * Foreign keys:
-             *      - inDocId = paper storage id to look up
-             *      - outDocId = paper storage id found by filter search
-             *
-             * Just keep the links
-             */
-            KeyRelationship{
-                child: "FilteredDocument".to_string(),
+            EdgePolicy{
                 parent: "PaperStorage".to_string(),
-                column_name: "inDocId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "outDocId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
-
-            KeyRelationship{
-                child: "FilteredDocument".to_string(),
-                parent: "PaperStorage".to_string(),
-                column_name: "outDocId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
-            },
- 
-            /*
-             * FORMULA 
-             *  
-             * Foreign keys:
-             *      - createdBy = user who created the formula
-             *
-             * Decorrelate the user from her formulae
-             */
-            KeyRelationship{
-                child: "Formula".to_string(),
+        ])
+    );
+    
+    /*
+     * FORMULA 
+     *  
+     * Foreign keys:
+     *      - createdBy = user who created the formula
+     *
+     * Decorrelate the user from her formulae
+     */
+    edge_policies.insert("Formula".to_string(),
+        Rc::new(vec![
+        EdgePolicy{
                 parent: "ContactInfo".to_string(),
-                column_name: "createdBy".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain, // NA
+                column: "createdBy".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain, // NA
             },
+        ])
+    );
 
-            /* 
-             * MAIL LOG 
-             * 
-             * There are blobs for paperIds and recipients; it seems like an unsubscribed recipient
-             * should be removed from log entries
-             */
- 
-            /*
-             * PAPER
-             *  
-             * Foreign keys:
-             *      - leadContactId = lead author for paper
-             *      - shepherdContactId = shepherd
-             *      - managerContactId = managers of conference(?)
-             *      - paperStorageId = actual paper file 
-             *      - finalPaperStorageId = paper file for final version of paper
-             *
-             * Any unsubscribing user who is one of the parent contactIds should be decorrelated
-             * from the paper (the paper's field value points to a ghost). The lead, sheperd, and manager
-             * contact IDs do not leak information about who the others may be, so these links can
-             * be retained.
-             */
-            KeyRelationship{
-                child: "Paper".to_string(),
+    /* 
+     * MAIL LOG 
+     * 
+     * There are blobs for paperIds and recipients; it seems like an unsubscribed recipient
+     * should be removed from log entries
+     *
+     * XXX leaving this for now
+     */
+    
+    /*
+     * PAPER
+     *  
+     * Foreign keys:
+     *      - leadContactId = lead author for paper
+     *      - shepherdContactId = shepherd
+     *      - managerContactId = managers of conference(?)
+     *      - paperStorageId = actual paper file 
+     *      - finalPaperStorageId = paper file for final version of paper
+     *
+     * Any unsubscribing user who is one of the parent contactIds should be decorrelated
+     * from the paper (the paper's field value points to a ghost). The lead, sheperd, and manager
+     * contact IDs do not leak information about who the others may be, so these links can
+     * be retained.
+     */  
+    edge_policies.insert("Paper".to_string(),
+        Rc::new(vec![
+            EdgePolicy{
                 parent: "ContactInfo".to_string(),
-                column_name: "leadContactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "leadContactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
-
-            KeyRelationship{
-                child: "Paper".to_string(),
+            EdgePolicy{
                 parent: "ContactInfo".to_string(),
-                column_name: "shepherdContactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "shepherdContactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
-
-            KeyRelationship{
-                child: "Paper".to_string(),
+            EdgePolicy{
                 parent: "ContactInfo".to_string(),
-                column_name: "managerContactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "managerContactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
-
-            KeyRelationship{
-                child: "Paper".to_string(),
+            EdgePolicy{
                 parent: "PaperStorage".to_string(),
-                column_name: "paperStorageId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "paperStorageId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
-
-            KeyRelationship{
-                child: "Paper".to_string(),
+            EdgePolicy{
                 parent: "PaperStorage".to_string(),
-                column_name: "finalPaperStorageId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "finalPaperStorageId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
+        ])
+    );
  
-            /*
-             * PAPER COMMENT
-             *  
-             * Foreign keys:
-             *      - paperId = paper commenting about
-             *      - contactId = commenter 
-             *
-             * If commenters unsubscribe, they should be decorrelated from their comments; if they
-             * are also authors or reviewers of the paper, note that those lead contact/reviewer
-             * identifiers will also be decorrelated and replaced by ghosts.
-             *
-             * Comments should remain associated with the original paper.
-             * 
-             * Note that if a conflicting author has unsubscribed, the paper will have already been
-             * decorrelated from that conflict, and the comment reviewer name can remain correlated.
+    /*
+     * PAPER COMMENT
+     *  
+     * Foreign keys:
+     *      - paperId = paper commenting about
+     *      - contactId = commenter 
+     *
+     * If commenters unsubscribe, they should be decorrelated from their comments; if they
+     * are also authors or reviewers of the paper, note that those lead contact/reviewer
+     * identifiers will also be decorrelated and replaced by ghosts.
+     *
+     * Comments should remain associated with the original paper.
+     * 
+     * Note that if a conflicting author has unsubscribed, the paper will have already been
+     * decorrelated from that conflict, and the comment reviewer name can remain correlated.
 
-             */
-            KeyRelationship{
-                child: "PaperComment".to_string(),
+     */
+    edge_policies.insert("PaperComment".to_string(),
+        Rc::new(vec![
+            EdgePolicy{
                 parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
-
-            KeyRelationship{
-                child: "PaperComment".to_string(),
+            EdgePolicy{
                 parent: "ContactInfo".to_string(),
-                column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "contactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
+        ]),
+    );
  
-            /*
-             * PAPER CONFLICT
-             *  
-             * Foreign keys:
-             *      - contactId = user with conflict (collaborator, reviewer conflicts) 
-             *      - paperId = paper 
-             *
-             * If the conflict user (contactId) unsubscribes, the user is decorrelated from all their paper conflict
-             * entries. 
-             * 
-             * However, it may be problematic for decorrelated paper conflicts to remain linked to
-             * the paper: the paper's other attributes (such as other paper conflicts that link to this
-             * paper) can re-identify the ghosted / anonymized user. 
-             * 
-             * Option 1: We decorrelate the paper conflict from the paper as well, linking to a
-             * ghost paper instead. Observing the conflicts for the paper therefore hides that
-             * there is a ghost user who also has a conflict with the paper. (This is the policy
-             * specified below).
-             *
-             * Option 2: We introduce fake conflicts for this paper to add noise. This has the
-             * problem of introducing spurious conflicts and messes with the semantics for
-             * assigning reviewers, so this seems implausible.
-             *
-             * Option 3: We decorrelate *all* users who have paper conflicts for this paper from
-             * the paper, so that all paper conflicts for the paper are ghost users.  (Note: DeCor
-             * currently doesn't support this type of child->parent->child decorrelation). This
-             * seems problematic because other collaborators will suddenly lose access to the
-             * paper.
-             *
-             * If all paper conflict users have unsubscribed, then the paper will seemingly have no
-             * paper conflicts; all ghost users will point to a ghost paper (which can be generated
-             * as a clone of the original).
-             */
-            KeyRelationship{
-                child: "PaperConflict".to_string(),
+    /*
+     * PAPER CONFLICT
+     *  
+     * Foreign keys:
+     *      - contactId = user with conflict (collaborator, reviewer conflicts) 
+     *      - paperId = paper 
+     *
+     * If the conflict user (contactId) unsubscribes, the user is decorrelated from all their paper conflict
+     * entries. 
+     * 
+     * However, it may be problematic for decorrelated paper conflicts to remain linked to
+     * the paper: the paper's other attributes (such as other paper conflicts that link to this
+     * paper) can re-identify the ghosted / anonymized user. 
+     *
+     * Option 1: Don't do anything. Leaks the most information.
+     * 
+     * Option 2: We delete the paper conflict from the paper as well. This can create spurious
+     * conflicts (This is the policy
+     * specified below).
+     *
+     * Option 3: We delete *all* users who have paper conflicts for this paper from
+     * the paper, so that all paper conflicts for the paper are ghost users. This
+     * seems problematic because other collaborators will suddenly lose access to the
+     * paper, and reviewers may be wrongly assigned papers
+     *
+     * If all paper conflict users have unsubscribed, then the paper will seemingly have no
+     * paper conflicts; all ghost users will point to a ghost paper (which can be generated
+     * as a clone of the original).
+     */
+    edge_policies.insert("PaperConflict".to_string(),
+        Rc::new(vec![
+            EdgePolicy{
                 parent: "ContactInfo".to_string(),
-                column_name: "contactId".to_string(),
+                column: "contactId".to_string(),
                 // if the user is unsubscribing, decorrelate the user from this conflict
-                parent_child_decorrelation_policy: Decor,
+                pc_policy: Decorrelate(0.0),
                 // if the conflict has been decorrelated from a parent paper (and is sensitive), we
                 // can keep the conflict link to the user because the transitive link to the paper
                 // has been broken
-                child_parent_decorrelation_policy: NoDecorRetain, 
+                cp_policy: Retain, 
             },
-
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperConflict".to_string(),
                 parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                // if the conflict is sensitive, the associated paper should be decorrelated (thus
-                // removing even a ghost trace of there having been this conflict)
-                parent_child_decorrelation_policy: Decor,
-                // if the paper is sensitive (e.g., the lead contact unsubscribes), the paper
-                // should be decorrelated from its conflicts
-                child_parent_decorrelation_policy: Decor,
+                column: "paperId".to_string(),
+                // if the conflict is sensitive, we should remove it, preventing there from being
+                // even a ghost trace
+                pc_policy: Delete(0.0),
+                // if the paper is sensitive (e.g., the lead contact unsubscribes), we keep the
+                // conflicts of the paper because we want to keep the paper information 
+                cp_policy: Retain,
             },
  
             /*
@@ -373,12 +375,12 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              * 
              * Paper options can be retained.
              */
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperOption".to_string(),
                 parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
  
             /*
@@ -398,28 +400,28 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              * Note that if a conflicting author has unsubscribed, the paper will have already been
              * decorrelated from that conflict, and the review should remain correlated.
              */
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperReview".to_string(),
                 parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperReview".to_string(),
                 parent: "ContactInfo".to_string(),
-                column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "contactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperReview".to_string(),
                 parent: "ContactInfo".to_string(),
-                column_name: "requestedBy".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "requestedBy".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
  
             /*
@@ -433,20 +435,20 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              * linked. If the paper is sensitive, we can still keep requesting reviewer users
              * correlated.
              */
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperReviewPreference".to_string(),
                 parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperReviewPreference".to_string(),
                 parent: "ContactInfo".to_string(),
-                column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "contactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
 
             /*
@@ -472,60 +474,60 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              * refused review can still remain linked to its contacts. 
              *
              */
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperReviewRefused".to_string(),
                 parent: "ContactInfo".to_string(),
-                column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "contactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperReviewRefused".to_string(),
                 parent: "PaperReview".to_string(),
-                column_name: "refusedReviewId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "refusedReviewId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
  
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperReviewRefused".to_string(),
                 parent: "ContactInfo".to_string(),
-                column_name: "email".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "email".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperReviewRefused".to_string(),
                 parent: "ContactInfo".to_string(),
-                column_name: "requestedBy".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "requestedBy".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperReviewRefused".to_string(),
                 parent: "ContactInfo".to_string(),
-                column_name: "refusedBy".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "refusedBy".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
            
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperReviewRefused".to_string(),
                 parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperStorage".to_string(),
                 parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
             // paperStorageId joined with DocumentLink.documentId
  
@@ -544,12 +546,12 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              *  seems to link an annotation ID to tags; the API allows users to delete, update, or insert
              *  new tag annotations?
              */
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperTag".to_string(),
                 parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
  
             /*
@@ -560,12 +562,12 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              *
              *  Papers can remain affiliated with their topics
              */
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperTopic".to_string(),
                 parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
  
             /*
@@ -583,20 +585,20 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              *  user parents from their real papers.
              *
              */
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperWatch".to_string(),
                 parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "PaperWatch".to_string(),
                 parent: "ContactInfo".to_string(),
-                column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "contactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
            
             /*
@@ -610,36 +612,36 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              *
              * The user rating or requesting the rating should be decorrelated from the rating.
              */
-            KeyRelationship{
+            EdgePolicy{
                 child: "ReviewRating".to_string(),
                 parent: "ContactInfo".to_string(),
-                column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "contactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "ReviewRequest".to_string(),
                 parent: "ContactInfo".to_string(),
-                column_name: "requestedBy".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "requestedBy".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "ReviewRating".to_string(),
                 parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "ReviewRating".to_string(),
                 parent: "Review".to_string(),
-                column_name: "reviewId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "reviewId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
        
             /*
@@ -656,28 +658,28 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              * well, so this should also be "decorrelated" (this email address identifies an
              * "abstract" entity)
              */
-            KeyRelationship{
+            EdgePolicy{
                 child: "ReviewRequest".to_string(),
                 parent: "ContactInfo".to_string(),
-                column_name: "email".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "email".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "ReviewRequest".to_string(),
                 parent: "Paper".to_string(),
-                column_name: "paperId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "ReviewRequest".to_string(),
                 parent: "PaperReview".to_string(),
-                column_name: "reviewId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "reviewId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
         
             /* 
@@ -694,21 +696,29 @@ fn get_hotcrp_policy() -> ApplicationPolicy {
              * Users should be decorrelated from topics of interest when they unsubscribe.
              *
              */
-            KeyRelationship{
+            EdgePolicy{
                 child: "TopicInterest".to_string(),
                 parent: "TopicArea".to_string(),
-                column_name: "topicId".to_string(),
-                parent_child_decorrelation_policy: NoDecorRetain,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "topicId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
             },
 
-            KeyRelationship{
+            EdgePolicy{
                 child: "TopicInterest".to_string(),
                 parent: "ContactInfo".to_string(),
-                column_name: "contactId".to_string(),
-                parent_child_decorrelation_policy: Decor,
-                child_parent_decorrelation_policy: NoDecorRetain,
+                column: "contactId".to_string(),
+                pc_policy: Decorrelate(0.0),
+                cp_policy: Retain,
             }
         ]
+    }
+
+pub fn get_lobsters_policy() -> MaskPolicy {
+    MaskPolicy{
+        unsub_entity_type: "ContactInfo".to_string(), 
+        pc_ghost_policies : get_pc_ghost_policies(), 
+        cp_ghost_policies : get_cp_ghost_policies(), 
+        edge_policies : get_edge_policies(),
     }
 }
