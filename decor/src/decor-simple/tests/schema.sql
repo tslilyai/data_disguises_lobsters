@@ -1,5 +1,5 @@
 DROP TABLE IF EXISTS `moderations` CASCADE;
-CREATE TABLE `moderations` (`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `moderator_user_id` int, `story_id` int, `user_id` int, `action` text);
+CREATE TABLE `moderations` (`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `moderator_user_id` int, `story_id` int, `user_id` int, `action` text, INDEX `users` (`user_id`), INDEX `mods` (`moderator_user_id`));
 
 DROP TABLE IF EXISTS `stories` CASCADE;
 CREATE TABLE `stories` (`id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, `user_id` int, `url` varchar(250) DEFAULT '', `is_moderated` int DEFAULT 0 NOT NULL, INDEX `users` (`user_id`));
