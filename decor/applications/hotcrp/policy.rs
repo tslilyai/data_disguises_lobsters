@@ -356,7 +356,6 @@ fn get_edge_policies() -> HashMap<EntityName, Rc<Vec<EdgePolicy>>> {
                 cp_policy: Retain, 
             },
             EdgePolicy{
-                child: "PaperConflict".to_string(),
                 parent: "Paper".to_string(),
                 column: "paperId".to_string(),
                 // if the conflict is sensitive, we should remove it, preventing there from being
@@ -366,338 +365,340 @@ fn get_edge_policies() -> HashMap<EntityName, Rc<Vec<EdgePolicy>>> {
                 // conflicts of the paper because we want to keep the paper information 
                 cp_policy: Retain,
             },
- 
-            /*
-             * PAPER OPTION
-             *  
-             * Foreign keys:
-             *      - paperId = paper with option
-             * 
-             * Paper options can be retained.
-             */
-            EdgePolicy{
-                child: "PaperOption".to_string(),
-                parent: "Paper".to_string(),
-                column: "paperId".to_string(),
-                pc_policy: Retain,
-                cp_policy: Retain,
-            },
- 
-            /*
-             * PAPER REVIEW
-             *  
-             * Foreign keys:
-             *      - paperId = paper reviewed
-             *      - contactId = reviewer
-             *      - requestedBy = person assigning the review
-             * 
-             * Papers should be kept associated with their reviews.
-             *
-             * Unsubscribing reviewers (or requesters) should be decorrelated from their reviews.
-             * However, if the paper is sensitive (the lead contact has been decorrelated), reviews
-             * should still remain correlated.
-             *
-             * Note that if a conflicting author has unsubscribed, the paper will have already been
-             * decorrelated from that conflict, and the review should remain correlated.
-             */
-            EdgePolicy{
-                child: "PaperReview".to_string(),
-                parent: "Paper".to_string(),
-                column: "paperId".to_string(),
-                pc_policy: Retain,
-                cp_policy: Retain,
-            },
+        ])
+    );
 
+    /*
+     * PAPER OPTION
+     *  
+     * Foreign keys:
+     *      - paperId = paper with option
+     * 
+     * Paper options can be retained.
+     */
+    edge_policies.insert("PaperOption".to_string(),
+        Rc::new(vec![
             EdgePolicy{
-                child: "PaperReview".to_string(),
+                parent: "Paper".to_string(),
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
+            },
+        ])
+    );
+ 
+    /*
+     * PAPER REVIEW
+     *  
+     * Foreign keys:
+     *      - paperId = paper reviewed
+     *      - contactId = reviewer
+     *      - requestedBy = person assigning the review
+     * 
+     * Papers should be kept associated with their reviews.
+     *
+     * Unsubscribing reviewers (or requesters) should be decorrelated from their reviews.
+     * However, if the paper is sensitive (the lead contact has been decorrelated), reviews
+     * should still remain correlated.
+     *
+     * Note that if a conflicting author has unsubscribed, the paper will have already been
+     * decorrelated from that conflict, and the review should remain correlated.
+     */
+     edge_policies.insert("PaperReview".to_string(),
+        Rc::new(vec![
+            EdgePolicy{
+                parent: "Paper".to_string(),
+                column: "paperId".to_string(),
+                pc_policy: Retain,
+                cp_policy: Retain,
+            },
+            EdgePolicy{
                 parent: "ContactInfo".to_string(),
                 column: "contactId".to_string(),
                 pc_policy: Decorrelate(0.0),
                 cp_policy: Retain,
             },
-
             EdgePolicy{
-                child: "PaperReview".to_string(),
                 parent: "ContactInfo".to_string(),
                 column: "requestedBy".to_string(),
                 pc_policy: Decorrelate(0.0),
                 cp_policy: Retain,
             },
- 
-            /*
-             * PAPER REVIEW PREFERENCE
-             *  
-             * Foreign keys:
-             *      - paperId = paper requested to review 
-             *      - contactId = requesting reviewer
-             * 
-             * Decorrelate unsubscribed contactIds from their preferences; papers can remain
-             * linked. If the paper is sensitive, we can still keep requesting reviewer users
-             * correlated.
-             */
-            EdgePolicy{
-                child: "PaperReviewPreference".to_string(),
+        ])
+    );
+
+    /*
+     * PAPER REVIEW PREFERENCE
+     *  
+     * Foreign keys:
+     *      - paperId = paper requested to review 
+     *      - contactId = requesting reviewer
+     * 
+     * Decorrelate unsubscribed contactIds from their preferences; papers can remain
+     * linked. If the paper is sensitive, we can still keep requesting reviewer users
+     * correlated.
+     */
+     edge_policies.insert("PaperReviewPreference".to_string(),
+        Rc::new(vec![
+             EdgePolicy{
                 parent: "Paper".to_string(),
                 column: "paperId".to_string(),
                 pc_policy: Retain,
                 cp_policy: Retain,
             },
-
             EdgePolicy{
-                child: "PaperReviewPreference".to_string(),
                 parent: "ContactInfo".to_string(),
                 column: "contactId".to_string(),
                 pc_policy: Decorrelate(0.0),
                 cp_policy: Retain,
             },
+        ])
+    );
 
-            /*
-             * PAPER REVIEW REFUSED 
-             *  
-             * Foreign keys:
-             *      - paperId = paper  
-             *      - contactId = user who was refused
-             *      - requestedBy = user who requested the refusal
-             *      - refusedBy = user who refused the paper review assignment
-             *      - XXX email = email of user who was refused
-             *      - refusedReviewId = paper review that was refused
-             * 
-             * Unsubscribing users should be decorrelated from their refused paper reviews
-             * (similarly if they were the refuser), but papers and paper reviews can remain linked
-             * to this record.
-             *
-             * It seems like the email address is used as a foreign key to identify the user as
-             * well, so this should also be "decorrelated" (this email address identifies an
-             * "abstract" entity)
-             *
-             * If the paper or paper review are sensitive (e.g., a paper author unsubscribed), the
-             * refused review can still remain linked to its contacts. 
-             *
-             */
+    /*
+     * PAPER REVIEW REFUSED 
+     *  
+     * Foreign keys:
+     *      - paperId = paper  
+     *      - contactId = user who was refused
+     *      - requestedBy = user who requested the refusal
+     *      - refusedBy = user who refused the paper review assignment
+     *      - XXX email = email of user who was refused
+     *      - refusedReviewId = paper review that was refused
+     * 
+     * Unsubscribing users should be decorrelated from their refused paper reviews
+     * (similarly if they were the refuser), but papers and paper reviews can remain linked
+     * to this record.
+     *
+     * It seems like the email address is used as a foreign key to identify the user as
+     * well, so this should also be "decorrelated" (this email address identifies an
+     * "abstract" entity)
+     *
+     * If the paper or paper review are sensitive (e.g., a paper author unsubscribed), the
+     * refused review can still remain linked to its contacts. 
+     *
+     */
+    edge_policies.insert("PaperReviewRefused".to_string(),
+        Rc::new(vec![
             EdgePolicy{
-                child: "PaperReviewRefused".to_string(),
                 parent: "ContactInfo".to_string(),
                 column: "contactId".to_string(),
                 pc_policy: Decorrelate(0.0),
                 cp_policy: Retain,
             },
-
             EdgePolicy{
-                child: "PaperReviewRefused".to_string(),
                 parent: "PaperReview".to_string(),
                 column: "refusedReviewId".to_string(),
                 pc_policy: Retain,
                 cp_policy: Retain,
             },
- 
             EdgePolicy{
-                child: "PaperReviewRefused".to_string(),
                 parent: "ContactInfo".to_string(),
                 column: "email".to_string(),
                 pc_policy: Decorrelate(0.0),
                 cp_policy: Retain,
             },
-
             EdgePolicy{
-                child: "PaperReviewRefused".to_string(),
                 parent: "ContactInfo".to_string(),
                 column: "requestedBy".to_string(),
                 pc_policy: Decorrelate(0.0),
                 cp_policy: Retain,
             },
-
             EdgePolicy{
-                child: "PaperReviewRefused".to_string(),
                 parent: "ContactInfo".to_string(),
                 column: "refusedBy".to_string(),
                 pc_policy: Decorrelate(0.0),
                 cp_policy: Retain,
             },
-           
             EdgePolicy{
-                child: "PaperReviewRefused".to_string(),
                 parent: "Paper".to_string(),
                 column: "paperId".to_string(),
                 pc_policy: Retain,
                 cp_policy: Retain,
             },
+        ])
+    );
 
+    /*
+     * PaperStorage
+     */
+    edge_policies.insert("PaperStorage".to_string(),
+        Rc::new(vec![
             EdgePolicy{
-                child: "PaperStorage".to_string(),
                 parent: "Paper".to_string(),
                 column: "paperId".to_string(),
                 pc_policy: Retain,
                 cp_policy: Retain,
             },
             // paperStorageId joined with DocumentLink.documentId
+        ])
+    );
  
-            /*
-             * PaperTag
-             *
-             * Foreign keys:
-             *      - paper = the paper with the tag
-             *
-             *  Papers can remain affiliated with their tags.
-             *  
-             *  XXX it seems like paper tags and paper tag annotations both contain the contact IDs
-             *  of the creators in the tag contents?
-             *
-             *  XXX Paper tag annotations vs paper tags... what's the difference? PaperTagAnno
-             *  seems to link an annotation ID to tags; the API allows users to delete, update, or insert
-             *  new tag annotations?
-             */
+    /*
+     * PaperTag
+     *
+     * Foreign keys:
+     *      - paper = the paper with the tag
+     *
+     *  Papers can remain affiliated with their tags.
+     *  
+     *  XXX it seems like paper tags and paper tag annotations both contain the contact IDs
+     *  of the creators in the tag contents?
+     *
+     *  XXX Paper tag annotations vs paper tags... what's the difference? PaperTagAnno
+     *  seems to link an annotation ID to tags; the API allows users to delete, update, or insert
+     *  new tag annotations?
+     */
+    edge_policies.insert("PaperTag".to_string(),
+        Rc::new(vec![
             EdgePolicy{
-                child: "PaperTag".to_string(),
                 parent: "Paper".to_string(),
                 column: "paperId".to_string(),
                 pc_policy: Retain,
                 cp_policy: Retain,
             },
+        ])
+    );
  
-            /*
-             * PaperTopic
-             *
-             * Foreign keys:
-             *      - paperId = paper
-             *
-             *  Papers can remain affiliated with their topics
-             */
+    /*
+     * PaperTopic
+     *
+     * Foreign keys:
+     *      - paperId = paper
+     *
+     *  Papers can remain affiliated with their topics
+     */
+    edge_policies.insert("PaperTopic".to_string(),
+        Rc::new(vec![
             EdgePolicy{
-                child: "PaperTopic".to_string(),
                 parent: "Paper".to_string(),
                 column: "paperId".to_string(),
                 pc_policy: Retain,
                 cp_policy: Retain,
             },
+        ])
+    );
  
-            /*
-             * PaperWatch
-             *
-             * Foreign keys:
-             *      - contactId = the user watching the paper
-             *      - paperId = the paper
-             *
-             *  The user's watched papers should be decorrelated from the user.
-             *
-             *  XXX Other users watching the same paper could potentially leak information who a
-             *  ghost user watching the same paper might be? (In the same way that paper conflicts
-             *  might?) To handle this, we could decorrelate the paper watch entries with ghost
-             *  user parents from their real papers.
-             *
-             */
+    /*
+     * PaperWatch
+     *
+     * Foreign keys:
+     *      - contactId = the user watching the paper
+     *      - paperId = the paper
+     *
+     *  The user's watched papers should be decorrelated from the user.
+     *
+     *  XXX Other users watching the same paper could potentially leak information who a
+     *  ghost user watching the same paper might be? (In the same way that paper conflicts
+     *  might?) To handle this, we could decorrelate the paper watch entries with ghost
+     *  user parents from their real papers.
+     *
+     */
+    edge_policies.insert("PaperWatch".to_string(),
+        Rc::new(vec![
             EdgePolicy{
-                child: "PaperWatch".to_string(),
                 parent: "Paper".to_string(),
                 column: "paperId".to_string(),
                 pc_policy: Retain,
                 cp_policy: Retain,
             },
-
             EdgePolicy{
-                child: "PaperWatch".to_string(),
                 parent: "ContactInfo".to_string(),
                 column: "contactId".to_string(),
                 pc_policy: Decorrelate(0.0),
                 cp_policy: Retain,
             },
+        ])
+    );
            
-            /*
-             * REVIEW RATING 
-             *
-             * Foreign keys:
-             *      - contactId = the user giving the review rating 
-             *      - requestedBy = the user who assigned this review
-             *      - paperId = paper being reviewed
-             *      - reviewId = review attached to rating
-             *
-             * The user rating or requesting the rating should be decorrelated from the rating.
-             */
+    /*
+     * REVIEW RATING 
+     *
+     * Foreign keys:
+     *      - contactId = the user giving the review rating 
+     *      - requestedBy = the user who assigned this review
+     *      - paperId = paper being reviewed
+     *      - reviewId = review attached to rating
+     *
+     * The user rating or requesting the rating should be decorrelated from the rating.
+     */
+    edge_policies.insert("ReviewRating".to_string(),
+        Rc::new(vec![
             EdgePolicy{
-                child: "ReviewRating".to_string(),
                 parent: "ContactInfo".to_string(),
                 column: "contactId".to_string(),
                 pc_policy: Decorrelate(0.0),
                 cp_policy: Retain,
             },
-
             EdgePolicy{
-                child: "ReviewRequest".to_string(),
-                parent: "ContactInfo".to_string(),
-                column: "requestedBy".to_string(),
-                pc_policy: Decorrelate(0.0),
-                cp_policy: Retain,
-            },
-
-            EdgePolicy{
-                child: "ReviewRating".to_string(),
                 parent: "Paper".to_string(),
                 column: "paperId".to_string(),
                 pc_policy: Retain,
                 cp_policy: Retain,
             },
-
             EdgePolicy{
-                child: "ReviewRating".to_string(),
                 parent: "Review".to_string(),
                 column: "reviewId".to_string(),
                 pc_policy: Retain,
                 cp_policy: Retain,
             },
+        ])
+    );
        
-            /*
-             * REVIEW REQUEST
-             *
-             * Foreign keys:
-             *      - email = the email of the user requesting the review
-             *      - paperId = paper being requested to review
-             *      - reviewId = paper review being requested
-             *
-             * The user requesting the review should be decorrelated from the request.
-             *
-             * It again seems like the email address is used as a foreign key to identify the user as
-             * well, so this should also be "decorrelated" (this email address identifies an
-             * "abstract" entity)
-             */
+    /*
+     * REVIEW REQUEST
+     *
+     * Foreign keys:
+     *      - email = the email of the user requesting the review
+     *      - paperId = paper being requested to review
+     *      - reviewId = paper review being requested
+     *
+     * The user requesting the review should be decorrelated from the request.
+     *
+     * It again seems like the email address is used as a foreign key to identify the user as
+     * well, so this should also be "decorrelated" (this email address identifies an
+     * "abstract" entity)
+     */
+    edge_policies.insert("ReviewRequest".to_string(),
+        Rc::new(vec![
             EdgePolicy{
-                child: "ReviewRequest".to_string(),
                 parent: "ContactInfo".to_string(),
                 column: "email".to_string(),
                 pc_policy: Decorrelate(0.0),
                 cp_policy: Retain,
             },
-
             EdgePolicy{
-                child: "ReviewRequest".to_string(),
                 parent: "Paper".to_string(),
                 column: "paperId".to_string(),
                 pc_policy: Retain,
                 cp_policy: Retain,
             },
-
             EdgePolicy{
-                child: "ReviewRequest".to_string(),
                 parent: "PaperReview".to_string(),
                 column: "reviewId".to_string(),
                 pc_policy: Retain,
                 cp_policy: Retain,
             },
+        ])
+    );
         
-            /* 
-             * SETTINGS and TOPIC AREA have no parents...
-             */
+    /* 
+     * SETTINGS and TOPIC AREA have no parents...
+     */
 
-            /*
-             * TOPIC INTEREST
-             *
-             * Foreign keys:
-             *      - contactId = the user performing the action
-             *      - topicArea
-             *
-             * Users should be decorrelated from topics of interest when they unsubscribe.
-             *
-             */
+    /*
+     * TOPIC INTEREST
+     *
+     * Foreign keys:
+     *      - contactId = the user performing the action
+     *      - topicArea
+     *
+     * Users should be decorrelated from topics of interest when they unsubscribe.
+     *
+     */
+    edge_policies.insert("TopicInterest".to_string(),
+        Rc::new(vec![
             EdgePolicy{
-                child: "TopicInterest".to_string(),
                 parent: "TopicArea".to_string(),
                 column: "topicId".to_string(),
                 pc_policy: Retain,
@@ -705,16 +706,17 @@ fn get_edge_policies() -> HashMap<EntityName, Rc<Vec<EdgePolicy>>> {
             },
 
             EdgePolicy{
-                child: "TopicInterest".to_string(),
                 parent: "ContactInfo".to_string(),
                 column: "contactId".to_string(),
                 pc_policy: Decorrelate(0.0),
                 cp_policy: Retain,
             }
-        ]
-    }
+        ])
+    );
+    edge_policies
+}
 
-pub fn get_lobsters_policy() -> MaskPolicy {
+pub fn get_hotcrp_policy() -> MaskPolicy {
     MaskPolicy{
         unsub_entity_type: "ContactInfo".to_string(), 
         pc_ghost_policies : get_pc_ghost_policies(), 

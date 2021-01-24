@@ -41,3 +41,8 @@ histogram-sampler = "0.4.0"
 name = "lobsters"
 path = "lobsters/main.rs"
 doc = false
+
+[[bin]]
+name = "hotcrp"
+path = "hotcrp/main.rs"
+doc = false
