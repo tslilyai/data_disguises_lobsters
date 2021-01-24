@@ -8,6 +8,7 @@ use mysql::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::io::{self, BufReader, BufWriter};
 use std::*;
+use std::hash::{Hash, Hasher};
 use sql_parser::ast::*;
 use log::{warn};
 
@@ -24,12 +25,24 @@ pub mod views;
 pub const INIT_CAPACITY: usize = 1000;
 pub const ID_COL: &str = "id";
 
-#[derive(Serialize, Deserialize, Hash, PartialOrd, Ord, PartialEq, Eq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialOrd, Ord, Debug, Clone)]
 pub struct EntityData {
     pub table: String, 
     pub eid: u64,
     pub row_strs: Vec<String>
 }
+impl Hash for EntityData {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.table.hash(state);
+        self.eid.hash(state);
+    }
+}
+impl PartialEq for EntityData {
+    fn eq(&self, other: &EntityData) -> bool {
+        self.table == other.table && self.eid == other.eid
+    }
+}
+impl Eq for EntityData {} 
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {

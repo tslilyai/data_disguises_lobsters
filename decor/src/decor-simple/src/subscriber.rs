@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::*;
 use log::{warn};
 use msql_srv::{QueryResultWriter};
-use crate::{helpers, EntityData, ghosts::GhostEidMapping, querier::TraversedEntity}; 
+use crate::{helpers, EntityData, ghosts::GhostEidMapping, querier::TraversedEntity, views::HashedRowPtr}; 
 
 const EID_COL: &'static str = "entity_id";
 const GM_HASH_COL: &'static str = "ghost_mappings";
@@ -80,11 +80,15 @@ pub fn answer_rows<W: io::Write>(
     Ok(())
 }
 
+pub fn hrptr_to_strs(hrptr: &HashedRowPtr) -> Vec<String> {
+    hrptr.row().borrow().iter().map(|v| v.to_string()).collect()
+}
+
 pub fn traversed_entity_to_entitydata(entity: &TraversedEntity) -> EntityData {
     EntityData{
         table: entity.table_name.clone(),
         eid: entity.eid,
-        row_strs: entity.hrptr.row().borrow().iter().map(|v| v.to_string()).collect(),
+        row_strs: hrptr_to_strs(&entity.hrptr),
     }
 }
 

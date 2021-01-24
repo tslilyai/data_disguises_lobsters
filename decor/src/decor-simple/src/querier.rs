@@ -304,15 +304,20 @@ impl Querier {
         // initialize with the entity specified by the uid
         let mut view_ptr = self.views.get_view(&self.policy.unsub_entity_type).unwrap();
         let matching_row = HashedRowPtr::new(view_ptr.borrow().get_row_of_id(uid), view_ptr.borrow().primary_index);
-        children_to_traverse.push(TraversedEntity{
+        let init_node = TraversedEntity{
                 table_name: self.policy.unsub_entity_type.clone(),
                 eid : uid,
                 hrptr: matching_row.clone(),
                 parent_table: "".to_string(),
                 parent_col_index: 0,
                 from_pc_edge: true,
-        });
+        };
 
+        // we will eventually remove this node
+        nodes_to_remove.insert(subscriber::traversed_entity_to_entitydata(&init_node));
+
+        children_to_traverse.push(init_node);
+        
         /* 
          * Step 1: TRAVERSAL + DECORRELATION
          * TODO could parallelize to reduce time to traverse?
@@ -321,7 +326,6 @@ impl Querier {
             let start = time::Instant::now();
 
             let node = children_to_traverse.pop().unwrap();
-            let nodedata = subscriber::traversed_entity_to_entitydata(&node);
             let mut children_to_decorrelate = vec![];
             let mut children_to_retain = vec![];
             let mut children_to_delete = vec![];
@@ -333,8 +337,7 @@ impl Querier {
             let children : EntityTypeRows;
             match self.views.graph.get_children_of_parent(&node.table_name, node.eid) {
                 None => {
-                    // this is a leaf node, we want to ghost it and remove the template
-                    nodes_to_remove.insert(nodedata);
+                    // this is a leaf node, we want to ghost it 
                     nodes_to_ghost.insert(node);
                     continue;
                 }
@@ -366,28 +369,41 @@ impl Querier {
                             parent_col_index: ci,
                             from_pc_edge: true,
                         };
+                        
+                        let child_nodedata = subscriber::traversed_entity_to_entitydata(&child);
 
                         match policy.pc_policy {
                             Decorrelate(f) => { 
                                 assert!(f < 1.0); 
-                                children_to_decorrelate.push(child);
+                                children_to_decorrelate.push(child.clone());
+
+                                // if child hasn't been seen and hasn't been ghosted, traverse
+                                // child would only be ghosted if it itself had children that had
+                                // to be decorrelated---if it's a ghost, this means that a prior
+                                // unsubscription already took care of it!
+                                if traversed_entities.get(&child).is_none() && !is_ghost_eid(child.eid) {
+                                    warn!("Adding traversed child {}, {}", child.table_name, child.eid);
+                                    nodes_to_remove.insert(child_nodedata.clone());
+                                    children_to_traverse.push(child);
+                                }
                             }
                             Delete(f) => {
                                 assert!(f < 1.0); 
                                 // add all the sensitive removed entities to return to the user 
-                                self.get_tree_from_child(&child, &mut nodes_to_remove);
+                                self.get_tree_from_child(&child_nodedata, &mut nodes_to_remove);
                                 
                                 // don't add child to traversal queue
                                 children_to_delete.push(child);
                             }
                             Retain => {
+                                children_to_retain.push(child.clone());
+
                                 // if child hasn't been seen yet, traverse
                                 if traversed_entities.get(&child).is_none() && !is_ghost_eid(child.eid) {
                                     warn!("Adding traversed child {}, {}", child.table_name, child.eid);
-                                    children_to_traverse.push(child.clone());
+                                    nodes_to_remove.insert(child_nodedata.clone());
+                                    children_to_traverse.push(child);
                                 }
-                                
-                                children_to_retain.push(child);
                             }
                         }
                     }
@@ -414,15 +430,6 @@ impl Querier {
                         &child.table_name, child.hrptr.row().clone(), child.parent_col_index, 
                         Some(&Value::Number(gids[gid_index].to_string())));
                     gid_index += 1;
-
-                    // if child hasn't been seen and hasn't been ghosted yet, traverse
-                    // child would only be ghosted if it itself had children that had
-                    // to be decorrelated---if it's a ghost, this means that a prior
-                    // unsubscription already took care of it!
-                    if traversed_entities.get(&child).is_none() && !is_ghost_eid(child.eid) {
-                        warn!("Adding traversed child {}, {}", child.table_name, child.eid);
-                        children_to_traverse.push(child.clone());
-                    }
                 }
 
                 // any retained children now point to the first generated ghost
@@ -437,12 +444,9 @@ impl Querier {
             } else {
 
                 // replace this node with a ghost node because we haven't yet in decorrelation
-                // we want to remove the template parent
                 nodes_to_ghost.insert(node.clone());
 
             }
-            // we want to remove the template parent in any case
-            nodes_to_remove.insert(nodedata.clone());
             warn!("UNSUB {} STEP 1: Duration to traverse+decorrelate {}, {:?}: {}us", 
                       uid, node.table_name.clone(), node, start.elapsed().as_micros());
         }
@@ -627,7 +631,8 @@ impl Querier {
                             Delete(_) => {
                                 // add all the sensitive removed entities to return to the user 
                                 for child in &sensitive_children[0..number_to_desensitize as usize] {
-                                    self.get_tree_from_child(&child, nodes_to_remove);
+                                    let child_nodedata = subscriber::traversed_entity_to_entitydata(&child);
+                                    self.get_tree_from_child(&child_nodedata, nodes_to_remove);
                                 }
                             }
                             _ => unimplemented!("Shouldn't have a retain policy with a positive number to desensitize")
@@ -640,11 +645,11 @@ impl Querier {
         Ok(())
     }
 
-    pub fn get_tree_from_child(&mut self, child: &TraversedEntity, nodes: &mut HashSet<EntityData>)
+    pub fn get_tree_from_child(&mut self, child: &EntityData, nodes: &mut HashSet<EntityData>)
     {
-        let mut children_to_traverse: Vec<TraversedEntity> = vec![];
+        let mut children_to_traverse: Vec<EntityData> = vec![];
         children_to_traverse.push(child.clone());
-        let mut node: TraversedEntity;
+        let mut node: EntityData;
 
         while children_to_traverse.len() > 0 {
             node = children_to_traverse.pop().unwrap().clone();
@@ -652,22 +657,19 @@ impl Querier {
             // see if any entity has a foreign key to this one; we'll need to remove those too
             // NOTE: because traversal was parent->child, all potential children down the line
             // SHOULD already been in seen_children
-            if let Some(children) = self.views.graph.get_children_of_parent(&node.table_name, node.eid) {
-                for ((child_table, child_ci), child_hrptrs) in children.iter() {
+            if let Some(children) = self.views.graph.get_children_of_parent(&node.table, node.eid) {
+                for ((child_table, _child_ci), child_hrptrs) in children.iter() {
                     let view_ptr = self.views.get_view(&child_table).unwrap();
                     for hrptr in child_hrptrs {
-                        children_to_traverse.push(TraversedEntity {
-                            table_name: child_table.clone(),
+                        children_to_traverse.push(EntityData {
+                            table: child_table.clone(),
                             eid: helpers::parser_val_to_u64(&hrptr.row().borrow()[view_ptr.borrow().primary_index]),
-                            hrptr: hrptr.clone(),
-                            parent_table: node.table_name.clone(), 
-                            parent_col_index: *child_ci,
-                            from_pc_edge: true,
+                            row_strs: subscriber::hrptr_to_strs(&hrptr),
                         });
                     }
                 }
             }
-            nodes.insert(subscriber::traversed_entity_to_entitydata(&node));
+            nodes.insert(node);
         }
     }
 

@@ -2967,6 +2967,7 @@ eq	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0
 eq	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/value/partial_eq.rs	/^    fn eq(&self, other: &String) -> bool {$/;"	f
 eq	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/value/partial_eq.rs	/^    fn eq(&self, other: &Value) -> bool {$/;"	f
 eq	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/value/partial_eq.rs	/^    fn eq(&self, other: &str) -> bool {$/;"	f
+eq	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/lib.rs	/^    fn eq(&self, other: &EntityData) -> bool {$/;"	f
 eq	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn eq(&self, other: &TraversedEntity) -> bool {$/;"	f
 eq	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    fn eq(&self, other: &Self) -> bool {$/;"	f
 eq_bool	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/value/partial_eq.rs	/^fn eq_bool(value: &Value, other: bool) -> bool {$/;"	f
@@ -3754,7 +3755,7 @@ get_tcp_nodelay	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/m
 get_tcp_port	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/opts.rs	/^    pub fn get_tcp_port(&self) -> u16 {$/;"	f
 get_test_vectors	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/aes_gcm.rs	/^    fn get_test_vectors()-> [TestVector; 5]{$/;"	f
 get_test_vectors	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/chacha20poly1305.rs	/^  fn get_test_vectors()-> Vec<TestVector>{$/;"	f
-get_tree_from_child	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn get_tree_from_child(&mut self, child: &TraversedEntity, nodes: &mut HashSet<EntityData>)$/;"	f
+get_tree_from_child	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn get_tree_from_child(&mut self, child: &EntityData, nodes: &mut HashSet<EntityData>)$/;"	f
 get_user	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/opts.rs	/^    pub fn get_user(&self) -> Option<&str> {$/;"	f
 get_value_for_row_closure	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/select/select.rs	/^pub fn get_value_for_row_closure(e: &Expr, columns: &Vec<TableColumnDef>) -> Box<dyn Fn(&Vec<Value>) -> Value> {$/;"	f
 get_view	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn get_view(&self, name: &str) -> Option<Rc<RefCell<View>>> {$/;"	f
@@ -3803,6 +3804,7 @@ hash	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/ordered-floa
 hash	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/compile.rs	/^    fn hash(&self, suffix: &SuffixCacheKey) -> usize {$/;"	f
 hash	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/ghash.rs	/^    fn hash() {$/;"	f
 hash	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/salsa20.rs	/^    fn hash(&mut self) {$/;"	f
+hash	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/lib.rs	/^    fn hash<H: Hasher>(&self, state: &mut H) {$/;"	f
 hash	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn hash<H: Hasher>(&self, state: &mut H) {$/;"	f
 hash	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    fn hash<H: Hasher>(&self, state: &mut H) {$/;"	f
 hash_float	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/ordered-float-2.0.0/src/lib.rs	/^fn hash_float<F: Float, H: Hasher>(f: &F, state: &mut H) {$/;"	f
@@ -3824,6 +3826,7 @@ hi64_3	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json
 hide_from_rustfmt	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/features_check/mod.rs	/^macro_rules! hide_from_rustfmt {$/;"	d
 hkdf_expand	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/hkdf.rs	/^pub fn hkdf_expand<D: Digest>(mut digest: D, prk: &[u8], info: &[u8], okm: &mut [u8]) {$/;"	f
 hkdf_extract	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/hkdf.rs	/^pub fn hkdf_extract<D: Digest>(mut digest: D, salt: &[u8], ikm: &[u8], prk: &mut [u8]) {$/;"	f
+hrptr_to_strs	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^pub fn hrptr_to_strs(hrptr: &HashedRowPtr) -> Vec<String> {$/;"	f
 hsalsa20	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/salsa20.rs	/^pub fn hsalsa20(key: &[u8], nonce: &[u8], out: &mut [u8]) {$/;"	f
 hsalsa20_hash	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/salsa20.rs	/^    fn hsalsa20_hash(&mut self, out: &mut [u8]) {$/;"	f
 i	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/md5.rs	/^        fn i(u: u32, v: u32, w: u32) -> u32 {$/;"	f

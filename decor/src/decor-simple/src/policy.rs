@@ -8,7 +8,7 @@ pub type EntityName = String; // table name, or foreign key
 pub enum GeneratePolicy {
     Random,
     Default(String),
-    //Custom(Box<dyn Fn(&str) -> String>), // column value -> column value
+    Custom(Box<dyn Fn(&str) -> String>), // column value -> column value
     ForeignKey(EntityName),
 }
 pub enum GhostColumnPolicy {

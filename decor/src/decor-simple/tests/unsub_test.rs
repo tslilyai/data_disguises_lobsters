@@ -6,7 +6,6 @@ use std::*;
 use log::warn;
 use decor_simple::{ghosts::GhostEidMapping, EntityData, helpers};
 use std::collections::{HashSet};
-use std::str::FromStr;
 mod policies;
 
 const SCHEMA : &'static str = include_str!("./schema.sql");
@@ -309,39 +308,39 @@ fn test_unsub_complex() {
     }
     assert_eq!(unsubscribed_gids.len(), 5);
     assert_eq!(user_counts, 1); 
-    assert_eq!(story_counts, 2); // generated two ghost stories
-    assert_eq!(mod_counts, 2); // generated two ghost moderations
+    assert_eq!(story_counts, 2); 
+    assert_eq!(mod_counts, 2); 
     assert_eq!(entity_data.len(), 5); // one user, two stories, two moderations
     assert_eq!(entity_data[0], 
-               EntityData{
-                    table: "moderations".to_string(),
-                    eid: 1,
-                    row_strs: vec!["1".to_string(), "1".to_string(), "2".to_string(), "'bad story!'".to_string()],
-               });
+       EntityData{
+            table: "moderations".to_string(),
+            eid: 1,
+            row_strs: vec!["1".to_string(), "1".to_string(), "2".to_string(), "2".to_string(), "'bad story!'".to_string()],
+       });
     assert_eq!(entity_data[1], 
-               EntityData{
-                    table: "moderations".to_string(),
-                    eid: 2,
-                    row_strs: vec!["2".to_string(), "2".to_string(), "1".to_string(), "'worst story!'".to_string()],
-               });
+       EntityData{
+            table: "moderations".to_string(),
+            eid: 2,
+            row_strs: vec!["2".to_string(), "2".to_string(), "1".to_string(), "1".to_string(), "'worst story!'".to_string()],
+       });
     assert_eq!(entity_data[2], 
-               EntityData{
-                    table: "stories".to_string(),
-                    eid: 0,
-                    row_strs: vec!["1".to_string(), "1".to_string(), "'google.com'".to_string(), "0".to_string()],
-               });
+       EntityData{
+            table: "stories".to_string(),
+            eid: 1,
+            row_strs: vec!["1".to_string(), "1".to_string(), "'google.com'".to_string(), "0".to_string()],
+       });
     assert_eq!(entity_data[3], 
-               EntityData{
-                    table: "stories".to_string(),
-                    eid: 0,
-                    row_strs: vec!["2".to_string(), "1".to_string(), "'bing.com'".to_string(), "0".to_string()],
-               });
+       EntityData{
+            table: "stories".to_string(),
+            eid: 2,
+            row_strs: vec!["2".to_string(), "1".to_string(), "'bing.com'".to_string(), "0".to_string()],
+       });
     assert_eq!(entity_data[4], 
-               EntityData{
-                    table: "users".to_string(), 
-                    eid: 0,
-                    row_strs: vec!["1".to_string(), "'hello_1'".to_string(), "0".to_string()],
-                });
+       EntityData{
+            table: "users".to_string(), 
+            eid: 1,
+            row_strs: vec!["1".to_string(), "'hello_1'".to_string(), "0".to_string()],
+        });
    
     /*
      * Check that two of the moderations still in the data table have one real user parent, and
@@ -360,11 +359,7 @@ fn test_unsub_complex() {
         results.insert((id, mod_id, story_id, user_id, action));
     }
     warn!("Moderations returned {:?}", results);
-    assert_eq!(results.len(), 6);
-    assert_eq!(results.iter().filter(|r| r.0 == "2".to_string() && r.1 == "2".to_string() && r.4 == "worst story!".to_string()
-                                  && u64::from_str(&r.2).unwrap() >= GHOST_ID_START && u64::from_str(&r.3).unwrap() >= GHOST_ID_START).count(), 1);
-    assert_eq!(results.iter().filter(|r| r.0 == "1".to_string() && r.3 == "2".to_string() && r.4 == "bad story!".to_string()
-                                  && u64::from_str(&r.1).unwrap() >= GHOST_ID_START && u64::from_str(&r.2).unwrap() >= GHOST_ID_START).count(), 1);
+    assert_eq!(results.len(), 2);
     
     // users modified appropriately: ghosts added to users 
     let mut results = vec![];
@@ -372,14 +367,12 @@ fn test_unsub_complex() {
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 1);
-        let uid = helpers::mysql_val_to_string(&vals[0]);
+        let uid = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        assert!(uid >= GHOST_ID_START || uid == 2);
         results.push(uid);
     }
     warn!("Users returned {:?}", results);
-    assert_eq!(results.len(), 15);
-    assert_eq!(results[0], format!("{}", 2));
-    assert_eq!(results[1], format!("{}", GHOST_ID_START));
-    assert_eq!(results[2], format!("{}", GHOST_ID_START+1));
+    assert_eq!(results.len(), 5); // two stories, two moderations, one real
   
     /* 
      *  Test 2: Resubscribe of user 1 adds uid to user table, removes gids from user table, 
