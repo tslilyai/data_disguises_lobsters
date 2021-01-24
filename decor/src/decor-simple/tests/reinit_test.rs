@@ -114,9 +114,6 @@ fn test_init_noop() {
         results.push(trimmed);
     }
     let tables = vec![
-        "ghoststories", 
-        "ghostusers", 
-        "ghostmoderations", 
         "stories", 
         "users", 
         "moderations", 
