@@ -16,8 +16,8 @@ pub enum GhostColumnPolicy {
     CloneOne(GeneratePolicy),
     Generate(GeneratePolicy),
 }
-pub type GhostPolicy = HashMap<ColumnName, GhostColumnPolicy>;
-pub type EntityGhostPolicies = HashMap<EntityName, Rc<GhostPolicy>>;
+pub type EntityGhostPolicy = HashMap<ColumnName, GhostColumnPolicy>;
+pub type EntityGhostPolicies = HashMap<EntityName, Rc<EntityGhostPolicy>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EdgePolicyType {
@@ -33,7 +33,7 @@ pub struct EdgePolicy {
     pub cp_policy: EdgePolicyType,
 }
 
-pub struct ApplicationPolicy {
+pub struct MaskPolicy {
     pub unsub_entity_type: EntityName,
     pub pc_ghost_policies: EntityGhostPolicies, 
     pub cp_ghost_policies: EntityGhostPolicies, 

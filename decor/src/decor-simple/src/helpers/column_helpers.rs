@@ -3,7 +3,7 @@ use std::*;
 use log::{debug};
 use crate::{policy, views};
 
-pub fn get_ghost_parent_key_names_of_datatable(decor_config: &policy::ApplicationPolicy, table_name: &ObjectName) -> Vec<(String, String)> {
+pub fn get_ghost_parent_key_names_of_datatable(decor_config: &policy::MaskPolicy, table_name: &ObjectName) -> Vec<(String, String)> {
     let mut c = vec![];
     if let Some(policies) = decor_config.edge_policies.get(&table_name.to_string()) {
         for policy in &*policies.clone() {
@@ -16,7 +16,7 @@ pub fn get_ghost_parent_key_names_of_datatable(decor_config: &policy::Applicatio
     c
 }
 
-pub fn get_ghost_parent_key_indices_of_datatable(decor_config: &policy::ApplicationPolicy, table_name: &str, columns: &Vec<views::TableColumnDef>) 
+pub fn get_ghost_parent_key_indices_of_datatable(decor_config: &policy::MaskPolicy, table_name: &str, columns: &Vec<views::TableColumnDef>) 
     -> Vec<(usize, String)> 
 {
     let mut cis = vec![];
@@ -33,7 +33,7 @@ pub fn get_ghost_parent_key_indices_of_datatable(decor_config: &policy::Applicat
     cis
 }
 
-pub fn get_parent_col_indices_of_datatable(decor_config: &policy::ApplicationPolicy, table_name: &ObjectName, columns: &Vec<sql_parser::ast::ColumnDef>) 
+pub fn get_parent_col_indices_of_datatable(decor_config: &policy::MaskPolicy, table_name: &ObjectName, columns: &Vec<sql_parser::ast::ColumnDef>) 
     -> Vec<(usize, String)> 
 {
     let mut cis = vec![];

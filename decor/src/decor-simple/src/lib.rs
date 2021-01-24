@@ -71,7 +71,7 @@ impl Drop for Shim {
 }
 
 impl Shim {
-    pub fn new(db: mysql::Conn, schema: &'static str, policy: policy::ApplicationPolicy, test_params: TestParams) 
+    pub fn new(db: mysql::Conn, schema: &'static str, policy: policy::MaskPolicy, test_params: TestParams) 
         -> Self 
     {
         let querier = querier::Querier::new(policy, &test_params);
@@ -82,7 +82,7 @@ impl Shim {
     pub fn run_on_tcp(
         dbname: &str, 
         schema: &'static str, 
-        policy: policy::ApplicationPolicy,
+        policy: policy::MaskPolicy,
         test_params: TestParams, 
         s: net::TcpStream) 
         -> Result<(), mysql::Error> 

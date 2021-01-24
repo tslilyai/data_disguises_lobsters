@@ -19,7 +19,6 @@ AesNiEncryptor	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/ru
 AesOps	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/aessafe.rs	/^trait AesOps {$/;"	t
 Alphanumeric	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/other.rs	/^pub struct Alphanumeric;$/;"	s
 AlterObjectRenameStatement	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/sql-parser/src/ast/defs/statement.rs	/^pub struct AlterObjectRenameStatement {$/;"	s
-ApplicationPolicy	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub struct ApplicationPolicy {$/;"	s
 ArrayInPlaceVisitor	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.114/src/de/impls.rs	/^struct ArrayInPlaceVisitor<'a, A: 'a>(&'a mut A);$/;"	s
 ArrayVisitor	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.114/src/de/impls.rs	/^struct ArrayVisitor<A> {$/;"	s
 AsByteSliceMut	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/lib.rs	/^pub trait AsByteSliceMut {$/;"	t
@@ -391,7 +390,8 @@ Engine512	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-cr
 Engine512State	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/sha2.rs	/^struct Engine512State {$/;"	s
 EntityData	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/lib.rs	/^pub struct EntityData {$/;"	s
 EntityEdges	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^pub type EntityEdges = HashMap<u64 , EntityTypeRows>;$/;"	T
-EntityGhostPolicies	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub type EntityGhostPolicies = HashMap<EntityName, Rc<GhostPolicy>>;$/;"	T
+EntityGhostPolicies	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub type EntityGhostPolicies = HashMap<EntityName, Rc<EntityGhostPolicy>>;$/;"	T
+EntityGhostPolicy	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub type EntityGhostPolicy = HashMap<ColumnName, GhostColumnPolicy>;$/;"	T
 EntityGraph	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^pub struct EntityGraph {$/;"	s
 EntityName	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub type EntityName = String; \/\/ table name, or foreign key$/;"	T
 EntityTypeRows	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^pub type EntityTypeRows = HashMap<(String, usize), HashedRowPtrs>;$/;"	T
@@ -594,7 +594,6 @@ GhostEidMapping	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/dec
 GhostFamily	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub struct GhostFamily {$/;"	s
 GhostMap	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^pub struct GhostMap{$/;"	s
 GhostMaps	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^pub struct GhostMaps{$/;"	s
-GhostPolicy	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub type GhostPolicy = HashMap<ColumnName, GhostColumnPolicy>;$/;"	T
 H224	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/sha2.rs	/^static H224: [u32; STATE_LEN] = [$/;"	c
 H256	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/sha2.rs	/^static H256: [u32; STATE_LEN] = [$/;"	c
 H384	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/sha2.rs	/^static H384: [u64; STATE_LEN] = [$/;"	c
@@ -882,6 +881,7 @@ MapVisitor	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-
 Mask	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/utils.rs	/^            type Mask = $mty;$/;"	T
 Mask	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/utils.rs	/^            type Mask = bool;$/;"	T
 Mask	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/utils.rs	/^    type Mask;$/;"	T
+MaskPolicy	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub struct MaskPolicy {$/;"	s
 Match	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_bytes.rs	/^pub struct Match<'t> {$/;"	s
 Match	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_unicode.rs	/^pub struct Match<'t> {$/;"	s
 Match	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/fragment.rs	/^pub struct Match(pub Fragment);$/;"	s
@@ -3667,8 +3667,8 @@ get_fork_counter	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/
 get_fork_counter	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/rngs/adapter/reseeding.rs	/^    pub fn get_fork_counter() -> usize {$/;"	f
 get_generated_val	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub fn get_generated_val($/;"	f
 get_ghost_eid_mappings	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_ghost_eid_mappings(&mut self, db: &mut mysql::Conn, table: &str) -> $/;"	f
-get_ghost_parent_key_indices_of_datatable	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/column_helpers.rs	/^pub fn get_ghost_parent_key_indices_of_datatable(decor_config: &policy::ApplicationPolicy, table_name: &str, columns: &Vec<views::TableColumnDef>) $/;"	f
-get_ghost_parent_key_names_of_datatable	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/column_helpers.rs	/^pub fn get_ghost_parent_key_names_of_datatable(decor_config: &policy::ApplicationPolicy, table_name: &ObjectName) -> Vec<(String, String)> {$/;"	f
+get_ghost_parent_key_indices_of_datatable	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/column_helpers.rs	/^pub fn get_ghost_parent_key_indices_of_datatable(decor_config: &policy::MaskPolicy, table_name: &str, columns: &Vec<views::TableColumnDef>) $/;"	f
+get_ghost_parent_key_names_of_datatable	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/column_helpers.rs	/^pub fn get_ghost_parent_key_names_of_datatable(decor_config: &policy::MaskPolicy, table_name: &ObjectName) -> Vec<(String, String)> {$/;"	f
 get_gids_for_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_gids_for_eid(&mut self, eid: u64) -> $/;"	f
 get_gids_for_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_gids_for_eid(&mut self, eid: u64, parent_table: &str) -> $/;"	f
 get_gids_for_eids	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_gids_for_eids(&mut self, eids: &Vec<u64>) -> $/;"	f
@@ -3708,7 +3708,7 @@ get_ordered_predicated_rptrs_from_matching	/home/tslilyai/Dropbox/Documents/MIT/
 get_ordered_predicated_rptrs_from_view	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/select/predicates_ordered.rs	/^pub fn get_ordered_predicated_rptrs_from_view(preds: &Vec<&IndexedPredicate>, v: &View, order_by_index: usize) -> BTreeMap<OrderedFloat<f64>, HashedRowPtrs> $/;"	f
 get_ordered_rptrs_matching_preds	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/select/predicates_ordered.rs	/^pub fn get_ordered_rptrs_matching_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>, order_by_indices: &Vec<usize>) $/;"	f
 get_ordered_rptrs_of_view	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/select/select.rs	/^pub fn get_ordered_rptrs_of_view(v: &View, order_by_indices: &Vec<usize>) -> RowPtrs {$/;"	f
-get_parent_col_indices_of_datatable	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/column_helpers.rs	/^pub fn get_parent_col_indices_of_datatable(decor_config: &policy::ApplicationPolicy, table_name: &ObjectName, columns: &Vec<sql_parser::ast::ColumnDef>) $/;"	f
+get_parent_col_indices_of_datatable	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/column_helpers.rs	/^pub fn get_parent_col_indices_of_datatable(decor_config: &policy::MaskPolicy, table_name: &ObjectName, columns: &Vec<sql_parser::ast::ColumnDef>) $/;"	f
 get_parser_coltype	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/parser_helpers.rs	/^pub fn get_parser_coltype(t: &DataType) -> msql_srv::ColumnType {$/;"	f
 get_pass	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/opts.rs	/^    pub fn get_pass(&self) -> Option<&str> {$/;"	f
 get_plain	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blockmodes.rs	/^        fn get_plain<'a>(&'a self) -> &'a [u8] {$/;"	f
@@ -3827,7 +3827,7 @@ hi64_3	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json
 hide_from_rustfmt	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/features_check/mod.rs	/^macro_rules! hide_from_rustfmt {$/;"	d
 hkdf_expand	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/hkdf.rs	/^pub fn hkdf_expand<D: Digest>(mut digest: D, prk: &[u8], info: &[u8], okm: &mut [u8]) {$/;"	f
 hkdf_extract	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/hkdf.rs	/^pub fn hkdf_extract<D: Digest>(mut digest: D, salt: &[u8], ikm: &[u8], prk: &mut [u8]) {$/;"	f
-hrptr_to_strs	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^pub fn hrptr_to_strs(hrptr: &HashedRowPtr) -> Vec<String> {$/;"	f
+hrptr_to_strs	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^pub fn hrptr_to_strs(hrptr: &HashedRowPtr) -> Vec<String> {$/;"	f
 hsalsa20	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/salsa20.rs	/^pub fn hsalsa20(key: &[u8], nonce: &[u8], out: &mut [u8]) {$/;"	f
 hsalsa20_hash	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/salsa20.rs	/^    fn hsalsa20_hash(&mut self, out: &mut [u8]) {$/;"	f
 i	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/md5.rs	/^        fn i(u: u32, v: u32, w: u32) -> u32 {$/;"	f
@@ -4669,8 +4669,8 @@ new	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/sr
 new	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn new(table_name: String, db: Option<&mut mysql::Conn>, in_memory: bool) -> Self {$/;"	f
 new	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^    pub fn new() -> Self {$/;"	f
 new	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/stats.rs	/^    pub fn new() -> Self {$/;"	f
-new	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/lib.rs	/^    pub fn new(db: mysql::Conn, schema: &'static str, policy: policy::ApplicationPolicy, test_params: TestParams) $/;"	f
-new	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn new(policy: policy::ApplicationPolicy, params: &super::TestParams) -> Self {$/;"	f
+new	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/lib.rs	/^    pub fn new(db: mysql::Conn, schema: &'static str, policy: policy::MaskPolicy, test_params: TestParams) $/;"	f
+new	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn new(policy: policy::MaskPolicy, params: &super::TestParams) -> Self {$/;"	f
 new	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^    pub fn new() -> Self {$/;"	f
 new	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn new() -> Self {$/;"	f
 new	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn new(name: String, $/;"	f

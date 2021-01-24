@@ -2,7 +2,7 @@ use mysql::prelude::*;
 use rand::prelude::*;
 use rand_distr::Distribution;
 use crate::{COMMENTS_PER_STORY, VOTES_PER_COMMENT, VOTES_PER_STORY, VOTES_PER_USER, queriers};
-use log::{warn, error};
+use log::{warn};
 use histogram_sampler;
 
 // taken from jonhoo.trawler

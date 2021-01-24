@@ -50,6 +50,10 @@ impl HashedRowPtr {
 
 pub type HashedRowPtrs = HashSet<HashedRowPtr>;
 
+pub fn hrptr_to_strs(hrptr: &HashedRowPtr) -> Vec<String> {
+    hrptr.row().borrow().iter().map(|v| v.to_string()).collect()
+}
+
 #[derive(Debug, Clone)]
 pub enum ViewIndex { 
     Primary(Rc<RefCell<HashMap<String, Rc<RefCell<Row>>>>>, usize),

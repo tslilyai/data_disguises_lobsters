@@ -2,7 +2,7 @@ use std::collections::{HashMap};
 use std::rc::Rc;
 
 use decor_simple::policy::{
-    EdgePolicy, GhostColumnPolicy, GeneratePolicy, EntityGhostPolicies, ApplicationPolicy,
+    EdgePolicy, GhostColumnPolicy, GeneratePolicy, EntityGhostPolicies, MaskPolicy,
     EdgePolicyType::*
 };
 
@@ -63,7 +63,7 @@ fn cp_ghost_gen_policies() -> EntityGhostPolicies {
     ghost_policies
 }
 
-pub fn noop_policy() -> ApplicationPolicy {
+pub fn noop_policy() -> MaskPolicy {
     let mut edge_policies = HashMap::new();
     edge_policies.insert("moderations".to_string(), Rc::new(vec![
         EdgePolicy{
@@ -94,14 +94,14 @@ pub fn noop_policy() -> ApplicationPolicy {
         }
     ]));
     edge_policies.insert("users".to_string(), Rc::new(vec![]));
-    ApplicationPolicy{
+    MaskPolicy{
         unsub_entity_type: "users".to_string(),
         pc_ghost_policies: pc_ghost_gen_policies(), 
         cp_ghost_policies: cp_ghost_gen_policies(), 
         edge_policies: edge_policies,
     }
 }
-/*pub fn decor_all_policy() -> ApplicationPolicy {
+/*pub fn decor_all_policy() -> MaskPolicy {
     let mut edge_policies = HashMap::new();
     edge_policies.insert("moderations".to_string(), Rc::new(vec![
         EdgePolicy{
@@ -132,14 +132,14 @@ pub fn noop_policy() -> ApplicationPolicy {
         }
     ]));
     edge_policies.insert("users".to_string(), Rc::new(vec![]));
-    ApplicationPolicy{
+    MaskPolicy{
         unsub_entity_type: "users".to_string(),
         pc_ghost_policies: pc_ghost_gen_policies(), 
         cp_ghost_policies: cp_ghost_gen_policies(), 
         edge_policies: edge_policies,
     }
 }*/
-/*pub fn sensitive_policy() -> ApplicationPolicy {
+/*pub fn sensitive_policy() -> MaskPolicy {
     let mut edge_policies = HashMap::new();
     edge_policies.insert("moderations".to_string(), Rc::new(vec![
         EdgePolicy{
@@ -170,14 +170,14 @@ pub fn noop_policy() -> ApplicationPolicy {
         }
     ]));
     edge_policies.insert("users".to_string(), Rc::new(vec![]));
-    ApplicationPolicy{
+    MaskPolicy{
         unsub_entity_type: "users".to_string(),
         pc_ghost_policies: pc_ghost_gen_policies(), 
         cp_ghost_policies: cp_ghost_gen_policies(), 
         edge_policies: edge_policies,
     }
 }*/
-/*pub fn remove_policy() -> ApplicationPolicy {
+/*pub fn remove_policy() -> MaskPolicy {
     let mut edge_policies = HashMap::new();
     edge_policies.insert("moderations".to_string(), Rc::new(vec![
         EdgePolicy{
@@ -208,14 +208,14 @@ pub fn noop_policy() -> ApplicationPolicy {
         }
     ]));
     edge_policies.insert("users".to_string(), Rc::new(vec![]));
-    ApplicationPolicy{
+    MaskPolicy{
         unsub_entity_type: "users".to_string(),
         pc_ghost_policies: pc_ghost_gen_policies(), 
         cp_ghost_policies: cp_ghost_gen_policies(), 
         edge_policies: edge_policies,
     }
 }*/
-pub fn combined_policy() -> ApplicationPolicy {
+pub fn combined_policy() -> MaskPolicy {
     let mut edge_policies = HashMap::new();
     edge_policies.insert("moderations".to_string(), Rc::new(vec![
         EdgePolicy{
@@ -246,7 +246,7 @@ pub fn combined_policy() -> ApplicationPolicy {
         }
     ]));
     edge_policies.insert("users".to_string(), Rc::new(vec![]));
-    ApplicationPolicy{
+    MaskPolicy{
         unsub_entity_type: "users".to_string(),
         pc_ghost_policies: pc_ghost_gen_policies(), 
         cp_ghost_policies: cp_ghost_gen_policies(), 
