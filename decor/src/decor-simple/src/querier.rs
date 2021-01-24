@@ -239,6 +239,7 @@ impl Querier {
                               ID_COL,
                               child_eid);
         db.query_drop(db_stmt)?;
+        self.cur_stat.nqueries+=1;
         Ok(())
     }
 
