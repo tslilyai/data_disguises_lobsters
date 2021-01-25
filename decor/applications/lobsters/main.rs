@@ -135,9 +135,11 @@ fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'
             db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname)).unwrap();
             db.query_drop(&format!("CREATE DATABASE {};", &test_dbname)).unwrap();
             assert_eq!(db.ping(), true);
+            assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
             create_schema(&mut db).unwrap();
+        } else {
+            assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
         }
-        assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
     } else {
         let dbname = test_dbname.clone();
         jh = Some(thread::spawn(move || {
@@ -304,8 +306,8 @@ fn main() {
     use TestType::*;
     //let tests = &[TestDecor];
     //let testnames = vec!["decor"];
-    let tests = vec![TestShimParse, TestNoShim, TestShim, TestDecor];
-    let testnames = vec!["shim_parse", "no_shim", "shim_only", "decor"];
+    let tests = vec![TestShimParse];//TestNoShim, TestShim, TestDecor, TestShimParse];
+    let testnames = vec!["shim_parse"];//"no_shim", "shim_only", "decor", "shim_parse"];
 
     //let mut threads = vec![];
     let mut core = 2;

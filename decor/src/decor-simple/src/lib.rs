@@ -231,6 +231,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     fn on_init(&mut self, schema: &str, w: InitWriter<W>) -> Result<(), Self::Error> {
         let res = self.db.select_db(schema);
         if !res {
+            warn!("on init select db failed");
             w.error(ErrorKind::ER_BAD_DB_ERROR, b"select db failed")?;
             return Ok(());
         }   
