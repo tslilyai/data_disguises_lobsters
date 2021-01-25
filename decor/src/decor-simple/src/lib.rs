@@ -101,6 +101,7 @@ impl Shim {
     fn get_single_parsed_stmt(&self, stmt: &String) 
         -> Result<Statement, mysql::Error> 
     {
+        warn!("Parsing stmt {}", stmt);
         let asts = sql_parser::parser::parse_statements(stmt.to_string());
         match asts {
             Err(e) => Err(mysql::Error::IoError(io::Error::new(
