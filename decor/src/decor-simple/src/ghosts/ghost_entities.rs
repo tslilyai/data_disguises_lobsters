@@ -102,8 +102,11 @@ pub fn generate_new_ghosts_from(
 
     // NOTE : generating entities with foreign keys must also have ways to 
     // generate foreign key entity or this will panic
-    let gp = ghost_policies.get(&template.table).unwrap();
-    let policies : Vec<&GhostColumnPolicy> = from_cols.iter().map(|col| gp.get(&col.to_string()).unwrap()).collect();
+    // If no ghost generation policy is specified, we clone all
+    let policies : Vec<&GhostColumnPolicy> = match ghost_policies.get(&template.table) {
+        Some(gp) => from_cols.iter().map(|col| gp.get(&col.to_string()).unwrap()).collect(),
+        None => from_cols.iter().map(|_| &CloneAll).collect(),
+    };
     let num_entities = gids.len();
     let mut new_vals : RowPtrs = vec![]; 
     for _ in 0..num_entities {
