@@ -1,7 +1,30 @@
 %-------------------------------------------------------------------------------
 \section{Introduction}
 %-------------------------------------------------------------------------------
-Web applications today own, process, and store user data~\cite{nytimes:fb, npr:data}.  This places a
+Web application developers today have more incentives than ever to provide better privacy for their
+users.
+%
+Laws such as the EU's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's
+Consumer Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' right to be forgotten, and demand
+applications to support privacy-granting user unsubscription.
+%
+Potentially severe data breach consequences push applications to minimize the amount of
+compromising data they retain~\cite{breach:amazon,breach:twitter, breach:fb, breach:marriott,
+breach:quora}.
+
+Developers express their privacy efforts as privacy \emph{policies}, often in prose form. For
+example, policies
+\begin{itemize}
+    \item 
+    \item 
+    \item 
+    \item 
+\end{itemize}
+
+implement them with ad-hoc, opaque techniques.
+
+\iffalse
+Web applications today own, process, and store user data~\cite{nytimes:fb, npr:data}. This places a
 great responsibility on application developers to transparently convey to users how they manage this
 data via their privacy policies and terms of use.
 %
@@ -53,6 +76,7 @@ applies transformations to the current entity graph instance to achieve this spe
 We evaluate an initial prototype for \sys, finding that \sys automatically applies
 data masks efficiently, and that practical policies can be expressed with low burden for application
 developers.
+\fi
 
 \iffalse
 %\begin{figure*}[ht!]

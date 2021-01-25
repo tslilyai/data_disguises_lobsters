@@ -1,36 +1,37 @@
 \begin{abstract}
-Web applications face increasing legal and user demands to transparently manage user data,
-whether through supporting user's right to be forgotten, removing unnecessary or old user data,
-or moderating user content.
+Web applications face increasing legal and user demands to provide better privacy for their users,
+whether through supporting user's right to be forgotten, or removing unnecessary or old user
+data.
 %
-Meeting these demands to \emph{mask} data requires applications to
-remove or modify data, while still retaining data required for legal purposes or
-to preserve application utility.
+Meeting these demands requires applications to delete, anonymize, and decorrelate their data, 
+while still retaining data required for legal purposes or to preserve application utility.
 %
-Because such transformations are necessarily application-specific and
-require handling complex data correlations, today's applications often forgo these
-transformations, or implement ad-hoc transformations with unclear guarantees.
-\ms{sets us up to specify what guarantees we make}
+%These privacy transformations are application-specific and
+%require handling complex data correlations, 
+Due to the complexity of these privacy transformations, today's applications often support only
+    coarse-grained transformations implemented with error-prone, ad-hoc methods.
+%forgo these transformations, or implement ad-hoc transformations with unclear guarantees.
+%\ms{sets us up to specify what guarantees we make}
 %
-\ms{propose to rewrite following paragraph to make it more HotOS-y:
-We propose \emph{data masking}, a systematic approach that helps developers
-generate concrete privacy transformations for database-backed web applications from
-a high-level specification.
+
+To enable developers to better support existing and new privacy policies without onerous manual
+    labor, we propose \emph{data masking}, a systematic approach that helps developers generate
+    \emph{data masks}---concrete privacy transformations---for database-backed web applications from
+    a high-level specification.
 %
+Data masks encompass the privacy transformations done by applications today, and goes beyond,
+    supporting fine-grained and nuanced policies that would be cumbersome to implement manually.
 %
-Data masking tools address use cases that require onerous manual labor today, such
-as GDPR compliance, user unsubscription, or data deidentification.
-%
-Importantly, data masks enable reversible transformations that permit returning to
-an identity-revealing state at any time.
+Data masks add additional flexibility, enabling reversible transformations that permit returning
+    to an identity-revealing state at any time.
 %
 A prototype demonstrates that data masking can be practical.
-}
-To help developers support data masks in new and existing applications, we design and
-implement \sys, a system that takes as input a high-level specification of a data mask, and
-automatically applies the mask to the application database.  \sys relies on the key abstractions of
-application \emph{entity graphs} and \emph{ghost entities}, which allow developers to flexibly express
-and automate practical data masks without onerous labor.
+
+%To help developers support data masks in new and existing applications, we design and
+%implement \sys, a system that takes as input a high-level specification of a data mask, and
+%automatically applies the mask to the application database.  \sys relies on the key abstractions of
+%application \emph{entity graphs} and \emph{ghost entities}, which allow developers to flexibly express
+%and automate practical data masks without onerous labor.
 \end{abstract}
 
 \iffalse
