@@ -14,7 +14,7 @@ pub enum PolicyType {
 fn pc_ghost_gen_policies() -> EntityGhostPolicies {
     let mut ghost_policies = HashMap::new();
     
-    let mut users_map = HashMap::new();
+    /*let mut users_map = HashMap::new();
     users_map.insert("id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
     users_map.insert("username".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
     users_map.insert("karma".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
@@ -33,14 +33,14 @@ fn pc_ghost_gen_policies() -> EntityGhostPolicies {
     stories_map.insert("user_id".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::ForeignKey("users".to_string())));
     stories_map.insert("url".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("google.com".to_string())));
     stories_map.insert("is_moderated".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("0".to_string())));
-    ghost_policies.insert("stories".to_string(), Rc::new(stories_map));
+    ghost_policies.insert("stories".to_string(), Rc::new(stories_map));*/
     ghost_policies
 }
 
 fn cp_ghost_gen_policies() -> EntityGhostPolicies {
     let mut ghost_policies = HashMap::new();
     
-    let mut users_map = HashMap::new();
+    /*let mut users_map = HashMap::new();
     users_map.insert("id".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Random));
     users_map.insert("username".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Random));
     users_map.insert("karma".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Default(0.to_string())));
@@ -59,7 +59,7 @@ fn cp_ghost_gen_policies() -> EntityGhostPolicies {
     stories_map.insert("user_id".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::ForeignKey("users".to_string())));
     stories_map.insert("url".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Default("google.com".to_string())));
     stories_map.insert("is_moderated".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Default("0".to_string())));
-    ghost_policies.insert("stories".to_string(), Rc::new(stories_map));
+    ghost_policies.insert("stories".to_string(), Rc::new(stories_map));*/
     ghost_policies
 }
 
