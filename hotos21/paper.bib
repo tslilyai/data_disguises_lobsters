@@ -31,15 +31,6 @@
   howpublished = {China Law Blog},
 }
 
-@inproceedings {delf,
-author = {Katriel Cohn-Gordon and Georgios Damaskinos and Divino Neto and Joshi Cordova and Beno{i'}t Reitz and Benjamin Strahs and Daniel Obenshain and Paul Pearce and Ioannis Papagiannis},
-title = {{DELF}: Safeguarding deletion correctness in Online Social Networks},
-booktitle = {29th {USENIX} Security Symposium ({USENIX} Security 20)},
-year = {2020},
-url = {https://www.usenix.org/conference/usenixsecurity20/presentation/cohn-gordon},
-publisher = {{USENIX} Association},
-month = aug,
-}
 @inproceedings{garg,
   title={Formalizing Data Deletion in the Context of the Right to be Forgotten},
   author={Garg, Sanjam and Goldwasser, Shafi and Vasudevan, Prashant Nalini},
@@ -383,7 +374,6 @@ number = {11},
 issn = {0001-0782},
 url = {https://doi.org/10.1145/359168.359176},
 doi = {10.1145/359168.359176},
-abstract = {In this paper we show how to divide data D into n pieces in such a way that D is easily reconstructable from any k pieces, but even complete knowledge of k - 1 pieces reveals absolutely no information about D. This technique enables the construction of robust key management schemes for cryptographic systems that can function securely and reliably even when misfortunes destroy half the pieces and security breaches expose all but one of the remaining pieces.},
 journal = {Commun. ACM},
 month = nov,
 pages = {612–613},
@@ -452,7 +442,6 @@ year="2019",
 publisher="Springer International Publishing",
 address="Cham",
 pages="24--38",
-abstract="GDPR in Europe and similar regulations, such as the California CCPA, require new levels of privacy support for consumers. Most challenging to IT departments is the ``right to be forgotten''. Hence, an enterprise must ensure that ALL information about a specific consumer be deleted from enterprise storage, when requested. Since enterprises are internally heavily ``siloed'', sharing of information is usually accomplished by copying data between systems. This makes finding and deleting all copies of data on a particular consumer difficult.",
 isbn="978-3-030-33752-0"
 }
 
@@ -480,7 +469,7 @@ doi = {10.1007/978-3-030-33752-0_3}
       url = "https://content.sciendo.com/view/journals/popets/2019/3/article-p289.xml"
 }
 
-@article{pappachan2020sieve,
+@article{sieve,
   title={Sieve: A Middleware Approach to Scalable Access Control for Database Management Systems},
   author={Pappachan, Primal and Yus, Roberto and Mehrotra, Sharad and Freytag, Johann-Christoph},
   journal={arXiv preprint arXiv:2004.07498},
@@ -520,7 +509,6 @@ doi = {10.1007/978-3-030-33752-0_3}
   year={2017}
 }
 
-
 @Inbook{dataminingmodels,
 author="Aggarwal, Charu C.
 and Yu, Philip S.",
@@ -532,7 +520,6 @@ year="2008",
 publisher="Springer US",
 address="Boston, MA",
 pages="11--52",
-abstract="In recent years, privacy-preserving data mining has been studied extensively, because of the wide proliferation of sensitive information on the internet. A number of algorithmic techniques have been designed for privacy-preserving data mining. In this paper, we provide a review of the state-of-the-art methods for privacy. We discuss methods for randomization, k-anonymization, and distributed privacy-preserving data mining. We also discuss cases in which the output of data mining applications needs to be sanitized for privacy-preservation purposes. We discuss the computational and theoretical limits associated with privacy-preservation over high dimensional data sets.",
 isbn="978-0-387-70992-5",
 doi="10.1007/978-0-387-70992-5_2",
 url="https://doi.org/10.1007/978-0-387-70992-5_2"
@@ -555,7 +542,6 @@ publisher = {Association for Computing Machinery},
 address = {New York, NY, USA},
 url = {https://doi.org/10.1145/3372297.3417239},
 doi = {10.1145/3372297.3417239},
-abstract = {Thanks to the widespread deployment of TLS, users can access private data over channels with end-to-end confidentiality and integrity. What they cannot do, however, is prove to third parties the provenance of such data, i.e., that it genuinely came from a particular website. Existing approaches either introduce undesirable trust assumptions or require server-side modifications. Users' private data is thus locked up at its point of origin. Users cannot export data in an integrity-protected way to other applications without help and permission from the current data holder. We propose DECO (short for decentralized oracle) to address the above problems. DECO allows users to prove that a piece of data accessed via TLS came from a particular website and optionally prove statements about such data in zero-knowledge, keeping the data itself secret. DECO is the first such system that works without trusted hardware or server-side modifications. DECO can liberate private data from centralized web-service silos, making it accessible to a rich spectrum of applications. To demonstrate the power of DECO, we implement three applications that are hard to achieve without it: a private financial instrument using smart contracts, converting legacy credentials to anonymous credentials, and verifiable claims against price discrimination.},
 booktitle = {Proceedings of the 2020 ACM SIGSAC Conference on Computer and Communications Security},
 pages = {1919–1938},
 numpages = {20},
@@ -573,6 +559,7 @@ series = {CCS '20}
   organization={Springer}
 }
 
+
 @inproceedings {qapla,
 author = {Aastha Mehta and Eslam Elnikety and Katura Harvey and Deepak Garg and Peter Druschel},
 title = {Qapla: Policy compliance for database-backed systems},
@@ -585,15 +572,6 @@ url = {https://www.usenix.org/conference/usenixsecurity17/technical-sessions/pre
 publisher = {{USENIX} Association},
 month = aug,
 }
-
-@inproceedings{multiverse,
-  title={Towards multiverse databases},
-  author={Marzoev, Alana and Ara{\'u}jo, Lara Timb{\'o} and Schwarzkopf, Malte and Yagati, Samyukta and Kohler, Eddie and Morris, Robert and Kaashoek, M Frans and Madden, Sam},
-  booktitle={Proceedings of the Workshop on Hot Topics in Operating Systems},
-  pages={88--95},
-  year={2019}
-}
-
 @inproceedings{cryptdb,
 author = {Popa, Raluca Ada and Redfield, Catherine M. S. and Zeldovich, Nickolai and Balakrishnan, Hari},
 title = {CryptDB: Protecting Confidentiality with Encrypted Query Processing},
@@ -603,7 +581,6 @@ publisher = {Association for Computing Machinery},
 address = {New York, NY, USA},
 url = {https://doi.org/10.1145/2043556.2043566},
 doi = {10.1145/2043556.2043566},
-abstract = {Online applications are vulnerable to theft of sensitive information because adversaries can exploit software bugs to gain access to private data, and because curious or malicious administrators may capture and leak data. CryptDB is a system that provides practical and provable confidentiality in the face of these attacks for applications backed by SQL databases. It works by executing SQL queries over encrypted data using a collection of efficient SQL-aware encryption schemes. CryptDB can also chain encryption keys to user passwords, so that a data item can be decrypted only by using the password of one of the users with access to that data. As a result, a database administrator never gets access to decrypted data, and even if all servers are compromised, an adversary cannot decrypt the data of any user who is not logged in. An analysis of a trace of 126 million SQL queries from a production MySQL server shows that CryptDB can support operations over encrypted data for 99.5% of the 128,840 columns seen in the trace. Our evaluation shows that CryptDB has low overhead, reducing throughput by 14.5% for phpBB, a web forum application, and by 26% for queries from TPC-C, compared to unmodified MySQL. Chaining encryption keys to user passwords requires 11--13 unique schema annotations to secure more than 20 sensitive fields and 2--7 lines of source code changes for three multi-user web applications.},
 booktitle = {Proceedings of the Twenty-Third ACM Symposium on Operating Systems Principles},
 pages = {85–100},
 numpages = {16},
@@ -628,3 +605,42 @@ series = {SOSP '11}
   year={2010}
 }
 
+@inproceedings{multiverse,
+  title={Towards multiverse databases},
+  author={Marzoev, Alana and Ara{u'}jo, Lara Timb{o'} and Schwarzkopf, Malte and Yagati, Samyukta and Kohler, Eddie and Morris, Robert and Kaashoek, M Frans and Madden, Sam},
+ booktitle={Proceedings of the Workshop on Hot Topics in Operating Systems},
+  pages={88--95},
+  year={2019}
+}
+
+
+@inproceedings {hails,
+author = {Daniel B. Giffin and Amit Levy and Deian Stefan and David Terei and David Mazi{e'}res and John C. Mitchell and Alejandro Russo},
+title = {Hails: Protecting Data Privacy in Untrusted Web Applications},
+booktitle = {10th {USENIX} Symposium on Operating Systems Design and Implementation ({OSDI} 12)},
+year = {2012},
+isbn = {978-1-931971-96-6},
+address = {Hollywood, CA},
+pages = {47--60},
+url = {https://www.usenix.org/conference/osdi12/technical-sessions/presentation/giffin},
+publisher = {{USENIX} Association},
+month = oct,
+}
+
+@inproceedings{ifdb,
+  title={IFDB: decentralized information flow control for databases},
+  author={Schultz, David and Liskov, Barbara},
+  booktitle={Proceedings of the 8th ACM European Conference on Computer Systems},
+  pages={43--56},
+  year={2013}
+}
+
+@inproceedings {delf,
+author = {Katriel Cohn-Gordon and Georgios Damaskinos and Divino Neto and Joshi Cordova and Beno{i'}t Reitz and Benjamin Strahs and Daniel Obenshain and Paul Pearce and Ioannis Papagiannis},
+title = {{DELF}: Safeguarding deletion correctness in Online Social Networks},
+booktitle = {29th {USENIX} Security Symposium ({USENIX} Security 20)},
+year = {2020},
+url = {https://www.usenix.org/conference/usenixsecurity20/presentation/cohn-gordon},
+publisher = {{USENIX} Association},
+month = aug,
+}

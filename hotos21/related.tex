@@ -44,18 +44,24 @@ While similar tracking can be added to \sys to support derived data not visible 
 \sys focuses on automating data masking transformations that require more than PII data deletion. 
 
 %---------------------------
+Delf~\cite{delf} at Facebook highlights the difficulty of performing transformations for user data
+deletion. Data masking encapsulates the data transformations performed by DELF, and generalizes it
+beyond the Facebook framework.
+\lyt{TODO}
+
+%---------------------------
 
 \paragraph{Enforcing Data Disclosure}.
 Many systems enforce developer-specified data disclosure and access control policies. These include
-general information flow control approaches~\cite{static, jeeves, jif, hail} that check, dynamically
+general information flow control approaches~\cite{static, jeeves, jif, hails, ifdb} that check, dynamically
 or statically, that applications abide by data disclosure policies.
 
 Other approaches to access control include authorized views~\cite{oracle} or per-user
-views~\cite{multiverse}, rewriting database queries~\cite{rewriting, qapla, sieve}, and performing
+views~\cite{multiverse}, rewriting database queries~\cite{qapla, sieve}, and performing
 queries over encrypted data, readable only by authenticated users~\cite{cryptdb}.
 
 We see data masking as orthogonal to these access control frameworks, none of which transform the
-\eph{base data} stored by the applications, but rather control what becomes visible at the front
+\emph{base data} stored by the applications, but rather control what becomes visible at the front
 end. 
 %Data masking can additionally automate complex privacy transformations for authorized or multiverse views.
 
