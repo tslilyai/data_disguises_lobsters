@@ -563,3 +563,68 @@ keywords = {transport layer security, oracles, smart contracts, blockchains},
 location = {Virtual Event, USA},
 series = {CCS '20}
 }
+
+@inproceedings{jif,
+  title={Language-based enforcement of privacy policies},
+  author={Hayati, Katia and Abadi, Mart{\'\i}n},
+  booktitle={International Workshop on Privacy Enhancing Technologies},
+  pages={302--313},
+  year={2004},
+  organization={Springer}
+}
+
+@inproceedings {qapla,
+author = {Aastha Mehta and Eslam Elnikety and Katura Harvey and Deepak Garg and Peter Druschel},
+title = {Qapla: Policy compliance for database-backed systems},
+booktitle = {26th {USENIX} Security Symposium ({USENIX} Security 17)},
+year = {2017},
+isbn = {978-1-931971-40-9},
+address = {Vancouver, BC},
+pages = {1463--1479},
+url = {https://www.usenix.org/conference/usenixsecurity17/technical-sessions/presentation/mehta},
+publisher = {{USENIX} Association},
+month = aug,
+}
+
+@inproceedings{multiverse,
+  title={Towards multiverse databases},
+  author={Marzoev, Alana and Ara{\'u}jo, Lara Timb{\'o} and Schwarzkopf, Malte and Yagati, Samyukta and Kohler, Eddie and Morris, Robert and Kaashoek, M Frans and Madden, Sam},
+  booktitle={Proceedings of the Workshop on Hot Topics in Operating Systems},
+  pages={88--95},
+  year={2019}
+}
+
+@inproceedings{cryptdb,
+author = {Popa, Raluca Ada and Redfield, Catherine M. S. and Zeldovich, Nickolai and Balakrishnan, Hari},
+title = {CryptDB: Protecting Confidentiality with Encrypted Query Processing},
+year = {2011},
+isbn = {9781450309776},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/2043556.2043566},
+doi = {10.1145/2043556.2043566},
+abstract = {Online applications are vulnerable to theft of sensitive information because adversaries can exploit software bugs to gain access to private data, and because curious or malicious administrators may capture and leak data. CryptDB is a system that provides practical and provable confidentiality in the face of these attacks for applications backed by SQL databases. It works by executing SQL queries over encrypted data using a collection of efficient SQL-aware encryption schemes. CryptDB can also chain encryption keys to user passwords, so that a data item can be decrypted only by using the password of one of the users with access to that data. As a result, a database administrator never gets access to decrypted data, and even if all servers are compromised, an adversary cannot decrypt the data of any user who is not logged in. An analysis of a trace of 126 million SQL queries from a production MySQL server shows that CryptDB can support operations over encrypted data for 99.5% of the 128,840 columns seen in the trace. Our evaluation shows that CryptDB has low overhead, reducing throughput by 14.5% for phpBB, a web forum application, and by 26% for queries from TPC-C, compared to unmodified MySQL. Chaining encryption keys to user passwords requires 11--13 unique schema annotations to secure more than 20 sensitive fields and 2--7 lines of source code changes for three multi-user web applications.},
+booktitle = {Proceedings of the Twenty-Third ACM Symposium on Operating Systems Principles},
+pages = {85–100},
+numpages = {16},
+location = {Cascais, Portugal},
+series = {SOSP '11}
+}
+
+@article{oracle,
+  title={The virtual private database in oracle9ir2},
+  author={Browder, Kristy and Davidson, Mary Ann},
+  journal={Oracle Technical White Paper, Oracle Corporation},
+  volume={500},
+  number={280},
+  year={2002}
+}
+
+@inproceedings{static,
+  title={Static Checking of Dynamically-Varying Security Policies in Database-Backed Applications.},
+  author={Chlipala, Adam and Impredicative, LLC},
+  booktitle={OSDI},
+  pages={105--118},
+  year={2010}
+}
+

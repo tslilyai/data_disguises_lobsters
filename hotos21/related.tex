@@ -45,14 +45,19 @@ While similar tracking can be added to \sys to support derived data not visible 
 
 %---------------------------
 
-Frameworks such as Jeeves~\cite{jeeves} aid developers in enforcing IFC policies that specify how
-sensitive values should be disclosed by a program. Like \sys, the framework also relies on
-developers to specify appropriate policies, and simply enforces them. However, \sys works in the
-domain of database data transformations and applies mask policies only when invoked, whereas Jeeves
-does not modify data and instead monitors program behavior at runtime to track where and how data is
-disclosed.  \lyt{I'm not sure that this is that related, but it came up in PDOS...}
+\paragraph{Enforcing Data Disclosure}.
+Many systems enforce developer-specified data disclosure and access control policies. These include
+general information flow control approaches~\cite{static, jeeves, jif, hail} that check, dynamically
+or statically, that applications abide by data disclosure policies.
 
-%Sieve~\cite{sieve} focus on defining access control to PII, but doesn't actually change data. 
+Other approaches to access control include authorized views~\cite{oracle} or per-user
+views~\cite{multiverse}, rewriting database queries~\cite{rewriting, qapla, sieve}, and performing
+queries over encrypted data, readable only by authenticated users~\cite{cryptdb}.
+
+We see data masking as orthogonal to these access control frameworks, none of which transform the
+\eph{base data} stored by the applications, but rather control what becomes visible at the front
+end. 
+%Data masking can additionally automate complex privacy transformations for authorized or multiverse views.
 
 %ScrambleDB~\cite{scrambledb} generates oblivious pseudonyms for distributed settings, so there does
 %not need to be one trusted central pseudonym/linking server.
