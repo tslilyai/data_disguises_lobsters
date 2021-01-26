@@ -66,7 +66,7 @@ We can also imagine applications supporting much more flexible and nuanced polic
             tag $t$).
     \item Encrypt the user's profile and reassociate their contributions with an anonymous
         profile after the user account has been inactive for a fixed period of time;
-        restore the user's profile to its original state if the user ever logs back in.
+        restore the user's profile and reassociate their contributions if the user ever logs back in.
 \end{itemize}
 
 \subsection{Data Masking: A New Approach}
@@ -88,12 +88,14 @@ possible transformations that can be performed on entity graph edges (foreign ke
 nodes (table rows), and the chosen set of transformations determine the structure of the 
 entity graph after the mask is applied. 
 
+Importantly, data masks transformations are \emph{reversible}, allowing developers to support
+privacy-granting transformations beyond permanent and irrevokable unsubscription. 
+
 Data masking implementations take a mask policy, and automatically generate and apply the
 appropriate database transformations that would be laborious to implement manually. 
 %(\eg decorrelate post entities from user
 %entities by rewriting the foreign key relationship to a newly generated ghost user entity).
-Importantly, data masks transformations are \emph{reversible}, allowing developers to support
-privacy-granting transformations beyond permanent and irrevokable unsubscription. 
+
 
 We demonstrate that an initial prototype for data masking is practical, and can automatically and
 systematically apply data masks to application data given a high-level privacy policy
