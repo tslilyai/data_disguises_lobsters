@@ -6,17 +6,17 @@ data.
 Meeting these demands requires applications to delete, anonymize, and decorrelate their data, 
 while still retaining data required for legal purposes or to preserve application utility.
 %
-Meeting these requirements grows only more challenging as privacy policies become more complex;
-    consequently, today's applications often support only simple, coarse-grained privacy policies
-    implemented with ad-hoc methods.
+Meeting these requirements grows only more challenging as privacy transformations become more complex;
+consequently, today's applications often support only simple, coarse-grained privacy policies
+implemented with ad-hoc methods.
 %forgo these transformations, or implement ad-hoc transformations with unclear guarantees.
 %\ms{sets us up to specify what guarantees we make}
 %
 
-To enable developers to better support existing and new, more expressive, privacy policies without
+To enable developers to better support existing and new, more expressive, privacy transformations without
     onerous manual labor, we propose \emph{data masking}, a systematic approach that helps
-    developers generate \emph{data masks}---concrete privacy transformations---for database-backed
-    web applications from a high-level specification.
+    developers generate \emph{data masks} for database-backed
+    web applications from a high-level mask specification.
 %
 Data masks encompass the privacy transformations done by applications today, and go beyond,
 supporting fine-grained and nuanced policies that would be cumbersome to implement manually, and 

@@ -13,19 +13,18 @@ compromising data they retain~\cite{breach:amazon,breach:twitter, breach:fb, bre
 breach:quora}.
 
 Although developers should support better privacy policies, doing so is challenging.  They must
-transform data to adhere with the privacy policy, while ensuring that the application retains data
-required for legal purposes or to preserve application utility, and without violating application
-invariants.  
+perform data privacy transformations to adhere to the privacy policy, while ensuring that the
+application retains data required for legal purposes or to preserve application utility, and without
+violating application invariants.  
 %
 For example, unsubscription of one user should not allow another user to view content that she
 originally could not access.
 
-Transforming data in ways that achieve better user privacy requires careful handling of data
-deletion, anonymization, and structural decorrelation, where developers must consider how to handle
-both clearly identifying content (\eg usernames), and also structural correlations between data
-records that can identify the user. While better privacy policies do not aim to provide any formal
-privacy \emph{guarantees}, developers must still reason about often subtle identifying correlations
-in order to improve the state of privacy in applications today. 
+Transformations that achieve better user privacy requires careful handling of data deletion,
+anonymization, and structural decorrelation, where developers must consider how to handle both
+clearly identifying content (\eg usernames), and also structural correlations between data records
+that can identify the user. 
+While these transformations do not enable formal privacy \emph{guarantees}, developers can improve the state of privacy in applications today by reasoning about often subtle identifying correlations.
 
 For example, unsubscriber users' public running routes correlated with the same location can
 reidentify the users' hometowns or homes, and the users themselves, even if the route's creator is
@@ -34,28 +33,30 @@ subreddit has very few subscribers, can be associated back to a single user; and
 content correlated with the same group of people (\eg papers that have the same paper conflicts in
 HotCRP, or posts liked by the same set of friends) can identify a user via their community.
 
-As privacy policies become more complex, the burden of implementing them correctly grows as well.
+As privacy policies become more complex, the burden of implementing the corresponding privacy
+transformation correctly grows as well.
 Consequently, today's applications often support only coarse-grained and simple privacy policies,
 implemented using ad-hoc methods.
 
-We next describe a wide range of privacy policies, some implemented by applications today,
+We next describe a wide range of privacy transformations, some from existing applications' privacy policies,
 and others that demonstrate the potential for better, more nuanced privacy policies. Implementing
-these policies using ad-hoc methods places undue labor on the developer and, as policies grow
+these transformations using ad-hoc methods places undue labor on the developer and, as policies grow
 more complex, becomes more error-prone.
 
 To systematically address these challenges, we propose \emph{data masking}, a new framework for
-specifying and implementing privacy policies. 
+specifying and implementing privacy transformations for privacy policies. 
 %
-With data masking, developers specify parts of privacy policies such as unsubscription as a
-\emph{data mask}: a set of allowable transformations on the entity relationship graph embedded in
-database-backed applications (\eg encoded by foreign key relationships).
+With data masking, developers specify privacy transformations required in privacy policies, \eg
+unsubscription, as \emph{data masks}. A data mask constrains the state of the entity relationship
+graph embedded in database-backed applications (\eg encoded by foreign key relationships).
 %
 Tools for data masking take a data mask specification, and automatically translates the mask into
-the appropriate database transformations. With these tools, developers reason only about constraints
-on the entity graph, and avoid the labor of manual mask implemention.
+the appropriate database transformations to achieve the specified entity graph state. With these
+tools, developers reason only about constraints on the entity graph, and avoid the labor of manual
+mask implemention.
 
-\subsection{Privacy Policies Today and Beyond}
-A survey of privacy policies today produce the following policies for user unsubscription~\cite{facebook:privacy, twitter:privacy, hotcrp:privacy, reddit:privacy,
+\subsection{Privacy Transformations Today and Beyond}
+A survey of current applications' privacy policies reveal a set of common privacy transformations performed during user unsubscription~\cite{facebook:privacy, twitter:privacy, hotcrp:privacy, reddit:privacy,
 github:privacy, hackernews:privacy, strava:privacy, linkedin:privacy, stackoverflow:privacy,
 wikipedia:privacy, amazon:privacy, prestashop:privacy, spotify:privacy, lobsters:privacy}:
 \begin{itemize}
@@ -104,7 +105,7 @@ masking implementation masks the database according to the policy.
 Data masking relies on the key observation that applications already encode entity relations in an
 \emph{entity graph} via \eg foreign key relationships, and privacy policies impose restrictions on the
 content and structure of this graph. Unsubscription, for example, transforms this graph to comply
-with particular constraints of the privacy policy.
+with particular constraints of the privacy policy for account deletion.
 
 Using the data masking approach, these privacy policy constraints are captured by a \emph{mask
 policy} specified by the developer. The developer selects from a menu of
@@ -120,10 +121,8 @@ appropriate database transformations that would be laborious to implement manual
 %(\eg decorrelate post entities from user
 %entities by rewriting the foreign key relationship to a newly generated ghost user entity).
 
-
 We demonstrate that an initial prototype for data masking is practical, and can automatically and
-systematically apply data masks to application data given a high-level privacy policy
-specification.
+systematically apply data masks to application data given a high-level mask specification.
 %To help developers of new and existing applications support privatization transformations, we
 %propose \sys, which makes the key insight to model application data as an abstract \emph{entity
 %graph}, and represent privatization transformations as transformations of this graph that render
