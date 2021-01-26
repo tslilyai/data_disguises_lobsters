@@ -6,24 +6,20 @@ data.
 Meeting these demands requires applications to delete, anonymize, and decorrelate their data, 
 while still retaining data required for legal purposes or to preserve application utility.
 %
-%These privacy transformations are application-specific and
-%require handling complex data correlations, 
 Due to the complexity of these privacy transformations, today's applications often support only
-    coarse-grained transformations implemented with error-prone, ad-hoc methods.
+coarse-grained privacy policies implemented with error-prone, ad-hoc methods.
 %forgo these transformations, or implement ad-hoc transformations with unclear guarantees.
 %\ms{sets us up to specify what guarantees we make}
 %
 
 To enable developers to better support existing and new privacy policies without onerous manual
-    labor, we propose \emph{data masking}, a systematic approach that helps developers generate
-    \emph{data masks}---concrete privacy transformations---for database-backed web applications from
-    a high-level specification.
+labor, we propose \emph{data masking}, a systematic approach that helps developers generate
+\emph{data masks}---concrete privacy transformations---for database-backed web applications from
+a high-level specification.
 %
 Data masks encompass the privacy transformations done by applications today, and goes beyond,
-    supporting fine-grained and nuanced policies that would be cumbersome to implement manually.
-%
-Data masks add additional flexibility, enabling reversible transformations that permit returning
-    to an identity-revealing state at any time.
+supporting fine-grained and nuanced policies that would be cumbersome to implement manually, and 
+enabling reversible transformations that permit returning to an identity-revealing state at any time.
 %
 A prototype demonstrates that data masking can be practical.
 

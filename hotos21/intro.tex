@@ -16,15 +16,16 @@ Developers express their privacy efforts through privacy policies, which today a
 coarse-grained, vaguely specified, and implemented with ad-hoc techniques that vary by application.
 
 Although developers should support better privacy policies, doing so is challenging.  Developers
-must consider not only how to handle clear user identifiers (\eg usernames), but also structural
-correlations between data records.  While better privacy policies do not aim to provide any formal
-privacy \emph{guarantees}, improving the state of privacy in applications today requires that
-developers reason about often subtle scenarios that involve identifying correlations.
+must consider not only how to handle clearly identifying user content (\eg usernames), but also
+structural correlations between data records that can identify the user.  While better privacy
+policies do not aim to provide any formal privacy \emph{guarantees}, improving the state of privacy
+in applications today requires that developers reason about often subtle scenarios that involve
+identifying correlations.
 
 For example, public running routes of unsubscribed users correlated with the same location can
-reidentify the users' hometowns or homes, and the users themselves, even if the route poster is
-anonymized. Anonymized posts on Reddit correlated with the same subreddit, especially if there are
-very few posts in that subreddit, can be associated back to, and possibly identify, a user; and
+reidentify the users' hometowns or homes, and the users themselves, even if the route's creator is
+anonymized. Anonymized posts on Reddit correlated with the same subreddit, particularly if the
+subreddit has very few subscribers, can be associated back to a single user; and
 content correlated with the same group of people (\eg papers that have the same paper conflicts in
 HotCRP, or posts liked by the same set of friends) can identify a user via their community.
 
@@ -40,7 +41,7 @@ citing them yet.}
 Current applications support privacy policies such as the following when a user unsubscribes:
 \begin{itemize}
     \item Keep user's public contributions publicly available (\eg Wikipedia, StackOverflow,
-        Strava~\cite{strava:privacy}).
+        Strava).
     \item Keep user's contributions shared directly with another user visible to the recipient user (\eg Facebook,
         LinkedIn, Twitter).
     \item Keep user contributions visible to the intended audience, but associated with a global
@@ -74,8 +75,9 @@ To enable developers to better support existing and new privacy policies without
 labor, we propose \emph{data masking}.
 %
 Data masking is a new systematic approach that helps developers generate
-\emph{data masks}---concrete privacy transformations---for database-backed web applications from
-a high-level, declarative specification of the desired privacy policy.
+\emph{data masks}---concrete privacy transformations---for database-backed web applications. The
+developer provides a high-level, declarative specification of the desired privacy policy, and a data
+masking implementation masks the database according to the policy.
 
 Data masking relies on the key observation that applications already encode entity relations in an
 \emph{entity graph} via foreign key relationships, and privacy policies impose restrictions on the
