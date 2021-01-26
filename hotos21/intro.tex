@@ -92,6 +92,8 @@ Data masking implementations take a mask policy, and automatically generate and 
 appropriate database transformations that would be laborious to implement manually. 
 %(\eg decorrelate post entities from user
 %entities by rewriting the foreign key relationship to a newly generated ghost user entity).
+Importantly, data masks transformations are \emph{reversible}, allowing developers to support
+privacy-granting transformations beyond permanent and irrevokable unsubscription. 
 
 We demonstrate that an initial prototype for data masking is practical, and can automatically and
 systematically apply data masks to application data given a high-level privacy policy
