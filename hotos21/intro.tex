@@ -18,41 +18,54 @@ coarse-grained, vaguely specified, and implemented with ad-hoc techniques that v
 Although developers should support better privacy policies, doing so is challenging.  Developers
 must consider not only how to handle clearly identifying user content (\eg usernames), but also
 structural correlations between data records that can identify the user.  While better privacy
-policies do not aim to provide any formal privacy \emph{guarantees}, improving the state of privacy
-in applications today requires that developers reason about often subtle scenarios that involve
-identifying correlations.
+policies do not aim to provide any formal privacy \emph{guarantees}, developers must still reason
+about often subtle identifying correlations in order to improve the state of privacy
+in applications today. 
 
-For example, public running routes of unsubscribed users correlated with the same location can
+For example, unsubscriber users' public running routes correlated with the same location can
 reidentify the users' hometowns or homes, and the users themselves, even if the route's creator is
 anonymized. Anonymized posts on Reddit correlated with the same subreddit, particularly if the
 subreddit has very few subscribers, can be associated back to a single user; and
 content correlated with the same group of people (\eg papers that have the same paper conflicts in
 HotCRP, or posts liked by the same set of friends) can identify a user via their community.
 
-Furthermore, any privacy transformations to decorrelate these structural correlations, or that
-anonymize or delete data, must be careful to maintain application invariants. For example,
+Any privacy transformations to decorrelate these structural correlations, or that anonymize or
+delete data, must additionally take care to maintain application invariants. For example,
 unsubscription of one user should not allow another user to view content that she originally could
 not access.
+
+We describe next a wide range of flexible privacy policies, some implemented by applications today,
+and others that demonstrate the potential for better, more nuanced privacy policies. 
+However, as privacy policies grow more complex to better address complex data correlations, correctly
+implementing all parts of the privacy policy while maintaining application semantics grows more
+difficult. 
+
+To address these challenges, we propose \emph{data masking}, a new framework for specifying and
+implementing privacy policies. With data masking, developers specify privacy policies as a
+\emph{data mask}, namely a set of allowable transformations on an abstract application \emph{entity
+graph}.  A data masking implementation takes the data mask and automatically translates the mask
+into the appropriate database transformations, allowing developers to reason only about than
+constraints on the entity graph.
 
 \subsection{Privacy Policies Today and Beyond}
 \lyt{Should I cite each example's privacy policy? I just picked a handful but didn't bother
 citing them yet.}
 
-Current applications support privacy policies such as the following when a user unsubscribes:
+Privacy policies today often contain the following policies for user unsubscription:
 \begin{itemize}
     \item Keep user's public contributions publicly available (\eg Wikipedia, StackOverflow,
         Strava).
     \item Keep user's contributions shared directly with another user visible to the recipient user (\eg Facebook,
         LinkedIn, Twitter).
-    \item Keep user contributions visible to the intended audience, but associated with a global
-        anonymous user (\eg Reddit, Lobsters).
-    \item Keep unanonymized user contributions visible to intended audience (\eg HotCRP)
+    \item Keep user contributions visible to the intended audience, but anonymized by reassociation with a global
+        placeholder user (\eg Reddit, Lobsters).
+    \item Keep certain user contributions unanonymized and visible to its intended audience (\eg HotCRP).
     \item Delete user contributions on user profile or feed (\eg Facebook, Twitter).
     \item Retain personal information for legitimate or necessary business purposes (legal or
         operational) (\eg Airbnb, Amazon, Groupon, Facebook).
 \end{itemize}
 
-We can also imagine applications supporting much more flexible and nuanced policies, such as
+We can also imagine applications supporting more flexible and nuanced policies, such as
 \begin{itemize}
     \item Keep user's contributions, but associate each contribution with a different user account
         (\eg reassociate each of a user's HotCRP reviews with a separate account).
@@ -69,8 +82,12 @@ We can also imagine applications supporting much more flexible and nuanced polic
         profile after the user account has been inactive for a fixed period of time;
         restore the user's profile and reassociate their contributions if the user ever logs back in.
 \end{itemize}
+These envisioned policies allow applications to, \eg be more selective in the data and structural
+correlations that it retains or removes upon unsubscription, and add new policies that provide
+better privacy for users' data even if the user does not manually unsubscribe, which many applications 
+fail to do today.
 
-\subsection{Data Masking: A New Approach}
+\subsection{Data Masking: A New Approach to Privacy Policies}
 To enable developers to better support existing and new privacy policies without onerous manual
 labor, we propose \emph{data masking}.
 %
