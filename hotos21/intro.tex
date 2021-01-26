@@ -8,20 +8,105 @@ Laws such as the EU's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} a
 Consumer Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' right to be forgotten, and demand
 applications to support privacy-granting user unsubscription.
 %
-Potentially severe data breach consequences push applications to minimize the amount of
+Growing legal consequences for data breaches push applications to minimize the amount of
 compromising data they retain~\cite{breach:amazon,breach:twitter, breach:fb, breach:marriott,
 breach:quora}.
 
-Developers express their privacy efforts as privacy \emph{policies}, often in prose form. For
-example, policies
+Developers express their privacy efforts through privacy policies, which today are often
+coarse-grained, vaguely specified, and implemented with ad-hoc techniques that vary by application.
+
+Although developers should support better privacy policies, doing so is challenging.  Developers
+must consider not only how to handle clear user identifiers (\eg usernames), but also structural
+correlations between data records.  While better privacy policies do not aim to provide any formal
+privacy \emph{guarantees}, improving the state of privacy in applications today requires that
+developers reason about often subtle scenarios that involve identifying correlations.
+
+For example, public running routes of unsubscribed users correlated with the same location can
+reidentify the users' hometowns or homes, and the users themselves, even if the route poster is
+anonymized. Anonymized posts on Reddit correlated with the same subreddit, especially if there are
+very few posts in that subreddit, can be associated back to, and possibly identify, a user; and
+content correlated with the same group of people (\eg papers that have the same paper conflicts in
+HotCRP, or posts liked by the same set of friends) can identify a user via their community.
+
+Furthermore, any privacy transformations to decorrelate these structural correlations, or that
+anonymize or delete data, must be careful to maintain application invariants. For example,
+unsubscription of one user should not allow another user to view content that she originally could
+not access.
+
+\subsection{Privacy Policies Today and Beyond}
+\lyt{Should I cite each example's privacy policy? I just picked a handful but didn't bother
+citing them yet.}
+
+Current applications support privacy policies such as the following when a user unsubscribes:
 \begin{itemize}
-    \item 
-    \item 
-    \item 
-    \item 
+    \item Keep user's public contributions publicly available (\eg Wikipedia, StackOverflow,
+        Strava~\cite{strava:privacy}).
+    \item Keep user's contributions shared directly with another user visible to the recipient user (\eg Facebook,
+        LinkedIn, Twitter).
+    \item Keep user contributions visible to the intended audience, but associated with a global
+        anonymous user (\eg Reddit, Lobsters).
+    \item Keep unanonymized user contributions visible to intended audience (\eg HotCRP)
+    \item Delete user contributions on user profile or feed (\eg Facebook, Twitter).
+    \item Retain personal information for legitimate or necessary business purposes (legal or
+        operational) (\eg Airbnb, Amazon, Groupon, Facebook).
 \end{itemize}
 
-implement them with ad-hoc, opaque techniques.
+We can also imagine applications supporting much more flexible and nuanced policies, such as
+\begin{itemize}
+    \item Keep user's contributions, but associate each contribution with a different user account
+        (\eg reassociate each of a user's HotCRP reviews with a separate account).
+    \item Remove users' contributions that have the same public characteristic (\eg remove the user's
+       posts on Reddit if they share a common tag).
+    \item Remove users' contributions that have the same public characteristic, but only if this
+        characteristic was created by the user (\eg remove the user's posts on Reddit if they share
+        a user-customized tag).  
+    \item Remove users' contributions if they comprise more than $p$
+            percent of the contributions with the same public characteristic (\eg remove the user's
+            posts on Reddit with tag $t$ if these posts comprise more than 10\% of all posts with
+            tag $t$).
+    \item Encrypt the user's profile and reassociate their contributions with an anonymous
+        profile after the user account has been inactive for a fixed period of time;
+        restore the user's profile to its original state if the user ever logs back in.
+\end{itemize}
+
+\subsection{Data Masking: A New Approach}
+To enable developers to better support existing and new privacy policies without onerous manual
+labor, we propose \emph{data masking}.
+%
+Data masking is a new systematic approach that helps developers generate
+\emph{data masks}---concrete privacy transformations---for database-backed web applications from
+a high-level, declarative specification of the desired privacy policy.
+
+Data masking relies on the key observation that applications already encode entity relations in an
+\emph{entity graph} via foreign key relationships, and privacy policies impose restrictions on the
+content and structure of this graph. Unsubscription, for example, transforms this graph to comply
+with particular constraints of the privacy policy.
+
+Using the data masking approach, these privacy policy constraints are captured by a \emph{mask
+policy} specified by the developer. The developer selects from a menu of
+possible transformations that can be performed on entity graph edges (foreign key relationships) and
+nodes (table rows), and the chosen set of transformations determine the structure of the 
+entity graph after the mask is applied. 
+
+Data masking implementations take a mask policy, and automatically generate and apply the
+appropriate database transformations that would be laborious to implement manually. 
+%(\eg decorrelate post entities from user
+%entities by rewriting the foreign key relationship to a newly generated ghost user entity).
+
+We demonstrate that an initial prototype for data masking is practical, and can automatically and
+systematically apply data masks to application data given a high-level privacy policy
+specification.
+%To help developers of new and existing applications support privatization transformations, we
+%propose \sys, which makes the key insight to model application data as an abstract \emph{entity
+%graph}, and represent privatization transformations as transformations of this graph that render
+%particular entities private.
+
+%With \sys, developers specify a \emph{mask policy} by choosing from a menu of provided edge and node
+%transformations. To determine an appropriate policy, developers introduce \emph{ghost entities} in the entity graph, which allow the mask to both retain, decorrelate, modify,
+%and remove data. The policy acts as a specification for the masked state of any instance of the
+%entity graph. When invoked with a particular mask policy, \sys automatically and systematically
+%applies transformations to the current entity graph instance to achieve this specified state.
+%
 
 \iffalse
 Web applications today own, process, and store user data~\cite{nytimes:fb, npr:data}. This places a
