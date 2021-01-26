@@ -41,11 +41,15 @@ implementing all parts of the privacy policy while maintaining application seman
 difficult. 
 
 To address these challenges, we propose \emph{data masking}, a new framework for specifying and
-implementing privacy policies. With data masking, developers specify privacy policies as a
-\emph{data mask}, namely a set of allowable transformations on an abstract application \emph{entity
-graph}.  A data masking implementation takes the data mask and automatically translates the mask
-into the appropriate database transformations, allowing developers to reason only about than
-constraints on the entity graph.
+implementing privacy policies. 
+%
+With data masking, developers specify parts of privacy policies such as unsubscription as a
+\emph{data mask}: a set of allowable transformations on the entity relationship graph embedded in
+database-backed applications (\eg encoded by foreign key relationships).
+%
+Tools for data masking take a data mask specification, and automatically translates the mask into the
+appropriate database transformations. With these tools, developers reason only about constraints on
+the entity graph, and avoid the labor of manual mask implemention.
 
 \subsection{Privacy Policies Today and Beyond}
 A survey of privacy policies today produce the following policies for user unsubscription~\cite{facebook:privacy, twitter:privacy, hotcrp:privacy, reddit:privacy,
@@ -95,7 +99,7 @@ developer provides a high-level, declarative specification of the desired privac
 masking implementation masks the database according to the policy.
 
 Data masking relies on the key observation that applications already encode entity relations in an
-\emph{entity graph} via foreign key relationships, and privacy policies impose restrictions on the
+\emph{entity graph} via \eg foreign key relationships, and privacy policies impose restrictions on the
 content and structure of this graph. Unsubscription, for example, transforms this graph to comply
 with particular constraints of the privacy policy.
 
