@@ -2,6 +2,7 @@
 \section{Evaluation}
 %-------------------------------------------------------------------------------
 \label{sec:hotcrp_example}
+
 \begin{figure}[t!]
     \centering
     \includegraphics[width=.5\textwidth]{img/decor_hotcrp}
@@ -17,6 +18,7 @@
     \label{fig:hotcrp}
 \end{figure}
 
+\iffalse
 \begin{figure}
 \begin{lstlisting}[language=Rust]
 let entity_transforms = vec![
@@ -100,10 +102,11 @@ let lobsters_unsub_mask_policy = MaskPolicy {
     \label{fig:lobsters_policy}
     \caption{Excerpt of the Lobsters mask policy for unsubscription}
 \end{figure}
+\fi
 
 We evaluate whether \name enables developers to easily express and automate practical data masks by
 writing mask policies for user unsubscription in HotCRP, a popular conference review management
-application, and Lobsters, an open-source news feed application. \lyt{and PrestaShop?}
+application, and Lobsters, an open-source news feed application. 
 
 \textbf{HotCRP} entities include users (reviewers and authors), papers, paper reviews, and
 paper conflicts. There are a total of 25 entities, with 48 edge types between entities. A
