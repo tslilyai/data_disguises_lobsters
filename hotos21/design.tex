@@ -3,76 +3,97 @@
 %-------------------------------------------------------------------------------
 \label{sec:policies}
 
-\begin{table*}[h!]
-    \centering
-    \footnotesize
-\begin{tabular}{@{}ccccc@{}}
-\textbf{Paper Attribute} & \textbf{Ghosting Transformation} & \textbf{Template Value} & \textbf{Ghost1 Value} & \textbf{Ghost2 Value}
-  \\ \cmidrule(r){1-5}
-    {id} & N/A (identifier attribute) & 10 & 199 & 813 \\
-{title} & \texttt{CloneOne} + \texttt{Generate::Default("Ghost Paper")} & My Paper & My
-    Paper & Ghost Paper \\
-{outcome} & \texttt{CloneOne} + \texttt{Generate::Default(0)} & 1 & 1 & 0 \\
-{leadContactId} & \texttt{CloneOne} + \texttt{GenerateGhostParent} & 23 & 23 & 918 \\
-\end{tabular}
-    \caption{Generating two ghosts for a simplified paper entity.
-    \sys clones the attributes of the template entity to generate Ghost1, and generates
-    attribute values for Ghost2. To generate edge attribute leadContactId, \sys creates a new ghost user and uses its identifier as the new value (918).}
-    \label{tab:ghosting}
-\end{table*}
+This section describes data masks. Data masks consist of a set of privacy transformations, chosen
+from a provided menu of possible transformations on the entity graph.
+The developer chooses one transformation for each entity type, and one for each edge type.
 
-This section describes data masks, which consist of a set of transformation policies for each entity
-type, and for each edge type.  Policies for entity types specify how to generate \emph{ghost
-entities} of that type, while policies for edge types specify whether edges should be deleted,
-retained, or decorrelated (and replaced with edges to ghost entities).
-
-\lyt{I want to add snippets of pseudocode policy + a pictoral graph transformation for each type of
-policy.}
+Entity type transformations specify how to generate \emph{ghost entities} of that type, given a real
+entity as a  template.  Edge types transformations specify whether edges should be deleted,
+retained, or decorrelated and replaced with edges to ghost entities.
 
 \subsection{Entity Type Transformations}
 \label{sec:ghosting}
 
-Real entities transform into one or more ghost entities, allowing developers to modify entity
-content and to break structural correlations.
-Developers select appropriate transformations for each entity type to specify how to
-ghost entities of that type.
+\begin{table*}[t!]
+    \centering
+    \footnotesize
+\begin{tabular}{@{}cccc@{}}
+\textbf{Entity Transformation Specification} & \textbf{Template Entity} & \textbf{Ghost1} & \textbf{Ghost2}
+  \\ \cmidrule(r){1-4}
+\begin{lstlisting}[language=Rust]
+"User" : {
+  "id": IdentifierAttribute,
+  "username": Generate(Random),
+  "disabled": Generate(Default(true)),
+  "role": CloneOne+Generate(Default(None)),
+}
+\end{lstlisting}
+    & 
+\begin{lstlisting}[language=Rust]
+  "id": 10,
+  "username": RealUser,
+  "disabled": false,
+  "roles": Admin,
+\end{lstlisting}
+    & 
+\begin{lstlisting}[language=Rust]
+  "id": 2959,
+  "username": Peacock,
+  "disabled": true,
+  "roles": Admin,
+\end{lstlisting}
+    &
+\begin{lstlisting}[language=Rust]
+  "id": 4028,
+  "username": Walrus,
+  "disabled": true,
+  "roles": None,
+\end{lstlisting}
+\end{tabular}
+    \caption{Generating two ghosts for a simplified HotCRP user entity.} 
+    \label{tab:ghosting}
+\end{table*}
 
+Transforming real entities into ghost entities requires developers to specify how to transform each
+attribute of the real entity.
+%
 Entities have three kinds of attributes: a unique identifier attribute; value
 (non-referential) attributes such as timestamps or usernames; and edge (foreign key)
 attributes that identify correlations to parent entities.
-In Table~\ref{tab:ghosting}, the \texttt{id} attribute is the identifier attribute, the
-\texttt{title} and \texttt{outcome} attributes are value attributes, and \texttt{leadContactId} is
-an edge attribute, containing a foreign key to the ContactInfo (users) table.
+%
+Table~\ref{tab:ghosting} shows the entity transformation for user entities, in which \texttt{id} is 
+the identifier attribute, and all other attributes are value attributes.
 
-Ghost entities always have unique identifier attribute values.
-For each value and edge attribute of each entity type, developers choose a ghosting transformation for each of these attributes, given a real entity
-attribute value as a template.
-
-A ghosting transformation determines whether the template value should be \emph{cloned} in one or
-all ghost entities, or whether a new value should be generated.
-Cloning enables the application to retain
-the original template entity data: Table~\ref{tab:ghosting} shows a policy that clones
-paper attributes once, allowing the application to retain the paper's information. Other ghosts
-generated from the same paper have default attribute values, preventing duplicate papers.
-
-Developers choose from the following ghosting transformations:
+Data masks create ghost entities with unique, random identifier attributes.
+For each value and edge attribute of each entity type, developers choose how to transform these
+attributes, given a real entity attribute value as a template. 
+The possible transformations include:
 \begin{itemize}[nosep]
     \item \texttt{CloneAll:} Ghosts generated from the same template all share the template's
-        attribute value. If there is an edge attribute, all ghosts will share the
-        same parent entity.
+        attribute value. If an attribute specifies an edge (is a foreign key column), 
+        all ghosts will share the same edge to the same parent entity.
 
-    \item \texttt{GenerateAll:}
-        For value attributes, developers specify whether the ghost attribute value should be
-        random, a default value, or generated from the template value via a custom function.
-        Generated edge attributes require generating a new parent ghost entity, and using the parent ghost
-        identifier as the ghost attribute value.
+    \item \texttt{Generate:}
+        For value attributes, developers specify whether the ghost attribute value should be random,
+        a default value, or generated from the template value via a custom function (\eg a hash of
+        the template value, or the encrypted template value).  To generate edge attributes (namely
+        new foreign key relationships), \sys recursively generates a ghost parent entity, and
+        creates a foreign key relationship to the new parent ghost identifier as the ghost edge
+        attribute value.
 
     \item \texttt{CloneOne:} One ghost entity shares the same value for the attribute as the
         template. All other ghosts have generated values (as described above).
-        The same ghost entity will have cloned values for all attributes with a
-        \texttt{CloneOne} policy. For example, Ghost1 clones all value and edge attributes in Table~\ref{tab:ghosting}.
+        %The same ghost entity will have cloned values for all attributes with a
+        %\texttt{CloneOne} policy. For example, Ghost1 clones all value and edge attributes in Table~\ref{tab:ghosting}.
 \end{itemize}
 
+%A ghosting transformation determines whether the template value should be \emph{cloned} in one or
+%all ghost entities, or whether a new value should be generated.
+%Cloning enables the application to retain
+%the original template entity data: Table~\ref{tab:ghosting} shows a policy that clones
+%paper attributes once, allowing the application to retain the paper's information. Other ghosts
+%generated from the same paper have default attribute values, preventing duplicate papers.
+%
 \subsection{Edge Type Transformations}
 \label{design:edgepol}
 While entity type transformations specify \emph{how} to produce ghosts, developers must also specify
