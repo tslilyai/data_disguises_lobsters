@@ -56,18 +56,23 @@ tools, developers reason only about constraints on the entity graph, and avoid t
 mask implemention.
 
 \subsection{Privacy Transformations Today and Beyond}
-A survey of current applications' privacy policies reveal a set of common privacy transformations performed during user unsubscription~\cite{facebook:privacy, twitter:privacy, hotcrp:privacy, reddit:privacy,
-github:privacy, hackernews:privacy, strava:privacy, linkedin:privacy, stackoverflow:privacy,
-wikipedia:privacy, amazon:privacy, prestashop:privacy, spotify:privacy, lobsters:privacy}:
+A survey of current applications' privacy policies reveal a set of common privacy transformations performed during user unsubscription
+%~\cite{facebook:privacy, twitter:privacy, hotcrp:privacy, reddit:privacy,
+%github:privacy, hackernews:privacy, strava:privacy, linkedin:privacy, stackoverflow:privacy,
+%wikipedia:privacy, amazon:privacy, prestashop:privacy, spotify:privacy, lobsters:privacy}:
 \begin{itemize}[nosep]
-    \item Keep user's public contributions publicly and indefinitely available (\eg Wikipedia, StackOverflow, Strava).
+    \item Keep user's public contributions publicly and indefinitely available (\eg Wikipedia,
+        StackOverflow, Strava)~\cite{wikipedia:privacy, stackoverflow:privacy, strava:privacy}.
     \item Keep user's contributions directly shared with another unanonymized and visible to the recipient user (\eg Facebook,
-        LinkedIn, Twitter).
+        LinkedIn, Twitter)~\cite{twitter:privacy, facebook:privacy, linkedin:privacy}.
     \item Keep user contributions visible to the intended audience, but anonymized by reassociation with a global
-        placeholder user (\eg GitHub, Reddit, Lobsters).
+        placeholder user (\eg GitHub, Reddit, Lobsters)~\cite{github:privacy, reddit:privacy,
+        lobsters:privacy}.
     \item Keep certain user contributions unanonymized and visible to its intended audience (\eg
-        HotCRP, Lobsters, Wikipedia, HackerNews).
-    \item Delete user contributions on user profile or feed (\eg Facebook, Twitter).
+        HotCRP, Lobsters, Wikipedia, HackerNews)~\cite{hotcrp:privacy, lobsters:privacy,
+        hackernews:privacy, wikipedia:privacy}.
+    \item Delete user contributions on user profile or feed (\eg Facebook,
+        Twitter)~\cite{facebook:privacy, twitter:privacy}.
     \item Retain personal information for legal or necessary business purposes (all web applications).
 \end{itemize}
 
