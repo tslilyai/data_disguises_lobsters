@@ -3,24 +3,27 @@
 %-------------------------------------------------------------------------------
 \label{sec:related}
 
-\paragraph{Designs for GDPR Compliance.}
-Several systems propose designs to make it easier for applications to comply with the GDPR right to
-be forgotten.
+\paragraph{Systems for Personal Data Deletion.}
+Several systems propose designs to make it easier for applications to comply privacy policies for
+personal data deletion.
 
 Sypse~\cite{sypse} pseudonymizes user data, partitioning personally identifying information (PII)
 from non-identifying data, and allowing the application to use the latter for legal or processing
 purposes. 
-Unlike Sypse's partitioning scheme, \sys does not keep PII after a data mask, or change the
-application schema in any way.
-Sypse, like \sys, sits between application's logic and data, and breaks
+%
+Unlike Sypse's partitioning scheme, data masking does not keep PII unless the mask policy specifies,
+and does not change the application schema in any way.
+%
+Like data masking implementations, Sypse sits between application's logic and data, and breaks
 foreign key relationships and objects grouped by user. However, Sypse assumes a specification of
 which objects to pseudonymize and which correlations to break, whereas we observe that writing these
 specifications is itself a challenging problem, and propose abstractions that allow developers to
 precisely capture application-specific behavior. 
-%We concretely define the application entity graph
-%and abstractions that allow developers to reason about it, whereas Sypse leaves this as future work.
-Sypse creates synthetic data similar to ghost entities; however,
-Sypse's synthesis is random and application-oblivious. We make the observation that in order to maintain correct application semantics, developers must provide input into how to generate ghost entities.
+%We concretely define the application entity graph and abstractions that allow developers to reason
+%about it, whereas Sypse leaves this as future work.
+Sypse creates synthetic data similar to ghost entities; however, Sypse's synthesis is random and
+application-oblivious. We make the observation that in order to maintain correct application
+semantics, developers must provide input into how to generate ghost entities.
 
 %Instead of constantly maintaining data partitions, \sys performs data masking when invoked and
 %incurs little overhead during normal execution. A future implementation may preemptively create
@@ -31,22 +34,26 @@ Sypse's synthesis is random and application-oblivious. We make the observation t
 
 %---------------------------
 Schwartzkopf et al.~\cite{usershards} propose a data model for GDPR compliant-by-construction
-systems, splitting application data into user shards. This model is orthogonal to \sys's design:
-\sys's mask policy abstractions support revocation of data that must be retained or shared in this
-model.
+applications, splitting application data into user shards; applications can then erase a user by
+removing the user's shard. Unlike a user shard model, applications can support data masking without
+changing how they handle data sharing between users or modifying their schemas. The data mask
+transformation for user unsubscription can also be seen as extracting a user's shard from the
+application, while performing the necessary anonymization and decorrelation transformations to the
+rest of application data.
 
 %---------------------------
 SchengenDB~\cite{schengendb} identifies PII and restricts query access to PII using purpose-based
-access control. SchengenDB performs fine-grained tracking of PII copies and data derived
-from PII, going beyond correlations visible in the entity relation graph of foreign key
-relationships; SchengenDB deletes records tracked with the owner when the owner unsubscribes.
-While similar tracking can be added to \sys to support derived data not visible in the entity graph,
-\sys focuses on automating data masking transformations that require more than PII data deletion. 
+access control. SchengenDB performs fine-grained tracking of PII copies and data derived from PII,
+going beyond correlations visible in the entity relation graph of foreign key relationships;
+SchengenDB deletes records tracked with the owner when the owner unsubscribes.  Data masks support
+more than PII data deletion, and can draw upon SchengenDB's fine-grained tracking to add additional
+support for derived data not visible in the entity graph. 
 
 %---------------------------
+
 DELF~\cite{delf} at Facebook highlights the difficulty of performing transformations for user data
-deletion in online social networks, providing a framework to detect when data is
-incorrectly deleted or retained. 
+deletion in online social networks, and helps detect when developers erroneously delete or retain
+data when users request data deletions.
 Our data masking approach can draw from DELF's insights of how to address errors in developer
 specifications, which we currently trust and leave out of scope. 
 %
@@ -96,15 +103,16 @@ which losing the key results in permanent loss of all the user's data.
 
 Many applications that perform data-intensive service-side computation and rely on data sharing
 between users (\eg online stores or social networks) experience large performance loss due to the
-additional access control checks and remote queries to user datastores. Application
-developers can no longer program over application-specific SQL databases, and lose the flexibility and performance that results from specialized schemas and data storage.
-Decoupling user data also eliminates the current revenue model for web applications, which relies on access
-to user data. Projects such as Solid~\cite{solid} currently rely on open-source application
-development, and free hosting by providers, a revenue model that may be unsustainable
-long-term.
+additional access control checks and remote queries to user datastores. Application developers can
+no longer program over application-specific SQL databases, and lose the flexibility and performance
+that results from specialized schemas and data storage.  
 
-In contrast, \sys is a tool to help applications specify and automate user data management, and
-does not require changing the application data model.
+Decoupling user data also eliminates the current revenue model for web applications, which relies on
+access to user data. Projects such as Solid~\cite{solid} currently rely on open-source application
+development, and free hosting by providers, a revenue model that may be unsustainable long-term.
+
+In contrast, data masking helps developers specify and automate better privacy transformations
+without changing the application data model.
 
 %provides a middle ground between the current data ownership paradigm (web
 %applications owning all user data), and these paradigms which decouple of user data from web applications. 
@@ -120,10 +128,10 @@ does not require changing the application data model.
 
 \paragraph{Statistical Privacy Guarantees.}
 Approaches for privacy-preserving data mining, such as $k$-anonymity, $l$-diversity, and
-differential privacy~\cite{dataminingmodels}, are complementary to \sys: for queries that are
-analytic in nature, \name can utilize techniques like PINQ~\cite{pinq} to provide differentially
-private guarantees. However, \sys allows arbitrary application queries over arbitrary content, where
-these statistical techniques no longer apply. 
+differential privacy~\cite{dataminingmodels}, are complementary to data masking: for queries that
+are analytic in nature, techniques like PINQ~\cite{pinq} suggest how data masks can provide
+differentially private guarantees. However, data masks allows applications to make arbitrary queries
+over arbitrary content, where these statistical techniques no longer apply. 
 
 \iffalse
 Key ideas:
