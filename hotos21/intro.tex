@@ -15,7 +15,7 @@ breach:quora}.
 Although developers should support better privacy policies, doing so is challenging.  They must
 perform data privacy transformations to adhere to the privacy policy, while ensuring that the
 application retains data required for legal purposes or to preserve application utility, and without
-violating application invariants.  
+violating application invariants.
 %
 For example, unsubscription of one user should not allow another user to view content that she
 originally could not access.
@@ -23,7 +23,7 @@ originally could not access.
 Transformations that achieve better user privacy requires careful handling of data deletion,
 anonymization, and structural decorrelation, where developers must consider how to handle both
 clearly identifying content (\eg usernames), and also structural correlations between data records
-that can identify the user. 
+that can identify the user.
 While these transformations do not enable formal privacy \emph{guarantees}, developers can improve the state of privacy in applications today by reasoning about often subtle identifying correlations.
 
 For example, unsubscriber users' public running routes correlated with the same location can
@@ -44,7 +44,7 @@ these transformations using ad-hoc methods places undue labor on the developer a
 more complex, becomes more error-prone.
 
 To systematically address these challenges, we propose \emph{data masking}, a new framework for
-specifying and implementing privacy transformations for privacy policies. 
+specifying and implementing privacy transformations for privacy policies.
 %
 With data masking, developers specify privacy transformations required in privacy policies, \eg
 unsubscription, as \emph{data masks}. A data mask constrains the state of the entity relationship
@@ -84,7 +84,7 @@ We can also imagine applications supporting more flexible and nuanced policies, 
        posts on Reddit if they share a common tag).
     \item Remove users' contributions that have the same public characteristic, but only if this
         characteristic was created by the user (\eg remove the user's posts on Reddit if they share
-        a user-customized tag).  
+        a user-customized tag).
     \item Remove users' contributions if they comprise more than $p$
             percent of the contributions with the same public characteristic (\eg remove the user's
             posts on Reddit with tag $t$ if these posts comprise more than 10\% of all posts with
@@ -95,13 +95,13 @@ We can also imagine applications supporting more flexible and nuanced policies, 
 \end{itemize}
 These envisioned policies allow applications to, \eg be more selective in the data and structural
 correlations that it retains or removes upon unsubscription, and add new policies that provide
-better privacy for users' data even if the user does not manually unsubscribe, which many applications 
+better privacy for users' data even if the user does not manually unsubscribe, which many applications
 fail to do today.
 
 \subsection{Data Masking: A New Approach to Privacy Policies}
 \begin{figure}[t!]
     \centering
-    \includegraphics[width=0.5\textwidth]{img/impl}
+    %\includegraphics[width=0.5\textwidth]{img/impl}
 
     \caption{Data masking implementation architecture. Developers specify grayed-out components.}
     \label{fig:arch}
@@ -124,19 +124,19 @@ With data masking, the developer specifies desired privacy transformations as a 
 Using their application expertise, the developer selects from a menu of possible transformations
 (Section~\ref{sec:policies}) that can be performed on entity graph edges (foreign key relationships)
 and entity nodes (table rows). The chosen set of transformations---the data mask---determines the
-structure of the entity graph after the mask is applied. 
+structure of the entity graph after the mask is applied.
 
 The menu of entity graph transformations rely on the concept of \emph{ghost entities}, namely
 transformed and potentially duplicated versions of real entities. Decorrelating and modifying
 entities in the entity graph can expressed via transformations that restructure the entity graph
-with edges to ghost entities that have replaced real ones. 
+with edges to ghost entities that have replaced real ones.
 
 Importantly, data masks perform \emph{reversible} transformations, allowing developers to support
 privacy-granting transformations beyond permanent and irrevokable unsubscription (\eg
-user data expiration or timeouts). 
+user data expiration or timeouts).
 
 Data masking implementations take a data mask, and automatically generate and apply the mask via the
-appropriate database transformations that would be laborious to implement manually. 
+appropriate database transformations that would be laborious to implement manually.
 %(\eg decorrelate post entities from user
 %entities by rewriting the foreign key relationship to a newly generated ghost user entity).
 We demonstrate that an initial design and prototype for data masking, which sits between application logic and
