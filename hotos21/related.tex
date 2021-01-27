@@ -44,10 +44,18 @@ While similar tracking can be added to \sys to support derived data not visible 
 \sys focuses on automating data masking transformations that require more than PII data deletion. 
 
 %---------------------------
-Delf~\cite{delf} at Facebook highlights the difficulty of performing transformations for user data
-deletion. Data masking encapsulates the data transformations performed by DELF, and generalizes it
-beyond the Facebook framework.
-\lyt{TODO}
+DELF~\cite{delf} at Facebook highlights the difficulty of performing transformations for user data
+deletion in online social networks, providing a framework to detect when data is
+incorrectly deleted or retained. 
+Our data masking approach can draw from DELF's insights of how to address errors in developer
+specifications, which we currently trust and leave out of scope. 
+%
+DELF similarly takes as input annotations on application edge and object (entity) types encoded by
+application data stores. However, DELF focuses only on application
+data deletion, \ie supporting the Facebook data deletion privacy policy.
+Data masking encapsulates the data deletion transformations performed by DELF, as well as other
+privacy transformations for a wider range of privacy policies that require \eg ghost entity
+generation for edge decorrelation.
 
 %---------------------------
 
