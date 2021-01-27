@@ -47,7 +47,8 @@ impl Eq for EntityData {}
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
     pub testname: String,
-    pub translate: bool,
+    pub use_decor: bool,
+    pub use_mv: bool,
     pub parse: bool,
     pub in_memory: bool,
     pub prime: bool,
@@ -265,12 +266,12 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             let parsedur = parsestart.elapsed();
             warn!("parse {} duration is {}", query, parsedur.as_micros());
             
-            if !self.test_params.translate {
+            if !self.test_params.use_decor {
                 self.querier.cur_stat.nqueries+=1;
-                res = helpers::answer_rows(results, self.db.query_iter(stmt_ast.to_string()));
+                res = helpers::answer_rows(results, self.db.query_iter(query));
                 dur = start.elapsed();
             } else {
-                res = self.querier.query(results, &stmt_ast, &mut self.db);
+                res = self.querier.query(results, &stmt_ast, &mut self.db, self.test_params.use_mv);
                 dur = start.elapsed();
             }
         }

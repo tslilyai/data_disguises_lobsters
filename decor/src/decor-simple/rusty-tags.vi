@@ -4204,7 +4204,8 @@ ishl	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1
 ishl_bits	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/lexical/math.rs	/^    pub fn ishl_bits(x: &mut Vec<Limb>, n: usize) {$/;"	f
 ishl_limbs	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/lexical/math.rs	/^    pub fn ishl_limbs(x: &mut Vec<Limb>, n: usize) {$/;"	f
 isolation_level	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/transaction.rs	/^    pub fn isolation_level(&self) -> Option<IsolationLevel> {$/;"	f
-issue_statement	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn issue_statement ($/;"	f
+issue_db_statement	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn issue_db_statement<W: io::Write>($/;"	f
+issue_mv_statement	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn issue_mv_statement ($/;"	f
 isub	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/lexical/math.rs	/^    pub fn isub(x: &mut Limb, y: Limb) -> bool {$/;"	f
 isub	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/lexical/math.rs	/^    pub fn isub(x: &mut Vec<Limb>, y: &[Limb]) {$/;"	f
 isub_impl	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/lexical/math.rs	/^    pub fn isub_impl(x: &mut Vec<Limb>, y: Limb, xstart: usize) {$/;"	f

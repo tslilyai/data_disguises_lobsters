@@ -65,13 +65,13 @@ impl Querier {
         }
     }   
 
-    fn issue_statement (
+    fn issue_mv_statement (
             &mut self, 
             stmt: &Statement,
             db: &mut mysql::Conn) 
         -> Result<(Vec<TableColumnDef>, RowPtrs, Vec<usize>), mysql::Error>
     {
-        warn!("issue statement: {}", stmt);
+        warn!("issue mv statement: {}", stmt);
         let mut view_res : (Vec<TableColumnDef>, RowPtrs, Vec<usize>) = (vec![], vec![], vec![]);
         
         // TODO consistency?
@@ -79,12 +79,43 @@ impl Querier {
             Statement::Select(SelectStatement{query, ..}) => {
                 view_res = self.views.query_iter(&query)?;
             }
+            _ => self.query_drop(stmt, db)?,
+        }
+        Ok(view_res)
+    }
+
+    pub fn issue_db_statement<W: io::Write>(
+        &mut self, 
+        stmt: &Statement,
+        db: &mut mysql::Conn,
+        writer: QueryResultWriter<W>, 
+    ) -> Result<(), mysql::Error>
+    {
+        warn!("issue db statement: {}", stmt);
+        
+        // TODO consistency?
+        match stmt {
+            Statement::Select(SelectStatement{query, ..}) => {
+                helpers::answer_rows(writer, db.query_iter(query.to_string()))
+            }
+            _ => {
+                self.query_drop(stmt, db)
+            },
+        }
+    }
+
+    pub fn query_drop(
+        &mut self, 
+        stmt: &Statement,
+        db: &mut mysql::Conn) 
+        -> Result<(), mysql::Error>
+    {
+        match stmt {
             Statement::Insert(InsertStatement{
                 table_name,
                 columns, 
                 source,
             }) => {
-                warn!("Issuing {}", stmt);
                 db.query_drop(stmt.to_string())?;
                 self.cur_stat.nqueries+=1;
 
@@ -182,7 +213,7 @@ impl Querier {
             }
             _ => unimplemented!("stmt not supported: {}", stmt),
         }
-        Ok(view_res)
+        Ok(())
     }
 
     pub fn record_query_stats(&mut self, qtype: helpers::stats::QueryType, dur: Duration) {
@@ -197,21 +228,16 @@ impl Querier {
         &mut self, 
         writer: QueryResultWriter<W>, 
         stmt: &Statement, 
-        db: &mut mysql::Conn) 
+        db: &mut mysql::Conn, 
+        use_mv: bool) 
         -> Result<(), mysql::Error>
     {
-        let view_res = self.issue_statement(stmt, db)?;
-        view_cols_rows_to_answer_rows(&view_res.0, view_res.1, &view_res.2, writer)
-    }
-
-    pub fn query_drop(
-        &mut self, 
-        stmt: &Statement, 
-        db: &mut mysql::Conn) 
-        -> Result<(), mysql::Error> 
-    {
-        self.issue_statement(stmt, db)?; 
-        Ok(())
+        if use_mv {
+            let view_res = self.issue_mv_statement(stmt, db)?;
+            view_cols_rows_to_answer_rows(&view_res.0, view_res.1, &view_res.2, writer)
+        } else {
+            self.issue_db_statement(stmt, db, writer)
+        }
     }
 
     /*******************************************************
