@@ -94,6 +94,14 @@ better privacy for users' data even if the user does not manually unsubscribe, w
 fail to do today.
 
 \subsection{Data Masking: A New Approach to Privacy Policies}
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width=0.5\textwidth]{img/impl}
+
+    \caption{Data masking implementation architecture. Developers specify grayed-out components.}
+    \label{fig:arch}
+\end{figure}
+
 To enable developers to better support existing and new privacy policies without onerous manual
 labor, we propose \emph{data masking}.
 %
@@ -103,37 +111,36 @@ developer provides a high-level, declarative specification of the desired privac
 masking implementation masks the database according to the policy.
 
 Data masking relies on the key observation that applications already encode entity relations in an
-\emph{entity graph} via \eg foreign key relationships, and privacy policies impose restrictions on the
-content and structure of this graph. Unsubscription, for example, transforms this graph to comply
-with particular constraints of the privacy policy for account deletion.
+\emph{entity graph} encoded via \eg foreign key relationships, and privacy transformations impose
+restrictions on the content and structure of this graph. Unsubscription, for example, transforms
+this graph to comply with particular constraints of the privacy transformation for account deletion.
 
-Using the data masking approach, these privacy policy constraints are captured by a \emph{mask
-policy} specified by the developer. The developer selects from a menu of
-possible transformations that can be performed on entity graph edges (foreign key relationships) and
-nodes (table rows), and the chosen set of transformations determine the structure of the 
-entity graph after the mask is applied. 
+With data masking, the developer specifies desired privacy transformations as a \emph{data mask}.
+Using their application expertise, the developer selects from a menu of possible transformations
+(Section~\ref{sec:policies}) that can be performed on entity graph edges (foreign key relationships)
+and entity nodes (table rows). The chosen set of transformations---the data mask---determines the
+structure of the entity graph after the mask is applied. 
 
-Importantly, data masks transformations are \emph{reversible}, allowing developers to support
-privacy-granting transformations beyond permanent and irrevokable unsubscription. 
+The menu of entity graph transformations rely on the concept of \emph{ghost entities}, namely
+transformed and potentially duplicated versions of real entities. Decorrelating and modifying
+entities in the entity graph can expressed via transformations that restructure the entity graph
+with edges to ghost entities that have replaced real ones. 
 
-Data masking implementations take a mask policy, and automatically generate and apply the
+Importantly, data masks perform \emph{reversible} transformations, allowing developers to support
+privacy-granting transformations beyond permanent and irrevokable unsubscription (\eg
+user data expiration or timeouts). 
+
+Data masking implementations take a data mask, and automatically generate and apply the mask via the
 appropriate database transformations that would be laborious to implement manually. 
 %(\eg decorrelate post entities from user
 %entities by rewriting the foreign key relationship to a newly generated ghost user entity).
-
-We demonstrate that an initial prototype for data masking is practical, and can automatically and
-systematically apply data masks to application data given a high-level mask specification.
+We demonstrate that an initial design and prototype for data masking, which sits between application logic and
+its database (Figure~\ref{fig:arch}), achieves reasonable performance, and can automatically and systematically apply data
+masks to application data given a high-level mask specification.
 %To help developers of new and existing applications support privatization transformations, we
 %propose \sys, which makes the key insight to model application data as an abstract \emph{entity
 %graph}, and represent privatization transformations as transformations of this graph that render
 %particular entities private.
-
-%With \sys, developers specify a \emph{mask policy} by choosing from a menu of provided edge and node
-%transformations. To determine an appropriate policy, developers introduce \emph{ghost entities} in the entity graph, which allow the mask to both retain, decorrelate, modify,
-%and remove data. The policy acts as a specification for the masked state of any instance of the
-%entity graph. When invoked with a particular mask policy, \sys automatically and systematically
-%applies transformations to the current entity graph instance to achieve this specified state.
-%
 
 \iffalse
 Web applications today own, process, and store user data~\cite{nytimes:fb, npr:data}. This places a
