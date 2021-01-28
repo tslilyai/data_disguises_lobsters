@@ -170,8 +170,8 @@ The possible transformations include:
 While entity type transformations specify how to create ghost entities, edge transformations 
 specify how ghosts restructure the entity graph.
 
-By default, \sys replaces all \emph{sensitive} entities---entities transitively connected via
-parent-child edges to the mask's target entity---with ghost entities.
+By default, all \emph{sensitive} entities---entities transitively connected via
+parent-child edges to the mask's target entity---transform into with ghost entities.
 For example, in Figure~\ref{fig:edgepol}a, all reviews and papers of the unsubscribing user are by
 default replaced by ghosts.
 
@@ -181,33 +181,46 @@ default replaced by ghosts.
 %generation policies + edge policies than Parent-to-Child edges. I'm not sure if we should mention
 %that here (seems too detailed?)}
 
+\paragraph{Parent-Child Edge Transformations.}
 The developer specifies transformations for each parent-child edge type, choosing from the following:
 \begin{enumerate}
     \item \textbf{Retain} edges from sensitive children to the parent. Figure~\ref{fig:edgepol}a
-        shows how the entity graph is transformed when all edges are retained; \sys ghosts
-        sensitive entities according to the specified entity transformation.
+        shows how the entity graph is transformed when all edges are retained.
     \item \textbf{Decorrelate} edges from sensitive children by replacing edges to the parent with
-        ones to a unique ghost parent, generated using the parent as a template:
+        ones to a unique ghost parent, created using the parent as a template:
         child edge attribute values identify unique ghost parents (Figure~\ref{fig:edgepol}b).
     \item \textbf{Delete} edges from sensitive children by removing the child and its descendants
         (Figure~\ref{fig:edgepol}c).
 \end{enumerate}
-\lyt{TODO: I think we need one more transformation type (or perhaps an additional argument type)
-that says to Decorrelate or Delete \emph{only if} certain properties are satisfied. \eg, if the
-parent user entity is from the EU and we need to have stricter privacy properties, etc.}
+The data mask applies these transformations while recursively traversing parent-child edges from the
+target entity.
 
-Some policies also need to decorrelate or delete edges from sensitive children to parents that are
-not descendants of the user. For example, papers have both tags and users as parents. If an
-unsubscribed user authors all papers with a particular tag, the developer may realize that the tag
-can reidentify the user, and want to decorrelate the paper from the tag.
+\paragraph{Child-Parent Edge Transformations.}
+Data masks also allow the developer to specify edge transformations in the child-parent direction,
+namely from sensitive children to parents that are not descendants of the user. 
+%
+For example, papers have both tags and users as parents. If an unsubscribed user authors all papers
+with a particular tag, the developer may realize that the tag can reidentify the user, and want to
+decorrelate the paper from the tag.
 
-Data masks support these transformations on child-parent edge types, in which developers specify  a
-\emph{sensitivity threshold}. This threshold sets the allowable proportion of correlations to
-sensitive entities. The developer chooses whether to decorrelate or delete edges to meet this
-threshold. In the paper-tag example, a reasonable sensitivity threshold might be $0.1$: fewer than
-10\% of all papers with a specific tag key should be correlated with an (unsubscribed) user.
-Figure~\ref{fig:sensitivity} shows an example in which paper-tag edges are decorrelated to meet a
-threshold of 0.5.
+Because parents of sensitive children may have non-sensitive children (\eg many papers may share
+tags with the user's papers), decorrelation and delete transformations in the child-parent direction 
+take a \textbf{sensitivity threshold} as an argument, which sets the allowable
+proportion of correlations to sensitive entities. 
+
+In the paper-tag example, a reasonable sensitivity threshold
+might be $0.1$: fewer than 10\% of all papers with a specific tag key should be correlated with an
+(unsubscribed) user.  Figure~\ref{fig:sensitivity} shows an example in which paper-tag edges are
+decorrelated to meet a threshold of 0.5.
+
+\paragraph{Edge Transformation Filters}
+For decorrelation or delete transformations (in either parent-child or child-parent directions), the
+developer can additionally specify an \textbf{edge filter}. The filter takes the parent and child
+entities of the edge as inputs, and returns whether the entities satisfy the filter. If yes, the
+edge is decorrelated or deleted; otherwise, the edge is retained. 
+%
+For example, perhaps we want to remove tags from a user's papers (decorrelate paper-tag edges)
+\emph{only if} the tags were created by the unsubscribing user.
 
 \subsection{Privacy Transformations as Data Masks}
 This menu of transformations can describe masks for the range of current and possible privacy
