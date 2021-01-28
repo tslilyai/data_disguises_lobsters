@@ -50,10 +50,10 @@ With data masking, developers specify privacy transformations required in privac
 unsubscription, as \emph{data masks}. A data mask constrains the state of the entity relationship
 graph embedded in database-backed applications (\eg encoded by foreign key relationships).
 %
-Data masking tools take a specified data mask, and automatically translates the mask into
-the appropriate database transformations to achieve the masked entity graph state. With these
-tools, developers reason only about constraints on the entity graph, and avoid the labor of manual
-mask implemention.
+Data masking tools take a data mask and a top-level entity to mask (\eg the user to
+unsubscribe), and automatically translates the mask into the appropriate database transformations to
+achieve the masked entity graph state. With these tools, developers reason only about constraints on
+the entity graph, and avoid the labor of manual mask implemention.
 
 \subsection{Privacy Transformations Today and Beyond}
 A survey of current applications' privacy policies reveal a set of common privacy transformations performed during user unsubscription
@@ -124,7 +124,8 @@ With data masking, the developer specifies desired privacy transformations as a 
 Using their application expertise, the developer selects from a menu of possible transformations
 (Section~\ref{sec:policies}) that can be performed on entity graph edges and entity nodes (\eg
 foreign key relationships and table rows). The chosen set of transformations---the data
-mask---determines the structure of the entity graph after the mask is applied.
+mask---determines the structure of the entity graph after the mask is applied to the targeted entity
+(\eg the user to unsubscribe).
 
 The menu of entity graph transformations rely on the concept of \emph{ghost entities}, namely
 transformed and potentially duplicated versions of real entities. Decorrelating and modifying
@@ -135,10 +136,11 @@ Importantly, data masks perform \emph{reversible} transformations, allowing deve
 privacy-granting transformations beyond permanent and irrevokable unsubscription (\eg
 user data expiration or timeouts).
 
-Data masking tools take a data mask, and automatically generate and apply the mask via the
-appropriate database transformations that would be laborious to implement manually.
-%(\eg decorrelate post entities from user
-%entities by rewriting the foreign key relationship to a newly generated ghost user entity).
+Data masking tools take a data mask and the top-level entity to mask, and automatically generate and
+apply the mask via the appropriate database transformations that would be laborious to implement
+manually.
+%(\eg decorrelate post entities from user entities by rewriting the foreign key relationship to a
+%newly generated ghost user entity).
 As an initial design and prototype for such a tool, we create \sys, which sits between application
 logic and its database (Figure~\ref{fig:arch}). We show that \sys achieves reasonable performance,
 and can automatically and systematically apply data masks to application data given a high-level
