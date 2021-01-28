@@ -151,7 +151,7 @@ The possible transformations include:
 
 \begin{figure}[t!]
     \centering
-    \includegraphics[width=0.5\textwidth]{img/child-parent}
+    \includegraphics[width=0.54\textwidth]{img/child-parent}
 
     \iffalse
 \begin{lstlisting}[language=Rust]
@@ -165,7 +165,6 @@ The possible transformations include:
     }
     \label{fig:sensitivity}
 \end{figure}
-
 
 While entity type transformations specify how to create ghost entities, edge transformations 
 specify how ghosts restructure the entity graph.
@@ -183,11 +182,14 @@ default replaced by ghosts.
 
 The developer specifies transformations for each parent-child edge type, choosing from the following:
 \begin{enumerate}
+    \item \textbf{Retain} edges from sensitive children to the parent. Figure~\ref{fig:edgepol}a
+        shows how the entity graph is transformed when all edges are retained; \sys ghosts
+        sensitive entities according to the specified entity transformation.
     \item \textbf{Decorrelate} edges from sensitive children by replacing edges to the parent with
         ones to a unique ghost parent, generated using the parent as a template:
-        child edge attribute values will identify unique ghost parents.
-    \item \textbf{Delete} edges from sensitive children by removing the child and its descendants.
-    \item \textbf{Retain} edges from sensitive children to the parent.
+        child edge attribute values will identify unique ghost parents (Figure~\ref{fig:edgepol}b).
+    \item \textbf{Delete} edges from sensitive children by removing the child and its descendants
+        (Figure~\ref{fig:edgepol}c).
 \end{enumerate}
 
 Some policies also need to decorrelate or delete edges from sensitive children to parents that are
@@ -200,24 +202,8 @@ can reidentify the user, and want to decorrelate the paper from the tag.
 sensitive entities. The developer chooses whether to decorrelate or delete edges to meet this
 threshold. In the paper-tag example, a reasonable sensitivity threshold might be $0.1$: fewer than
 10\% of all papers with a specific tag key should be correlated with an (unsubscribed) user.
-%Developers use their knowledge of application semantics to determine appropriate thresholds for
-%each
-%edge type, estimating how much sensitive information may leak from edge instances of that type.
-%Decorrelation requires
-%reassigning children with the same parent entity to different generated ghost parents.
-
-%For each parent, \sys decorrelates or deletes edges to children only enough to achieve the specified
-%threshold, and retains the remaining edges.
-%Note that if all children are sensitive (a user's papers
-%are always sensitive), or if the sensitivity threshold is 0, \sys will decorrelate or delete all
-%children.
-%On the other hand, if the developer specifies a sensitivity threshold of 1, \sys retains all
-%correlations between children and the parent. Developers should select this option only if the
-%developer knows that these correlations cannot collectively leak identifying information, and/or if
-%the application's functionality would be impacted by deleting or decorrelating this type of edge.
-%If \sys retains any edges from children to the parent, \sys generates a single ghost parent entity using the
-%parent as a template. The ghost parent adopts all children that remained correlated with the real
-%parent by replacing the childrens' edge attribute with the ghost's identifier.
+Figure~\ref{fig:sensitivity} shows an example in which paper-tag edges are decorrelated to meet a
+threshold of 0.5.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
