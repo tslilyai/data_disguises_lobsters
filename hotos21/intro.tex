@@ -81,16 +81,15 @@ We can also imagine applications supporting more flexible and nuanced policies, 
 \begin{itemize}[nosep]
     \item Keep user's contributions, but associate each contribution with a different user account
         (\eg reassociate each of a user's HotCRP reviews with a separate account).
-    \item Remove users' contributions that have the same public characteristic (\eg remove the user's
+    \item Remove users' contributions with a shared property (\eg remove the user's
        posts on Reddit if they share a common tag).
-    \item Retain users' contributions that have the same public characteristic, but ensure that they
-        cannot be identified by this characteristic (\eg keep the user's posts on Reddit, but remove
-        their tags).
-    \item Retain users' contributions that have the same public characteristic, but ensure that they
-        cannot be identified by this characteristic \emph{only if} the characteristic was created by
-        the user (\eg keep the user's posts on Reddit, but remove their tags that were customized by the user).
+    \item Retain users' contributions with a shared property, but decorrelate the contribution
+        from the property (\eg keep the user's posts on Reddit, but remove their tags).
+    \item Retain users' contributions with a shared property, but decorrelate the contribution
+        from the property \emph{only if} the property was created by
+        the user (\eg keep the user's posts on Reddit, but remove any user-created tags from the posts).
     \item Remove users' contributions if they comprise more than $p$ percent of the contributions
-        with the same public characteristic (\eg remove the user's posts on Reddit with tag $t$ if
+        with a shared property (\eg remove the user's posts on Reddit with tag $t$ if
         these posts comprise more than 10\% of all posts with tag $t$).
     \item Encrypt the user's profile and reassociate their contributions with an anonymous
         profile after the user account has been inactive for a fixed period of time;
