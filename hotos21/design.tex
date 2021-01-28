@@ -25,8 +25,8 @@ retained, or decorrelated and replaced with edges to ghost entities.
 "id":         IDAttribute,
 "username":   Generate(Random),
 "active":     Generate(Default(false)),
-"darkmode":   CloneAll,
-"notifs":     CloneOne(Default(false)),
+"darkmode":   CopyAll,
+"notifs":     CopyOne(Default(false)),
 "tag_id":     GenerateForeignKey,
 \end{lstlisting}
     & 
@@ -78,7 +78,7 @@ For each value and edge attribute of each entity type, developers choose how to 
 attributes, given a real entity attribute value as a template. 
 The possible transformations include:
 
-\paragraph{(1) CloneAll.} Ghosts generated from the same template all share the template's
+\paragraph{(1) Copy entity content.} Ghosts generated from the same template all share the template's
     attribute value. If an attribute specifies an edge (is a foreign key column), 
     all ghosts will share the same edge to the same parent entity.
     This transformation allows developers to retain the entity's content and not have to
@@ -86,11 +86,11 @@ The possible transformations include:
     should only be chosen if ghost attribute values cannot be generated, or if this
     attribute says little about the true identity of the entity. 
 
-    For example, Figure~\ref{fig:ghosting} shows how the \texttt{darkmode} attribute is cloned in
+    For example, Figure~\ref{fig:ghosting} shows how the \texttt{darkmode} attribute is copied in
     all ghosts; the \texttt{darkmode} attribute reveals very little about the underlying user's
     identity.
 
-\paragraph{(2) Generate.}
+\paragraph{(2) Generate new content.}
         For value attributes, developers specify whether the ghost attribute value should be random,
         a default value, or generated from the template value via a custom function (\eg a hash of
         the template value, or the encrypted template value). Figure~\ref{fig:ghosting} illustrates
@@ -102,9 +102,9 @@ The possible transformations include:
         shows how creating two user ghosts recursively creates two ghost tag entities, and uses
         the ghost tags' identifiers as foreign key constraints.
 
-\paragraph{(3) CloneOne.} One ghost entity shares the same value for the attribute as the
+\paragraph{(3) Copy entity content once.} One ghost entity shares the same value for the attribute as the
         template. All other ghosts have generated values (as described above).
-        \texttt{notifs} in Figure~\ref{fig:ghosting} illustrates how the attribute is cloned
+        \texttt{notifs} in Figure~\ref{fig:ghosting} illustrates how the attribute is copied 
         once. This policy enables the application to retain the original entity content (\eg a count
         of how many users want notifications), while modifying the content for any additional
         ghosts.
