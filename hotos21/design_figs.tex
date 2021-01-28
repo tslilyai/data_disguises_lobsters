@@ -1,45 +1,27 @@
-\begin{table*}[h!]
+\begin{figure}[th!]
     \footnotesize
-    \begin{tabular}{p{0.33\textwidth}|p{0.67\textwidth}}
-\centering\textbf{Prose Specification} & \textbf{Mask Specification} \\
-
+    \begin{tabular}{p{0.5\textwidth}}
 Keep user contributions visible to the intended audience, but anonymized by reassociation with a global
 placeholder user.
-        &
 \begin{lstlisting}[language=Rust]
 EdgeTransforms {
-  "User-Contrib":  Retain
+  "User-Contrib": Retain
 }
 EntityTransforms {
-  "User":    Generate(Default(``placeholder'')) 
+  "User":    Gen(Default("placeholder")) 
   "Contrib": Copy
 }
 \end{lstlisting}
 
     \\
 
-%Keep user's contributions directly shared with another unanonymized and visible to the recipient
-%    user (and remove other contributions).
-%    &
-%\begin{lstlisting}[language=Rust]
-%EdgeTransforms {
-%  "User-DirectContrib":  Retain
-%  "User-OtherContrib":   Delete 
-%EntityTransforms {
-%  "User":           CopyOnce+Gen(Random)
-%  "DirectContrib":  Copy
-%\end{lstlisting}
-%
-%    \\
-
 Keep user's contributions, but associate each contribution with a different user account.
-    &
 \begin{lstlisting}[language=Rust]
 EdgeTransforms {
   "User-Contrib": Decorrelate
 }
 EntityTransforms {
-  "User":    Generate(Random)
+  "User":    Gen(Random)
   "Contrib": Copy
 }
 \end{lstlisting}
@@ -48,14 +30,14 @@ EntityTransforms {
 Retain users' contributions with a shared property, but decorrelate the contribution
 from the property \emph{only if} the property was created by
 the user.
-        &
 \begin{lstlisting}[language=Rust]
 EdgeTransforms {
   "User-Contrib":     Decorrelate
-  "Contrib-Property": Decorrelate(Filter(prop.user_id == contrib.user_id))
+  "Contrib-Property": Decorrelate(Filter((p,c) => 
+                        return p.user == c.user))
 }
 EntityTransforms {
-  "User":     Generate(Random)
+  "User":     Gen(Random)
   "Contrib":  Copy
   "Property": CopyOnce+Gen(Default(None)) 
 }
@@ -64,24 +46,20 @@ EntityTransforms {
         \\
 
 Remove users' contributions if they comprise more than $p$ percent of the contributions
-        with a shared property.
-        &
+with a shared property.
 \begin{lstlisting}[language=Rust]
 EdgeTransforms {
   "User-Contrib":     Decorrelate
   "Contrib-Property": Decorrelate(Sensitivity(p))
 }
 EntityTransforms {
-  "User":     Generate(Random)
+  "User":     Gen(Random)
   "Contrib":  Copy
   "Property": CopyOnce+Gen(Default(None)) 
 }
 \end{lstlisting}
 \end{tabular}
-
-\caption{Example masks for a variety of privacy transformations (only relevant
-mask transformations shown).}
-\label{tab:masks}
-\end{table*}
-
-
+\caption{Example masks for a variety of privacy transformations (only relevant parts of mask
+specification shown).}
+\label{fig:masks}
+\end{figure}

@@ -23,11 +23,11 @@ retained, or decorrelated and replaced with edges to ghost entities.
     \textbf{Ghost2} \\
 \begin{lstlisting}[language=Rust]
 "id":         IDAttribute,
-"username":   Generate(Random),
-"active":     Generate(Default(false)),
+"username":   Gen(Random),
+"active":     Gen(Default(false)),
 "darkmode":   CopyAll,
 "notifs":     CopyOnce+Gen(Default(false)),
-"tag_id":     GenerateForeignKey,
+"tag_id":     GenForeignKey,
 \end{lstlisting}
     & 
 \begin{lstlisting}[language=Rust]
@@ -57,7 +57,7 @@ retained, or decorrelated and replaced with edges to ghost entities.
 "tag_id":   15592
 \end{lstlisting}
 \end{tabular}
-    \caption{Generating two ghosts for an example user entity (of a synthetic application schema).} 
+    \caption{Creating two ghosts from an example user entity (of a synthetic application schema).} 
     \label{fig:ghosting}
 \end{figure*}
 
@@ -224,7 +224,7 @@ For example, perhaps we want to remove tags from a user's papers (decorrelate pa
 
 \subsection{Privacy Transformations as Data Masks}
 This menu of transformations can describe masks for the range of current and possible privacy
-transformations from Section~\ref{sec:survey}. Table~\ref{tab:masks} shows the entity and edge transformations for masks
+transformations from Section~\ref{sec:survey}. Figure~\ref{fig:masks} shows the entity and edge transformations for masks
 that express even the more complex privacy transformations.
 
 \input{design_figs}
