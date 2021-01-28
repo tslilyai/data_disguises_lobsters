@@ -205,6 +205,49 @@ threshold. In the paper-tag example, a reasonable sensitivity threshold might be
 Figure~\ref{fig:sensitivity} shows an example in which paper-tag edges are decorrelated to meet a
 threshold of 0.5.
 
+\subsection{Data Masks as Privacy Transformations}
+This menu of transformations can describe masks for the range of current and possible privacy
+transformations from Section~\ref{sec:survey}. For example, we describe masks for these privacy
+transformations as follows:
+\begin{itemize}[nosep]
+    \item Keep user contributions visible to the intended audience, but anonymized by reassociation with a global
+        placeholder user:
+
+        Retain edges from user to contribution entities; transform contribution entities by copying
+        entity content, and transform user entities by changing attributes to correspond to the
+        global placeholder user attributes (\eg with a username of ``deleted'').
+
+    \item Keep user's contributions, but associate each contribution with a different user account:
+
+        Decorrelate edges from user to contribution entities (\eg posts or reviews);
+        transform contribution entities by copying entity
+        content. 
+
+    \item Remove users' contributions that have the same public characteristic: 
+
+        Delete edges from
+        contribution entity to characteristic entity (\eg papers to tags) with sensitivity threshold
+        0.
+
+    \item Remove users' contributions that have the same public characteristic, but only if this
+        characteristic was created by the user: 
+
+        Delete edges from characteristic entity to constribution entity (\eg tags to papers).
+
+    \item Ungroup users' contributions that have the same public characteristic, but only if this
+        characteristic was created by the user: 
+
+        Decorrelate edges from characteristic entity to constribution entity (\eg tags to papers);
+        ghost characteristic entities can be generated as some default placeholder entity (\eg ``untagged'') or
+        as appropriate for the application.
+
+    \item Remove users' contributions if they comprise more than $p$
+            percent of the contributions with the same public characteristic:
+        
+        Delete edges from contribution entity to
+        characteristic entity (\eg papers to tags) with sensitivity threshold $p$.
+\end{itemize}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
