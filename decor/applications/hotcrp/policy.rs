@@ -4,11 +4,33 @@ use std::rc::Rc;
 
 fn get_pc_ghost_policies() -> EntityGhostPolicies {
     let mut ghost_policies : EntityGhostPolicies = HashMap::new();
-    ghost_policies 
-}
 
-fn get_cp_ghost_policies() -> EntityGhostPolicies {
-    let mut ghost_policies : EntityGhostPolicies = HashMap::new();
+    let mut users_map = HashMap::new();
+    users_map.insert("contactId".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
+    users_map.insert("firstName".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("".to_string())));
+    users_map.insert("lastName".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("".to_string())));
+    users_map.insert("unaccentedName".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("".to_string())));
+    users_map.insert("email".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
+    users_map.insert("preferredEmail".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
+    users_map.insert("affiliation".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("".to_string())));
+    users_map.insert("phone".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    users_map.insert("country".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    users_map.insert("password".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("pass".to_string())));
+    users_map.insert("passwordTime".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    users_map.insert("passwordUseTime".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    users_map.insert("collaborators".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    users_map.insert("creationTime".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    users_map.insert("updateTime".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    users_map.insert("lastLogin".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    users_map.insert("defaultWatch".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(2.to_string())));
+    users_map.insert("roles".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    users_map.insert("disabled".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(1.to_string())));
+    users_map.insert("contactTags".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    users_map.insert("birthday".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    users_map.insert("gender".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    users_map.insert("data".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+  
+    ghost_policies.insert("users".to_string(), Rc::new(users_map));
     ghost_policies 
 }
 
@@ -720,7 +742,7 @@ pub fn get_hotcrp_policy() -> MaskPolicy {
     MaskPolicy{
         unsub_entity_type: "ContactInfo".to_string(), 
         pc_ghost_policies : get_pc_ghost_policies(), 
-        cp_ghost_policies : get_cp_ghost_policies(), 
+        cp_ghost_policies : HashMap::new(), 
         edge_policies : get_edge_policies(),
     }
 }

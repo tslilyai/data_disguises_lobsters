@@ -12,9 +12,7 @@ EntityTransforms {
   "Post": Copy
 }
 \end{lstlisting}
-
     \\
-
 Keep user's posts, but associate each post with a different user account.
 \begin{lstlisting}[language=Rust]
 EdgeTransforms {
@@ -25,7 +23,6 @@ EntityTransforms {
   "Post": Copy
 }
 \end{lstlisting}
-
 \\
 Retain users' posts with a shared tag, but decorrelate the post 
 from the tag \emph{only if} the tag was created by
@@ -41,9 +38,7 @@ EntityTransforms {
   "Tag":  CopyOnce+Gen(Default(None)) 
 }
 \end{lstlisting}
-
         \\
-
 Remove users' posts if they comprise more than $p$ percent of the posts
 with a shared tag.
 \begin{lstlisting}[language=Rust]

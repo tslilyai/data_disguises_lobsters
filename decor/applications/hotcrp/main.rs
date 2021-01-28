@@ -104,19 +104,23 @@ fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'
     let url : String;
     let mut db : mysql::Conn;
       
-    let mut translate = false;
+    let mut use_decor = false;
+    let mut use_mv = false;
     let mut parse = false;
     match test {
         TestType::TestDecor => {
-            translate = true;
+            use_decor = true;
+            use_mv = false;
             parse = true;
         }
         TestType::TestShimParse => {
-            translate = false;
+            use_decor = false;
+            use_mv = false;
             parse = true;
         }
         TestType::TestShim => {
-            translate = false;
+            use_decor = false;
+            use_mv = false;
             parse = false;
         }
         _ => (),
@@ -151,7 +155,8 @@ fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'
                     &dbname, SCHEMA, policy,
                     decor::TestParams{
                         testname: testname.to_string(), 
-                        translate:translate, 
+                        use_decor : use_decor,
+                        use_mv: use_mv,
                         parse:parse, 
                         in_memory: true, 
                         prime: prime
