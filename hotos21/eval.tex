@@ -33,9 +33,9 @@
 
 We evaluate whether \name enables developers to easily express and automate practical data masks by
 writing mask policies for user unsubscription in HotCRP, a popular conference review management
-application, and Lobsters, an open-source news feed application. 
+application.%, and Lobsters, an open-source news feed application. 
 
-\textbf{HotCRP} entities include users (reviewers and authors), papers, paper reviews, and
+HotCRP entities include users (reviewers and authors), papers, paper reviews, and
 paper conflicts. There are a total of 25 entities, with 48 edge types between entities. A
 mask specified in \sys for unsubscription requires \lyt{TODO} lines of code.
 
@@ -82,15 +82,15 @@ We generate all of a ghost users' attributes with default values, in particular 
 %and clones paper conflicts because no conflict
 %value attributes are identifying.
 
-\textbf{Lobsters} has a total of 20 entities, and a \lyt{TODO} LoC mask specification for unsubscription.
-The mask replicates what the behavior of the current Lobsters deployment upon user unsubscription,
-with the exception that we replace users with ghost users rather than a global placeholder, and we
-desensitize tags so that sensitive stories comprise at most 25\% the number of stories with a
-particular tag. This limits how much a particular tag topic can be used to identify a user who often
-posts about that topic (e.g.,\ a researcher in visualization).  
-We decorrelate all edges directly to the user, and edges from sensitive stories to tags will
-decorrelate to a sensitivity threshold of 0.25 (with ghost tags generated as a default tag). 
-We retain all other types of edges.
+%\textbf{Lobsters} has a total of 20 entities, and a \lyt{TODO} LoC mask specification for unsubscription.
+%The mask replicates what the behavior of the current Lobsters deployment upon user unsubscription,
+%with the exception that we replace users with ghost users rather than a global placeholder, and we
+%desensitize tags so that sensitive stories comprise at most 25\% the number of stories with a
+%particular tag. This limits how much a particular tag topic can be used to identify a user who often
+%posts about that topic (e.g.,\ a researcher in visualization).  
+%We decorrelate all edges directly to the user, and edges from sensitive stories to tags will
+%decorrelate to a sensitivity threshold of 0.25 (with ghost tags generated as a default tag). 
+%We retain all other types of edges.
 
 \subsection{\sys Performance}
 \label{sec:perf}
