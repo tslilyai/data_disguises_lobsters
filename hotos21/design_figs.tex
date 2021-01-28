@@ -1,174 +1,87 @@
-\begin{figure}
-\begin{lstlisting}[language=SQL, numbers=none]
-CREATE TABLE `stories` (
-   `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, 
-   `created_at` datetime, 
-   `user_id` int, 
-   `url` varchar(250) DEFAULT '', 
-   `votes` int DEFAULT 0 NOT NULL, 
-);
-CREATE TABLE `users` (
-  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY, 
-  `username` varchar(50), 
-  `karma` int DEFAULT 0 NOT NULL
-);
-CREATE TABLE `votes` (
-  `id` int NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `user_id` int NOT NULL, 
-  `story_id` int NOT NULL,
-  `vote` tinyint NOT NULL,
-);
-\end{lstlisting}
-\caption{A simplified subset of the Lobsters schema.}
-\label{fig:schema}
-\end{figure}
+\begin{table*}[h!]
+    \footnotesize
+    \begin{tabular}{p{0.33\textwidth}|p{0.67\textwidth}}
+\centering\textbf{Prose Specification} & \textbf{Mask Specification} \\
 
-\begin{figure}
-\begin{lstlisting}[language=rust, numbers=none]
-enum ValueGenerationPolicy<T> {
-    Random,
-    Default(T),
-    Fxn(Box<dyn Fn(&T) -> T>),
+Keep user contributions visible to the intended audience, but anonymized by reassociation with a global
+placeholder user.
+        &
+\begin{lstlisting}[language=Rust]
+EdgeTransforms {
+  "User-Contrib":  Retain
 }
-enum ClonePolicyType {
-    CloneAll,
-    GenerateAll,
-    CloneOne,
-  }
-  struct GhostingPolicy {
-    column: String,
-    policy: ValuePolicyType,
-  }
-  enum EntityPolicyType<T> {
-    Decorrelate,
-    Retain,
-    Delete,
-    DesensitizeAdd(f64),
-    DesensitizeRemove(f64),
-  }
-  
-  struct ClonePolicy {
-    column: String,
-    policy: ClonePolicyType,
-  }
-  struct EdgeGhostingPolicy {
-    parent_entity: String,
-    key_column: String,
-    policy: EdgePolicyType,
-    clone_policies: Vec<ClonePolicy>,
-  }
-  struct GhostGenerationPolicy {
-    name: String,
-    id: String,
-    values: Vec<ValueGhostingPolicy>,
-    edges: Vec<EdgeGhostingPolicy>,
-  }
+EntityTransforms {
+  "User":    Generate(Default(``placeholder'')) 
+  "Contrib": Copy
+}
 \end{lstlisting}
-  \caption{Policy choices given to the developer}
-\label{fig:policy}
-\end{figure}
 
-\begin{figure}
-\begin{lstlisting}[language=rust, numbers=none]
-GhostGenerationPolicy{
-  name: "users",
-  id: "id",
-  values: vec![
-    ValueGhostingPolicy: {
-      column: "username", 
-      policy: Random,
-    },
-    ValueGhostingPolicy: {
-      column: "karma", 
-      policy: Default(0),
-    }
-  ],
-  edges: vec![],
-}
-GhostGenerationPolicy{
-  name: "stories",
-  id: "id",
-  values: vec![
-    ValueGhostingPolicy: {
-      column: "created_at", 
-      policy: Random,
-    },
-    ValueGhostingPolicy: {
-      column: "url", 
-      policy: Fxn(|x| x),
-    }
-    ValueGhostingPolicy: {
-      column: "votes", 
-      policy: Default(0),
-    }
-  ],
-  edges: vec![
-    EdgeGhostingPolicy {
-      parent_entity: "users",
-      key_column: "user_id",
-      policy: Decorrelate,
-      clone_policies: vec![
-        ClonePolicy{
-          column: "username",
-          policy: GenerateAll,
-        },
-        ClonePolicy{
-          column: "karma",
-          policy: CloneOne,
-        },
-      ]
-    }
-  ]
-}
-\end{lstlisting}
-\end{figure}
+    \\
 
-\begin{figure}
-\ContinuedFloat
-\begin{lstlisting}[language=rust, numbers=none]
-GhostGenerationPolicy{
-  name: "votes",
-  id: "id",
-  values: vec![
-    ValueGhostingPolicy: {
-      column: "vote", 
-      policy: Default(0),
-    }
-  ],
-  edges: vec![
-    EdgeGhostingPolicy {
-      parent_entity: "users",
-      key_column: "user_id",
-      policy: Decorrelate,
-      clone_policies: vec![
-        ClonePolicy{
-          column: "username",
-          policy: GenerateAll,
-        },
-        ClonePolicy{
-          column: "karma",
-          policy: CloneOne,
-        },
-      ]
-    },
-    EdgeGhostingPolicy {
-      parent_entity: "stories",
-      key_column: "story_id",
-      policy: DesensitizeAdd(0.25),
-      // Clone policies are specified for 
-      // value attributes of *vote* entities,
-      // since ghost votes will be generated
-      clone_policies: vec![
-        ClonePolicy{
-          column: "vote",
-          policy: CloneOne,
-        },
-      ]
-    }
-  ]
+%Keep user's contributions directly shared with another unanonymized and visible to the recipient
+%    user (and remove other contributions).
+%    &
+%\begin{lstlisting}[language=Rust]
+%EdgeTransforms {
+%  "User-DirectContrib":  Retain
+%  "User-OtherContrib":   Delete 
+%EntityTransforms {
+%  "User":           CopyOnce+Gen(Random)
+%  "DirectContrib":  Copy
+%\end{lstlisting}
+%
+%    \\
+
+Keep user's contributions, but associate each contribution with a different user account.
+    &
+\begin{lstlisting}[language=Rust]
+EdgeTransforms {
+  "User-Contrib": Decorrelate
+}
+EntityTransforms {
+  "User":    Generate(Random)
+  "Contrib": Copy
 }
 \end{lstlisting}
-\caption{Example policy specification for the simplified Lobsters schema.}
-\label{fig:example}
-\end{figure}
+
+\\
+Retain users' contributions with a shared property, but decorrelate the contribution
+from the property \emph{only if} the property was created by
+the user.
+        &
+\begin{lstlisting}[language=Rust]
+EdgeTransforms {
+  "User-Contrib":     Decorrelate
+  "Contrib-Property": Decorrelate(Filter(prop.user_id == contrib.user_id))
+}
+EntityTransforms {
+  "User":     Generate(Random)
+  "Contrib":  Copy
+  "Property": CopyOnce+Gen(Default(None)) 
+}
+\end{lstlisting}
+
+        \\
+
+Remove users' contributions if they comprise more than $p$ percent of the contributions
+        with a shared property.
+        &
+\begin{lstlisting}[language=Rust]
+EdgeTransforms {
+  "User-Contrib":     Decorrelate
+  "Contrib-Property": Decorrelate(Sensitivity(p))
+}
+EntityTransforms {
+  "User":     Generate(Random)
+  "Contrib":  Copy
+  "Property": CopyOnce+Gen(Default(None)) 
+}
+\end{lstlisting}
+\end{tabular}
+
+\caption{Example masks for a variety of privacy transformations (only relevant
+mask transformations shown).}
+\label{tab:masks}
+\end{table*}
+
 
