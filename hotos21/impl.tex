@@ -8,11 +8,13 @@ as \texttt{MASK [entity\_id]} and \texttt{REVERSE MASK [entity\_id]} queries.
 entities are schema tables and edges are foreign key relationships. 
 %
 This restriction is not fundamental: for example, we can imagine a data masking implementation that
-additionally supports edges from \eg users to abstract, non-table entities such as ``country.''
+additionally supports abstract, non-table entities such as ``country,'' and edges between users and
+country entities.
 
-\sys's main performance overheads come from introducing the shim layer, and the space and performance overheads when
-masking entities. \sys also keeps an in-memory constructed entity graph to easily traverse
-during data mask application and reversal.
+\sys's main performance overheads come from introducing the shim layer, and the space and
+performance overheads when masking entities. \sys also keeps an in-memory constructed entity graph
+to easily traverse during data mask application and reversal.
+\lyt{numbers?}
 %We show that \sys performs reasonably (Section~\ref{sec:perf}) for , and we plan to support
 %eventually
 %consistent, crash-recoverable transformations, sharding, and multicore parallelism.
