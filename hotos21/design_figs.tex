@@ -1,66 +1,63 @@
 \begin{figure}[h!]
     \footnotesize
     \begin{tabular}{p{0.5\textwidth}}
-Keep user contributions visible to the intended audience, but anonymized by reassociation with a global
+Keep user posts visible to the intended audience, but anonymized by reassociation with a global
 placeholder user.
 \begin{lstlisting}[language=Rust]
 EdgeTransforms {
-  "User-Contrib": Retain
+  "User-Post": Retain
 }
 EntityTransforms {
   "User":    Gen(Default("placeholder")) 
-  "Contrib": Copy
+  "Post": Copy
 }
 \end{lstlisting}
 
     \\
 
-Keep user's contributions, but associate each contribution with a different user account.
+Keep user's posts, but associate each post with a different user account.
 \begin{lstlisting}[language=Rust]
 EdgeTransforms {
-  "User-Contrib": Decorrelate
+  "User-Post": Decorrelate
 }
 EntityTransforms {
-  "User":    Gen(Random)
-  "Contrib": Copy
+  "User": Gen(Random)
+  "Post": Copy
 }
 \end{lstlisting}
 
 \\
-Retain users' contributions with a shared property, but decorrelate the contribution
-from the property \emph{only if} the property was created by
+Retain users' posts with a shared tag, but decorrelate the post 
+from the tag \emph{only if} the tag was created by
 the user.
 \begin{lstlisting}[language=Rust]
 EdgeTransforms {
-  "User-Contrib":     Decorrelate
-  "Contrib-Property": Decorrelate(Filter(fn(p,c) {
-                        p.user == c.user
-                      })
+  "User-Post": Decorrelate
+  "Post-Tag":  Decorrelate(Filter(p.user == c.user))
 }
 EntityTransforms {
-  "User":     Gen(Random)
-  "Contrib":  Copy
-  "Property": CopyOnce+Gen(Default(None)) 
+  "User": Gen(Random)
+  "Post": Copy
+  "Tag":  CopyOnce+Gen(Default(None)) 
 }
 \end{lstlisting}
 
         \\
 
-Remove users' contributions if they comprise more than $p$ percent of the contributions
-with a shared property.
+Remove users' posts if they comprise more than $p$ percent of the posts
+with a shared tag.
 \begin{lstlisting}[language=Rust]
 EdgeTransforms {
-  "User-Contrib":     Decorrelate
-  "Contrib-Property": Decorrelate(Sensitivity(p))
+  "User-Post": Decorrelate
+  "Post-Tag":  Decorrelate(Sensitivity(p))
 }
 EntityTransforms {
-  "User":     Gen(Random)
-  "Contrib":  Copy
-  "Property": CopyOnce+Gen(Default(None)) 
+  "User": Gen(Random)
+  "Post": Copy
+  "Tag":  CopyOnce+Gen(Default(None)) 
 }
 \end{lstlisting}
 \end{tabular}
-\caption{Example masks for a variety of privacy transformations (only relevant parts of mask
-specification shown).}
+\caption{Example masks for a variety of privacy transformations for user posts and tags.}
 \label{fig:masks}
 \end{figure}
