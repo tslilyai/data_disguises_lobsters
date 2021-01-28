@@ -19,18 +19,15 @@ retained, or decorrelated and replaced with edges to ghost entities.
     \centering
     \footnotesize
 \begin{tabular}{@{}c|c|c|c@{}}
-\textbf{Specified Entity Transformation} & \textbf{Template Entity} & \textbf{Ghost1} &
+\textbf{User Entity Transformation Specification} & \textbf{Template Entity} & \textbf{Ghost1} &
     \textbf{Ghost2} \\
 \begin{lstlisting}[language=Rust]
-"User" : {
-  "id":         IDAttribute,
-  "username":   Generate(Random),
-  "active":     Generate(Default(false)),
-  "darkmode":   CloneAll,
-  "notifs":     CloneOne(Default(false)),
-  // foreign key to tag entity
-  "tag_id":     GenerateForeignKey,
-}
+"id":         IDAttribute,
+"username":   Generate(Random),
+"active":     Generate(Default(false)),
+"darkmode":   CloneAll,
+"notifs":     CloneOne(Default(false)),
+"tag_id":     GenerateForeignKey,
 \end{lstlisting}
     & 
 \begin{lstlisting}[language=Rust]
@@ -80,20 +77,20 @@ Data masks create ghost entities with unique, random identifier attributes.
 For each value and edge attribute of each entity type, developers choose how to transform these
 attributes, given a real entity attribute value as a template. 
 The possible transformations include:
-\begin{itemize}[nosep]
-    \item \textbf{CloneAll:} Ghosts generated from the same template all share the template's
-        attribute value. If an attribute specifies an edge (is a foreign key column), 
-        all ghosts will share the same edge to the same parent entity.
-        This transformation allows developers to retain the entity's content and not have to
-        consider how to generate new ghost attribute values, but 
-        should only be chosen if ghost attribute values cannot be generated, or if this
-        attribute says little about the true identity of the entity. 
 
-        For example, Table~\ref{tab:ghosting} shows how the \texttt{darkmode} attribute is cloned in
-        all ghosts; the \texttt{darkmode} attribute reveals very little about the underlying user's
-        identity.
+\paragraph{(1) CloneAll.} Ghosts generated from the same template all share the template's
+    attribute value. If an attribute specifies an edge (is a foreign key column), 
+    all ghosts will share the same edge to the same parent entity.
+    This transformation allows developers to retain the entity's content and not have to
+    consider how to generate new ghost attribute values, but 
+    should only be chosen if ghost attribute values cannot be generated, or if this
+    attribute says little about the true identity of the entity. 
 
-    \item \textbf{Generate:}
+    For example, Table~\ref{tab:ghosting} shows how the \texttt{darkmode} attribute is cloned in
+    all ghosts; the \texttt{darkmode} attribute reveals very little about the underlying user's
+    identity.
+
+\paragraph{(2) Generate.}
         For value attributes, developers specify whether the ghost attribute value should be random,
         a default value, or generated from the template value via a custom function (\eg a hash of
         the template value, or the encrypted template value). Table~\ref{tab:ghosting} illustrates
@@ -105,21 +102,20 @@ The possible transformations include:
         shows how creating two user ghosts recursively creates two ghost tag entities, and uses
         the ghost tags' identifiers as foreign key constraints.
 
-    \item \textbf{CloneOne:} One ghost entity shares the same value for the attribute as the
+\paragraph{(3) CloneOne.} One ghost entity shares the same value for the attribute as the
         template. All other ghosts have generated values (as described above).
         \texttt{notifs} in Table~\ref{tab:ghosting} illustrates how the attribute is cloned
         once. This policy enables the application to retain the original entity content (\eg a count
         of how many users want notifications), while modifying the content for any additional
         ghosts.
-\end{itemize}
 
 \subsection{Edge Type Transformations}
 \label{design:edgepol}
 While entity type transformations specify how to create ghost entities, edge transformations 
-specify how and when ghosts are used to restructure the entity graph.
+specify how ghosts restructure the entity graph.
 
 By default, all \emph{sensitive} entities---entities transitively connected via foreign key
-relationships (edges in the graph) to the user---with a ghost entity.
+relationships (edges in the graph) to the mask's target entity---become ghost entities.
 %Any parent of a sensitive child is ghosted as well. This is not actually true; we retain the
 %original parent entity, but allow it to be decorrelated
 %\lyt{Child-to-Parent edges can have different ghost
