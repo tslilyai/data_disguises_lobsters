@@ -1,4 +1,4 @@
-\begin{figure}[th!]
+\begin{figure}[h!]
     \footnotesize
     \begin{tabular}{p{0.5\textwidth}}
 Keep user contributions visible to the intended audience, but anonymized by reassociation with a global
@@ -33,8 +33,9 @@ the user.
 \begin{lstlisting}[language=Rust]
 EdgeTransforms {
   "User-Contrib":     Decorrelate
-  "Contrib-Property": Decorrelate(Filter((p,c) => 
-                        return p.user == c.user))
+  "Contrib-Property": Decorrelate(Filter(fn(p,c) {
+                        p.user == c.user
+                      })
 }
 EntityTransforms {
   "User":     Gen(Random)
