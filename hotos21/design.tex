@@ -15,7 +15,7 @@ retained, or decorrelated and replaced with edges to ghost entities.
 \subsection{Entity Type Transformations}
 \label{sec:ghosting}
 
-\begin{table*}[t!]
+\begin{figure*}[t!]
     \centering
     \footnotesize
 \begin{tabular}{@{}c|c|c|c@{}}
@@ -58,8 +58,8 @@ retained, or decorrelated and replaced with edges to ghost entities.
 \end{lstlisting}
 \end{tabular}
     \caption{Generating two ghosts for an example user entity.} 
-    \label{tab:ghosting}
-\end{table*}
+    \label{fig:ghosting}
+\end{figure*}
 
 Transforming real entities into ghost entities requires developers to specify how to transform each
 attribute of the real entity.
@@ -68,7 +68,7 @@ Entities have three kinds of attributes: a unique identifier attribute; value
 (non-referential) attributes such as timestamps or usernames; and edge (foreign key)
 attributes that identify correlations to parent entities.
 %
-Table~\ref{tab:ghosting} shows the entity transformation for user entities, in which \texttt{id} is 
+Figure~\ref{fig:ghosting} shows the entity transformation for user entities, in which \texttt{id} is 
 the identifier attribute, 
 \texttt{tag\_id} is a foreign key constraint with the tags table, and all other attributes are value
 attributes.
@@ -86,36 +86,79 @@ The possible transformations include:
     should only be chosen if ghost attribute values cannot be generated, or if this
     attribute says little about the true identity of the entity. 
 
-    For example, Table~\ref{tab:ghosting} shows how the \texttt{darkmode} attribute is cloned in
+    For example, Figure~\ref{fig:ghosting} shows how the \texttt{darkmode} attribute is cloned in
     all ghosts; the \texttt{darkmode} attribute reveals very little about the underlying user's
     identity.
 
 \paragraph{(2) Generate.}
         For value attributes, developers specify whether the ghost attribute value should be random,
         a default value, or generated from the template value via a custom function (\eg a hash of
-        the template value, or the encrypted template value). Table~\ref{tab:ghosting} illustrates
+        the template value, or the encrypted template value). Figure~\ref{fig:ghosting} illustrates
         an example of random (\texttt{username}) and default (\texttt{active}) generated value attributes.
 
         To generate edge attributes (namely new foreign key relationships), \sys recursively
         generates a ghost parent entity, and creates a foreign key relationship to the new parent
-        ghost identifier as the ghost edge attribute value.  Table~\ref{tab:ghosting}
+        ghost identifier as the ghost edge attribute value.  Figure~\ref{fig:ghosting}
         shows how creating two user ghosts recursively creates two ghost tag entities, and uses
         the ghost tags' identifiers as foreign key constraints.
 
 \paragraph{(3) CloneOne.} One ghost entity shares the same value for the attribute as the
         template. All other ghosts have generated values (as described above).
-        \texttt{notifs} in Table~\ref{tab:ghosting} illustrates how the attribute is cloned
+        \texttt{notifs} in Figure~\ref{fig:ghosting} illustrates how the attribute is cloned
         once. This policy enables the application to retain the original entity content (\eg a count
         of how many users want notifications), while modifying the content for any additional
         ghosts.
 
 \subsection{Edge Type Transformations}
 \label{design:edgepol}
+
+\begin{figure*}[t!]
+    \centering
+    \includegraphics[width=\textwidth]{img/edge_transforms}
+
+    \iffalse
+\begin{lstlisting}[language=Rust]
+"User-Review":  Retain
+"User-Paper":   Retain
+"Review-Paper": Retain
+\end{lstlisting}
+
+\begin{lstlisting}[language=Rust]
+"User-Review":  Decorrelate
+"User-Paper":   Retain
+"Review-Paper": Retain
+\end{lstlisting}
+
+\begin{lstlisting}[language=Rust]
+"User-Review":  Delete
+"User-Paper":   Retain
+"Review-Paper": Retain
+\end{lstlisting}
+\fi
+
+    \caption{Different edge transformations in the entity graph. User entities are generated and
+    paper and review entities are cloned once to retain their content in the application. 
+    For clarity, we show only relevant parts of the entity graph and the mask policy, and use entity-granularity ghosting
+        transformations rather than per-attribute ones.\\
+    \textbf{(a)} retains User-Review edges;
+    \textbf{(b)} decorrelates User-Review edges, creating a new ghost user for R1 and rewriting R1's 
+    foreign key to point to the new ghost user;
+    \textbf{(c)} deletes User-Review edges.\\
+    All edge transformations replace all sensitive entities (U1, R1, and P2) with ghost entities.
+    }
+    \label{fig:edgepol}
+\end{figure*}
+
+
+
 While entity type transformations specify how to create ghost entities, edge transformations 
 specify how ghosts restructure the entity graph.
 
-By default, all \emph{sensitive} entities---entities transitively connected via foreign key
-relationships (edges in the graph) to the mask's target entity---become ghost entities.
+By default, \sys replaces all \emph{sensitive} entities---entities transitively connected via foreign key
+relationships (edges in the graph) to the mask's target entity---with ghost entities.
+For example, in Figure~\ref{fig:edgepol}a, all reviews and papers of the unsubscribing user are by
+default replaced by ghosts.
+
 %Any parent of a sensitive child is ghosted as well. This is not actually true; we retain the
 %original parent entity, but allow it to be decorrelated
 %\lyt{Child-to-Parent edges can have different ghost
