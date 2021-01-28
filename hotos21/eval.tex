@@ -5,7 +5,20 @@
 
 \begin{figure}[t!]
     \centering
-    \includegraphics[width=.5\textwidth]{img/decor_hotcrp}
+    \includegraphics[width=.53\textwidth]{img/decor_hotcrp}
+\iffalse
+\begin{lstlisting}[language=Rust]
+"User-Review":  Retain
+"User-Paper":   Retain
+"Review-Paper": Retain
+\end{lstlisting}
+
+\begin{lstlisting}[language=Rust]
+"User-PaperConflict":  Delete 
+"PaperConflict-Paper": Delete 
+\end{lstlisting}
+\fi
+
 
     \caption{Pre- and post-unsubscription state of a simplified HotCRP schema. For clarity,
         we show only relevant parts of the entity graph, use entity-granularity ghosting
@@ -18,99 +31,13 @@
     \label{fig:hotcrp}
 \end{figure}
 
-\iffalse
-\begin{figure}
-\begin{lstlisting}[language=Rust]
-let entity_transforms = vec![
-    GhostGenerationPolicy {
-        entity_type: "ContactId",
-        attribute_transforms: vec![
-            ("username", Generate(Random)),
-            ("email", Generate(Default(nobody@gmail.com))),
-            ("disabled", Generate(Default(true))),
-            ...
-        ],
-    },
-    ...
-];
-
-let edge_transforms = vec![
-  EdgeTransform {
-    child: "PaperConflict",
-    parent: "ContactId",
-    column_name: "contact_id",
-    parent_child_transform: Delete,
-    child_parent_transform: Retain,
-  },
-  EdgeTransform {
-    child: "PaperConflict",
-    parent: "Paper",
-    column_name: "paper_id",
-    parent_child_transform: Retain,
-    child_parent_transform: Delete,
-  },
-  ...
-];
-
-let hotcrp_unsub_mask_policy = MaskPolicy {
-  unsub_entity_type: "ContactId",
-  entity_transforms: entity_transforms, 
-  edge_transforms: edge_transforms,
-};
-\end{lstlisting}
-    \label{fig:hotcrp_policy}
-    \caption{Excerpt of the HotCRP mask policy for unsubscription}
-\end{figure}
-
-\begin{figure}
-\begin{lstlisting}[language=Rust]
-let entity_transforms = vec![
-    GhostGenerationPolicy {
-        entity_type: "users",
-        attribute_transforms: vec![
-            ("username", Generate(Random)),
-            ("karma", Generate(Default(0)))
-        ],
-    },
-    ...
-];
-
-let edge_transforms = vec![
-  EdgeTransform {
-    child: "stories",
-    parent: "users",
-    column_name: "user_id",
-    parent_child_transform: Decorrelate,
-    child_parent_transform: Retain,
-  },
-  EdgeTransform {
-    child: "stories",
-    parent: "tags",
-    column_name: "tag_id",
-    parent_child_transform: Decorrelate,
-    child_parent_transform: Decorrelate_Sensitive(0.25),
-  },
-  ...
-];
-
-let lobsters_unsub_mask_policy = MaskPolicy {
-  unsub_entity_type: "users",
-  entity_transforms: entity_transforms, 
-  edge_transforms: edge_transforms,
-};
-\end{lstlisting}
-    \label{fig:lobsters_policy}
-    \caption{Excerpt of the Lobsters mask policy for unsubscription}
-\end{figure}
-\fi
-
 We evaluate whether \name enables developers to easily express and automate practical data masks by
 writing mask policies for user unsubscription in HotCRP, a popular conference review management
 application, and Lobsters, an open-source news feed application. 
 
 \textbf{HotCRP} entities include users (reviewers and authors), papers, paper reviews, and
 paper conflicts. There are a total of 25 entities, with 48 edge types between entities. A
-mask policy for unsubscription specified in \sys requires \lyt{TODO} lines of code.
+mask specified in \sys for unsubscription requires \lyt{TODO} lines of code.
 
 HotCRP unsubscription masks aim to decorrelate (as much as possible) a user from their reviews and
 papers, while still retaining review and paper information for other users, and maintaining correct
@@ -135,8 +62,6 @@ edges from sensitive paper conflicts to (non-sensitive) papers (Figure~\ref{fig:
 Deleting these edges can lead to spurious conflicts (\eg no
 coauthor is affiliated with NYU, but reviewers from NYU have conflicts), but does not break paper
 visibility or review assignment invariants because all other paper conflicts remain. 
-The policy excerpt in Figure~\ref{fig:hotcrp_policy} shows the specified edge transformations for paper
-conflicts to user (\texttt{ContactId}) and paper entities.
 %A more complete de-identification would to delete \emph{all} the paper's
 %conflicts, but incorrectly allows users with reviewer conflicts to review a paper and
 %break HotCRP semantics.
@@ -157,9 +82,8 @@ We generate all of a ghost users' attributes with default values, in particular 
 %and clones paper conflicts because no conflict
 %value attributes are identifying.
 
-\textbf{Lobsters} has a total of 20 entities, and a \lyt{TODO} LoC mask policy for unsubscription
-(excerpt shown in Figure~\ref{fig:lobster_policy}).
-The policy replicates what the behavior of the current Lobsters deployment upon user unsubscription,
+\textbf{Lobsters} has a total of 20 entities, and a \lyt{TODO} LoC mask specification for unsubscription.
+The mask replicates what the behavior of the current Lobsters deployment upon user unsubscription,
 with the exception that we replace users with ghost users rather than a global placeholder, and we
 desensitize tags so that sensitive stories comprise at most 25\% the number of stories with a
 particular tag. This limits how much a particular tag topic can be used to identify a user who often
