@@ -80,13 +80,19 @@ For each value and edge attribute of each entity type, developers choose how to 
 attributes, given a real entity attribute value as a template. 
 The possible transformations include:
 \begin{itemize}[nosep]
-    \item \texttt{CloneAll:} Ghosts generated from the same template all share the template's
+    \item \textbf{CloneAll:} Ghosts generated from the same template all share the template's
         attribute value. If an attribute specifies an edge (is a foreign key column), 
         all ghosts will share the same edge to the same parent entity.
-        Table~\ref{tab:ghosting} shows how the \texttt{dark\_mode} attribute is cloned in all
-        ghosts.
+        This transformation allows developers to retain the entity's content and not have to
+        consider how to generate new ghost attribute values, but 
+        should only be chosen if ghost attribute values cannot be generated, or if this
+        attribute says little about the true identity of the entity. 
 
-    \item \texttt{Generate:}
+        For example, Table~\ref{tab:ghosting} shows how the \texttt{darkmode} attribute is cloned in
+        all ghosts; the \texttt{darkmode} attribute reveals very little about the underlying user's
+        identity.
+
+    \item \textbf{Generate:}
         For value attributes, developers specify whether the ghost attribute value should be random,
         a default value, or generated from the template value via a custom function (\eg a hash of
         the template value, or the encrypted template value). Table~\ref{tab:ghosting} illustrates
@@ -98,7 +104,7 @@ The possible transformations include:
         shows how creating two user ghosts recursively creates two ghost tag entities, and uses
         the ghost tags' identifiers as foreign key constraints.
 
-    \item \texttt{CloneOne:} One ghost entity shares the same value for the attribute as the
+    \item \textbf{CloneOne:} One ghost entity shares the same value for the attribute as the
         template. All other ghosts have generated values (as described above).
         \texttt{notifs} in Table~\ref{tab:ghosting} illustrates how the attribute is cloned
         once. This policy enables the application to retain the original entity content (\eg a count
