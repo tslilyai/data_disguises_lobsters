@@ -65,7 +65,7 @@ Transforming real entities into ghost entities requires developers to specify ho
 attribute of the real entity.
 %
 Entities have three kinds of attributes: a unique identifier attribute; value
-(non-referential) attributes such as timestamps or usernames; and edge (foreign key)
+(non-referential) attributes such as timestamps or usernames; and edge (\eg foreign key)
 attributes that identify correlations to parent entities.
 %
 Figure~\ref{fig:ghosting} shows the entity transformation for user entities, in which \texttt{id} is 
@@ -79,7 +79,7 @@ attributes, given a real entity attribute value as a template.
 The possible transformations include:
 
 \paragraph{(1) Copy entity content.} Ghosts generated from the same template all share the template's
-    attribute value. If an attribute specifies an edge (is a foreign key column), 
+    attribute value. If an attribute specifies an edge (\eg is a foreign key column), 
     all ghosts will share the same edge to the same parent entity.
     This transformation allows developers to retain the entity's content and not have to
     consider how to generate new ghost attribute values, but 
@@ -96,9 +96,10 @@ The possible transformations include:
         the template value, or the encrypted template value). Figure~\ref{fig:ghosting} illustrates
         an example of random (\texttt{username}) and default (\texttt{active}) generated value attributes.
 
-        To generate edge attributes (namely new foreign key relationships), \sys recursively
-        generates a ghost parent entity, and creates a foreign key relationship to the new parent
-        ghost identifier as the ghost edge attribute value.  Figure~\ref{fig:ghosting}
+        To generate edge attributes (\eg new foreign key relationships), the data mask recursively
+        generates a ghost parent entity, and uses the new parent
+        ghost identifier as the ghost edge attribute value (\eg the parent row's identifier
+        attribute). Figure~\ref{fig:ghosting}
         shows how creating two user ghosts recursively creates two ghost tag entities, and uses
         the ghost tags' identifiers as foreign key constraints.
 
@@ -142,7 +143,7 @@ The possible transformations include:
         transformations rather than per-attribute ones.\\
     \textbf{(a)} retains User-Review edges;
     \textbf{(b)} decorrelates User-Review edges, creating a new ghost user for R1 and rewriting R1's 
-    foreign key to point to the new ghost user;
+    edge attribute to point to the new ghost user;
     \textbf{(c)} deletes User-Review edges.\\
     All edge transformations replace all sensitive entities (U1, R1, and P2) with ghost entities.
     }
@@ -169,8 +170,8 @@ The possible transformations include:
 While entity type transformations specify how to create ghost entities, edge transformations 
 specify how ghosts restructure the entity graph.
 
-By default, \sys replaces all \emph{sensitive} entities---entities transitively connected via foreign key
-relationships (edges in the graph) to the mask's target entity---with ghost entities.
+By default, \sys replaces all \emph{sensitive} entities---entities transitively connected via
+parent-child edges to the mask's target entity---with ghost entities.
 For example, in Figure~\ref{fig:edgepol}a, all reviews and papers of the unsubscribing user are by
 default replaced by ghosts.
 
@@ -187,7 +188,7 @@ The developer specifies transformations for each parent-child edge type, choosin
         sensitive entities according to the specified entity transformation.
     \item \textbf{Decorrelate} edges from sensitive children by replacing edges to the parent with
         ones to a unique ghost parent, generated using the parent as a template:
-        child edge attribute values will identify unique ghost parents (Figure~\ref{fig:edgepol}b).
+        child edge attribute values identify unique ghost parents (Figure~\ref{fig:edgepol}b).
     \item \textbf{Delete} edges from sensitive children by removing the child and its descendants
         (Figure~\ref{fig:edgepol}c).
 \end{enumerate}
@@ -197,7 +198,7 @@ not descendants of the user. For example, papers have both tags and users as par
 unsubscribed user authors all papers with a particular tag, the developer may realize that the tag
 can reidentify the user, and want to decorrelate the paper from the tag.
 
-\sys supports these transformations on child-parent edge types, in which developers specify  a
+Data masks support these transformations on child-parent edge types, in which developers specify  a
 \emph{sensitivity threshold}. This threshold sets the allowable proportion of correlations to
 sensitive entities. The developer chooses whether to decorrelate or delete edges to meet this
 threshold. In the paper-tag example, a reasonable sensitivity threshold might be $0.1$: fewer than
@@ -210,7 +211,7 @@ This menu of transformations can describe masks for the range of current and pos
 transformations from Section~\ref{sec:survey}. For example, we describe masks for these privacy
 transformations as follows:
 \begin{itemize}[nosep]
-    \item Keep user contributions visible to the intended audience, but anonymized by reassociation with a global
+    \item Keep user contributions visible but anonymized by reassociation with a global
         placeholder user:
 
         Retain edges from user to contribution entities; transform contribution entities by copying
@@ -219,33 +220,38 @@ transformations as follows:
 
     \item Keep user's contributions, but associate each contribution with a different user account:
 
-        Decorrelate edges from user to contribution entities (\eg posts or reviews);
-        transform contribution entities by copying entity
-        content. 
+        Decorrelate edges from user to contribution entities (\eg posts or reviews); transform
+        contribution entities by copying entity content. 
 
     \item Remove users' contributions that have the same public characteristic: 
 
-        Delete edges from
-        contribution entity to characteristic entity (\eg papers to tags) with sensitivity threshold
-        0.
+        Delete edges from contribution entity to characteristic entity (\eg posts to tags) with
+        sensitivity threshold 0.
 
-    \item Remove users' contributions that have the same public characteristic, but only if this
-        characteristic was created by the user: 
+    \item Retain users' contributions that have the same public characteristic, but ensure that they
+        cannot be identified by this characteristic:
 
-        Delete edges from characteristic entity to constribution entity (\eg tags to papers).
-
-    \item Ungroup users' contributions that have the same public characteristic, but only if this
-        characteristic was created by the user: 
-
-        Decorrelate edges from characteristic entity to constribution entity (\eg tags to papers);
+        Decorrelate edges from characteristic entity to constribution entity (\eg tags to posts);
         ghost characteristic entities can be generated as some default placeholder entity (\eg ``untagged'') or
         as appropriate for the application.
 
-    \item Remove users' contributions if they comprise more than $p$
-            percent of the contributions with the same public characteristic:
+    \item Retain users' contributions that have the same public characteristic, but ensure that they
+        cannot be identified by this characteristic \emph{only if} the characteristic was created by
+        the user:
+
+        Decorrelate edges from characteristic entity to contribution entity (\eg tags to posts); retain
+        edges from contribution entity to characteristic entity (\eg posts to tags). This
+        ensures that if the tag is sensitive, then the tag-paper edge (and the corresponding paper)
+        is decorrelated; otherwise, the tag-paper edge is retained.
         
-        Delete edges from contribution entity to
-        characteristic entity (\eg papers to tags) with sensitivity threshold $p$.
+        Ghost characteristic entities can be generated as some default placeholder entity (\eg ``untagged'') or
+        as appropriate for the application.
+
+    \item Remove users' contributions if they comprise more than $p$
+          percent of the contributions with the same public characteristic:
+        
+        Delete edges from contribution entity to characteristic entity (\eg posts to tags) with
+        sensitivity threshold $p$.
 \end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
