@@ -224,16 +224,17 @@ For example, perhaps we want to remove tags from a user's papers (decorrelate pa
 
 \subsection{Privacy Transformations as Data Masks}
 This menu of transformations can describe masks for the range of current and possible privacy
-transformations from Section~\ref{sec:survey}. For example, masks can be used to express even the
-more complex privacy transformations:
+transformations from Section~\ref{sec:survey}. Table~\ref{tab:masks} shows the entity and edge transformations for masks
+that express even the more complex privacy transformations.
 
 \begin{table*}
-    \begin{tabular}{m{0.33\textwidth}|m{0.33\textwidth}|m{0.33\textwidth}}
-    \textbf{Prose Specification} & \textbf{Edge Transformations} & \textbf{Entity Transformations}\\
+    \footnotesize
+\begin{tabular}{p{0.33\textwidth}|p{0.33\textwidth}|p{0.33\textwidth}}
+\textbf{Prose Specification} & \textbf{Edge Transformations} & \textbf{Entity Transformations}\\
 
 Keep user contributions visible to the intended audience, but anonymized by reassociation with a global
-        placeholder user.
-
+placeholder user.
+        &
 \begin{lstlisting}[language=Rust]
 "User-Contrib":  Retain
 \end{lstlisting}
@@ -260,60 +261,58 @@ Keep user's contributions directly shared with another unanonymized and visible 
 
     \\
 
-\end{tabular}
-\iffalse
-    \item Retain personal information for legal or necessary business purposes (all surveyed applications).
-    \item Keep user's contributions, but associate each contribution with a different user account
-        (\eg reassociate each of a user's HotCRP reviews with a separate account).
-    \item Remove users' contributions with a shared property (\eg remove the user's
-       posts on Reddit if they share a common tag).
-    \item Retain users' contributions with a shared property, but decorrelate the contribution
-        from the property (\eg keep the user's posts on Reddit, but remove their tags).
-    \item Retain users' contributions with a shared property, but decorrelate the contribution
-        from the property \emph{only if} the property was created by
-        the user (\eg keep the user's posts on Reddit, but remove any user-created tags from the posts).
-    \item Remove users' contributions if they comprise more than $p$ percent of the contributions
-        with a shared property (\eg remove the user's posts on Reddit with tag $t$ if
-        these posts comprise more than 10\% of all posts with tag $t$).
-    \item Encrypt the user's profile and reassociate their contributions with an anonymous
+Keep user's contributions, but associate each contribution with a different user account.
+    &
+\begin{lstlisting}[language=Rust]
+"User-Contrib":     Decorrelate
+\end{lstlisting}
+    & 
+\begin{lstlisting}[language=Rust]
+"User":    Generate(Random)
+"Contrib": Copy
+\end{lstlisting}
+
+\\
+Retain users' contributions with a shared property, but decorrelate the contribution
+from the property \emph{only if} the property was created by
+the user.
+        &
+\begin{lstlisting}[language=Rust]
+"User-Contrib":     Decorrelate
+"Contrib-Property": Decorrelate(Filter($\lambda(p, c). p.user_id == contrib.user_id$)
+\end{lstlisting}
+    & 
+\begin{lstlisting}[language=Rust]
+"User":     Generate(Random)
+"Contrib":  Copy
+"Property": CopyOnce+Gen(Default(None)) 
+\end{lstlisting}
+
+        \\
+Remove users' contributions if they comprise more than $p$ percent of the contributions
+        with a shared property.
+        &
+\begin{lstlisting}[language=Rust]
+"User-Contrib":     Decorrelate
+"Contrib-Property": Decorrelate(Sensitivity=$p$)
+\end{lstlisting}
+    & 
+\begin{lstlisting}[language=Rust]
+"User":     Generate(Random)
+"Contrib":  Copy
+"Property": CopyOnce+Gen(Default(None)) 
+\end{lstlisting}
+        \\
+Encrypt the user's profile and reassociate their contributions with an anonymous
         profile after the user account has been inactive for a fixed period of time;
         restore the user's profile and reassociate their contributions if the user ever logs back in.
-        
-    \item Keep user's contributions, but associate each contribution with a different user account:
-
-        Decorrelate edges from user to contribution entities (\eg posts or reviews); transform
-        contribution entities by copying entity content. 
-
-    \item Remove users' contributions that have the same public characteristic: 
-
-        Delete edges from contribution entity to characteristic entity (\eg posts to tags) with
-        sensitivity threshold 0.
-
-    \item Retain users' contributions that have the same public characteristic, but ensure that they
-        cannot be identified by this characteristic:
-
-        Decorrelate edges from characteristic entity to constribution entity (\eg tags to posts);
-        ghost characteristic entities can be generated as some default placeholder entity (\eg ``untagged'') or
-        as appropriate for the application.
-
-    \item Retain users' contributions that have the same public characteristic, but ensure that they
-        cannot be identified by this characteristic \emph{only if} the characteristic was created by
-        the user:
-
-        Decorrelate edges from characteristic entity to contribution entity (\eg tags to posts); retain
-        edges from contribution entity to characteristic entity (\eg posts to tags). This
-        ensures that if the tag is sensitive, then the tag-paper edge (and the corresponding paper)
-        is decorrelated; otherwise, the tag-paper edge is retained.
-        
-        Ghost characteristic entities can be generated as some default placeholder entity (\eg ``untagged'') or
-        as appropriate for the application.
-
-    \item Remove users' contributions if they comprise more than $p$
-          percent of the contributions with the same public characteristic:
-        
-        Delete edges from contribution entity to characteristic entity (\eg posts to tags) with
-        sensitivity threshold $p$.
-        \fi
+        &
+        &
+        \\
+\end{tabular}
+\label{tab:masks}
+\caption{Example mask specifications a variety of privacy transformations (only relevant
+transformations shown).}
 \end{table*}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
