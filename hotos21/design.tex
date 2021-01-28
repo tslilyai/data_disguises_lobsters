@@ -17,46 +17,46 @@ retained, or decorrelated and replaced with edges to ghost entities.
 \begin{table*}[t!]
     \centering
     \footnotesize
-\begin{tabular}{@{}cccc@{}}
-\textbf{Entity Transformation Specification} & \textbf{Template Entity} & \textbf{Ghost1} & \textbf{Ghost2}
-  \\ \cmidrule(r){1-4}
+\begin{tabular}{@{}c|c|c|c@{}}
+\textbf{Specified Entity Transformation} & \textbf{Template Entity} & \textbf{Ghost1} &
+    \textbf{Ghost2} \\
 \begin{lstlisting}[language=Rust]
 "User" : {
-  "id": IdentifierAttribute,
-  "username": Generate(Random),
-  "active": Generate(Default(false)),
-  "dark_mode": CloneAll,
-  "notifications": CloneOne(Default(false)),
+  "id":         IDAttribute,
+  "username":   Generate(Random),
+  "active":     Generate(Default(false)),
+  "darkmode":   CloneAll,
+  "notifs":     CloneOne(Default(false)),
   // foreign key to tag entity
-  "tag_id": GenerateForeignKey,
+  "tag_id":     GenerateForeignKey,
 }
 \end{lstlisting}
     & 
 \begin{lstlisting}[language=Rust]
-"id": 10,
-"username": RealUser,
-"active": true,
-"dark_mode": false,
-"notifications": true,
-"tag_id": 11
+"id":       10,
+"name":     RealUser,
+"active":   true,
+"darkmode": false,
+"notifs":   true,
+"tag_id":   11
 \end{lstlisting}
 & 
 \begin{lstlisting}[language=Rust]
-"id": 39593,
-"username": Peacock,
-"active": false,
-"dark_mode": false,
-"notifications": true,
-"tag_id": 81483
+"id":       39593,
+"name":     Peacock,
+"active":   false,
+"darkmode": false,
+"notifs":   true,
+"tag_id":   81483
 \end{lstlisting}
 &
 \begin{lstlisting}[language=Rust]
-"id": 40287,
-"username": Walrus,
-"active": false,
-"dark_mode": false,
-"notifications": false,
-"tag_id": 15592
+"id":       40287,
+"name":     Walrus,
+"active":   false,
+"darkmode": false,
+"notifs":   false,
+"tag_id":   15592
 \end{lstlisting}
 \end{tabular}
     \caption{Generating two ghosts for an example user entity.} 
@@ -100,7 +100,7 @@ The possible transformations include:
 
     \item \texttt{CloneOne:} One ghost entity shares the same value for the attribute as the
         template. All other ghosts have generated values (as described above).
-        \texttt{notifications} in Table~\ref{tab:ghosting} illustrates how the attribute is cloned
+        \texttt{notifs} in Table~\ref{tab:ghosting} illustrates how the attribute is cloned
         once. This policy enables the application to retain the original entity content (\eg a count
         of how many users want notifications), while modifying the content for any additional
         ghosts.
