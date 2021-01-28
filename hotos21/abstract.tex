@@ -1,22 +1,23 @@
 \begin{abstract}
 Web applications face increasing legal and user demands to provide better privacy for their users.
 %
-%whether through supporting user's right to be forgotten, or removing unnecessary or old user data.
+But it is hard to be a conscientious developer: privacy-enhancing data transformations require
+deleting, anonymizing, and decorrelating users' data, while maintaining the data required for
+legal purposes and application utility to other users.
 %
-But it is hard to be a conscientious developer: privacy-enhancing database transformations may require deleting, anonymizing, and decorrelating users' data, while maintaining data required for legal purposes or to preserve application utility.
-%
-Meeting these requirements grows only more challenging as privacy transformations become more complex, and today's applications support only simple, coarse-grained, and ad-hoc privacy transformations.
-%forgo these transformations, or implement ad-hoc transformations with unclear guarantees.
-%\ms{sets us up to specify what guarantees we make}
+Consequently, today's applications support only simple, coarse-grained, and ad-hoc privacy
+transformations.
 %
 
-We propose \emph{data masking}, a systematic approach that helps developers generate privacy transformations for database-backed web applications from a high-level specification.
+We propose a systematic approach, called \emph{data masking}, that helps developers generate
+privacy transformations for database-backed web applications from a high-level specification
+and pre-existing entity relationships.
 %
-Data masks encompass the privacy transformations done by applications today, and go beyond,
-supporting fine-grained and nuanced policies that would be cumbersome to implement manually, and
-enable reversible transformations, facilitating user return.
+Data masking tools simplify privacy transformations that applications use today; they support
+fine-grained and nuanced policies that would be cumbersome to implement manually; and
+they enable reversible transformations for users who change their mind.
 %
-Furthermore, data masks reduce developer burden, as developers must no longer manually implement privacy transformations, and enable key new use cases, such as user-specific privacy modes.
+%Furthermore, data masks reduce developer burden, as developers must no longer manually implement privacy transformations, and enable key new use cases, such as user-specific privacy modes.
 %
 A prototype data masking tool demonstrates that our approach is practical.
 
