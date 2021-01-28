@@ -192,6 +192,9 @@ The developer specifies transformations for each parent-child edge type, choosin
     \item \textbf{Delete} edges from sensitive children by removing the child and its descendants
         (Figure~\ref{fig:edgepol}c).
 \end{enumerate}
+\lyt{TODO: I think we need one more transformation type (or perhaps an additional argument type)
+that says to Decorrelate or Delete \emph{only if} certain properties are satisfied. \eg, if the
+parent user entity is from the EU and we need to have stricter privacy properties, etc.}
 
 Some policies also need to decorrelate or delete edges from sensitive children to parents that are
 not descendants of the user. For example, papers have both tags and users as parents. If an
