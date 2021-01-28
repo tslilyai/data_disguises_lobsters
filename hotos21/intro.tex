@@ -38,10 +38,10 @@ transformation correctly grows as well.
 Consequently, today's applications often support only coarse-grained and simple privacy policies,
 implemented using ad-hoc methods.
 
-We next describe a wide range of privacy transformations, some from existing applications' privacy policies,
-and others that demonstrate the potential for better, more nuanced privacy policies. Implementing
-these transformations using ad-hoc methods places undue labor on the developer and, as policies grow
-more complex, becomes more error-prone.
+%We next describe a wide range of privacy transformations, some from existing applications' privacy policies,
+%and others that demonstrate the potential for better, more nuanced privacy policies. Implementing
+%these transformations using ad-hoc methods places undue labor on the developer and, as policies grow
+%more complex, becomes more error-prone.
 
 To systematically address these challenges, we propose \emph{data masking}, a new framework for
 specifying and implementing privacy transformations for privacy policies.
@@ -91,14 +91,16 @@ We can also imagine applications supporting more flexible and nuanced policies, 
     \item Remove users' contributions if they comprise more than $p$ percent of the contributions
         with a shared property (\eg remove the user's posts on Reddit with tag $t$ if
         these posts comprise more than 10\% of all posts with tag $t$).
-    \item Encrypt the user's profile and reassociate their contributions with an anonymous
-        profile after the user account has been inactive for a fixed period of time;
-        restore the user's profile and reassociate their contributions if the user ever logs back in.
 \end{itemize}
-These envisioned policies allow applications to, \eg be more selective in the data and structural
+
+These envisioned privacy transformations allow applications to, \eg be more selective in the data and structural
 correlations that it retains or removes upon unsubscription, and add new policies that provide
 better privacy for users' data even if the user does not manually unsubscribe, which many applications
 fail to do today.
+
+For example, applications could support a ``data expiration'' policy that encrypts the user's
+profile and anonymizes their contributions after the user has been inactive for a fixed period of
+time; and restores the user's profile and contributions if the user ever logs back in.
 
 \subsection{Data Masking: A New Approach to Privacy Policies}
 \begin{figure}[t!]
@@ -108,14 +110,16 @@ fail to do today.
     \caption{Data masker architecture. Developers specify grayed-out components.}
     \label{fig:arch}
 \end{figure}
+\lyt{TODO (Frans): drive w/explicit example of table rows and foreign key relationships, too
+abstract. Start with Figure~\ref{fig:arch}?}
 
 To enable developers to better support existing and new privacy policies without onerous manual
 labor, we propose \emph{data masking}.
 %
-Data masking is a new systematic approach that helps developers generate
-\emph{data masks}---concrete privacy transformations---for database-backed web applications. The
-developer provides a high-level, declarative specification of the desired privacy policy, and a data
-masking implementation masks the database according to the policy.
+Data masking helps developers generate \emph{data masks}---concrete privacy transformations---for
+database-backed web applications. The developer provides a high-level, declarative specification of
+the desired privacy policy, and a data masking implementation masks the database according to the
+policy.
 
 Data masking relies on the key observation that applications already encode entity relations in an
 \emph{entity graph} encoded via \eg foreign key relationships, and privacy transformations impose
@@ -134,19 +138,26 @@ transformed and potentially duplicated versions of real entities. Decorrelating 
 entities in the entity graph can expressed via transformations that restructure the entity graph
 with edges to ghost entities that have replaced real ones.
 
-Importantly, data masks perform \emph{reversible} transformations, allowing developers to support
+Importantly, data masks perform reversible transformations, allowing developers to support
 privacy-granting transformations beyond permanent and irrevokable unsubscription (\eg
-user data expiration or timeouts).
+inactive user data expiration that still allows the user to reactivate).
 
 Data masking tools take a data mask and the top-level entity to mask, and automatically generate and
 apply the mask via the appropriate database transformations that would be laborious to implement
 manually.
 %(\eg decorrelate post entities from user entities by rewriting the foreign key relationship to a
 %newly generated ghost user entity).
+
 As an initial design and prototype for such a tool, we create \sys, which sits between application
-logic and its database (Figure~\ref{fig:arch}). We show that \sys achieves reasonable performance,
-and can automatically and systematically apply data masks to application data given a high-level
+logic and its database (Figure~\ref{fig:arch}). 
+\sys automatically and systematically applies data masks to application data given a high-level
 mask specification.
+\sys optionally supports reversible transformations by recording all transformations performed during the data
+mask application in an encrypted log. To reverse the transformation, \sys decrypts this log and
+undoes each modification.
+The encrypting key can be kept by \sys or secret-shared~\cite{secretsharing} among a
+user, \sys, and a trusted third party so that the user does not need to trust \sys.
+
 %To help developers of new and existing applications support privatization transformations, we
 %propose \sys, which makes the key insight to model application data as an abstract \emph{entity
 %graph}, and represent privatization transformations as transformations of this graph that render

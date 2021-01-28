@@ -9,18 +9,22 @@ entities are schema tables and edges are foreign key relationships.
 %
 This restriction is not fundamental: for example, we can imagine a data masking implementation that
 additionally supports edges from \eg users to abstract, non-table entities such as ``country.''
+
+\sys's main performance overheads come from introducing the shim layer, and the space and performance overheads when
+masking entities. \sys also keeps an in-memory constructed entity graph to easily traverse
+during data mask application and reversal.
 %We show that \sys performs reasonably (Section~\ref{sec:perf}) for , and we plan to support
 %eventually
 %consistent, crash-recoverable transformations, sharding, and multicore parallelism.
 
-If prompted, our prototype will record all transformations performed while data masking. This log can be
-encrypted and stored in an additional table. The encrypting key can be kept by the application for
-\eg content moderation transformations, or in the case of user unsubscription,
-secret-shared~\cite{secretsharing} among the user, \sys, and a trusted third party so that the user
-can retrieve a lost key without trusting the application or \sys. To undo the transformation, \sys
-decrypts this log and reverses the modifications, restoring the affected portion of the entity graph
-to its original state.
-
+%If prompted, our prototype will record all transformations performed while data masking. This log can be
+%encrypted and stored in an additional table. The encrypting key can be kept by the application for
+%\eg content moderation transformations, or in the case of user unsubscription,
+%secret-shared~\cite{secretsharing} among the user, \sys, and a trusted third party so that the user
+%can retrieve a lost key without trusting the application or \sys. To undo the transformation, \sys
+%decrypts this log and reverses the modifications, restoring the affected portion of the entity graph
+%to its original state.
+%
 \iffalse
 %-------------------------------------------------------------------------------
 \section{Implementation}
