@@ -44,26 +44,33 @@ papers' affiliation and reviewer conflicts in HotCRP can reidentify the author; 
 history can reidentify the buyer.
 
 As privacy policies become more complex, the burden of implementing the corresponding privacy
-transformation correctly grows as well.
-Consequently, today's applications often support only coarse-grained and simple privacy policies,
-implemented using ad-hoc methods.
+transformation correctly grows as well.  Consequently, today's applications often support only
+coarse-grained and simple privacy policies, implemented using ad-hoc methods.
 
 %We next describe a wide range of privacy transformations, some from existing applications' privacy policies,
 %and others that demonstrate the potential for better, more nuanced privacy policies. Implementing
 %these transformations using ad-hoc methods places undue labor on the developer and, as policies grow
 %more complex, becomes more error-prone.
 
-To systematically address these challenges, we propose \emph{data masking}, a new framework for
-specifying and implementing privacy transformations for privacy policies.
+To systematically address these challenges, we propose \emph{data disguising}, a new framework for
+specifying and implementing transformations for privacy policies.
 %
-With data masking, developers specify privacy transformations required in privacy policies, \eg
-unsubscription, as \emph{data masks}. A data mask constrains the state of the entity relationship
-graph embedded in database-backed applications (\eg encoded by foreign key relationships).
+With data disguising, developers specify transformations required in privacy policies as high-level \emph{data
+disguises}. Applying a disguise transforms the state of application data to, \eg, hide a users'
+identifiers. 
 %
-Data masking tools take a data mask and a top-level entity to mask (\eg the user to
-unsubscribe), and automatically translates the mask into the appropriate database transformations to
-achieve the masked entity graph state. With these tools, developers reason only about constraints on
-the entity graph, and avoid the labor of manual mask implemention.
+%Disguises consist of transformations performed on the high-level object graph embedded in
+%database-based applications (encoded by \eg foreign key relationships in relational
+%databases)~\cite{orms}.
+%Data masks the state of the object graph embedded in database-based applications (\eg
+%encoded by foreign key relationships) after mask application.
+%and constrains the state of the object graph embedded in
+%database-backed applications (\eg encoded by foreign key relationships).
+%
+Data disguisers take a disguise and the disguise target, and automatically translates the
+disguise into the appropriate database transformations to achieve the disguised state. With
+disguisers, developers need to reason only about constraints on the entity graph, and can avoid the
+labor of manually implementing the disguise.
 
 \section{Privacy Transformations Today and Beyond}
 \label{sec:survey}
@@ -112,56 +119,55 @@ For example, applications could support a ``data expiration'' policy that encryp
 profile and anonymizes their contributions after the user has been inactive for a fixed period of
 time, and restores the user's profile and contributions if the user ever logs back in.
 
-\section{Data Masking: A New Approach to Privacy Policies}
+\section{Data Disguising: A New Approach to Privacy Policies}
 \begin{figure}[t!]
     \centering
     \includegraphics[width=0.5\textwidth]{img/impl}
 
-    \caption{Architecture of \sys, a data masking prototype. Developers specify grayed-out components.}
+    \caption{Architecture of \sys, a prototype data disguiser. Developers specify grayed-out components.}
     \label{fig:arch}
 \end{figure}
 \lyt{TODO (Frans): drive w/explicit example of table rows and foreign key relationships, too
 abstract. Start with Figure~\ref{fig:arch}?}
 
 To enable developers to better support existing and new privacy policies without onerous manual
-labor, we propose \emph{data masking}.
+labor, we propose \emph{data disguising}.
 %
-With data masking, developers specify high-level, declarative \emph{data masks} for
+With data disguising, developers specify high-level, declarative \emph{data disguises} for
 database-backed web application, which capture the desired privacy transformation.
 
-A data masking tool such as \sys, a prototype implementation for applications using relational
+A data disguiser such as \sys, a prototype system for applications using relational
 databases, sits between application logic and its database (Figure~\ref{fig:arch}).  \sys
-automatically translates the provided data mask into the appropriate database transformations, and
-applies them starting at a given mask target (\eg a row in the users table) when invoked.
+automatically translates the provided data disguise into the appropriate database transformations, and
+applies them starting at a given disguise target (\eg a row in the users table) when invoked.
 
-Data masks can be reversed: if requested, \sys records all transformations performed during the data
-mask application in an encrypted log. To reverse the transformation, \sys decrypts this log and
+Data disguises can be reversed: if requested, \sys records all transformations performed during the data
+disguise application in an encrypted log. To reverse the transformation, \sys decrypts this log and
 undoes each modification.
 %
 The encrypting key can be kept by \sys or secret-shared~\cite{secretsharing} among a user, \sys, and
-a trusted third party so that the user does not need to trust \sys.  Reversible masks support
+a trusted third party so that the user does not need to trust \sys.  Reversible disguises support
 privacy-granting transformations beyond permanent and irrevokable unsubscription (\eg inactive user
 data expiration that still allows the user to reactivate).
 
-Data masking relies on the key observation that applications encode data contents and data
-correlations in an \emph{entity graph}. In the context of relational databases, the nodes of the
-entity graph are table rows, and the edges of the entity graph are foreign key relationships. Data
-masks impose restrictions on the content and structure of this graph. Unsubscription, for example,
+Data disguising relies on the key observation that applications encode data contents and data
+correlations in an \emph{object graph}~\cite{orm}. In the context of relational databases, the nodes of the
+object graph are table rows, and the edges of the object graph are foreign key relationships. Data
+disguises impose restrictions on the content and structure of this graph. Unsubscription, for example,
 transforms this graph to comply with particular constraints of the privacy transformation for
 account deletion by modifying table row contents and rewriting foreign key relationships.
 
 Using their application expertise, the developer selects from a menu of possible transformations
-(Section~\ref{sec:policies}) that can be performed on entity graph edges and entity nodes. 
-The data mask specification consists of the chosen set of transformations, which determine the
-structure of the entity graph after the mask is applied to a target entity (\eg the user to
-unsubscribe).
+(Section~\ref{sec:policies}) that can be performed on object graph edges and nodes. 
+The data disguise consists of the chosen set of transformations, which determine the
+structure of the object graph after a target (\eg the unsubscribing user unsubscribe) is disguised.
 
-Entity graph transformations use \emph{ghost entities}---transformed and/or copies of real
-entities---to decorrelate and modify entities in the entity graph. For example, a foreign key
-relationship from a row in the posts table can be rewritten to point to a ghost user row in the
-users table to decorrelate a post from a user. 
-%can expressed via transformations that restructure the entity graph
-%with edges to ghost entities that have replaced real ones.
+Disguising a target object creates \emph{guises}---transformed versions and/or copies of the target---that
+decorrelate other objects from the target and disguise the target's content.  For example, a new
+guise for the user can be created in the users table, and the foreign key relationship from a row in
+the posts table rewritten to point this guise, to decorrelate the post from the user. 
+%can expressed via transformations that restructure the entity graph with edges to ghost entities
+%that have replaced real ones.
 
 %Data masking tools take a data mask and the top-level entity to mask, and automatically generate and
 %apply the mask via the appropriate database transformations that would be laborious to implement
@@ -200,7 +206,7 @@ applications want to mask data that is stored in backups, or given to others for
 %contents~\cite{contentmod, sasb}, and face increasing pressure from users who want to
 %hold them legally liable for appropriately moderating content~\cite{nytimes:230}.
 
-Properly specifying and implementing these various data masks is challenging. Masks are necessarily
+Properly specifying and implementing these various data masks is challenging. Disguises are necessarily
 application-specific and require the developer to reason about and handle complex data correlations.
 For example, developers must selectively retain unsubscribing users' data for legal or application
 purposes, while de-identifying this data as much as possible and maintaining application semantics.
