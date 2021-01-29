@@ -309,10 +309,10 @@ fn main() {
     let prop_unsub = args.prop_unsub;
 
     use TestType::*;
-    //let tests = &[TestDecor];
-    //let testnames = vec!["decor"];
-    let tests = vec![TestNoShim, TestShim, TestDecor, TestShimParse];
-    let testnames = vec!["no_shim", "shim_only", "decor", "shim_parse"];
+    let tests = &[TestDecor];
+    let testnames = vec!["decor"];
+    //let tests = vec![TestNoShim, TestShim, TestDecor, TestShimParse];
+    //let testnames = vec!["no_shim", "shim_only", "decor", "shim_parse"];
 
     //let mut threads = vec![];
     let mut core = 2;
