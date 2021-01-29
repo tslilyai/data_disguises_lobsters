@@ -115,9 +115,9 @@ notifications), without \eg creating duplicates.
 
 While object transformations specify how to create guises, edge transformations specify how guises
 restructure the object graph. The data disguiser applies these edge transformations while
-recursively traversing edges from the target.  For clarity, we refer to edges as directional: a
-\emph{parent} object referenced by a \emph{child} object (\eg via a foreign key column in a
-relational database) form an edge.
+recursively traversing edges from the target.  For clarity, we refer to edges as between a
+\emph{parent} object and a \emph{child} object, where the child references the parent 
+(\eg via a foreign key column in a relational database).
 
 The developer specifies transformations for each edge type, choosing from the following:
 \begin{enumerate}[nosep]
