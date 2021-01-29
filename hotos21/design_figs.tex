@@ -1,6 +1,6 @@
 \begin{figure}[h!]
     \footnotesize
-    \begin{tabular}{p{0.5\textwidth}}
+    \begin{tabular}{@{}p{0.5\textwidth}}
 Keep user posts visible to the intended audience, but anonymized by reassociation with a global
 placeholder user.
 \begin{lstlisting}[language=Rust]
@@ -12,6 +12,7 @@ EntityTransforms {
   "Post": Copy
 }
 \end{lstlisting}
+        \vspace{-\baselineskip}
     \\
 Keep user's posts, but associate each post with a different user account.
 \begin{lstlisting}[language=Rust]
@@ -23,6 +24,7 @@ EntityTransforms {
   "Post": Copy
 }
 \end{lstlisting}
+        \vspace{-\baselineskip}
 \\
 Retain users' posts with a shared tag, but decorrelate the post 
 from the tag \emph{only if} the tag was created by
@@ -38,6 +40,7 @@ EntityTransforms {
   "Tag":  CopyOnce+Gen(Default(None)) 
 }
 \end{lstlisting}
+\vspace{-\baselineskip}
         \\
 Remove users' posts if they comprise more than $p$ percent of the posts
 with a shared tag.
@@ -52,6 +55,7 @@ EntityTransforms {
   "Tag":  CopyOnce+Gen(Default(None)) 
 }
 \end{lstlisting}
+\vspace{-2\baselineskip}
 \end{tabular}
 \caption{Example masks for a variety of privacy transformations for user posts and tags.}
 \label{fig:masks}

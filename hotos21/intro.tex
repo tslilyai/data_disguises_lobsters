@@ -129,11 +129,10 @@ labor, we propose \emph{data masking}.
 With data masking, developers specify high-level, declarative \emph{data masks} for
 database-backed web application, which capture the desired privacy transformation.
 
-A data masking tool such as \sys, our prototype data masking implementation for applications using
-relational databases, sits between application logic and its database (Figure~\ref{fig:arch}).  \sys
-automatically translates the provided data mask into the appropriate database
-transformations, and applies them starting at a given mask target (\eg a row in the users table)
-when invoked.
+A data masking tool such as \sys, a prototype implementation for applications using relational
+databases, sits between application logic and its database (Figure~\ref{fig:arch}).  \sys
+automatically translates the provided data mask into the appropriate database transformations, and
+applies them starting at a given mask target (\eg a row in the users table) when invoked.
 
 Data masks can be reversed: if requested, \sys records all transformations performed during the data
 mask application in an encrypted log. To reverse the transformation, \sys decrypts this log and
