@@ -1,26 +1,27 @@
 %-------------------------------------------------------------------------------
-\section{Specifying Data Masks}
+\section{Specifying Data Disguises}
 %-------------------------------------------------------------------------------
 \label{sec:policies}
 
-Data masks consist of a set of chosen transformations on entities and edges in the entity graph.
-These transformations are applied starting from the developer-specified target entity, \eg an
-unsubscribing or inactive user.  The developer chooses one transformation for each entity type, and
-one for each edge type.
+Data disguises consist of a set of chosen transformations on objects and edges in the application
+object graph.
+These transformations are applied starting from the developer-specified target object, \eg an
+unsubscribing or inactive user. 
+%The developer chooses one transformation for each object type, and
+%one for each edge type.
+Object type transformations specify how to transform a template object into \emph{guises}.  Edge types
+transformations specify whether edges should be deleted, retained, or decorrelated and replaced with
+edges to guises.
 
-Entity type transformations specify how to generate \emph{ghost entities} of that type, given a real
-entity as a  template.  Edge types transformations specify whether edges should be deleted,
-retained, or decorrelated and replaced with edges to ghost entities.
-
-\subsection{Entity Type Transformations}
-\label{sec:ghosting}
+\subsection{Transforming Objects Into Guises}
+\label{sec:guises}
 
 \begin{figure*}[t!]
     \centering
     \footnotesize
 \begin{tabular}{@{}c|c|c|c@{}}
-\textbf{User Entity Transformation Specification} & \textbf{Template Entity} & \textbf{Ghost1} &
-    \textbf{Ghost2} \\
+\textbf{User Transformation Spec} & \textbf{Template User} & \textbf{Guise1} &
+    \textbf{Guise2} \\
 \begin{lstlisting}[language=Rust]
 "id":         IDAttribute,
 "username":   Gen(Random),
@@ -57,58 +58,54 @@ retained, or decorrelated and replaced with edges to ghost entities.
 "tag_id":   15592
 \end{lstlisting}
 \end{tabular}
-    \caption{Creating two ghosts from an example user entity (of a synthetic application schema).} 
-    \label{fig:ghosting}
+    \caption{Creating two guises of an example user (of a synthetic application schema).} 
+    \label{fig:guises}
 \end{figure*}
 
-Transforming real entities into ghost entities requires developers to specify how to transform each
-attribute of the real entity.
+Creating guises requires developers to specify how to transform attributes of the template
+object for each guise.
 %
-Entities have three kinds of attributes: a unique identifier attribute; value
+Objects have three kinds of attributes: a unique identifier attribute; value
 (non-referential) attributes such as timestamps or usernames; and edge (\eg foreign key)
-attributes that identify correlations to parent entities.
+attributes that identify correlations with other objects.
 %
-Figure~\ref{fig:ghosting} shows the entity transformation for user entities, in which \texttt{id} is 
+Figure~\ref{fig:guises} shows how guises are produced for users. User objects have \texttt{id} as 
 the identifier attribute, 
-\texttt{tag\_id} is a foreign key constraint with the tags table, and all other attributes are value
-attributes.
+\texttt{tag\_id} as an edge attribute (a foreign key constraint to tag objects), 
+and all other attributes as value attributes.
 
-Data masks create ghost entities with unique, random identifier attributes.
-For each value and edge attribute of each entity type, developers choose how to transform these
-attributes, given a real entity attribute value as a template. 
-The possible transformations include:
+Guises always have unique, random identifier attributes.
+Developers choose how to create guise edge and value attributes, selecting from the following:
 
-\paragraph{(1) Copy entity content.} Ghosts generated from the same template all share the template's
-    attribute value. If an attribute specifies an edge (\eg is a foreign key column), 
-    all ghosts will share the same edge to the same parent entity.
-    This transformation allows developers to retain the entity's content and not have to
-    consider how to generate new ghost attribute values, but 
-    should only be chosen if ghost attribute values cannot be generated, or if this
+\paragraph{(1) Copy object content.} Guises of the same template object all share the template's
+    attribute value. If the attribute is an edge attribute (\eg is a foreign key column), 
+    all guises will share an edge to the same object.
+
+    Copying allows developers to retain the template's content and not have to
+    consider how to generate new attribute values for guises. However, 
+    this should only be chosen if guise attribute values cannot be generated, or if this
     attribute says little about the true identity of the entity. 
 
-    For example, Figure~\ref{fig:ghosting} shows how the \texttt{darkmode} attribute is copied in
+    For example, Figure~\ref{fig:guises} shows how the \texttt{darkmode} attribute is copied in
     all ghosts; the \texttt{darkmode} attribute reveals very little about the underlying user's
     identity.
 
 \paragraph{(2) Generate new content.}
-        For value attributes, developers specify whether the ghost attribute value should be random,
+        For value attributes, developers specify whether the guise's value should be random,
         a default value, or generated from the template value via a custom function (\eg a hash of
-        the template value, or the encrypted template value). Figure~\ref{fig:ghosting} illustrates
+        the template value, or the encrypted template value). Figure~\ref{fig:guises} illustrates
         an example of random (\texttt{username}) and default (\texttt{active}) generated value attributes.
 
-        To generate edge attributes (\eg new foreign key relationships), the data mask recursively
-        generates a ghost parent entity, and uses the new parent
-        ghost identifier as the ghost edge attribute value (\eg the parent row's identifier
-        attribute). Figure~\ref{fig:ghosting}
-        shows how creating two user ghosts recursively creates two ghost tag entities, and uses
-        the ghost tags' identifiers as foreign key constraints.
+        To create new guise edge attributes (\eg new foreign key relationships), the data mask
+        recursively generates a guise for the connected object, and rewrites the edge to the new
+        guise.  Figure~\ref{fig:guises} shows how creating two user guises recursively creates two
+        tag guises, and uses the tag guises' identifiers as foreign key constraints.
 
-\paragraph{(3) Copy entity content once.} One ghost entity shares the same value for the attribute as the
-        template. All other ghosts have generated values (as described above).
-        \texttt{notifs} in Figure~\ref{fig:ghosting} illustrates how the attribute is copied 
-        once. This policy enables the application to retain the original entity content (\eg a count
-        of how many users want notifications), while modifying the content for any additional
-        ghosts.
+\paragraph{(3) Copy object content, but only once.} One guise copies the attribute value from the
+template object, but all other guises generate new values (as described above).  \texttt{notifs} in
+Figure~\ref{fig:guises} illustrates how the attribute is copied once. This policy enables the
+application to retain the original object content (\eg a count of how many users want
+notifications), without \eg creating duplicates.
 
 \subsection{Edge Type Transformations}
 \label{design:edgepol}
@@ -139,7 +136,7 @@ The possible transformations include:
 
     \caption{Different edge transformations in the entity graph. User entities are generated and
     paper and review entities are cloned once to retain their content in the application. 
-    For clarity, we show only relevant parts of the entity graph and the mask policy, and use entity-granularity ghosting
+    For clarity, we show only relevant parts of the entity graph and the mask policy, and use entity-granularity guises
         transformations rather than per-attribute ones.\\
     \textbf{(a)} retains User-Review edges;
     \textbf{(b)} decorrelates User-Review edges, creating a new ghost user for R1 and rewriting R1's 
@@ -265,7 +262,7 @@ entities.
 
     \caption{Stages of \sys's execution when unsubscribing user U1. Entities and edges detected as
     sensitive are outlined in red. Only the part of the entity graph relevant to unsubscription is shown.
-    For simplicity, the specified ghosting policies apply for all attributes
+    For simplicity, the specified guises policies apply for all attributes
     of the entity: a black ghost entity indicates that it is a full clone of the original.
     New edges indicates that the edge (foreign-key) value of the child has been changed to
     point to the specified parent.\\
@@ -339,7 +336,7 @@ Given an application's schema and unsubscription policy, and an entity to be dec
         If any sensitive children that are leaves (have no children) remain, \sys generates a ghost child entity to replace this leaf.
 
         In Figure~\ref{fig:algo}, step 4, P1 and P2 are both leaves. \sys generates ghosts for both
-        these papers: since these papers have \texttt{CloneOne} ghosting policies, ghost papers gP1
+        these papers: since these papers have \texttt{CloneOne} guises policies, ghost papers gP1
         and gP2 are identical to P1 and P2, and retain the edge attributes linking them to their
         respective parent tags and users.
 
@@ -350,7 +347,7 @@ Given an application's schema and unsubscription policy, and an entity to be dec
 \end{enumerate}
 
 Note that \sys must decide \emph{which} ghost clones the template entity's attributes when the
-developer selects a \texttt{CloneOne} ghosting policy for one or more attributes. \sys always
+developer selects a \texttt{CloneOne} guises policy for one or more attributes. \sys always
 associates the cloned ghost with as many non-sensitive entities as possible. For example, as shown
 in Figure~\ref{fig:algo} step 3b, if \sys decorrelates sensitive papers from a parent tag with a
 \texttt{CloneOne} policy, \sys chooses the ghost tag that remains associated with non-sensitive
@@ -362,7 +359,7 @@ a cloned ghost.
 \fi
 %\sys provides a menu of unsubscription policy choices that allow developers to choose how to
 %\emph{ghost} individual data record content, and how to \emph{decorrelate} sensitive correlations.
-%Specifying the policy requires nothing more than the application schema: ghosting policies act on
+%Specifying the policy requires nothing more than the application schema: guises policies act on
 %application datatables and on foreign key relationships between tables.
 %Table column values can be ghosted---removed, anonymized, or modified---in application-specific
 %ways; and correlations can be broken, removed, or desensitized by adding noise. This gives
