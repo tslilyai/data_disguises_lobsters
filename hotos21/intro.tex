@@ -17,29 +17,31 @@ data retained at any point.
 Although many developers are well-intentioned, getting privacy transformations---such as user
 unsubscription---right is challenging.
 %
-They must
-perform data privacy transformations to adhere to the privacy policy, while ensuring that the
-application retains data required for legal purposes or to preserve application utility, and without
-violating application invariants.
+They must perform data privacy transformations to adhere to the privacy policy, while ensuring that
+the application retains data required for legal purposes or to preserve application utility, and
+without violating application invariants.
 %
 For example, unsubscription of one user should not allow another user to view content that she
 originally could not access.
 
-  \lyt{Frans: this paragraph is too abstract, should lead with examples (and then maybe we don't even
-   need this?). Also should not apologize for not guaranteeing privacy, but instead enforce that it's
-   the developer's job to write the right spec in S3/4.}
-Transformations that achieve better user privacy requires careful handling of data deletion,
-anonymization, and structural decorrelation, where developers must consider how to handle both
-clearly identifying content (\eg usernames), and also structural correlations between data records
-that can identify the user.
-While these transformations do not enable formal privacy \emph{guarantees}, developers can improve the state of privacy in applications today by reasoning about often subtle identifying correlations.
+%\lyt{Frans: this paragraph is too abstract, should lead with examples (and then maybe we don't even
+%need this?). Also should not apologize for not guaranteeing privacy, but instead enforce that it's
+%the developer's job to write the right spec in S3/4.}
+%Transformations that achieve better user privacy requires careful handling of data deletion,
+%anonymization, and structural decorrelation, where developers must consider how to handle both
+%clearly identifying content (\eg usernames), and also structural correlations between data records
+%that can identify the user.
+%While these transformations do not enable formal privacy \emph{guarantees}, developers can improve
+%the state of privacy in applications today by reasoning about often subtle identifying
+%correlations.
 
-For example, unsubscriber users' public running routes correlated with the same location can
-reidentify the users' hometowns or homes, and the users themselves, even if the route's creator is
-anonymized. Anonymized posts on Reddit correlated with the same subreddit, particularly if the
-subreddit has very few subscribers, can be associated back to a single user; and
-content correlated with the same group of people (\eg papers that have the same paper conflicts in
-HotCRP, or posts liked by the same set of friends) can identify a user via their community.
+Privacy transformations must handle both identifying data content, as well as subtly identifying
+correlations between data entities. For example, anonymized public running routes correlated with
+the same location can identify the user's hometown and be reassociated with the user; 
+%anonymized posts on Reddit correlated with a subreddit with very few subscribers can be associated
+%back to a single user; 
+papers' affiliation and reviewer conflicts in HotCRP can reidentify the author; and anonymized order
+history can reidentify the buyer.
 
 As privacy policies become more complex, the burden of implementing the corresponding privacy
 transformation correctly grows as well.
