@@ -4,15 +4,20 @@
 Web application developers today have more incentives than ever to provide better privacy for their
 users.
 %
-Laws such as the EU's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's
-Consumer Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' right to be forgotten, and demand
-applications to support privacy-granting user unsubscription.
+Laws like the EU's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's
+Consumer Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' right to be forgotten, and restrict
+any data retention to to anonymized information.
 %
-Growing legal consequences for data breaches push applications to minimize the amount of
-compromising data they retain~\cite{breach:amazon,breach:twitter, breach:fb, breach:marriott,
-breach:quora}.
+Legal consequences and the reputational damange associated with data breaches~\cite{breach:amazon,
+breach:twitter, breach:fb, breach:marriott, breach:quora} make it good practice to minimize the user
+data retained at any point.
+%
 
-Although developers should support better privacy policies, doing so is challenging.  They must
+%
+Although many developers are well-intentioned, getting privacy transformations---such as user
+unsubscription---right is challenging.
+%
+They must
 perform data privacy transformations to adhere to the privacy policy, while ensuring that the
 application retains data required for legal purposes or to preserve application utility, and without
 violating application invariants.
