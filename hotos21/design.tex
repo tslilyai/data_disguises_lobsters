@@ -13,6 +13,9 @@ Object type transformations specify how to transform a template object into \emp
 transformations specify whether edges should be deleted, retained, or decorrelated and replaced with
 edges to guises.
 
+We next describe a menu of object and edge transformations sufficient to write disguises for the
+privacy transformations in Section~\ref{sec:survey}.
+
 \subsection{Transforming Objects Into Guises}
 \label{sec:guises}
 
@@ -110,60 +113,6 @@ notifications), without \eg creating duplicates.
 \subsection{Edge Type Transformations}
 \label{design:edgepol}
 
-\begin{figure*}[t!]
-    \centering
-    \includegraphics[width=\textwidth]{img/edge_transforms}
-
-    \iffalse
-\begin{lstlisting}[language=Rust]
-"User-Review":  Retain
-"User-Paper":   Retain
-"Review-Paper": Retain
-\end{lstlisting}
-
-\begin{lstlisting}[language=Rust]
-"User-Review":  Decorrelate
-"User-Paper":   Retain
-"Review-Paper": Retain
-\end{lstlisting}
-
-\begin{lstlisting}[language=Rust]
-"User-Review":  Delete
-"User-Paper":   Retain
-"Review-Paper": Retain
-\end{lstlisting}
-\fi
-
-    \caption{Different edge transformations in the entity graph. User entities are generated and
-    paper and review entities are cloned once to retain their content in the application. 
-    For clarity, we show only relevant parts of the entity graph and the mask policy, and use entity-granularity guises
-        transformations rather than per-attribute ones.\\
-    \textbf{(a)} retains User-Review edges;
-    \textbf{(b)} decorrelates User-Review edges, creating a new ghost user for R1 and rewriting R1's 
-    edge attribute to point to the new ghost user;
-    \textbf{(c)} deletes User-Review edges.\\
-    All edge transformations replace all sensitive entities (U1, R1, and P2) with ghost entities.
-    }
-    \label{fig:edgepol}
-\end{figure*}
-
-\begin{figure}[t!]
-    \centering
-    \includegraphics[width=0.55\textwidth]{img/child-parent}
-
-    \iffalse
-\begin{lstlisting}[language=Rust]
-"User-Paper":  Retain,
-"Paper-Tag":   Decorrelate(0.5) 
-\end{lstlisting}
-\fi
-
-    \caption{An example of a decorrelation edge transformation that decorrelates papers from tags
-    until at most 50\% of all papers with the tag are sensitive.
-    }
-    \label{fig:sensitivity}
-\end{figure}
-
 While entity type transformations specify how to create ghost entities, edge transformations 
 specify how ghosts restructure the entity graph.
 
@@ -219,10 +168,6 @@ edge is decorrelated or deleted; otherwise, the edge is retained.
 For example, perhaps we want to remove tags from a user's papers (decorrelate paper-tag edges)
 \emph{only if} the tags were created by the unsubscribing user.
 
-\subsection{Example Data Masks}
-The above entity and edge transformations can describe masks for the range of current and possible privacy
-transformations from Section~\ref{sec:survey}; we show a sample of these mask specifications in Figure~\ref{fig:masks}.
-\input{design_figs}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -356,7 +301,6 @@ data remain as unaffected as possible when masking another entity.
 To optimize
 \texttt{CloneOne} policies, \sys can simply retain the original template entity instead of producing
 a cloned ghost.
-\fi
 %\sys provides a menu of unsubscription policy choices that allow developers to choose how to
 %\emph{ghost} individual data record content, and how to \emph{decorrelate} sensitive correlations.
 %Specifying the policy requires nothing more than the application schema: guises policies act on
@@ -370,4 +314,4 @@ a cloned ghost.
 %identity-sensitive, and allow developers to specify exactly what the post-unsubscription state of
 %this data should be.
 
-
+\fi
