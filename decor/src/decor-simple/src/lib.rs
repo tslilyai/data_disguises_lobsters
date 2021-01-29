@@ -275,6 +275,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 dur = start.elapsed();
             }
         }
+        warn!("on_query {} duration is {}", query, dur.as_micros());
         /*if dur.as_micros() > 400 {
             error!("Long query: {}: {}us", query, dur.as_micros());
         }*/

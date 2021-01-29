@@ -99,7 +99,9 @@ impl Querier {
                 helpers::answer_rows(writer, db.query_iter(query.to_string()))
             }
             _ => {
-                self.query_drop(stmt, db)
+                self.query_drop(stmt, db)?;
+                writer.completed(0, 0)?;
+                Ok(())
             },
         }
     }
