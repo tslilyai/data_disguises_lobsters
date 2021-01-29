@@ -4,26 +4,25 @@
 \label{sec:related}
 
 \paragraph{Systems for Personal Data Deletion.}
-Several systems propose designs to make it easier for applications to implement 
-personal data deletion policies.
+Prior work propose designs to make it easier for applications to implement data deletion policies.
 
-Sypse~\cite{sypse} pseudonymizes user data, partitioning personally identifying information (PII)
+Sypse~\cite{sypse} pseudonymizes user data and partitions personally identifying information (PII)
 from non-identifying data. 
 %and allowing the application to use the latter for legal or processing purposes. 
 %
-Unlike Sypse's partitioning scheme, data masking does not keep PII unless specified by the mask,
-and does not change the application schema in any way.
+In contrast, data masking does not keep PII in the application, %unless specified by the mask,
+or change the application schema.
 %
 Sypse also sits between application's logic and data, and transforms the entity graph.
 %breaks foreign key relationships and objects grouped by user. 
-However, Sypse assumes a specification of what and how to transform entities, whereas we assume that
-writing these specifications is itself a challenging problem, and propose abstractions that allow
-developers to precisely capture application-specific privacy transformations. 
+However, Sypse assumes a specification of how to transform the graph, whereas we observe that
+writing these specifications is challenging, and propose a menu of data mask transformations to
+allow developers to capture application-specific requirements. 
 %We concretely define the application entity graph and abstractions that allow developers to reason
 %about it, whereas Sypse leaves this as future work.
-Sypse creates synthetic data similar to ghost entities; however, Sypse's synthesis is random and
-application-oblivious. We make the observation that in order to maintain correct application
-semantics, developers must provide input into how to generate ghost entities.
+For example, Sypse's synthetic data is randomly generated and application-oblivious. We observe that
+in order to maintain correct application semantics, developers must provide input into how to
+generate ghost entities.
 
 %Instead of constantly maintaining data partitions, \sys performs data masking when invoked and
 %incurs little overhead during normal execution. A future implementation may preemptively create
@@ -34,17 +33,19 @@ semantics, developers must provide input into how to generate ghost entities.
 
 %---------------------------
 Schwartzkopf et al.~\cite{usershards} propose a data model for GDPR compliant-by-construction
-applications, splitting application data into user shards. Applications can then erase a user by
-removing the user's shard. In contrast, data masking requires no modifications to application
-schemas or shared application data.
+applications, splitting application data into user shards. 
+%Applications can then erase a user by
+%removing the user's shard. 
+In contrast, data masking requires no modifications to application schemas or shared application data.
 %
 Data masks for user unsubscription can potentially be used to extract a user's shard from the
 application, while performing the necessary privacy transformations to the rest of application data.
 
 %---------------------------
-SchengenDB~\cite{schengendb} identifies PII and restricts query access to PII using purpose-based
-access control. SchengenDB performs fine-grained tracking of PII copies and data derived from PII,
-going beyond correlations visible in the entity relation graph of foreign key relationships.
+SchengenDB~\cite{schengendb} performs fine-grained tracking of PII and restricts query access to
+PII.
+%using purpose-based access control. SchengenDB performs fine-grained tracking of PII copies and data derived from PII,
+%going beyond correlations visible in the entity relation graph of foreign key relationships.
 %SchengenDB deletes records tracked with the owner when the owner unsubscribes.  
 Data masks support privacy transformations beyond simply deleting PII, and can draw upon
 SchengenDB's fine-grained tracking to add additional support for derived data not visible in the
@@ -54,29 +55,29 @@ entity graph.
 
 DELF~\cite{delf} at Facebook highlights the difficulty of performing transformations for user data
 deletion in online social networks, and helps detect when developers erroneously delete or retain
-data when users request data deletions.  Data masking can draw from DELF's insights of how to
-address errors in developer specifications, which we currently trust and leave out of scope. 
+data.  Data masking can draw from DELF's insights of how to address errors in developer
+specifications, which we currently trust and leave out of scope. 
 %
 DELF similarly takes as input annotations on application edge and object (entity) types encoded by
-application data stores. However, DELF focuses only on application data deletion, \ie supporting the
-Facebook data deletion privacy policy.  Data masking encapsulates the data deletion transformations
-performed by DELF, as well as other privacy transformations for a wider range of privacy policies
-that require \eg decorrelating edges.
+application data stores. However, DELF focuses only on data deletion at Facebook, while data masking
+encapsulates this as well as other privacy transformations that require \eg decorrelating edges.
+%for a wider range of privacy policies
+%, \ie supporting the Facebook data deletion privacy policy.  
 
 %---------------------------
 
 \paragraph{Enforcing Data Disclosure.}
 Many systems enforce developer-specified data disclosure and access control policies. These include
-general information flow control approaches~\cite{static, jeeves, jif, hails, ifdb} that check, dynamically
-or statically, that applications abide by data disclosure policies.
+general information flow control approaches~\cite{static, jeeves, jif, hails, ifdb} that check
+that applications abide by data disclosure policies.
+%, dynamically or statically, 
 %
 Other approaches to access control include authorized views~\cite{oracle} or per-user
 views~\cite{multiverse}, rewriting database queries~\cite{qapla, sieve}, and performing
 queries over encrypted data, readable only by authenticated users~\cite{cryptdb}.
 
-Data masking is orthogonal to these access control frameworks, none of which transform the
-\emph{base data} stored by the applications, but rather control what becomes visible at the front
-end. 
+Data masking's goal is orthogonal: these frameworks do not transform the actual data stored by
+the applications, and instead only control what becomes visible at the front end.
 %Data masking can additionally automate complex privacy transformations for authorized or multiverse views.
 
 %ScrambleDB~\cite{scrambledb} generates oblivious pseudonyms for distributed settings, so there does
@@ -86,18 +87,16 @@ end.
 
 \paragraph{Decoupling User Data from Web Applications.} 
 Prior work~\cite{diy, solid, amber, oort, w5, blockstack, bstore, databox} has proposed user-centric data
-ownership paradigms which decouple user data from applications. 
-Applications agree upon a standard format for data storage, and compute on decentralized, per-user
-datastores 
+ownership paradigms in which applications compute on decentralized, per-user datastores.
+%agree upon a standard format for data storage, and 
 %hosted by a trusted third-party provider or the user. 
-Application logic runs on user clients (\eg JavaScript in users' browsers~\cite{solid, blockstack,
-bstore}), and queries individual datastores to access user data.
-However, remote queries and access control checks greatly reduces performance, and 
-users are burdened with long-term data maintenance and storage. 
-Application developers can no longer program over application-specific SQL databases, and lose the
-flexibility and performance that results from specialized schemas and data storage.  
-Finally, this paradigm eliminates the current revenue model for web applications, which relies on
-access to user data, and a suitable replacement is still uncertain.
+Application logic runs on user clients, %(\eg JavaScript~\cite{solid, blockstack, bstore})
+and queries individual datastores to access user data. 
+However, this results in greatly reduced performance, 
+burdens users with long-term data maintenance and storage,
+removes the flexibilty of application-specific SQL databases,
+and breaks the current application revenue model.
+%, and lose the flexibility and performance that results from specialized schemas and data storage.  
 
 In contrast, data masking helps developers specify and automate better privacy transformations
 without changing the application data model.
@@ -135,10 +134,10 @@ without changing the application data model.
 
 \paragraph{Statistical Privacy Guarantees.}
 Approaches for privacy-preserving data mining, such as $k$-anonymity, $l$-diversity, and
-differential privacy~\cite{dataminingmodels, differential}, are complementary to data masking: for queries that
-are analytic in nature, techniques like PINQ~\cite{pinq} suggest how data masks can provide
-differentially private guarantees. However, data masks allows applications to make arbitrary queries
-over arbitrary content, where these statistical techniques no longer apply. 
+differential privacy~\cite{dataminingmodels, differential}, complement to data masking: for
+analytical queries, techniques like PINQ~\cite{pinq} suggest how to provide differentially private guarantees.
+However, these formal techniques no longer apply for arbitrary application queries over possibly
+non-numerical data.
 
 \iffalse
 Key ideas:
