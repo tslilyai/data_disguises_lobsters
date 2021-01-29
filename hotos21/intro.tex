@@ -105,7 +105,7 @@ fail to do today.
 
 For example, applications could support a ``data expiration'' policy that encrypts the user's
 profile and anonymizes their contributions after the user has been inactive for a fixed period of
-time; and restores the user's profile and contributions if the user ever logs back in.
+time, and restores the user's profile and contributions if the user ever logs back in.
 
 \section{Data Masking: A New Approach to Privacy Policies}
 \begin{figure}[t!]
@@ -121,47 +121,49 @@ abstract. Start with Figure~\ref{fig:arch}?}
 To enable developers to better support existing and new privacy policies without onerous manual
 labor, we propose \emph{data masking}.
 %
-Data masking helps developers generate \emph{data masks}---concrete privacy transformations---for
-database-backed web applications. The developer provides a high-level, declarative specification of
-the desired privacy policy, and a data masking implementation masks the database according to the
-policy.
+With data masking, developers specify high-level, declarative \emph{data masks} for
+database-backed web application, which capture the desired privacy transformation.
 
-Data masking relies on the key observation that applications already encode entity relations in an
-\emph{entity graph} encoded via \eg foreign key relationships, and privacy transformations impose
-restrictions on the content and structure of this graph. Unsubscription, for example, transforms
-this graph to comply with particular constraints of the privacy transformation for account deletion.
+A data masking tool such as \sys, our prototype data masking implementation for applications using
+relational databases, sits between application logic and its database (Figure~\ref{fig:arch}).  \sys
+automatically translates the provided data mask into the appropriate database
+transformations, and applies them starting at a given mask target (\eg a row in the users table)
+when invoked.
 
-With data masking, the developer specifies desired privacy transformations as a \emph{data mask}.
-Using their application expertise, the developer selects from a menu of possible transformations
-(Section~\ref{sec:policies}) that can be performed on entity graph edges and entity nodes (\eg
-foreign key relationships and table rows). The chosen set of transformations---the data
-mask---determines the structure of the entity graph after the mask is applied to the targeted entity
-(\eg the user to unsubscribe).
-
-The menu of entity graph transformations rely on the concept of \emph{ghost entities}, namely
-transformed and potentially duplicated versions of real entities. Decorrelating and modifying
-entities in the entity graph can expressed via transformations that restructure the entity graph
-with edges to ghost entities that have replaced real ones.
-
-Importantly, data masks perform reversible transformations, allowing developers to support
-privacy-granting transformations beyond permanent and irrevokable unsubscription (\eg
-inactive user data expiration that still allows the user to reactivate).
-
-Data masking tools take a data mask and the top-level entity to mask, and automatically generate and
-apply the mask via the appropriate database transformations that would be laborious to implement
-manually.
-%(\eg decorrelate post entities from user entities by rewriting the foreign key relationship to a
-%newly generated ghost user entity).
-
-As an initial design and prototype for such a tool, we create \sys, which sits between application
-logic and its database (Figure~\ref{fig:arch}). 
-\sys automatically and systematically applies data masks to application data given a high-level
-mask specification.
-\sys optionally supports reversible transformations by recording all transformations performed during the data
+Data masks can be reversed: if requested, \sys records all transformations performed during the data
 mask application in an encrypted log. To reverse the transformation, \sys decrypts this log and
 undoes each modification.
-The encrypting key can be kept by \sys or secret-shared~\cite{secretsharing} among a
-user, \sys, and a trusted third party so that the user does not need to trust \sys.
+%
+The encrypting key can be kept by \sys or secret-shared~\cite{secretsharing} among a user, \sys, and
+a trusted third party so that the user does not need to trust \sys.  Reversible masks support
+privacy-granting transformations beyond permanent and irrevokable unsubscription (\eg inactive user
+data expiration that still allows the user to reactivate).
+
+Data masking relies on the key observation that applications encode data contents and data
+correlations in an \emph{entity graph}. In the context of relational databases, the nodes of the
+entity graph are table rows, and the edges of the entity graph are foreign key relationships. Data
+masks impose restrictions on the content and structure of this graph. Unsubscription, for example,
+transforms this graph to comply with particular constraints of the privacy transformation for
+account deletion by modifying table row contents and rewriting foreign key relationships.
+
+Using their application expertise, the developer selects from a menu of possible transformations
+(Section~\ref{sec:policies}) that can be performed on entity graph edges and entity nodes. 
+The data mask specification consists of the chosen set of transformations, which determine the
+structure of the entity graph after the mask is applied to a target entity (\eg the user to
+unsubscribe).
+
+Entity graph transformations use \emph{ghost entities}---transformed and/or copies of real
+entities---to decorrelate and modify entities in the entity graph. For example, a foreign key
+relationship from a row in the posts table can be rewritten to point to a ghost user row in the
+users table to decorrelate a post from a user. 
+%can expressed via transformations that restructure the entity graph
+%with edges to ghost entities that have replaced real ones.
+
+%Data masking tools take a data mask and the top-level entity to mask, and automatically generate and
+%apply the mask via the appropriate database transformations that would be laborious to implement
+%manually.
+%(\eg decorrelate post entities from user entities by rewriting the foreign key relationship to a
+%newly generated ghost user entity).
 
 %To help developers of new and existing applications support privatization transformations, we
 %propose \sys, which makes the key insight to model application data as an abstract \emph{entity
