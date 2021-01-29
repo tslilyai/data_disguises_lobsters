@@ -25,6 +25,9 @@ violating application invariants.
 For example, unsubscription of one user should not allow another user to view content that she
 originally could not access.
 
+  \lyt{Frans: this paragraph is too abstract, should lead with examples (and then maybe we don't even
+   need this?). Also should not apologize for not guaranteeing privacy, but instead enforce that it's
+   the developer's job to write the right spec in S3/4.}
 Transformations that achieve better user privacy requires careful handling of data deletion,
 anonymization, and structural decorrelation, where developers must consider how to handle both
 clearly identifying content (\eg usernames), and also structural correlations between data records
