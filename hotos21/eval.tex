@@ -19,13 +19,12 @@
 \end{lstlisting}
 \fi
 
-    \caption{Pre- and post-unsubscription state of a simplified HotCRP schema. For clarity,
-        we show only relevant parts of the entity graph, use entity-granularity ghosting
-        transformations rather than per-attribute ones, and assume the same edge transformation in both
-        the parent-child and child-parent directions.\\
-        \textbf{(a)} \sys decorrelates user-to-review and user-to-paper edges, and retains
-        review-paper edges. \\%Ghost users are randomly generated. Reviews and papers are cloned once. \\
-        \textbf{(b)} \sys deletes sensitive user-to-conflict edges and conflict-to-paper edges. 
+    \caption{State before and after applying the HotCRP-Granular mask for unsubscription. For
+    clarity, we show only relevant parts of the entity graph and mask specification, and use entity-granularity ghosting
+    transformations rather than per-attribute ones.\\
+    %\textbf{(a)} \sys decorrelates user-to-review and user-to-paper edges, and retains
+    %review-paper edges. \\%Ghost users are randomly generated. Reviews and papers are cloned once. \\
+    %\textbf{(b)} \sys deletes sensitive user-to-conflict edges and conflict-to-paper edges. 
     }
     \label{fig:hotcrp}
 \end{figure}
@@ -109,7 +108,7 @@ user, the mask specifies user entity transformation.
 HotCRP-Granular generates all of a ghost users' attributes with default or suitable random values
 (\eg timestamps randomly generated within the past decade), in particular setting
 \texttt{disabled=true} to ensure ghost users have no permissions and never review papers. 
-This adds a couple extra LoC to the specification, resulting in a 407LoC mask specification.
+This results in a slightly longer, 407 LoC mask specification.
 %We copy all paper and review attributes once, retaining paper and review information without creating duplicates. 
 %and clones paper conflicts because no conflict
 %value attributes are identifying.

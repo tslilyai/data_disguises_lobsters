@@ -4,12 +4,12 @@
 \label{sec:proto}
 Our initial data masking system, \sys, consists of 5K LoC of Rust, and supports SQL queries as well
 as \texttt{MASK [entity\_id]} and \texttt{REVERSE MASK [entity\_id]} queries.
-\sys provides data masking in the context of applications that use SQL-based databases, and where
-entities are schema tables and edges are foreign key relationships. 
+\sys provides data masking in the context of applications that use SQL relational databases, where
+entities are rows in tables and edges are determined by foreign key relationships. 
 %
-This restriction is not fundamental: for example, we can imagine a data masking implementation that
-additionally supports abstract, non-table entities such as ``country,'' and edges between users and
-country entities.
+This restriction is not fundamental: for example, a data masking system can
+additionally support abstract, non-table entities such as ``country,'' and edges between users and
+country entities, or may work on top of a graph or blob datastore instead of a relational database.
 
 \sys's main performance overheads come from introducing the shim layer, and the space and
 performance overheads when masking entities. \sys also keeps an in-memory constructed entity graph
