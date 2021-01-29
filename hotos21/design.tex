@@ -110,36 +110,47 @@ Figure~\ref{fig:guises} illustrates how the attribute is copied once. This polic
 application to retain the original object content (\eg a count of how many users want
 notifications), without \eg creating duplicates.
 
-\subsection{Edge Type Transformations}
+\subsection{Transforming Edges Between Objects}
 \label{design:edgepol}
 
-While entity type transformations specify how to create ghost entities, edge transformations 
-specify how ghosts restructure the entity graph.
+While object transformations specify how to create guises, edge transformations specify how guises
+restructure the object graph. The data disguiser applies these edge transformations while
+recursively traversing edges from the target.  For clarity, we refer to edges as directional: a
+\emph{parent} object referenced by a \emph{child} object (\eg via a foreign key column in a
+relational database) form an edge.
 
-By default, all \emph{sensitive} entities---entities transitively connected via
-parent-child edges to the mask's target entity---transform into with ghost entities.
-For example, in Figure~\ref{fig:edgepol}a, all reviews and papers of the unsubscribing user are by
-default replaced by ghosts.
+The developer specifies transformations for each edge type, choosing from the following:
+\begin{enumerate}[nosep]
+    \item \textbf{Retain} edges of this type. Transform both parent and child objects into a single guise
+        each. 
+    \item \textbf{Decorrelate} edges of this type. Create a new guise from the parent for each of
+        the parent's children; replace each child's edge to the parent with an edge to one of the
+        parent's guises.
+    \item \textbf{Delete} edges of this type. Transform the parent object into a single guise; 
+        remove the child and its descendants.
+\end{enumerate}
+
+Application of edge transformations must also consider whether transformations depend on the edge
+directionality (to \eg prevent accidental disguising of other users' profiles through shared data);
+and whether these transformations should be conditional (\eg remove tags from a user's papers only
+if the tags were created by the unsubscribing user) or partially applied (\eg remove tags from a
+user's papers only until the papers make up fewer than $10$\% of all tagged papers).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\iffalse
+%By default, all \emph{sensitive} entities---entities transitively connected via
+%parent-child edges to the mask's target entity---transform into with ghost entities.
+%For example, in Figure~\ref{fig:edgepol}a, all reviews and papers of the unsubscribing user are by
+%default replaced by ghosts.
 
 %Any parent of a sensitive child is ghosted as well. This is not actually true; we retain the
 %original parent entity, but allow it to be decorrelated
 %\lyt{Child-to-Parent edges can have different ghost
 %generation policies + edge policies than Parent-to-Child edges. I'm not sure if we should mention
 %that here (seems too detailed?)}
-
-\paragraph{Parent-Child Edge Transformations.}
-The developer specifies transformations for each parent-child edge type, choosing from the following:
-\begin{enumerate}
-    \item \textbf{Retain} edges from sensitive children to the parent. Figure~\ref{fig:edgepol}a
-        shows how the entity graph is transformed when all edges are retained.
-    \item \textbf{Decorrelate} edges from sensitive children by replacing edges to the parent with
-        ones to a unique ghost parent, created using the parent as a template:
-        child edge attribute values identify unique ghost parents (Figure~\ref{fig:edgepol}b).
-    \item \textbf{Delete} edges from sensitive children by removing the child and its descendants
-        (Figure~\ref{fig:edgepol}c).
-\end{enumerate}
-The data mask applies these transformations while recursively traversing parent-child edges from the
-target entity.
 
 \paragraph{Child-Parent Edge Transformations.}
 Data masks also allow the developer to specify edge transformations in the child-parent direction,
@@ -167,7 +178,7 @@ edge is decorrelated or deleted; otherwise, the edge is retained.
 %
 For example, perhaps we want to remove tags from a user's papers (decorrelate paper-tag edges)
 \emph{only if} the tags were created by the unsubscribing user.
-
+\fi
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
