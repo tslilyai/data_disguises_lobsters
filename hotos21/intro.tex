@@ -160,10 +160,10 @@ other objects from the target: for example, a new guise for the user can be crea
 table, and the foreign key relationship from a row in the posts table rewritten to point this guise,
 to decorrelate the post from the user.
 
-Data disguises can be reversed: if requested, \sys records all transformations performed during the data
-disguise application in an encrypted log. To reverse the transformation, \sys decrypts this log and
-undoes each modification.
+Data disguises are optionally reversible: \sys can record all transformations performed during the data
+disguise application in an encrypted log, and reversal decrypts this log and undoes each transformation.
 %
+\lyt{Remove this?}
 The encrypting key can be kept by \sys or secret-shared~\cite{secretsharing} among a user, \sys, and
 a trusted third party so that the user does not need to trust \sys.  Reversible disguises support
 privacy-granting transformations beyond permanent and irrevokable unsubscription (\eg inactive user
