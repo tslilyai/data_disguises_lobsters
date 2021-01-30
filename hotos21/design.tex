@@ -23,20 +23,20 @@ privacy transformations in Section~\ref{sec:survey}.
     \centering
     \footnotesize
 \begin{tabular}{@{}c|c|c|c@{}}
-\textbf{User Transformation Spec} & \textbf{Template User} & \textbf{Guise1} &
-    \textbf{Guise2} \\
+\textbf{User Transformation Spec} & \textbf{Template User} & \textbf{Guise 1} &
+    \textbf{Guise 2} \\
 \begin{lstlisting}[language=Rust]
-"id":         IDAttribute,
-"username":   Gen(Random),
-"active":     Gen(Default(false)),
-"darkmode":   CopyAll,
-"notifs":     CopyOnce+Gen(Default(false)),
-"tag_id":     GenForeignKey,
+"id":       IDAttribute,
+"username": Gen(Random),
+"active":   Gen(Default(false)),
+"darkmode": CopyAll,
+"notifs":   CopyOnce+Gen(Default(false)),
+"tag_id":   GenForeignKey,
 \end{lstlisting}
     & 
 \begin{lstlisting}[language=Rust]
 "id":       10,
-"name":     "Peter Parker",
+"name":     PeterParker,
 "active":   true,
 "darkmode": false,
 "notifs":   true,
@@ -45,7 +45,7 @@ privacy transformations in Section~\ref{sec:survey}.
 & 
 \begin{lstlisting}[language=Rust]
 "id":       39593,
-"name":     "Spider Man",
+"name":     SpiderMan,
 "active":   false,
 "darkmode": false,
 "notifs":   true,
@@ -54,7 +54,7 @@ privacy transformations in Section~\ref{sec:survey}.
 &
 \begin{lstlisting}[language=Rust]
 "id":       40287,
-"name":     "Night Monkey",
+"name":     NightMonkey,
 "active":   false,
 "darkmode": false,
 "notifs":   false,
