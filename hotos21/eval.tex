@@ -121,15 +121,14 @@ user. HotCRP-Granular generates all user guises' attributes with default or suit
 
 \subsection{Performance Challenges}
 \label{sec:perf} Our experience implementing \sys exposed several performance challenges raised by
-data disguising.  \sys's performance overheads stem from (1) adding a layer of indirection between
-application and database, and intercepting and parsing queries; (2) keeping an (in-memory) object graph to easily traverse during disguise
-application and reversal; and (3) creating and updating guises as necessary to apply disguises.
-We implemented several variants of \sys to explore design performance tradeoffs. 
+data disguising. \sys incurs overheads from adding a layer of indirection between
+application and database, and applying disguises (\eg creating guises). We implemented
+several \sys variants to explore different performance tradeoffs. 
 
 The first adds as little overhead as possible to normal execution, only intercepting queries and
 tracking an in-memory the object graph. Adding the shim layer decreases throughput by roughly 5\%,
 and query parsing reduces throughput another 5\%, which can be improved by using prepared queries
-and caching query results. All transformations and guise creation occur at disguise application. In
+and caching query results. All disguise transformations occur at disguise application. In
 the worst case, disguising requires creating or removing potentially as many objects or guises as
 the number of edges connected to the target.
 
@@ -142,12 +141,11 @@ potentially multiplying the number of queries by the number of guises associated
 and extra storage for the pre-created guises. 
 %
 Pre-created guises are hidden by transparently exposing materialized views (MV) to the application.
-Disguising needs only to expose the shadow copy and its guises in the MV, and remove
-objects that should be deleted.
+Disguising simply exposes the shadow copy in the MV, and removes objects that should be deleted.
 %
-This design achieves good read performance---queries only need to read from MVs---at the cost of
-high memory consumption; however, updates become many times more expensive because they must
-update guises in the shadow copy.
+This design achieves good read performance---queries read from MVs instead of the database---at the
+cost of high memory consumption. However, updates may also update guises in the shadow copy, leading
+to write query multiplication.
 
 These variants highlight some of the possibilities to balance space and performance tradeoffs; other
 possibilites to explore include amortizing the cost of disguising by supporting \eg only eventually
