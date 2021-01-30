@@ -128,17 +128,38 @@ This results in a slightly longer, 407 LoC disguise specification.
 
 \subsection{Performance Challenges}
 \label{sec:perf}
-\sys's main performance overheads come from introducing a shim layer between the application and its
-database, and the space and performance overheads when applying disguises. \sys also keeps an
-in-memory constructed object graph to easily traverse during disguise application and reversal.
+We face many challenges to achieve practical performance in \sys. \sys incurs performance overheads
+from introducing a shim layer between the application and its database, and space and performance
+overheads when applying disguises and creating guises. \sys also keeps an in-memory constructed
+object graph to easily traverse during disguise application and reversal, adding to normal execution
+runtime costs.
 
-\begin{itemize}
-\item on-demand guise generation
-\item pre-generated guises with mappings
-\item MV and dataflow to efficiently switch between disguised and undisguised
-\item rough overheads (2x database updates, etc.) 
-\item space overheads
-\end{itemize}
+We implemented several variants of \sys. The first only tracks the graph of objects during normal
+execution, and performs all transformations and guise creation when the disguise is invoked. Normal
+execution incurs roughly a 10\% overhead, mostly from query interception and parsing, but requires
+enough memory to store the object graph. Disguising requires potentially as much work as the number
+of objects related to the target in the graph, to \eg create guises for each post created by the
+user; and guise creation can multiply one object into several, costing both memory and disk space.
+
+The second variant amortizes the cost of disguising across normal execution, adding guises to the
+database during normal execution when objects are inserted or modified.  Pre-created guises are
+hidden by transparently exposing materialized views with only objects to the application. Disguising
+reveals guises in the materialized views, rather than creating them all at once. This reduces the
+overhead of applying the disguise, but multiplies the number of database queries for object updates
+during normal execution by potentially the number of guises associated with that object, and
+consumes additional disk space for pre-created guises even during normal execution.
+
+The performance and space tradeoffs in these variants and other implementation designs, such as
+caching disguises to be reapplied after reversal, and spreading out the cost of disguising by
+supporting \eg only eventually consistent disguises, are exciting directions to explore.
+
+%\begin{itemize}
+%\item on-demand guise generation
+%\item pre-generated guises with mappings
+%\item MV and dataflow to efficiently switch between disguised and undisguised
+%\item rough overheads (2x database updates, etc.) 
+%\item space overheads
+%\end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \iffalse
