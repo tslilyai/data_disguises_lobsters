@@ -48,16 +48,21 @@
     direct correlations to the user.}
 \label{tab:loc}
 \end{table}
-We evaluate whether \sys enables developers to easily express and automate practical data disguises by
-writing disguises for user unsubscription in Lobsters, an open-source news feed application, and
-HotCRP, a popular conference review management application. Table~\ref{tab:loc} shows the statistics
-for each disguise; we describe our HotCRP policy in more detail below.
+We evaluate whether \sys enables developers to easily express and automate practical data disguises
+by writing disguises for user unsubscription in Lobsters, an open-source news feed application, and
+HotCRP, a popular conference review management application. Writing disguises should be of similar
+complexity and difficulty as writing relational schemas. In particular, writing a disguise should
+occur only once, and require the same application expertise as specifying schemas. Because disguises
+require at most one tranformation for each object type and edge type, the complexity is limited by
+the number of entity types and relations in the application schema.  Table~\ref{tab:loc} shows the
+statistics for each disguise. 
 
-HotCRP objects include users (reviewers and authors), papers, paper reviews, and paper conflicts.
-The main concern upon user unsubscription is that users' reviews and authored papers should be as
-unlinkable to their identity as possible.  Someone viewing conference data should have access to
-only the papers or reviews they are allowed to view, and not be able to reassociate these papers or
-reviews with an unsubscribed user.
+We next describe disguises for HotCRP unsubscription in more detail.  HotCRP objects include users
+(reviewers and authors), papers, paper reviews, and paper conflicts.  The main concern upon user
+unsubscription is that users' reviews and authored papers should be as unlinkable to their identity
+as possible.  Someone viewing conference data should have access to only the papers or reviews they
+are allowed to view, and not be able to reassociate these papers or reviews with an unsubscribed
+user.
 
 The HotCRP-Coarse disguise specifies the current HotCRP unsubscription policy, which simply deletes
 users' reviews, paper conflicts, and other review information. HotCRP-Coarse specifies
