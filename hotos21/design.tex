@@ -113,12 +113,12 @@ notifications), without \eg creating duplicates.
 \subsection{Transforming Edges Between Objects}
 \label{design:edgepol}
 
-While object transformations specify how to create guises, edge transformations specify how guises
-restructure the object graph. The data disguiser applies these edge transformations while
+Edge transformations specify how guises restructure the object graph. 
+The data disguiser applies these edge transformations while
 recursively traversing edges from the target.  For clarity, we refer to edges as between a
 \emph{parent} object and a \emph{child} object, where the child references the parent 
 (\eg via a foreign key column in a relational database).
-
+%
 The developer specifies transformations for each edge type, choosing from the following:
 \begin{enumerate}[nosep]
     \item \textbf{Retain} edges of this type. Transform both parent and child objects into a single guise
@@ -131,7 +131,7 @@ The developer specifies transformations for each edge type, choosing from the fo
 \end{enumerate}
 
 Application of edge transformations must also consider whether transformations depend on the edge
-directionality (to \eg prevent accidental disguising of other users' profiles through shared data);
+directionality (to \eg prevent accidental disguising of other users' profiles through shared objects);
 and whether these transformations should be conditional (\eg remove tags from a user's papers only
 if the tags were created by the unsubscribing user) or partially applied (\eg remove tags from a
 user's papers only until the papers make up fewer than $10$\% of all tagged papers).

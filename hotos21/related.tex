@@ -10,13 +10,13 @@ Sypse~\cite{sypse} pseudonymizes user data and partitions personally identifying
 from non-identifying data. 
 %and allowing the application to use the latter for legal or processing purposes. 
 %
-In contrast, data masking does not keep PII in the application, %unless specified by the mask,
+In contrast, data disguing does not keep PII in the application, %unless specified by the mask,
 or change the application schema.
 %
-Sypse also sits between application's logic and data, and transforms the entity graph.
+Sypse also sits between application's logic and data, and transforms the object graph.
 %breaks foreign key relationships and objects grouped by user. 
 However, Sypse assumes a specification of how to transform the graph, whereas we observe that
-writing these specifications is challenging, and propose a menu of data mask transformations to
+writing these specifications is challenging, and propose a menu of data disguise transformations to
 allow developers to capture application-specific requirements. 
 %We concretely define the application entity graph and abstractions that allow developers to reason
 %about it, whereas Sypse leaves this as future work.
@@ -36,9 +36,9 @@ Schwartzkopf et al.~\cite{usershards} propose a data model for GDPR compliant-by
 applications, splitting application data into user shards. 
 %Applications can then erase a user by
 %removing the user's shard. 
-In contrast, data masking requires no modifications to application schemas or shared application data.
+In contrast, data disguising requires no modifications to application schemas or shared application data.
 %
-Data masks for user unsubscription can potentially be used to extract a user's shard from the
+Diguises for user unsubscription can potentially be used to extract a user's shard from the
 application, while performing the necessary privacy transformations to the rest of application data.
 
 %---------------------------
@@ -47,20 +47,20 @@ PII.
 %using purpose-based access control. SchengenDB performs fine-grained tracking of PII copies and data derived from PII,
 %going beyond correlations visible in the entity relation graph of foreign key relationships.
 %SchengenDB deletes records tracked with the owner when the owner unsubscribes.  
-Data masks support privacy transformations beyond simply deleting PII, and can draw upon
+Data diguising supports privacy transformations beyond simply deleting PII, and can draw upon
 SchengenDB's fine-grained tracking to add additional support for derived data not visible in the
-entity graph. 
+object graph. 
 
 %---------------------------
 
 DELF~\cite{delf} at Facebook highlights the difficulty of performing transformations for user data
 deletion in online social networks, and helps detect when developers erroneously delete or retain
-data.  Data masking can draw from DELF's insights of how to address errors in developer
+data.  Data disguising can draw from DELF's insights of how to address errors in developer
 specifications, which we currently trust and leave out of scope. 
 %
-DELF similarly takes as input annotations on application edge and object (entity) types encoded by
-application data stores. However, DELF focuses only on data deletion at Facebook, while data masking
-encapsulates this as well as other privacy transformations that require \eg decorrelating edges.
+DELF similarly takes as input annotations on application edge and object types encoded by
+application data stores. However, DELF focuses only on data deletion at Facebook, while data
+disguising encapsulates this as well as other privacy transformations that require \eg decorrelating edges.
 %for a wider range of privacy policies
 %, \ie supporting the Facebook data deletion privacy policy.  
 
@@ -76,7 +76,7 @@ Other approaches to access control include authorized views~\cite{oracle} or per
 views~\cite{multiverse}, rewriting database queries~\cite{qapla, sieve}, and performing
 queries over encrypted data, readable only by authenticated users~\cite{cryptdb}.
 
-Data masking's goal is orthogonal: these frameworks do not transform the actual data stored by
+Data disguising's goal is orthogonal: these frameworks do not transform the actual data stored by
 the applications, and instead only control what becomes visible at the front end.
 %Data masking can additionally automate complex privacy transformations for authorized or multiverse views.
 
@@ -98,7 +98,7 @@ removes the flexibilty of application-specific SQL databases,
 and breaks the current application revenue model.
 %, and lose the flexibility and performance that results from specialized schemas and data storage.  
 
-In contrast, data masking helps developers specify and automate better privacy transformations
+In contrast, data disguising helps developers specify and automate better privacy transformations
 without changing the application data model.
 
 %Although these paradigms grant users more control over applications' access to their data, 
@@ -134,7 +134,7 @@ without changing the application data model.
 
 \paragraph{Statistical Privacy Guarantees.}
 Approaches for privacy-preserving data mining, such as $k$-anonymity, $l$-diversity, and
-differential privacy~\cite{dataminingmodels, differential}, complement to data masking: for
+differential privacy~\cite{dataminingmodels, differential}, complement to data disguising: for
 analytical queries, techniques like PINQ~\cite{pinq} suggest how to provide differentially private guarantees.
 However, these formal techniques no longer apply for arbitrary application queries over possibly
 non-numerical data.

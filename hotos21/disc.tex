@@ -1,35 +1,35 @@
 %-------------------------------------------------------------------------------
 \section{Discussion}
 %-------------------------------------------------------------------------------
-While data masking enables developers to more easily explore and implement privacy transformations, data masking 
-goes beyond privacy and can help developers moderate harmful content~\cite{contentmod,
+While data disguising enable developers to more easily explore and implement privacy transformations,
+data disguising goes beyond privacy and can help developers moderate harmful content~\cite{contentmod,
 sasb}, a responsibility they may soon be held legally liable for~\cite{nytimes:230}. Instead of
-unsubscribing a user of the application, developers specify masks to hide harmful entities (\eg
+unsubscribing a user of the application, developers specify disguises to hide harmful entities (\eg
 posts with misinformation).
 
-Data masking also has some clear limitations. It assumes that transformations on the entity graph
-captures all possible masks developers may wish to apply; transforming application
+Data disguising also has some clear limitations. It assumes that transformations on the object graph
+captures all possible disguises developers may wish to apply; transforming application
 snapshots, backups, or copies are out of scope. Taint tracking techniques in
 databases~\cite{schengendb} may lend insights into addressing these transformations.
 
 %\name assumes that legal and societal incentives will sufficiently convince applications to adopt
 %\name, and that 
-Data masking importantly does not provide privacy \emph{guarantees}. Developers are responsible for
-specifying appropriate masks, tuned to application-specific needs to retain, remove, and decorrelate
+Data disguising importantly does not provide privacy \emph{guarantees}. Developers are responsible for
+specifying appropriate disguises, tuned to application-specific needs to retain, remove, and decorrelate
 data. 
 %Without removing all application data, even the best-intentioned developer may write policies that
 %still retain sensitive information or correlations. 
 We imagine that a number of heuristics and data analysis tools can help developers improve or catch
-errors in mask specifications, such as techniques used by Facebook to detect incorrect
-deletion~\cite{delf}.  Users of applications that use data masks cannot blindly assume that the
-masks provide complete privacy, although they can perhaps vet application privacy properties via the
-mask specification.
+errors in disguise specifications, such as techniques used by Facebook to detect incorrect
+deletion~\cite{delf}.  Users of applications that use data disguises cannot blindly assume that the
+diguises provide complete privacy, although they can perhaps vet application privacy properties via the
+disguise specification.
 
 The \sys prototype currently works only with relational databases, and does not support dynamic
-updates to the application schema or mask specification.
+updates to the application schema or disguise specification.
 %, since \sys cannot restore data removed using the old policy upon resubscription. 
 Work in the area of database schema evolution and migration~\cite{schema:evo} may offer insights
-into supporting masks and mask reversals after such updates.
+into supporting disguises and disguise reversals after such updates.
 
 \iffalse
 \subsection{Limitations}

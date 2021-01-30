@@ -19,9 +19,9 @@
 \end{lstlisting}
 \fi
 
-    \caption{State before and after applying the HotCRP-Granular mask for unsubscription. For
-    clarity, we show only relevant parts of the entity graph and mask specification, and use entity-granularity ghosting
-    transformations rather than per-attribute ones.\\
+    \caption{State before and after applying the HotCRP-Granular disguise for unsubscription. For
+    clarity, we show only relevant parts of the object graph and disguise, and use
+    object-granularity transformations rather than per-attribute ones.\\
     %\textbf{(a)} \sys decorrelates user-to-review and user-to-paper edges, and retains
     %review-paper edges. \\%Ghost users are randomly generated. Reviews and papers are cloned once. \\
     %\textbf{(b)} \sys deletes sensitive user-to-conflict edges and conflict-to-paper edges. 
@@ -33,46 +33,44 @@
     \centering
     \footnotesize
     \begin{tabular}{@{}ccccc@{}}
-        \multirow{2}{*}{\textbf{App}} & \textbf{\#Entities} & \textbf{\#Edge} & \textbf{Schema} &
-        \textbf{Mask} \\
+        \multirow{2}{*}{\textbf{App}} & \textbf{\#Object} & \textbf{\#Edge} & \textbf{Schema} &
+        \textbf{Disguise} \\
         & \textbf{Types} & \textbf{Types} & \textbf{LoC} & \textbf{LoC} \\
     \midrule
     Lobsters-Decor & 19 & 20 & 318 & 220 \\
     HotCRP-Coarse & 25 & 50 & 352 & 378 \\
     HotCRP-Granular & 25 & 50 & 352 & 407 \\
 \end{tabular}
-    \caption{Unsubscription mask statistics for Lobsters and HotCRP. Lobsters-Decor and
+    \caption{Unsubscription disguise statistics for Lobsters and HotCRP. Lobsters-Decor and
     HotCRP-Coarse
-    masks implement the current unsubscription policies in the respective applications: Lobsters
+    disguises implement the current unsubscription policies in the respective applications: Lobsters
     retains and reassigns user contributions to an anonymous user, and HotCRP deletes
     direct correlations to the user.}
 \label{tab:loc}
 \end{table}
-We evaluate whether \sys enables developers to easily express and automate practical data masks by
-writing mask policies for user unsubscription in Lobsters, an open-source news feed application, and
+We evaluate whether \sys enables developers to easily express and automate practical data disguises by
+writing disguises for user unsubscription in Lobsters, an open-source news feed application, and
 HotCRP, a popular conference review management application. Table~\ref{tab:loc} shows the statistics
-for each mask; we describe our HotCRP policy in more detail below.
+for each disguise; we describe our HotCRP policy in more detail below.
 
-HotCRP entities include users (reviewers and authors), papers, paper reviews, and paper conflicts.
-%There are a total of 25 entities, with 50 edge types between entities. 
+HotCRP objects include users (reviewers and authors), papers, paper reviews, and paper conflicts.
 The main concern upon user unsubscription is that users' reviews and authored papers should be as
 unlinkable to their identity as possible.  Someone viewing conference data should have access to
 only the papers or reviews they are allowed to view, and not be able to reassociate these papers or
 reviews with an unsubscribed user.
 
-The HotCRP-Coarse mask specifies the current HotCRP unsubscription policy, which simply deletes
+The HotCRP-Coarse disguise specifies the current HotCRP unsubscription policy, which simply deletes
 users' reviews, paper conflicts, and other review information. HotCRP-Coarse specifies
 \texttt{Delete} edge transformations for edge types to the user, and \texttt{Retain} for all other
 edges.  
 %
-All sensitive entities are either removed or retained, and no extra ghost entities are
-generated.  HotCRP-Coarse there does not explicitly specify any entity transformations (\sys by
-default will copy retained entity content).
+All sensitive objects are either removed or retained, and no guises are
+generated. HotCRP-Coarse there does not explicitly specify any object transformations.
 %
-Each of the 50 edge transformation specifications requires 6LoC, and the remaining 78 LoC of the mask
-definition come from defining \sys mask data structures for a total of 378 LoC. 
+Each of the 50 edge transformation specifications requires 6LoC, and the remaining 78 LoC of the disguise
+definition come from defining \sys data structures for a total of 378 LoC. 
 
-The HotCRP-Granular mask specifies a HotCRP unsubscription policy that balances data retention for
+The HotCRP-Granular disguise specifies a HotCRP unsubscription policy that balances data retention for
 utility with deletion for user privacy. HotCRP-Granular keeps reviews and review metadata present for
 other users to use. 
 %
@@ -103,12 +101,12 @@ paper for their reviews, and (subscribed) authors see the correct reviews for th
 %Thus, correlations from the user's papers to paper conflicts should be broken: we specify 
 %, and review and paper metadata should remain correctly associated. 
 
-Because HotCRP-Granular generates additional ghost users to decorrelate reviews and papers from the
-user, the mask specifies user entity transformation. 
-HotCRP-Granular generates all of a ghost users' attributes with default or suitable random values
+Because HotCRP-Granular generates additional guises to decorrelate reviews and papers from the
+user, the disguise specifies user-to-guise transformations. 
+HotCRP-Granular generates all user guises' attributes with default or suitable random values
 (\eg timestamps randomly generated within the past decade), in particular setting
-\texttt{disabled=true} to ensure ghost users have no permissions and never review papers. 
-This results in a slightly longer, 407 LoC mask specification.
+\texttt{disabled=true} to ensure that guises have no permissions and never review papers. 
+This results in a slightly longer, 407 LoC disguise specification.
 %We copy all paper and review attributes once, retaining paper and review information without creating duplicates. 
 %and clones paper conflicts because no conflict
 %value attributes are identifying.
@@ -123,14 +121,19 @@ This results in a slightly longer, 407 LoC mask specification.
 %decorrelate to a sensitivity threshold of 0.25 (with ghost tags generated as a default tag). 
 %We retain all other types of edges.
 
-%\subsection{\sys Performance}
-%\label{sec:perf}
-%\begin{itemize}
-    %\item how much data created by ghost entities
-    %\item Normal performance of read/updates (Lobsters? HotCRP?), Time to perform unsub/resub.
-        %Ideally would have an experiment with frequent unsub/resub occurring in parallel with normal execution
-        %of other users.
-%\end{itemize}
+\subsection{Performance Challenges}
+\label{sec:perf}
+\sys's main performance overheads come from introducing a shim layer between the application and its
+database, and the space and performance overheads when applying disguises. \sys also keeps an
+in-memory constructed object graph to easily traverse during disguise application and reversal.
+
+\begin{itemize}
+\item on-demand guise generation
+\item pre-generated guises with mappings
+\item MV and dataflow to efficiently switch between disguised and undisguised
+\item rough overheads (2x database updates, etc.) 
+\item space overheads
+\end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \iffalse
