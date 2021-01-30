@@ -39,9 +39,10 @@
 \end{tabular}
     \caption{Unsubscription disguise statistics for Lobsters and HotCRP. Lobsters-Decor and
     HotCRP-Coarse
-    disguises implement the current unsubscription policies in the respective applications: Lobsters
-    retains and reassigns user contributions to an anonymous user, and HotCRP deletes
-    direct correlations to the user.}
+    disguises implement the current unsubscription policies in the respective applications. 
+    %Lobsters retains and reassigns user contributions to an anonymous user, and HotCRP deletes
+    %direct correlations to the user.
+    }
 \label{tab:loc}
 \end{table}
 We evaluate whether \sys enables developers to easily express and automate practical data disguises
@@ -78,10 +79,9 @@ to \texttt{Decorrelate} edges from users to reviews and papers. This retains pap
 reviews, but decorrelates them from the user: \sys replaces these edges with an ones to generated
 ghost user profiles (Figure~\ref{fig:hotcrp}a).
 
-As observed earlier, a group of paper conflicts on a paper can also identify unsubscribed users by
-exposing their affiliations and recent collaborations. HotCRP-Granular \texttt{Delete}s
-paper-to-paper conflict edge types, removing all edges from sensitive paper conflicts to
-(non-sensitive) papers (Figure~\ref{fig:hotcrp}b). 
+A paper's set of paper conflicts can also identify unsubscribed users by exposing their affiliations and recent
+collaborations. HotCRP-Granular \texttt{Delete}s paper-to-paper conflict edge types, removing all
+edges from the user's paper conflicts to papers (Figure~\ref{fig:hotcrp}b). 
 %
 This transformation, also implemented by HotCRP-Coarse policy, can lead to spurious conflicts (\eg
 no coauthor is affiliated with NYU, but NYU reviewers have conflicts), but does not break HotCRP's
@@ -101,7 +101,7 @@ remain correctly linked: (subscribed) reviewers still see the correct paper for 
 %, and review and paper metadata should remain correctly associated. 
 
 HotCRP-Granular transforms users into guises to decorrelate reviews and papers from the
-user. HotCRP-Granular generates all user guises' attributes with default or suitable random values
+user by generating default or suitable random attribute values 
 (\eg timestamps randomly generated within the past decade), in particular setting
 \texttt{disabled=true} to ensure that guises have no permissions and never review papers. 
 %This results in a slightly longer, 407 LoC disguise specification.
