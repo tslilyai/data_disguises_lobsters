@@ -18,13 +18,9 @@
 "PaperConflict-Paper": Delete 
 \end{lstlisting}
 \fi
-
-    \caption{State before and after applying the HotCRP-Granular unsubscription disguise. For
-    clarity, we show only relevant parts of the object graph and disguise, and use
-    object-granularity transformations rather than per-attribute ones.\\
-    %\textbf{(a)} \sys decorrelates user-to-review and user-to-paper edges, and retains
-    %review-paper edges. \\%Ghost users are randomly generated. Reviews and papers are cloned once. \\
-    %\textbf{(b)} \sys deletes sensitive user-to-conflict edges and conflict-to-paper edges. 
+    \caption{State before and after applying the HotCRP-Granular unsubscription disguise. We show
+    only relevant parts of the object graph and disguise, and object-granularity
+    transformations instead of per-attribute ones.\\
     }
     \label{fig:hotcrp}
 \end{figure}
@@ -51,18 +47,16 @@
 We evaluate whether \sys enables developers to easily express and automate practical data disguises
 by writing disguises for user unsubscription in Lobsters, an open-source news feed application, and
 HotCRP, a popular conference review management application. Writing disguises should be of similar
-complexity and difficulty as writing relational schemas. In particular, writing a disguise should
-occur only once, and require the same application expertise as specifying schemas. Because disguises
-require at most one tranformation for each object type and edge type, the complexity is limited by
-the number of entity types and relations in the application schema.  Table~\ref{tab:loc} shows the
-statistics for each disguise. 
+difficulty and require the same expertise as writing relational schemas. In particular, a developer
+should only need to write a disguise once. Because disguises require at most one tranformation for
+each object type and edge type, disguise complexity is limited by the number of entity types and
+relations in the application schema. Table~\ref{tab:loc} shows the statistics for each disguise. 
 
-We next describe disguises for HotCRP unsubscription in more detail.  HotCRP objects include users
-(reviewers and authors), papers, paper reviews, and paper conflicts.  The main concern upon user
-unsubscription is that users' reviews and authored papers should be as unlinkable to their identity
-as possible.  Someone viewing conference data should have access to only the papers or reviews they
-are allowed to view, and not be able to reassociate these papers or reviews with an unsubscribed
-user.
+We next describe HotCRP unsubscription disguises in more detail. HotCRP objects include users
+(reviewers and authors), papers, paper reviews, and paper conflicts.  Users who unsubscribe are
+mainly concerned with deidentifying their identity from their reviews and authored papers: someone
+with access to those papers or reviews should not be able to reassociate these papers or reviews
+with the unsubscribed user.
 
 The HotCRP-Coarse disguise specifies the current HotCRP unsubscription policy, which simply deletes
 users' reviews, paper conflicts, and other review information. HotCRP-Coarse specifies
@@ -72,33 +66,33 @@ edges.
 All sensitive objects are either removed or retained, and no guises are
 generated. HotCRP-Coarse there does not explicitly specify any object transformations.
 %
-Each of the 50 edge transformation specifications requires 6LoC, and the remaining 78 LoC of the disguise
-definition come from defining \sys data structures for a total of 378 LoC. 
+%Each of the 50 edge transformation specifications requires 6LoC, and the remaining 78 LoC of the disguise
+%definition come from defining \sys data structures for a total of 378 LoC. 
 
-The HotCRP-Granular disguise specifies a HotCRP unsubscription policy that balances data retention for
-utility with deletion for user privacy. HotCRP-Granular keeps reviews and review metadata present for
-other users to use. 
+The HotCRP-Granular disguise specifies a HotCRP unsubscription policy that balances useful data
+retention with data deletion for privacy. HotCRP-Granular keeps reviews and review metadata present
+for other users to use. 
 %
-Instead of deleting direct correlations between a user and their papers, reviews, and paper
-conflicts, HotCRP-Granular specifies \texttt{Decorrelate} edge policies for edges from user to reviews
-and papers. This retains paper and reviews, but decorrelates them from the user: \sys
-replaces these edges with an ones to generated ghost user profiles (Figure~\ref{fig:hotcrp}a).
+Instead of deleting a user's papers, reviews, and paper conflicts, HotCRP-Granular specifies
+to \texttt{Decorrelate} edges from users to reviews and papers. This retains paper and
+reviews, but decorrelates them from the user: \sys replaces these edges with an ones to generated
+ghost user profiles (Figure~\ref{fig:hotcrp}a).
 
 As observed earlier, a group of paper conflicts on a paper can also identify unsubscribed users by
-exposing their affiliations and recent collaborations. HotCRP-Granular thus selects to \texttt{Delete} 
+exposing their affiliations and recent collaborations. HotCRP-Granular \texttt{Delete}s
 paper-to-paper conflict edge types, removing all edges from sensitive paper conflicts to
 (non-sensitive) papers (Figure~\ref{fig:hotcrp}b). 
-This transformation, also implemented by HotCRP-Coarse policy, can lead to spurious
-conflicts (\eg no coauthor is affiliated with NYU, but reviewers from NYU have conflicts), but does
-not break HotCRP's paper visibility or review assignment invariants
-because all other paper conflicts remain. 
+%
+This transformation, also implemented by HotCRP-Coarse policy, can lead to spurious conflicts (\eg
+no coauthor is affiliated with NYU, but NYU reviewers have conflicts), but does not break HotCRP's
+paper visibility or review assignment invariants.
 %A more complete de-identification would to delete \emph{all} the paper's
 %conflicts, but incorrectly allows users with reviewer conflicts to review a paper and
 %break HotCRP semantics.
 
-All other edge types in HotCRP-Granular have \texttt{Retain} transformations. This ensures that
-review and paper artifacts remain correctly linked: (subscribed) reviewers still see the correct
-paper for their reviews, and (subscribed) authors see the correct reviews for their papers.
+HotCRP-Granular \texttt{Retain}s all other edge types. This ensures that review and paper artifacts
+remain correctly linked: (subscribed) reviewers still see the correct paper for their reviews, and
+(subscribed) authors see the correct reviews for their papers.
  
 %Users are linked to papers via \emph{paper conflict} entities, which have both a user and a paper
 %as a parent, and indicate either a collaborator, or a reviewer conflict (prior collaborators or
@@ -106,12 +100,11 @@ paper for their reviews, and (subscribed) authors see the correct reviews for th
 %Thus, correlations from the user's papers to paper conflicts should be broken: we specify 
 %, and review and paper metadata should remain correctly associated. 
 
-Because HotCRP-Granular generates additional guises to decorrelate reviews and papers from the
-user, the disguise specifies user-to-guise transformations. 
-HotCRP-Granular generates all user guises' attributes with default or suitable random values
+HotCRP-Granular transforms users into guises to decorrelate reviews and papers from the
+user. HotCRP-Granular generates all user guises' attributes with default or suitable random values
 (\eg timestamps randomly generated within the past decade), in particular setting
 \texttt{disabled=true} to ensure that guises have no permissions and never review papers. 
-This results in a slightly longer, 407 LoC disguise specification.
+%This results in a slightly longer, 407 LoC disguise specification.
 %We copy all paper and review attributes once, retaining paper and review information without creating duplicates. 
 %and clones paper conflicts because no conflict
 %value attributes are identifying.
@@ -127,39 +120,39 @@ This results in a slightly longer, 407 LoC disguise specification.
 %We retain all other types of edges.
 
 \subsection{Performance Challenges}
-\label{sec:perf}
-We face many challenges to achieve practical performance in \sys. \sys incurs performance overheads
-from introducing a shim layer between the application and its database, and space and performance
-overheads when applying disguises and creating guises. \sys also keeps an in-memory constructed
-object graph to easily traverse during disguise application and reversal, adding to normal execution
-runtime costs.
+\label{sec:perf} Our experience implementing \sys exposed several performance challenges raised by
+data disguising.  \sys's performance overheads stem from (1) adding a layer of indirection between
+application and database, and intercepting and parsing queries; (2) keeping an (in-memory) object graph to easily traverse during disguise
+application and reversal; and (3) creating and updating guises as necessary to apply disguises.
+We implemented several variants of \sys to explore design performance tradeoffs. 
 
-We implemented several variants of \sys. The first only tracks the graph of objects during normal
-execution, and performs all transformations and guise creation when the disguise is invoked. Normal
-execution incurs roughly a 10\% overhead, mostly from query interception and parsing, but requires
-enough memory to store the object graph. Disguising requires potentially as much work as the number
-of objects related to the target in the graph, to \eg create guises for each post created by the
-user; and guise creation can multiply one object into several, costing both memory and disk space.
+The first adds as little overhead as possible to normal execution, only intercepting queries and
+tracking an in-memory the object graph. Adding the shim layer decreases throughput by roughly 5\%,
+and query parsing reduces throughput another 5\%, which can be improved by using prepared queries
+and caching query results. All transformations and guise creation occur at disguise application. In
+the worst case, disguising requires creating or removing potentially as many objects or guises as
+the number of edges connected to the target.
 
-The second variant amortizes the cost of disguising across normal execution, adding guises to the
-database during normal execution when objects are inserted or modified.  Pre-created guises are
-hidden by transparently exposing materialized views with only objects to the application. Disguising
-reveals guises in the materialized views, rather than creating them all at once. This reduces the
-overhead of applying the disguise, but multiplies the number of database queries for object updates
-during normal execution by potentially the number of guises associated with that object, and
-consumes additional disk space for pre-created guises even during normal execution.
+The second variant amortizes the cost of disguising across normal execution, keeping a ``shadow''
+copy of the database that reflects the disguised state (\ie with guises already created, and edges
+rewritten).
+%
+This requires additional database queries for each object update during normal execution,
+potentially multiplying the number of queries by the number of guises associated with that object,
+and extra storage for the pre-created guises. 
+%
+Pre-created guises are hidden by transparently exposing materialized views (MV) to the application.
+Disguising needs only to expose the shadow copy and its guises in the MV, and remove
+objects that should be deleted.
+%
+This design achieves good read performance---queries only need to read from MVs---at the cost of
+high memory consumption; however, updates become many times more expensive because they must
+update guises in the shadow copy.
 
-The performance and space tradeoffs in these variants and other implementation designs, such as
-caching disguises to be reapplied after reversal, and spreading out the cost of disguising by
-supporting \eg only eventually consistent disguises, are exciting directions to explore.
-
-%\begin{itemize}
-%\item on-demand guise generation
-%\item pre-generated guises with mappings
-%\item MV and dataflow to efficiently switch between disguised and undisguised
-%\item rough overheads (2x database updates, etc.) 
-%\item space overheads
-%\end{itemize}
+These variants highlight some of the possibilities to balance space and performance tradeoffs; other
+possibilites to explore include amortizing the cost of disguising by supporting \eg only eventually
+consistent disguises; updating the shadow, disguised database asynchronously; and using dataflow
+to automatically update materialized views when disguising.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \iffalse
