@@ -133,13 +133,32 @@ abstract. Start with Figure~\ref{fig:arch}?}
 To enable developers to better support existing and new privacy policies without onerous manual
 labor, we propose \emph{data disguising}.
 %
-With data disguising, developers specify high-level, declarative \emph{data disguises} for
-database-backed web application, which capture the desired privacy transformation.
+With data disguising, developers specify privacy transformations for database-backed web
+applications as high-level, declarative \emph{data disguises}.
 
-A data disguiser such as \sys, a prototype system for applications using relational
-databases, sits between application logic and its database (Figure~\ref{fig:arch}).  \sys
-automatically translates the provided data disguise into the appropriate database transformations, and
+A data disguiser sits between application logic and its database. Figure~\ref{fig:arch} shows the
+architecture of our prototype, \sys, which works for applications using relational databases.
+Disguisers automatically translate the provided disguise into the appropriate database transformations, and
 applies them starting at a given disguise target (\eg a row in the users table) when invoked.
+
+Data disguising works on top of the object graph encoded by database-backed
+applications~~\cite{orm}. In the context of relational databases, the nodes of the object graph are
+table rows, and the edges of the object graph are foreign key relationships. Data disguises impose
+restrictions on the content and structure of this graph. Unsubscription, for example, transforms
+this graph to comply with particular constraints of the privacy transformation for account deletion
+by modifying table row contents and rewriting foreign key relationships.
+
+Using their application expertise, the developer selects from a menu of possible transformations
+(Section~\ref{sec:policies}) that can be performed on objects and object graph edges. 
+The data disguise consists of the chosen set of transformations, and determines the
+structure of the object graph after a target (\eg the unsubscribing user) is disguised.
+
+Disguising a target object creates \emph{guises}---transformed versions and/or copies of the target.
+Disguising requires object deletion and anonymization: guises help maintain referential integrity
+when data is deleted, and transform objects into anonymized forms.  Guises additionally decorrelate
+other objects from the target: for example, a new guise for the user can be created in the users
+table, and the foreign key relationship from a row in the posts table rewritten to point this guise,
+to decorrelate the post from the user.
 
 Data disguises can be reversed: if requested, \sys records all transformations performed during the data
 disguise application in an encrypted log. To reverse the transformation, \sys decrypts this log and
@@ -150,22 +169,6 @@ a trusted third party so that the user does not need to trust \sys.  Reversible 
 privacy-granting transformations beyond permanent and irrevokable unsubscription (\eg inactive user
 data expiration that still allows the user to reactivate).
 
-Data disguising relies on the key observation that applications encode data contents and data
-correlations in an \emph{object graph}~\cite{orm}. In the context of relational databases, the nodes of the
-object graph are table rows, and the edges of the object graph are foreign key relationships. Data
-disguises impose restrictions on the content and structure of this graph. Unsubscription, for example,
-transforms this graph to comply with particular constraints of the privacy transformation for
-account deletion by modifying table row contents and rewriting foreign key relationships.
-
-Using their application expertise, the developer selects from a menu of possible transformations
-(Section~\ref{sec:policies}) that can be performed on object graph edges and nodes. 
-The data disguise consists of the chosen set of transformations, which determine the
-structure of the object graph after a target (\eg the unsubscribing user unsubscribe) is disguised.
-
-Disguising a target object creates \emph{guises}---transformed versions and/or copies of the target---that
-decorrelate other objects from the target and disguise the target's content.  For example, a new
-guise for the user can be created in the users table, and the foreign key relationship from a row in
-the posts table rewritten to point this guise, to decorrelate the post from the user. 
 %can expressed via transformations that restructure the entity graph with edges to ghost entities
 %that have replaced real ones.
 
