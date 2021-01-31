@@ -101,7 +101,7 @@ LinkedIn updates~\cite{linkedin:privacy}).
 Other platforms with mostly public content keep user contributions visible to the intended audience,
 but anonymize them by reattributing the contribution to a placeholder user (\eg GitHub's
 @ghost~\cite{github:privacy}, Reddit and Lobsters'
-"deleted"~\cite{reddit:privacy, lobsters:privacy}).
+``[deleted]''~\cite{reddit:privacy, lobsters:privacy}).
 %
 %    \item Keep certain user contributions unanonymized and visible to its intended audience (\eg
 %        HotCRP, Lobsters, Wikipedia, HackerNews~\cite{hotcrp:privacy, lobsters:privacy,
@@ -110,58 +110,62 @@ but anonymize them by reattributing the contribution to a placeholder user (\eg 
 %        Twitter~\cite{facebook:privacy, twitter:privacy}).
 %\end{itemize}
 %
-All applications surveyed retain some personal information for legal or necessary business
+All applications surveyed retain some information for legal or necessary business
 purposes.
 %
-Moreover, all applications apply these operations in an ad-hoc way \ms{what do we mean by this?
-can we clarify?}\lyt{see note in S1 about ad-hoc; perhaps "non-standardized"? \ie every developer
-comes up with their own solution, which doesn't scale as policies get more complex} and only on explicit, complete user account deletion (a fairly rare event).
+For open-source applications, inspection shows that developers implement these transformations
+via ad-hoc database operations, and only support explicit, complete user account deletion (a
+rare event).
 %
 
 %
-Users, developers, and service operators have much to gain from a
-\emph{systematic} treatment of privacy transformations; with \emph{data disguising}, we
-propose an approach to realizing such treatment.
+We argue for a more \emph{systematic} treatment of privacy transformations, making them a
+first-class citizen in application design.
 %
-In particular, the following policies and concepts are missing from today's applications, but
-easily described via disguises.
+In partiucal, we imagine developers declaratively specify the above and other transformation
+policies for their application's data, similar to a relational schema.
+%
+This would also allow for new policies and use cases that both end-users and service operators
+benefit from.
+%
+In particular, our \emph{data disguising} approach supports the following policies and concepts,
+which are missing from today's applications but easily described via disguises.
 %
 
 \paragraph{Nuanced policies.}
 %
-Users---and application developers---might benefit from more nuanced privacy policies.
+Users---and application developers---can benefit from more nuanced privacy policies.
 %
-For example, a confidential paper review system like HotCRP wish to keep user's contributions
-(papers, reviews), but associate each contribution with a different user account to avoid
-revealing the unsubscribed reviewer's identity.
+For example, a confidential paper review system like HotCRP must keep a user's contributions
+(papers, reviews) to preserve utility for others, but may associate each review with a different
+placeholder to avoid accidentally revealing the unsubscribed reviewer's identity.
 %
-Likewise, user contributions with a shared property (\eg posts on Reddit that share a common tag)
-might be removed entirely (to avoid inference attacks), or retained and decorrelated from the
-property (\eg keeping the user's posts on Reddit, but removing their tags).
+Likewise, contributions with a shared property (\eg posts on Reddit that share a common tag)
+might be removed entirely to avoid inference attacks, or retained and decorrelated from the
+property (\eg keeping the user's Reddit posts, but removing their tags).
 %
-The same policy might apply, but \emph{only} if the property was created by the user (\eg keeping
-the user's posts on Reddit, but removing any user-created tags from the posts), or if the user's
-contributions comprise more than $p$ percent of the contributions with a shared property.
+Similar policies could apply \emph{only} if the property was created by the user (\eg keeping
+the user's Reddit posts, but removing any user-created tags), or if the user's contributions
+comprise more than a threshold percentage of the contributions with a shared property.
 %(\eg remove the user's posts on Reddit with tag $t$ if these posts comprise more than 10\%
 %of all posts with tag $t$).
 %
-We could even imagine individual users specifying different policies for their data, and having a
-privacy transformation framework turn these into concrete operations when a privacy transformation
-is applied.
+Individual users may even specify different preferences for their data.
+%
+A privacy transformation framework is necessary to turn these preferences into concrete
+operations without undue developer burden.
 %
 
 \paragraph{Data decomposition.}
 %
-Privacy transformations go beyond account deletion.
+Applications could go beyond simple account deletion and support a data expiration policy that
+anonymizes a user's contributions after the user has been inactive for a period of time, and
+restores the user's profile and contributions if the user ever logs back in.
 %
-For example, applications could support a data expiration policy that encrypts the user's
-profile and anonymizes their contributions after the user has been inactive for a fixed period of
-time, and restores the user's profile and contributions if the user ever logs back in.
+Or the application could gradually ``decompose'' sensitive data by applying a series of
+privacy transformations that incrementally remove more identifiable information from it as it
+ages.
 %
-Or an application could gradually ``decompose'' sensitive data by applying a series of
-privacy transformations that incrementally remove more identifiable information from it.
-%
-
 
 \paragraph{Reversibility.}
 %
