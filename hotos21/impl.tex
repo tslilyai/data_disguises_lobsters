@@ -2,12 +2,12 @@
 \section{Prototype}
 %-------------------------------------------------------------------------------
 \label{sec:proto}
-Our initial prototype data disguiser, \sys, consists of 5K LoC of Rust, and supports SQL queries as
-well as \texttt{MASK [target\_id]} and \texttt{REVERSE MASK [target\_id]} queries.  \sys provides
-data masking in the context of applications that use SQL relational databases, where entities are
+\sys, our initial prototype disguising tool, \sys, consists of 5K LoC of Rust, and supports SQL queries as
+well as \texttt{DISGUISE [target\_id]} and \texttt{REVERSE DISGUISE [target\_id]} queries.  \sys provides
+data disguising in the context of applications that use SQL relational databases, where entities are
 rows in tables and edges are determined by foreign key relationships. 
 %
-This restriction is not fundamental: for example, a data masking system can additionally support
+This restriction is not fundamental: for example, a data disguising system can additionally support
 abstract, non-table entities such as ``country,'' and edges between users and country entities, or
 may work on top of a graph or blob datastore instead of a relational database.
 %We show that \sys performs reasonably (Section~\ref{sec:perf}) for , and we plan to support

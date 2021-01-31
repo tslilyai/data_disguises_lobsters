@@ -46,10 +46,9 @@ history can reidentify the buyer.
 As privacy policies become more complex, the burden of implementing the corresponding privacy
 transformation correctly grows as well.  Consequently, today's applications often support only
 coarse-grained and simple privacy policies, implemented using ad-hoc methods.\lyt{perhaps ad-hoc
-isn't the right word; maybe "coarse-grained" already summarizes what we want to say here? I think
-perhaps what we want to convey is that developers don't follow any standard, agreed-upon way to
-implement policies, and rely on whatever hastily cobbled-together solutions work for these
-simple policies.}
+isn't the right word; what I'd like to convey is that developers don't follow any standard,
+agreed-upon method, and rely on hastily cobbled-together solutions that work
+for these simple policies, but don't scale to more complex policies.}
 
 %We next describe a wide range of privacy transformations, some from existing applications' privacy policies,
 %and others that demonstrate the potential for better, more nuanced privacy policies. Implementing
@@ -71,10 +70,9 @@ identifiers.
 %and constrains the state of the object graph embedded in
 %database-backed applications (\eg encoded by foreign key relationships).
 %
-A data disguiser system takes a disguise and its target, and automatically translates the
-disguise into the appropriate database transformations to achieve the disguised state. With
-disguises, developers need to reason only about constraints on the entity graph, and can avoid the
-labor of manually implementing the disguise.
+A data disguising tool takes a disguise and its target, and automatically applies the appropriate
+database transformations to achieve the disguised state, alleviating the burden on the developer to
+manually implement privacy policies.
 
 \section{The Need for Privacy Transformations}
 \label{sec:survey}
