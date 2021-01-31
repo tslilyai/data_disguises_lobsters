@@ -1,3 +1,182 @@
+\section{Data Disguising: A New Approach to Privacy Policies}
+%\begin{figure}[t!]
+%    \centering
+%    \includegraphics[width=0.5\textwidth]{img/impl}
+%
+%    \caption{Architecture of \sys, a prototype data disguiser. Developers specify grayed-out components.}
+%    \label{fig:arch}
+%\end{figure}
+\lyt{TODO (Frans): drive w/explicit example of table rows and foreign key relationships, too
+abstract. Start with Figure~\ref{fig:arch}?}
+
+To enable developers to better support existing and new privacy policies without onerous manual
+labor, we propose \emph{data disguising}.
+%
+With data disguising, developers specify privacy transformations for database-backed web
+applications as high-level, declarative \emph{data disguises}.
+
+A data disguiser sits between application logic and its database. Figure~\ref{fig:arch} shows the
+architecture of our prototype, \sys, which works for applications using relational databases.
+Disguisers automatically translate the provided disguise into the appropriate database transformations, and
+applies them starting at a given disguise target (\eg a row in the users table) when invoked.
+
+Data disguising works on top of the object graph encoded by database-backed
+applications~\cite{orm}. In the context of relational databases, the nodes of the object graph are
+table rows, and the edges of the object graph are foreign key relationships. Data disguises impose
+restrictions on the content and structure of this graph. Unsubscription, for example, transforms
+this graph to comply with particular constraints of the privacy transformation for account deletion
+by modifying table row contents and rewriting foreign key relationships.
+
+Using their application expertise, the developer selects from a menu of possible transformations
+(Section~\ref{sec:policies}) that can be performed on objects and object graph edges.
+The data disguise consists of the chosen set of transformations, and determines the
+structure of the object graph after a target (\eg the unsubscribing user) is disguised.
+
+Disguising a target object creates \emph{guises}---transformed versions and/or copies of the target.
+Disguising requires object deletion and anonymization: guises help maintain referential integrity
+when data is deleted, and transform objects into anonymized forms.  Guises additionally decorrelate
+other objects from the target: for example, a new guise for the user can be created in the users
+table, and the foreign key relationship from a row in the posts table rewritten to point this guise,
+to decorrelate the post from the user.
+
+%can expressed via transformations that restructure the entity graph with edges to ghost entities
+%that have replaced real ones.
+
+%Data masking tools take a data mask and the top-level entity to mask, and automatically generate and
+%apply the mask via the appropriate database transformations that would be laborious to implement
+%manually.
+%(\eg decorrelate post entities from user entities by rewriting the foreign key relationship to a
+%newly generated ghost user entity).
+
+%To help developers of new and existing applications support privatization transformations, we
+%propose \sys, which makes the key insight to model application data as an abstract \emph{entity
+%graph}, and represent privatization transformations as transformations of this graph that render
+%particular entities private.
+
+\iffalse
+Web applications today own, process, and store user data~\cite{nytimes:fb, npr:data}. This places a
+great responsibility on application developers to transparently convey to users how they manage this
+data via their privacy policies and terms of use.
+%
+\ms{next sentence doesn't follow: privacy policies + ToS doesn't imply data masks.}
+Recent developments have renewed efforts to improve the state of data management in web
+applications, creating incentives to support different forms of \emph{data masks}.
+
+For example, applications mask data to hide a users' identity, performing privacy-preserving user
+unsubscription from a service as mandated by laws such as the EU's General Data Protection
+Regulation (GDPR)~\cite{eu:gdpr} and California's Consumer Privacy Act (CCPA)~\cite{ca:privacy-act}
+that codify users' rights to data ownership and right to be forgotten. Unsubscription motivates a
+need for an identify-revealing resubscription transformation, making it easy for users to return
+instead of forcing users to permanently give up their accounts.
+
+Growing incentives to keep as little compromising data as possible in case of a data
+breach~\cite{breach:amazon,breach:twitter, breach:fb, breach:marriott, breach:quora} prompt
+applications to mask stale or inactive users' data via anonymization or deletion. Similarly,
+applications want to mask data that is stored in backups, or given to others for data processing.
+
+%Data masks also go beyond just masking user data: applications apply masks to moderate
+%harmful data (\eg inappropriate content or misinformation) that hide or modify data
+%contents~\cite{contentmod, sasb}, and face increasing pressure from users who want to
+%hold them legally liable for appropriately moderating content~\cite{nytimes:230}.
+
+Properly specifying and implementing these various data masks is challenging. Disguises are necessarily
+application-specific and require the developer to reason about and handle complex data correlations.
+For example, developers must selectively retain unsubscribing users' data for legal or application
+purposes, while de-identifying this data as much as possible and maintaining application semantics.
+Today's applications often support only coarse-grained masks implemented with ad-hoc methods,
+resulting in a lack of a clear specification of exactly what and how the mask transforms data.
+
+To help developers of new and existing applications support clearly specified data masks, we propose
+\sys, a framework that, given only a high-level, declarative specification of the relationships
+between entities in a database, generates and applies complex transformations that would be
+laborious to implement manually. We observe that applications already encode entity
+relations in an \emph{entity graph} via foreign key relationships, and this graph provides a means
+for \sys to systematically reason about and automate a variety of data masks.
+%To help developers of new and existing applications support privatization transformations, we
+%propose \sys, which makes the key insight to model application data as an abstract \emph{entity
+%graph}, and represent privatization transformations as transformations of this graph that render
+%particular entities private.
+
+With \sys, developers specify a \emph{mask policy} by choosing from a menu of provided edge and node
+transformations. To determine an appropriate policy, developers introduce \emph{ghost entities} in the entity graph, which allow the mask to both retain, decorrelate, modify,
+and remove data. The policy acts as a specification for the masked state of any instance of the
+entity graph. When invoked with a particular mask policy, \sys automatically and systematically
+applies transformations to the current entity graph instance to achieve this specified state.
+
+We evaluate an initial prototype for \sys, finding that \sys automatically applies
+data masks efficiently, and that practical policies can be expressed with low burden for application
+developers.
+\fi
+
+\iffalse
+%\begin{figure*}[ht!]
+%    \centering
+%    \includegraphics[width=\textwidth]{img/worlds}
+%
+%    \caption{\textbf{(a)} The current web application paradigm, in which applications maintain and
+%    own user data; \textbf{(b)} A paradigm that decouples user data from web applications, giving users ownership of their data;
+%    \textbf{(c)} \name, which allows users to switch between privacy-preserving unsubscribed mode (right) and identity-revealing subscribed mode (left).}
+%    \label{fig:world}
+%\end{figure*}
+%
+Web applications today own, store, and sell user data, often without the user's knowledge or
+explicit consent~\cite{nytimes:fb, npr:data}. This both violates users' right for privacy, and has
+dangerous consequences for both users and application developers as data leaks lead to loss of
+livelihoods and lawsuits~\cite{breach:amazon,breach:twitter, breach:fb, breach:marriott,
+breach:quora}.
+%Granting web applications complete ownership of personal data clearly fails to
+%protect users' privacy.
+
+Although users want stronger privacy, completely decoupling user data from applications results in a
+potentially even less desirable world. While possible~\cite{solid, amber, w5, blockstack, bstore}, such a
+model hinders service-side computation and application performance, and requires users to manage
+long-time security and storage of their data, leading to a lack of adoption in practice (Section~\ref{sec:related}).
+
+This paper proposes \name, a new paradigm that grants users flexible privacy when using web
+applications, balancing users' desire for privacy with their desire for application utility. In
+\name, users subscribe to applications by granting a time-limited lease to their data, with the
+provision that the application may retain only de-identified information once the user unsubscribes.
+Users flexibly switch between a privacy-preserving unsubscribed mode and an identity-revealing
+subscribed mode at any time without permanently losing their data. \name contrasts
+with the current web application paradigm for data ownership, in which applications have complete
+ownership, and the other extreme in which the user has complete data ownership.% (see Figure~\ref{fig:world}).
+
+\name benefits users: they can choose privacy at any time, without
+permanently losing their accounts or affecting the utility of the applications for others.  Just as
+importantly, \name also benefits application developers. Recent laws such as the
+European Union's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's Consumer
+Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' rights to data ownership, granting users the
+right to request erasure of information related to them. Supporting \name enables
+applications to comply with these legal mandates, while still allowing its departing users to easily
+come back: if applications must let users leave, it is in their best interest to make it easy for
+them to return.
+
+Furthermore, applications can continue to operate using their current revenue model, maintaining
+performance, reliability, and utility for their users.  Because applications retain use of
+subscribed users' data, and de-identified data of unsubscribed users, applications optimize the
+amount of data available to generate profit and provide utility for subscribed users. The
+application holds only identifying data for subscribed users, reducing the amount of
+compromising data in the system to only those users who have actively agreed to temporarily give up
+their privacy.
+
+Realizing \name poses a number of technical challenges.
+Unsubscription and resubscription requires complex and fragile data transformations: developers must
+selectively retain unsubscribed users' data for legal or application purposes while properly
+de-identifying this data, a non-trivial task in the face of subtle inference attacks (\eg tags on a
+user's post can identify the user). De-identification and data removal needs to be reversible,
+allowing the user to resubscribe at any time to their last-known subscribed state.
+
+To make \name a reality, we model application data as an abstract \emph{entity graph}, and
+represent unsubscription and resubscription as transformations of this graph.
+\emph{Ghost entities} allow transformations to achieve both data retention and de-identification,
+and declarative \emph{ghost policies} specify reversible transformations upon unsubscription.
+We design and implement \sys, a practical system that systematically automates this transformation for new and existing applications, helping developers realize the \name paradigm without onerous labor.
+%that takes a developer-specified unsubscription policy for the application's entity
+%graph, and ensures that
+%that requires developers only to specify an abstract unsubscription policy on the
+%helps developers of databased-backed web applications automatically achieve correct, privacy-compliant user unsubscription and
+%resubscription without onerous labor.
+\fi
 %-------------------------------------------------------------------------------
 \section{Specifying Data Disguises}
 %-------------------------------------------------------------------------------
@@ -6,7 +185,7 @@
 Data disguises consist of a set of chosen transformations on objects and edges in the application
 object graph.
 These transformations are applied starting from the developer-specified target object, \eg an
-unsubscribing or inactive user. 
+unsubscribing or inactive user.
 %The developer chooses one transformation for each object type, and
 %one for each edge type.
 Object type transformations specify how to transform a template object into \emph{guises}.  Edge types
@@ -33,7 +212,7 @@ privacy transformations in Section~\ref{sec:survey}.
 "notifs":   CopyOnce+Gen(Default(false)),
 "tag_id":   GenForeignKey,
 \end{lstlisting}
-    & 
+    &
 \begin{lstlisting}[language=Rust]
 "id":       10,
 "name":     PeterParker,
@@ -42,7 +221,7 @@ privacy transformations in Section~\ref{sec:survey}.
 "notifs":   true,
 "tag_id":   11
 \end{lstlisting}
-& 
+&
 \begin{lstlisting}[language=Rust]
 "id":       39593,
 "name":     SpiderMan,
@@ -61,7 +240,7 @@ privacy transformations in Section~\ref{sec:survey}.
 "tag_id":   15592
 \end{lstlisting}
 \end{tabular}
-    \caption{Creating two guises of an example user (of a synthetic application schema).} 
+    \caption{Creating two guises of an example user (of a synthetic application schema).}
     \label{fig:guises}
 \end{figure*}
 
@@ -72,22 +251,22 @@ Objects have three kinds of attributes: a unique identifier attribute; value
 (non-referential) attributes such as timestamps or usernames; and edge (\eg foreign key)
 attributes that identify correlations with other objects.
 %
-Figure~\ref{fig:guises} shows how guises are produced for users. User objects have \texttt{id} as 
-the identifier attribute, 
-\texttt{tag\_id} as an edge attribute (a foreign key constraint to tag objects), 
+Figure~\ref{fig:guises} shows how guises are produced for users. User objects have \texttt{id} as
+the identifier attribute,
+\texttt{tag\_id} as an edge attribute (a foreign key constraint to tag objects),
 and all other attributes as value attributes.
 
 Guises always have unique, random identifier attributes.
 Developers choose how to create guise edge and value attributes, selecting from the following:
 
 \paragraph{(1) Copy object content.} Guises of the same template object all share the template's
-    attribute value. If the attribute is an edge attribute (\eg is a foreign key column), 
+    attribute value. If the attribute is an edge attribute (\eg is a foreign key column),
     all guises will share an edge to the same object.
 
     Copying allows developers to retain the template's content and not have to
-    consider how to generate new attribute values for guises. However, 
+    consider how to generate new attribute values for guises. However,
     this should only be chosen if guise attribute values cannot be generated, or if this
-    attribute says little about the true identity of the entity. 
+    attribute says little about the true identity of the entity.
 
     For example, Figure~\ref{fig:guises} shows how the \texttt{darkmode} attribute is copied in
     all ghosts; the \texttt{darkmode} attribute reveals very little about the underlying user's
@@ -113,20 +292,20 @@ notifications), without \eg creating duplicates.
 \subsection{Transforming Edges Between Objects}
 \label{design:edgepol}
 
-Edge transformations specify how guises restructure the object graph. 
+Edge transformations specify how guises restructure the object graph.
 The data disguiser applies these edge transformations while
 recursively traversing edges from the target.  For clarity, we refer to edges as between a
-\emph{parent} object and a \emph{child} object, where the child references the parent 
+\emph{parent} object and a \emph{child} object, where the child references the parent
 (\eg via a foreign key column in a relational database).
 %
 The developer specifies transformations for each edge type, choosing from the following:
 \begin{enumerate}[nosep]
     \item \textbf{Retain} edges of this type. Transform both parent and child objects into a single guise
-        each. 
+        each.
     \item \textbf{Decorrelate} edges of this type. Create a new guise from the parent for each of
         the parent's children; replace each child's edge to the parent with an edge to one of the
         parent's guises.
-    \item \textbf{Delete} edges of this type. Transform the parent object into a single guise; 
+    \item \textbf{Delete} edges of this type. Transform the parent object into a single guise;
         remove the child and its descendants.
 \end{enumerate}
 
@@ -154,14 +333,14 @@ user's papers only until the papers make up fewer than $10$\% of all tagged pape
 
 \paragraph{Child-Parent Edge Transformations.}
 Data masks also allow the developer to specify edge transformations in the child-parent direction,
-namely from sensitive children to parents that are not descendants of the user. 
+namely from sensitive children to parents that are not descendants of the user.
 %
 For example, papers have both tags and users as parents. If an unsubscribed user authors all papers
 with a particular tag, the developer may realize that the tag can reidentify the user, and want to
 decorrelate the paper from the tag.
 
 Because parents of sensitive children may have non-sensitive children (\eg many papers may share
-tags with the user's papers), decorrelation and delete transformations in the child-parent direction 
+tags with the user's papers), decorrelation and delete transformations in the child-parent direction
 take a \textbf{sensitivity threshold} as an argument, which tells the mask how many edges need to be
 decorrelated or deleted.
 
@@ -174,7 +353,7 @@ decorrelated to meet a threshold of 0.5.
 For decorrelation or delete transformations (in either parent-child or child-parent directions), the
 developer can additionally specify an \textbf{edge filter}. The filter takes the parent and child
 entities of the edge as inputs, and returns whether the entities satisfy the filter. If yes, the
-edge is decorrelated or deleted; otherwise, the edge is retained. 
+edge is decorrelated or deleted; otherwise, the edge is retained.
 %
 For example, perhaps we want to remove tags from a user's papers (decorrelate paper-tag edges)
 \emph{only if} the tags were created by the unsubscribing user.
