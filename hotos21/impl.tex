@@ -10,11 +10,10 @@ rows in tables and edges are determined by foreign key relationships.
 This restriction is not fundamental: for example, a data disguising system can additionally support
 abstract, non-table entities such as ``country,'' and edges between users and country entities, or
 may work on top of a graph or blob datastore instead of a relational database.
-%We show that \sys performs reasonably (Section~\ref{sec:perf}) for , and we plan to support
-%eventually
-%consistent, crash-recoverable transformations, sharding, and multicore parallelism.
+%We show that \sys performs reasonably (Section~\ref{sec:perf}), and we plan to support
+%eventually consistent, crash-recoverable transformations, sharding, and multicore parallelism.
 
-%If prompted, our prototype will record all transformations performed while data masking. This log can be
+%If prompted, our prototype will record all transformations performed while data disguising. This log can be
 %encrypted and stored in an additional table. The encrypting key can be kept by the application for
 %\eg content moderation transformations, or in the case of user unsubscription,
 %secret-shared~\cite{secretsharing} among the user, \sys, and a trusted third party so that the user
