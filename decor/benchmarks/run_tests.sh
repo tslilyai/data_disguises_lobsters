@@ -12,9 +12,8 @@ cargo build
 
 for trial in `seq $trials`
 do
-	#perflock ../target/release/lobsters \
-	../target/debug/lobsters \
-		--scale=0.0005 --nqueries=10 --prop_unsub=1.0 --prime
+	perflock ../target/release/lobsters \
+		--scale=0.4 --nqueries=10000 --prop_unsub=0.0 #--prime
 done
 
 python3 plot.py
