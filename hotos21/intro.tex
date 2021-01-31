@@ -123,12 +123,11 @@ easily described as a privacy transformation.
 
 \paragraph{Nuanced policies.}
 %
-Users---and application developers---might benefit from more nuanced and specific privacy
-policies.
+Users---and application developers---might benefit from more nuanced privacy policies.
 %
 For example, a confidential paper review system like HotCRP wish to keep user's contributions
 (papers, reviews), but associate each contribution with a different user account to avoid
-revealing the unsubscribed reviewer's identity..
+revealing the unsubscribed reviewer's identity.
 %
 Likewise, user contributions with a shared property (\eg posts on Reddit that share a common
 tag) might be removed entirely (to avoid inference attacks), or retained, but decorrelated the
@@ -140,20 +139,23 @@ the user's posts on Reddit, but removing any user-created tags from the posts), 
 contributions comprise more than $p$ percent of the contributions with a shared property.
 %(\eg remove the user's posts on Reddit with tag $t$ if these posts comprise more than 10\%
 %of all posts with tag $t$).
-
-These envisioned privacy transformations allow applications to, \eg be more selective in the
-data and structural correlations that it retains or removes upon unsubscription, and add new
-policies that provide better privacy for users' data even if the user does not manually
-unsubscribe.
+%
+We could even imagine individual users specifying different policies for their data, and having a
+privacy transformation framework turn these into concrete operations when a privacy transformation
+is applied.
+%
 
 \paragraph{Data decomposition.}
 %
-\ms{write about time-based transformations here. Unsubscribe after lease end, gradual reduction
-of identifiable information in data, etc.}
+Privacy transformations go beyond account deletion.
 %
-For example, applications could support a ``data expiration'' policy that encrypts the user's
+For example, applications could support a data expiration policy that encrypts the user's
 profile and anonymizes their contributions after the user has been inactive for a fixed period of
 time, and restores the user's profile and contributions if the user ever logs back in.
+%
+Or an application could gradually ``decompose'' sensitive data by applying a serious of
+privacy transformations that incrementally remove more identifiable information from it.
+%
 
 
 \paragraph{Reversibility.}
@@ -177,13 +179,13 @@ third party (\eg the ACLU, or EFF).
 
 
 \section{Data Disguising: A New Approach to Privacy Policies}
-\begin{figure}[t!]
-    \centering
-    \includegraphics[width=0.5\textwidth]{img/impl}
-
-    \caption{Architecture of \sys, a prototype data disguiser. Developers specify grayed-out components.}
-    \label{fig:arch}
-\end{figure}
+%\begin{figure}[t!]
+%    \centering
+%    \includegraphics[width=0.5\textwidth]{img/impl}
+%
+%    \caption{Architecture of \sys, a prototype data disguiser. Developers specify grayed-out components.}
+%    \label{fig:arch}
+%\end{figure}
 \lyt{TODO (Frans): drive w/explicit example of table rows and foreign key relationships, too
 abstract. Start with Figure~\ref{fig:arch}?}
 
