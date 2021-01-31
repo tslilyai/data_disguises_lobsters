@@ -72,17 +72,27 @@ disguise into the appropriate database transformations to achieve the disguised 
 disguisers, developers need to reason only about constraints on the entity graph, and can avoid the
 labor of manually implementing the disguise.
 
-\section{Privacy Transformations Today and Beyond}
+\section{The Need for Privacy Transformations}
 \label{sec:survey}
-A survey of current applications' privacy policies reveal a set of common privacy transformations performed during user unsubscription
+
+%
+We surveyed several widely-used web applications to understand what privacy transformations they apply on user unsubscription.
+%
+A set of common themes emerged.
 %~\cite{facebook:privacy, twitter:privacy, hotcrp:privacy, reddit:privacy,
 %github:privacy, hackernews:privacy, strava:privacy, linkedin:privacy, stackoverflow:privacy,
 %wikipedia:privacy, amazon:privacy, prestashop:privacy, spotify:privacy, lobsters:privacy}:
+%
+Some services that publicly display user contributions (\eg Wikipedia~\cite{wikipedia:privacy},
+StackOverflow~\cite{stackoverflow:privacy}, Strava~\cite{strava:privacy}) keep them publicly
+and indefinitely available even if a user deletes their account.
+%
+Social networking platforms, which fundamentally thrive off users' \emph{shared} data, keep
+contributions directly shared with another users unanonymized and visible to the recipient
+(\eg Facebook~\cite{facebook:privacy}, LinkedIn~\cite{linkedin:privacy},
+Twitter~\cite{twitter:privacy}).
+%
 \begin{itemize}[nosep]
-    \item Keep user's public contributions publicly and indefinitely available (\eg Wikipedia,
-        StackOverflow, Strava~\cite{wikipedia:privacy, stackoverflow:privacy, strava:privacy}).
-    \item Keep user's contributions directly shared with another unanonymized and visible to the recipient user (\eg Facebook,
-        LinkedIn, Twitter~\cite{twitter:privacy, facebook:privacy, linkedin:privacy}).
     \item Keep user contributions visible to the intended audience, but anonymized by reassociation with a global
         placeholder user (\eg GitHub, Reddit, Lobsters~\cite{github:privacy, reddit:privacy,
         lobsters:privacy}).
@@ -93,8 +103,15 @@ A survey of current applications' privacy policies reveal a set of common privac
         Twitter~\cite{facebook:privacy, twitter:privacy}).
     \item Retain personal information for legal or necessary business purposes (all surveyed applications).
 \end{itemize}
+%
+What all of these applications have in common is that they implement the privacy transformations
+in an ad-hoc way for the specific use case of unsubscription.
+%
 
-We can also imagine applications supporting more flexible and nuanced policies, such as
+%
+Users and application developers conceivably might benefit from more nuanced and specific
+privacy transformations.
+%
 \begin{itemize}[nosep]
     \item Keep user's contributions, but associate each contribution with a different user account
         (\eg reassociate each of a user's HotCRP reviews with a separate account).
@@ -118,6 +135,31 @@ fail to do today.
 For example, applications could support a ``data expiration'' policy that encrypts the user's
 profile and anonymizes their contributions after the user has been inactive for a fixed period of
 time, and restores the user's profile and contributions if the user ever logs back in.
+
+\paragraph{Data decomposition.}
+%
+\ms{write about time-based transformations here. Unsubscribe after lease end, gradual reduction
+of identifiable information in data, etc.}
+
+\paragraph{Reversibility.}
+%
+Many applications might wish to employ \emph{reversible} transformations, going beyond permanent
+and irrevokable unsubscription.
+%
+After all, if services must allow users to remove their data on request, it's in the operator's
+interest to make it easy for users to change their mind and return.
+%
+An advanced reversible transformation might, for example, record all actions performed in an
+encrypted log, and offer that log for download or push it to third-party cloud storage.
+%
+If the user wishes to return, they simply supply the log and the transformation reverses.
+%
+To ensure access to the log even if the user loses their key, the transformation might
+secret-share the encryption key~\cite{secretsharing} among the user, the service, and a trusted
+third party (\eg the ACLU, or EFF).
+%
+
+
 
 \section{Data Disguising: A New Approach to Privacy Policies}
 \begin{figure}[t!]
@@ -159,15 +201,6 @@ when data is deleted, and transform objects into anonymized forms.  Guises addit
 other objects from the target: for example, a new guise for the user can be created in the users
 table, and the foreign key relationship from a row in the posts table rewritten to point this guise,
 to decorrelate the post from the user.
-
-Data disguises are optionally reversible: \sys can record all transformations performed during the data
-disguise application in an encrypted log, and reversal decrypts this log and undoes each transformation.
-%
-\lyt{Remove this?}
-The encrypting key can be kept by \sys or secret-shared~\cite{secretsharing} among a user, \sys, and
-a trusted third party so that the user does not need to trust \sys.  Reversible disguises support
-privacy-granting transformations beyond permanent and irrevokable unsubscription (\eg inactive user
-data expiration that still allows the user to reactivate).
 
 %can expressed via transformations that restructure the entity graph with edges to ghost entities
 %that have replaced real ones.
