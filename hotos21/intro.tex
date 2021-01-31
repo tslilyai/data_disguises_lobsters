@@ -114,21 +114,24 @@ All applications surveyed retain some information for legal or necessary busines
 purposes.
 %
 For open-source applications, inspection shows that developers implement these transformations
-via ad-hoc database operations, and only support explicit, complete user account deletion (a
-rare event).
+via ad-hoc database operations, and only support explicit, user-user initiated account deletion
+(a rare event).
+%
+Generally, developers appear to pay little attention to identifying correlations
+within the remaining data.
 %
 
 %
 We argue for a more \emph{systematic} treatment of privacy transformations, making them a
 first-class citizen in application design.
 %
-In partiucal, we imagine developers declaratively specify the above and other transformation
+In particular, we imagine developers declaratively specify the above and other transformation
 policies for their application's data, similar to a relational schema.
 %
 This would also allow for new policies and use cases that both end-users and service operators
 benefit from.
 %
-In particular, our \emph{data disguising} approach supports the following policies and concepts,
+Our \emph{data disguising} approach supports the following policies and concepts,
 which are missing from today's applications but easily described via disguises.
 %
 
