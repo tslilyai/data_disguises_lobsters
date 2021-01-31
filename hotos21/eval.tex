@@ -18,9 +18,8 @@
 "PaperConflict-Paper": Delete 
 \end{lstlisting}
 \fi
-    \caption{State before and after applying the HotCRP-Granular unsubscription disguise. We show
-    only relevant parts of the object graph and disguise, and object-granularity
-    transformations instead of per-attribute ones.\\
+    \caption{Effects of the HotCRP-Granular unsubscription disguise. We show
+    only relevant parts of the object graph and disguise.\\
     }
     \label{fig:hotcrp}
 \end{figure}
@@ -83,9 +82,9 @@ A paper's set of paper conflicts can also identify unsubscribed users by exposin
 collaborations. HotCRP-Granular \texttt{Delete}s paper-to-paper conflict edge types, removing all
 edges from the user's paper conflicts to papers (Figure~\ref{fig:hotcrp}b). 
 %
-This transformation, also implemented by HotCRP-Coarse policy, can lead to spurious conflicts (\eg
-no coauthor is affiliated with NYU, but NYU reviewers have conflicts), but does not break HotCRP's
-paper visibility or review assignment invariants.
+Deleting conflicts can lead to spurious conflicts (\eg no coauthor is affiliated with NYU, but NYU
+reviewers have conflicts), but does not break HotCRP's paper visibility or review assignment
+invariants.
 %A more complete de-identification would to delete \emph{all} the paper's
 %conflicts, but incorrectly allows users with reviewer conflicts to review a paper and
 %break HotCRP semantics.
@@ -102,8 +101,9 @@ remain correctly linked: (subscribed) reviewers still see the correct paper for 
 
 HotCRP-Granular transforms users into guises to decorrelate reviews and papers from the
 user by generating default or suitable random attribute values 
-(\eg timestamps randomly generated within the past decade), in particular setting
-\texttt{disabled=true} to ensure that guises have no permissions and never review papers. 
+(\eg timestamps randomly generated within the past decade). In particular, 
+\texttt{disabled} is set to \texttt{true}, ensuring that guises have no permissions and never review papers. 
+Paper and review objects are copied to retain their information.
 %This results in a slightly longer, 407 LoC disguise specification.
 %We copy all paper and review attributes once, retaining paper and review information without creating duplicates. 
 %and clones paper conflicts because no conflict
