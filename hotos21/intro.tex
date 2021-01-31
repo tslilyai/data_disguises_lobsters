@@ -76,7 +76,8 @@ labor of manually implementing the disguise.
 \label{sec:survey}
 
 %
-We surveyed several widely-used web applications to understand what privacy transformations they apply on user unsubscription.
+We surveyed several widely-used web applications to understand what privacy-increasing operations
+they apply on user unsubscription.
 %
 A set of common themes emerged.
 %~\cite{facebook:privacy, twitter:privacy, hotcrp:privacy, reddit:privacy,
@@ -88,58 +89,72 @@ StackOverflow~\cite{stackoverflow:privacy}, Strava~\cite{strava:privacy}) keep t
 and indefinitely available even if a user deletes their account.
 %
 Social networking platforms, which fundamentally thrive off users' \emph{shared} data, keep
-contributions directly shared with another users unanonymized and visible to the recipient
+contributions directly shared with another user unanonymized and visible to the recipient
 (\eg Facebook~\cite{facebook:privacy}, LinkedIn~\cite{linkedin:privacy},
 Twitter~\cite{twitter:privacy}).
 %
-\begin{itemize}[nosep]
-    \item Keep user contributions visible to the intended audience, but anonymized by reassociation with a global
-        placeholder user (\eg GitHub, Reddit, Lobsters~\cite{github:privacy, reddit:privacy,
-        lobsters:privacy}).
-    \item Keep certain user contributions unanonymized and visible to its intended audience (\eg
-        HotCRP, Lobsters, Wikipedia, HackerNews~\cite{hotcrp:privacy, lobsters:privacy,
-        hackernews:privacy, wikipedia:privacy}).
-    \item Delete user contributions on user profile or feed (\eg Facebook,
-        Twitter~\cite{facebook:privacy, twitter:privacy}).
-    \item Retain personal information for legal or necessary business purposes (all surveyed applications).
-\end{itemize}
+Other platforms with mostly public content keep user contributions visible to the intended
+audience, but anonymize them by reattributing the contribution to a placeholder user
+(\eg GitHub's @ghost~\cite{github:privacy}, Reddit~\cite{reddit:privacy},
+Lobste.rs~\cite{lobsters:privacy}).
 %
-What all of these applications have in common is that they implement the privacy transformations
-in an ad-hoc way for the specific use case of unsubscription.
+%    \item Keep certain user contributions unanonymized and visible to its intended audience (\eg
+%        HotCRP, Lobsters, Wikipedia, HackerNews~\cite{hotcrp:privacy, lobsters:privacy,
+%        hackernews:privacy, wikipedia:privacy}).
+%    \item Delete user contributions on user profile or feed (\eg Facebook,
+%        Twitter~\cite{facebook:privacy, twitter:privacy}).
+%\end{itemize}
+%
+All applications surveyed retain some personal information for legal or necessary business
+purposes.
+%
+Moreover, all applications apply these operations in an ad-hoc way \ms{what do we mean by this?
+can we clarify?} and only on explicit, complete user account deletion (a fairly rare event).
 %
 
 %
-Users and application developers conceivably might benefit from more nuanced and specific
-privacy transformations.
+In this paper, we argue that users, developers, and service operators have much to gain from a
+\emph{systematic} treatment of privacy-related data transformations (\emph{privacy
+transformations}).
 %
-\begin{itemize}[nosep]
-    \item Keep user's contributions, but associate each contribution with a different user account
-        (\eg reassociate each of a user's HotCRP reviews with a separate account).
-    \item Remove users' contributions with a shared property (\eg remove the user's
-       posts on Reddit if they share a common tag).
-    \item Retain users' contributions with a shared property, but decorrelate the contribution
-        from the property (\eg keep the user's posts on Reddit, but remove their tags).
-    \item Retain users' contributions with a shared property, but decorrelate the contribution
-        from the property \emph{only if} the property was created by
-        the user (\eg keep the user's posts on Reddit, but remove any user-created tags from the posts).
-    \item Remove users' contributions if they comprise more than $p$ percent of the contributions
-        with a shared property (\eg remove the user's posts on Reddit with tag $t$ if
-        these posts comprise more than 10\% of all posts with tag $t$).
-\end{itemize}
+In particular, the following policies and concepts are missing from today's applications, but
+easily described as a privacy transformation.
+%
 
-These envisioned privacy transformations allow applications to, \eg be more selective in the data and structural
-correlations that it retains or removes upon unsubscription, and add new policies that provide
-better privacy for users' data even if the user does not manually unsubscribe, which many applications
-fail to do today.
+\paragraph{Nuanced policies.}
+%
+Users---and application developers---might benefit from more nuanced and specific privacy
+policies.
+%
+For example, a confidential paper review system like HotCRP wish to keep user's contributions
+(papers, reviews), but associate each contribution with a different user account to avoid
+revealing the unsubscribed reviewer's identity..
+%
+Likewise, user contributions with a shared property (\eg posts on Reddit that share a common
+tag) might be removed entirely (to avoid inference attacks), or retained, but decorrelated the
+contribution itself from the property (\eg keeping the user's posts on Reddit, but removing
+their tags).
+%
+The same policy might apply, but \emph{only} if the property was created by the user (\eg keeping
+the user's posts on Reddit, but removing any user-created tags from the posts), or if the user's
+contributions comprise more than $p$ percent of the contributions with a shared property.
+%(\eg remove the user's posts on Reddit with tag $t$ if these posts comprise more than 10\%
+%of all posts with tag $t$).
 
-For example, applications could support a ``data expiration'' policy that encrypts the user's
-profile and anonymizes their contributions after the user has been inactive for a fixed period of
-time, and restores the user's profile and contributions if the user ever logs back in.
+These envisioned privacy transformations allow applications to, \eg be more selective in the
+data and structural correlations that it retains or removes upon unsubscription, and add new
+policies that provide better privacy for users' data even if the user does not manually
+unsubscribe.
 
 \paragraph{Data decomposition.}
 %
 \ms{write about time-based transformations here. Unsubscribe after lease end, gradual reduction
 of identifiable information in data, etc.}
+%
+For example, applications could support a ``data expiration'' policy that encrypts the user's
+profile and anonymizes their contributions after the user has been inactive for a fixed period of
+time, and restores the user's profile and contributions if the user ever logs back in.
+
 
 \paragraph{Reversibility.}
 %
@@ -191,7 +206,7 @@ this graph to comply with particular constraints of the privacy transformation f
 by modifying table row contents and rewriting foreign key relationships.
 
 Using their application expertise, the developer selects from a menu of possible transformations
-(Section~\ref{sec:policies}) that can be performed on objects and object graph edges. 
+(Section~\ref{sec:policies}) that can be performed on objects and object graph edges.
 The data disguise consists of the chosen set of transformations, and determines the
 structure of the object graph after a target (\eg the unsubscribing user) is disguised.
 
