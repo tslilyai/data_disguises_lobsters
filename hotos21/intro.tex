@@ -8,7 +8,7 @@ Laws like the EU's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and 
 Consumer Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' right to be forgotten, and restrict
 any data retention to to anonymized information.
 %
-Legal consequences and the reputational damange associated with data breaches~\cite{breach:amazon,
+Legal consequences and the reputational damage associated with data breaches~\cite{breach:amazon,
 breach:twitter, breach:fb, breach:marriott, breach:quora} make it good practice to minimize the user
 data retained at any point.
 %
@@ -45,7 +45,11 @@ history can reidentify the buyer.
 
 As privacy policies become more complex, the burden of implementing the corresponding privacy
 transformation correctly grows as well.  Consequently, today's applications often support only
-coarse-grained and simple privacy policies, implemented using ad-hoc methods.
+coarse-grained and simple privacy policies, implemented using ad-hoc methods.\lyt{perhaps ad-hoc
+isn't the right word; maybe "coarse-grained" already summarizes what we want to say here? I think
+perhaps what we want to convey is that developers don't follow any standard, agreed-upon way to
+implement policies, and rely on whatever hastily cobbled-together solutions work for these
+simple policies.}
 
 %We next describe a wide range of privacy transformations, some from existing applications' privacy policies,
 %and others that demonstrate the potential for better, more nuanced privacy policies. Implementing
@@ -67,7 +71,7 @@ identifiers.
 %and constrains the state of the object graph embedded in
 %database-backed applications (\eg encoded by foreign key relationships).
 %
-Data disguises take a disguise and the disguise target, and automatically translates the
+A data disguiser system takes a disguise and its target, and automatically translates the
 disguise into the appropriate database transformations to achieve the disguised state. With
 disguises, developers need to reason only about constraints on the entity graph, and can avoid the
 labor of manually implementing the disguise.
@@ -110,7 +114,8 @@ All applications surveyed retain some personal information for legal or necessar
 purposes.
 %
 Moreover, all applications apply these operations in an ad-hoc way \ms{what do we mean by this?
-can we clarify?} and only on explicit, complete user account deletion (a fairly rare event).
+can we clarify?}\lyt{see note in S1 about ad-hoc; perhaps "non-standardized"? \ie every developer
+comes up with their own solution, which doesn't scale as policies get more complex} and only on explicit, complete user account deletion (a fairly rare event).
 %
 
 %
@@ -130,10 +135,9 @@ For example, a confidential paper review system like HotCRP wish to keep user's 
 (papers, reviews), but associate each contribution with a different user account to avoid
 revealing the unsubscribed reviewer's identity.
 %
-Likewise, user contributions with a shared property (\eg posts on Reddit that share a common
-tag) might be removed entirely (to avoid inference attacks), or retained, but decorrelated the
-contribution itself from the property (\eg keeping the user's posts on Reddit, but removing
-their tags).
+Likewise, user contributions with a shared property (\eg posts on Reddit that share a common tag)
+might be removed entirely (to avoid inference attacks), or retained and decorrelated from the
+property (\eg keeping the user's posts on Reddit, but removing their tags).
 %
 The same policy might apply, but \emph{only} if the property was created by the user (\eg keeping
 the user's posts on Reddit, but removing any user-created tags from the posts), or if the user's
@@ -154,7 +158,7 @@ For example, applications could support a data expiration policy that encrypts t
 profile and anonymizes their contributions after the user has been inactive for a fixed period of
 time, and restores the user's profile and contributions if the user ever logs back in.
 %
-Or an application could gradually ``decompose'' sensitive data by applying a serious of
+Or an application could gradually ``decompose'' sensitive data by applying a series of
 privacy transformations that incrementally remove more identifiable information from it.
 %
 
