@@ -4,18 +4,18 @@ use crate::views::{HashedRowPtrs, HashedRowPtr};
 use log::{warn};
 
 /* entity type (parent table+parentcol) => children rptrs */
-pub type EntityTypeRows = HashMap<(String, usize), HashedRowPtrs>;
+pub type ObjectTypeRows = HashMap<(String, usize), HashedRowPtrs>;
 
-/* parent EID value to ((table+parentcol)=> rptrs of children) */
-pub type EntityEdges = HashMap<u64 , EntityTypeRows>;
-pub struct EntityGraph {
+/* parent oid value to ((table+parentcol)=> rptrs of children) */
+pub type ObjectEdges = HashMap<u64 , ObjectTypeRows>;
+pub struct ObjectGraph {
     // map from parent type => map of parent id => children rptrs (map of type -> rptrs)
-    pub parents_to_children: HashMap<String, EntityEdges>,
+    pub parents_to_children: HashMap<String, ObjectEdges>,
 }
 
-impl EntityGraph {
+impl ObjectGraph {
     pub fn new() -> Self {
-        EntityGraph {
+        ObjectGraph {
             parents_to_children: HashMap::new(),
         }
     }
@@ -23,11 +23,11 @@ impl EntityGraph {
                     childrptr: HashedRowPtr, 
                     child_table: &str,  
                     parent_table: &str, 
-                    parent_eid: u64, 
+                    parent_oid: u64, 
                     parent_col_index: usize) {
-        warn!("Adding edge from {} col {} val {} to {} val {:?}", parent_table, parent_col_index, parent_eid, child_table, childrptr);
+        warn!("Adding edge from {} col {} val {} to {} val {:?}", parent_table, parent_col_index, parent_oid, child_table, childrptr);
         if let Some(edges) = self.parents_to_children.get_mut(parent_table) {
-            if let Some(typ2rows) = edges.get_mut(&parent_eid) {
+            if let Some(typ2rows) = edges.get_mut(&parent_oid) {
                 if let Some(rows) = typ2rows.get_mut(&(child_table.to_string(), parent_col_index)) {
                     rows.insert(childrptr);
                 } else {
@@ -40,7 +40,7 @@ impl EntityGraph {
                 let mut hs = HashSet::new();
                 hs.insert(childrptr);
                 hm.insert((child_table.to_string(), parent_col_index), hs);
-                edges.insert(parent_eid, hm);
+                edges.insert(parent_oid, hm);
             }
         } else {
             let mut parenthm = HashMap::new();
@@ -48,22 +48,22 @@ impl EntityGraph {
             let mut hs = HashSet::new();
             hs.insert(childrptr);
             hm.insert((child_table.to_string(), parent_col_index), hs);
-            parenthm.insert(parent_eid, hm);
+            parenthm.insert(parent_oid, hm);
             self.parents_to_children.insert(parent_table.to_string(), parenthm);
         }
     }
 
     pub fn update_edge(&mut self, child_table: &str, parent_table: &str,
                        child_rptr: HashedRowPtr, // will have been updated with new values
-                       old_parent_eid: u64, 
-                       new_parent_eid: Option<u64>, 
+                       old_parent_oid: u64, 
+                       new_parent_oid: Option<u64>, 
                        parent_col_index: usize) 
     {
         warn!("Updating edge from parent {} (child {}, col {} val {}) to new val {:?}", 
-              parent_table, child_table, parent_col_index, old_parent_eid, new_parent_eid);
+              parent_table, child_table, parent_col_index, old_parent_oid, new_parent_oid);
         // remove old edges from both directions
         if let Some(edges) = self.parents_to_children.get_mut(parent_table) {
-            if let Some(typ2rows) = edges.get_mut(&old_parent_eid) {
+            if let Some(typ2rows) = edges.get_mut(&old_parent_oid) {
                 if let Some(rows) = typ2rows.get_mut(&(child_table.to_string(), parent_col_index)) {
                     // remove old child from this parent
                     rows.remove(&child_rptr); 
@@ -71,15 +71,15 @@ impl EntityGraph {
             } 
         }
         // if not none, insert new edge
-        if let Some(np_eid) = new_parent_eid {
-            self.add_edge(child_rptr, child_table, parent_table, np_eid, parent_col_index);
+        if let Some(np_oid) = new_parent_oid {
+            self.add_edge(child_rptr, child_table, parent_table, np_oid, parent_col_index);
         }
     }
 
-    pub fn get_children_of_parent(&self, parent_table: &str, parent_eid: u64) -> Option<EntityTypeRows>
+    pub fn get_children_of_parent(&self, parent_table: &str, parent_oid: u64) -> Option<ObjectTypeRows>
     {
         if let Some(edges) = self.parents_to_children.get(parent_table) {
-            match edges.get(&parent_eid) {
+            match edges.get(&parent_oid) {
                 None => return None,
                 Some(es) => return Some(es.clone()),
             }

@@ -5,11 +5,11 @@ use std::collections::{HashMap, HashSet};
 use std::*;
 use log::{warn};
 use msql_srv::{QueryResultWriter};
-use crate::{helpers, EntityData, ghosts::GhostEidMapping, querier::TraversedEntity, views}; 
+use crate::{helpers, ObjectData, ghosts::GhostOidMapping, querier::TraversedObject, views}; 
 
-const EID_COL: &'static str = "entity_id";
+const OID_COL: &'static str = "object_id";
 const GM_HASH_COL: &'static str = "ghost_mappings";
-const ED_HASH_COL: &'static str = "entity_data";
+const ED_HASH_COL: &'static str = "object_data";
 const UNSUB_TABLE_NAME: &'static str = "unsubscribed";
 
 pub struct Subscriber{
@@ -18,18 +18,18 @@ pub struct Subscriber{
     pub nqueries: usize,
 }
 
-pub fn delete_from_unsubscribed_table(db: &mut mysql::Conn, eid: u64) -> Result<(), mysql::Error> {
+pub fn delete_from_unsubscribed_table(db: &mut mysql::Conn, oid: u64) -> Result<(), mysql::Error> {
     let q = format!(r"DELETE FROM {} WHERE {} = {};",
-        UNSUB_TABLE_NAME, EID_COL, eid);
+        UNSUB_TABLE_NAME, OID_COL, oid);
     warn!("delete from unsubscribed table {}", q);
     db.query_drop(q)?;
     Ok(())
 }
 
-pub fn insert_into_unsubscribed_table(db: &mut mysql::Conn, eid: u64, hash1: &str, hash2: &str) -> Result<(), mysql::Error> {
+pub fn insert_into_unsubscribed_table(db: &mut mysql::Conn, oid: u64, hash1: &str, hash2: &str) -> Result<(), mysql::Error> {
     let q = format!(r"INSERT INTO {} ({}, {}, {}) VALUES ({}, '{}', '{}');",
-        UNSUB_TABLE_NAME, EID_COL, GM_HASH_COL, ED_HASH_COL, 
-        eid, helpers::escape_quotes_mysql(hash1), helpers::escape_quotes_mysql(hash2));
+        UNSUB_TABLE_NAME, OID_COL, GM_HASH_COL, ED_HASH_COL, 
+        oid, helpers::escape_quotes_mysql(hash1), helpers::escape_quotes_mysql(hash2));
     warn!("insert into unsubscribed table {}", q);
     db.query_drop(q)?;
     Ok(())
@@ -41,8 +41,8 @@ pub fn create_unsubscribed_table(db: &mut mysql::Conn, in_memory: bool) -> Resul
         r"CREATE TABLE IF NOT EXISTS {} (
             `{}` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
             `{}` varchar(4096), 
-            `{}` varchar(4096), INDEX eid (`{}`))", 
-        UNSUB_TABLE_NAME, EID_COL, GM_HASH_COL, ED_HASH_COL, EID_COL);
+            `{}` varchar(4096), INDEX oid (`{}`))", 
+        UNSUB_TABLE_NAME, OID_COL, GM_HASH_COL, ED_HASH_COL, OID_COL);
     if in_memory {
         q.push_str(" ENGINE = MEMORY");
     }
@@ -80,11 +80,11 @@ pub fn answer_rows<W: io::Write>(
     Ok(())
 }
 
-pub fn traversed_entity_to_entitydata(entity: &TraversedEntity) -> EntityData {
-    EntityData{
-        table: entity.table.clone(),
-        eid: entity.eid,
-        row_strs: views::hrptr_to_strs(&entity.hrptr),
+pub fn traversed_object_to_objectdata(object: &TraversedObject) -> ObjectData {
+    ObjectData{
+        table: object.table.clone(),
+        oid: object.oid,
+        row_strs: views::hrptr_to_strs(&object.hrptr),
     }
 }
 
@@ -107,72 +107,72 @@ impl Subscriber {
 
     pub fn record_unsubbed_user_and_return_results<W: io::Write>(&mut self,
         writer: QueryResultWriter<W>,
-        eid: u64,
-        ghost_eid_mappings: &mut Vec<GhostEidMapping>,
-        entity_data: &mut HashSet<EntityData>,
+        oid: u64,
+        ghost_oid_mappings: &mut Vec<GhostOidMapping>,
+        object_data: &mut HashSet<ObjectData>,
         db: &mut mysql::Conn,
     ) -> Result<(), mysql::Error> {
         // cache the hash of the gids we are returning
-        ghost_eid_mappings.sort();
-        let serialized1 = serde_json::to_string(&ghost_eid_mappings).unwrap();
+        ghost_oid_mappings.sort();
+        let serialized1 = serde_json::to_string(&ghost_oid_mappings).unwrap();
         self.hasher.input_str(&serialized1);
         let result1 = self.hasher.result_str();
         warn!("Hashing {}, got {}", serialized1, result1);
         self.hasher.reset();
     
         // note, the recipient has to just return the entities in order...
-        let mut entity_data : Vec<&EntityData> = entity_data.iter().collect();
-        entity_data.sort();
-        let serialized2 = serde_json::to_string(&entity_data).unwrap();
+        let mut object_data : Vec<&ObjectData> = object_data.iter().collect();
+        object_data.sort();
+        let serialized2 = serde_json::to_string(&object_data).unwrap();
         self.hasher.input_str(&serialized2);
         let result2 = self.hasher.result_str();
         warn!("Hashing {}, got {}", serialized2, result2);
         self.hasher.reset();
         
-        insert_into_unsubscribed_table(db, eid, &result1, &result2)?;
+        insert_into_unsubscribed_table(db, oid, &result1, &result2)?;
         self.nqueries+=1;
-        self.unsubscribed.insert(eid, (result1, result2));
+        self.unsubscribed.insert(oid, (result1, result2));
         answer_rows(writer, serialized1, serialized2)
     }
 
     pub fn check_and_sort_resubscribed_data(&mut self,
-        eid: u64,
-        ghost_eid_mappings: &mut Vec<GhostEidMapping>,
-        entity_data: &mut Vec<EntityData>,
+        oid: u64,
+        ghost_oid_mappings: &mut Vec<GhostOidMapping>,
+        object_data: &mut Vec<ObjectData>,
         db: &mut mysql::Conn,
     ) -> Result<(), mysql::Error> {
-        match self.unsubscribed.get(&eid) {
+        match self.unsubscribed.get(&oid) {
             Some((gidshash, datahash)) => {
-                ghost_eid_mappings.sort();
-                let serialized = serde_json::to_string(&ghost_eid_mappings).unwrap();
+                ghost_oid_mappings.sort();
+                let serialized = serde_json::to_string(&ghost_oid_mappings).unwrap();
                 self.hasher.input_str(&serialized);
                 let hashed = self.hasher.result_str();
                 if *gidshash != hashed {
-                    warn!("Resubscribing {} gidshash {} mismatch {}, {}", eid, serialized, gidshash, hashed);
+                    warn!("Resubscribing {} gidshash {} mismatch {}, {}", oid, serialized, gidshash, hashed);
                     return Err(mysql::Error::IoError(io::Error::new(
                                 io::ErrorKind::Other, format!(
-                                    "User attempting to resubscribe with bad data {} {}", eid, serialized))));
+                                    "User attempting to resubscribe with bad data {} {}", oid, serialized))));
                 }
                 self.hasher.reset();
 
-                entity_data.sort();
-                let serialized = serde_json::to_string(&entity_data).unwrap();
+                object_data.sort();
+                let serialized = serde_json::to_string(&object_data).unwrap();
                 self.hasher.input_str(&serialized);
                 let hashed = self.hasher.result_str();
                 if *datahash != hashed {
-                    warn!("Resubscribing {} datahash {} mismatch {}, {}", eid, serialized, datahash, hashed);
+                    warn!("Resubscribing {} datahash {} mismatch {}, {}", oid, serialized, datahash, hashed);
                     return Err(mysql::Error::IoError(io::Error::new(
                                 io::ErrorKind::Other, format!(
-                                    "User attempting to resubscribe with bad data {} {}", eid, serialized))));
+                                    "User attempting to resubscribe with bad data {} {}", oid, serialized))));
                 }
                 self.hasher.reset();
-                self.unsubscribed.remove(&eid); 
-                delete_from_unsubscribed_table(db, eid)?;
+                self.unsubscribed.remove(&oid); 
+                delete_from_unsubscribed_table(db, oid)?;
                 self.nqueries+=1;
             }
             None => {
                 return Err(mysql::Error::IoError(io::Error::new(
-                                io::ErrorKind::Other, format!("User not unsubscribed {}", eid))));
+                                io::ErrorKind::Other, format!("User not unsubscribed {}", oid))));
             }
         }
         Ok(())
@@ -185,10 +185,10 @@ impl Subscriber {
             let vals = row.unwrap().unwrap();
             assert!(vals.len()==3);
             
-            let eid = helpers::mysql_val_to_u64(&vals[0])?;
+            let oid = helpers::mysql_val_to_u64(&vals[0])?;
             let gmapping_hash = helpers::mysql_val_to_string(&vals[1]);
             let edata_hash = helpers::mysql_val_to_string(&vals[2]);
-            self.unsubscribed.insert(eid, (gmapping_hash, edata_hash));
+            self.unsubscribed.insert(oid, (gmapping_hash, edata_hash));
         }
         Ok(())
     }

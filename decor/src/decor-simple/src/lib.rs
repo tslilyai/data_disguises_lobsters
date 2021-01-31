@@ -26,23 +26,23 @@ pub const INIT_CAPACITY: usize = 1000;
 pub const ID_COL: &str = "id";
 
 #[derive(Serialize, Deserialize, PartialOrd, Ord, Debug, Clone)]
-pub struct EntityData {
+pub struct ObjectData {
     pub table: String, 
-    pub eid: u64,
+    pub oid: u64,
     pub row_strs: Vec<String>
 }
-impl Hash for EntityData {
+impl Hash for ObjectData {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.table.hash(state);
-        self.eid.hash(state);
+        self.oid.hash(state);
     }
 }
-impl PartialEq for EntityData {
-    fn eq(&self, other: &EntityData) -> bool {
-        self.table == other.table && self.eid == other.eid
+impl PartialEq for ObjectData {
+    fn eq(&self, other: &ObjectData) -> bool {
+        self.table == other.table && self.oid == other.oid
     }
 }
-impl Eq for EntityData {} 
+impl Eq for ObjectData {} 
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
@@ -188,23 +188,23 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     fn on_resubscribe(&mut self, 
                       uid: u64, 
                       gidshard: String, 
-                      entity_data: String, 
+                      object_data: String, 
                       w: QueryResultWriter<W>) 
         -> Result<(), Self::Error> 
     {
         let start = time::Instant::now();
         let gidshard = helpers::remove_escaped_chars(&gidshard);
-        let entity_data = helpers::remove_escaped_chars(&entity_data);
-        warn!("RESUB got data {}, {}", gidshard, entity_data);
+        let object_data = helpers::remove_escaped_chars(&object_data);
+        warn!("RESUB got data {}, {}", gidshard, object_data);
         
         let gidshard = serde_json::from_str(&gidshard).unwrap();
-        let entity_data = serde_json::from_str(&entity_data).unwrap();
+        let object_data = serde_json::from_str(&object_data).unwrap();
  
-        match self.querier.resubscribe(uid, &gidshard, &entity_data, &mut self.db) {
+        match self.querier.resubscribe(uid, &gidshard, &object_data, &mut self.db) {
             Ok(()) => {
                 let dur = start.elapsed();
                 self.querier.record_query_stats(helpers::stats::QueryType::Resub, dur);
-                Ok(w.completed(gidshard.len() as u64 + entity_data.len() as u64, 0)?)
+                Ok(w.completed(gidshard.len() as u64 + object_data.len() as u64, 0)?)
             }
             Err(e) => {
                 let dur = start.elapsed();

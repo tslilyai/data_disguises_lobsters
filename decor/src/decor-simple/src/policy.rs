@@ -3,21 +3,21 @@ use std::collections::{HashMap};
 use std::rc::Rc;
 
 pub type ColumnName = String; // column name
-pub type EntityName = String; // table name, or foreign key
+pub type ObjectName = String; // table name, or foreign key
 
 pub enum GeneratePolicy {
     Random,
     Default(String),
     Custom(Box<dyn Fn(&str) -> String>), // column value -> column value
-    ForeignKey(EntityName),
+    ForeignKey(ObjectName),
 }
 pub enum GhostColumnPolicy {
     CloneAll,
     CloneOne(GeneratePolicy),
     Generate(GeneratePolicy),
 }
-pub type EntityGhostPolicy = HashMap<ColumnName, GhostColumnPolicy>;
-pub type EntityGhostPolicies = HashMap<EntityName, Rc<EntityGhostPolicy>>;
+pub type ObjectGhostPolicy = HashMap<ColumnName, GhostColumnPolicy>;
+pub type ObjectGhostPolicies = HashMap<ObjectName, Rc<ObjectGhostPolicy>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EdgePolicyType {
@@ -27,16 +27,16 @@ pub enum EdgePolicyType {
 }
 #[derive(Clone, Debug)]
 pub struct EdgePolicy {
-    pub parent: EntityName,
+    pub parent: ObjectName,
     pub column: ColumnName,
     pub pc_policy: EdgePolicyType,
     pub cp_policy: EdgePolicyType,
 }
 
 pub struct MaskPolicy {
-    pub unsub_entity_type: EntityName,
-    pub pc_ghost_policies: EntityGhostPolicies, 
-    pub cp_ghost_policies: EntityGhostPolicies, 
+    pub unsub_object_type: ObjectName,
+    pub pc_ghost_policies: ObjectGhostPolicies, 
+    pub cp_ghost_policies: ObjectGhostPolicies, 
     // child to parent edges
-    pub edge_policies: HashMap<EntityName, Rc<Vec<EdgePolicy>>>,
+    pub edge_policies: HashMap<ObjectName, Rc<Vec<EdgePolicy>>>,
 }

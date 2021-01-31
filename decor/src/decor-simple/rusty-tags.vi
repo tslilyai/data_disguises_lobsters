@@ -352,8 +352,7 @@ DriverError	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql
 DropDatabaseStatement	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/sql-parser/src/ast/defs/statement.rs	/^pub struct DropDatabaseStatement {$/;"	s
 DropObjectsStatement	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/sql-parser/src/ast/defs/statement.rs	/^pub struct DropObjectsStatement {$/;"	s
 DurationVisitor	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.114/src/de/impls.rs	/^        struct DurationVisitor;$/;"	s
-ED_HASH_COL	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^const ED_HASH_COL: &'static str = "entity_data";$/;"	c
-EID_COL	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^const EID_COL: &'static str = "entity_id";$/;"	c
+ED_HASH_COL	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^const ED_HASH_COL: &'static str = "object_data";$/;"	c
 ENUM_FLAG	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql_common-0.22.1/src/constants.rs	/^        const ENUM_FLAG             = 256u16;$/;"	c
 EOF	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql_common-0.22.1/src/packets.rs	/^        const EOF: &[u8] = b"\\xfe\\x00\\x00\\x02\\x00";$/;"	c
 EPSILON32	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/float.rs	/^    const EPSILON32: f32 = ::core::f32::EPSILON;$/;"	c
@@ -388,13 +387,6 @@ Engine256	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-cr
 Engine256State	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/sha2.rs	/^struct Engine256State {$/;"	s
 Engine512	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/sha2.rs	/^struct Engine512 {$/;"	s
 Engine512State	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/sha2.rs	/^struct Engine512State {$/;"	s
-EntityData	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/lib.rs	/^pub struct EntityData {$/;"	s
-EntityEdges	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^pub type EntityEdges = HashMap<u64 , EntityTypeRows>;$/;"	T
-EntityGhostPolicies	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub type EntityGhostPolicies = HashMap<EntityName, Rc<EntityGhostPolicy>>;$/;"	T
-EntityGhostPolicy	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub type EntityGhostPolicy = HashMap<ColumnName, GhostColumnPolicy>;$/;"	T
-EntityGraph	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^pub struct EntityGraph {$/;"	s
-EntityName	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub type EntityName = String; \/\/ table name, or foreign key$/;"	T
-EntityTypeRows	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^pub type EntityTypeRows = HashMap<(String, usize), HashedRowPtrs>;$/;"	T
 EntropyRng	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/deprecated.rs	/^pub struct EntropyRng(rngs::EntropyRng);$/;"	s
 EntropyRng	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/rngs/entropy.rs	/^pub struct EntropyRng {$/;"	s
 EntropySource	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/rngs/entropy.rs	/^trait EntropySource {$/;"	t
@@ -567,10 +559,10 @@ GEN_ASCII_STR_CHARSET	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9e
 GETTER	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/internals/symbol.rs	/^pub const GETTER: Symbol = Symbol("getter");$/;"	c
 GE_PRECOMP_BASE	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/curve25519.rs	/^static GE_PRECOMP_BASE : [[GePrecomp; 8]; 32] = [$/;"	c
 GHOST_DATA_COL	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^const GHOST_DATA_COL: &'static str = "ghost_data";$/;"	c
-GHOST_EID_COL	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^const GHOST_EID_COL : &'static str = "entity_id";$/;"	c
 GHOST_ID_COL	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^const GHOST_ID_COL: &'static str = "ghost_id";$/;"	c
 GHOST_ID_MAX	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub const GHOST_ID_MAX: u64 = 1<<30;$/;"	c
 GHOST_ID_START	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub const GHOST_ID_START : u64 = 1<<20;$/;"	c
+GHOST_OID_COL	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^const GHOST_OID_COL : &'static str = "object_id";$/;"	c
 GM_HASH_COL	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^const GM_HASH_COL: &'static str = "ghost_mappings";$/;"	c
 Gamma	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/gamma.rs	/^pub struct Gamma {$/;"	s
 GammaLargeShape	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/gamma.rs	/^struct GammaLargeShape {$/;"	s
@@ -590,10 +582,10 @@ Gf8Ops	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypt
 Ghash	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/ghash.rs	/^pub struct Ghash {$/;"	s
 GhashWithC	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/ghash.rs	/^pub struct GhashWithC {$/;"	s
 GhostColumnPolicy	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub enum GhostColumnPolicy {$/;"	g
-GhostEidMapping	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub struct GhostEidMapping {$/;"	s
 GhostFamily	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub struct GhostFamily {$/;"	s
 GhostMap	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^pub struct GhostMap{$/;"	s
 GhostMaps	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^pub struct GhostMaps{$/;"	s
+GhostOidMapping	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub struct GhostOidMapping {$/;"	s
 H224	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/sha2.rs	/^static H224: [u32; STATE_LEN] = [$/;"	c
 H256	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/sha2.rs	/^static H256: [u32; STATE_LEN] = [$/;"	c
 H384	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/sha2.rs	/^static H384: [u64; STATE_LEN] = [$/;"	c
@@ -948,10 +940,18 @@ NumberKey	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_j
 NumberStrEmitter	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/ser.rs	/^struct NumberStrEmitter<'a, W: 'a + io::Write, F: 'a + Formatter>(&'a mut Serializer<W, F>);$/;"	s
 NumberValueEmitter	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/value/ser.rs	/^struct NumberValueEmitter;$/;"	s
 NumberVisitor	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/number.rs	/^        struct NumberVisitor;$/;"	s
+OID_COL	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^const OID_COL: &'static str = "object_id";$/;"	c
 ON_UPDATE_NOW_FLAG	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql_common-0.22.1/src/constants.rs	/^        const ON_UPDATE_NOW_FLAG    = 8192u16;$/;"	c
 OTHER	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/internals/symbol.rs	/^pub const OTHER: Symbol = Symbol("other");$/;"	c
+ObjectData	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/lib.rs	/^pub struct ObjectData {$/;"	s
+ObjectEdges	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^pub type ObjectEdges = HashMap<u64 , ObjectTypeRows>;$/;"	T
+ObjectGhostPolicies	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub type ObjectGhostPolicies = HashMap<ObjectName, Rc<ObjectGhostPolicy>>;$/;"	T
+ObjectGhostPolicy	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub type ObjectGhostPolicy = HashMap<ColumnName, GhostColumnPolicy>;$/;"	T
+ObjectGraph	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^pub struct ObjectGraph {$/;"	s
+ObjectName	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/policy.rs	/^pub type ObjectName = String; \/\/ table name, or foreign key$/;"	T
 ObjectName	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/sql-parser/src/ast/defs/name.rs	/^pub struct ObjectName(pub Vec<Ident>);$/;"	s
 ObjectType	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/sql-parser/src/ast/defs/statement.rs	/^pub enum ObjectType {$/;"	g
+ObjectTypeRows	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^pub type ObjectTypeRows = HashMap<(String, usize), HashedRowPtrs>;$/;"	T
 OccupiedEntry	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^pub struct OccupiedEntry<'a> {$/;"	s
 OccupiedEntryImpl	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^type OccupiedEntryImpl<'a> = btree_map::OccupiedEntry<'a, String, Value>;$/;"	T
 OccupiedEntryImpl	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^type OccupiedEntryImpl<'a> = indexmap::map::OccupiedEntry<'a, String, Value>;$/;"	T
@@ -1550,7 +1550,7 @@ Target	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.
 Target	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/read.rs	/^    type Target = T;$/;"	T
 Target	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/msql-srv/src/packet.rs	/^    type Target = [u8];$/;"	T
 TcpStream	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/io/mod.rs	/^pub enum TcpStream {$/;"	g
-TemplateEntity	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub struct TemplateEntity {$/;"	s
+TemplateObject	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub struct TemplateObject {$/;"	s
 Test	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/aes.rs	/^    struct Test {$/;"	s
 Test	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/bcrypt.rs	/^    struct Test {$/;"	s
 Test	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/bcrypt_pbkdf.rs	/^        struct Test {$/;"	s
@@ -1606,7 +1606,7 @@ TransactionIsolationLevel	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/dec
 TransactionMode	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/sql-parser/src/ast/defs/statement.rs	/^pub enum TransactionMode {$/;"	g
 Transitions	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/dfa.rs	/^struct Transitions {$/;"	s
 TransitionsRow	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/dfa.rs	/^struct TransitionsRow<'a>(&'a [StatePtr]);$/;"	s
-TraversedEntity	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^pub struct TraversedEntity {$/;"	s
+TraversedObject	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^pub struct TraversedObject {$/;"	s
 Triangular	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/distributions/triangular.rs	/^pub struct Triangular {$/;"	s
 TupleInPlaceVisitor	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.114/src/de/impls.rs	/^                    struct TupleInPlaceVisitor<'a, $($name: 'a,)+>(&'a mut ($($name,)+));$/;"	s
 TupleTrait	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/ser.rs	/^enum TupleTrait {$/;"	g
@@ -2586,7 +2586,7 @@ define_set	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-
 define_set_builder	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_builder.rs	/^macro_rules! define_set_builder {$/;"	d
 delegate_iterator	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^macro_rules! delegate_iterator {$/;"	d
 delete	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn delete(&mut self, $/;"	f
-delete_from_unsubscribed_table	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^pub fn delete_from_unsubscribed_table(db: &mut mysql::Conn, eid: u64) -> Result<(), mysql::Error> {$/;"	f
+delete_from_unsubscribed_table	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^pub fn delete_from_unsubscribed_table(db: &mut mysql::Conn, oid: u64) -> Result<(), mysql::Error> {$/;"	f
 delete_rptrs	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn delete_rptrs(&mut self, $/;"	f
 delete_rptrs_with_ids	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn delete_rptrs_with_ids(&mut self, $/;"	f
 deny_unknown_fields	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/internals/attr.rs	/^    pub fn deny_unknown_fields(&self) -> bool {$/;"	f
@@ -2967,8 +2967,8 @@ eq	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0
 eq	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/value/partial_eq.rs	/^    fn eq(&self, other: &String) -> bool {$/;"	f
 eq	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/value/partial_eq.rs	/^    fn eq(&self, other: &Value) -> bool {$/;"	f
 eq	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/value/partial_eq.rs	/^    fn eq(&self, other: &str) -> bool {$/;"	f
-eq	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/lib.rs	/^    fn eq(&self, other: &EntityData) -> bool {$/;"	f
-eq	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn eq(&self, other: &TraversedEntity) -> bool {$/;"	f
+eq	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/lib.rs	/^    fn eq(&self, other: &ObjectData) -> bool {$/;"	f
+eq	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn eq(&self, other: &TraversedObject) -> bool {$/;"	f
 eq	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    fn eq(&self, other: &Self) -> bool {$/;"	f
 eq_bool	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/value/partial_eq.rs	/^fn eq_bool(value: &Value, other: bool) -> bool {$/;"	f
 eq_f64	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/value/partial_eq.rs	/^fn eq_f64(value: &Value, other: f64) -> bool {$/;"	f
@@ -3648,7 +3648,7 @@ get_additional_capabilities	/home/tslilyai/.cargo/registry/src/github.com-1ecc62
 get_applicable_and_failed_preds	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/select/predicates.rs	/^pub fn get_applicable_and_failed_preds(v: &View, columns: &Vec<TableColumnDef>, predsets: &Vec<Vec<NamedPredicate>>) -> (Vec<Vec<NamedPredicate>>, Vec<Vec<NamedPredicate>>) $/;"	f
 get_binop_indexes	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/select/joins.rs	/^fn get_binop_indexes(e: &Expr, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) $/;"	f
 get_binop_indices	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/select/joins.rs	/^fn get_binop_indices(e: &Expr, v1: Rc<RefCell<View>>, v2: Rc<RefCell<View>>) $/;"	f
-get_children_of_parent	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^    pub fn get_children_of_parent(&self, parent_table: &str, parent_eid: u64) -> Option<EntityTypeRows>$/;"	f
+get_children_of_parent	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^    pub fn get_children_of_parent(&self, parent_table: &str, parent_oid: u64) -> Option<ObjectTypeRows>$/;"	f
 get_cipher	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blockmodes.rs	/^        fn get_cipher<'a>(&'a self) -> &'a [u8] {$/;"	f
 get_cipher	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blockmodes.rs	/^        fn get_cipher<'a>(&'a self) -> &'a [u8];$/;"	f
 get_client_flags	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/mod.rs	/^    fn get_client_flags(&self) -> CapabilityFlags {$/;"	f
@@ -3666,13 +3666,13 @@ get_filter	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/env_lo
 get_fork_counter	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/rngs/adapter/reseeding.rs	/^    pub fn get_fork_counter() -> usize { 0 }$/;"	f
 get_fork_counter	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/rngs/adapter/reseeding.rs	/^    pub fn get_fork_counter() -> usize {$/;"	f
 get_generated_val	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub fn get_generated_val($/;"	f
-get_ghost_eid_mappings	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_ghost_eid_mappings(&mut self, db: &mut mysql::Conn, table: &str) -> $/;"	f
+get_ghost_oid_mappings	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_ghost_oid_mappings(&mut self, db: &mut mysql::Conn, table: &str) -> $/;"	f
 get_ghost_parent_key_indices_of_datatable	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/column_helpers.rs	/^pub fn get_ghost_parent_key_indices_of_datatable(decor_config: &policy::MaskPolicy, table_name: &str, columns: &Vec<views::TableColumnDef>) $/;"	f
 get_ghost_parent_key_names_of_datatable	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/column_helpers.rs	/^pub fn get_ghost_parent_key_names_of_datatable(decor_config: &policy::MaskPolicy, table_name: &ObjectName) -> Vec<(String, String)> {$/;"	f
-get_gids_for_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_gids_for_eid(&mut self, eid: u64) -> $/;"	f
-get_gids_for_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_gids_for_eid(&mut self, eid: u64, parent_table: &str) -> $/;"	f
-get_gids_for_eids	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_gids_for_eids(&mut self, eids: &Vec<u64>) -> $/;"	f
-get_gids_for_eids	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_gids_for_eids(&mut self, eids: &Vec<u64>, parent_table: &str) -> $/;"	f
+get_gids_for_oid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_gids_for_oid(&mut self, oid: u64) -> $/;"	f
+get_gids_for_oid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_gids_for_oid(&mut self, oid: u64, parent_table: &str) -> $/;"	f
+get_gids_for_oids	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_gids_for_oids(&mut self, oids: &Vec<u64>) -> $/;"	f
+get_gids_for_oids	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn get_gids_for_oids(&mut self, oids: &Vec<u64>, parent_table: &str) -> $/;"	f
 get_index_of_view	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn get_index_of_view(&self, col_name: &str) -> Option<ViewIndex> {$/;"	f
 get_index_rows_of_val	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn get_index_rows_of_val(&self, val: &str) -> Option<HashedRowPtrs> {$/;"	f
 get_indexed_rptrs_of_col	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn get_indexed_rptrs_of_col(&self, col_index: usize, col_val: &str) -> Option<HashedRowPtrs> {$/;"	f
@@ -3755,7 +3755,7 @@ get_tcp_nodelay	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/m
 get_tcp_port	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/opts.rs	/^    pub fn get_tcp_port(&self) -> u16 {$/;"	f
 get_test_vectors	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/aes_gcm.rs	/^    fn get_test_vectors()-> [TestVector; 5]{$/;"	f
 get_test_vectors	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/chacha20poly1305.rs	/^  fn get_test_vectors()-> Vec<TestVector>{$/;"	f
-get_tree_from_child	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn get_tree_from_child(&mut self, child: &EntityData, nodes: &mut HashSet<EntityData>)$/;"	f
+get_tree_from_child	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn get_tree_from_child(&mut self, child: &ObjectData, nodes: &mut HashSet<ObjectData>)$/;"	f
 get_user	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/opts.rs	/^    pub fn get_user(&self) -> Option<&str> {$/;"	f
 get_value_for_row_closure	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/select/select.rs	/^pub fn get_value_for_row_closure(e: &Expr, columns: &Vec<TableColumnDef>) -> Box<dyn Fn(&Vec<Value>) -> Value> {$/;"	f
 get_view	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn get_view(&self, name: &str) -> Option<Rc<RefCell<View>>> {$/;"	f
@@ -3772,7 +3772,7 @@ getter	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_deri
 ghash_10	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/ghash.rs	/^    pub fn ghash_10(bh: & mut Bencher) {$/;"	f
 ghash_1k	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/ghash.rs	/^    pub fn ghash_1k(bh: & mut Bencher) {$/;"	f
 ghash_64k	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/ghash.rs	/^    pub fn ghash_64k(bh: & mut Bencher) {$/;"	f
-ghost_family_to_db_string	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^    pub fn ghost_family_to_db_string(&self, eid: u64) -> String {$/;"	f
+ghost_family_to_db_string	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^    pub fn ghost_family_to_db_string(&self, oid: u64) -> String {$/;"	f
 greater_equal	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/lexical/math.rs	/^    pub fn greater_equal(x: &[Limb], y: &[Limb]) -> bool {$/;"	f
 gsm_10	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/aes_gcm.rs	/^    pub fn gsm_10(bh: & mut Bencher) {$/;"	f
 gsm_1k	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/aes_gcm.rs	/^    pub fn gsm_1k(bh: & mut Bencher) {$/;"	f
@@ -3970,11 +3970,11 @@ insert	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json
 insert	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^    pub fn insert(&mut self, value: Value) -> Value {$/;"	f
 insert	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^    pub fn insert(self, value: Value) -> &'a mut Value {$/;"	f
 insert	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn insert(&mut self, table_name: &str, columns_opt: Option<&Vec<Ident>>, val_rows: &RowPtrs) -> Result<(), Error> {$/;"	f
-insert_ghost_for_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn insert_ghost_for_eid(&mut self, $/;"	f
+insert_ghost_for_oid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn insert_ghost_for_oid(&mut self, $/;"	f
 insert_ghosts_for_template	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn insert_ghosts_for_template(&mut self, $/;"	f
-insert_gid_into_caches	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn insert_gid_into_caches(&mut self, eid:u64, gfam: GhostFamily) {$/;"	f
+insert_gid_into_caches	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn insert_gid_into_caches(&mut self, oid:u64, gfam: GhostFamily) {$/;"	f
 insert_into_index	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn insert_into_index(&mut self, row: Rc<RefCell<Row>>, col_index: usize) {$/;"	f
-insert_into_unsubscribed_table	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^pub fn insert_into_unsubscribed_table(db: &mut mysql::Conn, eid: u64, hash1: &str, hash2: &str) -> Result<(), mysql::Error> {$/;"	f
+insert_into_unsubscribed_table	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^pub fn insert_into_unsubscribed_table(db: &mut mysql::Conn, oid: u64, hash1: &str, hash2: &str) -> Result<(), mysql::Error> {$/;"	f
 insert_row	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn insert_row(&mut self, row: Rc<RefCell<Row>>) {$/;"	f
 insert_source_query_to_rptrs	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/query_simplifier.rs	/^pub fn insert_source_query_to_rptrs(q: &Query, views: &Views) $/;"	f
 inst_ptrs	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/dfa.rs	/^    fn inst_ptrs(&self) -> InstPtrs {$/;"	f
@@ -4117,8 +4117,8 @@ is_forked	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.
 is_full	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/buffer.rs	/^    fn is_full(&self) -> bool { self.pos == 0 }$/;"	f
 is_full	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/buffer.rs	/^    fn is_full(&self) -> bool { self.pos == self.len }$/;"	f
 is_full	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/buffer.rs	/^    fn is_full(&self) -> bool;$/;"	f
-is_ghost_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub fn is_ghost_eid(gid: u64) -> bool {$/;"	f
-is_ghost_eidval	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub fn is_ghost_eidval(val: &Value) -> bool {$/;"	f
+is_ghost_oid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub fn is_ghost_oid(gid: u64) -> bool {$/;"	f
+is_ghost_oidval	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_entities.rs	/^pub fn is_ghost_oidval(val: &Value) -> bool {$/;"	f
 is_human_readable	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.114/src/de/mod.rs	/^    fn is_human_readable(&self) -> bool {$/;"	f
 is_human_readable	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.114/src/ser/mod.rs	/^    fn is_human_readable(&self) -> bool {$/;"	f
 is_i64	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/number.rs	/^    pub fn is_i64(&self) -> bool {$/;"	f
@@ -5407,8 +5407,8 @@ ref	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql_common-
 ref	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql_common-0.22.1/src/value/convert/mod.rs	/^    static ref TIME_RE_HH_MM_SS_MS: Regex =$/;"	c
 ref	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/lib.rs	/^        static ref RE: Regex = Regex::new("...").unwrap();$/;"	c
 ref	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/sql-parser/src/keywords.rs	/^    static ref RESERVED_KEYWORD_SET: HashSet<String> = {$/;"	c
-regenerate_cache_entries	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn regenerate_cache_entries(&mut self, table_to_eid_to_fam: &Vec<(String, u64, GhostFamily)>) {$/;"	f
-regenerate_cache_entry	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    fn regenerate_cache_entry(&mut self, eid: u64, ghost_families: &Vec<GhostFamily>) {$/;"	f
+regenerate_cache_entries	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn regenerate_cache_entries(&mut self, table_to_oid_to_fam: &Vec<(String, u64, GhostFamily)>) {$/;"	f
+regenerate_cache_entry	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    fn regenerate_cache_entry(&mut self, oid: u64, ghost_families: &Vec<GhostFamily>) {$/;"	f
 regex	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_trait.rs	/^    pub fn regex(&self) -> &R {$/;"	f
 regex_strings	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/exec.rs	/^    pub fn regex_strings(&self) -> &[String] {$/;"	f
 register_fork_handler	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rand-0.6.5/src/rngs/adapter/reseeding.rs	/^    pub fn register_fork_handler() {$/;"	f
@@ -5430,7 +5430,7 @@ remote	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_deri
 remove	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/stmt_cache.rs	/^    pub fn remove(&mut self, id: u32) {$/;"	f
 remove	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^    pub fn remove(self) -> Value {$/;"	f
 remove	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/map.rs	/^    pub fn remove<Q>(&mut self, key: &Q) -> Option<Value>$/;"	f
-remove_entities	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn remove_entities(&mut self, nodes: &HashSet<EntityData>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {$/;"	f
+remove_entities	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn remove_entities(&mut self, nodes: &HashSet<ObjectData>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {$/;"	f
 remove_escaped_chars	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/mysql_helpers.rs	/^pub fn remove_escaped_chars(s: &str) -> String {$/;"	f
 remove_views	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn remove_views(&mut self, names: &Vec<ObjectName>) {$/;"	f
 rename_all_rules	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/internals/attr.rs	/^    pub fn rename_all_rules(&self) -> &RenameAllRules {$/;"	f
@@ -5448,7 +5448,7 @@ replace_append	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/re
 replace_append	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_unicode.rs	/^    fn replace_append(&mut self, _: &Captures, dst: &mut String) {$/;"	f
 replace_append	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_unicode.rs	/^    fn replace_append(&mut self, caps: &Captures, dst: &mut String) {$/;"	f
 replace_append	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_unicode.rs	/^    fn replace_append(&mut self, caps: &Captures, dst: &mut String);$/;"	f
-replace_ghosts	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn replace_ghosts(&mut self, curtable: &str, eid: u64, root_gids: Vec<u64>, ghosts: &Vec<Vec<(String, u64)>>, db: &mut mysql::Conn) -> Result<(), mysql::Error> $/;"	f
+replace_ghosts	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    fn replace_ghosts(&mut self, curtable: &str, oid: u64, root_gids: Vec<u64>, ghosts: &Vec<Vec<(String, u64)>>, db: &mut mysql::Conn) -> Result<(), mysql::Error> $/;"	f
 replacement	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/try.rs	/^pub fn replacement() -> TokenStream {$/;"	f
 replacen	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_bytes.rs	/^    pub fn replacen<'t, R: Replacer>($/;"	f
 replacen	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/re_unicode.rs	/^    pub fn replacen<'t, R: Replacer>($/;"	f
@@ -5502,8 +5502,8 @@ respan_token_tree	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823
 restore_state	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/dfa.rs	/^    fn restore_state(&mut self, state: State) -> Option<StatePtr> {$/;"	f
 restore_unsubscribed_cache	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^    pub fn restore_unsubscribed_cache(&mut self, db: &mut mysql::Conn) -> Result<(), mysql::Error> {$/;"	f
 resubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn resubscribe(&mut self, $/;"	f
-resubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn resubscribe(&mut self, eid: u64, families: &Vec<GhostFamily>, db: &mut mysql::Conn, parent_table: &str) -> Result<bool, mysql::Error> {$/;"	f
-resubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn resubscribe(&mut self, uid: u64, ghost_eid_mappings: &Vec<GhostEidMapping>, entity_data: &Vec<EntityData>, db: &mut mysql::Conn) -> $/;"	f
+resubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn resubscribe(&mut self, oid: u64, families: &Vec<GhostFamily>, db: &mut mysql::Conn, parent_table: &str) -> Result<bool, mysql::Error> {$/;"	f
+resubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn resubscribe(&mut self, uid: u64, ghost_oid_mappings: &Vec<GhostOidMapping>, object_data: &Vec<ObjectData>, db: &mut mysql::Conn) -> $/;"	f
 result	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blake2b.rs	/^    fn result(&mut self) -> MacResult {$/;"	f
 result	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blake2b.rs	/^    fn result(&mut self, out: &mut [u8]) { self.finalize(out); }$/;"	f
 result	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blake2s.rs	/^    fn result(&mut self) -> MacResult {$/;"	f
@@ -6414,8 +6414,8 @@ take_next	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-cr
 take_next	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/buffer.rs	/^    fn take_next(&mut self, count: usize) -> &mut [u8];$/;"	f
 take_next	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/buffer.rs	/^    fn take_next<'a>(&'a mut self, count: usize) -> &'a mut [u8] {$/;"	f
 take_next	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/buffer.rs	/^    fn take_next<>(&mut self, count: usize) -> &mut [u8] {$/;"	f
-take_one_ghost_family_for_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn take_one_ghost_family_for_eid(&mut self, eid: u64, db: &mut mysql::Conn) -> $/;"	f
-take_one_ghost_family_for_eid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn take_one_ghost_family_for_eid(&mut self, eid: u64, db: &mut mysql::Conn, parent_table: &str) -> $/;"	f
+take_one_ghost_family_for_oid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn take_one_ghost_family_for_oid(&mut self, oid: u64, db: &mut mysql::Conn) -> $/;"	f
+take_one_ghost_family_for_oid	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn take_one_ghost_family_for_oid(&mut self, oid: u64, db: &mut mysql::Conn, parent_table: &str) -> $/;"	f
 take_opt	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql_common-0.22.1/src/row/mod.rs	/^    pub fn take_opt<T, I>(&mut self, index: I) -> Option<Result<T, FromValueError>>$/;"	f
 take_or_place	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql_common-0.22.1/src/row/convert.rs	/^macro_rules! take_or_place {$/;"	d
 take_read_buffer	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/buffer.rs	/^    fn take_read_buffer(&mut self) -> RefReadBuffer {$/;"	f
@@ -6883,7 +6883,7 @@ tokenize_string	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/sql
 tokenize_word	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/sql-parser/src/tokenizer.rs	/^    fn tokenize_word(&self, first_char: char, chars: &mut PeekableChars) -> String {$/;"	f
 trace	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/log-0.4.11/src/macros.rs	/^macro_rules! trace {$/;"	d
 transparent	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/internals/attr.rs	/^    pub fn transparent(&self) -> bool {$/;"	f
-traversed_entity_to_entitydata	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^pub fn traversed_entity_to_entitydata(entity: &TraversedEntity) -> EntityData {$/;"	f
+traversed_object_to_objectdata	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/subscriber.rs	/^pub fn traversed_object_to_objectdata(object: &TraversedObject) -> ObjectData {$/;"	f
 tri	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.57/src/lib.rs	/^macro_rules! tri {$/;"	d
 trim_quotes	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/helpers/parser_helpers.rs	/^pub fn trim_quotes(s: &str) -> &str {$/;"	f
 truncate	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/buffer.rs	/^    fn truncate(&mut self, amount: usize) { self.len -= amount; }$/;"	f
@@ -6969,8 +6969,8 @@ unraw	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_deriv
 unraw	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.114/src/internals/attr.rs	/^fn unraw(ident: &Ident) -> String {$/;"	f
 unsafe	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/ordered-float-2.0.0/src/lib.rs	/^    pub const unsafe fn unchecked_new(val: T) -> Self {$/;"	c
 unsigned_primitive_roundtrip	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql_common-0.22.1/src/value/convert/mod.rs	/^    macro_rules! unsigned_primitive_roundtrip {$/;"	d
-unsubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn) -> Result<Option<Vec<GhostFamily>>, mysql::Error> {$/;"	f
-unsubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn unsubscribe(&mut self, eid:u64, db: &mut mysql::Conn, parent_table: &str) -> Result<Option<Vec<GhostFamily>>, mysql::Error> {$/;"	f
+unsubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    fn unsubscribe(&mut self, oid:u64, db: &mut mysql::Conn) -> Result<Option<Vec<GhostFamily>>, mysql::Error> {$/;"	f
+unsubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn unsubscribe(&mut self, oid:u64, db: &mut mysql::Conn, parent_table: &str) -> Result<Option<Vec<GhostFamily>>, mysql::Error> {$/;"	f
 unsubscribe	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn unsubscribe<W: io::Write>(&mut self, uid: u64, db: &mut mysql::Conn, writer: QueryResultWriter<W>) $/;"	f
 unsubscribe_child_parent_edges	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn unsubscribe_child_parent_edges(&mut self, $/;"	f
 unwrap	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/pool.rs	/^    pub fn unwrap(mut self) -> Conn {$/;"	f
@@ -6983,11 +6983,11 @@ update	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypt
 update	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn update(&mut self, $/;"	f
 update_child_with_parent	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/querier.rs	/^    pub fn update_child_with_parent(&mut self, $/;"	f
 update_edge	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/graph.rs	/^    pub fn update_edge(&mut self, child_table: &str, parent_table: &str,$/;"	f
-update_eid2gids_with	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn update_eid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn)$/;"	f
-update_eid2gids_with	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn update_eid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn, parent_table: &str)$/;"	f
 update_history	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/rust-crypto-0.2.36/src/blockmodes.rs	/^fn update_history(in_hist: &mut [u8], out_hist: &mut [u8], last_in: &[u8], last_out: &[u8]) {$/;"	f
 update_index_and_row	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    fn update_index_and_row(&mut self, rptr: Rc<RefCell<Row>>, col_index: usize, col_val: Option<&Value>) {$/;"	f
 update_index_and_row_of_view	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/views.rs	/^    pub fn update_index_and_row_of_view(&mut self, table: &str, rptr: Rc<RefCell<Row>>, col_index: usize, col_val: Option<&Value>) {$/;"	f
+update_oid2gids_with	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn update_oid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn)$/;"	f
+update_oid2gids_with	/home/tslilyai/Dropbox/Documents/MIT/Research/gdpr/decor/src/decor-simple/src/ghosts/ghost_maps.rs	/^    pub fn update_oid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn, parent_table: &str)$/;"	f
 uppercut_s_backtracking_bytes_default_bytes_mismatch	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-1.3.9/src/exec.rs	/^    fn uppercut_s_backtracking_bytes_default_bytes_mismatch() {$/;"	f
 use_cache	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/pool.rs	/^    pub fn use_cache(&mut self, use_cache: bool) {$/;"	f
 user	/home/tslilyai/.cargo/registry/src/github.com-1ecc6299db9ec823/mysql-18.2.0/src/conn/opts.rs	/^    pub fn user<T: Into<String>>(mut self, user: Option<T>) -> Self {$/;"	f

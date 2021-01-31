@@ -8,7 +8,7 @@ use std::sync::atomic::{Ordering, AtomicU64};
 
 use crate::{helpers, views, ID_COL};
 use crate::views::{Views, RowPtrs, RowPtr};
-use crate::policy::{GhostColumnPolicy, GeneratePolicy, EntityGhostPolicies};
+use crate::policy::{GhostColumnPolicy, GeneratePolicy, ObjectGhostPolicies};
 
 pub const GHOST_ID_START : u64 = 1<<20;
 pub const GHOST_ID_MAX: u64 = 1<<30;
@@ -34,7 +34,7 @@ pub struct GhostFamily {
     pub family_members: Vec<TableGhostEntities>,
 }
 impl GhostFamily {
-    pub fn ghost_family_to_db_string(&self, eid: u64) -> String {
+    pub fn ghost_family_to_db_string(&self, oid: u64) -> String {
         let mut ghost_names : Vec<(String, u64)> = vec![];
         for tableghosts in &self.family_members{
             for gid in &tableghosts.gids {
@@ -44,36 +44,36 @@ impl GhostFamily {
         let ghostdata = serde_json::to_string(&ghost_names).unwrap();
         warn!("Ghostdata serialized is {}", ghostdata);
         let ghostdata = helpers::escape_quotes_mysql(&ghostdata);
-        format!("({}, {}, '{}')", self.root_gid, eid, ghostdata)
+        format!("({}, {}, '{}')", self.root_gid, oid, ghostdata)
     }
 }
 
 /*
- * A variant of eid -> family of ghosts to store on-disk or serialize (no row pointers!)
+ * A variant of oid -> family of ghosts to store on-disk or serialize (no row pointers!)
  */
 #[derive(Serialize, Deserialize, PartialOrd, Ord, PartialEq, Eq, Clone, Debug)]
-pub struct GhostEidMapping {
+pub struct GhostOidMapping {
     pub table: String,
-    pub eid: u64,
+    pub oid: u64,
     pub root_gids: Vec<u64>,
     pub ghosts: Vec<(String, u64)>,
 }
 
 /* 
- * a base true entity upon which to generate ghosts
+ * a base true object upon which to generate ghosts
  */
-pub struct TemplateEntity {
+pub struct TemplateObject {
     pub table: String,
-    pub eid: u64,
+    pub oid: u64,
     pub row: RowPtr,
     pub fixed_colvals: Option<Vec<(usize, Value)>>,
 }
 
-pub fn is_ghost_eid(gid: u64) -> bool {
+pub fn is_ghost_oid(gid: u64) -> bool {
     gid >= GHOST_ID_START
 }
 
-pub fn is_ghost_eidval(val: &Value) -> bool {
+pub fn is_ghost_oidval(val: &Value) -> bool {
     let gid = helpers::parser_val_to_u64(val);
     gid >= GHOST_ID_START
 }
@@ -89,8 +89,8 @@ fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {
 
 pub fn generate_new_ghosts_from(
     views: &Views,
-    ghost_policies: &EntityGhostPolicies,
-    template: &TemplateEntity, 
+    ghost_policies: &ObjectGhostPolicies,
+    template: &TemplateObject, 
     num_ghosts: usize,
 ) -> Result<Vec<TableGhostEntities>, mysql::Error>
 {
@@ -101,7 +101,7 @@ pub fn generate_new_ghosts_from(
     let gids = generate_new_ghost_gids(num_ghosts);
 
     // NOTE : generating entities with foreign keys must also have ways to 
-    // generate foreign key entity or this will panic
+    // generate foreign key object or this will panic
     // If no ghost generation policy is specified, we clone all
     let policies : Vec<&GhostColumnPolicy> = match ghost_policies.get(&template.table) {
         Some(gp) => from_cols.iter().map(|col| gp.get(&col.to_string()).unwrap()).collect(),
@@ -173,21 +173,21 @@ pub fn generate_new_ghosts_from(
 
 pub fn generate_foreign_key_val(
     views: &views::Views,
-    ghost_policies: &EntityGhostPolicies,
+    ghost_policies: &ObjectGhostPolicies,
     table_name: &str,
-    template_eid: u64,
+    template_oid: u64,
     new_entities: &mut Vec<TableGhostEntities>)
     -> Result<Value, mysql::Error> 
 {
     // assumes there is at least one value here...
-    let parent_table_row = views.get_row_of_id(table_name, template_eid);
+    let parent_table_row = views.get_row_of_id(table_name, template_oid);
 
-    warn!("GHOSTS: Generating foreign key entity for {} {:?}", table_name, parent_table_row);
+    warn!("GHOSTS: Generating foreign key object for {} {:?}", table_name, parent_table_row);
     let mut ghost_parent_fam = generate_new_ghosts_from(
         views, ghost_policies,
-        &TemplateEntity{
+        &TemplateObject{
             table: table_name.to_string(),
-            eid: template_eid,
+            oid: template_oid,
             row: parent_table_row,
             fixed_colvals: None,
         }, 1)?;
@@ -198,7 +198,7 @@ pub fn generate_foreign_key_val(
 
 pub fn get_generated_val(
     views: &views::Views,
-    ghost_policies: &EntityGhostPolicies,
+    ghost_policies: &ObjectGhostPolicies,
     gen: &GeneratePolicy, 
     base_val: &Value,
     new_entities: &mut Vec<TableGhostEntities>,
