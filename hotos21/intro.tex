@@ -24,17 +24,6 @@ without violating application invariants.
 For example, unsubscription of one user should not allow another user to view content that she
 originally could not access.
 
-%\lyt{Frans: this paragraph is too abstract, should lead with examples (and then maybe we don't even
-%need this?). Also should not apologize for not guaranteeing privacy, but instead enforce that it's
-%the developer's job to write the right spec in S3/4.}
-%Transformations that achieve better user privacy requires careful handling of data deletion,
-%anonymization, and structural decorrelation, where developers must consider how to handle both
-%clearly identifying content (\eg usernames), and also structural correlations between data records
-%that can identify the user.
-%While these transformations do not enable formal privacy \emph{guarantees}, developers can improve
-%the state of privacy in applications today by reasoning about often subtle identifying
-%correlations.
-
 Privacy transformations must handle both identifying data content, as well as subtly identifying
 correlations between data entities. For example, anonymized public running routes correlated with
 the same location can identify the user's hometown and be reassociated with the user;
@@ -65,10 +54,6 @@ identifiers.
 %Disguises consist of transformations performed on the high-level object graph embedded in
 %database-based applications (encoded by \eg foreign key relationships in relational
 %databases)~\cite{orms}.
-%Data masks the state of the object graph embedded in database-based applications (\eg
-%encoded by foreign key relationships) after mask application.
-%and constrains the state of the object graph embedded in
-%database-backed applications (\eg encoded by foreign key relationships).
 %
 A data disguising tool takes a disguise and its target, and automatically applies the appropriate
 database transformations to achieve the disguised state, alleviating the burden on the developer to
@@ -185,7 +170,3 @@ To ensure access to the log even if the user loses their key, the transformation
 secret-share the encryption key~\cite{secretsharing} among the user, the service, and a trusted
 third party (\eg the ACLU, or EFF).
 %
-
-
-
-
