@@ -88,7 +88,7 @@ burden.
 \label{sec:survey}
 
 %
-We surveyed several widely-used web applications to understand what privacy-increasing operations
+We surveyed several widely-used web applications to understand what privacy transformations
 they apply on user unsubscription.
 %
 A set of common themes emerged.
@@ -106,10 +106,10 @@ contributions directly shared with another user unanonymized and visible to the 
 (\eg Facebook/Twitter private messages~\cite{facebook:privacy, twitter:privacy},
 LinkedIn updates~\cite{linkedin:privacy}).
 %
-Other platforms with mostly public content keep user contributions visible to the intended audience,
-but anonymize them by reattributing the contribution to a placeholder user (\eg GitHub's
-@ghost~\cite{github:privacy}, Reddit and Lobsters'
-[deleted]~\cite{reddit:privacy, lobsters:privacy}).
+Other platforms with mostly public content keep user contributions visible to the intended
+audience, but anonymize them by reattributing the contribution to a placeholder user
+(\eg GitHub's ``@ghost''~\cite{github:privacy}, Reddit and Lobsters'
+``[deleted]''~\cite{reddit:privacy, lobsters:privacy}).
 %
 %    \item Keep certain user contributions unanonymized and visible to its intended audience (\eg
 %        HotCRP, Lobsters, Wikipedia, HackerNews~\cite{hotcrp:privacy, lobsters:privacy,
@@ -122,9 +122,9 @@ All applications surveyed retain some information for legal or necessary busines
 Spotify fraud detection~\cite{spotify:privacy}, PrestaShop/Amazon orders~\cite{amazon:privacy,
 prestashop:privacy}).
 %
-For open-source applications, inspection shows that developers implement these transformations
-via ad-hoc database operations, and only support explicit, user-user initiated account deletion
-(a rare event).
+In the open-source applications surveyed, developers implement privacy transformations
+via ad-hoc database operations, and only trigger them on explicit, user-initiated account
+deletion (a rare event).
 %
 Generally, developers appear to pay little attention to identifying correlations
 within the remaining data.
@@ -134,8 +134,8 @@ within the remaining data.
 We argue for a more \emph{systematic} treatment of privacy transformations, making them a
 first-class citizen in application design.
 %
-In particular, we imagine developers declaratively specify the above and other transformation
-policies for their application's data, similar to a relational schema.
+In particular, we imagine developers who specify declaratively specify the above and other
+transformation policies like they specify a storage structure (\eg a relational schema) today.
 %
 This also allows for new policies and use cases that benefit both end-users and service operators.
 %
@@ -145,7 +145,7 @@ which are missing from today's applications but easily described via disguises.
 
 \paragraph{Nuanced policies.}
 %
-Users---and application developers---can benefit from more nuanced privacy policies.
+Users and application developers can both benefit from more nuanced privacy policies.
 %
 For example, a confidential paper review system like HotCRP must keep a user's contributions
 (papers, reviews) to preserve utility for others, but may associate each review with a different
