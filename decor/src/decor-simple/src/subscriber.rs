@@ -80,13 +80,6 @@ pub fn answer_rows<W: io::Write>(
     Ok(())
 }
 
-pub fn traversed_object_to_objectdata(object: &TraversedObject) -> ObjectData {
-    ObjectData {
-        name: object.name.clone(),
-        row_strs: object.hrptr.to_strs(),
-    }
-}
-
 impl Subscriber {
     pub fn new() -> Self {
         Subscriber {

@@ -349,7 +349,7 @@ impl Querier {
         };
 
         // we will eventually remove this node
-        nodes_to_remove.insert(subscriber::traversed_object_to_objectdata(&init_node));
+        nodes_to_remove.insert(init_node.to_objectdata());
 
         children_to_traverse.push(init_node);
         
@@ -409,7 +409,7 @@ impl Querier {
                             from_pc_edge: true,
                         };
                         
-                        let child_nodedata = subscriber::traversed_object_to_objectdata(&child);
+                        let child_nodedata = child.to_objectdata();
 
                         match policy.pc_policy {
                             Decorrelate(f) => { 
@@ -684,7 +684,7 @@ impl Querier {
                             Delete(_) => {
                                 // add all the sensitive removed entities to return to the user 
                                 for child in &sensitive_children[0..number_to_desensitize as usize] {
-                                    let child_nodedata = subscriber::traversed_object_to_objectdata(&child);
+                                    let child_nodedata = child.to_objectdata();
                                     self.get_tree_from_child(&child_nodedata, nodes_to_remove);
                                 }
                             }

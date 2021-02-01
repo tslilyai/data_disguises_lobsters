@@ -44,9 +44,9 @@ pub fn escape_quotes_mysql(s: &str) -> String {
 }
 
 pub fn remove_escaped_chars(s: &str) -> String {
-    let mut s = s.replace("\'\'", "\'");
-    s = s.replace("\"\"", "\"");
-    s
+    //let mut s = s.replace("\'\'", "\'");
+    //s = s.replace("\"\"", "\"");
+    s.to_string()
 }
 
 pub fn answer_rows<W: io::Write>(

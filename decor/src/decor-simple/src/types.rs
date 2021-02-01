@@ -58,7 +58,14 @@ impl PartialEq for TraversedObject {
     }
 }
 impl Eq for TraversedObject {} 
-
+impl TraversedObject {
+    pub fn to_objectdata(&self) -> ObjectData {
+        ObjectData {
+            name: self.name.clone(),
+            row_strs: self.hrptr.to_strs(),
+        }
+    }
+}
 
 /* 
  * Rows and pointers to in-memory rows

@@ -76,7 +76,8 @@ impl Sampler {
 }
 
 pub fn gen_data(sampler: &Sampler, db: &mut mysql::Conn) -> (u32, u32) {
-    let nstories = sampler.nstories();
+    //let nstories = sampler.nstories();
+    let nstories = 6 as u32;
     let mut rng = rand::thread_rng();
     println!("Generating {} stories, {} comments, {} users", nstories, sampler.ncomments(), sampler.nusers());
 
@@ -92,11 +93,13 @@ pub fn gen_data(sampler: &Sampler, db: &mut mysql::Conn) -> (u32, u32) {
         warn!("Generating story {} for user {:?}", id, user_id);
         queriers::stories::post_story(db, user_id, id.into(), format!("Base article {}", id)).unwrap();
     }
-    for id in 0..sampler.ncomments(){
+    //for id in 0..sampler.ncomments(){
+    for id in 0..2 {
         // NOTE: we're assuming that users who vote much also submit many stories
         let story_shortid = id % nstories; // TODO: distribution
         let user_id = Some(sampler.user(&mut rng) as u64);
-        let parent = if rng.gen_bool(0.5) {
+        let parent = None;
+        /*let parent = if rng.gen_bool(0.5) {
             // we need to pick a parent in the same story
             let generated_comments = id - story_shortid;
             // how many stories to we know there are per story?
@@ -110,7 +113,7 @@ pub fn gen_data(sampler: &Sampler, db: &mut mysql::Conn) -> (u32, u32) {
             }
         } else {
             None
-        };
+        };*/
         warn!("Generating comment {} from user {:?} and story{}, parent {:?}", id, user_id, story_shortid, parent);
         queriers::comment::post_comment(db, user_id, id.into(), story_shortid.into(), parent).unwrap();
     }

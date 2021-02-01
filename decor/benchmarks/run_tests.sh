@@ -14,7 +14,7 @@ for trial in `seq $trials`
 do
 	#perflock ../target/release/lobsters \
 	../target/debug/lobsters \
-		--scale=0.005 --nqueries=10 --prop_unsub=1.0 --prime
+		--scale=0.0005 --nqueries=10 --prop_unsub=1.0 --prime
 done
 
 python3 plot.py
