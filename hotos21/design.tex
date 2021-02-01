@@ -12,6 +12,28 @@
 abstract. Start with Figure~\ref{fig:arch}?}
 
 %
+The key idea behind \emph{data disguising} is to associate multiple \emph{guises} with a target
+data object: some guises are identity-revealing, others are privacy-preserving.
+%
+Objects move between different guises by means of privacy transformations.
+%
+Figure~\ref{fig:example} illustrates this with the example of user unsubscription: in subscribed
+state, user Alice's profile is associated with her true identity (an identity-revealing guise)
+and all her contributions to the site.
+%
+When Alice unsubscribes, however, the her profile and contributions move to different,
+privacy-preserving guises: her profile is now associated with an anonymizing name, her email
+address redacted, and her contributions are decorrelated and attributed to individual,
+unidentified author guises.
+%
+
+%
+Data disguising builds on existing structural information in web applications' data.
+%
+
+
+\ms{old follows...}
+%
 To enable developers to better support existing and new privacy policies without onerous manual
 labor, we propose \emph{data disguising}.
 %
