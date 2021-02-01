@@ -1,13 +1,14 @@
 %-------------------------------------------------------------------------------
 \section{Data Disguising}
 %-------------------------------------------------------------------------------
-%\begin{figure}[t!]
-%    \centering
-%    \includegraphics[width=0.5\textwidth]{img/impl}
-%
-%    \caption{Architecture of \sys, a prototype data disguiser. Developers specify grayed-out components.}
-%    \label{fig:arch}
-%\end{figure}
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width=0.5\textwidth]{img/disguises_design}
+
+    \caption{Disguises move the target object (in this example, a user Bob) from an identity-revealing
+    guise to privacy-preserving guises.}
+    \label{fig:example}
+\end{figure}
 \lyt{TODO (Frans): drive w/explicit example of table rows and foreign key relationships, too
 abstract. Start with Figure~\ref{fig:arch}?}
 
@@ -18,12 +19,12 @@ data object: some guises are identity-revealing, others are privacy-preserving.
 Objects move between different guises by means of privacy transformations.
 %
 Figure~\ref{fig:example} illustrates this with the example of user unsubscription: in subscribed
-state, user Alice's profile is associated with her true identity (an identity-revealing guise)
-and all her contributions to the site.
+state, user Bob's profile is associated with his true identity (an identity-revealing guise)
+and all his contributions to the site.
 %
-When Alice unsubscribes, however, the her profile and contributions move to different,
-privacy-preserving guises: her profile is now associated with an anonymizing name, her email
-address redacted, and her contributions are decorrelated and attributed to individual,
+When Bob unsubscribes, however, his profile and contributions move to different,
+privacy-preserving guises: his profile is now associated with an anonymizing name, his email
+address redacted, and his contributions are decorrelated and attributed to individual,
 unidentified author guises.
 %
 
