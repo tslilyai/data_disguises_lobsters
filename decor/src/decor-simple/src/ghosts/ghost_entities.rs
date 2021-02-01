@@ -79,7 +79,7 @@ pub fn is_ghost_oidval(val: &Value) -> bool {
 
 fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {
     let mut gids = vec![];
-    let first_gid = LAST_GID.fetch_add(needed as u64, Ordering::SeqCst) + 1;
+    let first_gid = LAST_GID.fetch_add(needed as u64, Ordering::SeqCst);
     for n in 0..needed {
         gids.push(Value::Number((first_gid + n as u64).to_string()));
     }
