@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::*;
 use log::{warn};
 use msql_srv::{QueryResultWriter};
-use crate::{helpers, ghosts::GhostOidMapping, types::{ObjectData, TraversedObject}}; 
+use crate::{helpers, ghosts::GhostOidMapping, types::{ObjectData}}; 
 
 const OID_COL: &'static str = "object_id";
 const GM_HASH_COL: &'static str = "ghost_mappings";

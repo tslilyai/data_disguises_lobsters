@@ -75,8 +75,6 @@ pub fn unsubscribe_user(user: u64, db: &mut mysql::Conn) -> (String, String) {
         assert_eq!(vals.len(), 2);
         let s1 = helpers::mysql_val_to_string(&vals[0]);
         let s2 = helpers::mysql_val_to_string(&vals[1]);
-        let s1 = s1.trim_end_matches('\'').trim_start_matches('\'');
-        let s2 = s2.trim_end_matches('\'').trim_start_matches('\'');
         return (s1.to_string(), s2.to_string());
     }
     (String::new(), String::new())
