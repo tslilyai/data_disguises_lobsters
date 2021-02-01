@@ -21,8 +21,8 @@ Objects move between different guises by means of privacy transformations.
 %
 Figure~\ref{fig:example} illustrates this with the example of user unsubscription.
 %
-In subscribed state, user Bob's profile is associated with his true identity (an
-identity-revealing guise) and all his contributions to the site.
+In subscribed state, user Bob's profile is associated with his true identity and all his
+contributions to the site (an identity-revealing guise).
 %
 When Bob unsubscribes, however, his profile and contributions move to different,
 privacy-preserving guises: his profile is now associated with an anonymizing name, his email
@@ -31,30 +31,39 @@ unidentified author guises.
 %
 
 %
-Data disguising builds on existing structural information in web applications' data.
+Data disguising builds on the existing structure of web applications.
+%
+Web applications are often structured as object graphs, either explicitly~\cite{tao, delf},
+through an object-relational model (ORM)~\cite{orm}, or implicitly via foreign keys (edges)
+between tables (vertices) in relational databases.
+%
+Data disguises transform the content and structure of this graph.
 %
 
+%
+The application developer writes a disguise specification for each privacy transformation needed
+in the application.
+%
+This specification is a declarative statement similar to a relational schema, with entries for
+graph vertices (objects) and directed edges (relationships between pairs of objects)
+to be transformed (see \S\ref{sec:policies}).
+%
+A \emph{data disguiser} tool takes the disguse specification and turns it into storage
+operations that apply the transformation (disguise) or its reverse (reveal).
+%
+%
+We assume that:
+\begin{enumerate}[nosep]
+  \item application developers use their domain knowledge to write correct and complete
+    disguise specifications;
+  \item application code invokes disguises via the disguiser tool's API on
+    transformation-triggering events (\eg user unsubscription, data timeout, etc.); and
+  \item that application code is prepared to handle the different guises, which have the
+    same structure, appropriately (\eg in displaying them).
+\end{enumerate}
 
 \ms{old follows...}
 %
-To enable developers to better support existing and new privacy policies without onerous manual
-labor, we propose \emph{data disguising}.
-%
-With data disguising, developers specify privacy transformations for database-backed web
-applications as high-level, declarative \emph{data disguises}.
-
-A data disguiser sits between application logic and its database. Figure~\ref{fig:arch} shows the
-architecture of our prototype, \sys, which works for applications using relational databases.
-Disguisers automatically translate the provided disguise into the appropriate database transformations, and
-applies them starting at a given disguise target (\eg a row in the users table) when invoked.
-
-Data disguising works on top of the object graph encoded by database-backed
-applications~\cite{orm}. In the context of relational databases, the nodes of the object graph are
-table rows, and the edges of the object graph are foreign key relationships. Data disguises impose
-restrictions on the content and structure of this graph. Unsubscription, for example, transforms
-this graph to comply with particular constraints of the privacy transformation for account deletion
-by modifying table row contents and rewriting foreign key relationships.
-
 Using their application expertise, the developer selects from a menu of possible transformations
 (Section~\ref{sec:policies}) that can be performed on objects and object graph edges.
 The data disguise consists of the chosen set of transformations, and determines the
