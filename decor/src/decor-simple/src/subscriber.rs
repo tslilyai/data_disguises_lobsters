@@ -9,7 +9,7 @@ use crate::{helpers, ghosts::GhostOidMapping, types::{ObjectData}};
 
 const OID_COL: &'static str = "object_id";
 const GM_HASH_COL: &'static str = "ghost_mappings";
-const ED_HASH_COL: &'static str = "object_data";
+const OD_HASH_COL: &'static str = "object_data";
 const UNSUB_TABLE_NAME: &'static str = "unsubscribed";
 
 pub struct Subscriber{
@@ -28,7 +28,7 @@ pub fn delete_from_unsubscribed_table(db: &mut mysql::Conn, oid: u64) -> Result<
 
 pub fn insert_into_unsubscribed_table(db: &mut mysql::Conn, oid: u64, hash1: &str, hash2: &str) -> Result<(), mysql::Error> {
     let q = format!(r"INSERT INTO {} ({}, {}, {}) VALUES ({}, '{}', '{}');",
-        UNSUB_TABLE_NAME, OID_COL, GM_HASH_COL, ED_HASH_COL, 
+        UNSUB_TABLE_NAME, OID_COL, GM_HASH_COL, OD_HASH_COL, 
         oid, helpers::escape_quotes_mysql(hash1), helpers::escape_quotes_mysql(hash2));
     warn!("insert into unsubscribed table {}", q);
     db.query_drop(q)?;
@@ -42,7 +42,7 @@ pub fn create_unsubscribed_table(db: &mut mysql::Conn, in_memory: bool) -> Resul
             `{}` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
             `{}` varchar(4096), 
             `{}` varchar(4096), INDEX oid (`{}`))", 
-        UNSUB_TABLE_NAME, OID_COL, GM_HASH_COL, ED_HASH_COL, OID_COL);
+        UNSUB_TABLE_NAME, OID_COL, GM_HASH_COL, OD_HASH_COL, OID_COL);
     if in_memory {
         q.push_str(" ENGINE = MEMORY");
     }
