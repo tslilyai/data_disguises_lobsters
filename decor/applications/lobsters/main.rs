@@ -184,6 +184,44 @@ fn cpuset_for_core(topology: &mut Topology, idx: usize) -> CpuSet {
     }
 }
 
+fn run_unsub_test(db: &mut mysql::Conn, scale: f64, prime: bool, testname: &'static str) {
+    let sampler = datagen::Sampler::new(scale);
+    if prime {
+        datagen::gen_data(&sampler, db);
+    }
+    
+    let mut file = File::create(format!("{}.out", testname)).unwrap();
+    for i in 0..sampler.nusers() {
+        let user_id = i as u64 + 1;
+        let mut user_stories = 0;
+        let mut user_comments = 0;
+        let res = db.query_iter(format!(r"SELECT COUNT(*) FROM stories WHERE user_id={};", user_id)).unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 1);
+            user_stories =helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        }
+        let res = db.query_iter(format!(r"SELECT COUNT(*) FROM comments WHERE user_id={};", user_id)).unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 1);
+            user_comments =helpers::mysql_val_to_u64(&vals[0]).unwrap();
+        }
+
+        let start = time::Instant::now();
+        let gids = queriers::user::unsubscribe_user(user_id, db);
+        let dur = start.elapsed();
+        file.write(format!("{}, {}, {}, ", user_id, user_stories+user_comments, dur.as_micros()).as_bytes()).unwrap();
+        
+        let start = time::Instant::now();
+        queriers::user::resubscribe_user(user_id, &gids, db);
+        let dur = start.elapsed();
+        file.write(format!("{}\n", dur.as_micros()).as_bytes()).unwrap();
+    }
+        
+    file.flush().unwrap();
+}
+
 fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, prime: bool, testname: &'static str, prop_unsub: f64) {
     //let (mut db, jh) = init_db(topo.clone(), test.clone(), testname, prime);
     let sampler = datagen::Sampler::new(scale);
@@ -301,14 +339,27 @@ fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, pri
 fn main() {
     init_logger();
     let args = Cli::from_args();
-    let test = args.test;
+    //let test = args.test;
     let nqueries = args.nqueries;
     let scale = args.scale;
     let prime = args.prime;
-    let testname = args.testname;
+    //let testname = args.testname;
     let prop_unsub = args.prop_unsub;
 
-    use TestType::*;
+    let tid_core = 2;
+    let topo = Arc::new(Mutex::new(Topology::new()));
+    let tid = unsafe { libc::pthread_self() };
+    
+    let mut locked_topo = topo.lock().unwrap();
+    let mut cpuset = cpuset_for_core(&mut *locked_topo, tid_core);
+    cpuset.singlify();
+    locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
+    drop(locked_topo);
+
+    let (mut db, _) = init_db(topo, tid_core, TestType::TestDecor, "decor_unsub", prime);
+    run_unsub_test(&mut db, scale, prime, "decor_unsub");
+
+    /*use TestType::*;
     let tests = &[TestDecor];
     let testnames = vec!["decor"];
     //let tests = vec![TestNoShim, TestShim, TestDecor, TestShimParse];
@@ -340,7 +391,7 @@ fn main() {
             }
         //}));
         core += 2;
-    }
+    }*/
     /*for thread in threads {
         thread.join().unwrap();
     }*/
