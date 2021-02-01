@@ -712,9 +712,13 @@ impl Views {
                         // update graph
                         for (pci, parent_table) in &view.parent_cols {
                             if *pci == *ci {
+                                let poid = &rptr.row().borrow()[*ci];
+                                if *poid == Value::Null {
+                                    continue;
+                                }
                                 let old_parent = ObjectIdentifier {
                                     table: parent_table.clone(),
-                                    oid: helpers::parser_val_to_u64(&rptr.row().borrow()[*ci]),
+                                    oid: helpers::parser_val_to_u64(poid),
                                 };
                                 let new = helpers::parser_val_to_u64_opt(&v);
                                 let new_parent = match new {
@@ -742,9 +746,13 @@ impl Views {
                         // update graph
                         for (pci, parent_table) in &view.parent_cols {
                             if *pci == *ci {
+                                let poid = &rptr.row().borrow()[*ci];
+                                if *poid == Value::Null {
+                                    continue;
+                                }
                                 let old_parent = ObjectIdentifier {
                                     table: parent_table.clone(),
-                                    oid: helpers::parser_val_to_u64(&rptr.row().borrow()[*ci]),
+                                    oid: helpers::parser_val_to_u64(poid),
                                 };
                                 let new = helpers::parser_val_to_u64_opt(&v);
                                 let new_parent = match new {
@@ -777,9 +785,13 @@ impl Views {
         let mut view = self.views.get(table).unwrap().borrow_mut();
         for (pci, parent_table) in &view.parent_cols {
             if *pci == ci {
+                let poid = &rptr.borrow()[ci];
+                if *poid == Value::Null {
+                    continue;
+                }
                 let old_parent = ObjectIdentifier {
                     table: parent_table.clone(),
-                    oid: helpers::parser_val_to_u64(&rptr.borrow()[ci]),
+                    oid: helpers::parser_val_to_u64(poid),
                 };
                 let new_parent = match col_val {
                     None => None,
@@ -812,9 +824,13 @@ impl Views {
             for ci in 0..len {
                 for (pci, parent_table) in &view.parent_cols {
                     if *pci == ci {
+                        let poid = &rptr.borrow()[ci];
+                        if *poid == Value::Null {
+                            continue;
+                        }
                         let old_parent = ObjectIdentifier {
                             table: parent_table.clone(),
-                            oid: helpers::parser_val_to_u64(&rptr.borrow()[ci]),
+                            oid: helpers::parser_val_to_u64(poid),
                         };
                         self.graph.update_edge(
                             &view.name, HashedRowPtr(rptr.clone(), view.primary_index), 
@@ -841,9 +857,13 @@ impl Views {
             for ci in 0..len {
                 for (pci, parent_table) in &view.parent_cols {
                     if *pci == ci {
+                        let poid = &rptr.borrow()[ci];
+                        if *poid == Value::Null {
+                            continue;
+                        }
                         let old_parent = ObjectIdentifier {
                             table: parent_table.clone(),
-                            oid: helpers::parser_val_to_u64(&rptr.borrow()[ci]),
+                            oid: helpers::parser_val_to_u64(poid),
                         };
                         self.graph.update_edge(&view.name, 
                                                HashedRowPtr::new(rptr.clone(), view.primary_index), 
@@ -880,9 +900,13 @@ impl Views {
             for ci in 0..len {
                 for (pci, parent_table) in &view.parent_cols {
                     if *pci == ci {
+                        let poid = &rptr.row().borrow()[ci];
+                        if *poid == Value::Null {
+                            continue;
+                        }
                         let old_parent = ObjectIdentifier {
                             table: parent_table.clone(),
-                            oid: helpers::parser_val_to_u64(&rptr.row().borrow()[ci]),
+                            oid: helpers::parser_val_to_u64(poid),
                         };
                         self.graph.update_edge(&view.name, rptr.clone(), old_parent, None, ci);
                         break;

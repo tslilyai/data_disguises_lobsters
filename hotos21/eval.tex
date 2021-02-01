@@ -126,11 +126,11 @@ application and database, and applying disguises (\eg creating guises). We imple
 several \sys variants to explore different performance tradeoffs. 
 
 The first adds as little overhead as possible to normal execution, only intercepting queries and
-tracking an in-memory the object graph. Adding the shim layer decreases throughput by roughly 5\%,
-and query parsing reduces throughput another 5\%, which can be improved by using prepared queries
-and caching query results. All disguise transformations occur at disguise application. In
-the worst case, disguising requires creating or removing potentially as many objects or guises as
-the number of edges connected to the target.
+tracking an in-memory the object graph. Adding the shim layer decreases throughput by roughly 4\%,
+and query parsing and graph tracking reduces throughput another 5\%.
+%, which can be improved by using prepared queries and caching query results. 
+Disguise application in the worst case requires creating or removing potentially as many 
+guises as the number of edges connected to the target.
 
 The second variant amortizes the cost of disguising across normal execution, keeping a ``shadow''
 copy of the database that reflects the disguised state (\ie with guises already created, and edges

@@ -566,7 +566,11 @@ impl Querier {
         }
         
         for (table, table_children) in tables_to_children.iter() {
-            let edge_policies = self.policy.edge_policies.get(table).unwrap().clone();
+            warn!("UNSUB: CP Edges, getting policies for table {}", table);
+            let edge_policies = match self.policy.edge_policies.get(table) {
+                None => continue,
+                Some(ep) => ep.clone(),
+            };
             let poster_child = table_children[0];
             let child_columns = self.views.get_view_columns(&table);
     
@@ -584,6 +588,10 @@ impl Querier {
                     }
 
                     let parent_oid_val = &child.hrptr.row().borrow()[ci];
+                    if *parent_oid_val == Value::Null {
+                        continue;
+                    }
+                    warn!("UNSUB: CP Edges, child of table {} is {:?}, parent col {}, {}", table, child.hrptr, ci, parent_oid_val);
                     let parent_oid = helpers::parser_val_to_u64(parent_oid_val);
                     if let Some(count) = parent_oid_counts.get_mut(&parent_oid) {
                         count.push(child);

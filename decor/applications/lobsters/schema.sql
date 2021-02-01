@@ -38,38 +38,4 @@ DROP TABLE IF EXISTS `users` CASCADE;
 CREATE TABLE `users` (`id` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY, `username` varchar(50) COLLATE utf8mb4_general_ci, `karma` int DEFAULT 0 NOT NULL, UNIQUE INDEX `username`  (`username`)) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 DROP TABLE IF EXISTS `votes` CASCADE;
 CREATE TABLE `votes` (`id` bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY, `user_id` int unsigned NOT NULL, `story_id` int unsigned NOT NULL, `comment_id` int unsigned, `vote` tinyint NOT NULL, `reason` varchar(1),  INDEX `index_votes_on_comment_id`  (`comment_id`),  INDEX `user_id_comment_id`  (`user_id`, `comment_id`),  INDEX `user_id_story_id`  (`user_id`, `story_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8;
--- Original:
--- CREATE VIEW `replying_comments` AS       select `read_ribbons`.`user_id` AS `user_id`,`comments`.`id` AS `comment_id`,`read_ribbons`.`story_id` AS `story_id`,`comments`.`parent_comment_id` AS `parent_comment_id`,`comments`.`created_at` AS `comment_created_at`,`parent_comments`.`user_id` AS `parent_comment_author_id`,`comments`.`user_id` AS `comment_author_id`,`stories`.`user_id` AS `story_author_id`,(`read_ribbons`.`updated_at` < `comments`.`created_at`) AS `is_unread`,(select `votes`.`vote` from `votes` where ((`votes`.`user_id` = `read_ribbons`.`user_id`) and (`votes`.`comment_id` = `comments`.`id`))) AS `current_vote_vote`,(select `votes`.`reason` from `votes` where ((`votes`.`user_id` = `read_ribbons`.`user_id`) and (`votes`.`comment_id` = `comments`.`id`))) AS `current_vote_reason` from (((`read_ribbons` join `comments` on((`comments`.`story_id` = `read_ribbons`.`story_id`))) join `stories` on((`stories`.`id` = `comments`.`story_id`))) left join `comments` `parent_comments` on((`parent_comments`.`id` = `comments`.`parent_comment_id`))) where ((`read_ribbons`.`is_following` = 1) and (`comments`.`user_id` <> `read_ribbons`.`user_id`) and (`comments`.`is_deleted` = 0) and (`comments`.`is_moderated` = 0) and ((`parent_comments`.`user_id` = `read_ribbons`.`user_id`) or (isnull(`parent_comments`.`user_id`) and (`stories`.`user_id` = `read_ribbons`.`user_id`))) and ((`comments`.`upvotes` - `comments`.`downvotes`) >= 0) and (isnull(`parent_comments`.`id`) or ((`parent_comments`.`upvotes` - `parent_comments`.`downvotes`) >= 0)));
---
--- Modified:
--- CREATE VIEW `replying_comments_for_count` AS
--- 	SELECT `read_ribbons`.`user_id`, `read_ribbons`.`story_id`, `comments`.`id`
--- 	FROM `read_ribbons`
--- 	JOIN `stories` ON (`stories`.`id` = `read_ribbons`.`story_id`)
--- 	JOIN `comments` ON (`comments`.`story_id` = `read_ribbons`.`story_id`)
--- 	LEFT JOIN `comments` AS `parent_comments`
--- 	ON (`parent_comments`.`id` = `comments`.`parent_comment_id`)
--- 	WHERE `read_ribbons`.`is_following` = 1
--- 	AND `comments`.`user_id` <> `read_ribbons`.`user_id`
--- 	AND `comments`.`is_deleted` = 0
--- 	AND `comments`.`is_moderated` = 0
--- 	AND ( `comments`.`upvotes` - `comments`.`downvotes` ) >= 0
--- 	AND `read_ribbons`.`updated_at` < `comments`.`created_at`
--- 	AND (
---      (
---             `parent_comments`.`user_id` = `read_ribbons`.`user_id`
---             AND
---             ( `parent_comments`.`upvotes` - `parent_comments`.`downvotes` ) >= 0
---      )
---      OR
---      (
---             `parent_comments`.`id` IS NULL
---             AND
---             `stories`.`user_id` = `read_ribbons`.`user_id`
---      )
---      );
---
--- Without newlines:
---CREATE VIEW `replying_comments_for_count` AS SELECT `read_ribbons`.`user_id`, `read_ribbons`.`story_id`, `comments`.`id` FROM `read_ribbons` JOIN `stories` ON (`stories`.`id` = `read_ribbons`.`story_id`) JOIN `comments` ON (`comments`.`story_id` = `read_ribbons`.`story_id`) LEFT JOIN `comments` AS `parent_comments` ON (`parent_comments`.`id` = `comments`.`parent_comment_id`) WHERE `read_ribbons`.`is_following` = 1 AND `comments`.`user_id` <> `read_ribbons`.`user_id` AND `comments`.`is_deleted` = 0 AND `comments`.`is_moderated` = 0 AND ( `comments`.`upvotes` - `comments`.`downvotes` ) >= 0 AND `read_ribbons`.`updated_at` < `comments`.`created_at` AND ( ( `parent_comments`.`user_id` = `read_ribbons`.`user_id` AND ( `parent_comments`.`upvotes` - `parent_comments`.`downvotes` ) >= 0) OR ( `parent_comments`.`id` IS NULL AND `stories`.`user_id` = `read_ribbons`.`user_id`));
-
 INSERT INTO `tags` (`tag`) VALUES ('test');
