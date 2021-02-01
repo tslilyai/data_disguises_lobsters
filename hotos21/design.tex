@@ -1,5 +1,5 @@
 %-------------------------------------------------------------------------------
-\section{Data Disguising: A New Approach to Privacy Policies}
+\section{Data Disguising}
 %-------------------------------------------------------------------------------
 %\begin{figure}[t!]
 %    \centering
@@ -11,6 +11,7 @@
 \lyt{TODO (Frans): drive w/explicit example of table rows and foreign key relationships, too
 abstract. Start with Figure~\ref{fig:arch}?}
 
+%
 To enable developers to better support existing and new privacy policies without onerous manual
 labor, we propose \emph{data disguising}.
 %
@@ -142,7 +143,7 @@ Developers choose how to create guise edge and value attributes, selecting from 
         the template value, or the encrypted template value). Figure~\ref{fig:guises} illustrates
         an example of random (\texttt{username}) and default (\texttt{active}) generated value attributes.
 
-        To create new guise edge attributes (\eg new foreign key relationships), the data disguise 
+        To create new guise edge attributes (\eg new foreign key relationships), the data disguise
         recursively generates a guise for the connected object, and rewrites the edge to the new
         guise.  Figure~\ref{fig:guises} shows how creating two user guises recursively creates two
         tag guises, and uses the tag guises' identifiers as foreign key constraints.
