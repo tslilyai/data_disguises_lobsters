@@ -1,9 +1,9 @@
-use decor::policy::{GeneratePolicy, GhostColumnPolicy, EntityGhostPolicies, EdgePolicy, MaskPolicy, EntityName};
+use decor::policy::{GeneratePolicy, GhostColumnPolicy, ObjectGhostPolicies, EdgePolicy, MaskPolicy, ObjectName};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-fn get_pc_ghost_policies() -> EntityGhostPolicies {
-    let mut ghost_policies : EntityGhostPolicies = HashMap::new();
+fn get_pc_ghost_policies() -> ObjectGhostPolicies {
+    let mut ghost_policies : ObjectGhostPolicies = HashMap::new();
 
     let mut users_map = HashMap::new();
     users_map.insert("contactId".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
@@ -34,7 +34,7 @@ fn get_pc_ghost_policies() -> EntityGhostPolicies {
     ghost_policies 
 }
 
-fn get_edge_policies() -> HashMap<EntityName, Rc<Vec<EdgePolicy>>> {
+fn get_edge_policies() -> HashMap<ObjectName, Rc<Vec<EdgePolicy>>> {
     use decor::policy::EdgePolicyType::*;
 
     let mut edge_policies = HashMap::new();
@@ -494,7 +494,7 @@ fn get_edge_policies() -> HashMap<EntityName, Rc<Vec<EdgePolicy>>> {
      *
      * It seems like the email address is used as a foreign key to identify the user as
      * well, so this should also be "decorrelated" (this email address identifies an
-     * "abstract" entity)
+     * "abstract" object)
      *
      * If the paper or paper review are sensitive (e.g., a paper author unsubscribed), the
      * refused review can still remain linked to its contacts. 
@@ -679,7 +679,7 @@ fn get_edge_policies() -> HashMap<EntityName, Rc<Vec<EdgePolicy>>> {
      *
      * It again seems like the email address is used as a foreign key to identify the user as
      * well, so this should also be "decorrelated" (this email address identifies an
-     * "abstract" entity)
+     * "abstract" object)
      */
     edge_policies.insert("ReviewRequest".to_string(),
         Rc::new(vec![
@@ -740,7 +740,7 @@ fn get_edge_policies() -> HashMap<EntityName, Rc<Vec<EdgePolicy>>> {
 
 pub fn get_hotcrp_policy() -> MaskPolicy {
     MaskPolicy{
-        unsub_entity_type: "ContactInfo".to_string(), 
+        unsub_object_type: "ContactInfo".to_string(), 
         pc_ghost_policies : get_pc_ghost_policies(), 
         cp_ghost_policies : HashMap::new(), 
         edge_policies : get_edge_policies(),

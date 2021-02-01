@@ -1,9 +1,9 @@
-use decor::policy::{GeneratePolicy, GhostColumnPolicy, EntityGhostPolicies, EdgePolicy, MaskPolicy, EntityName};
+use decor::policy::{GeneratePolicy, GhostColumnPolicy, ObjectGhostPolicies, EdgePolicy, MaskPolicy, ObjectName};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-fn get_pc_ghost_policies() -> EntityGhostPolicies {
-    let mut ghost_policies : EntityGhostPolicies = HashMap::new();
+fn get_pc_ghost_policies() -> ObjectGhostPolicies {
+    let mut ghost_policies : ObjectGhostPolicies = HashMap::new();
 
     let mut users_map = HashMap::new();
     users_map.insert("id".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
@@ -42,8 +42,8 @@ fn get_pc_ghost_policies() -> EntityGhostPolicies {
     ghost_policies 
 }
 
-fn get_cp_ghost_policies() -> EntityGhostPolicies {
-    let mut ghost_policies : EntityGhostPolicies = HashMap::new();
+fn get_cp_ghost_policies() -> ObjectGhostPolicies {
+    let mut ghost_policies : ObjectGhostPolicies = HashMap::new();
 
     let mut users_map = HashMap::new();
     users_map.insert("id".to_string(), GhostColumnPolicy::CloneOne(GeneratePolicy::Random));
@@ -82,7 +82,7 @@ fn get_cp_ghost_policies() -> EntityGhostPolicies {
     ghost_policies 
 }
 
-fn get_edge_policies() -> HashMap<EntityName, Rc<Vec<EdgePolicy>>> {
+fn get_edge_policies() -> HashMap<ObjectName, Rc<Vec<EdgePolicy>>> {
     use decor::policy::EdgePolicyType::*;
 
     let mut edge_policies = HashMap::new();
@@ -233,7 +233,7 @@ fn get_edge_policies() -> HashMap<EntityName, Rc<Vec<EdgePolicy>>> {
 
 pub fn get_lobsters_policy() -> MaskPolicy {
     MaskPolicy{
-        unsub_entity_type: "users".to_string(), 
+        unsub_object_type: "users".to_string(), 
         pc_ghost_policies : get_pc_ghost_policies(), 
         cp_ghost_policies : get_cp_ghost_policies(), 
         edge_policies : get_edge_policies(),
