@@ -129,6 +129,7 @@ The first adds as little overhead as possible to normal execution, only intercep
 tracking an in-memory the object graph. Adding the shim layer decreases throughput by roughly 4\%,
 and query parsing and graph tracking reduces throughput another 5\%.
 %, which can be improved by using prepared queries and caching query results. 
+%\lyt{These numbers come from lobsters running at 0.5 scale, w/0\% unsub}
 Disguise application in the worst case requires creating or removing potentially as many 
 guises as the number of edges connected to the target.
 
@@ -149,8 +150,8 @@ to write query multiplication.
 
 These variants highlight some of the possibilities to balance space and performance tradeoffs; other
 possibilites to explore include amortizing the cost of disguising by supporting \eg only eventually
-consistent disguises; updating the shadow, disguised database asynchronously; and using dataflow
-to automatically update materialized views when disguising.
+consistent disguises; updating the shadow, disguised database asynchronously; and using dataflow to
+automatically update materialized views when disguising.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \iffalse
