@@ -3,7 +3,7 @@ extern crate log;
 
 use mysql::prelude::*;
 use std::*;
-use decor_simple::{ghosts::GhostEidMapping, EntityData, helpers};
+use decor_simple::{ghosts::GhostOidMapping, types::ObjectData, helpers};
 use std::collections::{HashSet};
 use std::str::FromStr;
 mod policies;
@@ -37,7 +37,7 @@ fn init_dbs(name: &'static str, policy: policies::PolicyType, db: &mut mysql::Co
                     name, SCHEMA, app_policy, 
                     decor_simple::TestParams{
                         testname: name.to_string(), 
-                        translate:true, parse:true, in_memory: true,
+                        use_mv:true, use_decor:true, parse:true, in_memory: true,
                         prime: true,}, s).unwrap();
         }
     });
@@ -83,7 +83,7 @@ fn restore_db(name: &'static str, policy: policies::PolicyType, db: &mut mysql::
                     name, SCHEMA, app_policy, 
                     decor_simple::TestParams{
                         testname: name.to_string(), 
-                        translate:true, parse:true, in_memory: true,
+                        use_mv:true, use_decor:true, parse:true, in_memory: true,
                         prime: false,}, s).unwrap();
         }
     });
@@ -283,9 +283,9 @@ fn test_init_complex() {
 
     // unsubscribe
     let mut gidshardstr : String = String::new(); 
-    let mut entitydatastr : String = String::new();
-    let mut unsubscribed_gids : Vec<GhostEidMapping> = vec![];
-    let mut entity_data : Vec<EntityData> = vec![];
+    let mut objectdatastr : String = String::new();
+    let mut unsubscribed_gids : Vec<GhostOidMapping> = vec![];
+    let mut object_data : Vec<ObjectData> = vec![];
     
     let mut uid = 0; 
     let res = db.query_iter(r"SELECT id FROM users WHERE username = 'hello_1';").unwrap();
@@ -301,36 +301,36 @@ fn test_init_complex() {
         let s1 = helpers::mysql_val_to_string(&vals[0]);
         let s2 = helpers::mysql_val_to_string(&vals[1]);
         gidshardstr = s1.trim_end_matches('\'').trim_start_matches('\'').to_string();
-        entitydatastr = s2.trim_end_matches('\'').trim_start_matches('\'').to_string();
+        objectdatastr = s2.trim_end_matches('\'').trim_start_matches('\'').to_string();
         unsubscribed_gids = serde_json::from_str(&gidshardstr).unwrap();
-        entity_data = serde_json::from_str(&entitydatastr).unwrap();
+        object_data = serde_json::from_str(&objectdatastr).unwrap();
     }
     for ugid in &unsubscribed_gids{
         println!("User1 {:?}", ugid);
     }
-    for entity in &entity_data {
-        println!("User1 {:?}", entity);
+    for object in &object_data {
+        println!("User1 {:?}", object);
     }
     for mapping in &unsubscribed_gids {
-        if mapping.table == "users" {
+        if mapping.name.table == "users" {
             // four ghosts for two stories, two moderations
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 4);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 0);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
-        } else if mapping.table == "stories" {
+        } else if mapping.name.table == "stories" {
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 1);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 0);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
-        } else if mapping.table == "moderations" {
+        } else if mapping.name.table == "moderations" {
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 0);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 1);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 0);
         } else {
-            assert!(false, "bad table! {}", mapping.table);
+            assert!(false, "bad table! {}", mapping.name.table);
         }
     }
     assert_eq!(unsubscribed_gids.len(), 5);
-    assert_eq!(entity_data.len(), 5); // one user, two stories, two moderations
+    assert_eq!(object_data.len(), 5); // one user, two stories, two moderations
 
     // drop db
     drop(db);
@@ -384,7 +384,7 @@ fn test_init_complex() {
     // resubscribe
     db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 1, 
                             helpers::escape_quotes_mysql(&gidshardstr),
-                            helpers::escape_quotes_mysql(&entitydatastr))).unwrap();
+                            helpers::escape_quotes_mysql(&objectdatastr))).unwrap();
     let mut results = vec![];
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.id;").unwrap();
     for row in res {

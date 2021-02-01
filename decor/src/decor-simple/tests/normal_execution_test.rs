@@ -30,7 +30,7 @@ fn test_normal_execution() {
                     "gdpr_normal", SCHEMA, policies::combined_policy(),
                     decor_simple::TestParams{
                         testname: "test_normal".to_string(), 
-                        translate:true, parse:true, in_memory: true,
+                        use_mv:true, use_decor:true, parse:true, in_memory: true,
                         prime: true}, s).unwrap();
         }
     });

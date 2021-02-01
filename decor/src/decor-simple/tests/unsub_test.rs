@@ -4,7 +4,7 @@ extern crate log;
 use mysql::prelude::*;
 use std::*;
 use log::warn;
-use decor_simple::{ghosts::GhostEidMapping, EntityData, helpers};
+use decor_simple::{ghosts::GhostOidMapping, types::{ObjectData, ObjectIdentifier}, helpers};
 use std::collections::{HashSet};
 mod policies;
 
@@ -36,7 +36,7 @@ fn init_dbs(name: &'static str, policy: policies::PolicyType, db: &mut mysql::Co
                     name, SCHEMA, app_policy, 
                     decor_simple::TestParams{
                         testname: name.to_string(), 
-                        translate:true, parse:true, in_memory: true,
+                        use_mv:true, use_decor:true, parse:true, in_memory: true,
                         prime: true,}, s).unwrap();
         }
     });
@@ -77,8 +77,8 @@ fn test_unsub_noop() {
      *  Unsubscribe of user 1 does nothing
      */
     let mut uid = 0; 
-    let mut unsubscribed_gids : Vec<GhostEidMapping>; 
-    let mut entity_data : Vec<EntityData> = vec![]; 
+    let mut unsubscribed_gids : Vec<GhostOidMapping>; 
+    let mut object_data : Vec<ObjectData> = vec![]; 
     let res = db.query_iter(r"SELECT id FROM users WHERE username = 'hello_1';").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
@@ -94,44 +94,54 @@ fn test_unsub_noop() {
         let s1 = s1.trim_end_matches('\'').trim_start_matches('\'');
         let s2 = s2.trim_end_matches('\'').trim_start_matches('\'');
         unsubscribed_gids = serde_json::from_str(s1).unwrap();
-        entity_data = serde_json::from_str(s2).unwrap();
+        object_data = serde_json::from_str(s2).unwrap();
         for ugid in &unsubscribed_gids{
             println!("User1 {:?}", ugid);
         }
-        for entity in &entity_data { 
-            println!("Entity! {:?}", entity);
+        for object in &object_data { 
+            println!("Object! {:?}", object);
         }
-        assert_eq!(entity_data.len(), 5); // user, two stories, two moderations
+        assert_eq!(object_data.len(), 5); // user, two stories, two moderations
         assert_eq!(unsubscribed_gids.len(), 5);
     }
-    assert_eq!(entity_data[0], 
-       EntityData{
-            table: "moderations".to_string(),
-            eid: 1,
+    assert_eq!(object_data[0], 
+       ObjectData{
+            name: ObjectIdentifier {
+                table: "moderations".to_string(),
+                oid: 1,
+            },
             row_strs: vec!["1".to_string(), "1".to_string(), "1".to_string(), "2".to_string(), "'bad story!'".to_string()],
        });
-    assert_eq!(entity_data[1], 
-       EntityData{
-            table: "moderations".to_string(),
-            eid: 2,
+    assert_eq!(object_data[1], 
+       ObjectData{
+            name: ObjectIdentifier {
+                table: "moderations".to_string(),
+                oid: 2,
+            },
             row_strs: vec!["2".to_string(), "2".to_string(), "2".to_string(), "1".to_string(), "'worst story!'".to_string()],
        });
-    assert_eq!(entity_data[2], 
-       EntityData{
-            table: "stories".to_string(),
-            eid: 1,
+    assert_eq!(object_data[2], 
+       ObjectData{
+            name: ObjectIdentifier {
+                table: "stories".to_string(),
+                oid: 1,
+            },
             row_strs: vec!["1".to_string(), "1".to_string(), "'google.com'".to_string(), "0".to_string()],
        });
-    assert_eq!(entity_data[3], 
-       EntityData{
-            table: "stories".to_string(),
-            eid: 2,
+    assert_eq!(object_data[3], 
+       ObjectData{
+            name: ObjectIdentifier {
+                table: "stories".to_string(),
+                oid: 2,
+            },
             row_strs: vec!["2".to_string(), "1".to_string(), "'bing.com'".to_string(), "0".to_string()],
        });
-    assert_eq!(entity_data[4], 
-       EntityData{
-            table: "users".to_string(), 
-            eid: 1,
+    assert_eq!(object_data[4], 
+       ObjectData{
+            name: ObjectIdentifier {
+                table: "users".to_string(), 
+                oid: 1,
+            },
             row_strs: vec!["1".to_string(), "'hello_1'".to_string(), "0".to_string()],
         });
     
@@ -170,32 +180,38 @@ fn test_unsub_noop() {
         let s1 = s1.trim_end_matches('\'').trim_start_matches('\'');
         let s2 = s2.trim_end_matches('\'').trim_start_matches('\'');
         unsubscribed_gids = serde_json::from_str(s1).unwrap();
-        entity_data = serde_json::from_str(s2).unwrap();
+        object_data = serde_json::from_str(s2).unwrap();
         for ugid in &unsubscribed_gids{
             println!("User2 {:?}", ugid);
         }
-        for entity in &entity_data {
-            println!("Entity! {:?}", entity);
+        for object in &object_data {
+            println!("Object! {:?}", object);
         }
         // note: we don't ghost entities twice, so we're only going to see user + two stories
-        assert_eq!(entity_data.len(), 3);
+        assert_eq!(object_data.len(), 3);
         assert_eq!(unsubscribed_gids.len(), 3);
-        assert_eq!(entity_data[0], 
-           EntityData{
-                table: "stories".to_string(),
-                eid: 3,
+        assert_eq!(object_data[0], 
+           ObjectData{
+                name: ObjectIdentifier {
+                    table: "stories".to_string(),
+                    oid: 3,
+                },
                 row_strs: vec!["3".to_string(), "2".to_string(), "'reddit.com'".to_string(), "0".to_string()],
            });
-        assert_eq!(entity_data[1], 
-           EntityData{
-                table: "stories".to_string(),
-                eid: 4,
+        assert_eq!(object_data[1], 
+           ObjectData{
+                name: ObjectIdentifier {
+                    table: "stories".to_string(),
+                    oid: 4,
+                },
                 row_strs: vec!["4".to_string(), "2".to_string(), "'fb.com'".to_string(), "0".to_string()],
            });
-        assert_eq!(entity_data[2], 
-           EntityData{
-                table: "users".to_string(), 
-                eid: 2,
+        assert_eq!(object_data[2], 
+           ObjectData{
+                name: ObjectIdentifier {
+                    table: "users".to_string(), 
+                    oid: 2,
+                },
                 row_strs: vec!["2".to_string(), "'hello_2'".to_string(), "0".to_string()],
             });
     }
@@ -248,18 +264,18 @@ fn test_unsub_complex() {
      *      1 GID returned for story 1, 1 ghost user ancestor
      *      1 GID returned for story 2, 1 ghost user ancestor
      *      Created: for each real moderation, generate 2 moderations, 2 stories, 6 ghost user entities (2 for stories, 2 for moderations)
-     *  EntityData:
+     *  ObjectData:
      *      User 1
      *      Story 1
      *      Story 2
      */
     let mut gidshardstr1 : String = String::new(); 
-    let mut entitydatastr1 : String = String::new();
+    let mut objectdatastr1 : String = String::new();
     let mut gidshardstr2 : String = String::new(); 
-    let mut entitydatastr2 : String = String::new();
+    let mut objectdatastr2 : String = String::new();
 
-    let mut unsubscribed_gids : Vec<GhostEidMapping> = vec![];
-    let mut entity_data : Vec<EntityData> = vec![];
+    let mut unsubscribed_gids : Vec<GhostOidMapping> = vec![];
+    let mut object_data : Vec<ObjectData> = vec![];
     let mut user_counts = 0;
     let mut story_counts = 0;
     let mut mod_counts = 0;
@@ -278,70 +294,80 @@ fn test_unsub_complex() {
         let s1 = helpers::mysql_val_to_string(&vals[0]);
         let s2 = helpers::mysql_val_to_string(&vals[1]);
         gidshardstr1 = s1.trim_end_matches('\'').trim_start_matches('\'').to_string();
-        entitydatastr1 = s2.trim_end_matches('\'').trim_start_matches('\'').to_string();
+        objectdatastr1 = s2.trim_end_matches('\'').trim_start_matches('\'').to_string();
         unsubscribed_gids = serde_json::from_str(&gidshardstr1).unwrap();
-        entity_data = serde_json::from_str(&entitydatastr1).unwrap();
+        object_data = serde_json::from_str(&objectdatastr1).unwrap();
     }
     for ugid in &unsubscribed_gids{
         println!("User1 {:?}", ugid);
     }
-    for entity in &entity_data {
-        println!("User1 {:?}", entity);
+    for object in &object_data {
+        println!("User1 {:?}", object);
     }
     for mapping in &unsubscribed_gids {
-        if mapping.table == "users" {
+        if mapping.name.table == "users" {
             // four ghosts for two stories, two moderations
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 4);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 0);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
             user_counts += 1;
-        } else if mapping.table == "stories" {
+        } else if mapping.name.table == "stories" {
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 1);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 0);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
             story_counts += 1;
-        } else if mapping.table == "moderations" {
+        } else if mapping.name.table == "moderations" {
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 0);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 1);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 0);
             mod_counts += 1;
         } else {
-            assert!(false, "bad table! {}", mapping.table);
+            assert!(false, "bad table! {}", mapping.name.table);
         }
     }
     assert_eq!(unsubscribed_gids.len(), 5);
     assert_eq!(user_counts, 1); 
     assert_eq!(story_counts, 2); 
     assert_eq!(mod_counts, 2); 
-    assert_eq!(entity_data.len(), 5); // one user, two stories, two moderations
-    assert_eq!(entity_data[0], 
-       EntityData{
-            table: "moderations".to_string(),
-            eid: 1,
+    assert_eq!(object_data.len(), 5); // one user, two stories, two moderations
+    assert_eq!(object_data[0], 
+        ObjectData{
+            name: ObjectIdentifier {
+                table: "moderations".to_string(),
+                oid: 1,
+            },
             row_strs: vec!["1".to_string(), "1".to_string(), "2".to_string(), "2".to_string(), "'bad story!'".to_string()],
        });
-    assert_eq!(entity_data[1], 
-       EntityData{
-            table: "moderations".to_string(),
-            eid: 2,
+    assert_eq!(object_data[1], 
+       ObjectData{
+            name: ObjectIdentifier {
+                table: "moderations".to_string(),
+                oid: 2,
+            },
             row_strs: vec!["2".to_string(), "2".to_string(), "1".to_string(), "1".to_string(), "'worst story!'".to_string()],
        });
-    assert_eq!(entity_data[2], 
-       EntityData{
-            table: "stories".to_string(),
-            eid: 1,
+    assert_eq!(object_data[2], 
+       ObjectData{
+            name: ObjectIdentifier {
+                table: "stories".to_string(),
+                oid: 1,
+            },
             row_strs: vec!["1".to_string(), "1".to_string(), "'google.com'".to_string(), "0".to_string()],
        });
-    assert_eq!(entity_data[3], 
-       EntityData{
-            table: "stories".to_string(),
-            eid: 2,
+    assert_eq!(object_data[3], 
+       ObjectData{
+            name: ObjectIdentifier {
+                table: "stories".to_string(),
+                oid: 2,
+            },
             row_strs: vec!["2".to_string(), "1".to_string(), "'bing.com'".to_string(), "0".to_string()],
        });
-    assert_eq!(entity_data[4], 
-       EntityData{
-            table: "users".to_string(), 
-            eid: 1,
+    assert_eq!(object_data[4], 
+       ObjectData{
+            name: ObjectIdentifier {
+                table: "users".to_string(), 
+                oid: 1,
+            },
             row_strs: vec!["1".to_string(), "'hello_1'".to_string(), "0".to_string()],
         });
    
@@ -411,54 +437,60 @@ fn test_unsub_complex() {
         let s1 = helpers::mysql_val_to_string(&vals[0]);
         let s2 = helpers::mysql_val_to_string(&vals[1]);
         gidshardstr2 = s1.trim_end_matches('\'').trim_start_matches('\'').to_string();
-        entitydatastr2 = s2.trim_end_matches('\'').trim_start_matches('\'').to_string();
+        objectdatastr2 = s2.trim_end_matches('\'').trim_start_matches('\'').to_string();
         unsubscribed_gids = serde_json::from_str(&gidshardstr2).unwrap();
-        entity_data = serde_json::from_str(&entitydatastr2).unwrap();
+        object_data = serde_json::from_str(&objectdatastr2).unwrap();
     }
     for ugid in &unsubscribed_gids{
         println!("User2 {:?}", ugid);
     }
-    for entity in &entity_data {
-        println!("User2 {:?}", entity);
+    for object in &object_data {
+        println!("User2 {:?}", object);
     }
     for mapping in &unsubscribed_gids {
-        if mapping.table == "users" {
+        if mapping.name.table == "users" {
             // four ghosts for two stories, two moderations
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 4);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 0);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
             user_counts += 1;
-        } else if mapping.table == "stories" {
+        } else if mapping.name.table == "stories" {
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "stories").count(), 1);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "users").count(), 0);
             assert_eq!(mapping.ghosts.iter().filter(|(tab, _gid)| tab == "moderations").count(), 0);
             story_counts += 1;
-        } else if mapping.table == "moderations" {
+        } else if mapping.name.table == "moderations" {
             assert!(false, "moderations should all be ghosts!");
         } else {
-            assert!(false, "bad table! {}", mapping.table);
+            assert!(false, "bad table! {}", mapping.name.table);
         }
     }
     assert_eq!(unsubscribed_gids.len(), 3);
     assert_eq!(user_counts, 1); 
     assert_eq!(story_counts, 2); 
-    assert_eq!(entity_data.len(), 3); // one user, two stories
-    assert_eq!(entity_data[0], 
-       EntityData{
-            table: "stories".to_string(),
-            eid: 3,
+    assert_eq!(object_data.len(), 3); // one user, two stories
+    assert_eq!(object_data[0], 
+       ObjectData{
+            name: ObjectIdentifier {
+                table: "stories".to_string(),
+                oid: 3,
+            },
             row_strs: vec!["3".to_string(), "1".to_string(), "'reddit.com'".to_string(), "0".to_string()],
        });
-    assert_eq!(entity_data[1], 
-       EntityData{
-            table: "stories".to_string(),
-            eid: 4,
+    assert_eq!(object_data[1], 
+       ObjectData{
+            name: ObjectIdentifier {
+                table: "stories".to_string(),
+                oid: 4,
+            },
             row_strs: vec!["4".to_string(), "1".to_string(), "'fb.com'".to_string(), "0".to_string()],
        });
-    assert_eq!(entity_data[2], 
-       EntityData{
-            table: "users".to_string(), 
-            eid: 2,
+    assert_eq!(object_data[2], 
+       ObjectData{
+            name: ObjectIdentifier {
+                table: "users".to_string(), 
+                oid: 2,
+            },
             row_strs: vec!["2".to_string(), "'hello_2'".to_string(), "0".to_string()],
         });
    
@@ -513,16 +545,16 @@ fn test_unsub_complex() {
      */
     warn!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 1, 
           helpers::escape_quotes_mysql(&gidshardstr1), 
-          helpers::escape_quotes_mysql(&entitydatastr1));
+          helpers::escape_quotes_mysql(&objectdatastr1));
     db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 1, 
                             helpers::escape_quotes_mysql(&gidshardstr1),
-                            helpers::escape_quotes_mysql(&entitydatastr1))).unwrap();
+                            helpers::escape_quotes_mysql(&objectdatastr1))).unwrap();
     warn!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 2, 
           helpers::escape_quotes_mysql(&gidshardstr2), 
-          helpers::escape_quotes_mysql(&entitydatastr2));
+          helpers::escape_quotes_mysql(&objectdatastr2));
     db.query_drop(format!("RESUBSCRIBE UID {} WITH GIDS {} WITH DATA {};", 2, 
                             helpers::escape_quotes_mysql(&gidshardstr2),
-                            helpers::escape_quotes_mysql(&entitydatastr2))).unwrap();
+                            helpers::escape_quotes_mysql(&objectdatastr2))).unwrap();
 
     let mut results = vec![];
     let res = db.query_iter(r"SELECT * FROM moderations ORDER BY moderations.id;").unwrap();

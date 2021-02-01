@@ -2,7 +2,7 @@ use std::collections::{HashMap};
 use std::rc::Rc;
 
 use decor_simple::policy::{
-    EdgePolicy, GhostColumnPolicy, GeneratePolicy, EntityGhostPolicies, MaskPolicy,
+    EdgePolicy, GhostColumnPolicy, GeneratePolicy, ObjectGhostPolicies, MaskPolicy,
     EdgePolicyType::*
 };
 
@@ -11,7 +11,7 @@ pub enum PolicyType {
     Combined,
 }
 
-fn pc_ghost_gen_policies() -> EntityGhostPolicies {
+fn pc_ghost_gen_policies() -> ObjectGhostPolicies {
     let mut ghost_policies = HashMap::new();
     
     /*let mut users_map = HashMap::new();
@@ -37,7 +37,7 @@ fn pc_ghost_gen_policies() -> EntityGhostPolicies {
     ghost_policies
 }
 
-fn cp_ghost_gen_policies() -> EntityGhostPolicies {
+fn cp_ghost_gen_policies() -> ObjectGhostPolicies {
     let mut ghost_policies = HashMap::new();
     
     /*let mut users_map = HashMap::new();
@@ -95,7 +95,7 @@ pub fn noop_policy() -> MaskPolicy {
     ]));
     edge_policies.insert("users".to_string(), Rc::new(vec![]));
     MaskPolicy{
-        unsub_entity_type: "users".to_string(),
+        unsub_object_type: "users".to_string(),
         pc_ghost_policies: pc_ghost_gen_policies(), 
         cp_ghost_policies: cp_ghost_gen_policies(), 
         edge_policies: edge_policies,
@@ -133,7 +133,7 @@ pub fn noop_policy() -> MaskPolicy {
     ]));
     edge_policies.insert("users".to_string(), Rc::new(vec![]));
     MaskPolicy{
-        unsub_entity_type: "users".to_string(),
+        unsub_object_type: "users".to_string(),
         pc_ghost_policies: pc_ghost_gen_policies(), 
         cp_ghost_policies: cp_ghost_gen_policies(), 
         edge_policies: edge_policies,
@@ -171,7 +171,7 @@ pub fn noop_policy() -> MaskPolicy {
     ]));
     edge_policies.insert("users".to_string(), Rc::new(vec![]));
     MaskPolicy{
-        unsub_entity_type: "users".to_string(),
+        unsub_object_type: "users".to_string(),
         pc_ghost_policies: pc_ghost_gen_policies(), 
         cp_ghost_policies: cp_ghost_gen_policies(), 
         edge_policies: edge_policies,
@@ -209,7 +209,7 @@ pub fn noop_policy() -> MaskPolicy {
     ]));
     edge_policies.insert("users".to_string(), Rc::new(vec![]));
     MaskPolicy{
-        unsub_entity_type: "users".to_string(),
+        unsub_object_type: "users".to_string(),
         pc_ghost_policies: pc_ghost_gen_policies(), 
         cp_ghost_policies: cp_ghost_gen_policies(), 
         edge_policies: edge_policies,
@@ -247,7 +247,7 @@ pub fn combined_policy() -> MaskPolicy {
     ]));
     edge_policies.insert("users".to_string(), Rc::new(vec![]));
     MaskPolicy{
-        unsub_entity_type: "users".to_string(),
+        unsub_object_type: "users".to_string(),
         pc_ghost_policies: pc_ghost_gen_policies(), 
         cp_ghost_policies: cp_ghost_gen_policies(), 
         edge_policies: edge_policies,
