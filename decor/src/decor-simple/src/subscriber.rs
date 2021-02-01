@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::*;
 use log::{warn};
 use msql_srv::{QueryResultWriter};
-use crate::{helpers, ObjectData, ghosts::GhostOidMapping, querier::TraversedObject, views}; 
+use crate::{helpers, ghosts::GhostOidMapping, types::{ObjectData, TraversedObject}}; 
 
 const OID_COL: &'static str = "object_id";
 const GM_HASH_COL: &'static str = "ghost_mappings";
@@ -81,10 +81,9 @@ pub fn answer_rows<W: io::Write>(
 }
 
 pub fn traversed_object_to_objectdata(object: &TraversedObject) -> ObjectData {
-    ObjectData{
-        table: object.table.clone(),
-        oid: object.oid,
-        row_strs: views::hrptr_to_strs(&object.hrptr),
+    ObjectData {
+        name: object.name.clone(),
+        row_strs: object.hrptr.to_strs(),
     }
 }
 

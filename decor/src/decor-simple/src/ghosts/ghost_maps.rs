@@ -1,6 +1,8 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use crate::{ghosts, helpers, policy::ObjectGhostPolicies, views::{Views, RowPtr}, ID_COL};
+use crate::{ghosts, helpers, policy::ObjectGhostPolicies, ID_COL};
+use crate::views::{Views};
+use crate::types::{RowPtr, ObjectIdentifier};
 use crate::ghosts::{GhostOidMapping, GhostFamily, TemplateObject};
 use std::sync::atomic::Ordering;
 use std::*;
@@ -301,8 +303,10 @@ impl GhostMap {
         let new_entities = ghosts::generate_new_ghosts_from(
             views, gp, 
             &TemplateObject{
-                table: self.table_name.clone(), 
-                oid: oid,
+                name: ObjectIdentifier {
+                    table: self.table_name.clone(), 
+                    oid: oid,
+                },
                 row: from_vals, 
                 fixed_colvals: None,
             }, 1)?;
@@ -425,8 +429,10 @@ impl GhostMaps {
             let ghostdata = ghostdata.trim_end_matches('\'').trim_start_matches('\'');
             let family_ghost_names = serde_json::from_str(&ghostdata).unwrap();
             let mapping = GhostOidMapping {
-                table: table.to_string(),
-                oid: oid,
+                name: ObjectIdentifier {
+                    table: table.to_string(),
+                    oid: oid,
+                },
                 root_gids: root_gids,
                 ghosts: family_ghost_names,
             };

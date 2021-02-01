@@ -1,89 +1,74 @@
 use std::*;
 use std::collections::{HashMap, HashSet};
-use crate::views::{HashedRowPtrs, HashedRowPtr};
+use crate::types::{ForeignKey, HashedRowPtrs, HashedRowPtr, ObjectIdentifier};
 use log::{warn};
 
-/* entity type (parent table+parentcol) => children rptrs */
-pub type ObjectTypeRows = HashMap<(String, usize), HashedRowPtrs>;
+/* object type (child table+col index to parent) => children rptrs */
+pub type ObjectTypeRows = HashMap<ForeignKey, HashedRowPtrs>;
 
-/* parent oid value to ((table+parentcol)=> rptrs of children) */
-pub type ObjectEdges = HashMap<u64 , ObjectTypeRows>;
-pub struct ObjectGraph {
-    // map from parent type => map of parent id => children rptrs (map of type -> rptrs)
-    pub parents_to_children: HashMap<String, ObjectEdges>,
-}
+/* parent oid value to children rows */
+pub struct ObjectGraph(HashMap<ObjectIdentifier, ObjectTypeRows>);
 
 impl ObjectGraph {
     pub fn new() -> Self {
-        ObjectGraph {
-            parents_to_children: HashMap::new(),
-        }
+        ObjectGraph(HashMap::new())
     }
+
     pub fn add_edge(&mut self, 
-                    childrptr: HashedRowPtr, 
-                    child_table: &str,  
-                    parent_table: &str, 
-                    parent_oid: u64, 
-                    parent_col_index: usize) {
-        warn!("Adding edge from {} col {} val {} to {} val {:?}", parent_table, parent_col_index, parent_oid, child_table, childrptr);
-        if let Some(edges) = self.parents_to_children.get_mut(parent_table) {
-            if let Some(typ2rows) = edges.get_mut(&parent_oid) {
-                if let Some(rows) = typ2rows.get_mut(&(child_table.to_string(), parent_col_index)) {
-                    rows.insert(childrptr);
-                } else {
-                    let mut hs = HashSet::new();
-                    hs.insert(childrptr);
-                    typ2rows.insert((child_table.to_string(), parent_col_index), hs);
-                }
+            childrptr: HashedRowPtr, 
+            child_table: &str,  
+            parent_name: ObjectIdentifier,
+            parent_col_index: usize) {
+        warn!("Adding edge from {:?} col {} to {} val {:?}", parent_name, parent_col_index, child_table, childrptr);
+        let fk = ForeignKey{
+            child_table: child_table.to_string(), 
+            col_index: parent_col_index,
+            parent_table: parent_name.table.to_string(), 
+        };
+        if let Some(typ2rows) = self.0.get_mut(&parent_name) {
+            if let Some(rows) = typ2rows.get_mut(&fk) {
+                rows.insert(childrptr);
             } else {
-                let mut hm = HashMap::new();
                 let mut hs = HashSet::new();
                 hs.insert(childrptr);
-                hm.insert((child_table.to_string(), parent_col_index), hs);
-                edges.insert(parent_oid, hm);
+                typ2rows.insert(fk, hs);
             }
         } else {
-            let mut parenthm = HashMap::new();
             let mut hm = HashMap::new();
-            let mut hs = HashSet::new();
-            hs.insert(childrptr);
-            hm.insert((child_table.to_string(), parent_col_index), hs);
-            parenthm.insert(parent_oid, hm);
-            self.parents_to_children.insert(parent_table.to_string(), parenthm);
+            let mut hrptrs = HashSet::new();
+            hrptrs.insert(childrptr);
+            hm.insert(fk, hrptrs);
+            self.0.insert(parent_name, hm);
         }
     }
 
-    pub fn update_edge(&mut self, child_table: &str, parent_table: &str,
+    pub fn update_edge(&mut self, child_table: &str, 
                        child_rptr: HashedRowPtr, // will have been updated with new values
-                       old_parent_oid: u64, 
-                       new_parent_oid: Option<u64>, 
+                       old_parent_name: ObjectIdentifier, 
+                       new_parent_name: Option<ObjectIdentifier>, 
                        parent_col_index: usize) 
     {
-        warn!("Updating edge from parent {} (child {}, col {} val {}) to new val {:?}", 
-              parent_table, child_table, parent_col_index, old_parent_oid, new_parent_oid);
+        warn!("Updating edge from parent {:?} (child {}, col {}) to new val {:?}", 
+              old_parent_name, child_table, parent_col_index, new_parent_name);
         // remove old edges from both directions
-        if let Some(edges) = self.parents_to_children.get_mut(parent_table) {
-            if let Some(typ2rows) = edges.get_mut(&old_parent_oid) {
-                if let Some(rows) = typ2rows.get_mut(&(child_table.to_string(), parent_col_index)) {
-                    // remove old child from this parent
-                    rows.remove(&child_rptr); 
-                } 
+        if let Some(typ2rows) = self.0.get_mut(&old_parent_name) {
+            let fk = ForeignKey {
+                child_table:child_table.to_string(),
+                col_index: parent_col_index,
+                parent_table:old_parent_name.table.clone(),
+            };
+            if let Some(rows) = typ2rows.get_mut(&fk) {
+                // remove old child from this parent
+                rows.remove(&child_rptr); 
             } 
         }
         // if not none, insert new edge
-        if let Some(np_oid) = new_parent_oid {
-            self.add_edge(child_rptr, child_table, parent_table, np_oid, parent_col_index);
+        if let Some(np) = new_parent_name {
+            self.add_edge(child_rptr, child_table, np, parent_col_index);
         }
     }
 
-    pub fn get_children_of_parent(&self, parent_table: &str, parent_oid: u64) -> Option<ObjectTypeRows>
-    {
-        if let Some(edges) = self.parents_to_children.get(parent_table) {
-            match edges.get(&parent_oid) {
-                None => return None,
-                Some(es) => return Some(es.clone()),
-            }
-        }
-        None
+    pub fn get_children_of_parent(&self, parent: &ObjectIdentifier) -> Option<&ObjectTypeRows> {
+        self.0.get(parent)
     }
 }

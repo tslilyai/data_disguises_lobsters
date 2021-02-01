@@ -5,10 +5,8 @@ extern crate hex;
 
 use msql_srv::*;
 use mysql::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::io::{self, BufReader, BufWriter};
 use std::*;
-use std::hash::{Hash, Hasher};
 use sql_parser::ast::*;
 use log::{warn};
 
@@ -21,28 +19,9 @@ pub mod query_simplifier;
 pub mod select;
 pub mod subscriber;
 pub mod views;
+pub mod types;
 
-pub const INIT_CAPACITY: usize = 1000;
 pub const ID_COL: &str = "id";
-
-#[derive(Serialize, Deserialize, PartialOrd, Ord, Debug, Clone)]
-pub struct ObjectData {
-    pub table: String, 
-    pub oid: u64,
-    pub row_strs: Vec<String>
-}
-impl Hash for ObjectData {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.table.hash(state);
-        self.oid.hash(state);
-    }
-}
-impl PartialEq for ObjectData {
-    fn eq(&self, other: &ObjectData) -> bool {
-        self.table == other.table && self.oid == other.oid
-    }
-}
-impl Eq for ObjectData {} 
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {

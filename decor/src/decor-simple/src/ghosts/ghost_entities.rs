@@ -6,8 +6,9 @@ use std::rc::Rc;
 use log::{warn};
 use std::sync::atomic::{Ordering, AtomicU64};
 
-use crate::{helpers, views, ID_COL};
-use crate::views::{Views, RowPtrs, RowPtr};
+use crate::{helpers, ID_COL};
+use crate::views::{Views};
+use crate::types::{RowPtrs, RowPtr, ObjectIdentifier};
 use crate::policy::{GhostColumnPolicy, GeneratePolicy, ObjectGhostPolicies};
 
 pub const GHOST_ID_START : u64 = 1<<20;
@@ -53,8 +54,7 @@ impl GhostFamily {
  */
 #[derive(Serialize, Deserialize, PartialOrd, Ord, PartialEq, Eq, Clone, Debug)]
 pub struct GhostOidMapping {
-    pub table: String,
-    pub oid: u64,
+    pub name: ObjectIdentifier,
     pub root_gids: Vec<u64>,
     pub ghosts: Vec<(String, u64)>,
 }
@@ -63,8 +63,7 @@ pub struct GhostOidMapping {
  * a base true object upon which to generate ghosts
  */
 pub struct TemplateObject {
-    pub table: String,
-    pub oid: u64,
+    pub name: ObjectIdentifier,
     pub row: RowPtr,
     pub fixed_colvals: Option<Vec<(usize, Value)>>,
 }
@@ -97,13 +96,13 @@ pub fn generate_new_ghosts_from(
     use GhostColumnPolicy::*;
     let start = time::Instant::now();
     let mut new_entities : Vec<TableGhostEntities> = vec![];
-    let from_cols = views.get_view_columns(&template.table);
+    let from_cols = views.get_view_columns(&template.name.table);
     let gids = generate_new_ghost_gids(num_ghosts);
 
     // NOTE : generating entities with foreign keys must also have ways to 
     // generate foreign key object or this will panic
     // If no ghost generation policy is specified, we clone all
-    let policies : Vec<&GhostColumnPolicy> = match ghost_policies.get(&template.table) {
+    let policies : Vec<&GhostColumnPolicy> = match ghost_policies.get(&template.name.table) {
         Some(gp) => from_cols.iter().map(|col| gp.get(&col.to_string()).unwrap()).collect(),
         None => from_cols.iter().map(|_| &CloneAll).collect(),
     };
@@ -161,18 +160,18 @@ pub fn generate_new_ghosts_from(
     }
 
     new_entities.push(TableGhostEntities{
-        table: template.table.to_string(), 
+        table: template.name.table.to_string(), 
         gids: gids.iter().map(|gval| helpers::parser_val_to_u64(&gval)).collect(),
         rptrs: new_vals,
     });
  
     warn!("GHOSTS: adding {} new entities {:?} for table {}, dur {}", 
-          num_entities, new_entities, template.table, start.elapsed().as_micros());
+          num_entities, new_entities, template.name.table, start.elapsed().as_micros());
     Ok(new_entities)
 }
 
 pub fn generate_foreign_key_val(
-    views: &views::Views,
+    views: &Views,
     ghost_policies: &ObjectGhostPolicies,
     table_name: &str,
     template_oid: u64,
@@ -186,8 +185,10 @@ pub fn generate_foreign_key_val(
     let mut ghost_parent_fam = generate_new_ghosts_from(
         views, ghost_policies,
         &TemplateObject{
-            table: table_name.to_string(),
-            oid: template_oid,
+            name: ObjectIdentifier {
+                table: table_name.to_string(),
+                oid: template_oid,
+            },
             row: parent_table_row,
             fixed_colvals: None,
         }, 1)?;
@@ -197,7 +198,7 @@ pub fn generate_foreign_key_val(
 }
 
 pub fn get_generated_val(
-    views: &views::Views,
+    views: &Views,
     ghost_policies: &ObjectGhostPolicies,
     gen: &GeneratePolicy, 
     base_val: &Value,

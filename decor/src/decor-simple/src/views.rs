@@ -1,58 +1,14 @@
 use sql_parser::ast::*;
 use std::collections::{HashSet, HashMap};
-use std::cmp::Ordering;
-use crate::{select, helpers, graph, INIT_CAPACITY, ghosts};
-use std::cell::RefCell;
-use std::hash::{Hash, Hasher};
+use crate::{select, helpers, graph, ghosts};
+use crate::types::*;
 use std::io::{Error, Write};
-use std::rc::Rc;
+use std::cmp::Ordering;
 use std::*;
 use log::{warn};
 use msql_srv::{QueryResultWriter, Column, ColumnFlags};
-
-pub type Row = Vec<Value>;
-pub type RowPtr = Rc<RefCell<Row>>;
-pub type RowPtrs = Vec<Rc<RefCell<Row>>>;
-
-#[derive(Debug, Clone, Eq)]
-pub struct HashedRowPtr(Rc<RefCell<Row>>, usize);
-impl Hash for HashedRowPtr {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.borrow()[self.1].hash(state);
-    }
-}
-impl Ord for HashedRowPtr {
-    fn cmp(&self, other: &Self) -> Ordering {
-        helpers::parser_vals_cmp(&self.0.borrow()[self.1], &other.0.borrow()[other.1])
-    }
-}
-impl PartialOrd for HashedRowPtr {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl PartialEq for HashedRowPtr {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.borrow()[self.1] == other.0.borrow()[other.1]
-    }
-}
-impl HashedRowPtr {
-    pub fn row(&self) -> &Rc<RefCell<Row>> {
-        &self.0
-    }
-    pub fn new(row: Rc<RefCell<Row>>, pki: usize) -> Self {
-        HashedRowPtr(row.clone(), pki)
-    }
-    pub fn id(&self) -> u64 {
-        helpers::parser_val_to_u64(&self.0.borrow()[self.1])
-    }
-}
-
-pub type HashedRowPtrs = HashSet<HashedRowPtr>;
-
-pub fn hrptr_to_strs(hrptr: &HashedRowPtr) -> Vec<String> {
-    hrptr.row().borrow().iter().map(|v| v.to_string()).collect()
-}
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub enum ViewIndex { 
@@ -67,7 +23,7 @@ impl ViewIndex {
                 let index = index.borrow();
                 match index.get(val) {
                     Some(r) => {
-                        let mut rows = HashSet::with_capacity(INIT_CAPACITY);
+                        let mut rows = HashSet::new();
                         rows.insert(HashedRowPtr::new(r.clone(), *pki));
                         Some(rows)
                     }
@@ -234,8 +190,8 @@ impl View {
         View {
             name: String::new(),
             columns: columns,
-            rows: Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))),
-            indexes: HashMap::with_capacity(INIT_CAPACITY),
+            rows: Rc::new(RefCell::new(HashMap::new())),
+            indexes: HashMap::new(),
             primary_index: 0,
             autoinc_col: None,
             parent_cols: vec![],
@@ -262,13 +218,13 @@ impl View {
         // save where the primary index is
         let mut primary_index = None;
         // create indexes for any explicit indexes
-        let mut indexes_map = HashMap::with_capacity(INIT_CAPACITY);
+        let mut indexes_map = HashMap::new();
         if !indexes.is_empty() {
             for i in indexes {
                 for key in &i.key_parts {
                     // TODO just create a separate index for each key part for now rather than
                     // nesting
-                    indexes_map.insert(key.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))));
+                    indexes_map.insert(key.to_string(), Rc::new(RefCell::new(HashMap::new())));
                     warn!("{}: Created index for column {}", name, key.to_string());
                 }
             }
@@ -283,7 +239,7 @@ impl View {
                         warn!("{}: Created primary index for column {}", name, c.name);
                         primary_index = Some(ci);
                     } else {
-                        indexes_map.insert(c.name.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))));
+                        indexes_map.insert(c.name.to_string(), Rc::new(RefCell::new(HashMap::new())));
                         warn!("{}: Created unique index for column {}", name, c.name);
                     }
                     break;
@@ -299,7 +255,7 @@ impl View {
                         primary_index = Some(ci);
                     } else {
                         for c in columns {
-                            indexes_map.insert(c.to_string(), Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))));
+                            indexes_map.insert(c.to_string(), Rc::new(RefCell::new(HashMap::new())));
                             warn!("{}: Created unique index for column {}", name, c.to_string());
                         }
                     }
@@ -316,7 +272,7 @@ impl View {
                     fullname: format!("{}.{}", name, c.name),
                     column: c.clone() })
                 .collect(),
-            rows: Rc::new(RefCell::new(HashMap::with_capacity(INIT_CAPACITY))),
+            rows: Rc::new(RefCell::new(HashMap::new())),
             indexes: indexes_map,
             primary_index: primary_index.unwrap(),
             autoinc_col: autoinc_col,
@@ -421,7 +377,7 @@ impl View {
                 let dur = start.elapsed();
                 warn!("insert into index {} size {} took: {}us", self.columns[col_index].fullname, index.len(), dur.as_micros());
             } else {
-                let mut rptrs = HashSet::with_capacity(INIT_CAPACITY);
+                let mut rptrs = HashSet::new();
                 rptrs.insert(HashedRowPtr::new(row.clone(), self.primary_index));
                 index.insert(col_val, rptrs);
                 let dur = start.elapsed();
@@ -477,7 +433,7 @@ impl View {
                     new_ris.insert(HashedRowPtr::new(rptr.clone(), self.primary_index));
                 } else {
                     warn!("{}: new hashset {}", self.columns[col_index].fullname, col_val_str);
-                    let mut rptrs = HashSet::with_capacity(INIT_CAPACITY);
+                    let mut rptrs = HashSet::new();
                     rptrs.insert(HashedRowPtr::new(rptr.clone(), self.primary_index));
                     index.insert(col_val_str, rptrs);
                 }
@@ -500,7 +456,7 @@ pub struct Views {
 impl Views {
     pub fn new() -> Self {
         Views {
-            views: HashMap::with_capacity(INIT_CAPACITY),
+            views: HashMap::new(),
             graph: graph::ObjectGraph::new(),
         }
     }
@@ -684,7 +640,13 @@ impl Views {
                 let poid = helpers::parser_val_to_u64_opt(&row.borrow()[*ci]);
                 if let Some(poid) = poid {
                     warn!("Adding graph edge {}, {}", poid, parent_table);
-                    self.graph.add_edge(HashedRowPtr::new(row.clone(), view.primary_index), &view.name, parent_table, poid, *ci);
+                    self.graph.add_edge(
+                        HashedRowPtr::new(row.clone(), view.primary_index), 
+                        &view.name, 
+                        ObjectIdentifier {
+                            table: parent_table.clone(), 
+                            oid: poid,
+                        }, *ci);
                 }
             }
         }
@@ -750,10 +712,22 @@ impl Views {
                         // update graph
                         for (pci, parent_table) in &view.parent_cols {
                             if *pci == *ci {
-                                let old_poid = helpers::parser_val_to_u64(&rptr.row().borrow()[*ci]);
-                                let new_poid = helpers::parser_val_to_u64_opt(&v);
-                                self.graph.update_edge(&view.name, parent_table, rptr.clone(), 
-                                                       old_poid, new_poid, *ci);
+                                let old_parent = ObjectIdentifier {
+                                    table: parent_table.clone(),
+                                    oid: helpers::parser_val_to_u64(&rptr.row().borrow()[*ci]),
+                                };
+                                let new = helpers::parser_val_to_u64_opt(&v);
+                                let new_parent = match new {
+                                    Some(oid) => 
+                                        Some(ObjectIdentifier {
+                                            table: parent_table.clone(),
+                                            oid: oid,
+                                        }),
+                                    _ => None
+                                };
+                                self.graph.update_edge(
+                                    &view.name, rptr.clone(), 
+                                    old_parent, new_parent, *ci);
                                 break;
                             }
                         }
@@ -768,10 +742,22 @@ impl Views {
                         // update graph
                         for (pci, parent_table) in &view.parent_cols {
                             if *pci == *ci {
-                                let old_poid = helpers::parser_val_to_u64(&rptr.row().borrow()[*ci]);
-                                let new_poid = helpers::parser_val_to_u64_opt(&v);
-                                self.graph.update_edge(&view.name, parent_table, rptr.clone(), 
-                                                       old_poid, new_poid, *ci);
+                                let old_parent = ObjectIdentifier {
+                                    table: parent_table.clone(),
+                                    oid: helpers::parser_val_to_u64(&rptr.row().borrow()[*ci]),
+                                };
+                                let new = helpers::parser_val_to_u64_opt(&v);
+                                let new_parent = match new {
+                                    Some(oid) => 
+                                        Some(ObjectIdentifier {
+                                            table: parent_table.clone(),
+                                            oid: oid,
+                                        }),
+                                    _ => None
+                                };
+                                self.graph.update_edge(
+                                    &view.name, rptr.clone(), 
+                                    old_parent, new_parent, *ci);
                                 break;
                             }
                         }
@@ -787,22 +773,31 @@ impl Views {
         Ok(())
     }
 
-    pub fn update_index_and_row_of_view(&mut self, table: &str, rptr: Rc<RefCell<Row>>, col_index: usize, col_val: Option<&Value>) {
+    pub fn update_index_and_row_of_view(&mut self, table: &str, rptr: Rc<RefCell<Row>>, ci: usize, col_val: Option<&Value>) {
         let mut view = self.views.get(table).unwrap().borrow_mut();
         for (pci, parent_table) in &view.parent_cols {
-            if *pci == col_index {
-                let old_poid = helpers::parser_val_to_u64(&rptr.borrow()[col_index]);
-                let new_poid = match col_val {
-                    None => None,
-                    Some(v) => helpers::parser_val_to_u64_opt(&v),
+            if *pci == ci {
+                let old_parent = ObjectIdentifier {
+                    table: parent_table.clone(),
+                    oid: helpers::parser_val_to_u64(&rptr.borrow()[ci]),
                 };
-                self.graph.update_edge(&view.name, parent_table, HashedRowPtr(rptr.clone(), view.primary_index), 
-                                       old_poid, new_poid, col_index);
+                let new_parent = match col_val {
+                    None => None,
+                    Some(v) => match helpers::parser_val_to_u64_opt(&v) {
+                        Some(oid) => Some(ObjectIdentifier {
+                                            table: parent_table.clone(),
+                                            oid: oid,
+                                     }),
+                        _ => None,
+                    }
+                };
+                self.graph.update_edge(&view.name, HashedRowPtr(rptr.clone(), view.primary_index), 
+                                       old_parent, new_parent, ci);
                 break;
             }
         }
         // update view
-        view.update_index_and_row(rptr.clone(), col_index, col_val);
+        view.update_index_and_row(rptr.clone(), ci, col_val);
     }
 
     pub fn delete_rptrs_with_ids(&mut self, 
@@ -817,9 +812,13 @@ impl Views {
             for ci in 0..len {
                 for (pci, parent_table) in &view.parent_cols {
                     if *pci == ci {
-                        let old_poid = helpers::parser_val_to_u64(&rptr.borrow()[ci]);
-                        self.graph.update_edge(&view.name, parent_table, 
-                                               HashedRowPtr::new(rptr.clone(), view.primary_index), old_poid, None, ci);
+                        let old_parent = ObjectIdentifier {
+                            table: parent_table.clone(),
+                            oid: helpers::parser_val_to_u64(&rptr.borrow()[ci]),
+                        };
+                        self.graph.update_edge(
+                            &view.name, HashedRowPtr(rptr.clone(), view.primary_index), 
+                            old_parent, None, ci);
                         break;
                     }
                 }
@@ -842,9 +841,13 @@ impl Views {
             for ci in 0..len {
                 for (pci, parent_table) in &view.parent_cols {
                     if *pci == ci {
-                        let old_poid = helpers::parser_val_to_u64(&rptr.borrow()[ci]);
-                        self.graph.update_edge(&view.name, parent_table, 
-                                               HashedRowPtr::new(rptr.clone(), view.primary_index), old_poid, None, ci);
+                        let old_parent = ObjectIdentifier {
+                            table: parent_table.clone(),
+                            oid: helpers::parser_val_to_u64(&rptr.borrow()[ci]),
+                        };
+                        self.graph.update_edge(&view.name, 
+                                               HashedRowPtr::new(rptr.clone(), view.primary_index), 
+                                               old_parent, None, ci);
                         break;
                     }
                 }
@@ -877,8 +880,11 @@ impl Views {
             for ci in 0..len {
                 for (pci, parent_table) in &view.parent_cols {
                     if *pci == ci {
-                        let old_poid = helpers::parser_val_to_u64(&rptr.row().borrow()[ci]);
-                        self.graph.update_edge(&view.name, parent_table, rptr.clone(), old_poid, None, ci);
+                        let old_parent = ObjectIdentifier {
+                            table: parent_table.clone(),
+                            oid: helpers::parser_val_to_u64(&rptr.row().borrow()[ci]),
+                        };
+                        self.graph.update_edge(&view.name, rptr.clone(), old_parent, None, ci);
                         break;
                     }
                 }

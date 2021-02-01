@@ -1,4 +1,5 @@
-use crate::views::{View, TableColumnDef, HashedRowPtrs, HashedRowPtr, Row, RowPtrs};
+use crate::views::{View, TableColumnDef};
+use crate::types::{HashedRowPtrs, HashedRowPtr, Row, RowPtrs};
 use crate::{helpers};
 use log::{warn};
 use std::collections::{HashSet};

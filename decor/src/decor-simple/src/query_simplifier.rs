@@ -2,6 +2,7 @@ use sql_parser::ast::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::*;
+use crate::types::*;
 use crate::views::*;
 use crate::helpers;
 

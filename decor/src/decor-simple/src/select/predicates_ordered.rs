@@ -1,4 +1,5 @@
-use crate::views::{View, TableColumnDef, HashedRowPtrs, HashedRowPtr, RowPtrs};
+use crate::views::{View, TableColumnDef};
+use crate::types::{HashedRowPtrs, HashedRowPtr, RowPtrs};
 use crate::{helpers, select::predicates, select::predicates::IndexedPredicate, select::predicates::NamedPredicate};
 use log::{debug};
 use std::collections::{HashSet, BTreeMap};
