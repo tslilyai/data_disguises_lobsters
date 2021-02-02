@@ -3,10 +3,10 @@
 %-------------------------------------------------------------------------------
 \label{sec:hotcrp_example}
 
+\iffalse
 \begin{figure}[t!]
     \centering
     \includegraphics[width=.55\textwidth]{img/decor_hotcrp}
-\iffalse
 \begin{lstlisting}[language=Rust]
 "User-Review":  Retain
 "User-Paper":   Retain
@@ -17,12 +17,12 @@
 "User-PaperConflict":  Delete 
 "PaperConflict-Paper": Delete 
 \end{lstlisting}
-\fi
     \caption{Effects of the HotCRP-Granular unsubscription disguise. We show
     only relevant parts of the object graph and disguise.\\
     }
     \label{fig:hotcrp}
 \end{figure}
+\fi
 
 \begin{table}[t!]
     \centering
@@ -76,11 +76,11 @@ for other users to use.
 Instead of deleting a user's papers, reviews, and paper conflicts, HotCRP-Granular specifies
 to \texttt{Decorrelate} edges from users to reviews and papers. This retains paper and
 reviews, but decorrelates them from the user: \sys replaces these edges with an ones to generated
-ghost user profiles (Figure~\ref{fig:hotcrp}a).
+ghost user profiles.
 
 A paper's set of paper conflicts can also identify unsubscribed users by exposing their affiliations and recent
 collaborations. HotCRP-Granular \texttt{Delete}s paper-to-paper conflict edge types, removing all
-edges from the user's paper conflicts to papers (Figure~\ref{fig:hotcrp}b). 
+edges from the user's paper conflicts to papers.
 %
 Deleting conflicts can lead to spurious conflicts (\eg no coauthor is affiliated with NYU, but NYU
 reviewers have conflicts), but does not break HotCRP's paper visibility or review assignment
@@ -120,18 +120,30 @@ Paper and review objects are copied to retain their information.
 %We retain all other types of edges.
 
 \subsection{Performance Challenges}
-\label{sec:perf} Our experience implementing \sys exposed several performance challenges raised by
-data disguising. \sys incurs overheads from adding a layer of indirection between
-application and database, and applying disguises (\eg creating guises). We implemented
-several \sys variants to explore different performance tradeoffs. 
+\label{sec:perf} 
+
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width=.55\textwidth]{img/latencies}
+    \caption{Latency of disguising and revealing a user depending on how much data belongs to the
+    user}
+    \label{fig:latencies}
+\end{figure}
+
+Our experience implementing \sys exposed several performance challenges raised by data disguising.
+\sys incurs overheads from adding a layer of indirection between application and database, and
+applying disguises (\eg creating guises). We implemented several \sys variants to explore different
+performance tradeoffs. 
 
 The first adds as little overhead as possible to normal execution, only intercepting queries and
 tracking an in-memory the object graph. Adding the shim layer decreases throughput by roughly 4\%,
 and query parsing and graph tracking reduces throughput another 5\%.
-%, which can be improved by using prepared queries and caching query results. 
-%\lyt{These numbers come from lobsters running at 0.5 scale, w/0\% unsub}
-Disguise application in the worst case requires creating or removing potentially as many 
-guises as the number of edges connected to the target.
+%, which can be improved by using prepared queries and caching query results.  \lyt{These numbers
+%come from lobsters running at 0.5 scale, w/0\% unsub}
+Disguise application in the worst case requires creating or removing potentially as many guises as
+the number of edges connected to the target. As shown in Figure~\ref{fig:latencies}, the disguising
+(and revealing) latency increases linearly with the number of objects correlated with the target
+user.
 
 The second variant amortizes the cost of disguising across normal execution, keeping a ``shadow''
 copy of the database that reflects the disguised state (\ie with guises already created, and edges
