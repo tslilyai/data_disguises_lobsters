@@ -48,7 +48,7 @@ This specification is a declarative statement similar to a relational schema, wi
 graph vertices (objects) and directed edges (relationships between pairs of objects)
 to be transformed (see \S\ref{sec:policies}).
 %
-A \emph{data disguiser} tool takes the disguse specification and turns it into storage
+A data disguising tool takes the disguse specification and turns it into storage
 operations that apply the transformation (disguise) or its reverse (reveal).
 %
 %
@@ -56,7 +56,7 @@ We assume that:
 \begin{enumerate}[nosep]
   \item application developers use their domain knowledge to write correct and complete
     disguise specifications;
-  \item application code invokes disguises via the disguiser tool's API on
+  \item application code invokes disguises via the disguising tool's API on
     transformation-triggering events (\eg user unsubscription, data timeout, etc.); and
   \item application code is prepared to handle the different guises, which all have the
     same structure, appropriately (\eg in displaying them).
@@ -193,10 +193,10 @@ notifications), without \eg creating duplicates.
 \subsection{Transforming Edges Between Objects}
 \label{design:edgepol}
 
-Edge transformations specify how guises restructure the object graph.  The data disguiser applies
-these edge transformations while recursively traversing edges from the target.  For clarity, we
-refer to edges as between a \emph{parent} object and a \emph{child} object, where the child
-references the parent (\eg via a foreign key column in a relational database).
+Edge transformations specify how guises restructure the object graph.  Disguises apply edge
+transformations while recursively traversing edges from the target.  For clarity, we refer to edges
+as between a \emph{parent} object and a \emph{child} object, where the child references the parent
+(\eg via a foreign key column in a relational database).
 %
 The developer specifies transformations for each edge type, choosing from the following:
 \begin{enumerate}[nosep]
