@@ -32,8 +32,8 @@
         \textbf{Disguise} \\
         & \textbf{Types} & \textbf{Types} & \textbf{LoC} & \textbf{LoC} \\
     \midrule
-    Lobsters-Unsub & 19 & 20 & 318 & 220 \\
-    HotCRP-Coarse & 25 & 50 & 352 & 378 \\
+    Lobsters-Current & 19 & 20 & 318 & 220 \\
+    HotCRP-Current & 25 & 50 & 352 & 378 \\
     HotCRP-Granular & 25 & 50 & 352 & 407 \\
 \end{tabular}
     \caption{Unsubscription disguise statistics for Lobsters and HotCRP.  
@@ -56,7 +56,7 @@ relations in the application schema. Table~\ref{tab:loc} shows the statistics fo
 %%with access to those papers or reviews should not be able to reassociate these papers or reviews
 %with the unsubscribed user.
 
-Lobsters-Unsub and HotCRP-Coarse implement the current unsubscription policies in the respective
+Lobsters-Current and HotCRP-Current implement the current unsubscription policies in the respective
 applications.
 %The HotCRP-Coarse disguise specifies the current HotCRP unsubscription policy, which deletes all
 %objects correlated to the user. 
@@ -70,7 +70,7 @@ applications.
 %Each of the 50 edge transformation specifications requires 6LoC, and the remaining 78 LoC of the disguise
 %definition come from defining \sys data structures for a total of 378 LoC. 
 %
-The HotCRP-Granular disguise specifies a HotCRP unsubscription policy that balances useful data
+HotCRP-Granular specifies a HotCRP unsubscription policy that balances useful data
 retention with data deletion for privacy, as described in \S\ref{design:eg}.
 %HotCRP-Granular keeps reviews and review metadata present
 %for other users to use. 
@@ -133,11 +133,11 @@ retention with data deletion for privacy, as described in \S\ref{design:eg}.
     \vspace{-\baselineskip}
 \end{figure}
 
-Our experience implementing \sys exposed several performance challenges, in particular highlighting
-the tradeoff between good performance during normal execution, and low-latency disguise application.
-The right balance depends on the rate of disguising, which may range from rare (as in today's
-applications), to quite frequent in a privacy-supporting world where users freely disguise
-and reveal themselves, or where data automatically ages out.
+Our experience implementing \sys exposed the challenging performance tradeoff between efficiently
+executing normal application queries, and achieving low-latency disguise application. The right
+balance depends on the rate of disguising, which may range from rare (as in today's applications),
+to quite frequent in a privacy-supporting world where users freely disguise and reveal themselves,
+or where data automatically ages out.
 %\sys incurs overheads from adding a layer of indirection between application and database, and
 %applying disguises (\eg creating guises). 
 %We implemented several \sys variants to explore different performance tradeoffs. 
