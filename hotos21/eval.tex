@@ -32,13 +32,11 @@
         \textbf{Disguise} \\
         & \textbf{Types} & \textbf{Types} & \textbf{LoC} & \textbf{LoC} \\
     \midrule
-    Lobsters-Decor & 19 & 20 & 318 & 220 \\
+    Lobsters & 19 & 20 & 318 & 220 \\
     HotCRP-Coarse & 25 & 50 & 352 & 378 \\
     HotCRP-Granular & 25 & 50 & 352 & 407 \\
 \end{tabular}
-    \caption{Unsubscription disguise statistics for Lobsters and HotCRP. Lobsters-Decor and
-    HotCRP-Coarse
-    disguises implement the current unsubscription policies in the respective applications. 
+    \caption{Unsubscription disguise statistics for Lobsters and HotCRP.  
     %Lobsters retains and reassigns user contributions to an anonymous user, and HotCRP deletes
     %direct correlations to the user.
     }
@@ -58,8 +56,10 @@ relations in the application schema. Table~\ref{tab:loc} shows the statistics fo
 %%with access to those papers or reviews should not be able to reassociate these papers or reviews
 %with the unsubscribed user.
 
-The HotCRP-Coarse disguise specifies the current HotCRP unsubscription policy, which deletes all
-objects correlated to the user. 
+Lobsters and HotCRP-Coarse disguises implement the current unsubscription policies in the respective
+applications.
+%The HotCRP-Coarse disguise specifies the current HotCRP unsubscription policy, which deletes all
+%objects correlated to the user. 
 %simply deletes users' reviews, paper conflicts, and other review information. HotCRP-Coarse specifies
 %\texttt{Delete} edge transformations for edge types to the user, and \texttt{Retain} for all other
 %edges.  
