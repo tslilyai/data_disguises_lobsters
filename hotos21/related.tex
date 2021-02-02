@@ -11,14 +11,17 @@ Two are particularly relevant to data disguising: Sypse~\cite{sypse}, which pseu
 data and partitions personally identifying information (PII) from other data, and
 DELF~\cite{delf}, a framework for data deletion at Facebook.
 %
-While Sypse also relies on an object graph, its design is application-oblivious and assumes that
-developers take care of splitting and moving data between the identity-revealing PII partition
-and the privacy-preserving normal partition.\lyt{I'm not sure this is accurate? They don't use
-developer input at all to figure out which edges to break/columns to anonymize, but rather assume some random data synthesis + some ``automated'' analysis
-of the data schema, whereas we actually assume that developers need to specify these things}
-%
-%In contrast, data disguing does not keep PII in the application, or change the application
-%schema.
+While Sypse also relies on an object graph, its design is application-oblivious and specifying what
+counts as PII is left as future work; data disguising observes that application-specific
+transformations are required to maintain correct application semantics, and allows developers to
+specify sensitive data and correlations.
+%developers take care of splitting and moving data between the identity-revealing PII partition and
+%the privacy-preserving normal partition.\lyt{I'm not sure this is accurate? They don't use
+%developer input at all to figure out which edges to break/columns to anonymize, but rather assume
+%some random data synthesis + some ``automated'' analysis of the data schema, whereas we actually
+%assume that developers need to specify these things}
+%%
+%In contrast, data disguing does not keep PII in the application, or change the application schema.
 %%
 %%We concretely define the application object graph and abstractions that allow developers to reason
 %%about it, whereas Sypse leaves this as future work.

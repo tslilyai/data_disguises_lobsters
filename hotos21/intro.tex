@@ -15,8 +15,7 @@ data retained at any point.
 
 %
 Although many developers are well-intentioned, they must today implement \emph{privacy
-transformations} (such as user unsubscription, \ie requests to leave the service) \lyt{I'm a bit worried that people won't know what
-unsubscription means; since we "unsubscribe" from mailing lists but that doesn't delete accounts}
+transformations} (such as user account deletion) 
 manually, which results in simplistic and ad-hoc solutions (\S\ref{sec:survey}).
 %
 To get privacy transformations right, developers must carefully map the high-level privacy
@@ -24,7 +23,7 @@ policy to operations that delete or rewrite data objects, ensuring that the appl
 utility for other users, retains legally-mandated anonymized data, and avoids violating
 application invariants.
 %
-For example, a user's unsubscription should not allow another user to view content they could
+For example, deleting a user's account should not allow another user to view content they could
 not originally access, nor make non-sensitive shared content disappear.
 %
 
@@ -91,7 +90,7 @@ burden.
 
 %
 We surveyed several widely-used web applications to understand what privacy transformations
-they apply on user unsubscription.
+they apply on user account deletion.
 %
 A set of common themes emerged.
 %~\cite{facebook:privacy, twitter:privacy, hotcrp:privacy, reddit:privacy,
@@ -151,7 +150,7 @@ Users and application developers can both benefit from more nuanced privacy poli
 %
 For example, a confidential paper review system like HotCRP must keep a user's contributions
 (papers, reviews) to preserve utility for others, but may associate each review with a different
-placeholder to avoid accidentally revealing the unsubscribed reviewer's identity.
+placeholder to avoid accidentally revealing the deleted reviewer's identity.
 %
 Likewise, contributions with a shared property (\eg posts on Reddit that share a common tag)
 might be removed entirely to avoid inference attacks, or retained and decorrelated from the
@@ -183,7 +182,7 @@ privacy transformations that incrementally removes more identifiable information
 \paragraph{Reversibility.}
 %
 Many applications might wish to employ \emph{reversible} transformations, going beyond permanent
-and irrevokable unsubscription.
+and irrevokable account deletion.
 %
 After all, if services must allow users to remove their data on request, it is in the operator's
 interest to make it easy for users to change their mind and return.

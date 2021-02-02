@@ -19,12 +19,12 @@ data object: some guises are identity-revealing, while others are privacy-preser
 %
 Objects move between different guises by means of privacy transformations.
 %
-Figure~\ref{fig:example} illustrates this with the example of user unsubscription.
+Figure~\ref{fig:example} illustrates this with the example of user account deletion.
 %
-In subscribed state, user Bob's profile is associated with his true identity and all his
+When his account is active, user Bob's profile is associated with his true identity and all his
 contributions to the site (an identity-revealing guise).
 %
-When Bob unsubscribes, his profile and contributions move to different,
+When Bob deletes his account, his profile and contributions move to different,
 privacy-preserving guises: his profile is now associated with an anonymizing name, his email
 address redacted, and his contributions are decorrelated and attributed to individual,
 unidentified user guises.
@@ -57,7 +57,7 @@ We assume that:
   \item application developers use their domain knowledge to write correct and complete
     disguise specifications;
   \item application code invokes disguises via the disguising tool's API on
-    transformation-triggering events (\eg user unsubscription, data timeout, etc.); and
+    transformation-triggering events (\eg user account deletion, data timeout, etc.); and
   \item application code is prepared to handle the different guises, which all have the
     same structure, appropriately (\eg in displaying them).
 \end{enumerate}
@@ -85,8 +85,7 @@ and combining individual guises on request.
 
 Data disguises consist of a set of chosen transformations on object types and edge types in the application
 object graph.
-These transformations are applied starting from the developer-specified target object, \eg an
-unsubscribing or inactive user.
+These transformations are applied starting from the developer-specified target object, \eg a deleted or inactive user.
 %The developer chooses one transformation for each object type, and
 %one for each edge type.
 %Object type transformations specify how to transform a template object of that type into guises; edge type
@@ -218,7 +217,7 @@ or transform only in the child-parent direction.
 \subsection{An Example Disguise}
 \label{design:eg}
 
-Consider disguising Bob when he unsubscribes from HotCRP.com.\lyt{Should we use HotCRP or
+Consider disguising Bob when he deletes his HotCRP.com account.\lyt{Should we use HotCRP or
 HotCRP.com? Seems like we switch between?}
 %
 Bob would prefer his papers and reviews to be unliked from his identity.
@@ -257,7 +256,7 @@ Review and paper guises copy the original object, retaining paper and review inf
 %
 
 %
-Unlike the current real-world HotCRP.com unsubscription policy~\cite{hotcrp:privacy}, which
+Unlike the current real-world HotCRP.com account deletion policy~\cite{hotcrp:privacy}, which
 deletes all objects belonging to Bob, this disguise strikes a balance between decorrelating
 Bob's identity from his reviews and papers, and maintaining useful information for other
 HotCRP.com users.

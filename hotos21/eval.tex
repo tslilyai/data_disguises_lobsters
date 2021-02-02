@@ -36,14 +36,14 @@
     HotCRP-Current & 25 & 50 & 352 & 378 \\
     HotCRP-Granular & 25 & 50 & 352 & 407 \\
 \end{tabular}
-    \caption{Unsubscription disguise statistics for Lobsters and HotCRP.  
+    \caption{Statistics for account deletion disguises in Lobsters and HotCRP. 
     %Lobsters retains and reassigns user contributions to an anonymous user, and HotCRP deletes
     %direct correlations to the user.
     }
 \label{tab:loc}
 \end{table}
 We evaluate whether \sys enables developers to easily express and automate practical data disguises
-by writing disguises for user unsubscription in Lobsters, an open-source news feed application, and
+by writing disguises for user account deletion in Lobsters, an open-source news feed application, and
 HotCRP, an application for conference review management. Writing disguises should be of similar
 difficulty and require the same expertise as writing relational schemas. In particular, a developer
 should write a disguise only once. Because disguises require at most one tranformation for
@@ -56,7 +56,7 @@ relations in the application schema. Table~\ref{tab:loc} shows the statistics fo
 %%with access to those papers or reviews should not be able to reassociate these papers or reviews
 %with the unsubscribed user.
 
-Lobsters-Current and HotCRP-Current implement the current unsubscription policies in the respective
+Lobsters-Current and HotCRP-Current implement the current account deletion policies in the respective
 applications.
 %The HotCRP-Coarse disguise specifies the current HotCRP unsubscription policy, which deletes all
 %objects correlated to the user. 
@@ -70,7 +70,7 @@ applications.
 %Each of the 50 edge transformation specifications requires 6LoC, and the remaining 78 LoC of the disguise
 %definition come from defining \sys data structures for a total of 378 LoC. 
 %
-HotCRP-Granular specifies a HotCRP unsubscription policy that balances useful data
+HotCRP-Granular specifies a HotCRP account deletion policy that balances useful data
 retention with data deletion for privacy, as described in \S\ref{design:eg}.
 %HotCRP-Granular keeps reviews and review metadata present
 %for other users to use. 
