@@ -93,8 +93,8 @@ Object type transformations specify how to transform a template object into \emp
 transformations specify whether edges should be deleted, retained, or decorrelated and replaced with
 edges to guises.
 
-We next describe a menu of object and edge transformations sufficient to write disguises for the
-privacy transformations in Section~\ref{sec:survey}.
+%We next describe a menu of object and edge transformations sufficient to write disguises for the
+%privacy transformations in Section~\ref{sec:survey}.
 
 \subsection{Transforming Objects Into Guises}
 \label{sec:guises}
@@ -216,34 +216,55 @@ child-parent direction of the edge).
 \subsection{An Example Disguise}
 \label{design:eg}
 
-Consider disguising Bob when he unsubscribes from HotCRP. He would like for his papers and reviews
-to be unlinkable back to his identity. HotCRP, on the other hand, would like to retain paper and
-review information that other users find useful.  A careful selection of edge and object
-transformations can achieve both.
+Consider disguising Bob when he unsubscribes from HotCRP.com.
+%
+Bob would prefer his papers and reviews to be unliked from his identity.
+%
+HotCRP.com, on the other hand, would like to retain paper and review information that other users
+find useful
+%
+A careful selection of edge and object transformations achieves both.
 
 To decorrelate reviews from Bob, the disguise aptly \texttt{Decorrelate}s user-to-review edges.
-This requires transforming Bob into one unique user guise per review. To do so, the disguise
-generates suitable default or custom guise attribute values (\eg timestamps randomly generated
-within the past decade). In particular, the value attribute \texttt{disabled} is set to
-\texttt{true}, ensuring that guises have no permissions and never review papers. 
+This requires transforming Bob into one unique user guise per review.
+%
+To do so, the disguise generates suitable default or custom guise attribute values
+(\eg last logins randomly generated within the review period).
+%
+In addition, the guises's attribute \texttt{disabled} is set to \texttt{true}, ensuring that
+guises have no permissions and never review papers.
+%
 
+%
 Bob is linked to papers through conflicts, which denotes either coauthorship or reviewer conflicts
-with the paper authors. Bob's conflict should not be reassigned to a user guise: the remaining set
+with the paper authors.
+%
+Bob's conflict should not be reassigned to a user guise: the remaining set
 of conflicts can reidentify the guise by exposing his affiliations and recent collaborations.
-Instead, the disguise \texttt{Delete}s conflict-to-paper edges.  Note the importance of
-directionality: paper-to-conflict edges should not be removed, as doing so could incorrectly allow
-conflicting (subscribed) users to review the paper!
+%
+Instead, the conflict-to-paper edges need a \texttt{Delete} annotation.
+%
+Edge directionality matters here: paper-to-conflict edges should not be removed, as doing so
+could incorrectly allow conflicted users to see the paper!
+%
+The disguise \texttt{Retain}s all other edges in HotCRP, ensuring that review and paper
+artifacts remain correctly linked: active reviewers still see the correct paper for their
+reviews, and active authors see the correct reviews for their papers, albeit authored by
+anonymous, unlinkable guises of the original author.
+%
+Review and paper guises copy the original object, retaining paper and review information.
+%
 
-The disguise \texttt{Retain}s all other edges in HotCRP, ensuring that review and paper artifacts
-remain correctly linked: (subscribed) reviewers still see the correct paper for their reviews, and
-(subscribed) authors see the correct reviews for their papers.  Review and paper guises copy the
-original object, retaining paper and review information.
-
-Unlike the current HotCRP unsubscription policy, which deletes all objects belonging to Bob, this
-disguise strikes a balance between decorrelating Bob's identity from his reviews and papers, and
-maintaining useful information for other HotCRP users.  Furthermore, it is easy to imagine extending
-this disguise to automatically disguise Bob after conferences have ended (and to reveal Bob if Bob
-ever wishes to come back).
+%
+Unlike the current real-world HotCRP.com unsubscription policy~\cite{hotcrp:privacy}, which
+deletes all objects belonging to Bob, this disguise strikes a balance between decorrelating
+Bob's identity from his reviews and papers, and maintaining useful information for other
+HotCRP.com users.
+%
+Furthermore, it is easy to imagine extending this disguise to automatically disguise Bob
+after some time (\eg 2 years after the conference), protecting his future research career
+by hiding youthful reviewing sins.
+%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
