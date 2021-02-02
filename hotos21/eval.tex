@@ -145,9 +145,9 @@ the number of edges connected to the target. As shown in Figure~\ref{fig:latenci
 (and revealing) latency increases linearly with the number of objects correlated with the target
 user.
 
-The second variant amortizes the cost of disguising across normal execution, keeping a ``shadow''
-copy of the database that reflects the disguised state (\ie with guises already created, and edges
-rewritten).
+To solve this scalability problem, we are investigating other designs that amortize the cost of
+disguising across normal execution. One possibility keeps a ``shadow'' copy of the database that
+reflects the disguised state (\ie with guises already created, and edges rewritten).
 %
 This requires additional database queries for each object update during normal execution,
 potentially multiplying the number of queries by the number of guises associated with that object,
@@ -156,14 +156,13 @@ and extra storage for the pre-created guises.
 Pre-created guises are hidden by transparently exposing materialized views (MV) to the application.
 Disguising simply exposes the shadow copy in the MV, and removes objects that should be deleted.
 %
-This design achieves good read performance---queries read from MVs instead of the database---at the
+This achieves good read performance---queries read from MVs instead of the database---at the
 cost of high memory consumption. However, updates may also update guises in the shadow copy, leading
 to write query multiplication.
 
-These variants highlight some of the possibilities to balance space and performance tradeoffs; other
-possibilites to explore include amortizing the cost of disguising by supporting \eg only eventually
-consistent disguises; updating the shadow, disguised database asynchronously; and using dataflow to
-automatically update materialized views when disguising.
+Other possibilites to explore include amortizing the cost of disguising by supporting \eg only
+eventually consistent disguises; updating the shadow, disguised database asynchronously; and using
+dataflow to automatically update materialized views when disguising.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \iffalse

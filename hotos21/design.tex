@@ -3,7 +3,7 @@
 %-------------------------------------------------------------------------------
 \begin{figure}[t!]
     \centering
-    \includegraphics[width=0.5\textwidth]{img/disguises_design}
+    \includegraphics[width=0.5\textwidth]{img/disguises}
 
     \caption{Disguises move the target object (in this example, a user Bob) from an identity-revealing
     guise to privacy-preserving guises.}
@@ -193,11 +193,10 @@ notifications), without \eg creating duplicates.
 \subsection{Transforming Edges Between Objects}
 \label{design:edgepol}
 
-Edge transformations specify how guises restructure the object graph.
-The data disguiser applies these edge transformations while
-recursively traversing edges from the target.  For clarity, we refer to edges as between a
-\emph{parent} object and a \emph{child} object, where the child references the parent
-(\eg via a foreign key column in a relational database).
+Edge transformations specify how guises restructure the object graph.  The data disguiser applies
+these edge transformations while recursively traversing edges from the target.  For clarity, we
+refer to edges as between a \emph{parent} object and a \emph{child} object, where the child
+references the parent (\eg via a foreign key column in a relational database).
 %
 The developer specifies transformations for each edge type, choosing from the following:
 \begin{enumerate}[nosep]
@@ -209,12 +208,18 @@ The developer specifies transformations for each edge type, choosing from the fo
     \item \textbf{Delete} edges of this type. Transform the parent object into a single guise;
         remove the child and its descendants.
 \end{enumerate}
+These choices take optional arguments to conditionally or partially apply edge transformations (\eg
+remove only user-created tags from a user's papers, remove tags only until the user's papers make
+up fewer than $10$\% of all papers with the tag, or apply the transformation only in one direction
+of the edge).
 
-Application of edge transformations must also consider whether transformations depend on the edge
-directionality (to \eg prevent accidental disguising of other users' profiles through shared objects);
-and whether these transformations should be conditional (\eg remove tags from a user's papers only
-if the tags were created by the unsubscribing user) or partially applied (\eg remove tags from a
-user's papers only until the papers make up fewer than $10$\% of all tagged papers).
+\subsection{An Example Disguise}
+\label{design:eg}
+
+Consider a disguise for a user who wants to unsubscribe from HotCRP. She would like for her papers
+or reviews to be unlinkable back to her identity. HotCRP, on the other hand, would like to retain
+paper and review information that other users find useful.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

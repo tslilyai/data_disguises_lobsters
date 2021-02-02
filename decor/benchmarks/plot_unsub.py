@@ -29,4 +29,4 @@ for test in tests:
     plt.ylabel("Latency (s)")
     plt.legend()
     plt.tight_layout()
-    plt.savefig('{}.png'.format(test), dpi=300)
+    plt.savefig('{}.pdf'.format(test), dpi=300)
