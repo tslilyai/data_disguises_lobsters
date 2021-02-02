@@ -1,11 +1,12 @@
 %-------------------------------------------------------------------------------
 \section{Discussion}
 %-------------------------------------------------------------------------------
-Data disguising both enables developers to more easily explore and implement privacy
-transformations, and can go beyond privacy to help developers moderate harmful
+Data disguising enables developers to more easily explore and implement privacy transformations, and
+support privacy paradigms such as data decomposition and resubscription that current applications do
+not.  Data disguising can also go beyond privacy to help developers moderate harmful
 content~\cite{contentmod, sasb}, a responsibility they may soon be held legally liable
-for~\cite{nytimes:230}. Instead of unsubscribing a user of the application, developers specify
-disguises to hide harmful entities (\eg posts with misinformation).
+for~\cite{nytimes:230}. Instead of unsubscribing a user of the application, developers can specify
+disguises that target harmful entities (\eg misinformation).
 
 Data disguising also has some clear limitations. It assumes that transformations on the object graph
 captures all possible disguises developers may wish to apply; transforming application
@@ -30,6 +31,8 @@ updates to the application schema or disguise specification.
 Work in the area of database schema evolution and migration~\cite{schema:evo} may offer insights
 into supporting disguises and disguise reversals after such updates.
 %, since \sys cannot restore data removed using the old policy upon resubscription. 
+
+
 
 \iffalse
 \subsection{Limitations}
