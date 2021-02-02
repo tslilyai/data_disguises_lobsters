@@ -142,8 +142,9 @@ or where data automatically ages out.
 %applying disguises (\eg creating guises). 
 %We implemented several \sys variants to explore different performance tradeoffs. 
 
-Our first \sys variant adds minimal overhead to normal execution, only intercepting queries
-and tracking an in-memory the object graph (roughly 9\% throughput decrease). 
+One \sys variant adds minimal normal execution overhead, only intercepting application queries; this
+decreases throughput by 4\% compared to a baseline without \sys. Another variant that additionally
+tracks an in-memory object graph decreases throughput by 9\% compared to baseline.
 %Adding the shim layer decreases throughput by roughly 4\%,
 %and query parsing and graph tracking reduces throughput another 5\%.
 %, which can be improved by using prepared queries and caching query results.  \lyt{These numbers
@@ -154,24 +155,21 @@ revealing) latency increases linearly with the number of objects correlated with
 %; revealing is cheaper because it requires removing many guises and restoring a few objects,
 %instead of generating many guises and removing a few objects~\lyt{this might be too much detail..}.
 
-We are also investigating other designs that amortize the cost of
-disguising across normal execution.
+We are investigating other designs that spreads the cost of disguising across normal execution.
 %
-One possibility keeps a ``shadow'' copy of the database that
-reflects the disguised state, with guises already created and edges rewritten.
+One possibility keeps a ``shadow'' copy of the database that reflects the disguised state, with
+guises already created and edges rewritten.
 %
 Pre-created guises are hidden by transparently exposing materialized views (MV) to the application.
 Disguising simply exposes the shadow copy in the MV, and removes objects that should be deleted.
 %
 This achieves good read performance---queries read from MVs instead of the database---albeit with
-high memory consumption. However, normal execution still incurs the cost of query interception, and
-write queries may also update multiple guises in the shadow copy.
-%, leading to query multiplication.
-Pre-created guises also consume space during normal execution, even if disguises are never applied. 
+high memory consumption. However, normal execution write queries now must potentially update
+multiple guises in the shadow copy, and 
+pre-created guises consume space during normal execution, even if disguises are never applied. 
 %
-Other possibilities include making disguises eventually consistent; updating the shadow
-copy asynchronously; and caching disguises for users who are disguised (and revealed) most
-often.
+Other possibilities include making disguises eventually consistent; updating the shadow copy
+asynchronously; and caching disguises for users who are disguised (and revealed) most often.
 %and using dataflow to more efficiently update materialized views when disguising.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
