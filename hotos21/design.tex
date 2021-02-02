@@ -15,7 +15,7 @@
 
 %
 The key idea behind \emph{data disguising} is to associate multiple \emph{guises} with a target
-data object: some guises are identity-revealing, others are privacy-preserving.
+data object: some guises are identity-revealing, while others are privacy-preserving.
 %
 Objects move between different guises by means of privacy transformations.
 %
@@ -24,10 +24,10 @@ Figure~\ref{fig:example} illustrates this with the example of user unsubscriptio
 In subscribed state, user Bob's profile is associated with his true identity and all his
 contributions to the site (an identity-revealing guise).
 %
-When Bob unsubscribes, however, his profile and contributions move to different,
+When Bob unsubscribes, his profile and contributions move to different,
 privacy-preserving guises: his profile is now associated with an anonymizing name, his email
 address redacted, and his contributions are decorrelated and attributed to individual,
-unidentified author guises.
+unidentified user guises.
 %
 
 %
@@ -83,15 +83,15 @@ and combining individual guises on request.
 %-------------------------------------------------------------------------------
 \label{sec:policies}
 
-Data disguises consist of a set of chosen transformations on objects and edges in the application
+Data disguises consist of a set of chosen transformations on object types and edge types in the application
 object graph.
 These transformations are applied starting from the developer-specified target object, \eg an
 unsubscribing or inactive user.
 %The developer chooses one transformation for each object type, and
 %one for each edge type.
-Object type transformations specify how to transform a template object into \emph{guises}.  Edge types
-transformations specify whether edges should be deleted, retained, or decorrelated and replaced with
-edges to guises.
+Object type transformations specify how to transform a template object of that type into guises; edge type
+transformations specify whether to delete, retain, or decorrelate edges of that type.
+%where decorrelation replaces the edge with edges to guises.
 
 %We next describe a menu of object and edge transformations sufficient to write disguises for the
 %privacy transformations in Section~\ref{sec:survey}.
@@ -145,12 +145,14 @@ edges to guises.
     \label{fig:guises}
 \end{figure*}
 
-Creating guises requires developers to specify how to transform attributes of the template
-object for each guise.
-%
 Objects have three kinds of attributes: a unique identifier attribute; value
 (non-referential) attributes such as timestamps or usernames; and edge (\eg foreign key)
 attributes that identify correlations with other objects.
+%
+Developers specify how to transform attributes of the template
+object into guise attributes.
+%
+
 %
 Figure~\ref{fig:guises} shows how guises are produced for users. User objects have \texttt{id} as
 the identifier attribute,
@@ -164,31 +166,32 @@ Developers choose how to create guise edge and value attributes, selecting from 
     attribute value. If the attribute is an edge attribute (\eg is a foreign key column),
     all guises will share an edge to the same object.
 
-    Copying allows developers to retain the template's content and not have to
-    consider how to generate new attribute values for guises. However,
-    this should only be chosen if guise attribute values cannot be generated, or if this
-    attribute says little about the true identity of the entity.
-
+    Copying allows developers to retain the template's content, without worrying about how to
+    synthesize attribute values for guises.
+    %However, this should only be chosen if guise attribute
+    %values cannot be generated, or if this attribute says little about the true identity of the
+    %entity.
     For example, Figure~\ref{fig:guises} shows how the \texttt{darkmode} attribute is copied in
-    all ghosts; the \texttt{darkmode} attribute reveals very little about the underlying user's
-    identity.
+    all ghosts.
+    %; the \texttt{darkmode} attribute reveals very little about the underlying user's
+    %identity.
 
 \paragraph{(2) Generate new content.}
-        For value attributes, developers specify whether the guise's value should be random,
+        To create new value attributes, developers specify whether the guise's value should be random,
         a default value, or generated from the template value via a custom function (\eg a hash of
-        the template value, or the encrypted template value). Figure~\ref{fig:guises} illustrates
+        the template value). Figure~\ref{fig:guises} illustrates
         an example of random (\texttt{name}) and default (\texttt{active}) generated value attributes.
 
         To create new guise edge attributes (\eg new foreign key relationships), the data disguise
-        recursively generates a guise for the connected object, and rewrites the edge to the new
-        guise.  Figure~\ref{fig:guises} shows how creating two user guises recursively creates two
-        tag guises, and uses the tag guises' identifiers as foreign key constraints.
+        recursively generates a guise for the connected object, and rewrites the edge to point to
+        the new guise.  In Figure~\ref{fig:guises}, creating two user guises recursively creates two
+        tag guises; the tag guises' identifiers become the user guises' foreign keys.
 
-\paragraph{(3) Copy object content, but only once.} One guise copies the attribute value from the
-template object, but all other guises generate new values (as described above).  \texttt{notifs} in
-Figure~\ref{fig:guises} illustrates how the attribute is copied once. This policy enables the
-application to retain the original object content (\eg a count of how many users want
-notifications), without \eg creating duplicates.
+\paragraph{(3) Copy object content, but only once.} 
+One guise copies the attribute value from the template object, but all other guises generate new
+values (as described above). \texttt{notifs} in Figure~\ref{fig:guises} illustrates how the
+attribute is copied once. This enables the application to retain the original object content
+(\eg a count of how many users want notifications), without \eg creating duplicates.
 
 \subsection{Transforming Edges Between Objects}
 \label{design:edgepol}
