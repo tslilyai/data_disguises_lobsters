@@ -58,23 +58,25 @@ We assume that:
     disguise specifications;
   \item application code invokes disguises via the disguiser tool's API on
     transformation-triggering events (\eg user unsubscription, data timeout, etc.); and
-  \item that application code is prepared to handle the different guises, which have the
+  \item that application code is prepared to handle the different guises, which all have the
     same structure, appropriately (\eg in displaying them).
 \end{enumerate}
-
-\ms{old follows...}
 %
-Using their application expertise, the developer selects from a menu of possible transformations
-(Section~\ref{sec:policies}) that can be performed on objects and object graph edges.
-The data disguise consists of the chosen set of transformations, and determines the
-structure of the object graph after a target (\eg the unsubscribing user) is disguised.
-
-Disguising a target object creates \emph{guises}---transformed versions and/or copies of the target.
-Disguising requires object deletion and anonymization: guises help maintain referential integrity
-when data is deleted, and transform objects into anonymized forms.  Guises additionally decorrelate
-other objects from the target: for example, a new guise for the user can be created in the users
-table, and the foreign key relationship from a row in the posts table rewritten to point this guise,
-to decorrelate the post from the user.
+An application's data object graph thus, at any point in time, consists of a mix of
+identity-revealing guises and privacy-preserving ones, with privacy transformations splitting
+and combining individual guises on request.
+%
+%Using their application expertise, the developer selects from a menu of possible transformations
+%(Section~\ref{sec:policies}) that can be performed on objects and object graph edges.
+%The data disguise consists of the chosen set of transformations, and determines the
+%structure of the object graph after a target (\eg the unsubscribing user) is disguised.
+%
+%Disguising a target object creates \emph{guises}---transformed versions and/or copies of the target.
+%Disguising requires object deletion and anonymization: guises help maintain referential integrity
+%when data is deleted, and transform objects into anonymized forms.  Guises additionally decorrelate
+%other objects from the target: for example, a new guise for the user can be created in the users
+%table, and the foreign key relationship from a row in the posts table rewritten to point this guise,
+%to decorrelate the post from the user.
 
 %-------------------------------------------------------------------------------
 \section{Specifying Data Disguises}
