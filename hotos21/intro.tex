@@ -6,7 +6,7 @@ users.
 %
 Laws like the EU's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's
 Consumer Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' right to be forgotten, and restrict
-any data retention to to anonymized information.
+any data retention to anonymized information.
 %
 Legal consequences and the reputational damage associated with data breaches~\cite{breach:amazon,
 breach:twitter, breach:fb, breach:marriott, breach:quora} make it good practice to minimize the user
@@ -15,8 +15,9 @@ data retained at any point.
 
 %
 Although many developers are well-intentioned, they must today implement \emph{privacy
-transformations} (such as user unsubscription) manually, which results in simplistic and ad-hoc
-solutions (\S\ref{sec:survey}).
+transformations} (such as user unsubscription \lyt{I'm a bit worried that people won't know what
+unsubscription means; since we "unsubscribe" from mailing lists but that doesn't delete accounts})
+manually, which results in simplistic and ad-hoc solutions (\S\ref{sec:survey}).
 %
 To get privacy transformations right, developers must carefully map the high-level privacy
 policy to operations that delete or rewrite data objects, ensuring that the application preserves
@@ -24,7 +25,7 @@ utility for other users, retains legally-mandated anonymized data, and avoids vi
 application invariants.
 %
 For example, a user's unsubscription should not allow another user to view content they could
-not originally access, nor should it make non-sensitive shared content disappear.
+not originally access, nor make non-sensitive shared content disappear.
 %
 
 %
@@ -46,17 +47,17 @@ complexity.
 %
 But more nuanced privacy policies are important and useful!
 %
-Such policies can help protect users against data correlation attacks; they could give more
+Such policies can help protect users against data correlation attacks; they can give more
 control to individuals by allowing them to choose their own, fine-grained privacy semantics; and
-they might enable new privacy modes such as data that gradually becomes less identifyable over
+they may enable new privacy modes such as data that gradually becomes less identifyable over
 time.
 %
 Likewise, ``reversible'' privacy transformations might strike a sweet spot: they allow for
 policies that let users remove identifiable information temporarily, but accommodate the service
 providers' interest to make it easy for those users to return.
 %
-But the developer burden imposed by implementing the transformations required to enact these
-policies is prohibitive today.
+But the developer burden to implement the these transformations is prohibitive today.
+%imposed by implementing the transformations required to enact these policies
 %
 
 %We next describe a wide range of privacy transformations, some from existing applications' privacy policies,
