@@ -210,16 +210,40 @@ The developer specifies transformations for each edge type, choosing from the fo
 \end{enumerate}
 These choices take optional arguments to conditionally or partially apply edge transformations (\eg
 remove only user-created tags from a user's papers, remove tags only until the user's papers make
-up fewer than $10$\% of all papers with the tag, or apply the transformation only in one direction
-of the edge).
+up fewer than $10$\% of all papers with the tag, or apply the transformation only in the
+child-parent direction of the edge).
 
 \subsection{An Example Disguise}
 \label{design:eg}
 
-Consider a disguise for a user who wants to unsubscribe from HotCRP. She would like for her papers
-or reviews to be unlinkable back to her identity. HotCRP, on the other hand, would like to retain
-paper and review information that other users find useful.
+Consider disguising Bob when he unsubscribes from HotCRP. He would like for his papers and reviews
+to be unlinkable back to his identity. HotCRP, on the other hand, would like to retain paper and
+review information that other users find useful.  A careful selection of edge and object
+transformations can achieve both.
 
+To decorrelate reviews from Bob, the disguise aptly \texttt{Decorrelate}s user-to-review edges.
+This requires transforming Bob into one unique user guise per review. To do so, the disguise
+generates suitable default or custom guise attribute values (\eg timestamps randomly generated
+within the past decade). In particular, the value attribute \texttt{disabled} is set to
+\texttt{true}, ensuring that guises have no permissions and never review papers. 
+
+Bob is linked to papers through conflicts, which denotes either coauthorship or reviewer conflicts
+with the paper authors. Bob's conflict should not be reassigned to a user guise: the remaining set
+of conflicts can reidentify the guise by exposing his affiliations and recent collaborations.
+Instead, the disguise \texttt{Delete}s conflict-to-paper edges.  Note the importance of
+directionality: paper-to-conflict edges should not be removed, as doing so could incorrectly allow
+conflicting (subscribed) users to review the paper!
+
+The disguise \texttt{Retain}s all other edges in HotCRP, ensuring that review and paper artifacts
+remain correctly linked: (subscribed) reviewers still see the correct paper for their reviews, and
+(subscribed) authors see the correct reviews for their papers.  Review and paper guises copy the
+original object, retaining paper and review information.
+
+Unlike the current HotCRP unsubscription policy, which deletes all objects belonging to Bob, this
+disguise strikes a balance between decorrelating Bob's identity from his reviews and papers, and
+maintaining useful information for other HotCRP users.  Furthermore, it is easy to imagine extending
+this disguise to automatically disguise Bob after conferences have ended (and to reveal Bob if Bob
+ever wishes to come back).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
