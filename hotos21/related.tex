@@ -23,7 +23,7 @@ and the privacy-preserving normal partition.
 %For example, Sypse's synthetic data is randomly generated and application-oblivious. We observe that
 %in order to maintain correct application semantics, developers must provide input into how to
 %generate ghost entities.
-
+%
 %A future implementation may preemptively create
 %ghost data and result in a system design vaguely similar to Sypse, but this implementation strategy
 %is not fundamental.
@@ -50,22 +50,18 @@ Data diguising can be employed for GDPR compliance, but supports privacy transfo
 simply deleting PII, and requires no ownership tracking or fine-grained IFC.
 %
 
-%---------------------------
-
-%---------------------------
-
-\paragraph{Enforcing Data Disclosure.}
-Many systems enforce developer-specified data disclosure and access control policies. These include
-general information flow control approaches~\cite{static, jeeves, jif, hails, ifdb} that check
-that applications abide by data disclosure policies.
+%
+Other systems enforce developer-specified \textbf{visibility and access control policies}
+based on general information flow control approaches~\cite{static, jeeves, jif, hails, ifdb},
 %, dynamically or statically,
 %
-Other approaches to access control include authorized views~\cite{oracle} or per-user
-views~\cite{multiverse}, rewriting database queries~\cite{qapla, sieve}, and performing
-queries over encrypted data, readable only by authenticated users~\cite{cryptdb}.
-
-Data disguising's goal is orthogonal: these frameworks do not transform the actual data stored by
-the applications, and instead only control what becomes visible at the front end.
+authorized views~\cite{oracle} or per-user views~\cite{multiverse}, rewriting database queries~\cite{qapla, sieve}.
+%, and performing queries over encrypted data, readable only by authenticated
+%users~\cite{cryptdb}.
+%
+Data disguising transforms the actual data stored, but trusts the developer to write a
+correct diguising specification.
+%
 %Data disguising can additionally automate complex privacy transformations for authorized or multiverse views.
 
 %ScrambleDB~\cite{scrambledb} generates oblivious pseudonyms for distributed settings, so there does
@@ -73,21 +69,29 @@ the applications, and instead only control what becomes visible at the front end
 
 %---------------------------
 
-\paragraph{Decoupling User Data from Web Applications.}
-Prior work~\cite{diy, solid, amber, oort, w5, blockstack, bstore, databox} has proposed user-centric data
-ownership paradigms in which applications compute on decentralized, per-user datastores.
+Approaches for privacy-preserving data mining, such as $k$-anonymity, $l$-diversity, and
+differential privacy~\cite{dataminingmodels, differential}, provide \textbf{statistical privacy
+guarantees}.
+%
+These approaches complement to data disguising: decorrelation thresholds in a data disguising
+specification might be based on differential privacy, for example.
+%
+%However, these formal techniques no longer apply for arbitrary application queries over possibly
+%non-numerical data.
+
+
+Finally, \textbf{clean-slate designs} for user-centric data ownership paradigms seek to
+``decentralize'' the internet~\cite{diy, solid, amber, oort, w5, blockstack, bstore, databox},
+granting ultimate control over data to-end-users.
 %agree upon a standard format for data storage, and
 %hosted by a trusted third-party provider or the user.
-Application logic runs on user clients, %(\eg JavaScript~\cite{solid, blockstack, bstore})
-and queries individual datastores to access user data.
-However, this results in greatly reduced performance,
-burdens users with long-term data maintenance and storage,
-removes the flexibilty of application-specific SQL databases,
-and breaks the current application revenue model.
-%, and lose the flexibility and performance that results from specialized schemas and data storage.
-
-In contrast, data disguising helps developers specify and automate better privacy transformations
-without changing the application data model.
+%
+These systems typically lack the capacity for server-side compute, burden users with long-term
+data maintenance and storage, and break the current application revenue model.
+%
+In contrast, data disguising helps developers specify and automate privacy transformations
+without changing the application data model or their business model.
+%
 
 %Although these paradigms grant users more control over applications' access to their data,
 %In these paradigms, users must decide on appropriate access control and authentication policies, and
@@ -119,13 +123,6 @@ without changing the application data model.
 %Section~\ref{sec:design:storage}).
 
 %---------------------------
-
-\paragraph{Statistical Privacy Guarantees.}
-Approaches for privacy-preserving data mining, such as $k$-anonymity, $l$-diversity, and
-differential privacy~\cite{dataminingmodels, differential}, complement to data disguising: for
-analytical queries, techniques like PINQ~\cite{pinq} suggest how to provide differentially private guarantees.
-However, these formal techniques no longer apply for arbitrary application queries over possibly
-non-numerical data.
 
 \iffalse
 Key ideas:
