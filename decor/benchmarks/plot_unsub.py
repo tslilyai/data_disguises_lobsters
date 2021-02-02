@@ -6,7 +6,6 @@ plt.style.use('seaborn-deep')
 num_qtypes = 6
 
 tests = ["decor_unsub"]
-names = ["Disguise", "Reveal"]
 ybounds = [1000000, 1000000, 1000000, 10000, 6000, 6000]
 
 # collect all results, compute maximum latency over all tests + all query  types
@@ -23,10 +22,11 @@ for test in tests:
             disg.append(int(p[2])/1000)
             rev.append(int(p[3])/1000)
 
-    plt.plot(nobjs, disg, color='red', linestyle='--', marker="*", label="Disguise")
+    plt.figure(figsize=(5,3.5))
+    plt.plot(nobjs, disg, color='red', linestyle='--', marker="o", label="Disguise")
     plt.plot(nobjs, rev, color='blue', marker="x", label="Reveal")
     plt.xlabel("#Objects Associated with User")
     plt.ylabel("Latency (ms)")
     plt.legend()
-    plt.tight_layout(h_pad=4)
+    plt.tight_layout()
     plt.savefig('{}.png'.format(test), dpi=300)
