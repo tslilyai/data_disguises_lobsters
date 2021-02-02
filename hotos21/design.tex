@@ -89,14 +89,14 @@ These transformations are applied starting from the developer-specified target o
 unsubscribing or inactive user.
 %The developer chooses one transformation for each object type, and
 %one for each edge type.
-Object type transformations specify how to transform a template object of that type into guises; edge type
-transformations specify whether to delete, retain, or decorrelate edges of that type.
+%Object type transformations specify how to transform a template object of that type into guises; edge type
+%transformations specify whether to delete, retain, or decorrelate edges of that type.
 %where decorrelation replaces the edge with edges to guises.
 
 %We next describe a menu of object and edge transformations sufficient to write disguises for the
 %privacy transformations in Section~\ref{sec:survey}.
 
-\subsection{Transforming Objects Into Guises}
+\subsection{Creating Guises for Objects}
 \label{sec:guises}
 
 \begin{figure*}[t!]
@@ -145,12 +145,12 @@ transformations specify whether to delete, retain, or decorrelate edges of that 
     \label{fig:guises}
 \end{figure*}
 
+To create a guise from a template object, developers specify how to transform attributes of a template
+object into guise attributes.
+%
 Objects have three kinds of attributes: a unique identifier attribute; value
 (non-referential) attributes such as timestamps or usernames; and edge (\eg foreign key)
 attributes that identify correlations with other objects.
-%
-Developers specify how to transform attributes of the template
-object into guise attributes.
 %
 
 %
@@ -205,9 +205,9 @@ The developer specifies transformations for each edge type, choosing from the fo
 \begin{enumerate}[nosep]
     \item \textbf{Retain} edges of this type. Transform both parent and child objects into a single guise
         each.
-    \item \textbf{Decorrelate} edges of this type. Create a new guise from the parent for each of
-        the parent's children; replace each child's edge to the parent with an edge to one of the
-        parent's guises.
+    \item \textbf{Decorrelate} edges of this type. Create a new guise (using the parent as template) for each of
+        the parent's children; replace each child's edge to the parent with an edge to a unique
+        guise.
     \item \textbf{Delete} edges of this type. Transform the parent object into a single guise;
         remove the child and its descendants.
 \end{enumerate}
@@ -230,11 +230,9 @@ A careful selection of edge and object transformations achieves both.
 To decorrelate reviews from Bob, the disguise aptly \texttt{Decorrelate}s user-to-review edges.
 This requires transforming Bob into one unique user guise per review.
 %
-To do so, the disguise generates suitable default or custom guise attribute values
-(\eg last logins randomly generated within the review period).
-%
-In addition, the guises's attribute \texttt{disabled} is set to \texttt{true}, ensuring that
-guises have no permissions and never review papers.
+To do so, the disguise generates guise attribute values using suitable defaults. In particular, the
+\texttt{disabled} attribute is set to \texttt{true}, ensuring that guises have no permissions and
+never review papers.
 %
 
 %
@@ -248,8 +246,8 @@ Instead, the conflict-to-paper edges need a \texttt{Delete} annotation.
 %
 Edge directionality matters here: paper-to-conflict edges should not be removed, as doing so
 could incorrectly allow conflicted users to see the paper!
-%
-The disguise \texttt{Retain}s all other edges in HotCRP, ensuring that review and paper
+
+The disguise \texttt{Retain}s all other edge types, ensuring that review and paper
 artifacts remain correctly linked: active reviewers still see the correct paper for their
 reviews, and active authors see the correct reviews for their papers, albeit authored by
 anonymous, unlinkable guises of the original author.
