@@ -125,10 +125,9 @@ retention with data deletion for privacy, as described in \S\ref{design:eg}.
 \label{sec:perf} 
 
 \begin{figure}[t!]
-\centering
-    \includegraphics[width=.5\textwidth]{img/latencies}
-    \caption{Disguising and revealing latency vs. the number of objects belonging to
-    the target user.}
+    \centerline{\includegraphics[width=.5\textwidth]{img/perf}}
+    \caption{Work required to disguise and reveal a target user, depending on the number of
+    user-associated objects.}
     \label{fig:latencies}
     \vspace{-\baselineskip}
 \end{figure}
@@ -150,12 +149,14 @@ tracks an in-memory object graph decreases throughput by 9\% compared to baselin
 %, which can be improved by using prepared queries and caching query results.  \lyt{These numbers
 %come from lobsters running at 0.5 scale, w/0\% unsub}
 Disguise application in the worst case requires creating as many guises as
-the number of edges connected to the target. As shown in Figure~\ref{fig:latencies}, disguising (and
-revealing) latency increases linearly with the number of objects correlated with the target.
+the number of edges connected to the target. As shown in Figure~\ref{fig:latencies}, the amount of
+work to create guises and modify objects and edges when disguising (and
+revealing) increases linearly with the number of objects correlated with the target.
 %; revealing is cheaper because it requires removing many guises and restoring a few objects,
 %instead of generating many guises and removing a few objects~\lyt{this might be too much detail..}.
 
-We are investigating other designs that spreads the cost of disguising across normal execution.
+This indicates a need for privacy-aware database designs, which 
+spread the cost of disguising across normal execution.
 %
 One possibility keeps a ``shadow'' copy of the database that reflects the disguised state, with
 guises already created and edges rewritten.
