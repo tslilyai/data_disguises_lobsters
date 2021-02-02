@@ -13,7 +13,9 @@ DELF~\cite{delf}, a framework for data deletion at Facebook.
 %
 While Sypse also relies on an object graph, its design is application-oblivious and assumes that
 developers take care of splitting and moving data between the identity-revealing PII partition
-and the privacy-preserving normal partition.
+and the privacy-preserving normal partition.\lyt{I'm not sure this is accurate? They don't use
+developer input at all to figure out which edges to break/columns to anonymize, but rather assume some random data synthesis + some ``automated'' analysis
+of the data schema, whereas we actually assume that developers need to specify these things}
 %
 %In contrast, data disguing does not keep PII in the application, or change the application
 %schema.
@@ -55,7 +57,7 @@ Other systems enforce developer-specified \textbf{visibility and access control 
 based on general information flow control approaches~\cite{static, jeeves, jif, hails, ifdb},
 %, dynamically or statically,
 %
-authorized views~\cite{oracle} or per-user views~\cite{multiverse}, rewriting database queries~\cite{qapla, sieve}.
+authorized views~\cite{oracle} or per-user views~\cite{multiverse}, and rewriting database queries~\cite{qapla, sieve}.
 %, and performing queries over encrypted data, readable only by authenticated
 %users~\cite{cryptdb}.
 %
@@ -69,12 +71,12 @@ correct diguising specification.
 
 %---------------------------
 
-Approaches for privacy-preserving data mining, such as $k$-anonymity, $l$-diversity, and
+Privacy-preserving data mining approaches, such as $k$-anonymity, $l$-diversity, and
 differential privacy~\cite{dataminingmodels, differential}, provide \textbf{statistical privacy
 guarantees}.
 %
-These approaches complement to data disguising: decorrelation thresholds in a data disguising
-specification might be based on differential privacy, for example.
+These complement data disguising: disguise decorrelation thresholds might be based on
+differential privacy, for example.
 %
 %However, these formal techniques no longer apply for arbitrary application queries over possibly
 %non-numerical data.
@@ -82,15 +84,15 @@ specification might be based on differential privacy, for example.
 
 Finally, \textbf{clean-slate designs} for user-centric data ownership paradigms seek to
 ``decentralize'' the internet~\cite{diy, solid, amber, oort, w5, blockstack, bstore, databox},
-granting ultimate control over data to-end-users.
+granting ultimate control over data to end-users.
 %agree upon a standard format for data storage, and
 %hosted by a trusted third-party provider or the user.
 %
 These systems typically lack the capacity for server-side compute, burden users with long-term
-data maintenance and storage, and break the current application revenue model.
+data maintenance, and break the current application revenue model.
 %
 In contrast, data disguising helps developers specify and automate privacy transformations
-without changing the application data model or their business model.
+without changing the application data model or business model.
 %
 
 %Although these paradigms grant users more control over applications' access to their data,
