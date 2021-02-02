@@ -15,8 +15,8 @@ data retained at any point.
 
 %
 Although many developers are well-intentioned, they must today implement \emph{privacy
-transformations} (such as user unsubscription \lyt{I'm a bit worried that people won't know what
-unsubscription means; since we "unsubscribe" from mailing lists but that doesn't delete accounts})
+transformations} (such as user unsubscription, \ie requests to leave the service) \lyt{I'm a bit worried that people won't know what
+unsubscription means; since we "unsubscribe" from mailing lists but that doesn't delete accounts}
 manually, which results in simplistic and ad-hoc solutions (\S\ref{sec:survey}).
 %
 To get privacy transformations right, developers must carefully map the high-level privacy
@@ -136,7 +136,7 @@ within the remaining data.
 We argue for a more \emph{systematic} treatment of privacy transformations, making them a
 first-class citizen in application design.
 %
-In particular, we imagine developers who specify declaratively specify the above and other
+In particular, we imagine that developers declaratively specify the above and other
 transformation policies like they specify a storage structure (\eg a relational schema) today.
 %
 This also allows for new policies and use cases that benefit both end-users and service operators.
@@ -157,7 +157,7 @@ Likewise, contributions with a shared property (\eg posts on Reddit that share a
 might be removed entirely to avoid inference attacks, or retained and decorrelated from the
 property (\eg keeping the user's Reddit posts, but removing their tags).
 %
-Similar policies could apply \emph{only} if the property was created by the user (\eg keeping
+Similar policies could apply \emph{only if} the property was created by the user (\eg keeping
 the user's Reddit posts, but removing any user-created tags), or if the user's contributions
 comprise more than a threshold percentage of the contributions with a shared property.
 %(\eg remove the user's posts on Reddit with tag $t$ if these posts comprise more than 10\%
@@ -176,8 +176,8 @@ anonymizes a user's contributions after the user has been inactive for a period 
 restores the user's profile and contributions if the user ever logs back in.
 %
 Or the application could gradually ``decompose'' sensitive data by applying a series of
-privacy transformations that incrementally remove more identifiable information from it as it
-ages.
+privacy transformations that incrementally removes more identifiable information over time.
+%from it as it ages.
 %
 
 \paragraph{Reversibility.}
@@ -185,13 +185,13 @@ ages.
 Many applications might wish to employ \emph{reversible} transformations, going beyond permanent
 and irrevokable unsubscription.
 %
-After all, if services must allow users to remove their data on request, it's in the operator's
+After all, if services must allow users to remove their data on request, it is in the operator's
 interest to make it easy for users to change their mind and return.
 %
 An advanced reversible transformation might, for example, record all actions performed in an
 encrypted log, and offer that log for download or push it to third-party cloud storage.
 %
-If the user wishes to return, they simply supply the log and the transformation reverses.
+If the user wishes to return, they simply supply the log to reverse the transformation.
 %
 To ensure access to the log even if the user loses their key, the transformation might
 secret-share the encryption key~\cite{secretsharing} among the user, the service, and a trusted
