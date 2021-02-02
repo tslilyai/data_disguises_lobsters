@@ -32,7 +32,7 @@
         \textbf{Disguise} \\
         & \textbf{Types} & \textbf{Types} & \textbf{LoC} & \textbf{LoC} \\
     \midrule
-    Lobsters & 19 & 20 & 318 & 220 \\
+    Lobsters-Unsub & 19 & 20 & 318 & 220 \\
     HotCRP-Coarse & 25 & 50 & 352 & 378 \\
     HotCRP-Granular & 25 & 50 & 352 & 407 \\
 \end{tabular}
@@ -44,9 +44,9 @@
 \end{table}
 We evaluate whether \sys enables developers to easily express and automate practical data disguises
 by writing disguises for user unsubscription in Lobsters, an open-source news feed application, and
-HotCRP, a popular conference review management application. Writing disguises should be of similar
+HotCRP, an application for conference review management. Writing disguises should be of similar
 difficulty and require the same expertise as writing relational schemas. In particular, a developer
-should only need to write a disguise once. Because disguises require at most one tranformation for
+should write a disguise only once. Because disguises require at most one tranformation for
 each object type and edge type, disguise complexity is limited by the number of entity types and
 relations in the application schema. Table~\ref{tab:loc} shows the statistics for each disguise. 
 
@@ -56,7 +56,7 @@ relations in the application schema. Table~\ref{tab:loc} shows the statistics fo
 %%with access to those papers or reviews should not be able to reassociate these papers or reviews
 %with the unsubscribed user.
 
-Lobsters and HotCRP-Coarse disguises implement the current unsubscription policies in the respective
+Lobsters-Unsub and HotCRP-Coarse implement the current unsubscription policies in the respective
 applications.
 %The HotCRP-Coarse disguise specifies the current HotCRP unsubscription policy, which deletes all
 %objects correlated to the user. 
@@ -127,45 +127,52 @@ retention with data deletion for privacy, as described in \S\ref{design:eg}.
 \begin{figure}[t!]
 \centering
     \includegraphics[width=.5\textwidth]{img/latencies}
-    \caption{Disguising and revealing latency depending on the number of objects belonging to
-    the user.}
+    \caption{Disguising and revealing latency vs. the number of objects belonging to
+    the target user.}
     \label{fig:latencies}
+    \vspace{-\baselineskip}
 \end{figure}
 
-Our experience implementing \sys exposed several performance challenges raised by data disguising.
-\sys incurs overheads from adding a layer of indirection between application and database, and
-applying disguises (\eg creating guises). We implemented several \sys variants to explore different
-performance tradeoffs. 
+Our experience implementing \sys exposed several performance challenges, in particular highlighting
+the tradeoff between good performance during normal execution, and low-latency disguise application.
+The right balance depends on the rate of disguising, which may range from rare (as in today's
+applications), to quite frequent in a privacy-supporting world where users freely disguise
+and reveal themselves, or where data automatically ages out.
+%\sys incurs overheads from adding a layer of indirection between application and database, and
+%applying disguises (\eg creating guises). 
+%We implemented several \sys variants to explore different performance tradeoffs. 
 
-The first adds as little overhead as possible to normal execution, only intercepting queries and
-tracking an in-memory the object graph. Adding the shim layer decreases throughput by roughly 4\%,
-and query parsing and graph tracking reduces throughput another 5\%.
+Our first \sys variant adds minimal overhead to normal execution, only intercepting queries
+and tracking an in-memory the object graph (roughly 9\% throughput decrease). 
+%Adding the shim layer decreases throughput by roughly 4\%,
+%and query parsing and graph tracking reduces throughput another 5\%.
 %, which can be improved by using prepared queries and caching query results.  \lyt{These numbers
 %come from lobsters running at 0.5 scale, w/0\% unsub}
-Disguise application in the worst case requires creating or removing potentially as many guises as
-the number of edges connected to the target. As shown in Figure~\ref{fig:latencies}, the disguising
-(and revealing) latency increases linearly with the number of objects correlated with the target
-user; revealing is cheaper because it requires removing many guises and restoring a few objects,
-instead of generating many guises and removing a few objects~\lyt{this might be too much detail..}.
+Disguise application in the worst case requires creating as many guises as
+the number of edges connected to the target. As shown in Figure~\ref{fig:latencies}, disguising (and
+revealing) latency increases linearly with the number of objects correlated with the target.
+%; revealing is cheaper because it requires removing many guises and restoring a few objects,
+%instead of generating many guises and removing a few objects~\lyt{this might be too much detail..}.
 
-To solve this scalability problem, we are investigating other designs that amortize the cost of
-disguising across normal execution. One possibility keeps a ``shadow'' copy of the database that
-reflects the disguised state (\ie with guises already created, and edges rewritten).
+We are also investigating other designs that amortize the cost of
+disguising across normal execution.
 %
-This requires additional database queries for each object update during normal execution,
-potentially multiplying the number of queries by the number of guises associated with that object,
-and extra storage for the pre-created guises. 
+One possibility keeps a ``shadow'' copy of the database that
+reflects the disguised state, with guises already created and edges rewritten.
 %
 Pre-created guises are hidden by transparently exposing materialized views (MV) to the application.
 Disguising simply exposes the shadow copy in the MV, and removes objects that should be deleted.
 %
-This achieves good read performance---queries read from MVs instead of the database---at the
-cost of high memory consumption. However, updates may also update guises in the shadow copy, leading
-to write query multiplication.
-
-Other possibilites to explore include amortizing the cost of disguising by supporting \eg only
-eventually consistent disguises; updating the shadow, disguised database asynchronously; and using
-dataflow to automatically update materialized views when disguising.
+This achieves good read performance---queries read from MVs instead of the database---albeit with
+high memory consumption. However, normal execution still incurs the cost of query interception, and
+write queries may also update multiple guises in the shadow copy.
+%, leading to query multiplication.
+Pre-created guises also consume space during normal execution, even if disguises are never applied. 
+%
+Other possibilities include making disguises eventually consistent; updating the shadow
+copy asynchronously; and caching disguises for users who are disguised (and revealed) most
+often.
+%and using dataflow to more efficiently update materialized views when disguising.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \iffalse
