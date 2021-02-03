@@ -131,7 +131,8 @@ pub fn mysql_val_to_common_val(val: &mysql::Value) -> mysql_common::value::Value
         mysql::Value::Bytes(bs) => mysql_common::value::Value::Bytes(bs.clone()),
         mysql::Value::Int(i) => mysql_common::value::Value::Int(*i),
         mysql::Value::UInt(i) => mysql_common::value::Value::UInt(*i),
-        mysql::Value::Float(f) => mysql_common::value::Value::Double(*f),
+        mysql::Value::Float(f) => mysql_common::value::Value::Double((*f).into()),
+        mysql::Value::Double(f) => mysql_common::value::Value::Double((*f).into()),
         mysql::Value::Date(a,b,c,d,e,f,g) => mysql_common::value::Value::Date(*a,*b,*c,*d,*e,*f,*g),
         mysql::Value::Time(a,b,c,d,e,f) => mysql_common::value::Value::Time(*a,*b,*c,*d,*e,*f),
     }

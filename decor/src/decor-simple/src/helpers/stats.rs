@@ -21,6 +21,7 @@ pub enum QueryType {
 pub struct QueryStat {
     pub duration: Duration,
     pub nqueries: usize,
+    pub nobjects: usize,
     pub nqueries_mv: usize,
     pub qtype: QueryType,
 }
@@ -30,6 +31,7 @@ impl QueryStat {
         QueryStat {
             duration: Duration::new(0,0),
             nqueries : 0,
+            nobjects : 0,
             nqueries_mv : 0,
             qtype : QueryType::None,
         }
@@ -120,23 +122,23 @@ pub fn print_stats(stats: &Vec<QueryStat>, filename: String) {
         }
         match stat.qtype {
             QueryType::Read => {
-                read_latencies.push((stat.nqueries, stat.duration.as_micros()));
+                read_latencies.push((stat.nobjects, stat.duration.as_micros()));
             }
             QueryType::Update => {
-                update_latencies.push((stat.nqueries, stat.duration.as_micros()));
+                update_latencies.push((stat.nobjects, stat.duration.as_micros()));
             }
             QueryType::Insert => {
-                insert_latencies.push((stat.nqueries, stat.duration.as_micros()));
+                insert_latencies.push((stat.nobjects, stat.duration.as_micros()));
             }
             QueryType::Unsub => {
-                unsub_latencies.push((stat.nqueries, stat.duration.as_micros()));
+                unsub_latencies.push((stat.nobjects, stat.duration.as_micros()));
             }
             QueryType::Resub => {
-                resub_latencies.push((stat.nqueries, stat.duration.as_micros()));
+                resub_latencies.push((stat.nobjects, stat.duration.as_micros()));
             }
             _ => {
                 //error!("Found other query type {:?}", stat.qtype);
-                other_latencies.push((stat.nqueries, stat.duration.as_micros()));
+                other_latencies.push((stat.nobjects, stat.duration.as_micros()));
             }
         }
     }

@@ -245,6 +245,7 @@ impl Querier {
                               child.oid);
         db.query_drop(db_stmt)?;
         self.cur_stat.nqueries+=1;
+        self.cur_stat.nobjects+=1;
         Ok(())
     }
 
@@ -273,6 +274,7 @@ impl Querier {
                     .collect();
                 parser_rows.push(parser_row);
             }
+            self.cur_stat.nobjects+=parser_rows.len();
             let source = InsertSource::Query(Box::new(Query{
                 ctes: vec![],
                 body: SetExpr::Values(Values(parser_rows)),
@@ -759,6 +761,7 @@ impl Querier {
             warn!("UNSUB STEP 4 delete: {}", delete_oid_from_table);
             db.query_drop(format!("{}", delete_oid_from_table.to_string()))?;
             self.cur_stat.nqueries+=1;
+            self.cur_stat.nobjects+=ids.len();
         }
         Ok(())
     }
@@ -855,6 +858,7 @@ impl Querier {
         warn!("RESUB issuing {}", insert_entities_stmt);
         db.query_drop(format!("{}", insert_entities_stmt))?;
         self.cur_stat.nqueries+=1;
+        self.cur_stat.nobjects+=curvals.len();
        
         warn!("RESUB db {} finish reinsert took {}us", insert_entities_stmt.to_string(), start.elapsed().as_micros());
         Ok(())
@@ -937,6 +941,7 @@ impl Querier {
             warn!("RESUB removing entities: {}", delete_gids_as_entities);
             db.query_drop(format!("{}", delete_gids_as_entities.to_string()))?;
             self.cur_stat.nqueries+=1;
+            self.cur_stat.nobjects+=gidrptrs.len();
         }
         Ok(())
     }
