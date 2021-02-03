@@ -15,8 +15,10 @@ data retained at any point.
 
 %
 Although many developers are well-intentioned, they must today implement \emph{privacy
-transformations} (such as user account deletion) 
-manually, which results in simplistic and ad-hoc solutions (\S\ref{sec:survey}).
+transformations} (such as user account deletion) manually, which results in coarse-grained
+transformations and ad-hoc solutions (\S\ref{sec:survey}).
+\lyt{I have a note here from Derek saying that transformations isn't explicitly defined; I'm not
+convinced we should, but just wanted to mention it.}
 %
 To get privacy transformations right, developers must carefully map the high-level privacy
 policy to operations that delete or rewrite data objects, ensuring that the application preserves
@@ -28,7 +30,7 @@ not originally access, nor make non-sensitive shared content disappear.
 %
 
 %
-Privacy transformations must correctly handle identifying data as well as subtly identifying
+Privacy transformations designers must correctly handle identifying data, as well as indirectly identifying
 correlations between data objects.
 %
 For example, anonymized public running routes correlated with the same location can identify the
@@ -71,19 +73,18 @@ for specifying and implementing privacy transformations.
 With data disguising, developers specify transformations required in privacy policies as
 high-level \emph{data disguises} over existing application data types and associations.
 %
-Applying a disguise transforms the state of application data to, \eg delete or hide a users'
-identifiers or decorrelate identifying object relationships, while preserving application
-invariants and utility.
+Applying a disguise transforms the state of application data in privacy-preserving ways (\eg
+deleting users' identifiers, or decorrelating identifying object relationships), while preserving
+application invariants and utility.
 %
 %Disguises consist of transformations performed on the high-level object graph embedded in
 %database-based applications (encoded by \eg foreign key relationships in relational
 %databases)~\cite{orms}.
 %
-A data disguising tool takes a disguise and its target, and automatically generates the
-appropriate database transformations to achieve the disguised state, alleviating the developer
+A data disguising tool takes a disguise and its target, and automatically applies the appropriate
+transformations to application data to achieve the disguised state, reducing the developer
 burden.
 %
-
 
 \section{The Need for Privacy Transformations}
 \label{sec:survey}
