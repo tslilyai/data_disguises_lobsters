@@ -2,13 +2,19 @@
 \section{Prototype}
 %-------------------------------------------------------------------------------
 \label{sec:proto}
-Our prototype disguising tool, \sys, consists of 5K LoC of Rust, and supports SQL queries as
-well as \texttt{DISGUISE [disguise\_id] [target]} and \texttt{REVERSE DISGUISE [disguise\_id] [target]} queries.  \sys provides
-data disguising for applications that use SQL relational databases, where objects are
-tables rows and edges are foreign key relationships.
 %
-This restriction is not fundamental: \sys could additionally support abstract,
-non-table objects such as ``country,'' or work on top of a graph or blob datastore instead.
+Our prototype disguising tool, \sys, is a MySQL proxy consisting of 5K LoC of Rust.
+%
+It supports standard SQL as well as \texttt{DISGUISE [disguise\_id] [target]} and
+\texttt{REVERSE DISGUISE [disguise\_id] [target]} queries, where \texttt{disguise\_id}
+identifies a declarative disguise specification and \texttt{target} is the unique ID
+of the target object.
+%
+\sys provides data disguising for applications that use relational databases, where
+objects are table rows and edges are foreign key relationships.
+%
+We believe that the data disguising approach can be extended to other types of stores.
+%
 %We show that \sys performs reasonably (Section~\ref{sec:perf}), and we plan to support
 %eventually consistent, crash-recoverable transformations, sharding, and multicore parallelism.
 
