@@ -14,12 +14,12 @@ data retained at any point.
 %
 
 %
-Although many developers are well-intentioned, they must today implement \emph{privacy
-transformations} (such as user account deletion) manually, which results in coarse-grained
-transformations and ad-hoc solutions (\S\ref{sec:survey}).
-\lyt{add other examples of transformations? e.g., anonymization when exporting data, for data
-minimization, to support user-chosen privacy settings? we do only really talk about user account
-deletion in webapps today, though}
+Although many developers are well-intentioned, today they must implement \emph{privacy
+transformations} (such as user account deletion or data minimization) manually, which results in
+coarse-grained transformations and ad-hoc solutions (\S\ref{sec:survey}).
+%\lyt{add other examples of transformations? e.g., anonymization when exporting data, for data
+%minimization, to support user-chosen privacy settings? we do only really talk about user account
+%deletion in webapps today, though}
 %
 To get privacy transformations right, developers must carefully map the high-level privacy
 policy to operations that delete or rewrite data objects, ensuring that the application preserves
@@ -27,15 +27,16 @@ utility for other users, retains legally-mandated anonymized data, and avoids vi
 application invariants.
 %
 For example, deleting a user's account should not allow another user to view content they could
-not originally access, nor make non-sensitive shared content disappear.
+not originally access (invariant), nor make non-sensitive shared content disappear (utility for
+others).
 %
 
 %
 Privacy transformation designers must correctly handle identifying data, as well as indirectly identifying
 correlations between data objects.
 %
-For example, anonymized public running routes correlated with the same location can identify the
-user's hometown and be reassociated with the user~\cite{strava:heatmap};
+For example, anonymized public running routes can identify the user's hometown and be
+reassociated with the user~\cite{strava:heatmap};
 %\ms{cite Strava privacy issues?};
 %anonymized posts on Reddit correlated with a subreddit with very few subscribers can be
 %associated back to a single user;
@@ -51,12 +52,11 @@ But more nuanced privacy policies are important and useful!
 %
 Such policies can help protect users against data correlation attacks; they can give more
 control to individuals by allowing them to choose their own, fine-grained privacy semantics; and
-they may enable new privacy modes such as data that gradually becomes less identifyable over
-time.
+they may enable new privacy modes such as data that gradually ``decays'' to become less identifyable over time.
 %
-Likewise, \lyt{user-controlled(?)} ``reversible'' privacy transformations might strike a sweet spot: they allow for
-policies that let users remove identifiable information temporarily, but accommodate the service
-providers' interest to make it easy for those users to return.
+Likewise, allowing users to ``reverse'' a privacy transformation might strike a sweet spot: users
+can remove identifiable information temporarily, but the possibility of user-initiated reversal
+accommodates the service providers' interest to make it easy for users to return.
 %
 But the developer burden to implement the these transformations is prohibitive today.
 %imposed by implementing the transformations required to enact these policies
