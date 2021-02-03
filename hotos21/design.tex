@@ -48,21 +48,26 @@ This specification is a declarative statement similar to a relational schema, wi
 graph vertices (objects) and directed edges (relationships between pairs of objects)
 to be transformed (see \S\ref{sec:policies}).
 %
+We assume that developers use their domain knowledge to write correct and complete disguises\lyt{a
+bit worried about ``complete'' here}, and that application code is prepared to handle the different
+guises appropriately (\eg in displaying them), given that guises have the same structure as
+application objects (\eg rows in existing application tables).
+
 A data disguising tool takes the disguise specification and turns it into storage operations that
 apply the transformation (disguise) or its reverse (reveal). The tool sits between the application
-and its data, exposing additional queries to the application that allow it to invoke the disguise.
+and its data, exposing additional queries to the application that allow it to invoke the disguise on
+transformation-triggering events (\eg user account deletion, data timeout, etc.).
 %
-%
-We assume that:
-\begin{enumerate}[nosep]
-  \item application developers use their domain knowledge to write correct and complete
-    disguise specifications;
-  \item application code invokes disguises via the disguising tool's API on
-    transformation-triggering events (\eg user account deletion, data timeout, etc.); and
-  \item application code is prepared to handle the different guises appropriately (\eg in displaying
-      them); guises have the same structure as application objects (\eg exist as rows in existing
-        application tables).
-\end{enumerate}
+
+%\begin{enumerate}[nosep]
+  %\item application developers use their domain knowledge to write correct and complete
+    %disguise specifications;
+%\item \lyt{Not sure we need this?} application code invokes disguises via the disguising tool's API on
+ %   transformation-triggering events (\eg user account deletion, data timeout, etc.); and
+%  \item application code is prepared to handle the different guises appropriately (\eg in displaying
+%      them); guises have the same structure as application objects (\eg exist as rows in existing
+%        application tables).
+%\end{enumerate}
 %
 An application's data object graph thus, at any point in time, consists of a mix of
 identity-revealing guises and privacy-preserving ones, with privacy transformations splitting
