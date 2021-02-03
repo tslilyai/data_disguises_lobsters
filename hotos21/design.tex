@@ -215,12 +215,11 @@ Figure~\ref{fig:guises} illustrates an example of random (\texttt{name}) and def
 %
 Creating new guise edge attributes (\eg new foreign key relationships) requires
 creating a new guise for the referenced object in order to maintain referential
-integrity.
-%
-The data disguise rewrites the edge to point to the new guise.
+integrity;
+the data disguise rewrites the edge to point to the new guise.
 %
 In Figure~\ref{fig:guises}, creating two user guises requires creating two
-tag guises; the tag guises' identifiers become the user guises' foreign keys.
+tag guises, and the tag guises' identifiers become the user guises' foreign keys.
 %
 
 \paragraph{(3) Copy object content, but only once.}
@@ -255,8 +254,8 @@ The developer specifies transformations for each edge type, choosing from the fo
     %
     \item \textbf{Decorrelate} edges of this type.
     %
-    Creates one guise of the destination (using the destination object) for each of the
-    sources; replaces each sources's edge to the destination with an edge to that unique guise.
+    Creates one guise of the destination object for each of the sources; replaces each source's
+    edge to the destination with an edge to that unique guise.
     %
     \item \textbf{Delete} edges of this type.
     %
@@ -266,7 +265,7 @@ The developer specifies transformations for each edge type, choosing from the fo
 \end{enumerate}
 %
 An optional argument enables conditionally-applied edge transformations, \eg removing only
-user-created tags; or removing tags only until the user's papers comprise less than
+user-created tags, or removing tags only until the user's papers comprise less than
 $10$\% of tagged papers. %; or transforming only in the child-parent direction.
 %
 
@@ -307,9 +306,9 @@ Edge directionality matters here: paper-to-conflict edges should not be removed,
 could incorrectly allow conflicted users to see the paper!
 
 The disguise \texttt{Retain}s all other edge types, ensuring that review and paper
-artifacts remain correctly linked: active reviewers still see the correct paper for their
-reviews, and active authors see the correct reviews for their papers, albeit authored by
-anonymous, unlinkable guises of the original author.
+artifacts remain correctly linked: active reviewers still see the correct paper for their reviews,
+and active authors see the correct reviews for their papers, albeit potentially authored by
+anonymous, unlinkable guises of the original reviewer.
 %
 %Review and paper guises copy the original object, retaining paper and review information.
 %

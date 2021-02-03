@@ -160,16 +160,16 @@ or where data automatically ages out).
 %applying disguises (\eg creating guises).
 %We implemented several \sys variants to explore different performance tradeoffs.
 
-One \sys variant intercepts application queries, which adds throughput in normal operation by
+One \sys variant intercepts application queries, which decreases throughput in normal execution by
 4\% compared to a baseline without \sys.
 %
-Another variant additionally tracks an in-memory object graph, decreasing throughput by 9\%
-compared to the baseline.
+Another variant additionally tracks an in-memory object graph, decreasing throughput by 9\% compared
+to the baseline.
 %
-When executing a privacy transformation, the worst cast generates as many guises as there are
+When executing a privacy transformation, the worst case generates as many guises as there are
 edges connected to the target, each requiring one or more SQL queries to create.
 %
-Figure~\ref{fig:latencies} show the number of queries run when applying and reversing
+Figure~\ref{fig:latencies} shows the number of queries run when applying and reversing
 Lobsters-Current on an object graph with 3K users and 80K total user contributions.
 %
 The overhead increases linearly with the number of objects created by the target user.

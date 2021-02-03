@@ -12,11 +12,11 @@ DELF~\cite{delf}, a framework for data deletion at Facebook.
 While Sypse also relies on an object graph, its design is application-oblivious, and leaves the
 specification of what counts as PII as future work.
 %
-Data disguising provides a way to specify the sensitive data and correlations, as well as
+Data disguising provides a way to specify sensitive data and correlations, as well as
 application-specific transformations.
 %
 Instead of constantly maintaining data partitions (as Sypse does), data disguising adapts a user's
-data these transformations are invoked.
+data when these transformations are invoked.
 %
 %developers take care of splitting and moving data between the identity-revealing PII partition and
 %the privacy-preserving normal partition.\lyt{I'm not sure this is accurate? They don't use
@@ -41,8 +41,8 @@ data these transformations are invoked.
 DELF~\cite{delf} helps developers write correct data deletion code, and uses annotations on
 application edge and object types to specify a deletion policy.
 %
-unlike DELF, which focuses on data deletion
-only, data disguising targets broader privacy transformations, including decorrelating edges.
+DELF focuses only on data deletion, while data disguising targets broader privacy
+transformations, including decorrelating edges.
 %
 
 %---------------------------
