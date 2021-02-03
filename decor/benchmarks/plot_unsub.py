@@ -33,7 +33,7 @@ with open('{}.csv'.format("decor_unsub_queries"),'r') as csvfile:
 plt.figure(figsize=(5,3))
 plt.plot(nobjs, disg, color='red', linestyle='--', marker="o", label="Disguise")
 plt.plot(nobjs, rev, color='blue', marker="x", label="Reveal")
-plt.xlabel("#Objects Created by User")
+plt.xlabel("#Objects Owned by User")
 plt.ylabel("#Queries")
 plt.legend()
 plt.tight_layout()

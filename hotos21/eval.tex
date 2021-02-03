@@ -127,8 +127,8 @@ retention with data deletion for privacy, as described in \S\ref{design:eg}.
 
 \begin{figure}[t!]
     \centerline{\includegraphics[width=.5\textwidth]{img/perf}}
-    \caption{Work required to disguise and reveal a target user, depending on the number of
-    user-associated objects.}
+    \caption{Number of queries required by Lobsters-Current to disguise and reveal a target user, depending on the number of
+    objects created by the user.}
     \label{fig:latencies}
     \vspace{-\baselineskip}
 \end{figure}
@@ -143,22 +143,18 @@ or where data automatically ages out.
 %We implemented several \sys variants to explore different performance tradeoffs.
 
 One \sys variant adds minimal normal execution overhead, only intercepting application queries; this
-decreases throughput by 4\% compared to a baseline without \sys. Another variant that additionally
-tracks an in-memory object graph decreases throughput by 9\% compared to baseline.
-%Adding the shim layer decreases throughput by roughly 4\%,
-%and query parsing and graph tracking reduces throughput another 5\%.
-%, which can be improved by using prepared queries and caching query results.  \lyt{These numbers
-%come from lobsters running at 0.5 scale, w/0\% unsub}
-Disguise application in the worst case requires creating as many guises as
-the number of edges connected to the target. As shown in Figure~\ref{fig:latencies}, the amount of
-work to create guises and modify objects and edges when disguising (and
-revealing) increases linearly with the number of objects correlated with the target.
-\ms{what application is Figure 3 based on?}
-%; revealing is cheaper because it requires removing many guises and restoring a few objects,
-%instead of generating many guises and removing a few objects~\lyt{this might be too much detail..}.
+decreases throughput by 4\% compared to a baseline without \sys. Another variant additionally
+tracks an in-memory object graph, decreasing throughput by 9\% compared to baseline.
+%
+Worst-case disguise application creates as many guises as the number of edges connected to the
+target. Figure~\ref{fig:latencies} depicts the number of SQL queries run when applying and reversing
+Lobsters-Current on an object graph with 3K users and 80K total user contributions. The overhead
+increases linearly with the number of objects created by the target user; revealing batches queries
+by table, while disguising currently applies queries as it traverses the object graph, but could
+improve with query batching.
 
-This indicates a need for privacy-aware database designs, which
-spread the cost of disguising across normal execution.
+This indicates a need for privacy-aware database designs, which spread the cost of disguising across
+normal execution.
 %
 One possibility keeps a ``shadow'' copy of the database that reflects the disguised state, with
 guises already created and edges rewritten.
