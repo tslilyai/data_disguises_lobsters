@@ -14,8 +14,8 @@
 \end{lstlisting}
 
 \begin{lstlisting}[language=Rust]
-"User-PaperConflict":  Delete 
-"PaperConflict-Paper": Delete 
+"User-PaperConflict":  Delete
+"PaperConflict-Paper": Delete
 \end{lstlisting}
     \caption{Effects of the HotCRP-Granular unsubscription disguise. We show
     only relevant parts of the object graph and disguise.\\
@@ -36,7 +36,7 @@
     HotCRP-Current & 25 & 50 & 352 & 378 \\
     HotCRP-Granular & 25 & 50 & 352 & 407 \\
 \end{tabular}
-    \caption{Statistics for account deletion disguises in Lobsters and HotCRP. 
+    \caption{Statistics for account deletion disguises in Lobsters and HotCRP.
     %Lobsters retains and reassigns user contributions to an anonymous user, and HotCRP deletes
     %direct correlations to the user.
     }
@@ -48,7 +48,7 @@ HotCRP, an application for conference review management. Writing disguises shoul
 difficulty and require the same expertise as writing relational schemas. In particular, a developer
 should write a disguise only once. Because disguises require at most one tranformation for
 each object type and edge type, disguise complexity is limited by the number of entity types and
-relations in the application schema. Table~\ref{tab:loc} shows the statistics for each disguise. 
+relations in the application schema. Table~\ref{tab:loc} shows the statistics for each disguise.
 
 %We next describe HotCRP unsubscription disguises in more detail. HotCRP objects include users
 %(reviewers and authors), papers, paper reviews, and paper conflicts.  Users who unsubscribe are
@@ -59,21 +59,21 @@ relations in the application schema. Table~\ref{tab:loc} shows the statistics fo
 Lobsters-Current and HotCRP-Current implement the current account deletion policies in the respective
 applications.
 %The HotCRP-Coarse disguise specifies the current HotCRP unsubscription policy, which deletes all
-%objects correlated to the user. 
+%objects correlated to the user.
 %simply deletes users' reviews, paper conflicts, and other review information. HotCRP-Coarse specifies
 %\texttt{Delete} edge transformations for edge types to the user, and \texttt{Retain} for all other
-%edges.  
+%edges.
 %
 %All sensitive objects are either removed or retained, and no guises are
 %generated. HotCRP-Coarse there does not explicitly specify any object transformations.
 %
 %Each of the 50 edge transformation specifications requires 6LoC, and the remaining 78 LoC of the disguise
-%definition come from defining \sys data structures for a total of 378 LoC. 
+%definition come from defining \sys data structures for a total of 378 LoC.
 %
 HotCRP-Granular specifies a HotCRP account deletion policy that balances useful data
 retention with data deletion for privacy, as described in \S\ref{design:eg}.
 %HotCRP-Granular keeps reviews and review metadata present
-%for other users to use. 
+%for other users to use.
 %
 %Instead of deleting a user's papers, reviews, and paper conflicts, HotCRP-Granular specifies
 %to \texttt{Decorrelate} edges from users to reviews and papers. This retains paper and
@@ -94,20 +94,20 @@ retention with data deletion for privacy, as described in \S\ref{design:eg}.
 %HotCRP-Granular \texttt{Retain}s all other edge types. This ensures that review and paper artifacts
 %remain correctly linked: (subscribed) reviewers still see the correct paper for their reviews, and
 %(subscribed) authors see the correct reviews for their papers.
-% 
+%
 %Users are linked to papers via \emph{paper conflict} entities, which have both a user and a paper
 %as a parent, and indicate either a collaborator, or a reviewer conflict (prior collaborators or
-%sharing an institution). 
-%Thus, correlations from the user's papers to paper conflicts should be broken: we specify 
-%, and review and paper metadata should remain correctly associated. 
+%sharing an institution).
+%Thus, correlations from the user's papers to paper conflicts should be broken: we specify
+%, and review and paper metadata should remain correctly associated.
 %
 %HotCRP-Granular transforms users into guises to decorrelate reviews and papers from the
-%user by generating default or suitable random attribute values 
-%(\eg timestamps randomly generated within the past decade). In particular, 
-%\texttt{disabled} is set to \texttt{true}, ensuring that guises have no permissions and never review papers. 
+%user by generating default or suitable random attribute values
+%(\eg timestamps randomly generated within the past decade). In particular,
+%\texttt{disabled} is set to \texttt{true}, ensuring that guises have no permissions and never review papers.
 %Paper and review objects are copied to retain their information.
 %%This results in a slightly longer, 407 LoC disguise specification.
-%We copy all paper and review attributes once, retaining paper and review information without creating duplicates. 
+%We copy all paper and review attributes once, retaining paper and review information without creating duplicates.
 %and clones paper conflicts because no conflict
 %value attributes are identifying.
 
@@ -116,13 +116,13 @@ retention with data deletion for privacy, as described in \S\ref{design:eg}.
 %with the exception that we replace users with ghost users rather than a global placeholder, and we
 %desensitize tags so that sensitive stories comprise at most 25\% the number of stories with a
 %particular tag. This limits how much a particular tag topic can be used to identify a user who often
-%posts about that topic (e.g.,\ a researcher in visualization).  
+%posts about that topic (e.g.,\ a researcher in visualization).
 %We decorrelate all edges directly to the user, and edges from sensitive stories to tags will
-%decorrelate to a sensitivity threshold of 0.25 (with ghost tags generated as a default tag). 
+%decorrelate to a sensitivity threshold of 0.25 (with ghost tags generated as a default tag).
 %We retain all other types of edges.
 
 \subsection{Performance Challenges}
-\label{sec:perf} 
+\label{sec:perf}
 
 \begin{figure}[t!]
     \centerline{\includegraphics[width=.5\textwidth]{img/perf}}
@@ -138,8 +138,8 @@ balance depends on the rate of disguising, which may range from rare (as in toda
 to quite frequent in a privacy-supporting world where users freely disguise and reveal themselves,
 or where data automatically ages out.
 %\sys incurs overheads from adding a layer of indirection between application and database, and
-%applying disguises (\eg creating guises). 
-%We implemented several \sys variants to explore different performance tradeoffs. 
+%applying disguises (\eg creating guises).
+%We implemented several \sys variants to explore different performance tradeoffs.
 
 One \sys variant adds minimal normal execution overhead, only intercepting application queries; this
 decreases throughput by 4\% compared to a baseline without \sys. Another variant that additionally
@@ -155,7 +155,7 @@ revealing) increases linearly with the number of objects correlated with the tar
 %; revealing is cheaper because it requires removing many guises and restoring a few objects,
 %instead of generating many guises and removing a few objects~\lyt{this might be too much detail..}.
 
-This indicates a need for privacy-aware database designs, which 
+This indicates a need for privacy-aware database designs, which
 spread the cost of disguising across normal execution.
 %
 One possibility keeps a ``shadow'' copy of the database that reflects the disguised state, with
@@ -166,8 +166,8 @@ Disguising simply exposes the shadow copy in the MV, and removes objects that sh
 %
 This achieves good read performance---queries read from MVs instead of the database---albeit with
 high memory consumption. However, normal execution write queries now must potentially update
-multiple guises in the shadow copy, and 
-pre-created guises consume space during normal execution, even if disguises are never applied. 
+multiple guises in the shadow copy, and
+pre-created guises consume space during normal execution, even if disguises are never applied.
 %
 Other possibilities include making disguises eventually consistent; updating the shadow copy
 asynchronously; and caching disguises for users who are disguised (and revealed) most often.
@@ -187,7 +187,7 @@ decorrelate \emph{all} children, including non-sensitive ones.}
     \label{fig:pcs}
 \end{figure}
 
-Here, the developer can make one of three choices. 
+Here, the developer can make one of three choices.
 These choices demonstrate the tradeoff between retaining information for application correctness, and completely de-identifying the user.
 Figure~\ref{fig:pcs} shows the post-unsubscription application state resulting from each choice.
 %
@@ -239,12 +239,12 @@ stronger user privacy and acceptable semantics for HotCRP.
 The developer also specifies how \sys generates ghost entities. The developer determines which entity
 attributes reveal identifying information (and should be generated); which attributes should be
 cloned to retain information necessary to the application; and how to generate attribute values in
-ways that satisfy HotCRP semantics. 
+ways that satisfy HotCRP semantics.
 %If ghost entities cannot be generated without breaking
-%application semantics, the relevant edges should be deleted instead of decorrelated.  
+%application semantics, the relevant edges should be deleted instead of decorrelated.
 For simplicity, Figure~\ref{fig:hotcrp} shows entity-granularity ghosting policies rather than
 per-attribute ghosting policies.
-%, and does not display the generation method (\eg random, default, etc.). 
+%, and does not display the generation method (\eg random, default, etc.).
 \sys generates ghost users' attributes, giving all ghosts a default value of \texttt{disabled=true}
 to ensure ghosts never review papers. \sys clones all paper and review attributes once, retaining
 paper and review information without creating duplicates, and clones paper conflicts because no conflict
@@ -266,10 +266,10 @@ value attributes are identifying.
 %edge attributes that specify a user parent and a paper parent respectively. The developer defaults
 %conflict type attributes to be \texttt{ConflictAuthor}, and clones the two edge attributes for all
 %ghosts; edge policies ensure that cloned edges will point to ghosts if there was a sensitive correlation between
-%the paper conflict and its original parents. 
+%the paper conflict and its original parents.
 %As with paper entities, it is safe to clone edges to user and paper parents because any
 %cloned edge attributes will necessarily point to ghosts if there was a sensitive correlation between
-%the paper conflict and its parents. 
+%the paper conflict and its parents.
 
 %Note that had the developer chosen edge policy choice 1 for paper-conflict to paper edges
 %(retaining the edge), then the conflict type \emph{must} be cloned in order to preserve HotCRP
@@ -295,7 +295,7 @@ range of privacy policies using \sys with low developer effort with low overhead
 \begin{lstlisting}[language=Rust]
 use GhostColumnPolicy, GeneratePolicy;
 let ghost_policies = GhostGenerationPolicy::new(
-  ("users", 
+  ("users",
      [("id", Generate(Random)),
      ("username", Generate(Random)),
      ("karma", Generate(Default(0)))]),
@@ -313,7 +313,7 @@ let edge_policies = vec![
     child: "taggings".to_string(),
     parent: "tags".to_string(),
     column_name: "tag_id".to_string(),
-    parent_child_decorrelation_policy: 
+    parent_child_decorrelation_policy:
         NoDecorSensitivity(0.25),
     child_parent_decorrelation_policy: NoDecorRetain,
   },
@@ -333,7 +333,7 @@ HotCRP, software for conference reviews, and PrestaShop, an
 open-source e-commerce web application.
 
 \paragraph{Lobsters}
-Lobsters has a total of 20 entities, and 
+Lobsters has a total of 20 entities, and
 these Lobsters policies require specifying at most 17 key
 relationships and at most 5 ghost entity generation policies (see Figure~\ref{fig:lobsters_policy} for an example
 of these policy specifications).
@@ -353,7 +353,7 @@ The second policy decorrelates all user-related edges, but additionally desensit
 taggings associated with sensitive stories are at most 25\% the number of stories with that tag.
 Ghost stories clone randomly chosen existing stories with slight variations on the url.
 This limits the amount that an observer can determine that a particular story was posted by a
-particular user simply by knowing that a certain user has posted about the tag topic (e.g.,\ a researcher 
+particular user simply by knowing that a certain user has posted about the tag topic (e.g.,\ a researcher
 in visualization). However, Lobsters still retains the content of these tagged stories.
 
 \lyt{TODO} third policy.
@@ -384,7 +384,7 @@ We next observe that edges that are not directly linked to the user may also rev
 information about the user's identity: the group of collaborators or conflicting members of the PC
 may pinpoint the identity of the ``ghost user'' on a paper. Users are linked to papers via
 \emph{paper conflict} entities, which have both a user and a paper as a parent. When a user
-unsubscribes, our policy decorrelates the user from their child paper conflict entity. 
+unsubscribes, our policy decorrelates the user from their child paper conflict entity.
 
 To ensure that this sensitive conflict is not also correlated with a group of collaborators or conflicting PC
 members, which might potentially identify the ghost user, we mark the (child-parent) edge from
@@ -412,12 +412,12 @@ paper metadata should remain correctly associated. We specify
 \texttt{NoDecor:Retain} policies for all edges that were not assigned a policy in the prior
 steps.
 
-\paragraph{PrestaShop.} 
+\paragraph{PrestaShop.}
 PrestaShop entities include customers, products, orders, carriers, employees, and shops (as well as
 many other entities such as product categories, languages, countries, shopping cart, etc.) There are
-214 total different entities. 
+214 total different entities.
 
-Due to the large scope of the schema, we automatically generate policies for the 324 key relationships between them 
+Due to the large scope of the schema, we automatically generate policies for the 324 key relationships between them
 with \texttt{NoDecorrelation:Retain} policies, which means that \sys does, by default, no work upon
 decorrelation and recorrelation. (We could also imagine that a \texttt{Decorrelate} or
 \texttt{NoDecorrelate:Remove} policy could be
@@ -456,8 +456,8 @@ generate the schema in the first place.
 
 \paragraph{Experimental Setup.}
 The performance experiments reported are run on Intel Xeon E5-2660 v3 CPUs, with a
-single-threaded client and \sys's shim layer each pinned to a single core. \sys runs on top of 
-MariaDB (v10.4.13). 
+single-threaded client and \sys's shim layer each pinned to a single core. \sys runs on top of
+MariaDB (v10.4.13).
 
 We compare the application execution performance on four systems, all of which configure MariaDB to
 store the database on a ramdisk to avoid disk IO overheads.
@@ -468,7 +468,7 @@ store the database on a ramdisk to avoid disk IO overheads.
         return the results back to the client;
     \item \texttt{ShimParsing}: queries are intercepted the shim layer, parsed into a
         SQL AST (which is discarded), and then sent to the MariaDB instance; the shim then returns the results to the
-        client. 
+        client.
     \item \texttt{\sys}: queries are intercepted by the shim layer and parsed into a SQL AST. \sys
         then processes the parsed query, potentially introducing ghost entities and sending additional queries to the MariaDB backend.
         \sys then returns results to the client.
@@ -489,13 +489,13 @@ queries according to the recorded traffic distribution. The query distribution s
 workload assumes that users with popular content are also more active and likely to post stories,
 comment, and vote.
 
-The benchmarks perform 10000 actions, each performing on average 8 application queries. 
+The benchmarks perform 10000 actions, each performing on average 8 application queries.
 We measure (1) overall throughput, (2) the distribution of application query
 latencies, (3) the query multiplication per application query performed by \sys, and (4) the
 storage cost (in-memory and on-disk).
 
 The first benchmark measures \sys's performance during \emph{normal execution}, namely when only
-read and update actions performed by Lobsters are executed. 
+read and update actions performed by Lobsters are executed.
 The second benchmark measures \sys's performance with users unsubscribing 10\% of the time
 (approximately 1000 actions are unsubscriptions). If an unsubscribed user is chosen to perform an action, this user is first resubscribed.
 \texttt{NoShim}, \texttt{Shim}, and \texttt{ShimParsing} simply delete or insert the chosen user on
@@ -506,7 +506,7 @@ amount of work these baseline systems would need to do if a user withdrew their 
 To complete 10K actions during normal execution, \texttt{NoShim} takes 293s, \texttt{ShimOnly} takes
 TODO, \texttt{ShimParse} takes 316s; and \texttt{\sys} takes 185s.
 We show the latency results of the second of the Lobsters policies described above in
-Figure~\ref{fig:results}. 
+Figure~\ref{fig:results}.
 \lyt{TODO memory usage}
 \lyt{Should we also record the amount of time to initialize?}
 
