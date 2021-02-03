@@ -186,7 +186,7 @@ Developers choose how to create other guise attributes, selecting from among the
 %
 \paragraph{(1) Copy object content.}
 %
-Guises of the same object all share the template's attribute values.
+Guises of the same object all share the object's attribute values.
 %
 If the attribute is an edge attribute (\eg a foreign key column), all guises will have
 edges to the same object.
@@ -206,8 +206,8 @@ all guises.
 \paragraph{(2) Generate new content.}
 %
 To create new attributes, developers specify whether the guise's value should be random,
-a default value, or generated from the template value via a custom function (\eg a hash of
-the original object's attribute value).
+a default value, or generated from the object's attribute value via a custom function (\eg hashing 
+the value).
 %
 Figure~\ref{fig:guises} illustrates an example of random (\texttt{name}) and default
 (\texttt{active}) generated value attributes.
