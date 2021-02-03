@@ -84,11 +84,10 @@ application invariants and utility.
 %
 A data disguising tool takes a disguise and its target, and automatically applies the appropriate
 transformations to application data to achieve the disguised state, reducing the developer burden.
-Our prototype \sys demonstrates the potential of such a tool, and proxies SQL queries to the
-underlying database while providing the additional operations of ``DISGUISE'' and ``REVERSE
-DISGUISE.''
-\lyt{I got the comment that we need this concrete architecture much earlier in the paper from
-everyone.}
+%
+Our proof-of-concept, \sys, demonstrates the potential of such a tool.
+%
+\sys proxies relational database operations and exposes APIs to invoke privacy transformations.
 %
 
 \section{The Need for Privacy Transformations}
