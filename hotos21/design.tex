@@ -164,97 +164,110 @@ developer-specified target object, such as a deleted user.
 
 \subsection{Creating Guises for Objects}
 \label{sec:guises}
-
-\ms{``template object'' is a new term. Previously, we referred to all versions of an object
-as ``guises''. Is there a special guise that corresponds to the template object?}
 %
-To create a guise from a \emph{template object}, developers specify how to transform
-attributes of the template object into guise attributes.
-%
-An object has three kinds of attributes: a unique identifier attribute; value
-(non-referential) attributes such as timestamps or usernames; and edge (\eg foreign key)
-attributes that refer to other objects.
+To create a guise from an object, developers specify how to transform attributes of the
+object into guise attributes.
 %
 Figure~\ref{fig:guises} shows an example, producing guises for user objects.
 %
-User objects have \texttt{id} as the identifier attribute,
-\texttt{tag\_id} as an edge attribute (a foreign key constraint to tag objects),
-and all other attributes as value attributes.
+User objects have identifier \texttt{id}, and a reference to a tag object (\texttt{tag\_id}),
+which forms an edge in the graph (a foreign key constraint to tag objects).
 %
 
-Guises always have unique, random identifier attributes.
-Developers choose how to create guise edge and value attributes, selecting from the following:
+%An object has three kinds of attributes: a unique identifier attribute; value
+%(non-referential) attributes such as timestamps or usernames; and edge (\eg foreign key)
+%attributes that refer to other objects.
+%
 
-\paragraph{(1) Copy object content.} Guises of the same template object all share the template's
-    attribute value. If the attribute is an edge attribute (\eg is a foreign key column),
-    all guises will share an edge to the same object.
 
-    Copying allows developers to retain the template's content, without worrying about how to
-    synthesize attribute values for guises.
-    %However, this should only be chosen if guise attribute
-    %values cannot be generated, or if this attribute says little about the true identity of the
-    %entity.
-    For example, Figure~\ref{fig:guises} shows how the \texttt{darkmode} attribute is copied in
-    all guises.
-    %; the \texttt{darkmode} attribute reveals very little about the underlying user's
-    %identity.
+%
+Guises always have unique, random identifiers.
+%
+Developers choose how to create other guise attributes, selecting from the following:
+%
+\paragraph{(1) Copy object content.}
+%
+Guises of the same object all share the template's attribute values.
+%
+If the attribute is an edge attribute (\eg a foreign key column), all guises will have
+edges to the same object.
+%
+%
+Copying allows developers to retain the object's content, without worrying about how to
+synthesize attribute values for guises.
+%
+%However, this should only be chosen if guise attribute
+%values cannot be generated, or if this attribute says little about the true identity of the
+%entity.
+For example, in Figure~\ref{fig:guises} the \texttt{darkmode} attribute is copied in
+all guises.
+%; the \texttt{darkmode} attribute reveals very little about the underlying user's
+%identity.
 
 \paragraph{(2) Generate new content.}
-        To create new value attributes, developers specify whether the guise's value should be random,
-        a default value, or generated from the template value via a custom function (\eg a hash of
-        the template value). Figure~\ref{fig:guises} illustrates
-        an example of random (\texttt{name}) and default (\texttt{active}) generated value attributes.
-
-        To create new guise edge attributes (\eg new foreign key relationships), the data disguise
-        recursively generates a guise for the connected object, and rewrites the edge to point to
-        the new guise.  In Figure~\ref{fig:guises}, creating two user guises recursively creates two
-        tag guises; the tag guises' identifiers become the user guises' foreign keys.
+%
+To create new attributes, developers specify whether the guise's value should be random,
+a default value, or generated from the template value via a custom function (\eg a hash of
+the original object's attribute value).
+%
+Figure~\ref{fig:guises} illustrates an example of random (\texttt{name}) and default
+(\texttt{active}) generated value attributes.
+%
+%
+To create new guise edge attributes (\eg new foreign key relationships), the data disguise
+recursively disguises the connected object, and rewrites the edge to point to the new guise.
+%
+In Figure~\ref{fig:guises}, creating two user guises recursively creates two
+tag guises; the tag guises' identifiers become the user guises' foreign keys.
+%
 
 \paragraph{(3) Copy object content, but only once.}
 %
-One guise copies the attribute value from the template object, but all other guises generate new
+One guise copies the attribute value from the object, but all other guises generate new
 values (as described above).
 %
 \texttt{notifs} in Figure~\ref{fig:guises} illustrates how the attribute is copied once.
 %
-This enables the application to retain the original object content (\eg a count of how many
-users want notifications), without creating duplicates.
+This enables the application to retain the original object semantics (\eg a count of how many
+users want notifications) without creating duplicates.
 %
 
 \subsection{Transforming Edges Between Objects}
 \label{design:edgepol}
-
-\ms{to discuss: recursive guise creation (described above) also restructures the object graph,
-namely by introducing new objects and connecting them with others. Do we need to differentiate?}
 %
-Edge transformations specify how guises \emph{restructure} the object graph.
+Edge transformations specify how a disguise \emph{restructures} the object graph.
 %
-Disguises apply edge transformations while recursively traversing edges from the target.
+The disguise applies edge transformations while recursively traversing edges from the target.
 %
-For clarity, we refer to edges as between a \emph{parent} object and a \emph{child} object,
-where the child references the parent (\eg via a foreign key column in a relational database).
+% SOURCE = CHILD
+% DEST = PARENT
+Edges have a \emph{source} object and a \emph{destination} object, where the source references
+the destination (\eg via a foreign key column in a relational database).
 %
 The developer specifies transformations for each edge type, choosing from the following:
 %
 \begin{enumerate}[nosep]
     %
-    \item \textbf{Retain} edges of this type. Transform both parent and child objects into a
-      single guise each.
+    \item \textbf{Retain} edges of this type.
     %
-    \item \textbf{Decorrelate} edges of this type. Create one guise of the parent (using the
-      parent as template) for each of the children; replace each child's edge to the parent
-      with an edge to that unique guise.
+    Transforms both source and destination objects into a single guise each.
     %
-    \item \textbf{Delete} edges of this type. Transform the parent object into a single
-      guise; remove the child \ms{what if child has other incoming edges?} and its descendants.
+    \item \textbf{Decorrelate} edges of this type.
+    %
+    Creates one guise of the destination (using the destination object) for each of the
+    sources; replaces each sources's edge to the destination with an edge to that unique guise.
+    %
+    \item \textbf{Delete} edges of this type.
+    %
+    Transforms the destination object into a single guise; removes the source and its descendants
+    if otherwise unconnected.
     %
 \end{enumerate}
 %
-Optional arguments enables conditionally-applied edge transformations, \eg removing only
+Optional argument enables conditionally-applied edge transformations, \eg removing only
 user-created tags; or removing tags only until the user's papers comprise less than
-$10$\% of tagged papers; or transforming only in the child-parent direction.
+$10$\% of tagged papers. %; or transforming only in the child-parent direction.
 %
-\ms{above specifies only parent-child direction; is there a reverse too? Let's discuss.}
 
 \subsection{An Example Disguise}
 \label{design:eg}
@@ -297,9 +310,9 @@ artifacts remain correctly linked: active reviewers still see the correct paper 
 reviews, and active authors see the correct reviews for their papers, albeit authored by
 anonymous, unlinkable guises of the original author.
 %
-Review and paper guises copy the original object, retaining paper and review information.
+%Review and paper guises copy the original object, retaining paper and review information.
 %
-\ms{Does this mean duplicate papers/reviews can show up?}
+%\ms{Does this mean duplicate papers/reviews can show up?}
 
 %
 Unlike the current real-world HotCRP account deletion policy~\cite{hotcrp:privacy}, which
