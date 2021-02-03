@@ -51,7 +51,7 @@ data objects and erase them when requested under the GDPR.
 They either modify the data layout~\cite{usershards} or use fine-grained information flow
 tracking to determine the propagation of PII and restrict access to it~\cite{schengendb}.
 %
-Data diguising can be employed for GDPR compliance, but supports privacy transformations beyond
+Data disguising can be employed for GDPR compliance, but supports privacy transformations beyond
 simply deleting PII, and requires no ownership tracking or fine-grained IFC.
 %
 
@@ -64,8 +64,7 @@ authorized views~\cite{oracle} or per-user views~\cite{multiverse}, and rewritin
 %, and performing queries over encrypted data, readable only by authenticated
 %users~\cite{cryptdb}.
 %
-Data disguising transforms the actual data stored, but trusts the developer to write a
-correct diguising specification.
+Data disguising transforms the actual data stored, but trusts the developer to write a correct disguise.
 %
 %Data disguising can additionally automate complex privacy transformations for authorized or multiverse views.
 
@@ -154,7 +153,7 @@ necessarily )
     - VS ghost records
     - not developer-specified? might lead to incorrect behavior?
 - what are partitions?
-    - limited access, the queries will be run against pseudonymized or syntheticdata only
+    - limited access, the queries will be run against pseudonymized or synthetic data only
     - Detail Database: anything that isn't PII (pseudonymous)
         - perform analysis, data mining, etc. on these
     - PII Database: anything tied to specific individual (username, user identifiers)
@@ -165,10 +164,10 @@ necessarily )
     - backed up separately, different access control mechanisms
 - assumes annotated schema, but doesn't actually describe it!!! just says requires analysis, or is
 relatively straightforward
-    -made automatically through a continuous analysis ofthe database schema and the data within it,
+    -made automatically through a continuous analysis of the database schema and the data within it,
     visible to users
     - lack of schema discipline in practice (Database decay and how to avoid it.)
-    - no undersatnding of multiple entities and how they relate to each other
+    - no understanding of multiple entities and how they relate to each other
 - no support for resubscription
 
 Partition strategies:
@@ -193,7 +192,7 @@ Other related work to cite:
 - Sieve: A Middleware Approach to Scalable Access Control for DatabaseManagement Systems.
 
 \subsection{Decoupling User Data from Web Applications}
-Our proposed subscription paradigm contrasts with a model of strong privacy in web appliactions, in
+Our proposed subscription paradigm contrasts with a model of strong privacy in web applications, in
 which the user has complete data ownership (see Figure~\ref{fig:world}b). In proposals for this
 model~\cite{solid, amber, w5, blockstack, bstore}, applications must compute on per-user, filesystem-esque
 storage, \eg as JavaScript in users' browsers in Solid~\cite{solid}, Blockstack~\cite{blockstack} and

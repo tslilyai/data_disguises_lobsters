@@ -269,7 +269,7 @@ The developer specifies transformations for each edge type, choosing from the fo
     %
 \end{enumerate}
 %
-Optional argument enables conditionally-applied edge transformations, \eg removing only
+An optional argument enables conditionally-applied edge transformations, \eg removing only
 user-created tags; or removing tags only until the user's papers comprise less than
 $10$\% of tagged papers. %; or transforming only in the child-parent direction.
 %
@@ -279,7 +279,7 @@ $10$\% of tagged papers. %; or transforming only in the child-parent direction.
 %
 Consider disguising Bob when he deletes his HotCRP account.
 %
-Bob would prefer his papers and reviews to be unliked from his identity.
+Bob would prefer his papers and reviews to be unlinked from his identity.
 %
 HotCRP, on the other hand, would like to retain paper and review information that other users
 find useful.
@@ -294,7 +294,7 @@ This requires transforming Bob into one unique user guise per review.
 %
 To do so, the disguise generates guise attribute values using suitable defaults.
 %
-In particular, it specifies to set HotCRP users's \texttt{disabled} attribute for the guises,
+In particular, HotCRP users' \texttt{disabled} attribute is set to \texttt{false} for the guises,
 ensuring that guises have no permissions and never review papers.
 %
 
