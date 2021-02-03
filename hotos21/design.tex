@@ -62,7 +62,7 @@
 
 %
 The key idea behind \emph{data disguising} is to associate multiple \emph{guises} with a target
-data object: some guises are identity-revealing, while others are privacy-preserving.
+data object. Guises vary in how they reveal identities or preserve privacy.
 %
 Objects move between different guises by means of privacy transformations.
 %
@@ -99,9 +99,9 @@ We assume that:
 \begin{enumerate}[nosep]
   \item developers use their domain knowledge to write correct and complete disguises;
     %\lyt{a bit worried about ``complete'' here}
-  \item that application code handles the different guises appropriately (\eg in
+  \item application code handles the different guises appropriately (\eg in
     displaying them); and
-  \item that different guises of the same object have the same structure (\eg they can be
+  \item different guises of the same object have the same structure (\eg they can be
     rows in the same table).
 \end{enumerate}
 %
@@ -147,10 +147,10 @@ and combine individual guises when triggered.
 \label{sec:policies}
 
 %
-Each data disguise consists of a set of transformations on object types and edge types in the
+Data disguises involve transformations on object types and edge types in the
 application object graph.
 %
-The disguising tool applies these transformations by traversing the graph, starting from a
+A disguising tool applies these transformations by traversing the graph starting from a
 developer-specified target object, such as a deleted user.
 %
 %The developer chooses one transformation for each object type, and
@@ -170,8 +170,8 @@ object into guise attributes.
 %
 Figure~\ref{fig:guises} shows an example, producing guises for user objects.
 %
-User objects have identifier \texttt{id}, and a reference to a tag object (\texttt{tag\_id}),
-which forms an edge in the graph (a foreign key constraint to tag objects).
+User objects have identifier \texttt{id}; a reference \texttt{tag\_id}
+forms an edge in the graph (a foreign key constraint to tag objects).
 %
 
 %An object has three kinds of attributes: a unique identifier attribute; value
@@ -183,7 +183,7 @@ which forms an edge in the graph (a foreign key constraint to tag objects).
 %
 Guises always have unique, random identifiers.
 %
-Developers choose how to create other guise attributes, selecting from the following:
+Developers choose how to create other guise attributes, selecting from among the following:
 %
 \paragraph{(1) Copy object content.}
 %
@@ -289,9 +289,9 @@ To decorrelate reviews from Bob, the disguise \texttt{Decorrelate}s user-to-revi
 %
 This requires transforming Bob into one unique user guise per review.
 %
-To do so, the disguise generates guise attribute values using suitable defaults.
+The disguise generates guise attribute values using suitable defaults;
 %
-In particular, HotCRP users' \texttt{disabled} attribute is set to \texttt{false} for the guises,
+in particular, HotCRP users' \texttt{disabled} attribute is set for the guises,
 ensuring that guises have no permissions and never review papers.
 %
 

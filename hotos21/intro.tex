@@ -141,9 +141,9 @@ audience, but anonymize them by reattributing the contribution to a placeholder 
 
 In the open-source applications surveyed, developers implement privacy transformations
 via ad-hoc database operations, and only trigger them on explicit, user-initiated account
-deletion (a rare event).
+deletion.
 %
-Generally, developers appear to pay little attention to identifying correlations
+Most developers appear to pay little attention to identifying correlations
 within the remaining data.
 %
 
@@ -165,11 +165,10 @@ identity.
 In some cases, a policy could preserve utility while reducing the efficacy of later inference
 attacks by changing posts, such as by modifying their metadata (\eg tags, posting times).
 %
-This transformation might be appropriate when inference would likely succeed, \eg because
-a tag was created by a user,
+Some transformations should be performed only on sensitive metadata:
 %Similar policies could apply \emph{only if} the property was created by the user (\eg keeping
 %the user's Reddit posts, but removing any user-created tags),
-or if more than a threshold percentage the tag's uses is by this user.
+a tag like “\#cat” is likely insensitive and useful to preserve, whereas one naming a person is not.
 %
 %(\eg remove the user's posts on Reddit with tag $t$ if these posts comprise more than 10\%
 %of all posts with tag $t$).
