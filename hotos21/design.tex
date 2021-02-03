@@ -214,17 +214,14 @@ Figure~\ref{fig:guises} illustrates an example of random (\texttt{name}) and def
 (\texttt{active}) generated value attributes.
 %
 %
-Creating new guise edge attributes (\eg new foreign key relationships) requires, in order to
-maintain referential integrity, creating a new guise for the referenced object. The data
-disguise rewrites the edge to point to the new guise.
+Creating new guise edge attributes (\eg new foreign key relationships) requires
+creating a new guise for the referenced object in order to maintain referential
+integrity.
+%
+The data disguise rewrites the edge to point to the new guise.
+%
 In Figure~\ref{fig:guises}, creating two user guises requires creating two
 tag guises; the tag guises' identifiers become the user guises' foreign keys.
-%
-\lyt{I think it's inaccurate to say that we recursively \emph{disguise} the connected object, because this
-would potentially imply that the algorithm rewrites an entire subtree of the graph that it doesn't
-currently.}
-%the data disguise
-%recursively disguises the connected object, and rewrites the edge to point to the new guise.
 %
 
 \paragraph{(3) Copy object content, but only once.}
@@ -241,7 +238,7 @@ users want notifications) without creating duplicates.
 \subsection{Transforming Edges Between Objects}
 \label{design:edgepol}
 %
-Edge transformations specify how a disguise restructures the object graph as it 
+Edge transformations specify how a disguise restructures the object graph as it
 recursively traverses edges from the target.
 %
 % SOURCE = CHILD
