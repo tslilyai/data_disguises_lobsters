@@ -30,7 +30,7 @@ not originally access, nor make non-sensitive shared content disappear.
 %
 
 %
-Privacy transformations designers must correctly handle identifying data, as well as indirectly identifying
+Privacy transformation designers must correctly handle identifying data, as well as indirectly identifying
 correlations between data objects.
 %
 For example, anonymized public running routes correlated with the same location can identify the
@@ -182,18 +182,18 @@ privacy transformations that incrementally removes more identifiable information
 
 \paragraph{Reversibility.}
 %
-Many applications might wish to employ \emph{reversible} transformations, going beyond permanent
-and irrevokable account deletion.
+Many applications might wish to employ \emph{reversible} transformations to, for example, support
+account reactivation instead of permanent and irrevokable account deletion.
 %
 After all, if services must allow users to remove their data on request, it is in the operator's
 interest to make it easy for users to change their mind and return.
 %
-An advanced reversible transformation might, for example, record all actions performed in an
-encrypted log, and offer that log for download or push it to third-party cloud storage.
+An advanced reversible transformation might record all actions performed in an encrypted log, and
+offer that log for download or push it to third-party cloud storage.
 %
 If the user wishes to return, they simply supply the log to reverse the transformation.
 %
-To ensure access to the log even if the user loses their key, the transformation might
-secret-share the encryption key~\cite{secretsharing} among the user, the service, and a trusted
-third party (\eg the ACLU or EFF).
+To ensure access to the log even if the user loses their key, the transformation might secret-share
+the encryption key~\cite{secretsharing} among the user, the service, and a trusted third party (\eg
+the ACLU or EFF).
 %

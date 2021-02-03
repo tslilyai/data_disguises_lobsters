@@ -58,8 +58,9 @@ We assume that:
     disguise specifications;
   \item application code invokes disguises via the disguising tool's API on
     transformation-triggering events (\eg user account deletion, data timeout, etc.); and
-  \item application code is prepared to handle the different guises, which all have the
-    same structure, appropriately (\eg in displaying them).
+  \item application code is prepared to handle the different guises appropriately (\eg in displaying
+      them); guises have the same structure as application objects (\eg exist as rows in existing
+        application tables).
 \end{enumerate}
 %
 An application's data object graph thus, at any point in time, consists of a mix of
