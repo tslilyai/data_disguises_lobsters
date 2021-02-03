@@ -15,7 +15,7 @@ with open('{}.out'.format("decor_unsub"),'r') as csvfile:
         p = row.split(',')
         nobjs.append(int(p[1]))
 
-with open('{}.csv'.format("decor_unsub"),'r') as csvfile:
+with open('{}.csv'.format("decor_unsub_queries"),'r') as csvfile:
     rows = csvfile.readlines()
     disrow = rows[0]
     revrow = rows[1]
@@ -34,7 +34,7 @@ plt.figure(figsize=(5,3))
 plt.plot(nobjs, disg, color='red', linestyle='--', marker="o", label="Disguise")
 plt.plot(nobjs, rev, color='blue', marker="x", label="Reveal")
 plt.xlabel("#Objects Created by User")
-plt.ylabel("#Objects Modified")
+plt.ylabel("#Queries")
 plt.legend()
 plt.tight_layout()
 plt.savefig('{}.pdf'.format("perf"), dpi=300)
