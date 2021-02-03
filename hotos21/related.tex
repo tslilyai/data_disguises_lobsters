@@ -4,17 +4,20 @@
 \label{sec:related}
 
 %
-Some prior \textbf{systems for personal data deletion} seek to make it easier to implement data
-deletion.
-%
-Two are particularly relevant to data disguising: Sypse~\cite{sypse}, which pseudonymizes user
+Two prior \textbf{systems for personal data deletion} are particularly relevant to data
+disguising: Sypse~\cite{sypse}, which pseudonymizes user
 data and partitions personally identifying information (PII) from other data, and
 DELF~\cite{delf}, a framework for data deletion at Facebook.
 %
 While Sypse also relies on an object graph, its design is application-oblivious, and leaves the
-specification of what counts as PII as future work; data disguising observes that application-specific
-transformations are required to maintain correct application semantics, and enables developers to
-specify sensitive data and correlations.
+specification of what counts as PII as future work.
+%
+Data disguising provides a way to specify the sensitive data and correlations, as well as
+application-specific transformations.
+%
+Instead of constantly maintaining data partitions (as Sypse does), data disguising adapts a user's
+data these transformations are invoked.
+%
 %developers take care of splitting and moving data between the identity-revealing PII partition and
 %the privacy-preserving normal partition.\lyt{I'm not sure this is accurate? They don't use
 %developer input at all to figure out which edges to break/columns to anonymize, but rather assume
@@ -38,10 +41,8 @@ specify sensitive data and correlations.
 DELF~\cite{delf} helps developers write correct data deletion code, and uses annotations on
 application edge and object types to specify a deletion policy.
 %
-Instead of constantly maintaining data partitions (as Sypse does), data disguising adapts a user's
-data when privacy transformations are invoked; and unlike DELF, which focuses on data deletion
-only, data disguising targets broader privacy transformations, such as those that require \eg
-decorrelating edges.
+unlike DELF, which focuses on data deletion
+only, data disguising targets broader privacy transformations, including decorrelating edges.
 %
 
 %---------------------------
@@ -64,7 +65,7 @@ authorized views~\cite{oracle} or per-user views~\cite{multiverse}, and rewritin
 %, and performing queries over encrypted data, readable only by authenticated
 %users~\cite{cryptdb}.
 %
-Data disguising transforms the actual data stored, but trusts the developer to write a correct disguise.
+Data disguising transforms the actual data stored according to a specification.
 %
 %Data disguising can additionally automate complex privacy transformations for authorized or multiverse views.
 

@@ -1,34 +1,47 @@
 %-------------------------------------------------------------------------------
 \section{Discussion}
 %-------------------------------------------------------------------------------
-Data disguising enables easier exploration and implemention of privacy transformations, supporting
-novel privacy paradigms such as data decomposition and account reactivation after deletion. Data disguising also goes
-beyond privacy, and can help developers moderate harmful content~\cite{contentmod, sasb}, for which they
-may soon be held legally liable~\cite{nytimes:230}. Instead of targeting users, disguises  
-would target harmful entities (\eg misinformation posts).
-
-Data disguising has some clear limitations. It assumes that transformations on the object graph
-captures all possible disguises developers may wish to apply; transforming application
-snapshots, backups, or copies are out of scope, and requires \eg taint tracking
-techniques~\cite{schengendb}. 
+%
+Data disguising makes it easier to explore and implement privacy transformations.
+%
+This may support new privacy paradigms like data decay and account reactivation after
+deletion.
+%
+%Data disguising also goes beyond privacy, and can help developers moderate harmful
+%content~\cite{contentmod, sasb}, for which they may soon be held legally
+%liable~\cite{nytimes:230}.
+%
+%Instead of targeting users, disguises would target harmful entities (\eg misinformation posts).
+%
+Data disguising also has some clear limitations.
+%
+It assumes that transformations on the object graph capture all data that needs transforming;
+application snapshots, backups, or external data copies are out of scope, and require
+\eg taint tracking techniques~\cite{schengendb}.
 %\name assumes that legal and societal incentives will sufficiently convince applications to adopt
-%\name, and that 
-Data disguising also importantly does not provide privacy \emph{guarantees}. Developers are responsible for
-specifying appropriate disguises, tuned to application-specific needs to retain, remove, and decorrelate
-data. 
+%\name, and that
+Data disguising also importantly does not provide privacy \emph{guarantees}.
+%
+Disguises are only as good as the specification a developer writes for them, and we assume
+that developers capture application-specific needs to retain, remove, and decorrelate data in
+their policies.
 %Without removing all application data, even the best-intentioned developer may write policies that
-%still retain sensitive information or correlations. 
+%still retain sensitive information or correlations.
 We imagine that data analysis tools and heuristics can help developers improve or catch
-errors in disguise specifications, such as techniques used by Facebook to detect incorrect
-deletion~\cite{delf}. Users of applications that use data disguises cannot blindly assume that the
-disguises provide complete privacy, although they can perhaps vet application privacy properties via the
-disguise specification.
+errors in disguise specifications, similar to techniques used by Facebook to detect incorrect
+deletion~\cite{delf}.
+%
+Users of applications that use data disguises cannot blindly assume that the diguises provide
+complete privacy, although they can perhaps vet application privacy properties via the disguise
+specification.
+%
 
 \sys currently works only with relational databases, and does not support dynamic
 updates to the application schema or disguise specification.
-Work in the area of database schema evolution and migration~\cite{schema:evo} may offer insights
+%
+Database schema evolution research~\cite{schema:evo} may offer insights
 into supporting disguises and disguise reversals after such updates.
-%, since \sys cannot restore data removed using the old policy upon resubscription. 
+%, since \sys cannot restore data removed using the old policy upon resubscription.
 
 
 
@@ -53,7 +66,7 @@ i.e.,\ can access the application only via its public interface.
 
     \item An adversary cannot gain identifying information from re-shared or arbitrary
         user-generated content (for example, a reposted screenshot, or text in user stories or
-        comments) that developers have left unghosted. 
+        comments) that developers have left unghosted.
         \name gives developers the option to specify that unsubscription removes or replaces
         user-generated data and application metadata (e.g., date of postings, database ID columns),
         at the cost of losing this data.
@@ -62,7 +75,7 @@ i.e.,\ can access the application only via its public interface.
 User key / encrypted data storage scheme relies on application wanting to store user data (wanting
 users to return). Also requires user to have some trusted third party.
 
-Other limitations: 
+Other limitations:
 single-threaded;
 recovery / eventual consistency during un/resubscribe;
 subset of MySql;
