@@ -43,13 +43,34 @@
     }
 \label{tab:loc}
 \end{table}
-We evaluate whether \sys enables developers to easily express and automate practical data disguises
-by writing disguises for user account deletion in Lobsters, an open-source news feed application, and
-HotCRP, an application for conference review management. Writing disguises should be of similar
-difficulty and require the same expertise as writing relational schemas. In particular, a developer
-should write a disguise only once. Because disguises require at most one transformation for
-each object type and edge type, disguise complexity is limited by the number of entity types and
-relations in the application schema. Table~\ref{tab:loc} shows the statistics for each disguise.
+
+%
+We evaluate whether \sys enables developers to easily express and automate practical data
+disguises by writing disguises for user account deletion in Lobsters~\cite{lobsters}, an
+open-source news feed application, and HotCRP.
+%, an application for conference review management.
+%
+We consider three settings: Lobsters-Current and HotCRP-Current implement the current account
+deletion policies in the two applications.
+%
+HotCRP-Granular specifies a HotCRP account deletion policy that balances useful data
+retention with data deletion for privacy (\S\ref{design:eg}).
+%
+
+\paragraph{Complexity.}
+%
+We would hope that writing disguises involves similar labor and difficulty as writing
+relational schemas.
+%
+In particular, a developer should write a disguise only once.
+%
+Because disguises require at most one transformation for each object type and edge type,
+disguise complexity is limited by the number of entity types and relations in the
+application schema.
+%
+Table~\ref{tab:loc} shows that the disguise specification for our applications is indeed
+comparable in size to the applications' schemas.
+%
 
 %We next describe HotCRP unsubscription disguises in more detail. HotCRP objects include users
 %(reviewers and authors), papers, paper reviews, and paper conflicts.  Users who unsubscribe are
@@ -57,8 +78,7 @@ relations in the application schema. Table~\ref{tab:loc} shows the statistics fo
 %%with access to those papers or reviews should not be able to reassociate these papers or reviews
 %with the unsubscribed user.
 
-Lobsters-Current and HotCRP-Current implement the current account deletion policies in the respective
-applications.
+%
 %The HotCRP-Coarse disguise specifies the current HotCRP unsubscription policy, which deletes all
 %objects correlated to the user.
 %simply deletes users' reviews, paper conflicts, and other review information. HotCRP-Coarse specifies
@@ -71,8 +91,6 @@ applications.
 %Each of the 50 edge transformation specifications requires 6LoC, and the remaining 78 LoC of the disguise
 %definition come from defining \sys data structures for a total of 378 LoC.
 %
-HotCRP-Granular specifies a HotCRP account deletion policy that balances useful data
-retention with data deletion for privacy, as described in \S\ref{design:eg}.
 %HotCRP-Granular keeps reviews and review metadata present
 %for other users to use.
 %
@@ -122,7 +140,7 @@ retention with data deletion for privacy, as described in \S\ref{design:eg}.
 %decorrelate to a sensitivity threshold of 0.25 (with ghost tags generated as a default tag).
 %We retain all other types of edges.
 
-\subsection{Performance Challenges}
+\paragraph{Performance.}
 \label{sec:perf}
 
 \begin{figure}[t!]
@@ -142,33 +160,46 @@ or where data automatically ages out.
 %applying disguises (\eg creating guises).
 %We implemented several \sys variants to explore different performance tradeoffs.
 
-One \sys variant adds minimal normal execution overhead, only intercepting application queries; this
-decreases throughput by 4\% compared to a baseline without \sys. Another variant additionally
-tracks an in-memory object graph, decreasing throughput by 9\% compared to baseline.
+One \sys variant intercepts application queries, which adds throughput in normal operation by
+4\% compared to a baseline without \sys.
 %
-Worst-case disguise application creates as many guises as the number of edges connected to the
-target. Figure~\ref{fig:latencies} depicts how many SQL queries \sys performs while disguising and
-revealing users with the Lobsters-Current disguise, when the Lobsters database contains 3K users and 80K
-user contributions. Disguising currently performs queries sequentially during object graph
-traversal; revealing batches queries by table. Queries increase linearly with the number of objects
-created by the target user.
+Another variant additionally tracks an in-memory object graph, decreasing throughput by 9\%
+compared to the baseline.
+%
+When executing a privacy transformation, the worst cast generates as many guises as there are
+edges connected to the target, each requiring one or more SQL queries to create.
+%
+Figure~\ref{fig:latencies} show the number of queries run when applying and reversing
+Lobsters-Current on an object graph with 3K users and 80K total user contributions.
+%
+The overhead increases linearly with the number of objects created by the target user.
+%
+The reverse transformation (reveal) starts with the complete data and batches by table,
+while disguising currently applies queries as it traverses the object graph; some batching
+is possible and could improve this.
+%
 
-This indicates a need for privacy-aware database designs, which spread the cost of disguising across
-normal execution.
+%
+Our results indicate the need for privacy-aware database designs, which spread the cost of
+disguising across normal execution.
 %
 One possibility keeps a ``shadow'' copy of the database that reflects the disguised state, with
 guises already created and edges rewritten.
 %
-Pre-created guises are hidden by transparently exposing materialized views (MV) to the application.
-Disguising simply exposes the shadow copy in the MV, and removes objects that should be deleted.
+Pre-created guises are hidden by transparently exposing materialized views (MV) to the
+application.
 %
-This achieves good read performance---queries read from MVs instead of the database---albeit with
-high memory consumption. However, normal execution write queries now must potentially update
-multiple guises in the shadow copy, and
-pre-created guises consume space during normal execution, even if disguises are never applied.
+Disguising then exposes the shadow copy in the MV, and removes disguised objects.
+%
+This achieves good read performance---queries read from MVs instead of the database---albeit
+at the cost of space overhead.
+%
+However, normal execution write queries must potentially update multiple guises in the
+shadow copy, and pre-created guises consume space during normal execution, even if disguises
+are never applied.
 %
 Other possibilities include making disguises eventually consistent; updating the shadow copy
-asynchronously; and caching disguises for users who are disguised (and revealed) most often.
+asynchronously; and caching disguises for target objects disguised most often.
 %and using dataflow to more efficiently update materialized views when disguising.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
