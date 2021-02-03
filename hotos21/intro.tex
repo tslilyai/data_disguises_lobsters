@@ -22,7 +22,7 @@ coarse-grained transformations and ad-hoc solutions. %(\S\ref{sec:survey}).
 %deletion in webapps today, though}
 %
 To get privacy transformations right, developers must carefully map the high-level privacy
-policy to operations that delete or rewrite data objects, ensuring that the application preserves
+policy to operations that delete or rewrite data objects, while ensuring that the application preserves
 utility for other users, retains legally-mandated anonymized data, and avoids violating
 application invariants.
 %
@@ -41,7 +41,7 @@ reassociated with the user~\cite{strava:heatmap},
 %anonymized posts on Reddit correlated with a subreddit with very few subscribers can be
 %associated back to a single user;
 % papers' affiliation and reviewer conflicts in HotCRP can reidentify the author;
-and an anonymized order history of an e-commerce site can reidentify the buyer.
+and anonymized order histories in e-commerce sites can reidentify buyers.
 %
 
 %
@@ -57,7 +57,7 @@ they may enable new privacy modes such as data that gradually ``decays'' to beco
 Likewise, reversible privacy transformations might strike a sweet
 spot---allowing users to remove identifiable information on demand,
 but accommodating service providers' interest to make it easy for users to return---but
-adds significant burdens to implementation.
+adds significant burden to implementation.
 
 
 %The developer burden to implement the these transformations is prohibitive today.
