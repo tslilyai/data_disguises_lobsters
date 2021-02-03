@@ -27,10 +27,9 @@ utility for other users, retains legally-mandated anonymized data, and avoids vi
 application invariants.
 %
 For example, deleting a user's account should not unexpectedly grant broad
-access to previously-private content,
-\eddie{Not sure I understand why the preceding would happen?}
-nor should it make non-sensitive shared content
-disappear.
+access to previously-private content by deleting objects that restrict access,
+%\eddie{Not sure I understand why the preceding would happen?}
+nor should it make non-sensitive shared content disappear.
 %
 %
 Privacy transformation designers must correctly handle identifying data, as well as indirectly identifying
@@ -153,23 +152,24 @@ within the remaining data.
 %
 Users and application developers can both benefit from more nuanced privacy policies.
 %
-For example, a confidential paper review system like HotCRP must keep a user's contributions
+For example, a confidential paper review system like HotCRP~\cite{hotcrp} must keep a
+user's contributions
 (papers, reviews) after they delete their account to preserve utility for others, but could
 associate each review with a different placeholder to avoid revealing the deleted reviewer's
 identity.
 %
-Likewise, contributions with a shared property (\eg Reddit posts with a common tag)
-might be removed entirely to avoid inference attacks, or retained and decorrelated from the
-property (\ie keeping the user's Reddit posts, but removing their tags).
-\eddie{Would like more explanation of that}
-\eddie{“In some cases, a policy could preserve utility while reducing the
-efficacy of later inference attacks by changing posts, such as by modifying
-their metadata (\eg tags, posting times). These changes might be called for
-only where inference would likely succeed.” ?}
+%Likewise, contributions with a shared property (\eg Reddit posts with a common tag)
+%might be removed entirely to avoid inference attacks, or retained and decorrelated from the
+%property (\ie keeping the user's Reddit posts, but removing their tags).
+%\eddie{Would like more explanation of that}
+In some cases, a policy could preserve utility while reducing the efficacy of later inference
+attacks by changing posts, such as by modifying their metadata (\eg tags, posting times).
 %
-Similar policies could apply \emph{only if} the property was created by the user (\eg keeping
-the user's Reddit posts, but removing any user-created tags), or if the user's contributions
-comprise more than a threshold percentage of the contributions with a shared property.
+This transformation might be appropriate when inference would likely succeed, \eg because
+a tag was created by a user,
+%Similar policies could apply \emph{only if} the property was created by the user (\eg keeping
+%the user's Reddit posts, but removing any user-created tags),
+or if more than a threshold percentage the tag's uses is by this user.
 %
 %(\eg remove the user's posts on Reddit with tag $t$ if these posts comprise more than 10\%
 %of all posts with tag $t$).
