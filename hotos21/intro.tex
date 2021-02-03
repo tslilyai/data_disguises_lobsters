@@ -17,8 +17,9 @@ data retained at any point.
 Although many developers are well-intentioned, they must today implement \emph{privacy
 transformations} (such as user account deletion) manually, which results in coarse-grained
 transformations and ad-hoc solutions (\S\ref{sec:survey}).
-\lyt{I have a note here from Derek saying that transformations isn't explicitly defined; I'm not
-convinced we should, but just wanted to mention it.}
+\lyt{add other examples of transformations? e.g., anonymization when exporting data, for data
+minimization, to support user-chosen privacy settings? we do only really talk about user account
+deletion in webapps today, though}
 %
 To get privacy transformations right, developers must carefully map the high-level privacy
 policy to operations that delete or rewrite data objects, ensuring that the application preserves
@@ -53,7 +54,7 @@ control to individuals by allowing them to choose their own, fine-grained privac
 they may enable new privacy modes such as data that gradually becomes less identifyable over
 time.
 %
-Likewise, ``reversible'' privacy transformations might strike a sweet spot: they allow for
+Likewise, \lyt{user-controlled(?)} ``reversible'' privacy transformations might strike a sweet spot: they allow for
 policies that let users remove identifiable information temporarily, but accommodate the service
 providers' interest to make it easy for those users to return.
 %
@@ -82,8 +83,12 @@ application invariants and utility.
 %databases)~\cite{orms}.
 %
 A data disguising tool takes a disguise and its target, and automatically applies the appropriate
-transformations to application data to achieve the disguised state, reducing the developer
-burden.
+transformations to application data to achieve the disguised state, reducing the developer burden.
+Our prototype \sys demonstrates the potential of such a tool, and proxies SQL queries to the
+underlying database while providing the additional operations of ``DISGUISE'' and ``REVERSE
+DISGUISE.''
+\lyt{I got the comment that we need this concrete architecture much earlier in the paper from
+everyone.}
 %
 
 \section{The Need for Privacy Transformations}

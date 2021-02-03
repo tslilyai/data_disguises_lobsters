@@ -54,9 +54,10 @@ guises appropriately (\eg in displaying them), given that guises have the same s
 application objects (\eg rows in existing application tables).
 
 A data disguising tool takes the disguise specification and turns it into storage operations that
-apply the transformation (disguise) or its reverse (reveal). The tool sits between the application
-and its data, exposing additional queries to the application that allow it to invoke the disguise on
-transformation-triggering events (\eg user account deletion, data timeout, etc.).
+apply the transformation (disguise) or its reverse (reveal). The tool proxies application queries to
+its data storage, and exposes ``DISGUISE'' and ``REVERSE DISGUISE" operations 
+that invoke the disguise on transformation-triggering events (\eg user account deletion, data timeout, etc.).
+\lyt{This repeats the intro currently; perhaps we want to put it only there?}
 %
 
 %\begin{enumerate}[nosep]
