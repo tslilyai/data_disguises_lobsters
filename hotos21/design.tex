@@ -48,8 +48,9 @@ This specification is a declarative statement similar to a relational schema, wi
 graph vertices (objects) and directed edges (relationships between pairs of objects)
 to be transformed (see \S\ref{sec:policies}).
 %
-A data disguising tool takes the disguse specification and turns it into storage
-operations that apply the transformation (disguise) or its reverse (reveal).
+A data disguising tool takes the disguise specification and turns it into storage operations that
+apply the transformation (disguise) or its reverse (reveal). The tool sits between the application
+and its data, exposing additional queries to the application that allow it to invoke the disguise.
 %
 %
 We assume that:
