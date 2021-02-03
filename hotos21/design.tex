@@ -13,99 +13,6 @@
 %\lyt{TODO (Frans): drive w/explicit example of table rows and foreign key relationships, too
 %abstract. Start with Figure~\ref{fig:arch}?}
 
-%
-The key idea behind \emph{data disguising} is to associate multiple \emph{guises} with a target
-data object: some guises are identity-revealing, while others are privacy-preserving.
-%
-Objects move between different guises by means of privacy transformations.
-%
-Figure~\ref{fig:example} illustrates this with the example of user account deletion.
-%
-When his account is active, user Bob's profile is associated with his true identity and all his
-contributions to the site (an identity-revealing guise).
-%
-When Bob deletes his account, his profile and contributions move to different,
-privacy-preserving guises: his profile is now associated with an anonymizing name, his email
-address redacted, and his contributions are decorrelated and attributed to individual,
-unidentified user guises.
-%
-
-%
-Data disguising builds on the existing structure of web applications.
-%
-Web applications are often structured as object graphs, either explicitly~\cite{tao, delf},
-through an object-relational model (ORM)~\cite{orm}, or implicitly via foreign keys (edges)
-between tables (vertices) in relational databases.
-%
-Data disguises transform the content and structure of this graph.
-%
-
-%
-The application developer writes a disguise specification for each privacy transformation needed
-in the application.
-%
-This specification is a declarative statement similar to a relational schema, with entries for
-graph vertices (objects) and directed edges (relationships between pairs of objects)
-to be transformed (see \S\ref{sec:policies}).
-%
-We assume that developers use their domain knowledge to write correct and complete disguises\lyt{a
-bit worried about ``complete'' here}, and that application code is prepared to handle the different
-guises appropriately (\eg in displaying them), given that guises have the same structure as
-application objects (\eg rows in existing application tables).
-
-A data disguising tool takes the disguise specification and turns it into storage operations that
-apply the transformation (disguise) or its reverse (reveal). The tool proxies application queries to
-its data storage, and exposes ``DISGUISE'' and ``REVERSE DISGUISE" operations 
-that invoke the disguise on transformation-triggering events (\eg user account deletion, data timeout, etc.).
-\lyt{This repeats the intro currently; perhaps we want to put it only there?}
-%
-
-%\begin{enumerate}[nosep]
-  %\item application developers use their domain knowledge to write correct and complete
-    %disguise specifications;
-%\item \lyt{Not sure we need this?} application code invokes disguises via the disguising tool's API on
- %   transformation-triggering events (\eg user account deletion, data timeout, etc.); and
-%  \item application code is prepared to handle the different guises appropriately (\eg in displaying
-%      them); guises have the same structure as application objects (\eg exist as rows in existing
-%        application tables).
-%\end{enumerate}
-%
-An application's data object graph thus, at any point in time, consists of a mix of
-identity-revealing guises and privacy-preserving ones, with privacy transformations splitting
-and combining individual guises on request.
-%
-%Using their application expertise, the developer selects from a menu of possible transformations
-%(Section~\ref{sec:policies}) that can be performed on objects and object graph edges.
-%The data disguise consists of the chosen set of transformations, and determines the
-%structure of the object graph after a target (\eg the unsubscribing user) is disguised.
-%
-%Disguising a target object creates \emph{guises}---transformed versions and/or copies of the target.
-%Disguising requires object deletion and anonymization: guises help maintain referential integrity
-%when data is deleted, and transform objects into anonymized forms.  Guises additionally decorrelate
-%other objects from the target: for example, a new guise for the user can be created in the users
-%table, and the foreign key relationship from a row in the posts table rewritten to point this guise,
-%to decorrelate the post from the user.
-
-%-------------------------------------------------------------------------------
-\section{Specifying Data Disguises}
-%-------------------------------------------------------------------------------
-\label{sec:policies}
-
-Data disguises consist of a set of chosen transformations on object types and edge types in the application
-object graph.
-These transformations are applied starting from the developer-specified target object, \eg a deleted or inactive user.
-%The developer chooses one transformation for each object type, and
-%one for each edge type.
-%Object type transformations specify how to transform a template object of that type into guises; edge type
-%transformations specify whether to delete, retain, or decorrelate edges of that type.
-%where decorrelation replaces the edge with edges to guises.
-
-%We next describe a menu of object and edge transformations sufficient to write disguises for the
-%privacy transformations in Section~\ref{sec:survey}.
-
-\subsection{Creating Guises for Objects}
-\label{sec:guises}
-
 \begin{figure*}[t!]
     \centering
     \footnotesize
@@ -152,19 +59,128 @@ These transformations are applied starting from the developer-specified target o
     \label{fig:guises}
 \end{figure*}
 
-To create a guise from a template object, developers specify how to transform attributes of a template
-object into guise attributes.
+
 %
-Objects have three kinds of attributes: a unique identifier attribute; value
-(non-referential) attributes such as timestamps or usernames; and edge (\eg foreign key)
-attributes that identify correlations with other objects.
+The key idea behind \emph{data disguising} is to associate multiple \emph{guises} with a target
+data object: some guises are identity-revealing, while others are privacy-preserving.
+%
+Objects move between different guises by means of privacy transformations.
+%
+Figure~\ref{fig:example} illustrates this with the example of user account deletion.
+%
+When his account is active, user Bob's profile is associated with his true identity and all his
+contributions to the site (an identity-revealing guise).
+%
+When Bob deletes his account, his profile and contributions move to different,
+privacy-preserving guises: his profile is now associated with an anonymizing name, his email
+address redacted, and his contributions are decorrelated and attributed to individual,
+unidentified user guises.
 %
 
 %
-Figure~\ref{fig:guises} shows how guises are produced for users. User objects have \texttt{id} as
-the identifier attribute,
+Data disguising builds on the existing structure of web applications.
+%
+Web applications are often structured as object graphs, either explicitly~\cite{tao, delf},
+through an object-relational model (ORM)~\cite{orm}, or implicitly via foreign keys (edges)
+between tables (vertices) in relational databases.
+%
+Data disguises transform the content and structure of this object graph.
+%
+
+%
+The application developer writes a disguise specification for each privacy transformation needed
+in the application.
+%
+This specification is a declarative statement similar to a relational schema, with entries for
+graph vertices (objects) and directed edges (relationships between pairs of objects)
+to be transformed (see \S\ref{sec:policies}).
+%
+We assume that:
+\begin{enumerate}[nosep]
+  \item developers use their domain knowledge to write correct and complete disguises;
+    %\lyt{a bit worried about ``complete'' here}
+  \item that application code handles the different guises appropriately (\eg in
+    displaying them); and
+  \item that different guises of the same object have the same structure (\eg they can be
+    rows in the same table).
+\end{enumerate}
+%
+A data disguising tool takes the disguise specification and turns it into storage operations that
+apply the transformation (disguise) or its reverse (reveal).
+%
+% Malte: I don't think the following is fundamental
+%The tool proxies application queries to its data storage, and exposes ``DISGUISE'' and
+%``REVERSE DISGUISE" operations that invoke the disguise on transformation-triggering events
+%(\eg user account deletion, data timeout, etc.).
+%\lyt{This repeats the intro currently; perhaps we want to put it only there?}
+%
+
+%\begin{enumerate}[nosep]
+  %\item application developers use their domain knowledge to write correct and complete
+    %disguise specifications;
+%\item \lyt{Not sure we need this?} application code invokes disguises via the disguising tool's API on
+ %   transformation-triggering events (\eg user account deletion, data timeout, etc.); and
+%  \item application code is prepared to handle the different guises appropriately (\eg in displaying
+%      them); guises have the same structure as application objects (\eg exist as rows in existing
+%        application tables).
+%\end{enumerate}
+%
+An application's data object graph thus, at any point in time, consists of a mix of
+identity-revealing guises and privacy-preserving ones, with privacy transformations splitting
+and combining individual guises when triggered.
+%
+%Using their application expertise, the developer selects from a menu of possible transformations
+%(Section~\ref{sec:policies}) that can be performed on objects and object graph edges.
+%The data disguise consists of the chosen set of transformations, and determines the
+%structure of the object graph after a target (\eg the unsubscribing user) is disguised.
+%
+%Disguising a target object creates \emph{guises}---transformed versions and/or copies of the target.
+%Disguising requires object deletion and anonymization: guises help maintain referential integrity
+%when data is deleted, and transform objects into anonymized forms.  Guises additionally decorrelate
+%other objects from the target: for example, a new guise for the user can be created in the users
+%table, and the foreign key relationship from a row in the posts table rewritten to point this guise,
+%to decorrelate the post from the user.
+
+%-------------------------------------------------------------------------------
+\section{Specifying Data Disguises}
+%-------------------------------------------------------------------------------
+\label{sec:policies}
+
+%
+Each data disguise consists of a set of transformations on object types and edge types in the
+application object graph.
+%
+The disguising tool applies these transformations by traversing the graph, starting from a
+developer-specified target object, such as a deleted user.
+%
+%The developer chooses one transformation for each object type, and
+%one for each edge type.
+%Object type transformations specify how to transform a template object of that type into guises; edge type
+%transformations specify whether to delete, retain, or decorrelate edges of that type.
+%where decorrelation replaces the edge with edges to guises.
+
+%We next describe a menu of object and edge transformations sufficient to write disguises for the
+%privacy transformations in Section~\ref{sec:survey}.
+
+\subsection{Creating Guises for Objects}
+\label{sec:guises}
+
+\ms{``template object'' is a new term. Previously, we referred to all versions of an object
+as ``guises''. Is there a special guise that corresponds to the template object?}
+%
+To create a guise from a \emph{template object}, developers specify how to transform
+attributes of the template object into guise attributes.
+%
+An object has three kinds of attributes: a unique identifier attribute; value
+(non-referential) attributes such as timestamps or usernames; and edge (\eg foreign key)
+attributes that refer to other objects.
+%
+Figure~\ref{fig:guises} shows an example, producing guises for user objects.
+%
+User objects have \texttt{id} as the identifier attribute,
 \texttt{tag\_id} as an edge attribute (a foreign key constraint to tag objects),
 and all other attributes as value attributes.
+%
 
 Guises always have unique, random identifier attributes.
 Developers choose how to create guise edge and value attributes, selecting from the following:
@@ -179,7 +195,7 @@ Developers choose how to create guise edge and value attributes, selecting from 
     %values cannot be generated, or if this attribute says little about the true identity of the
     %entity.
     For example, Figure~\ref{fig:guises} shows how the \texttt{darkmode} attribute is copied in
-    all ghosts.
+    all guises.
     %; the \texttt{darkmode} attribute reveals very little about the underlying user's
     %identity.
 
@@ -194,61 +210,82 @@ Developers choose how to create guise edge and value attributes, selecting from 
         the new guise.  In Figure~\ref{fig:guises}, creating two user guises recursively creates two
         tag guises; the tag guises' identifiers become the user guises' foreign keys.
 
-\paragraph{(3) Copy object content, but only once.} 
+\paragraph{(3) Copy object content, but only once.}
+%
 One guise copies the attribute value from the template object, but all other guises generate new
-values (as described above). \texttt{notifs} in Figure~\ref{fig:guises} illustrates how the
-attribute is copied once. This enables the application to retain the original object content
-(\eg a count of how many users want notifications), without \eg creating duplicates.
+values (as described above).
+%
+\texttt{notifs} in Figure~\ref{fig:guises} illustrates how the attribute is copied once.
+%
+This enables the application to retain the original object content (\eg a count of how many
+users want notifications), without creating duplicates.
+%
 
 \subsection{Transforming Edges Between Objects}
 \label{design:edgepol}
 
-Edge transformations specify how guises restructure the object graph.  Disguises apply edge
-transformations while recursively traversing edges from the target.  For clarity, we refer to edges
-as between a \emph{parent} object and a \emph{child} object, where the child references the parent
-(\eg via a foreign key column in a relational database).
+\ms{to discuss: recursive guise creation (described above) also restructures the object graph,
+namely by introducing new objects and connecting them with others. Do we need to differentiate?}
+%
+Edge transformations specify how guises \emph{restructure} the object graph.
+%
+Disguises apply edge transformations while recursively traversing edges from the target.
+%
+For clarity, we refer to edges as between a \emph{parent} object and a \emph{child} object,
+where the child references the parent (\eg via a foreign key column in a relational database).
 %
 The developer specifies transformations for each edge type, choosing from the following:
+%
 \begin{enumerate}[nosep]
-    \item \textbf{Retain} edges of this type. Transform both parent and child objects into a single guise
-        each.
-    \item \textbf{Decorrelate} edges of this type. Create a new guise (using the parent as template) for each of
-        the parent's children; replace each child's edge to the parent with an edge to a unique
-        guise.
-    \item \textbf{Delete} edges of this type. Transform the parent object into a single guise;
-        remove the child and its descendants.
+    %
+    \item \textbf{Retain} edges of this type. Transform both parent and child objects into a
+      single guise each.
+    %
+    \item \textbf{Decorrelate} edges of this type. Create one guise of the parent (using the
+      parent as template) for each of the children; replace each child's edge to the parent
+      with an edge to that unique guise.
+    %
+    \item \textbf{Delete} edges of this type. Transform the parent object into a single
+      guise; remove the child \ms{what if child has other incoming edges?} and its descendants.
+    %
 \end{enumerate}
-These choices take optional arguments that enables conditionally applied edge transformations, \eg remove only
-user-created tags; remove tags only until the user's papers comprise less than $10$\% of tagged papers;
-or transform only in the child-parent direction.
+%
+Optional arguments enables conditionally-applied edge transformations, \eg removing only
+user-created tags; or removing tags only until the user's papers comprise less than
+$10$\% of tagged papers; or transforming only in the child-parent direction.
+%
+\ms{above specifies only parent-child direction; is there a reverse too? Let's discuss.}
 
 \subsection{An Example Disguise}
 \label{design:eg}
-
-Consider disguising Bob when he deletes his HotCRP.com account.\lyt{Should we use HotCRP or
-HotCRP.com? Seems like we switch between?}
+%
+Consider disguising Bob when he deletes his HotCRP account.
 %
 Bob would prefer his papers and reviews to be unliked from his identity.
 %
-HotCRP.com, on the other hand, would like to retain paper and review information that other users
-find useful
+HotCRP, on the other hand, would like to retain paper and review information that other users
+find useful.
 %
 A careful selection of edge and object transformations achieves both.
+%
 
-To decorrelate reviews from Bob, the disguise aptly \texttt{Decorrelate}s user-to-review edges.
+%
+To decorrelate reviews from Bob, the disguise \texttt{Decorrelate}s user-to-review edges.
+%
 This requires transforming Bob into one unique user guise per review.
 %
-To do so, the disguise generates guise attribute values using suitable defaults. In particular, the
-\texttt{disabled} attribute is set to \texttt{true}, ensuring that guises have no permissions and
-never review papers.
+To do so, the disguise generates guise attribute values using suitable defaults.
+%
+In particular, it specifies to set HotCRP users's \texttt{disabled} attribute for the guises,
+ensuring that guises have no permissions and never review papers.
 %
 
 %
-Bob is linked to papers through conflicts, which denotes either coauthorship or reviewer conflicts
-with the paper authors.
+Bob is further linked to papers through conflicts, which can indicate coauthorship or a
+reviewer conflict.
 %
-Bob's conflict should not be reassigned to a user guise: the remaining set
-of conflicts can reidentify the guise by exposing his affiliations and recent collaborations.
+Bob's conflict with a specific paper should not be reassigned to a user guise: the remaining set
+of conflicts can reidentify the guise through the implied affiliation and collaborations.
 %
 Instead, the conflict-to-paper edges need a \texttt{Delete} annotation.
 %
@@ -262,12 +299,13 @@ anonymous, unlinkable guises of the original author.
 %
 Review and paper guises copy the original object, retaining paper and review information.
 %
+\ms{Does this mean duplicate papers/reviews can show up?}
 
 %
-Unlike the current real-world HotCRP.com account deletion policy~\cite{hotcrp:privacy}, which
+Unlike the current real-world HotCRP account deletion policy~\cite{hotcrp:privacy}, which
 deletes all objects belonging to Bob, this disguise strikes a balance between decorrelating
 Bob's identity from his reviews and papers, and maintaining useful information for other
-HotCRP.com users.
+HotCRP users.
 %
 Furthermore, it is easy to imagine extending this disguise to automatically disguise Bob
 after some time (\eg 2 years after the conference), protecting his future research career
