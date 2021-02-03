@@ -154,16 +154,18 @@ which are missing from today's applications but easily described via disguises.
 Users and application developers can both benefit from more nuanced privacy policies.
 %
 For example, a confidential paper review system like HotCRP must keep a user's contributions
-(papers, reviews) to preserve utility for others, but may associate each review with a different
-placeholder to avoid accidentally revealing the deleted reviewer's identity.
+(papers, reviews) after they delete their account to preserve utility for others, but may
+associate each review with a different placeholder to avoid revealing the deleted reviewer's
+identity.
 %
-Likewise, contributions with a shared property (\eg posts on Reddit that share a common tag)
+Likewise, contributions with a shared property (\eg Reddit posts with a common tag)
 might be removed entirely to avoid inference attacks, or retained and decorrelated from the
-property (\eg keeping the user's Reddit posts, but removing their tags).
+property (\ie keeping the user's Reddit posts, but removing their tags).
 %
 Similar policies could apply \emph{only if} the property was created by the user (\eg keeping
 the user's Reddit posts, but removing any user-created tags), or if the user's contributions
 comprise more than a threshold percentage of the contributions with a shared property.
+%
 %(\eg remove the user's posts on Reddit with tag $t$ if these posts comprise more than 10\%
 %of all posts with tag $t$).
 %
@@ -173,16 +175,17 @@ A privacy transformation framework is necessary to turn these preferences into c
 operations without undue developer burden.
 %
 
-\paragraph{Data decomposition.}
+\paragraph{Data decay.}
 %
 Applications could go beyond simple account deletion and support a data expiration policy that
-anonymizes a user's contributions after the user has been inactive for a period of time, and
-restores the user's profile and contributions if the user ever logs back in.
+anonymizes a user's contributions after the user has been inactive for a period of time,
+possibly restoring the user's profile and contributions if the user ever logs back in.
 %
-Or the application could gradually ``decompose'' sensitive data by applying a series of
-privacy transformations that incrementally removes more identifiable information over time.
+Or the application could gradually ``decay'' sensitive data by applying several privacy
+transformations that incrementally remove identifiable information over time.
 %from it as it ages.
 %
+This requires periodic, automated privacy transformations.
 
 \paragraph{Reversibility.}
 %
@@ -190,12 +193,12 @@ Many applications might wish to employ \emph{reversible} transformations to, for
 account reactivation instead of permanent and irrevokable account deletion.
 %
 After all, if services must allow users to remove their data on request, it is in the operator's
-interest to make it easy for users to change their mind and return.
+interest to make it easy for users to change their mind and return, bringing their data along.
 %
-An advanced reversible transformation might record all actions performed in an encrypted log, and
-offer that log for download or push it to third-party cloud storage.
+An advanced reversible transformation might record all data transformed, and push an encrypted
+archive to third-party cloud storage.
 %
-If the user wishes to return, they simply supply the log to reverse the transformation.
+If the user wishes to return, they supply the archive to reverse the transformation.
 %
 To ensure access to the log even if the user loses their key, the transformation might secret-share
 the encryption key~\cite{secretsharing} among the user, the service, and a trusted third party (\eg
