@@ -148,10 +148,9 @@ tracks an in-memory object graph, decreasing throughput by 9\% compared to basel
 %
 Worst-case disguise application creates as many guises as the number of edges connected to the
 target. Figure~\ref{fig:latencies} depicts the number of SQL queries run when applying and reversing
-Lobsters-Current on an object graph with 3K users and 80K total user contributions. The overhead
-increases linearly with the number of objects created by the target user; revealing batches queries
-by table, while disguising currently applies queries as it traverses the object graph, but could
-improve with query batching.
+Lobsters-Current on an object graph with 3K users and 80K total user contributions.  Revealing
+batches queries by table; disguising currently applies queries during object graph traversal. Queries increase linearly with the number of objects
+created by the target user.
 
 This indicates a need for privacy-aware database designs, which spread the cost of disguising across
 normal execution.
