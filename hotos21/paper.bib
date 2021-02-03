@@ -53,7 +53,7 @@ title = {Privacy Integrated Queries},
 year = {2010},
 month = sep,
 publisher = {Association for Computing Machinery, Inc.},
-url = {https://www.microsoft.com/en-us/research/publication/privacy-integrated-queries-2/},
+url = {https://www.microsoft.com/en-us/research/publication/privacy-integrated-queries-2},
 pages = {89-97},
 journal = {Communications of the ACM},
 volume = {53},
@@ -200,7 +200,7 @@ edition = {Communications of the ACM},
 
 @online{amazon:privacy,
     title={Amazon.com Privacy Notice},
-    author = {Amazon},
+    author = {Amazon.com Inc.},
     urldate = {2020-12-17},
     url = {https://www.amazon.com/gp/help/customer/display.html?nodeId=GX7NJQ4ZB8MHFRNJ},
     howpublished = {Amazon.com},
@@ -210,7 +210,7 @@ edition = {Communications of the ACM},
 
 @online{amazon:close,
 title={What Happens When I Close My Account},
-author = {Amazon},
+author = {Amazon.com Inc.},
 urldate = {2020-12-17},
 url = {https://www.amazon.com/gp/help/customer/display.html?nodeId=GBDB29JHRPFBDVYV},
 howpublished = {Amazon.com}
@@ -229,7 +229,7 @@ howpublished = {Amazon.com}
 @online{stackoverflow:privacy,
     title={Stack Exchange, Inc. Terms of Service},
     url = {https://stackoverflow.com/legal/terms-of-service},
-    author = {Stack Exchange, Inc.},
+    author = {Stack Exchange Inc.},
     urldate = {2021-01-26},
     howpublished = {stackoverflow.com},
     month = feb,
@@ -313,7 +313,7 @@ howpublished = {Amazon.com}
 @online{breach:amazon,
     title = {Data from August Breach of Amazon Partner Juspay Dumped Online},
     url =
-    {https://threatpost.com/data-from-august-breach-of-amazon-partner-juspay-dumped-online/162740/},
+    {https://threatpost.com/data-from-august-breach-of-amazon-partner-juspay-dumped-online/162740},
     author = {Montalbano, Eliabeth},
     month = jan,
     year = 2021,
@@ -341,7 +341,7 @@ howpublished = {Amazon.com}
 @inproceedings{amber,
     author = {Tej Chajed and Jon Gjengset and Jelle van den Hooff and M. Frans Kaashoek and James Mickens and Robert Morris and Nickolai Zeldovich},
     title = {Amber: Decoupling User Data from Web Applications},
-    booktitle = {15th Workshop on Hot Topics in Operating Systems (HotOS {XV})},
+    booktitle = {15th Workshop on Hot Topics in Operating Systems (HotOS {15})},
     year = {2015},
     address = {Kartause Ittingen, Switzerland},
     url = {https://www.usenix.org/conference/hotos15/workshop-program/presentation/chajed},
@@ -352,7 +352,7 @@ howpublished = {Amazon.com}
 @inproceedings{w5,
    author =       "Maxwell Krohn and Alex Yip and Micah Brodsky and Robert Morris and Michael Walfish",
    title =        "{A World Wide Web  Without Walls}",
-   booktitle =    {6th ACM Workshop on Hot Topics in Networking (Hotnets)},
+   booktitle =    {6th ACM Workshop on Hot Topics in Networking (HotNets 07)},
    year =         {2007},
    month =        nov,
    address =      {Atlanta, GA}
@@ -366,11 +366,16 @@ howpublished = {Amazon.com}
 }
 
 @inproceedings{bstore,
-  title={Separating web applications from user data storage with BSTORE},
-  author={Chandra, Ramesh and Gupta, Priya and Zeldovich, Nickolai},
-  booktitle={Proceedings of the 2010 USENIX Conference on Web Application Development (WebApps)},
-  pages={1--1},
-  year={2010},
+author = {Chandra, Ramesh and Gupta, Priya and Zeldovich, Nickolai},
+title = {Separating Web Applications from User Data Storage with BSTORE},
+year = {2010},
+publisher = {USENIX Association},
+address = {USA},
+booktitle = {Proceedings of the 2010 USENIX Conference on Web Application Development},
+pages = {1},
+numpages = {1},
+location = {Boston, MA},
+series = {WebApps'10}
 }
 
 @article{secretsharing,
@@ -396,7 +401,7 @@ keywords = {interpolation, key management, cryptography}
   title={Solid: a platform for decentralized social applications based on linked data},
   author={Sambra, Andrei Vlad and Mansour, Essam and Hawke, Sandro and Zereba, Maged and Greco, Nicola and Ghanem, Abdurrahman and Zagidulin, Dmitri and Aboulnaga, Ashraf and Berners-Lee, Tim},
   year={2016},
-  institution={Technical Report, MIT CSAIL \& Qatar Computing Research Institute}
+  institution={MIT CSAIL \& Qatar Computing Research Institute}
 }
 
 @article{schema:evo,
@@ -456,14 +461,18 @@ pages="24--38",
 isbn="978-3-030-33752-0"
 }
 
-@inbook{usershards,
-author = {Schwarzkopf, Malte and Kohler, Eddie and Kaashoek, M. and Morris, Robert},
-year = {2019},
-month = {10},
-pages = {39-53},
-title = {Position: GDPR Compliance by Construction},
-isbn = {978-3-030-33751-3},
-doi = {10.1007/978-3-030-33752-0_3}
+@InProceedings{usershards,
+author="Schwarzkopf, Malte
+and Kohler, Eddie
+and Frans Kaashoek, M.
+and Morris, Robert",
+title="Position: GDPR Compliance by Construction",
+booktitle="Heterogeneous Data Management, Polystores, and Analytics for Healthcare",
+year="2019",
+publisher="Springer International Publishing",
+address="Cham",
+pages="39--53",
+isbn="978-3-030-33752-0"
 }
 
 @article {scrambledb,
@@ -488,7 +497,7 @@ doi = {10.1007/978-3-030-33752-0_3}
 }
 
 @article{jeeves,
-  title={A language for automatically enforcing privacy policies},
+  title={A Language for Automatically Enforcing Privacy Policies},
   author={Yang, Jean and Yessenov, Kuat and Solar-Lezama, Armando},
   journal={ACM SIGPLAN Notices},
   volume={47},
@@ -499,23 +508,25 @@ doi = {10.1007/978-3-030-33752-0_3}
 }
 
 @inproceedings{databox,
-  title={Personal data management with the databox: What's inside the box?},
+  title={Personal Data Management with the Databox: What's Inside the Box?},
   author={Mortier, Richard and Zhao, Jianxin and Crowcroft, Jon and Wang, Liang and Li, Qi and Haddadi, Hamed and Amar, Yousef and Crabtree, Andy and Colley, James and Lodge, Tom and others},
   booktitle={Proceedings of the 2016 ACM Workshop on Cloud-Assisted Networking},
   pages={49--54},
   year={2016}
 }
 
-@article{oort,
-  title={Oort: user-centric cloud storage with global queries},
+@techreport{oort,
+  title={Oort: User-Centric Cloud Storage with Global Queries},
   author={Chajed, Tej and Gjengset, Jon and Kaashoek, M Frans and Mickens, James and Morris, Robert and Zeldovich, Nickolai},
-  year={2016}
+  year={2016},
+  number={MIT-CSAIL-TR-2016-015},
+  institution={MIT CSAIL}
 }
 
 @inproceedings{diy,
-  title={DIY hosting for online privacy},
+  title={DIY Hosting for Online Privacy},
   author={Palkar, Shoumik and Zaharia, Matei},
-  booktitle={Proceedings of the 16th ACM Workshop on Hot Topics in Networks},
+  booktitle={Proceedings of the 16th ACM Workshop on Hot Topics in Networks (HotNets 17)},
   pages={1--7},
   year={2017}
 }
@@ -562,7 +573,7 @@ series = {CCS '20}
 }
 
 @inproceedings{jif,
-  title={Language-based enforcement of privacy policies},
+  title={Language-Based Enforcement of Privacy Policies},
   author={Hayati, Katia and Abadi, Martín},
   booktitle={International Workshop on Privacy Enhancing Technologies},
   pages={302--313},
@@ -573,7 +584,7 @@ series = {CCS '20}
 
 @inproceedings {qapla,
 author = {Aastha Mehta and Eslam Elnikety and Katura Harvey and Deepak Garg and Peter Druschel},
-title = {Qapla: Policy compliance for database-backed systems},
+title = {Qapla: Policy Compliance for Database-Backed Systems},
 booktitle = {26th {USENIX} Security Symposium ({USENIX} Security 17)},
 year = {2017},
 isbn = {978-1-931971-40-9},
@@ -600,7 +611,7 @@ series = {SOSP '11}
 }
 
 @article{oracle,
-  title={The virtual private database in oracle9ir2},
+  title={The Virtual Private Database in Oracle9iR2},
   author={Browder, Kristy and Davidson, Mary Ann},
   journal={Oracle Technical White Paper, Oracle Corporation},
   volume={500},
@@ -611,15 +622,15 @@ series = {SOSP '11}
 @inproceedings{static,
   title={Static Checking of Dynamically-Varying Security Policies in Database-Backed Applications.},
   author={Chlipala, Adam and Impredicative, LLC},
-  booktitle={OSDI},
+  booktitle = {8th {USENIX} Symposium on Operating Systems Design and Implementation ({OSDI} 10)},
   pages={105--118},
   year={2010}
 }
 
 @inproceedings{multiverse,
-  title={Towards multiverse databases},
+  title={Towards Multiverse Databases},
   author={Marzoev, Alana and Araújo, Lara Timbó and Schwarzkopf, Malte and Yagati, Samyukta and Kohler, Eddie and Morris, Robert and Kaashoek, M Frans and Madden, Sam},
- booktitle={Proceedings of the Workshop on Hot Topics in Operating Systems},
+ booktitle={Proceedings of the Workshop on Hot Topics in Operating Systems ({HotOS} 19)},
   pages={88--95},
   year={2019}
 }
@@ -638,7 +649,7 @@ month = oct,
 }
 
 @inproceedings{ifdb,
-  title={IFDB: decentralized information flow control for databases},
+  title={IFDB: Decentralized Information Flow Control for Databases},
   author={Schultz, David and Liskov, Barbara},
   booktitle={Proceedings of the 8th ACM European Conference on Computer Systems},
   pages={43--56},
@@ -669,7 +680,7 @@ month = aug,
 @article{orm,
   title={Twenty years of object-relational mapping: A survey on patterns, solutions, and their implications on application design},
   author={Torres, Alexandre and Galante, Renata and Pimenta, Marcelo S and Martins, Alexandre Jonatan B},
-  journal={information and software technology},
+  journal={Information and Software Technology},
   volume={82},
   pages={1--18},
   year={2017},
@@ -680,7 +691,7 @@ month = aug,
 @online{strava:heatmap,
     title   = {The Strava Heat Map and the End of Secrets},
     url     =
-    {https://www.wired.com/story/strava-heat-map-military-bases-fitness-trackers-privacy/},
+    {https://www.wired.com/story/strava-heat-map-military-bases-fitness-trackers-privacy},
     urldate = {2021-02-01},
     author  = {Hsu, Jeremy},
     month = jan,
