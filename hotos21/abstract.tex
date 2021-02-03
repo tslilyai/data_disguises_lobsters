@@ -1,15 +1,27 @@
 %\begin{abstract}
 \paragraph{Abstract.}
-Web applications face increasing legal and user demands to provide better privacy for their users.
-%    \lyt{Need some defn of privacy-enhancing data transformations?}
-% Malte: defined by example (account del)
+
+Conscientious application developers want to provide better user privacy;
+legal requirements and user demand increasingly require it.
 %
-But a conscientious developer has a tough job: privacy-enhancing transformations
-like account deletion require deleting, anonymizing, and decorrelating user data, while
-maintaining application utility for other users and any data retained for legal reasons.
+Unfortunately, privacy in complex, data-rich applications is fundamentally
+hard. Consider a user who wants to remove their account from a service. Even
+finding the corresponding data is nontrivial, but once it is found, only some
+of it should be removed; other data should be anonymized or decorrelated (for
+legal reasons, or to maintain application utility for other users), and some
+of these transformations should be reversible (in case a user wants to
+return).
 %
-Consequently, today's applications support only simple, coarse-grained, and ad-hoc privacy
-transformations.
+% Conscientious application developers face increasing legal and user demands to provide better privacy for their users.
+% %    \lyt{Need some defn of privacy-enhancing data transformations?}
+% % Malte: defined by example (account del)
+% %
+% But a conscientious developer has a tough job: privacy-enhancing transformations
+% like account deletion require deleting, anonymizing, and decorrelating user data, while
+% maintaining application utility for other users and any data retained for legal reasons.
+%
+% Consequently, today's applications support only simple, coarse-grained, and ad-hoc privacy
+% transformations.
 %
 
 We propose \emph{data disguising}, a systematic approach that helps developers generate
