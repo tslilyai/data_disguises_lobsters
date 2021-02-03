@@ -148,8 +148,8 @@ tracks an in-memory object graph, decreasing throughput by 9\% compared to basel
 %
 Worst-case disguise application creates as many guises as the number of edges connected to the
 target. Figure~\ref{fig:latencies} depicts how many SQL queries \sys performs while disguising and
-revealing users. \sys applies the Lobsters-Current disguise in an object graph with 3K users and 80K
-total user contributions. Disguising currently performs queries sequentially during object graph
+revealing users with the Lobsters-Current disguise, when the Lobsters database contains 3K users and 80K
+user contributions. Disguising currently performs queries sequentially during object graph
 traversal; revealing batches queries by table. Queries increase linearly with the number of objects
 created by the target user.
 
