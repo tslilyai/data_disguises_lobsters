@@ -297,16 +297,15 @@ ensuring that guises have no permissions and never review papers.
 Bob is further linked to papers through conflicts, which can indicate coauthorship or a
 reviewer conflict.
 %
-Bob's conflict with a specific paper should not be reassigned to a user guise: the remaining set
-of conflicts can reidentify the guise through the implied affiliation and collaborations.
+These conflicts are not reassigned to the new guises, since preserved
+conflicts could reidentify Bob as the likely author of a review. Thus, the
+conflict edges that link a disguised user to papers need a \texttt{Delete} annotation.
 %
-Instead, the conflict-to-paper edges need a \texttt{Delete} annotation.
-%
-Edge directionality matters here: paper-to-conflict edges should not be removed, as doing so
-could incorrectly allow conflicted users to see the paper!
+%% Edge directionality matters here: paper-to-conflict edges should not be removed, as doing so
+%% could incorrectly allow conflicted users to see the paper!
 
 The disguise \texttt{Retain}s all other edge types, ensuring that review and paper
-artifacts remain correctly linked: active reviewers still see the correct paper for their reviews,
+artifacts remain correctly linked. Active reviewers still see the correct paper for their reviews,
 and active authors see the correct reviews for their papers, albeit potentially authored by
 anonymous, unlinkable guises of the original reviewer.
 %

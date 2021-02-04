@@ -71,15 +71,18 @@ adds significant burden to implementation.
 %
 %
 We propose \emph{data disguising}, a new framework
-for specifying and implementing privacy transformations that systematically addresses these
-challenges.
+for systematically specifying and implementing privacy transformations.
 %
-With data disguising, developers specify transformations required in privacy policies as
+In this framework, developers specify transformations required in privacy policies as
 high-level \emph{data disguises} over existing application data types and associations.
 %
 Applying a disguise transforms the state of application data in privacy-preserving ways (\eg
 deleting users' identifiers, or decorrelating identifying object relationships) while preserving
 application invariants and utility.
+%
+Disguises do not guarantee strict privacy---a disguise might preserve user information
+or user-correlated data, depending on application policy---but flexible disguising,
+rather than universal deletion, is what real applications require.
 %
 %Disguises consist of transformations performed on the high-level object graph embedded in
 %database-based applications (encoded by \eg foreign key relationships in relational
