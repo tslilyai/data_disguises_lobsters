@@ -1,6 +1,8 @@
 %\documentclass[letterpaper,twocolumn,10pt]{article}
-\documentclass[sigconf,natbib=false,anonymous,review]{acmart}
-%\usepackage{usenix2019_v3_hotos}
+\documentclass[sigplan,natbib=false,10pt,anonymous,nonacm]{acmart}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+\settopmatter{printfolios=true}
 
 % to be able to draw some self-contained figs
 \usepackage{tikz}
@@ -106,13 +108,14 @@ Privacy Heroes Need Data Disguises
 \maketitle
 \vspace{-2\baselineskip}
 
-\input{abstract}
-\input{intro}
-\input{design}
-\input{impl}
-\input{eval}
-\input{disc}
-\input{related}
+%\input{abstract}
+%\input{intro}
+%\input{design}
+%\input{impl}
+\input{algo}
+%\input{eval}
+%\input{disc}
+%\input{related}
 %\input{conclusion}
 
 %-------------------------------------------------------------------------------
