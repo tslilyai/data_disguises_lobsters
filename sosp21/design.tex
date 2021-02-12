@@ -144,17 +144,18 @@ Concretely, a context consists of:
     \item A source object type
     \item A set of edge types from the source object type to different destination object types
     \item For each edge type: 
-        \begin{itemize}[nosep]
-            \item the transformation to perform on the edge type
-            \item one or more constraints 
-        \end{itemize}
+        \begin{enumerate}[nosep]
+            \item an edge transformation 
+            \item edge constraints
+            \item a threshold constraint
+        \end{enumerate}
 \end{enumerate}
 
-For any instance of the object graph, a set of objects and edges will satisfy the context if (1) the
-objects are of the specified source object type; (2) the edges are of the specified edge types; and
-(3) the edges satisfy the constraints on its edge type.
+\noindent Given an instance of the object graph, a set of objects and edges from the objects in the graph
+satisfy the context if (1) the objects are of the specified source object type; (2) the edges are of
+the specified edge types; and (3) the edges satisfy the constraints on the appropriate edge type.
 
-\vspace{\baselineskip}\noindent\textbf{Edge Type Transformations:}
+\paragraph{Edge Type Transformations:}
 \begin{enumerate}[nosep]
     %
     \item \textbf{Retain} edges of this type.
@@ -172,22 +173,12 @@ objects are of the specified source object type; (2) the edges are of the specif
     %
 \end{enumerate}
 
-\vspace{\baselineskip}\noindent\textbf{Edge Type Constraints:}
+\paragraph{Edge Type Constraints:}
 \begin{itemize}[nosep]
-    \item A \textbf{threshold} constraint allows only some fraction of edges of a particular type to be
-        transformed. 
-        %decorrelation or deletion of edges to only partially occur. 
-    %
-    For example, Figure~\ref{fig:algo} illustrates a constraint that sets a threshold (0.5) for the
-    maximum proportion of papers connected to a tag that a targer-user's papers can make up.
-    Because the target user's papers make up more than 0.5 of all papers connected to the tag,
-    \sys decorrelates the sensitive paper sources from the tag until the user's papers fall
-    below or at the threshold.
-    %
-    If the threshold is negative, then \sys decorrelates or deletes \emph{all} sources of that
-    destination, including sources that were not traversed from the target object.
-
-\item A \textbf{directionality} constraint allows decorrelation to occur only for edges \sys traverses
+    \item A \textbf{directionality} constraint matches 
+        \lyt{TODO need to define ``sensitive''}
+        
+        only edges that traverses
     in the source-to-dest direction (step 2), or only for edges \sys traverses in the dest-to-source
     direction (step 3). This allows, for example, a paper that is co-authored by two users to
     decorrelate an edge to the target user, but retain an edge to the second, revealed author.
@@ -203,6 +194,27 @@ objects are of the specified source object type; (2) the edges are of the specif
     For example, perhaps we want to decorrelate paper-tag edges
     \emph{only if} the tags were created by the user who is leaving.
 \end{itemize}
+
+Edge type constraints can be combined with and/or conjunctions to express more fine-grained
+constraints.  
+
+\paragraph{Threshold Constraints}
+         A threshold constraint determines \emph{how many} of the constrained edges should match the context.
+
+         \lyt{Threshold is sort of separate / above --- you first constrain the edges, and then you want
+         to determine how many of these edges fall above the threshold out of the unconstrained
+         edges}
+    %
+    %For example, the proportion of papers that are connected tags.
+    %
+    %Figure~\ref{fig:algo} illustrates a constraint that sets a threshold (0.5) for the
+    %maximum proportion of papers connected to a tag that a targer-user's papers can make up.
+    %Because the target user's papers make up more than 0.5 of all papers connected to the tag,
+    %\sys decorrelates the sensitive paper sources from the tag until the user's papers fall
+    %below or at the threshold.
+    %%
+    %If the threshold is negative, then \sys decorrelates or deletes \emph{all} sources of that
+    %destination, including sources that were not traversed from the target object.
 
 \vspace{0.5\baselineskip}\noindent\textbf{Notes about Deletion.}
     Because of referential integrity, deleting an edge but keeping around the source object
