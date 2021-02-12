@@ -1,5 +1,15 @@
 \section{Disguise Execution Algorithm}
 
+\subsection{Nuanced Privacy Transformations}
+
+\subsection{Leave/Return}
+
+\subsection{Data Decay}
+
+\subsection{Supported Privacy Transformations}
+
+\subsection{Out-of-Scope Privacy Transformations}
+
 \begin{figure*}[ht!]
     \centering
     \includegraphics[width=\textwidth]{img/algo}
@@ -78,50 +88,6 @@ Given an application's schema and disguise spec, and an object to be decorrelate
     %\sys returns both the removed object data and this
     %guise object metadata to the user.
 
-    \vspace{0.5\baselineskip}\noindent\textbf{Conditional Edge Transformations.}
-    \lyt{I want to put this in the design section, but it might be easier to understand
-    post-algorithm.}
-
-        Edge transformations take arguments allow the transformation to be conditionally applied.
-
-        The \emph{threshold} argument allows decorrelation or deletion of edges to only partially
-        occur. 
-        %
-        For example, Figure~\ref{fig:algo} illustrates an argument that sets a threshold (0.5) for the
-        maximum proportion of papers connected to a tag that a targer-user's papers can make up.
-        Because the target user's papers make up more than 0.5 of all papers connected to the tag,
-        \sys decorrelates the sensitive paper sources from the tag until the user's papers fall
-        below or at the threshold.
-        %
-        If the threshold is negative, then \sys decorrelates or deletes \emph{all} sources of that
-        destination, including sources that were not traversed from the target object.
-
-        A \emph{directionality} argument allows decorrelation to occur only for edges \sys traverses
-        in the source-to-dest direction (step 2), or only for edges \sys traverses in the dest-to-source
-        direction (step 3). This allows, for example, a paper that is co-authored by two users to
-        decorrelate an edge to the target user, but retain an edge to the second, revealed author.
-        %policies---higher sensitivity thresholds---allow \sys to retain links if \emph{only the
-        %source} is sensitive, but decorrelate or remove the link if \emph{both} the source and dest
-        %are sensitive. For example, perhaps a user wants to ensure that they are decorrelated from
-        %their reviews, but correlations between the review and the the paper authors can still be
-        %retained.
-
-        Finally, a \emph{filter} argument takes 
-        the edge's destination and source as inputs, and returns whether the objects satisfy the
-        filter. If yes, the edge is decorrelated or deleted; otherwise, the edge is retained.
-        %
-        For example, perhaps we want to decorrelate paper-tag edges
-        \emph{only if} the tags were created by the unsubscribing user.
-
-    \vspace{0.5\baselineskip}\noindent\textbf{Notes about Deletion.}
-        Because of referential integrity, deleting an edge but keeping around the source object
-        doesn't really make sense. The source needs a new destination to point to! I believe that
-        decorrelation transformations capture what should happen if you want to ``delete the edge
-        but keep the two nodes.'' Perhaps ``deletion edge transformation'' is a bad name because it
-        implies that the edge (but maybe not the nodes) is removed.
-
-        Directionality only matters for decorrelation: Deletion removes the source, and thus is unaffected by
-        the direction of \sys's traversal, and retention is the same as a noop.
 \iffalse
 Note that \sys must decide \emph{which} guise copies the template object's attributes when the
 developer selects a \texttt{CopyOne} guises policy for one or more attributes. \sys always
