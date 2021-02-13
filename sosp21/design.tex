@@ -61,150 +61,125 @@ A data disguise is written once by the developer, and applied in the context of 
 object to disguise, such as a departing user, and a specific instance of the object graph.
 %
 The disguise consists of context-specific transformations that turn objects into one or
-more guises (or remove the object completely). Developers specify disguises in two parts. The
-first specifies how to create guises of a given object type (\S\ref{sec:guises}). The second specifies in which
-contexts objects should be transformed into guises or removed (\S\ref{sec:context}).
-
+more guises (or remove the object completely). 
+%Developers specify disguises in two parts. The
+%first specifies how to create guises of a given object type (\S\ref{sec:guises}). The second specifies in which
+%contexts objects should be transformed into guises or removed (\S\ref{sec:context}).
+%
 A disguising tool then applies the disguise by first determining the current context of objects in the object
 graph, and then applying the appropriate transformation for that context.
 %\ie from what type of edge, and sensitivity context.
 
-\subsection{Creating Guises for Objects}
-\label{sec:guises}
-%
-To create a guise from an object, developers specify how to transform attributes of the
-object into guise attributes.
-%
-Figure~\ref{fig:guises} shows an example, producing guises for user objects.
-%
-User objects have identifier \texttt{id}; a reference \texttt{tag\_id}
-forms an edge in the graph (a foreign key constraint to tag objects).
-
-%
-Guises always have unique, random identifiers.
-%
-Developers choose how to create other guise attributes, selecting from among the following:
-%
-\paragraph{(1) Copy object content.}
-%
-Guises of the same object all share the object's attribute values.
-%
-If the attribute is an edge attribute (\eg a foreign key column), all guises will have
-edges to the same object.
-%
-%
-Copying allows developers to retain the object's content, without worrying about how to
-synthesize attribute values for guises.
-%
-For example, in Figure~\ref{fig:guises} the \texttt{darkmode} attribute is copied in
-all guises.
-
-\paragraph{(2) Generate new content.}
-To create new attributes, developers specify whether the guise's value should be random,
-a default value, or generated from the object's attribute value via a custom function (\eg hashing 
-the value).
-%
-Figure~\ref{fig:guises} illustrates an example of random (\texttt{name}) and default
-(\texttt{active}) generated value attributes.
-%
-%
-Creating new guise edge attributes (\eg new foreign key relationships) requires
-creating a new guise for the referenced object in order to maintain referential
-integrity;
-the data disguise rewrites the edge to point to the new guise.
-%
-In Figure~\ref{fig:guises}, creating two user guises requires creating two
-tag guises, and the tag guises' identifiers become the user guises' foreign keys.
-%
-
-\paragraph{(3) Copy object content, but only once.}
-%
-One guise copies the attribute value from the object, but all other guises generate new
-values (as described above).
-%
-\texttt{notifs} in Figure~\ref{fig:guises} illustrates how the attribute is copied once.
-%
-This enables the application to retain the original object semantics (\eg a count of how many
-users want notifications) without creating duplicates.
-%
-
 \subsection{Context-Specific Transformations}
 \label{sec:context}
 
-Developers specify \emph{contexts} and the transformations to apply in each context.
+Developers specify \textbf{contexts}, and transformations to the objects that match each context. 
 %
 % SOURCE = CHILD
 % DEST = PARENT
 %
-In the following, we refer to edge types in the object graph, which have a \emph{source} object type and a \emph{destination} object type,
-where the source references the destination (\eg via a foreign key column in a relational database).
-
-Concretely, a context consists of:
+%In the following, we refer to edge types in the object graph, which have a \emph{source} object type and a \emph{destination} object type,
+%where the source references the destination (\eg via a foreign key column in a relational database).
+%
+A context consists of:
 \begin{enumerate}[nosep]
-    \item A source object type
-    \item A set of edge types from the source object type to different destination object types
-    \item For each edge type: 
-        \begin{enumerate}[nosep]
-            \item an edge transformation 
-            \item edge constraints
-            \item a threshold constraint
-        \end{enumerate}
+    \item An object type, and
+    \item A set of constraints on the objects' attributes 
 \end{enumerate}
+\noindent Given an instance of the object graph, a set of objects in the graph
+satisfy the context if (1) the objects are of the specified object type and (2) the objects'
+attributes satisfy the constraints.
+%
+We assume that objects have identifier attributes (\eg \texttt{id} in Figure~\ref{fig:guises}); and
+some attributes are reference attributes that form edges in the graph to referred objects (\eg
+\texttt{tag\_id} is a foreign key constraint to tag objects).
 
-\noindent Given an instance of the object graph, a set of objects and edges from the objects in the graph
-satisfy the context if (1) the objects are of the specified source object type; (2) the edges are of
-the specified edge types; and (3) the edges satisfy the constraints on the appropriate edge type.
-
-\paragraph{Edge Type Transformations:}
-\begin{enumerate}[nosep]
-    %
-    \item \textbf{Retain} edges of this type.
-    %
-    Transforms both source and destination objects into a single guise each.
-    %
-    \item \textbf{Decorrelate} the sources of edges of this type from their destination.
-    %
-    Creates one guise of the destination object for each of the sources; replaces each source's
-    edge to the destination with an edge to that unique guise.
-    %
-    \item \textbf{Delete} the sources of edges of this type.
-    %
-    Transforms the destination object into a single guise; removes the source and its descendants.
-    %
-\end{enumerate}
-
-\paragraph{Edge Type Constraints:}
+\vspace{\baselineskip}
+\noindent\textbf{Object attribute constraints.} 
 \begin{itemize}[nosep]
-    \item A \textbf{directionality} constraint matches 
-        \lyt{TODO need to define ``sensitive''}
-        
-        only edges that traverses
-    in the source-to-dest direction (step 2), or only for edges \sys traverses in the dest-to-source
-    direction (step 3). This allows, for example, a paper that is co-authored by two users to
-    decorrelate an edge to the target user, but retain an edge to the second, revealed author.
-    %policies---higher sensitivity thresholds---allow \sys to retain links if \emph{only the
-    %source} is sensitive, but decorrelate or remove the link if \emph{both} the source and dest
-    %are sensitive. For example, perhaps a user wants to ensure that they are decorrelated from
-    %their reviews, but correlations between the review and the the paper authors can still be
-    %retained.
-
-\item A \textbf{filter} constraint takes the edge's destination and source as inputs, and returns whether the objects satisfy the
-    filter. 
+\item \textbf{Sensitive reference} constraints are associated with reference attributes.
+    These constraints match only if the referenced object is sensitive (\ie connected back to the target object of
+    the disguise).
+\item \textbf{Reference content} constraints are associated with reference attributes. They are
+    expressed as functions that take both the object and the referenced object as input, and returns true or false. 
     %
-    For example, perhaps we want to decorrelate paper-tag edges
-    \emph{only if} the tags were created by the user who is leaving.
+    %For example, perhaps we want to decorrelate paper-tag edge \emph{only if} the tags were created by the user who is leaving.
+\item \textbf{Value content} constraints are associated with non-reference (value) attributes. They
+    take the object as input, and returns true or false.
 \end{itemize}
 
-Edge type constraints can be combined with and/or conjunctions to express more fine-grained
-constraints.  
+\vspace{\baselineskip}
+\noindent\textbf{Object-to-Guise Transformations.}
+For every context, developers specify to either remove matching objects (which also removes all descendents---objects that refer to these
+objects---as well), or to transform these objects into guises.
+For the latter, the developer specifies transformations for each
+attribute of the object type.
+%
+Each non-reference (value) attribute has an associated value transformation:
+\begin{itemize}[nosep]
+    \item \textbf{Copy object content}: the guise copies the object's attribute value.
+    \item \textbf{Generate new content}: the developer specifies a function that takes the object
+        attribute value as input, and generates a new guise value (\eg hashing the value, generating
+        random values, or setting the value to some default).
+        %
+        The guise attribute value depends at most on the value of the object's attribute.
+\end{itemize}
+Guises are always created with unique, random identifier attributes.
 
-\paragraph{Threshold Constraints}
-         A threshold constraint determines \emph{how many} of the constrained edges should match the context.
-
-         \lyt{Threshold is sort of separate / above --- you first constrain the edges, and then you want
-         to determine how many of these edges fall above the threshold out of the unconstrained
-         edges}
+\noindent Each reference attribute has an associated edge transformation:
+\begin{itemize}[nosep]
     %
+    \item \textbf{Retain} the reference (attribute is copied) 
+    %
+    \item \textbf{Decorrelate} from the reference: create a reference guise for the referenced
+        object (\S\ref{sec:reference_guises}); the guise's reference attribute refers to the
+        created reference.
+\end{itemize}
+
+\subsection{Reference Guise Creation}
+\label{sec:reference_guises} 
+%
+Decorrelating references requires creating reference guises. One reference may turn into many
+reference guises (one for each context-matching object that all should be decorrelated).  Because
+\emph{multiple} reference guises may be created to decorrelate objects from the reference object,
+developers needs to specify how to transform the reference object into a guise \emph{for each guise
+created}.
+
+%
+\vspace{\baselineskip}
+\noindent\textbf{Object-to-Many-Guise Transformations.}
+Developers specify many-guise transformations for each object type that may be a reference; these
+transformations are \emph{independent} of any single context, because many-guise transformations only
+occur for the purpose of decorrelation, and can occur in many contexts.
+%
+Figure~\ref{fig:guises} shows an example, producing guises for user objects.
+%
+%User objects have identifier \texttt{id}; a reference \texttt{tag\_id}
+%forms an edge in the graph (a foreign key constraint to tag objects).
+
+Developers first specify the single-guise transformation for the object type as described above
+(copying or generating new object attributes). A many-guise transformation additionally requires the
+developer to specify whether each per-attribute transformation should be applied to create all
+guises, or applied to create all but $n$ guises. In the latter case, $n$ guises will have copies of
+the object's attributes, and the other guises will transform the object's attributes.
+%
+%This enables the application to retain the original object semantics (\eg a count of how many
+%users want notifications) without creating duplicates.
+%
+
+\subsection{Threshold Constraints}
+\label{sec:threshold} 
+
+Furthermore, subsets of attributes can be assigned threshold limits
+(\S\ref{sec:threshold}). \lyt{This is terrible terminology.}
+
+same attribute(s), see k-anonymity?
+A threshold constraint determines \emph{how many} of the constrained edges should match the context.
+
+     \lyt{Threshold is sort of separate / above --- you first constrain the edges, and then you want
+     to determine how many of these edges fall above the threshold out of the unconstrained
+     edges}
+%
     %For example, the proportion of papers that are connected tags.
     %
     %Figure~\ref{fig:algo} illustrates a constraint that sets a threshold (0.5) for the
@@ -215,16 +190,6 @@ constraints.
     %%
     %If the threshold is negative, then \sys decorrelates or deletes \emph{all} sources of that
     %destination, including sources that were not traversed from the target object.
-
-\vspace{0.5\baselineskip}\noindent\textbf{Notes about Deletion.}
-    Because of referential integrity, deleting an edge but keeping around the source object
-    doesn't really make sense. The source needs a new destination to point to! I believe that
-    decorrelation transformations capture what should happen if you want to ``delete the edge
-    but keep the two nodes.'' Perhaps ``deletion edge transformation'' is a bad name because it
-    implies that the edge (but maybe not the nodes) is removed.
-
-    Directionality only matters for decorrelation: Deletion removes the source, and thus is unaffected by
-    the direction of \sys's traversal, and retention is the same as a noop.
 
 \subsection{An Example Disguise}
 \label{design:eg}
