@@ -95,7 +95,7 @@ some attributes are reference attributes that form edges in the graph to referre
 \texttt{tag\_id} is a foreign key constraint to tag objects).
 
 \vspace{\baselineskip}
-\noindent\textbf{Object attribute constraints.} 
+\noindent\textbf{Object Attribute Constraints.} 
 \begin{itemize}[nosep]
 \item \textbf{Sensitive reference} constraints are associated with reference attributes.
     These constraints match only if the referenced object is sensitive (\ie connected back to the target object of
@@ -109,11 +109,12 @@ some attributes are reference attributes that form edges in the graph to referre
 \end{itemize}
 
 \vspace{\baselineskip}
-\noindent\textbf{Object-to-Guise Transformations.}
+\noindent\textbf{Object-to-Single-Guise Transformations.}
 For every context, developers specify to either remove matching objects (which also removes all descendents---objects that refer to these
 objects---as well), or to transform these objects into guises.
 For the latter, the developer specifies transformations for each
-attribute of the object type.
+attribute of the object type (with the exception that identifier attributes are always unique and
+random values).
 %
 Each non-reference (value) attribute has an associated value transformation:
 \begin{itemize}[nosep]
@@ -124,12 +125,11 @@ Each non-reference (value) attribute has an associated value transformation:
         %
         The guise attribute value depends at most on the value of the object's attribute.
 \end{itemize}
-Guises are always created with unique, random identifier attributes.
 
 \noindent Each reference attribute has an associated edge transformation:
 \begin{itemize}[nosep]
     %
-    \item \textbf{Retain} the reference (attribute is copied) 
+    \item \textbf{Retain} the reference (attribute is copied).
     %
     \item \textbf{Decorrelate} from the reference: create a reference guise for the referenced
         object (\S\ref{sec:reference_guises}); the guise's reference attribute refers to the
@@ -146,22 +146,21 @@ developers needs to specify how to transform the reference object into a guise \
 created}.
 
 %
-\vspace{\baselineskip}
-\noindent\textbf{Object-to-Many-Guise Transformations.}
-Developers specify many-guise transformations for each object type that may be a reference; these
+Developers specify 
+\textbf{object-to-many-guise transformations} for each object type that may be a reference; these
 transformations are \emph{independent} of any single context, because many-guise transformations only
 occur for the purpose of decorrelation, and can occur in many contexts.
 %
 Figure~\ref{fig:guises} shows an example, producing guises for user objects.
-%
-%User objects have identifier \texttt{id}; a reference \texttt{tag\_id}
-%forms an edge in the graph (a foreign key constraint to tag objects).
 
-Developers first specify the single-guise transformation for the object type as described above
-(copying or generating new object attributes). A many-guise transformation additionally requires the
-developer to specify whether each per-attribute transformation should be applied to create all
-guises, or applied to create all but $n$ guises. In the latter case, $n$ guises will have copies of
-the object's attributes, and the other guises will transform the object's attributes.
+A many-guise transformation for an object type consists of a single-guise transformation (as
+described above, \ie copying or generating new object attributes); and additional per-attribute
+annotations that specify whether the transformation should be applied to create all guises, or
+applied to create all but $n$ guises. In the latter case, $n$ guises will have copies of the
+object's attributes, and the other guises will transform the object's attributes.
+
+Note that creating reference object guises may also require recursively creating guises for references of
+the reference object.
 %
 %This enables the application to retain the original object semantics (\eg a count of how many
 %users want notifications) without creating duplicates.
@@ -170,12 +169,14 @@ the object's attributes, and the other guises will transform the object's attrib
 \subsection{Threshold Constraints}
 \label{sec:threshold} 
 
+Developers may want to transform only a subset of all objects matching the context. For example,
+perhaps sensitive papers should be decorrelated from a tag only enough to ensure that sensitive
+papers comprise less than 10\% of all papers with that tag.
+
 Furthermore, subsets of attributes can be assigned threshold limits
 (\S\ref{sec:threshold}). \lyt{This is terrible terminology.}
 
 same attribute(s), see k-anonymity?
-A threshold constraint determines \emph{how many} of the constrained edges should match the context.
-
      \lyt{Threshold is sort of separate / above --- you first constrain the edges, and then you want
      to determine how many of these edges fall above the threshold out of the unconstrained
      edges}
