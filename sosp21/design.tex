@@ -97,25 +97,24 @@ some attributes are reference attributes that form edges in the graph to referre
 \vspace{\baselineskip}
 \noindent\textbf{Object Attribute Constraints.} 
 \begin{itemize}[nosep]
-\item \textbf{Sensitive reference} constraints are associated with reference attributes.
-    These constraints match only if the referenced object is sensitive (\ie connected back to the target object of
-    the disguise).
-\item \textbf{Reference content} constraints are associated with reference attributes. They are
-    expressed as functions that take both the object and the referenced object as input, and returns true or false. 
+\item \textbf{Reference content} constraints on reference attributes are functions that
+    take both the object and the referenced object as input, and returns true or false. 
     %
     %For example, perhaps we want to decorrelate paper-tag edge \emph{only if} the tags were created by the user who is leaving.
-\item \textbf{Value content} constraints are associated with non-reference (value) attributes. They
-    take the object as input, and returns true or false.
+\item \textbf{Value content} constraints on non-reference (value) attributes are functions that take the object as
+input, and returns true or false.  
+\item \textbf{Sensitive reference} constraints on reference attributes match only objects that refer
+    to sensitive objects (\ie connects back to the target object of the disguise).
 \end{itemize}
 
 \vspace{\baselineskip}
-\noindent\textbf{Object-to-Single-Guise Transformations.}
-For every context, developers specify to either remove matching objects (which also removes all descendents---objects that refer to these
-objects---as well), or to transform these objects into guises.
-For the latter, the developer specifies transformations for each
-attribute of the object type (with the exception that identifier attributes are always unique and
-random values).
+\noindent\textbf{Single-Guise Transformations.}
+For every context, developers specify to either remove matching objects (which also removes all
+descendents---objects that refer to these objects---as well), or to transform each object into
+a single guise. For the latter, the developer specifies a single-guise transformation at
+attribute-level granularity. 
 %
+
 Each non-reference (value) attribute has an associated value transformation:
 \begin{itemize}[nosep]
     \item \textbf{Copy object content}: the guise copies the object's attribute value.
@@ -126,7 +125,7 @@ Each non-reference (value) attribute has an associated value transformation:
         The guise attribute value depends at most on the value of the object's attribute.
 \end{itemize}
 
-\noindent Each reference attribute has an associated edge transformation:
+Similarly, each reference attribute has an associated edge transformation:
 \begin{itemize}[nosep]
     %
     \item \textbf{Retain} the reference (attribute is copied).
@@ -136,31 +135,34 @@ Each non-reference (value) attribute has an associated value transformation:
         created reference.
 \end{itemize}
 
+Identifier attributes are always unique and random values.
+
 \subsection{Reference Guise Creation}
 \label{sec:reference_guises} 
 %
-Decorrelating references requires creating reference guises. One reference may turn into many
+Decorrelating references requires creating guises for the referenced objects. One referenced object may turn into many
 reference guises (one for each context-matching object that all should be decorrelated).  Because
-\emph{multiple} reference guises may be created to decorrelate objects from the reference object,
+multiple reference guises may be created to decorrelate objects from the reference object,
 developers needs to specify how to transform the reference object into a guise \emph{for each guise
 created}.
 
 %
-Developers specify 
-\textbf{object-to-many-guise transformations} for each object type that may be a reference; these
-transformations are \emph{independent} of any single context, because many-guise transformations only
-occur for the purpose of decorrelation, and can occur in many contexts.
+Developers specify \textbf{many-guise transformations} for each object type that may be a reference;
+these transformations are \emph{independent} of any single context, because many-guise
+transformations only occur for the purpose of decorrelation, and can occur in many contexts.
 %
 Figure~\ref{fig:guises} shows an example, producing guises for user objects.
 
 A many-guise transformation for an object type consists of a single-guise transformation (as
 described above, \ie copying or generating new object attributes); and additional per-attribute
 annotations that specify whether the transformation should be applied to create all guises, or
-applied to create all but $n$ guises. In the latter case, $n$ guises will have copies of the
-object's attributes, and the other guises will transform the object's attributes.
+applied to create all but $n$ guises. In the latter case, $n$ guises will simply copy the
+object's attributes, and the other guises will transform the object's attributes according to the
+single-guise transformation.
 
 Note that creating reference object guises may also require recursively creating guises for references of
-the reference object.
+the reference object, using the (context-independent) many-guise transformation for those ancestral reference
+object types.
 %
 %This enables the application to retain the original object semantics (\eg a count of how many
 %users want notifications) without creating duplicates.
@@ -169,18 +171,33 @@ the reference object.
 \subsection{Threshold Constraints}
 \label{sec:threshold} 
 
-Developers may want to transform only a subset of all objects matching the context. For example,
-perhaps sensitive papers should be decorrelated from a tag only enough to ensure that sensitive
-papers comprise less than 10\% of all papers with that tag.
+Developers may want to transform attributes of only a subset of all context-matching objects when
+changing them into guises.  
+For each context, developers can associate a \emph{threshold} with each attribute of the context's
+object type. Consider all objects of the context's object type that share the same attribute value
+(\eg a referenced tag, or location value); this set contains both context-matching objects, and
+objects ouside the context. The threshold determines the maximum proportion of these objects that
+are both context-matching and should not transform the attribute value when becoming a guise.
 
-Furthermore, subsets of attributes can be assigned threshold limits
-(\S\ref{sec:threshold}). \lyt{This is terrible terminology.}
+For example, let the context match only papers written by the targeted user. These papers should be
+decorrelated from a tag only enough to ensure that these sensitive papers comprise less than 10\% of
+all papers with that tag: the developer thus specifies a threshold of 10\% for the tag reference
+attribute.
 
-same attribute(s), see k-anonymity?
-     \lyt{Threshold is sort of separate / above --- you first constrain the edges, and then you want
-     to determine how many of these edges fall above the threshold out of the unconstrained
-     edges}
+All context-matching objects falling above the threshold transform the attribute according to the
+associated attribute transformation, while all objects falling below the threshold leave the
+attributes unchanged. 
 %
+
+Thresholds can also be associated with a set of
+attributes, for example determining the maximum proportion of papers referencing a particular tag
+\emph{and} a particular location attribute value that can match the context.
+
+%same attribute(s), see k-anonymity?
+%     \lyt{Threshold is sort of separate / above --- you first constrain the edges, and then you want
+%     to determine how many of these edges fall above the threshold out of the unconstrained
+%     edges}
+%%
     %For example, the proportion of papers that are connected tags.
     %
     %Figure~\ref{fig:algo} illustrates a constraint that sets a threshold (0.5) for the
@@ -191,6 +208,8 @@ same attribute(s), see k-anonymity?
     %%
     %If the threshold is negative, then \sys decorrelates or deletes \emph{all} sources of that
     %destination, including sources that were not traversed from the target object.
+
+\lyt{TODO: What if context matches after you decorrelate? (infinitely matching contexts?)}
 
 \subsection{An Example Disguise}
 \label{design:eg}
