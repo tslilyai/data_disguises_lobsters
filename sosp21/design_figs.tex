@@ -13,15 +13,15 @@
     \centering
     \footnotesize
 \begin{tabular}{@{}c|c|c|c@{}}
-\textbf{User Transformation Spec} & \textbf{User Object} & \textbf{Guise 1} &
+\textbf{User Many-Guise Transformation} & \textbf{User Object} & \textbf{Guise 1} &
     \textbf{Guise 2} \\
 \begin{lstlisting}[language=Rust]
-"id":       IDAttribute,
-"name":     Gen(Random),
-"active":   Gen(Default(false)),
-"darkmode": CopyAll,
-"notifs":   CopyOnce+Gen(Default(false)),
-"tag_id":   GenForeignKey,
+"id":       IDAttribute
+"name":     Gen(Random), All
+"active":   Gen(Default(false)), All
+"darkmode": Copy, All
+"notifs":   Gen(Default(false)), n=1
+"tag_id":   GenForeignKey, All
 \end{lstlisting}
     &
 \begin{lstlisting}[language=Rust]
