@@ -81,7 +81,7 @@ Developers specify \textbf{contexts}, and transformations to the objects that ma
 %In the following, we refer to edge types in the object graph, which have a \emph{source} object type and a \emph{destination} object type,
 %where the source references the destination (\eg via a foreign key column in a relational database).
 %
-A context consists of an object type, and a set of constraints on the objects' attributes
+A context consists of an object type, and a set of \textbf{constraints} on the objects' attributes
 (\S\ref{sec:constraints}).
 Given an instance of the object graph, a set of objects in the graph
 satisfy the context if the objects are of the specified object type and the objects'
@@ -89,7 +89,10 @@ attributes satisfy the constraints.
 
 For each context, developers specify to either remove matching objects (which also removes all
 descendents---objects that refer to these objects---as well), or to transform each object into
-a single guise (\S\ref{sec:single_guise}). 
+a single guise by specifying a \textbf{single-guise transformation}~(\S\ref{sec:single_guise}). 
+Furthermore, to allow some matching objects to retain their original attribute values, 
+developers can specify \textbf{thresholds} on attributes~(S\ref{sec:threshold}), transforming
+only enough matching objects to achieve the threshold.
 
 %
 In the following, we assume that objects have identifier attributes (\eg \texttt{id} in Figure~\ref{fig:guises}); and
@@ -124,7 +127,7 @@ object attribute value as input, and generates a new guise value (\eg hashing th
 random values, or setting the value to some default).  The guise attribute value depends at most on
 the value of the object's attribute.
 
-If the attribute is a reference attribute, the attribute transformation \emph{decorrelates} the 
+If the attribute is a reference attribute, the attribute transformation \textbf{decorrelates} the 
 object from the reference. Decorrelation creates a new reference guise based on the referenced
 object (\S\ref{sec:reference_guises}), and the guise's reference attribute will refer to the
 created reference.
