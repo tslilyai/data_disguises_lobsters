@@ -1,0 +1,50 @@
+The Theory and Practice of Differential Privacy
+
+OpenOP: differential privacy tools
+- easy adoption for compelling use cases
+
+DP: utility (statistical anlysis of datasets) vs. privacy (protect individual-level data)
+inject small amount of noise into statistical computations
+    - effect of each individual should be "hidden" (each row)
+    - adversary cannot tell difference between responses it gets and responses w/arbitrary data in
+      dataset replacing the user
+    - probability of getting distr. of results of queries with one databsae vs. another w/ the user is "close"
+        - epsilon (multiplicative) vs. delta (extremely small, additive)
+    - Laplace Mechanism: counts/aggregates: add Laplace(1/\eps*n), each individual affects by 1/n w/n users
+    - composition properties w/multiple queries, can compensate by adding more noise
+    - worst-case requirement over datasets
+
+attacks on aggregate statistics:
+- re-identification attacks: netlfix challenge, medical data (narayanan-shmatikov)
+- reconstruction of database (cohen-nissim)
+- membership inference attacks
+- ML: deep trained models remember
+
+local model: noise introduced by individuals, rather than centralized source
+
+3 Research Directions
+    - DP statistical inference
+        - look at random sampling of population where dataset is drawn rather than dataset itself
+        - utility maximized, average-case over sampled dataset
+        - output measures of uncertainty about random sampling, noise
+    - DP synthetic data generation (motivation: us census)
+        - want same stastical properties (global analysis of original dataset)
+            - learn the empirical distribution of population (that generated the dataset)
+            - private multiplicative weights: take statistical queries as input, dataset
+        - but new dataset is differentially private
+        - no need to manage privacy budget, manage queries, change software, publish
+        - problem: algorithms polynomial in size of databaes, queies to be run
+            - use heuristics (integer programming)
+                -> might violate privacy?
+    - DP private ML
+        - private classificationA: DP learner algorithm for classification
+            - no harder than synthetic data generation
+
+Question: relationship of statistical queries to actual queries? (that query for individual data)
+    - another action: encrypt everything that query touches
+        - messes w/application data? only decrypted for queries that never touch the users' data, so
+          nothing can be learned about that user?
+
+Note: timing channels out of scope
+
+is de-identification a better word to use?

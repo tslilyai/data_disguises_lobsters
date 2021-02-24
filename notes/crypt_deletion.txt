@@ -1,0 +1,42 @@
+Formalizig Dta Deletion in the Context of the RTBF
+
+Data proteciton laws: GDPR, CCPA, fundamental right to data protection/privacy
+
+Right to be forgotten: request company to delete any data collected about you
+- what does it mean for data to be deleted?
+
+COmplications:
+- processing
+    - depending on how data is stored, can leave "holes" in database --> sorted in alphabetical
+      order, or if monotonically increasing
+    - data processing has taken in data that may not be able to be delted
+- property thta no "leftover" information remains
+
+
+Goal: precisely define and understand behaviour of systems wrt data deleciton
+- compare against a world where data never sent into sstem to begin with (no communication / effects
+  by user): real world vs. ideal world
+- replace all other users in system with "environment"
+
+assume:
+- user asks for all messages to be deleted
+- environment and user runs in pollynomial time (in security parameter)
+- environment can include those that app conveys information to (automatically not deletion-compiant
+  --> conditional deletion-compliance means that all dependencies in env have to also delete
+  correctly)
+
+look at state of the memory, state of view from envinronment (exposed by application)
+- must be similar: epsilon-deletion-compliant
+
+solutions:
+- history-independent data structures: memory looks same after deletion bc only depends on logical content of data
+- publish statistics about data --> differential privacy
+
+related work:
+- deletion in ML (unlearning, history independence for ml models)
+
+need good authentication mechanism
+
+applicability:
+- notion of history independence might be relevant
+- notion of propagating definition among dependencies
