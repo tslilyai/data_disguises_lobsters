@@ -1,0 +1,309 @@
+%-------------------------------------------------------------------------------
+\section{Related Work}
+%-------------------------------------------------------------------------------
+\label{sec:related}
+
+%
+Two prior \textbf{systems for personal data deletion} are particularly relevant to data
+disguising: Sypse~\cite{sypse}, which pseudonymizes user
+data and partitions personally identifying information (PII) from other data, and
+DELF~\cite{delf}, a framework for data deletion at Facebook.
+%
+While Sypse also relies on an object graph, its design is application-oblivious, and leaves the
+specification of what counts as PII as future work.
+%
+Data disguising provides a way to specify sensitive data and correlations, as well as
+application-specific transformations.
+%
+Instead of constantly maintaining data partitions (as Sypse does), data disguising adapts a user's
+data when these transformations are invoked.
+%
+%developers take care of splitting and moving data between the identity-revealing PII partition and
+%the privacy-preserving normal partition.\lyt{I'm not sure this is accurate? They don't use
+%developer input at all to figure out which edges to break/columns to anonymize, but rather assume
+%some random data synthesis + some ``automated'' analysis of the data schema, whereas we actually
+%assume that developers need to specify these things}
+%%
+%In contrast, data disguing does not keep PII in the application, or change the application schema.
+%%
+%%We concretely define the application object graph and abstractions that allow developers to reason
+%%about it, whereas Sypse leaves this as future work.
+%For example, Sypse's synthetic data is randomly generated and application-oblivious. We observe that
+%in order to maintain correct application semantics, developers must provide input into how to
+%generate ghost entities.
+%
+%A future implementation may preemptively create
+%ghost data and result in a system design vaguely similar to Sypse, but this implementation strategy
+%is not fundamental.
+%Sypse also does not support resubscription, although we observe that a similar approach to ours
+%would allow Sypse to do so.
+%
+DELF~\cite{delf} helps developers write correct data deletion code, and uses annotations on
+application edge and object types to specify a deletion policy.
+%
+DELF focuses only on data deletion, while data disguising targets broader privacy
+transformations, including decorrelating edges.
+%
+
+%---------------------------
+\textbf{Database designs for GDPR compliance}~\cite{schengendb, usershards} track the owner of
+data objects and erase them when requested under the GDPR.
+%
+They either modify the data layout~\cite{usershards} or use fine-grained information flow
+tracking (IFC) to determine PII propagation and restrict access~\cite{schengendb}.
+%
+Data disguising can be employed for GDPR compliance, but supports privacy transformations beyond
+deleting PII, and requires no ownership tracking or fine-grained IFC.
+%
+
+%
+Other systems enforce developer-specified \textbf{visibility and access control policies}
+based on general information flow control approaches~\cite{static, jeeves, jif, hails, ifdb},
+%, dynamically or statically,
+%
+authorized views~\cite{oracle} or per-user views~\cite{multiverse}, and rewriting database queries~\cite{qapla, sieve}.
+%, and performing queries over encrypted data, readable only by authenticated
+%users~\cite{cryptdb}.
+%
+Data disguising transforms the actual data stored according to a specification.
+%
+%Data disguising can additionally automate complex privacy transformations for authorized or multiverse views.
+
+%ScrambleDB~\cite{scrambledb} generates oblivious pseudonyms for distributed settings, so there does
+%not need to be one trusted central pseudonym/linking server.
+
+%---------------------------
+
+Privacy-preserving data mining approaches, such as $k$-anonymity, $l$-diversity, and
+differential privacy~\cite{dataminingmodels, differential}, provide \textbf{statistical privacy
+guarantees}.
+%
+These complement data disguising: disguise decorrelation thresholds might be based on
+differential privacy, for example.
+%
+%However, these formal techniques no longer apply for arbitrary application queries over possibly
+%non-numerical data.
+
+
+Finally, \textbf{clean-slate designs} for user-centric data ownership paradigms seek to
+``decentralize'' the internet~\cite{diy, solid, amber, oort, w5, blockstack, bstore, databox},
+granting ultimate control over data to end-users.
+%agree upon a standard format for data storage, and
+%hosted by a trusted third-party provider or the user.
+%
+These systems typically lack the capacity for server-side compute, burden users with long-term
+data maintenance, and break the current application revenue model.
+%
+In contrast, data disguising helps developers specify and automate privacy transformations
+without changing the application data model or business model.
+%
+
+%Although these paradigms grant users more control over applications' access to their data,
+%In these paradigms, users must decide on appropriate access control and authentication policies, and
+%are burdened with long-term data maintenance and storage.
+%If users do not self-host, they must trust (and potentially
+%pay for) a third party provider to manage their data. Current providers in Solid~\cite{solid}
+%provide no security or stability guarantees, and others that use PKI (\eg
+%Blockstack~\cite{blockstack}) require users to maintain a master private key, a fragile solution in
+%which losing the key results in permanent loss of all the user's data.
+%https://www.nytimes.com/2021/01/12/technology/bitcoin-passwords-wallets-fortunes.html
+%Many applications that perform data-intensive service-side computation and rely on data sharing
+%between users (\eg online stores or social networks) experience large performance loss due to the
+%additional access control checks and remote queries to user datastores. Application developers can
+%no longer program over application-specific SQL databases, and lose the flexibility and performance
+%that results from specialized schemas and data storage.
+
+%Decoupling user data also eliminates the current revenue model for web applications, which relies on
+%access to user data. Projects such as Solid~\cite{solid} currently rely on open-source application
+%development, and free hosting by providers, a revenue model that may be unsustainable long-term.
+
+%provides a middle ground between the current data ownership paradigm (web
+%applications owning all user data), and these paradigms which decouple of user data from web applications.
+%While \name lacks a single, unified data location where users store all their data,
+%users gain control access to their personal data by taking it back from applications at will, without
+%any permanent consequences.  \name preserves the current web architecture and all
+%its performance benefits, removing the need for applications to compute over and query for remote
+%data.  When users enter privacy-preserving mode, \name does not require the user
+%to secure or manage this data, or handle the intricacies of access control (described in
+%Section~\ref{sec:design:storage}).
+
+%---------------------------
+
+\iffalse
+Key ideas:
+    pseudonymization
+    data partitioning
+    synthetic data
+
+Similarities:
+- privacy guarantees weaker than DP, no constraints on queries
+- pseudonymization --> overwrite a portion or all of data for individual, difficult to reassociate
+    only a small fraction of data?
+    breaking up objects grouped by user identifier key
+    breaking connections between tables (just like )
+
+- try to ensure that database still useful even w/pseudonymization
+    synthetic data (ghosts in \name)
+- use of in-memory caches to avoid expensive joins (materialized views)
+
+Differences
+- design for \name puts data in hands of user, Sypse has a separate partitioned table (not
+necessarily )
+- Sypse has synthetic data generation instead of ghosts to replace data taken out
+    - foreign keys point to random records
+    - VS ghost records
+    - not developer-specified? might lead to incorrect behavior?
+- what are partitions?
+    - limited access, the queries will be run against pseudonymized or synthetic data only
+    - Detail Database: anything that isn't PII (pseudonymous)
+        - perform analysis, data mining, etc. on these
+    - PII Database: anything tied to specific individual (username, user identifiers)
+        - replaces with surrogate keys
+        - geological / biometric information
+        - breaking up objects grouped by user identifier key (direct edge policies)
+        - breaking connections between tables (non-direct edge policies)
+    - backed up separately, different access control mechanisms
+- assumes annotated schema, but doesn't actually describe it!!! just says requires analysis, or is
+relatively straightforward
+    -made automatically through a continuous analysis of the database schema and the data within it,
+    visible to users
+    - lack of schema discipline in practice (Database decay and how to avoid it.)
+    - no understanding of multiple entities and how they relate to each other
+- no support for resubscription
+
+Partition strategies:
+- split table into multiple tables, additional joins to reconnect different partitions, doubled updates, forgetting requires multiple
+updates
+- encrypt certain attributes, add as new attributes, encrypted keys stored in user->key mapping: joins limited
+- us: we don't care about size of "PII" table --> this data is given to user
+
+Other related work to cite:
+- secure/encrypted databases(?)
+- differential privacy
+- Kraska SchengenDB: A Data Protection Database Proposal.
+    - identify all personal data via tracking / relation graphs
+    - tables and columns with PII declared w/schema notations
+    - purposes restrict what PII you can access
+    - sandboxing
+    - also has object relation graph
+    - we assume that data isn't copied, whereas they support data copies by tracking ownership
+    beyond foreign key relationships
+- GDPR by compliance: user shard model
+- ScrambleDB: ScrambleDB: Oblivious (Chameleon) Pseudonymization-as-a-Service
+- Sieve: A Middleware Approach to Scalable Access Control for DatabaseManagement Systems.
+
+\subsection{Decoupling User Data from Web Applications}
+Our proposed subscription paradigm contrasts with a model of strong privacy in web applications, in
+which the user has complete data ownership (see Figure~\ref{fig:world}b). In proposals for this
+model~\cite{solid, amber, w5, blockstack, bstore}, applications must compute on per-user, filesystem-esque
+storage, \eg as JavaScript in users' browsers in Solid~\cite{solid}, Blockstack~\cite{blockstack} and
+BStore~\cite{bstore}. Applications face the loss of the flexibility and ease of programming over SQL
+databases with application-specific schemas, and users must decide on appropriate access control and
+authentication policies. As a result, service-side computation and data sharing between users---a
+large reason users use applications to begin with---becomes inefficient and impractical.
+%
+Furthermore, users are burdened with long-term data maintenance and storage: solutions that use PKI
+(\eg Blockstack~\cite{blockstack}) require users to maintain a
+master private key, a cumbersome and fragile solution in which losing the key results in permanent
+loss of all the user's data.
+%
+Finally, users must change the way they pay for services, as the current revenue model for
+applications relies on access to user data.
+\lyt{this might not be a bad thing, though}.
+
+Under the subscription paradigm, applications do not need to access any data outside its own
+servers, simplifying the secure storage of this data when users enter privacy-preserving mode.
+Applications can operate as they do today, with the current web architecture's performance and
+programming flexibility benefits. However, unlike today's model of data privacy in web applications,
+users can freely reclaim their their data and privacy whenever they wish.
+
+\subsection{Data Anonymization}
+
+Prior research on k-anonymization, pseudonymization (more for static analysis purposes than used in
+web applications).
+%\url{https://amnesia.openaire.eu/index.html}
+%\url{https://www.aclweb.org/anthology/2020.coling-main.32.pdf}
+
+While psuedo/anonymization
+techniques still allow for reidentification/reconstruction attacks), \name provides better
+anonymization than prior approaches, which decorrelate only coarsely by associating remnants of data
+with a global placeholder for all deleted users, or do not decorrelate at all (e.g., replacing
+usernames with a pseudonym, as in the AOL dataset case~\lyt{TODO}%\cite{aol}).
+
+\subsection{Differentially Private Queries}
+
+PINQ, a data analysis platform created by McSherry~\cite{pinq}, provides formal differential privacy
+guarantees for any query allowed by the platform.  Data analysts using PINQ can perform
+transformations (Where, Union, GroupBy, and restricted Join operations) on the underlying data
+records prior to extracting information via aggregations (e.g., counts, sums, etc.) The aggregation
+results include added noise to meet the given privacy budget $\epsilon$, ensuring that analysts only
+ever receive $\epsilon$-differentially-private results.  PINQ calculates the privacy loss of any
+given query based on transformations and aggregations to be performed; if a particular query exceeds
+a predefined privacy budget, PINQ refuses to execute the query.
+
+Differential privacy provides a formal framework that defines the privacy loss a user incurs
+when the user's data is included in the dataset. However, the setting of differential privacy
+that of \name in several important ways.
+
+First, web applications' utility often derives from visibility into individual data records. PINQ
+restricts JOIN transformation and exposes information only through differentially-private
+aggregation mechanisms. While sufficient for many data analyses, this approach severely hinders web
+application functionality. \name supports all application queries, even ones that expose individual
+records, such as \texttt{SELECT story.content, story.tag FROM stories LIMIT 10}.
+However, this makes formally defining the privacy guarantees of \name more complex than
+simply applying DP.  DP provides formal guarantees for results such as sums or averages because such
+results are computed using well-defined mathematics, allowing us to neatly capture the total
+knowledge gained by the adversary. However, in the world of web applications, the knowledge gained
+via queries that may reveal individual data records cannot be so easily defined: adversaries may
+learn information from the friends who liked the (ghosted) story, or the time and location the story
+was posted.
+
+Thus, we cannot, in general, use the DP approach of asking, ``by how much do answers to adversary
+queries change with the presence of a users' decorrelated data?'' While we can precisely define which
+data records an adversary sees with and without a user's decorrelated data, we cannot numerically
+quantify the knowledge gained by the adversary in the same way as we can quantify the percentage
+change to a sum or average.
+Instead, \name reduces identifying information in the changes induced by a users' (decorrelated)
+data, rather than reducing the amount of change itself.
+
+This is demonstrated by how PINQ and \name differ in disguising entities associated with unique keys.
+PINQ restricts JOINs to group by unique keys. As an (imperfect) example, selecting a JOIN of stories
+with users via the UID would result in a record, one per UID, which represents the ``group'' of all
+stories associated with a user. A normal join would create a separate record per story, each
+associated with the user of that UID.
+
+Instead of lumping all matching stories together, \name explodes the users' UID into individual
+unique keys (ghosts), one per story. By PINQ's analysis of stable transformations, this leads to
+unbounded stability (as the number of different results produced by queries is proportional to the
+potentially very large number of stories for that user). In PINQ's DP framework, such unbounded
+stability leads to unbounded privacy loss: one users' data could change aggregation results in
+``significant'' ways unless huge amounts of noise were added.
+
+\name and PINQ's approaches can be seen as complementary: for queries that are more analytic in nature (for example,
+population statistics used by the web application to measure usage or trends), \name can utilize
+PINQ's technique to provide differentially private guarantees (for a particular snapshot of the
+dataset).  \name's decorrelation, in fact, adds more noise than necessary in these cases: a count
+of unique users who posted about cats will be more imprecise because each post by a decorrelated
+user is now associated with a unique (ghost) user.
+
+\subsection{Deletion Privacy}
+The right to be forgotten has also been formally defined by Garg et
+al.~\cite{garg}, where correct deletion corresponds to the notion of
+leave-no-trace: the state of the data collection system after a user requests to be forgotten should
+be left (nearly) indistinguishable from that where the user never existed to begin with. While
+\name uses a similar comparison, Garg et al.'s formalization assumes that users operate
+independently, and that the centralized data collector prevents one user's data from influencing
+another's.
+
+Potentially other related works:
+\begin{itemize}
+    \item Deceptive Deletions for protecting withdrawn posts %https://arxiv.org/abs/2005.14113
+    %\item "My Friend Wanted to Talk About It and I Didn't": Understanding Perceptions of
+        %Deletion Privacy in Social Platforms, user survey https://arxiv.org/pdf/2008.11317.pdf;
+        %talk about decoy deletion, prescheduled deletion strategies~\cite{myfw}
+    \item Contextual Integrity
+    \item ML Unlearning
+    \item Database IFC (sensitive data flowing down edges?)
+    \item Graph databases
+\end{itemize}
+\fi

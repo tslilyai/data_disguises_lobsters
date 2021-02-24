@@ -1,0 +1,128 @@
+\section{Data Mask Goals \& Challenges}
+
+Data masks all have similar goals, namely to (1) selectively retain data for application
+utility or legal purposes; and (2) and modify, delete and/or decorrelate sensitive data, all while
+maintaining correct application semantics.
+
+\paragraph{Selective Retention.}
+Retained data serves two purposes: to preserve legal or necessary information about an individual
+user (\eg order history in e-commerce applications), and to maintains application utility for
+subscribed users.  For example, Facebook and Twitter retain copies of private messages for other users in
+the conversation~\cite{facebook:privacy, twitter:privacy}; Reddit retains all user posts and comments;
+Lobsters retains the user's unique username and logs of the user's actions~\cite{reddit:privacy};
+Amazon and Prestashop retain a user's order history~\cite{amazon:privacy, prestashop:privacy}; and
+Strava retains geolocation data and any ``necessary'' information~\cite{strava:privacy}. 
+Developers must ensure that masked state avoids accidentally deleting or retaining data, and convey
+to the user exactly what data the mask leaves behind.
+
+\paragraph{Data Deletion and Decorrelation.}
+Masks both remove and modify individual data records, and break up \emph{structural correlations}
+from or to sensitive data, which can also leak sensitive information. For example, orders tagged
+with the same location likely belong to the same user, and order history can identify the user. 
+
+Ensuring these modifications do not break application semantics, and balancing data removal with
+data retention, requires developers to reason about complex data relationships and application
+invariants. For example, developers implementing unsubscription in HotCRP may want to handle
+potentially identifying correlations between users' papers and conflicting reviewers, which can
+identify the user via the conflicts' affiliations and recent collaborations However, developers
+cannot simply remove all conflicting reviewers with an unsubscribed user's paper: this incorrectly
+allows paper reviews to be assigned with potential conflicts. Careful selection of which data to
+retain while ensuring that sensitive data is masked through modification or removal, all without
+breaking application semantics, requires application-specific expertise and a thorough understanding
+of exactly how the data mask changes state.
+
+To avoid the complexity of implementing fine-grained masks that both retain and modify data, developers often revert to coarse-grained masks (\eg delete everything). For example, HotCRP chooses to reduce utility
+for other users and delete all papers correlated with unsubscribing users, rather than deal with
+paper conflicts.
+%
+Furthermore, developers implement masks using ad-hoc methods, scattering data modifications throughout
+application code. This leads to a lack of a clear, centralized specification of how the mask modifies
+sensitive information and results in \eg vague privacy policies.
+
+%Retained data should mask any sensitive data contents (\eg user identity or harmful information). In many cases, however, simply modifying data contents (\eg simply removing or replacing
+%identifiers with an anonymized placeholder for de-identification), fails to sufficiently guarantee
+%that the data is hidden: \emph{structural correlations} from or to retained data can still leak sensitive
+%information. For example, orders tagged with the same location likely belong to the same user, and
+%order history can identify the user. 
+%Anonymized posts with the same flairs or custom tags can identify which user made the posts.
+%, a solution that clearly would not work in a world where users frequently unsubscribe at any time.
+
+\iffalse
+To achieve \name, a system must (1) enable applications to \emph{selectively retain} unsubscribed
+users' data for necessary legal or application purposes; (2) properly \emph{de-identify} the user
+upon unsubscription by removing any possibly identifiable information, or decorrelating this
+information from the user's identity; and (3) allow users to \emph{resubscribe} without losing their
+account history or data, so unsubscription has no permanent consequences. We next describe each
+requirement and the challenges to achieve it in greater detail.
+
+\paragraph{Selective Retention.}
+Retained data serves two purposes: to preserve legal or
+necessary information about an individual user (\eg order history in e-commerce applications), and
+to maintains application utility for subscribed users (\eg private messages
+for thread coherence, or crowdsourced reviews and popular news posts).
+Developers must ensure that post-unsubscription state avoids accidental data deletion or retention.
+%Developers should easily determine what data to retain %post-unsubscription, and 
+
+\paragraph{De-Identification.}
+Any retained data must be properly de-identified. The surveyed applications often remove or replace
+user identifiers with a placeholder user identifier. However, this can still fail to sufficiently
+de-identify retained data: \emph{structural correlations} from or to retained data can still identify
+unsubscribed users. For example, orders tagged with the same location likely belong to the same
+user, and order history can identify the user. 
+%Anonymized posts with the same flairs or custom tags can identify which user made the posts.
+
+Detecting and correctly modifying even subtly problematic content and correlations pose technical
+challenges that can prevent developers from retaining data in privacy-preserving ways, or force
+developers to forgo data retention completely.  For example, HotCRP cannot just remove unsubscribing
+users' identifiers: correlations between users' papers and conflicting reviewers indirectly identify
+the user via the conflicts' affiliations and recent collaborations.  HotCRP chooses to reduce its
+utility by completely removing the papers, rather than deal with these potentially identifying
+correlations.
+%, a solution that clearly would not
+%work in a world where users frequently unsubscribe at any time.
+
+These complex data transformations also make it difficult for developers to specify exactly 
+what identifying information may be left behind for the user, leading to vague privacy policies.
+
+\paragraph{Resubscription.}
+Resubscription must recorrelate any retained data with the original owner, and restore any removed
+data. Today, applications either retain all data and forgo de-identification entirely in order to
+support resubscription, or permanently remove and anonymize data.
+Supporting resubscription requires storing information necessary for recorrelation and restoring
+users' accounts, but should not unduly burden either the application or user, nor add any
+identifying information about unsubscribing users to the system.
+
+%HotCRP
+%users---particularly reviewers---would prefer that their blinded reviews never become publically
+%associated with their identity in the case of a data compromise. 
+%
+
+%Reviewers and authors create user accounts to
+%ubmit or review papers, and HotCRP supports program committee conflict detection, paper rebuttals
+%nd comments, review delegation, and other features necessary for the conference review process.
+%HotCRP's current privacy policy~\cite{hotcrp:privacy} allows site managers (e.g.,\ program chairs)
+%to indefinitely store and distribute submissions and reviews.  This is by request of its users:
+%users want to be able to reference prior conference reviews and paper metadata.  
+
+%Currently, the only way to ensure this is to contact the HotCRP maintainers directly to manually
+%remove their user profile: the HotCRP developers considered automating support for unsubscription
+%and found it too cumbersome to implement. 
+%
+%\lyt{(This isn't exactly what I want to say---sorry to put words in your mouth, Eddie!---but something like this is
+%probably useful.)} 
+%
+%When user accounts are removed, every piece of data ever associated with that
+%user is deleted from the system: this model clearly would not work if all users freely
+%unsubscribed at will, as the system would be left with no useful data for subscribed users.
+%
+%The desired HotCRP unsubscription behavior would both retain useful data for HotCRP and its users,
+%and satisfy the desire of HotCRP users to de-identify their data. In particular, the HotCRP
+%developers should be able to specify that unsubscription deletes only the user profile, and
+%\emph{decorrelates} the links between the user and their reviews (and other user-associated data)
+%while retaining the blinded reviews and data for other users to view. While correlations between
+%users and their reviews are obviously identifying, unsubscription must also handle more subtle
+%correlations: a user's reviewer conflicts can identify the user's affiliation and recent
+%collaborations, and in many cases, the user themselves. Implementing unsubscription that handles
+%these complex data relationships correctly would not be trivial.
+%
+\fi

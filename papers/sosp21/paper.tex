@@ -1,0 +1,129 @@
+%\documentclass[letterpaper,twocolumn,10pt]{article}
+\documentclass[sigplan,natbib=false,10pt,anonymous,nonacm]{acmart}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+\settopmatter{printfolios=true}
+
+% to be able to draw some self-contained figs
+\usepackage{tikz}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage[normalem]{ulem}
+\usepackage{listings, listings-rust}
+\usepackage{xspace}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{wasysym}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage[compact, small]{titlesec}
+
+% BibLaTeX for bibliography
+\usepackage[
+  backend=biber,
+  style=numeric-comp,
+  minalphanames=3,
+  isbn=false,
+  sortcites=true,
+  sorting=anyt,
+  abbreviate=false,
+  url=false,
+  doi=false,
+  maxnames=99,
+  minbibnames=3,
+  maxbibnames=99]{biblatex}
+\addbibresource{paper.bib}
+
+\newcommand{\sys}{Edna\xspace}
+\newcommand{\thing}{guise\xspace}
+\newcommand{\things}{guises\xspace}
+\newcommand{\Things}{Guise\xspace}
+\newcommand{\Thing}{Guises\xspace}
+
+\newcommand\ms[1]{\textcolor{red!55!blue}{[malte: {#1}]}}
+\newcommand\lyt[1]{\textcolor{green!55!blue}{[lyt: {#1}]}}
+\newcommand\eddie[1]{\textcolor{blue!55!blue}{[E: {#1}]}}
+\newcommand{\tabitem}{~~\llap{\textbullet}~~}
+\newcommand{\eg}{{e.g.},\xspace}
+\newcommand{\ie}{{i.e.},\xspace}
+
+\definecolor{codegreen}{rgb}{0,0.4,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{rust}{
+    %backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{codepurple},
+    stringstyle=\color{blue},
+    basicstyle=\ttfamily\scriptsize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+\lstset{style=rust}
+
+%-------------------------------------------------------------------------------
+\begin{document}
+%-------------------------------------------------------------------------------
+
+%don't want date printed
+\date{}
+
+% make title bold and 14 pt font (Latex default is non-bold, 16 pt)
+\title{\Large \bf %Going Undercover: Data Privacy Disguises\\
+%Become a Privacy Superhero By Putting Your Data in Disguise\\
+Privacy Heroes Need Data Disguises
+%Privacy Theater: Putting Your Data in Disguise\\
+%Dis-data-guise: Data in Disguise\\
+%Project Runaway: Designing Data Disguises for Privacy\\
+%\small{\lyt{(I know these are all silly; open to suggestions!)}}
+}
+%\name-ing Your Data from the Internet }
+%An Invisibility Cloak for the Internet}
+
+%for single author (just remove % characters)
+%\author{
+%{\rm Lillian Tsai}\\
+%MIT
+%\and
+%{\rm Malte Schwarzkopf}\\
+%Brown University
+%% copy the following lines to add more authors
+%\and
+%{\rm Eddie Kohler}\\
+%Harvard University
+%} % end author
+
+\author{
+{\rm Anonymous Authors}\\
+} % end author
+
+\maketitle
+\vspace{-2\baselineskip}
+
+%\input{abstract}
+%\input{intro}
+\input{design}
+%\input{algo}
+%\input{impl}
+\input{eval}
+%\input{disc}
+%\input{related}
+%\input{conclusion}
+
+%-------------------------------------------------------------------------------
+\printbibliography
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\end{document}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%  LocalWords:  endnotes includegraphics fread ptr nobj noindent
+%%  LocalWords:  pdflatex acks

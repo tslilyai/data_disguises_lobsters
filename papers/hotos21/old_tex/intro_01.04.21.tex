@@ -1,0 +1,197 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Old intros
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\iffalse
+Web applications today own, process, and store user data~\cite{nytimes:fb, npr:data}. This places a
+great responsibility on application developers to transparently convey to users how they manage this
+data via their privacy policies and terms of use.
+%
+\ms{next sentence doesn't follow: privacy policies + ToS doesn't imply data masks.}
+Recent developments have renewed efforts to improve the state of data management in web
+applications, creating incentives to support different forms of \emph{data masks}.
+
+For example, applications mask data to hide a users' identity, performing privacy-preserving user
+unsubscription from a service as mandated by laws such as the EU's General Data Protection
+Regulation (GDPR)~\cite{eu:gdpr} and California's Consumer Privacy Act (CCPA)~\cite{ca:privacy-act}
+that codify users' rights to data ownership and right to be forgotten. Unsubscription motivates a
+need for an identify-revealing resubscription transformation, making it easy for users to return
+instead of forcing users to permanently give up their accounts.
+
+Growing incentives to keep as little compromising data as possible in case of a data
+breach~\cite{breach:amazon,breach:twitter, breach:fb, breach:marriott, breach:quora} prompt
+applications to mask stale or inactive users' data via anonymization or deletion. Similarly,
+applications want to mask data that is stored in backups, or given to others for data processing.
+
+%Data masks also go beyond just masking user data: applications apply masks to moderate
+%harmful data (\eg inappropriate content or misinformation) that hide or modify data
+%contents~\cite{contentmod, sasb}, and face increasing pressure from users who want to
+%hold them legally liable for appropriately moderating content~\cite{nytimes:230}.
+
+Properly specifying and implementing these various data masks is challenging. Disguises are necessarily
+application-specific and require the developer to reason about and handle complex data correlations.
+For example, developers must selectively retain unsubscribing users' data for legal or application
+purposes, while de-identifying this data as much as possible and maintaining application semantics.
+Today's applications often support only coarse-grained masks implemented with ad-hoc methods,
+resulting in a lack of a clear specification of exactly what and how the mask transforms data.
+
+To help developers of new and existing applications support clearly specified data masks, we propose
+\sys, a framework that, given only a high-level, declarative specification of the relationships
+between entities in a database, generates and applies complex transformations that would be
+laborious to implement manually. We observe that applications already encode entity
+relations in an \emph{entity graph} via foreign key relationships, and this graph provides a means
+for \sys to systematically reason about and automate a variety of data masks.
+%To help developers of new and existing applications support privatization transformations, we
+%propose \sys, which makes the key insight to model application data as an abstract \emph{entity
+%graph}, and represent privatization transformations as transformations of this graph that render
+%particular entities private.
+
+With \sys, developers specify a \emph{mask policy} by choosing from a menu of provided edge and node
+transformations. To determine an appropriate policy, developers introduce \emph{ghost entities} in the entity graph, which allow the mask to both retain, decorrelate, modify,
+and remove data. The policy acts as a specification for the masked state of any instance of the
+entity graph. When invoked with a particular mask policy, \sys automatically and systematically
+applies transformations to the current entity graph instance to achieve this specified state.
+
+We evaluate an initial prototype for \sys, finding that \sys automatically applies
+data masks efficiently, and that practical policies can be expressed with low burden for application
+developers.
+\fi
+
+\iffalse
+%\begin{figure*}[ht!]
+%    \centering
+%    \includegraphics[width=\textwidth]{img/worlds}
+%
+%    \caption{\textbf{(a)} The current web application paradigm, in which applications maintain and
+%    own user data; \textbf{(b)} A paradigm that decouples user data from web applications, giving users ownership of their data;
+%    \textbf{(c)} \name, which allows users to switch between privacy-preserving unsubscribed mode (right) and identity-revealing subscribed mode (left).}
+%    \label{fig:world}
+%\end{figure*}
+%
+Web applications today own, store, and sell user data, often without the user's knowledge or
+explicit consent~\cite{nytimes:fb, npr:data}. This both violates users' right for privacy, and has
+dangerous consequences for both users and application developers as data leaks lead to loss of
+livelihoods and lawsuits~\cite{breach:amazon,breach:twitter, breach:fb, breach:marriott,
+breach:quora}.
+%Granting web applications complete ownership of personal data clearly fails to
+%protect users' privacy.
+
+Although users want stronger privacy, completely decoupling user data from applications results in a
+potentially even less desirable world. While possible~\cite{solid, amber, w5, blockstack, bstore}, such a
+model hinders service-side computation and application performance, and requires users to manage
+long-time security and storage of their data, leading to a lack of adoption in practice (Section~\ref{sec:related}).
+
+This paper proposes \name, a new paradigm that grants users flexible privacy when using web
+applications, balancing users' desire for privacy with their desire for application utility. In
+\name, users subscribe to applications by granting a time-limited lease to their data, with the
+provision that the application may retain only de-identified information once the user unsubscribes.
+Users flexibly switch between a privacy-preserving unsubscribed mode and an identity-revealing
+subscribed mode at any time without permanently losing their data. \name contrasts
+with the current web application paradigm for data ownership, in which applications have complete
+ownership, and the other extreme in which the user has complete data ownership.% (see Figure~\ref{fig:world}).
+
+\name benefits users: they can choose privacy at any time, without
+permanently losing their accounts or affecting the utility of the applications for others.  Just as
+importantly, \name also benefits application developers. Recent laws such as the
+European Union's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's Consumer
+Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' rights to data ownership, granting users the
+right to request erasure of information related to them. Supporting \name enables
+applications to comply with these legal mandates, while still allowing its departing users to easily
+come back: if applications must let users leave, it is in their best interest to make it easy for
+them to return.
+
+Furthermore, applications can continue to operate using their current revenue model, maintaining
+performance, reliability, and utility for their users.  Because applications retain use of
+subscribed users' data, and de-identified data of unsubscribed users, applications optimize the
+amount of data available to generate profit and provide utility for subscribed users. The
+application holds only identifying data for subscribed users, reducing the amount of
+compromising data in the system to only those users who have actively agreed to temporarily give up
+their privacy.
+
+Realizing \name poses a number of technical challenges.
+Unsubscription and resubscription requires complex and fragile data transformations: developers must
+selectively retain unsubscribed users' data for legal or application purposes while properly
+de-identifying this data, a non-trivial task in the face of subtle inference attacks (\eg tags on a
+user's post can identify the user). De-identification and data removal needs to be reversible,
+allowing the user to resubscribe at any time to their last-known subscribed state.
+
+To make \name a reality, we model application data as an abstract \emph{entity graph}, and
+represent unsubscription and resubscription as transformations of this graph.
+\emph{Ghost entities} allow transformations to achieve both data retention and de-identification,
+and declarative \emph{ghost policies} specify reversible transformations upon unsubscription.
+We design and implement \sys, a practical system that systematically automates this transformation for new and existing applications, helping developers realize the \name paradigm without onerous labor.
+%that takes a developer-specified unsubscription policy for the application's entity
+%graph, and ensures that
+%that requires developers only to specify an abstract unsubscription policy on the
+%helps developers of databased-backed web applications automatically achieve correct, privacy-compliant user unsubscription and
+%resubscription without onerous labor.
+\fi
+
+%-------------------------------------------------------------------------------
+\section{Introduction}
+%-------------------------------------------------------------------------------
+
+Web application users are more aware of their data privacy rights than ever before. 
+Laws such as the European Union's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and
+California's Consumer Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' rights to 
+data ownership, granting users the right to request erasure of information related to them.
+%
+Public news around web services increasingly emphasize the dangers of leaving private data on the
+web: embarrassing or compromising details from the past has reemerged, web applications have
+suffered data leaks or hacks~\cite{breach:twitter, breach:fb, breach:marriott, breach:quora}, and
+private data has be shared by web applications without the user's knowledge or explicit
+consent~\cite{nytimes:fb, npr:data}.
+
+%
+These legal and societal pressures increasingly demand that companies support \emph{unsubscription}
+of users from their services.  Users should have the right to unsubscribe at any time, preventing
+idle or unused accounts from retaining personal data indefinitely, and regaining control over who
+can access their data. 
+%
+
+%
+Unsubscription, however, is only half the story. To empower users to freely exercise their data
+rights, web applications must allow users to easily unsubscribe \emph{and resubscribe} as they wish,
+switching between a privacy-preserving unsubscribed mode and an identity-revealing subscribed mode
+at any time without permanently losing their data, or needing to maintain their account data
+themselves.  Unsubscription without resubscription unduly impedes users from exercising their right
+to be forgotten: in order to claim that users have regained ownership of their data, users should
+not have to pay a high price in order in order to unsubscribe whenever they wish. They should not
+encounter barriers, such as permanently losing their data, that prevent them from choosing to
+unsubscribe when they would have otherwise. 
+
+With this model of flexible privacy, the balance of data ownership flips. Applications no longer
+control users' data choices by demanding that users choose between indefinitely giving up their data
+to use the application, or permanently losing their data and application utility.
+Instead, users control when applications can obtain their data in exchange for the right to use the application, and do not permanently lose application utility when they remove access to their data.
+
+Unfortunately, today's web services face many challenges that make free and easy unsubscription and
+resubscription hard. Many do not support automated unsubscription, requiring users to 
+contact the developers or customer support directly in order to unsubscribe.
+Developers must manually implement unsubscription, leading to coarse-grained, error-prone data
+handling that can fail to completely de-identify the user. Many applications require that some
+information remains post-unsubscription, for legal or necessary application use, but retained data
+can identify a user in complex ways: both user identifiers (\eg usernames) and structural
+\emph{correlations} between application data records (\eg between users and posts, or posts and
+tags) may reveal identifying information.  Without a systematic way to anonymize user identifiers
+and \emph{decorrelate} these potentially identifying structural correlations, many developers have
+chosen to either entirely delete all sensitive data at the expense of other subscribed users, or
+leave identifying information unchanged at the expense of unsubscribed users.
+
+Even if de-identification were easy, services that do provide some amount of de-identification upon
+unsubscription fail to support resubscription, thus permanently deleting years or even decades of
+accumulated application data.  This permanent loss of user data costs both users and the web
+service, and creates little incentive to lower barriers to unsubscription.  
+
+Legal penalties today create greater incentives to remove unnecessary data than ever before.
+However, these incentives alone are not enough. The challenges and complexity of
+correct unsubscription highlight the need for new tools that allow developers to easily and
+systematically express how application data and structural correlations need to change when a user
+unsubscribes, and support automatic resubscription and recorrelation of users with their account
+data at any time.
+%
+
+In the rest of this paper, we describe the current support for unsubscription and resubscription in
+today's web applications, and the challenges of implementing it correctly.  We then describe \name, a
+system that provides abstractions and mechanisms to help developers of databased-backed web
+applications achieve correct, privacy-compliant user unsubscription and resubscription without
+onerous labor, and without adding undue overheads.
