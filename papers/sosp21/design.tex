@@ -5,50 +5,108 @@
 \subsection{Conceptual Model}
 %-------------------------------------------------------------------------------
 
-%A disguise for a target object alters the application object graph by (1) breaking structural correlations that tie objects back to the
-%target, and (2) changing objects reachable from the target into guises.
-%
-Disguises move a target object along a spectrum from an ``identity-revealing'' 'extreme, in which the target's identity
-and correlated data remain intact; to a ``dissolved-identity'' extreme, in which anything reachable from the target
-in the object graph has been maximally removed, decorrelated, and/or transformed into guises.
+Disguises move a target object along a spectrum from an ``revealed'' 'extreme, in which the target's
+identity and correlated data remain intact; to a ``dissolved'' extreme, in which objects reachable
+from the target are unreachable from any object in the graph. In a ``dissolved'' state, reachable
+objects have either been decorrelated from the target and the rest of the graph by breaking paths in
+the graph---or removed entirely.
 
 Subsequent disguises applied to the same target monotonically move the target further
 toward the ``dissolved'' end of the spectrum: application of a disguise can only 
 remove or decorrelate reachable objects from the target that prior disguises had not
-already modified.
+rendered unreachable.
+%objects remain reachable, disguises morph objects
 
 %-------------------------------------------------------------------------------
 \subsection{Disguise Specifications}
 %-------------------------------------------------------------------------------
 
-Disguise specifications determine how to handle every object reachable from the target (including the target
-object itself).  
-An object that has a reference to another object is a \emph{child} of the referenced object.
+Disguise specifications determine how to handle every object reachable from the target (including
+the target object itself). An object that has a reference to another object is a \emph{child} of the
+referenced object. Reachable objects split into one or more guises, each of which is then correlated
+with some number of children of the object.  The object being split is removed from the graph:
+future disguises to the same target will reach at most the object's guises.
 
-Every object can be changed in either of the following ways:
+Splitting an object into multiple guises breaks paths to the object's children. 
+Children of one guise created in the split can never be modified by a future disguise that
+reaches another guise of the object. 
+
+If it is impossible to create guises for the object, then the object
+and its descendents are recursively removed. (Note that if we do not remove the children's
+descendents, these have to refer to \emph{something}; if we create guises for the children, then
+these guises have to refer to something, etc. etc.)
+
+To specify a disguise, the developer write declarative policies describing how to split objects that
+satisfy particular predicate conditions. Each policy includes the following:
 \begin{enumerate}
-    \item \textbf{Split}: split the object into many guises, one for each child of the object.
-        This decorrelates the object from its children, and breaks paths in the object graph.
-    \item \textbf{Morphed}: modify the object's contents, but keep all references to the object.
+    \item Object Type
+    \item Predicates: filters out which objects to modify, takes the object content as input
+    \item Morph Spec: how guises should be created from the original object
+    \item Split Spec: how children are reallocated between guises
+    \item (Optional) Shared-Morph Spec: how a guise referenced by many children should be created
 \end{enumerate}
 
-Splitting an object breaks up paths to the target: once an object is no longer reachable from the
-target, they can never be modified by a future disguise to that target.  Splitting requires creating
-\emph{guises} of the object, and the object itself is removed from the graph.
+For example, to specify that all user objects that are not the target user should retain all correlations to
+their children, but be anonymized, the predicate would be \texttt{user.username !=
+target\_user.username}.
+The split specification specifies that all papers/reviews/etc. that refer to a user should be
+associated with a single user guise; and the morph specification changes the username of the user to
+``anonymous.''
 
-If it is impossible to create a guise for the object, the object and its descendents are recursively
-removed. (Note that if we do not remove the children's descendents, these have to refer to
-*something*; if we create guises for the children, then these guises have to refer to something, etc. etc.)
+To specify that user objects equal to the target user should decorrelate all children and leave no
+trace of the target user profile, the predicate would be \texttt{user.username ==
+target\_user.username}.
+The split specification specifies that each papers/reviews/etc. that refer to a user should be
+associated with a unique user guise; and the morph specification changes all fields of the user to
+some default, which is used to generate all guises.
 
-Get all reachable objects first, then start breaking things up.
+\paragraph{Morph Specification}
+In the following, we assume that objects have identifier attributes (\eg \texttt{id} in
+Figure~\ref{fig:guises}); and some attributes are reference attributes that form edges in the graph
+to referred objects (\eg \texttt{tag\_id} is a foreign key constraint to tag objects).
 
-Decorrelation/removal already make target not reachable for all descendents? (unless there are
-multiple paths)
+Morph specifications are specified at attribute-level granularity. Guise identifier attributes are
+unique and random values.  Reference attributes are always copied (handling policies of the
+referenced object type will already have decorrelated if necessary).
+
+Other, non-referencing guise attributes either copy the original object's attribute value, or
+transform the object's value.  An attribute transformation takes the object attribute value as
+input, and generates a new guise value (\eg hashing the value, generating random values, or setting
+the value to some default).  The guise attribute value depends at most on the value of the object's
+attribute.
+
+\paragraph{Split Specification}
+The split specification determines, for every type of child object, whether children of that type
+should reference a shared guise, or whether each child should reference a unique guise.  Only one
+guise will ever be shared: if the spec describes a shared-guise policy for multiple types of
+children, each child object of any of these types will reference the same guise.
+
+Every child that should reference a unique guise will be the only object with a reference to that guise.
+
+If a guise is to be shared, the policy can include a shared-morph specification specifically to
+create the shared guise; otherwise, it, like all other guises, will be created using the policy's
+general morph specification.
 
 %-------------------------------------------------------------------------------
 \subsection{Disguising Tool Implementation}
 %-------------------------------------------------------------------------------
 
+\paragraph{Diguising Algorithm}
+Get all reachable objects first, then start breaking things up.
+
+Decorrelation/removal already make target not reachable for all descendents? (unless there are
+multiple paths)
+
+Never apply disguise to created guises
+
+
+\paragraph{Securing Archived Data}
+To ensure that only the disguised user can ever see their archive and revert the transformation, the disguising tool
+encrypts the archive with a key only known by the user, To not burden the user with the requirement to never
+forget their key, the disguising tool can secret-share the encryption key~\cite{secretsharing} among the
+user, the service, and a trusted third party (\eg the ACLU or EFF).
+
+\iffalse
 %-------------------------------------------------------------------------------
 \subsection{HotCRP Example Disguise}
 %-------------------------------------------------------------------------------
@@ -287,7 +345,7 @@ or transform the object attribute.
 
 If the attribute is a non-referencing, value attribute, the attribute transformation takes the
 object attribute value as input, and generates a new guise value (\eg hashing the value, generating
-random values, or setting the value to some default).  The guise attribute value depends at most on
+random values, or setting the value to some default).  The guise attribute value can depend only on
 the value of the object's attribute.
 
 If the attribute is a reference attribute, the attribute transformation \textbf{decorrelates} the 
@@ -381,8 +439,4 @@ Disguise application interleaves with normal query execution, resulting in event
 disguise application. This raises potential issues, since the underlying database may change during
 disguise application, and cause conflicting changes or non-terminating disguise application.
 
-\paragraph{Securing Archived Data}
-To ensure that only the disguised user can ever see their archive and revert the transformation, the disguising tool
-encrypts the archive with a key only known by the user, To not burden the user with the requirement to never
-forget their key, the disguising tool can secret-share the encryption key~\cite{secretsharing} among the
-user, the service, and a trusted third party (\eg the ACLU or EFF).
+\fi
