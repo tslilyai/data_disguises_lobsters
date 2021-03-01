@@ -6,13 +6,13 @@
 %-------------------------------------------------------------------------------
 
 Disguises move a target object along a spectrum from an ``revealed'' 'extreme, in which the target's
-identity and correlated data remain intact; to a ``dissolved'' extreme, in which objects reachable
-from the target are unreachable from any object in the graph. In a ``dissolved'' state, reachable
+identity and correlated data remain intact; to a ``split-up'' extreme, in which objects reachable
+from the target are unreachable from any object in the graph. In a split-up state, reachable
 objects have either been decorrelated from the target and the rest of the graph by breaking paths in
 the graph---or removed entirely.
 
 Subsequent disguises applied to the same target monotonically move the target further
-toward the ``dissolved'' end of the spectrum: application of a disguise can only 
+toward the split-up end of the spectrum: application of a disguise can only 
 remove or decorrelate reachable objects from the target that prior disguises had not
 rendered unreachable.
 %objects remain reachable, disguises morph objects
@@ -20,47 +20,32 @@ rendered unreachable.
 %-------------------------------------------------------------------------------
 \subsection{Disguise Specifications}
 %-------------------------------------------------------------------------------
-
 Disguise specifications determine how to handle every object reachable from the target (including
-the target object itself). An object that has a reference to another object is a \emph{child} of the
-referenced object. Reachable objects split into one or more guises, each of which is then correlated
-with some number of children of the object.  The object being split is removed from the graph:
+the target object itself). An \emph{referencer} object has a (\eg foreign key) reference to another
+object. Reachable objects split into one or more guises, each of which is then correlated with some
+number of referencers. The original object that has split is removed from the graph:
 future disguises to the same target will reach at most the object's guises.
 
-Splitting an object into multiple guises breaks paths to the object's children. 
-Children of one guise created in the split can never be modified by a future disguise that
+Splitting an object into multiple guises breaks paths between the object and its referencers. 
+Referencers of one guise created may not be modified by a future disguise that
 reaches another guise of the object. 
 
 If it is impossible to create guises for the object, then the object
-and its descendents are recursively removed. (Note that if we do not remove the children's
-descendents, these have to refer to \emph{something}; if we create guises for the children, then
+and its descendents are recursively removed. (Note that if we do not remove the referencer's
+descendents, these have to refer to \emph{something}; if we create guises for the referencers, then
 these guises have to refer to something, etc. etc.)
 
-To specify a disguise, the developer write declarative policies describing how to split objects that
-satisfy particular predicate conditions. Each policy includes the following:
+To specify a disguise, the developer writes a set of declarative policies. Each policy describes how
+to split objects that satisfy particular predicate conditions, and includes the following:
 \begin{enumerate}
     \item Object Type
-    \item Predicates: filters out which objects to modify, takes the object content as input
-    \item Morph Spec: how guises should be created from the original object
-    \item Split Spec: how children are reallocated between guises
-    \item (Optional) Shared-Morph Spec: how a guise referenced by many children should be created
+    \item Predicates: filters out which objects to modify, takes object content as input
+    \item Split Spec: how referencers are reallocated between guises
+    \item Unique-Guise Spec: how to create a guise that has a unique referencer
+    \item Shared-Guise Spec: how to create a guise that ends up with many referencers 
 \end{enumerate}
 
-For example, to specify that all user objects that are not the target user should retain all correlations to
-their children, but be anonymized, the predicate would be \texttt{user.username !=
-target\_user.username}.
-The split specification specifies that all papers/reviews/etc. that refer to a user should be
-associated with a single user guise; and the morph specification changes the username of the user to
-``anonymous.''
-
-To specify that user objects equal to the target user should decorrelate all children and leave no
-trace of the target user profile, the predicate would be \texttt{user.username ==
-target\_user.username}.
-The split specification specifies that each papers/reviews/etc. that refer to a user should be
-associated with a unique user guise; and the morph specification changes all fields of the user to
-some default, which is used to generate all guises.
-
-\paragraph{Morph Specification}
+\paragraph{Guise Specifications}
 In the following, we assume that objects have identifier attributes (\eg \texttt{id} in
 Figure~\ref{fig:guises}); and some attributes are reference attributes that form edges in the graph
 to referred objects (\eg \texttt{tag\_id} is a foreign key constraint to tag objects).
@@ -75,17 +60,55 @@ input, and generates a new guise value (\eg hashing the value, generating random
 the value to some default).  The guise attribute value depends at most on the value of the object's
 attribute.
 
+The developer writes a guise specification both to create unique guises that are referenced by a single
+referencer, and guises that are shared by many referencers.
+
 \paragraph{Split Specification}
-The split specification determines, for every type of child object, whether children of that type
-should reference a shared guise, or whether each child should reference a unique guise.  Only one
-guise will ever be shared: if the spec describes a shared-guise policy for multiple types of
-children, each child object of any of these types will reference the same guise.
+The split specification determines, for every type of referencer object, whether referencers of that
+type should either (1) be removed (along with its descendents), (2) reference a unique guise and be
+the only object with a reference to that guise, or (3) reference a shared guise. 
 
-Every child that should reference a unique guise will be the only object with a reference to that guise.
+A split specification includes a set of split policies. Each policy specifies the referencer object
+type, a set of predicates to choose the  applicable objects, and a choice to either remove these
+objects, or split these objects to reference a unique guise or a shared guise.
+There can be more than one policy for a referencer object type: for example, perhaps only
+referencer papers over two years old should be removed, while the other papers should be split off
+to reference a unique guise.
 
-If a guise is to be shared, the policy can include a shared-morph specification specifically to
-create the shared guise; otherwise, it, like all other guises, will be created using the policy's
-general morph specification.
+If any referencers do not fall under any specific split policy in the split specification, they will
+all reference a ``global'' shared guise; multiple types of referencers may thus share references to
+this global guise.
+
+Split policies are applied with the following precedence:
+\begin{enumerate}
+    \item Objects are removed
+    \item Objects are split off with a unique guise reference
+    \item Objects are grouped by shared guise reference, and split off by group
+    \item Objects are assigned to a shared global guise
+\end{enumerate}
+
+\begin{figure*}
+\begin{align*}
+    &\text{value types} &\tau:=  &~ int \mid bool \mid \dots \\
+    &\text{object types }&o :=  &~ [\mathtt{attrs}: \{\tau\},~\mathtt{references}:
+    \{o\},~\mathtt{referencers}: \{o\}]\\
+    &\text{predicates of $o$} &p_o ::= &~ o \to bool \mid p_1 \wedge p_2 \mid p_1 \vee p_2\\
+    &\text{split policy for $o$} &s_o ::= &~ 
+        \mathtt{Remove}(p_o) 
+        \mid \mathtt{ReferenceUniqueGuise}(p_o)
+        \mid \mathtt{ReferenceSharedGuise}(p_o)\\
+    &\text{split spec for $o$} & split_o ::= &~ \{(o', s_{o'}) \mid o' \in o.\mathtt{referencers}\}\\
+    &\text{guise spec for $o$} &guise_o ::= &~ \{\tau \to \tau \mid \tau \in o.\mathtt{attrs}\} \\
+    &\text{policy for $o$} &pol_o ::=  &~ 
+        [\mathtt{objtype}: o,~
+        \mathtt{preds}: p_o,~
+        \mathtt{split\_spec}: split_o,~
+        \mathtt{guise\_specs}: (guise_o, guise_o)]\\
+    &\text{disguise} &disguise :=  &~ \{pol_o\}\\
+\end{align*}
+    \caption{Disguise Type Definitions}
+    \label{fig:types}
+\end{figure*}
 
 %-------------------------------------------------------------------------------
 \subsection{Disguising Tool Implementation}
@@ -106,6 +129,11 @@ encrypts the archive with a key only known by the user, To not burden the user w
 forget their key, the disguising tool can secret-share the encryption key~\cite{secretsharing} among the
 user, the service, and a trusted third party (\eg the ACLU or EFF).
 
+\input{hotcrp_example}
+
+\input{lobsters_example}
+
+
 \iffalse
 %-------------------------------------------------------------------------------
 \subsection{HotCRP Example Disguise}
@@ -123,7 +151,7 @@ user, the service, and a trusted third party (\eg the ACLU or EFF).
     Papers 
         & reference Bob's account %(Bob is lead contact or shepherd)
         & reassociate with anonymous users & X\\
-    Capabilities & reference Bob's account & reassociate w/any created anonymous users & X \\
+    Capabilities & reference Bob's account & remove & X \\
     PaperConflicts & reference Bob's account & remove & X \\
     ReviewPreferences & reference Bob's account & remove &  X \\
     TopicInterests & reference Bob's account & remove &  X \\
