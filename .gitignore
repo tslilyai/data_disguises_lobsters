@@ -13,6 +13,7 @@ log_*
 *.fdb_latexmk
 *.bbl
 *.bcf
+*.vi
 *.xml
 papers/osdi21/paper.pdf
 papers/hotos21/paper.pdf

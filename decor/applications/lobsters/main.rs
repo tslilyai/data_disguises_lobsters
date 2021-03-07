@@ -238,7 +238,7 @@ fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, pri
     let mut nunsub = 0;
     let mut nresub = 0;
     let mut file = File::create(format!("{}.out", testname)).unwrap();
-    let max_id = decor::ghosts::GHOST_ID_START as u32;
+    let max_id = decor::guises::GHOST_ID_START as u32;
     let start = time::Instant::now();
     for i in 0..nqueries {
         // XXX: we're assuming that basically all page views happen as a user, and that the users

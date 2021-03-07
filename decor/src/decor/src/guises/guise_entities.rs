@@ -9,58 +9,58 @@ use std::sync::atomic::{Ordering, AtomicU64};
 use crate::{helpers, ID_COL};
 use crate::views::{Views};
 use crate::types::{RowPtrs, RowPtr, ObjectIdentifier};
-use crate::policy::{GhostColumnPolicy, GeneratePolicy, ObjectGhostPolicies};
+use crate::policy::{GuiseColumnPolicy, GeneratePolicy, ObjectGuisePolicies};
 
 pub const GHOST_ID_START : u64 = 1<<20;
 pub const GHOST_ID_MAX: u64 = 1<<30;
 static LAST_GID: AtomicU64 = AtomicU64::new(GHOST_ID_START);
 
 /* 
- * a single table's ghosts and their rptrs
+ * a single table's guises and their rptrs
  */
 #[derive(Debug, Clone)]
-pub struct TableGhostEntities {
+pub struct TableGuiseEntities {
     pub table: String, 
     pub gids: Vec<u64>,
     pub rptrs: RowPtrs,
 }
 
 /* 
- * a root ghost and the descendant ghosts 
+ * a root guise and the descendant guises 
  */
 #[derive(Debug, Clone)]
-pub struct GhostFamily {
+pub struct GuiseFamily {
     pub root_table: String,
     pub root_gid: u64,
-    pub family_members: Vec<TableGhostEntities>,
+    pub family_members: Vec<TableGuiseEntities>,
 }
-impl GhostFamily {
-    pub fn ghost_family_to_db_string(&self, oid: u64) -> String {
-        let mut ghost_names : Vec<(String, u64)> = vec![];
-        for tableghosts in &self.family_members{
-            for gid in &tableghosts.gids {
-                ghost_names.push((tableghosts.table.to_string(), *gid));
+impl GuiseFamily {
+    pub fn guise_family_to_db_string(&self, oid: u64) -> String {
+        let mut guise_names : Vec<(String, u64)> = vec![];
+        for tableguises in &self.family_members{
+            for gid in &tableguises.gids {
+                guise_names.push((tableguises.table.to_string(), *gid));
             }
         }
-        let ghostdata = serde_json::to_string(&ghost_names).unwrap();
-        warn!("Ghostdata serialized is {}", ghostdata);
-        let ghostdata = helpers::escape_quotes_mysql(&ghostdata);
-        format!("({}, {}, '{}')", self.root_gid, oid, ghostdata)
+        let guisedata = serde_json::to_string(&guise_names).unwrap();
+        warn!("Guisedata serialized is {}", guisedata);
+        let guisedata = helpers::escape_quotes_mysql(&guisedata);
+        format!("({}, {}, '{}')", self.root_gid, oid, guisedata)
     }
 }
 
 /*
- * A variant of oid -> family of ghosts to store on-disk or serialize (no row pointers!)
+ * A variant of oid -> family of guises to store on-disk or serialize (no row pointers!)
  */
 #[derive(Serialize, Deserialize, PartialOrd, Ord, PartialEq, Eq, Clone, Debug)]
-pub struct GhostOidMapping {
+pub struct GuiseOidMapping {
     pub name: ObjectIdentifier,
     pub root_gids: Vec<u64>,
-    pub ghosts: Vec<(String, u64)>,
+    pub guises: Vec<(String, u64)>,
 }
 
 /* 
- * a base true object upon which to generate ghosts
+ * a base true object upon which to generate guises
  */
 pub struct TemplateObject {
     pub name: ObjectIdentifier,
@@ -68,16 +68,16 @@ pub struct TemplateObject {
     pub fixed_colvals: Option<Vec<(usize, Value)>>,
 }
 
-pub fn is_ghost_oid(gid: u64) -> bool {
+pub fn is_guise_oid(gid: u64) -> bool {
     gid >= GHOST_ID_START
 }
 
-pub fn is_ghost_oidval(val: &Value) -> bool {
+pub fn is_guise_oidval(val: &Value) -> bool {
     let gid = helpers::parser_val_to_u64(val);
     gid >= GHOST_ID_START
 }
 
-fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {
+fn generate_new_guise_gids(needed: usize) -> Vec<Value> {
     let mut gids = vec![];
     let first_gid = LAST_GID.fetch_add(needed as u64, Ordering::SeqCst);
     for n in 0..needed {
@@ -86,23 +86,23 @@ fn generate_new_ghost_gids(needed: usize) -> Vec<Value> {
     gids
 }
 
-pub fn generate_new_ghosts_from(
+pub fn generate_new_guises_from(
     views: &Views,
-    ghost_policies: &ObjectGhostPolicies,
+    guise_policies: &ObjectGuisePolicies,
     template: &TemplateObject, 
-    num_ghosts: usize,
-) -> Result<Vec<TableGhostEntities>, mysql::Error>
+    num_guises: usize,
+) -> Result<Vec<TableGuiseEntities>, mysql::Error>
 {
-    use GhostColumnPolicy::*;
+    use GuiseColumnPolicy::*;
     let start = time::Instant::now();
-    let mut new_entities : Vec<TableGhostEntities> = vec![];
+    let mut new_entities : Vec<TableGuiseEntities> = vec![];
     let from_cols = views.get_view_columns(&template.name.table);
-    let gids = generate_new_ghost_gids(num_ghosts);
+    let gids = generate_new_guise_gids(num_guises);
 
     // NOTE : generating entities with foreign keys must also have ways to 
     // generate foreign key object or this will panic
-    // If no ghost generation policy is specified, we clone all
-    let policies : Vec<&GhostColumnPolicy> = match ghost_policies.get(&template.name.table) {
+    // If no guise generation policy is specified, we clone all
+    let policies : Vec<&GuiseColumnPolicy> = match guise_policies.get(&template.name.table) {
         Some(gp) => from_cols.iter().map(|col| match gp.get(&col.to_string()) {
             Some(pol) => pol,
             None => &CloneAll,
@@ -151,18 +151,18 @@ pub fn generate_new_ghosts_from(
                 // clone the value for the first row
                 new_vals[0].borrow_mut()[i] = template.row.borrow()[i].clone();
                 for n in 1..num_entities {
-                    new_vals[n].borrow_mut()[i] = get_generated_val(views, ghost_policies, &gen, clone_val, &mut new_entities)?;
+                    new_vals[n].borrow_mut()[i] = get_generated_val(views, guise_policies, &gen, clone_val, &mut new_entities)?;
                 }
             }
             Generate(gen) => {
                 for n in 0..num_entities {
-                    new_vals[n].borrow_mut()[i] = get_generated_val(views, ghost_policies, &gen, clone_val, &mut new_entities)?;
+                    new_vals[n].borrow_mut()[i] = get_generated_val(views, guise_policies, &gen, clone_val, &mut new_entities)?;
                 }
             }
         }
     }
 
-    new_entities.push(TableGhostEntities{
+    new_entities.push(TableGuiseEntities{
         table: template.name.table.to_string(), 
         gids: gids.iter().map(|gval| helpers::parser_val_to_u64(&gval)).collect(),
         rptrs: new_vals,
@@ -175,18 +175,18 @@ pub fn generate_new_ghosts_from(
 
 pub fn generate_foreign_key_val(
     views: &Views,
-    ghost_policies: &ObjectGhostPolicies,
+    guise_policies: &ObjectGuisePolicies,
     table_name: &str,
     template_oid: u64,
-    new_entities: &mut Vec<TableGhostEntities>)
+    new_entities: &mut Vec<TableGuiseEntities>)
     -> Result<Value, mysql::Error> 
 {
     // assumes there is at least one value here...
     let parent_table_row = views.get_row_of_id(table_name, template_oid);
 
     warn!("GHOSTS: Generating foreign key object for {} {:?}", table_name, parent_table_row);
-    let mut ghost_parent_fam = generate_new_ghosts_from(
-        views, ghost_policies,
+    let mut guise_parent_fam = generate_new_guises_from(
+        views, guise_policies,
         &TemplateObject{
             name: ObjectIdentifier {
                 table: table_name.to_string(),
@@ -195,17 +195,17 @@ pub fn generate_foreign_key_val(
             row: parent_table_row,
             fixed_colvals: None,
         }, 1)?;
-    let gidval = Value::Number(ghost_parent_fam[0].gids[0].to_string());
-    new_entities.append(&mut ghost_parent_fam);
+    let gidval = Value::Number(guise_parent_fam[0].gids[0].to_string());
+    new_entities.append(&mut guise_parent_fam);
     Ok(gidval)
 }
 
 pub fn get_generated_val(
     views: &Views,
-    ghost_policies: &ObjectGhostPolicies,
+    guise_policies: &ObjectGuisePolicies,
     gen: &GeneratePolicy, 
     base_val: &Value,
-    new_entities: &mut Vec<TableGhostEntities>,
+    new_entities: &mut Vec<TableGuiseEntities>,
 ) -> Result<Value, mysql::Error> {
     use GeneratePolicy::*;
     match gen {
@@ -213,7 +213,7 @@ pub fn get_generated_val(
         Default(val) => Ok(helpers::get_default_parser_val_with(&base_val, &val)),
         Custom(f) => Ok(helpers::get_computed_parser_val_with(&base_val, &f)),
         ForeignKey(table_name) => generate_foreign_key_val(
-            views, ghost_policies, 
+            views, guise_policies, 
             table_name, helpers::parser_val_to_u64(base_val),
             new_entities),
     }

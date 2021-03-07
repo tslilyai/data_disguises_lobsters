@@ -11,13 +11,13 @@ pub enum GeneratePolicy {
     Custom(Box<dyn Fn(&str) -> String>), // column value -> column value
     ForeignKey(ObjectName),
 }
-pub enum GhostColumnPolicy {
+pub enum GuiseColumnPolicy {
     CloneAll,
     CloneOne(GeneratePolicy),
     Generate(GeneratePolicy),
 }
-pub type ObjectGhostPolicy = HashMap<ColumnName, GhostColumnPolicy>;
-pub type ObjectGhostPolicies = HashMap<ObjectName, Rc<ObjectGhostPolicy>>;
+pub type ObjectGuisePolicy = HashMap<ColumnName, GuiseColumnPolicy>;
+pub type ObjectGuisePolicies = HashMap<ObjectName, Rc<ObjectGuisePolicy>>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum EdgePolicyType {
@@ -35,8 +35,8 @@ pub struct EdgePolicy {
 
 pub struct MaskPolicy {
     pub unsub_object_type: ObjectName,
-    pub pc_ghost_policies: ObjectGhostPolicies, 
-    pub cp_ghost_policies: ObjectGhostPolicies, 
+    pub pc_guise_policies: ObjectGuisePolicies, 
+    pub cp_guise_policies: ObjectGuisePolicies, 
     // child to parent edges
     pub edge_policies: HashMap<ObjectName, Rc<Vec<EdgePolicy>>>,
 }

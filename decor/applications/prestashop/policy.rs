@@ -1,16 +1,16 @@
-use decor::policy::{GeneratePolicy, GhostColumnPolicy, EntityGhostPolicies, KeyRelationship, ApplicationPolicy};
+use decor::policy::{GeneratePolicy, GuiseColumnPolicy, EntityGuisePolicies, KeyRelationship, ApplicationPolicy};
 use std::collections::HashMap;
 
-fn get_ghost_policies() -> EntityGhostPolicies {
-    let mut ghost_policies : EntityGhostPolicies = HashMap::new();
-    ghost_policies 
+fn get_guise_policies() -> EntityGuisePolicies {
+    let mut guise_policies : EntityGuisePolicies = HashMap::new();
+    guise_policies 
 }
 
 fn get_prestashop_policy() -> ApplicationPolicy {
     use decor::policy::DecorrelationPolicy::*;
     ApplicationPolicy{
         entity_type_to_decorrelate: "customer".to_string(), 
-        ghost_policies : get_ghost_policies(), 
+        guise_policies : get_guise_policies(), 
         edge_policies : vec![
             KeyRelationship{
                 child: "accessory".to_string(),

@@ -5,10 +5,10 @@ use std::collections::{HashMap, HashSet};
 use std::*;
 use log::{warn};
 use msql_srv::{QueryResultWriter};
-use crate::{helpers, ghosts::GhostOidMapping, types::{ObjectData}}; 
+use crate::{helpers, guises::GuiseOidMapping, types::{ObjectData}}; 
 
 const OID_COL: &'static str = "object_id";
-const GM_HASH_COL: &'static str = "ghost_mappings";
+const GM_HASH_COL: &'static str = "guise_mappings";
 const OD_HASH_COL: &'static str = "object_data";
 const UNSUB_TABLE_NAME: &'static str = "unsubscribed";
 
@@ -60,7 +60,7 @@ pub fn answer_rows<W: io::Write>(
     let cols : Vec<_> = vec![
         msql_srv::Column {
             table : "".to_string(),
-            column : "ghosts".to_string(),
+            column : "guises".to_string(),
             coltype: msql_srv::ColumnType::MYSQL_TYPE_VARCHAR,
             colflags: msql_srv::ColumnFlags::empty(),
         },
@@ -100,13 +100,13 @@ impl Subscriber {
     pub fn record_unsubbed_user_and_return_results<W: io::Write>(&mut self,
         writer: QueryResultWriter<W>,
         oid: u64,
-        ghost_oid_mappings: &mut Vec<GhostOidMapping>,
+        guise_oid_mappings: &mut Vec<GuiseOidMapping>,
         object_data: &mut HashSet<ObjectData>,
         db: &mut mysql::Conn,
     ) -> Result<(), mysql::Error> {
         // cache the hash of the gids we are returning
-        ghost_oid_mappings.sort();
-        let serialized1 = serde_json::to_string(&ghost_oid_mappings).unwrap();
+        guise_oid_mappings.sort();
+        let serialized1 = serde_json::to_string(&guise_oid_mappings).unwrap();
         self.hasher.input_str(&serialized1);
         let result1 = self.hasher.result_str();
         warn!("Hashing {}, got {}", serialized1, result1);
@@ -129,14 +129,14 @@ impl Subscriber {
 
     pub fn check_and_sort_resubscribed_data(&mut self,
         oid: u64,
-        ghost_oid_mappings: &mut Vec<GhostOidMapping>,
+        guise_oid_mappings: &mut Vec<GuiseOidMapping>,
         object_data: &mut Vec<ObjectData>,
         db: &mut mysql::Conn,
     ) -> Result<(), mysql::Error> {
         match self.unsubscribed.get(&oid) {
             Some((gidshash, datahash)) => {
-                ghost_oid_mappings.sort();
-                let serialized = serde_json::to_string(&ghost_oid_mappings).unwrap();
+                guise_oid_mappings.sort();
+                let serialized = serde_json::to_string(&guise_oid_mappings).unwrap();
                 self.hasher.input_str(&serialized);
                 let hashed = self.hasher.result_str();
                 if *gidshash != hashed {

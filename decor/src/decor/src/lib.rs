@@ -10,7 +10,7 @@ use std::*;
 use sql_parser::ast::*;
 use log::{warn};
 
-pub mod ghosts;
+pub mod guises;
 pub mod graph;
 pub mod helpers;
 pub mod policy;
@@ -147,7 +147,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     type Error = mysql::Error;
 
     /* 
-     * Set all user_ids in the MV to ghost ids, insert ghost users into usersMV
+     * Set all user_ids in the MV to guise ids, insert guise users into usersMV
      * TODO actually delete entries? 
      */
     fn on_unsubscribe(&mut self, uid: u64, w: QueryResultWriter<W>) -> Result<(), mysql::Error> {
@@ -159,7 +159,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
     }
 
     /* 
-     * Set all user_ids in the ghosts table to specified user 
+     * Set all user_ids in the guises table to specified user 
      * refresh "materialized views"
      * TODO add back deleted content from shard
      * TODO check that user doesn't already exist

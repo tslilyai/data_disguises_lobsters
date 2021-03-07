@@ -278,12 +278,12 @@ pub fn expr_to_col(e: &Expr) -> (String, String) {
     }
 }
 
-pub fn expr_to_ghost_parent_key(expr:&Expr, ghosted_cols : &Vec<(String, String)>) -> Option<(String, String)> {
+pub fn expr_to_guise_parent_key(expr:&Expr, guiseed_cols : &Vec<(String, String)>) -> Option<(String, String)> {
     match expr {
         Expr::Identifier(ids) => {
             let col = ids[ids.len()-1].to_string();
-            if let Some(i) = ghosted_cols.iter().position(|(gc, _pc)| *gc == col) {
-                Some(ghosted_cols[i].clone())
+            if let Some(i) = guiseed_cols.iter().position(|(gc, _pc)| *gc == col) {
+                Some(guiseed_cols[i].clone())
             } else {
                 None
             }

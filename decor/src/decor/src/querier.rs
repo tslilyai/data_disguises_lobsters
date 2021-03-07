@@ -11,7 +11,7 @@ use log::{warn};
 use crate::{policy, helpers, subscriber, query_simplifier, ID_COL};
 use crate::types::*;
 use crate::views::*;
-use crate::ghosts::*;
+use crate::guises::*;
 use crate::policy::EdgePolicyType::{Delete, Retain, Decorrelate};
 use crate::graph::*;
 
@@ -249,20 +249,20 @@ impl Querier {
         Ok(())
     }
 
-    pub fn insert_ghosts_for_template(&mut self, 
+    pub fn insert_guises_for_template(&mut self, 
         template: &TemplateObject,
         is_pc: bool,
-        num_ghosts: usize,
+        num_guises: usize,
         db: &mut mysql::Conn) 
-        -> Result<GhostOidMapping, mysql::Error> 
+        -> Result<GuiseOidMapping, mysql::Error> 
     {
         let start = time::Instant::now();
         let new_entities = match is_pc {
-            true => generate_new_ghosts_from(&self.views, &self.policy.pc_ghost_policies, template, num_ghosts)?,
-            false => generate_new_ghosts_from(&self.views, &self.policy.cp_ghost_policies, template, num_ghosts)?,
+            true => generate_new_guises_from(&self.views, &self.policy.pc_guise_policies, template, num_guises)?,
+            false => generate_new_guises_from(&self.views, &self.policy.cp_guise_policies, template, num_guises)?,
         };
 
-        let mut ghost_names = vec![];
+        let mut guise_names = vec![];
         let mut root_gids = vec![];
    
         for table_entities in new_entities {
@@ -288,7 +288,7 @@ impl Querier {
                 columns : self.views.get_view_columns(&table_entities.table),
                 source : source, 
             });
-            warn!("insert_ghosts_for_template: {} dur {}", dt_stmt, start.elapsed().as_micros());
+            warn!("insert_guises_for_template: {} dur {}", dt_stmt, start.elapsed().as_micros());
             db.query_drop(dt_stmt.to_string())?;
             self.cur_stat.nqueries+=1;
         
@@ -298,16 +298,16 @@ impl Querier {
                 if table_entities.table == template.name.table {
                     root_gids.push(gid);
                 }
-                ghost_names.push((table_entities.table.clone(), gid));
+                guise_names.push((table_entities.table.clone(), gid));
             }
         }
 
-        let gem = GhostOidMapping{
+        let gem = GuiseOidMapping{
             name: template.name.clone(),
             root_gids: root_gids.clone(),
-            ghosts: ghost_names,
+            guises: guise_names,
         };
-        warn!("insert_ghost_for_oid {:?}, {:?}: {}us", template.name, root_gids, start.elapsed().as_micros());
+        warn!("insert_guise_for_oid {:?}, {:?}: {}us", template.name, root_gids, start.elapsed().as_micros());
         Ok(gem)
     }
 
@@ -319,13 +319,13 @@ impl Querier {
         warn!("UNSUB: Unsubscribing uid {}", uid);
 
         // table name of object, oid, gids for oid
-        let mut ghost_oid_mappings : Vec<GhostOidMapping> = vec![];
+        let mut guise_oid_mappings : Vec<GuiseOidMapping> = vec![];
 
         // all entities to be replaced or removed, as they existed prior to unsubscription
         let mut nodes_to_remove : HashSet<ObjectData> = HashSet::new();
        
-        // all entities to be replaced by ghosted versions
-        let mut nodes_to_ghost : HashSet<TraversedObject> = HashSet::new();
+        // all entities to be replaced by guiseed versions
+        let mut nodes_to_guise : HashSet<TraversedObject> = HashSet::new();
 
         // track all parent-children edges, may have repeat children
         let mut traversed_entities: HashSet<TraversedObject> = HashSet::new();
@@ -374,8 +374,8 @@ impl Querier {
             let children : ObjectTypeRows;
             match self.views.graph.get_children_of_parent(&node.name) {
                 None => {
-                    // this is a leaf node, we want to ghost it 
-                    nodes_to_ghost.insert(node);
+                    // this is a leaf node, we want to guise it 
+                    nodes_to_guise.insert(node);
                     continue;
                 }
                 Some(cs) => children = cs.clone(),
@@ -418,11 +418,11 @@ impl Querier {
                                 assert!(f < 1.0); 
                                 children_to_decorrelate.push(child.clone());
 
-                                // if child hasn't been seen and hasn't been ghosted, traverse
-                                // child would only be ghosted if it itself had children that had
-                                // to be decorrelated---if it's a ghost, this means that a prior
+                                // if child hasn't been seen and hasn't been guiseed, traverse
+                                // child would only be guiseed if it itself had children that had
+                                // to be decorrelated---if it's a guise, this means that a prior
                                 // unsubscription already took care of it!
-                                if traversed_entities.get(&child).is_none() && !is_ghost_oid(child.name.oid) {
+                                if traversed_entities.get(&child).is_none() && !is_guise_oid(child.name.oid) {
                                     warn!("Adding traversed child {:?}", child.name);
                                     nodes_to_remove.insert(child_nodedata.clone());
                                     children_to_traverse.push(child);
@@ -440,7 +440,7 @@ impl Querier {
                                 children_to_retain.push(child.clone());
 
                                 // if child hasn't been seen yet, traverse
-                                if traversed_entities.get(&child).is_none() && !is_ghost_oid(child.name.oid) {
+                                if traversed_entities.get(&child).is_none() && !is_guise_oid(child.name.oid) {
                                     warn!("Adding traversed child {:?}", child.name);
                                     nodes_to_remove.insert(child_nodedata.clone());
                                     children_to_traverse.push(child);
@@ -451,18 +451,18 @@ impl Querier {
                 }
             }
 
-            // create and rewrite ghosts for all children that need to be decorrelated
-            // create all these ghosts at once
+            // create and rewrite guises for all children that need to be decorrelated
+            // create all these guises at once
             if !children_to_decorrelate.is_empty() {
-                let gem = self.insert_ghosts_for_template(
+                let gem = self.insert_guises_for_template(
                     &TemplateObject {
                         name: node.name.clone(),
                         row: node.hrptr.row().clone(), 
                         fixed_colvals: None,
                     }, true, children_to_decorrelate.len(), db)?;
-                // generate all ghost parents
+                // generate all guise parents
                 let gids = gem.root_gids.clone();
-                ghost_oid_mappings.push(gem); 
+                guise_oid_mappings.push(gem); 
 
                 let mut gid_index = 0;
                 for child in &children_to_decorrelate {
@@ -471,7 +471,7 @@ impl Querier {
                     gid_index += 1;
                 }
 
-                // any retained children now point to the first generated ghost
+                // any retained children now point to the first generated guise
                 // this means that retained edges will point to the clone if there is a CloneOne
                 // policy
                 for child in &children_to_retain {
@@ -480,8 +480,8 @@ impl Querier {
                 
             } else {
 
-                // replace this node with a ghost node because we haven't yet in decorrelation
-                nodes_to_ghost.insert(node.clone());
+                // replace this node with a guise node because we haven't yet in decorrelation
+                nodes_to_guise.insert(node.clone());
 
             }
             warn!("UNSUB {} STEP 1: Duration to traverse+decorrelate {:?}: {} us", 
@@ -491,27 +491,27 @@ impl Querier {
         /* 
          * Step 2: Child->Parent Decorrelation. 
          * For all edges to the parent object that need to reach a particular sensitivity
-         * threshold, decorrelate or remove the children; if retained, ghost the parent. 
+         * threshold, decorrelate or remove the children; if retained, guise the parent. 
          */
         self.unsubscribe_child_parent_edges(
             &traversed_entities, 
-            &mut ghost_oid_mappings, 
+            &mut guise_oid_mappings, 
             &mut nodes_to_remove, 
             db,
         )?;
 
         /*
-         * Step 3: Change intermediate and leaf entities to ghosts 
+         * Step 3: Change intermediate and leaf entities to guises 
          *  TODO optimize policies where all values are cloned
          */
-        for object in nodes_to_ghost {
-            // this was already ghosted in a prior unsubscription
-            if is_ghost_oid(object.name.oid) {
+        for object in nodes_to_guise {
+            // this was already guiseed in a prior unsubscription
+            if is_guise_oid(object.name.oid) {
                 continue;
             }
-            warn!("UNSUB {} STEP 3: Changing {:?} to ghost", uid, object);
-            // create ghost for this object
-            let gem = self.insert_ghosts_for_template(
+            warn!("UNSUB {} STEP 3: Changing {:?} to guise", uid, object);
+            // create guise for this object
+            let gem = self.insert_guises_for_template(
                 &TemplateObject {
                     name: object.name.clone(),
                     row: object.hrptr.row().clone(), 
@@ -519,9 +519,9 @@ impl Querier {
                 }, object.from_pc_edge, 1, db)?;
             
             let gids = gem.root_gids.clone();
-            ghost_oid_mappings.push(gem);
+            guise_oid_mappings.push(gem);
            
-            // update children to point to the new ghost
+            // update children to point to the new guise
             if let Some(children) = self.views.graph.get_children_of_parent(&object.name) {
                 warn!("Found children {:?} of {:?}", children, object);
                 for (child_fk, child_hrptrs) in children.clone().iter() {
@@ -545,12 +545,12 @@ impl Querier {
         /*
          * Step 5: Return data to user
          */
-        self.subscriber.record_unsubbed_user_and_return_results(writer, uid, &mut ghost_oid_mappings, &mut nodes_to_remove, db)
+        self.subscriber.record_unsubbed_user_and_return_results(writer, uid, &mut guise_oid_mappings, &mut nodes_to_remove, db)
     }
 
     pub fn unsubscribe_child_parent_edges(&mut self, 
         children: &HashSet<TraversedObject>, 
-        ghost_oid_mappings: &mut Vec<GhostOidMapping>,
+        guise_oid_mappings: &mut Vec<GuiseOidMapping>,
         nodes_to_remove: &mut HashSet<ObjectData>,
         db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
@@ -609,7 +609,7 @@ impl Querier {
                     Retain => sensitivity = 1.0,
                 }
 
-                // if we're retaining all edges, we don't do anything (we don't ghost parents in
+                // if we're retaining all edges, we don't do anything (we don't guise parents in
                 // the child->parent direction)
                 if sensitivity == 1.0 {
                     continue;
@@ -644,7 +644,7 @@ impl Querier {
                 
                         match policy.cp_policy {
                             Decorrelate(f) => { 
-                                // generate all ghost parents
+                                // generate all guise parents
                                 assert!(f < 1.0); 
                                
                                 /* 
@@ -655,13 +655,13 @@ impl Querier {
                                  * child object SEPARATELY, rather than having to do all children
                                  * together, as we do in the PC direction 
                                  *
-                                 * NOTE 2: this means that we generate an extra ghost because
+                                 * NOTE 2: this means that we generate an extra guise because
                                  * CloneOne policies no longer make a difference here
                                  */
-                                let number_of_ghosts = (number_to_desensitize+1) as usize;
+                                let number_of_guises = (number_to_desensitize+1) as usize;
                                                
-                                // create all these ghosts at once
-                                let gem = self.insert_ghosts_for_template(
+                                // create all these guises at once
+                                let gem = self.insert_guises_for_template(
                                     &TemplateObject {
                                         name: ObjectIdentifier {
                                             table: policy.parent.clone(),
@@ -669,10 +669,10 @@ impl Querier {
                                         },
                                         row: parent_rptr.clone(), 
                                         fixed_colvals: None,
-                                    }, false, number_of_ghosts, db)?;
+                                    }, false, number_of_guises, db)?;
                                
                                 let gids = gem.root_gids.clone();
-                                ghost_oid_mappings.push(gem); 
+                                guise_oid_mappings.push(gem); 
 
                                 let mut gid_index = 1;
                                 for child in &sensitive_children[0..number_to_desensitize as usize] {
@@ -770,18 +770,18 @@ impl Querier {
      ****************** RESUBSCRIPTION *********************
      *******************************************************/
     /* 
-     * Set all user_ids in the ghosts table to specified user 
+     * Set all user_ids in the guises table to specified user 
      * Refresh "materialized views"
      * TODO add back deleted content from shard
      */
-    pub fn resubscribe(&mut self, uid: u64, ghost_oid_mappings: &Vec<GhostOidMapping>, object_data: &Vec<ObjectData>, db: &mut mysql::Conn) -> 
+    pub fn resubscribe(&mut self, uid: u64, guise_oid_mappings: &Vec<GuiseOidMapping>, object_data: &Vec<ObjectData>, db: &mut mysql::Conn) -> 
         Result<(), mysql::Error> {
         // TODO check auth token?
          warn!("Resubscribing uid {}", uid);
       
-        let mut ghost_oid_mappings = ghost_oid_mappings.clone();
+        let mut guise_oid_mappings = guise_oid_mappings.clone();
         let mut object_data = object_data.clone();
-        self.subscriber.check_and_sort_resubscribed_data(uid, &mut ghost_oid_mappings, &mut object_data, db)?;
+        self.subscriber.check_and_sort_resubscribed_data(uid, &mut guise_oid_mappings, &mut object_data, db)?;
 
         /*
          * Add resubscribing data to data tables + MVs 
@@ -804,23 +804,23 @@ impl Querier {
         self.reinsert_entities(&curtable, &curvals, db)?;
 
         // parse gids into table oids -> set of gids
-        let mut name = ghost_oid_mappings[0].name.clone();
-        let mut root_gids = ghost_oid_mappings[0].root_gids.clone();
-        let mut ghosts : Vec<Vec<(String, u64)>> = vec![];
-        for mapping in ghost_oid_mappings {
+        let mut name = guise_oid_mappings[0].name.clone();
+        let mut root_gids = guise_oid_mappings[0].root_gids.clone();
+        let mut guises : Vec<Vec<(String, u64)>> = vec![];
+        for mapping in guise_oid_mappings {
             // do all the work for this oid at once!
             if !(name == mapping.name) {
-                self.replace_ghosts(&name.table, name.oid, root_gids, &ghosts, db)?;
+                self.replace_guises(&name.table, name.oid, root_gids, &guises, db)?;
 
                 // reset 
                 root_gids = mapping.root_gids.clone();
                 name = mapping.name .clone();
-                ghosts = vec![mapping.ghosts.clone()];
+                guises = vec![mapping.guises.clone()];
             } else {
-                ghosts.push(mapping.ghosts.clone());
+                guises.push(mapping.guises.clone());
             }
         }
-        self.replace_ghosts(&name.table, name.oid, root_gids, &ghosts, db)?;
+        self.replace_guises(&name.table, name.oid, root_gids, &guises, db)?;
 
         Ok(())
     }
@@ -865,13 +865,13 @@ impl Querier {
     }
  
 
-    fn replace_ghosts(&mut self, curtable: &str, oid: u64, root_gids: Vec<u64>, ghosts: &Vec<Vec<(String, u64)>>, db: &mut mysql::Conn) -> Result<(), mysql::Error> 
+    fn replace_guises(&mut self, curtable: &str, oid: u64, root_gids: Vec<u64>, guises: &Vec<Vec<(String, u64)>>, db: &mut mysql::Conn) -> Result<(), mysql::Error> 
     {
         let start = time::Instant::now();
         
-        // maps from tables to the gid/rptrs of ghost entities from that table
+        // maps from tables to the gid/rptrs of guise entities from that table
         let mut table_to_gid_rptrs: HashMap<String, Vec<(u64, RowPtr)>> = HashMap::new();
-        for ancestor_group in ghosts {
+        for ancestor_group in guises {
             for (ancestor_table, ancestor_gid) in ancestor_group {
                 // get rptr for this ancestor
                 let view_ptr = self.views.get_view(&ancestor_table).unwrap();
@@ -888,7 +888,7 @@ impl Querier {
             }
         }
         // we need to update child in the MV to now show the oid
-        // Note: all ghosts in families will be deleted from the MV, so we only need to restore
+        // Note: all guises in families will be deleted from the MV, so we only need to restore
         // the oid value for the root level GID entries
         for root_gid in root_gids {
             if let Some(children) = self.views.graph.get_children_of_parent(&ObjectIdentifier{
@@ -899,10 +899,10 @@ impl Querier {
                 // for each child row
                 for (child_fk, child_hrptrs) in children.clone().iter() {
                     let child_viewptr = self.views.get_view(&child_fk.child_table).unwrap();
-                    let ghost_parent_keys = helpers::get_ghost_parent_key_indices_of_datatable(
+                    let guise_parent_keys = helpers::get_guise_parent_key_indices_of_datatable(
                         &self.policy, &child_fk.child_table, &child_viewptr.borrow().columns);
-                    // if the child has a column that is ghosted and the ghost ID matches this gid
-                    for (ci, parent_table) in &ghost_parent_keys {
+                    // if the child has a column that is guiseed and the guise ID matches this gid
+                    for (ci, parent_table) in &guise_parent_keys {
                         if *ci == child_fk.col_index && parent_table == &curtable {
                             for hrptr in child_hrptrs {
                                 if hrptr.row().borrow()[*ci].to_string() == root_gid.to_string() {
@@ -920,23 +920,23 @@ impl Querier {
             }
         }
 
-        // delete all ghosts from from MV
+        // delete all guises from from MV
         for (table, gidrptrs) in table_to_gid_rptrs.iter() {
             self.views.delete_rptrs(&table, &gidrptrs.iter().map(|(_, rptr)| rptr.clone()).collect())?;
-            warn!("RESUB: remove {} ghost entities from view {} took {}us", gidrptrs.len(), table, start.elapsed().as_micros());
+            warn!("RESUB: remove {} guise entities from view {} took {}us", gidrptrs.len(), table, start.elapsed().as_micros());
         }
 
         // delete from actual data table if was created during unsub
         // this includes any recursively created parents
         for (table, gidrptrs) in table_to_gid_rptrs.iter() {
-            let select_ghosts = Expr::InList{
+            let select_guises = Expr::InList{
                 expr: Box::new(Expr::Identifier(helpers::string_to_idents(ID_COL))),
                 list: gidrptrs.iter().map(|(gid, _)| Expr::Value(Value::Number(gid.to_string()))).collect(),
                 negated: false,
             };
             let delete_gids_as_entities = Statement::Delete(DeleteStatement {
                 table_name: helpers::string_to_objname(&table),
-                selection: Some(select_ghosts),
+                selection: Some(select_guises),
             });
             warn!("RESUB removing entities: {}", delete_gids_as_entities);
             db.query_drop(format!("{}", delete_gids_as_entities.to_string()))?;

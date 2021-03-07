@@ -100,7 +100,7 @@ pub fn get_qtype(query: &str) -> Result<QueryType, mysql::Error> {
                  *  application-issued tables. This is probably not a big issue, 
                  *  since these queries are used to create the table again?
                  *
-                 * XXX: SHOW * from users will not return any ghost users in ghostusersMV
+                 * XXX: SHOW * from users will not return any guise users in guiseusersMV
                  * */
                 _ => Ok(QueryType::Read)
             }

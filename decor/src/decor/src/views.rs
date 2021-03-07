@@ -1,6 +1,6 @@
 use sql_parser::ast::*;
 use std::collections::{HashSet, HashMap};
-use crate::{select, helpers, graph, ghosts};
+use crate::{select, helpers, graph, guises};
 use crate::types::*;
 use std::io::{Error, Write};
 use std::cmp::Ordering;
@@ -559,7 +559,7 @@ impl Views {
                         match &row[col_index] {
                             Value::Number(n) => {
                                 let n = n.parse::<u64>().unwrap();
-                                if !ghosts::is_ghost_oid(n) {
+                                if !guises::is_guise_oid(n) {
                                     max = u64::max(max, n);
                                 }
                             }
@@ -678,7 +678,7 @@ impl Views {
                     match &assign_vals[i] {
                         Expr::Value(Value::Number(n)) => {
                             let n = n.parse::<u64>().unwrap();
-                            if !ghosts::is_ghost_oid(n) {
+                            if !guises::is_guise_oid(n) {
                                 view.autoinc_col = Some((col_index, u64::max(id_val, n+1)));
                             }
                         }

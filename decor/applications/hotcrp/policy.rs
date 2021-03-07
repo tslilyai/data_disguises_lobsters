@@ -1,37 +1,37 @@
-use decor::policy::{GeneratePolicy, GhostColumnPolicy, ObjectGhostPolicies, EdgePolicy, MaskPolicy, ObjectName};
+use decor::policy::{GeneratePolicy, GuiseColumnPolicy, ObjectGuisePolicies, EdgePolicy, MaskPolicy, ObjectName};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-fn get_pc_ghost_policies() -> ObjectGhostPolicies {
-    let mut ghost_policies : ObjectGhostPolicies = HashMap::new();
+fn get_pc_guise_policies() -> ObjectGuisePolicies {
+    let mut guise_policies : ObjectGuisePolicies = HashMap::new();
 
     let mut users_map = HashMap::new();
-    users_map.insert("contactId".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
-    users_map.insert("firstName".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("".to_string())));
-    users_map.insert("lastName".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("".to_string())));
-    users_map.insert("unaccentedName".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("".to_string())));
-    users_map.insert("email".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
-    users_map.insert("preferredEmail".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Random));
-    users_map.insert("affiliation".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("".to_string())));
-    users_map.insert("phone".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
-    users_map.insert("country".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
-    users_map.insert("password".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("pass".to_string())));
-    users_map.insert("passwordTime".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
-    users_map.insert("passwordUseTime".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
-    users_map.insert("collaborators".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
-    users_map.insert("creationTime".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
-    users_map.insert("updateTime".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
-    users_map.insert("lastLogin".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
-    users_map.insert("defaultWatch".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(2.to_string())));
-    users_map.insert("roles".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
-    users_map.insert("disabled".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default(1.to_string())));
-    users_map.insert("contactTags".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
-    users_map.insert("birthday".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
-    users_map.insert("gender".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
-    users_map.insert("data".to_string(), GhostColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    users_map.insert("contactId".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Random));
+    users_map.insert("firstName".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default("".to_string())));
+    users_map.insert("lastName".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default("".to_string())));
+    users_map.insert("unaccentedName".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default("".to_string())));
+    users_map.insert("email".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Random));
+    users_map.insert("preferredEmail".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Random));
+    users_map.insert("affiliation".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default("".to_string())));
+    users_map.insert("phone".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    users_map.insert("country".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    users_map.insert("password".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default("pass".to_string())));
+    users_map.insert("passwordTime".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    users_map.insert("passwordUseTime".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    users_map.insert("collaborators".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    users_map.insert("creationTime".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    users_map.insert("updateTime".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    users_map.insert("lastLogin".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    users_map.insert("defaultWatch".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default(2.to_string())));
+    users_map.insert("roles".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default(0.to_string())));
+    users_map.insert("disabled".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default(1.to_string())));
+    users_map.insert("contactTags".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    users_map.insert("birthday".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    users_map.insert("gender".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
+    users_map.insert("data".to_string(), GuiseColumnPolicy::Generate(GeneratePolicy::Default("NULL".to_string())));
   
-    ghost_policies.insert("users".to_string(), Rc::new(users_map));
-    ghost_policies 
+    guise_policies.insert("users".to_string(), Rc::new(users_map));
+    guise_policies 
 }
 
 fn get_edge_policies() -> HashMap<ObjectName, Rc<Vec<EdgePolicy>>> {
@@ -53,7 +53,7 @@ fn get_edge_policies() -> HashMap<ObjectName, Rc<Vec<EdgePolicy>>> {
      *  However, the action log entry may still be correlated with *other* real users in
      *  the system; child-parent (log->user) correlations can remain. For example, if an
      *  unsubscribed user disables another real user account, the action log would reflect
-     *  that a *ghost* user disabled the real user account. 
+     *  that a *guise* user disabled the real user account. 
      *
      *  Action logs may link to a sensitive papers because the log records paper
      *  *deletions*. We can retain the (parent-child) link between a sensitive paper---a
@@ -263,7 +263,7 @@ fn get_edge_policies() -> HashMap<ObjectName, Rc<Vec<EdgePolicy>>> {
      *      - finalPaperStorageId = paper file for final version of paper
      *
      * Any unsubscribing user who is one of the parent contactIds should be decorrelated
-     * from the paper (the paper's field value points to a ghost). The lead, sheperd, and manager
+     * from the paper (the paper's field value points to a guise). The lead, sheperd, and manager
      * contact IDs do not leak information about who the others may be, so these links can
      * be retained.
      */  
@@ -311,7 +311,7 @@ fn get_edge_policies() -> HashMap<ObjectName, Rc<Vec<EdgePolicy>>> {
      *
      * If commenters unsubscribe, they should be decorrelated from their comments; if they
      * are also authors or reviewers of the paper, note that those lead contact/reviewer
-     * identifiers will also be decorrelated and replaced by ghosts.
+     * identifiers will also be decorrelated and replaced by guises.
      *
      * Comments should remain associated with the original paper.
      * 
@@ -348,7 +348,7 @@ fn get_edge_policies() -> HashMap<ObjectName, Rc<Vec<EdgePolicy>>> {
      * 
      * However, it may be problematic for decorrelated paper conflicts to remain linked to
      * the paper: the paper's other attributes (such as other paper conflicts that link to this
-     * paper) can re-identify the ghosted / anonymized user. 
+     * paper) can re-identify the guiseed / anonymized user. 
      *
      * Option 1: Don't do anything. Leaks the most information.
      * 
@@ -357,12 +357,12 @@ fn get_edge_policies() -> HashMap<ObjectName, Rc<Vec<EdgePolicy>>> {
      * specified below).
      *
      * Option 3: We delete *all* users who have paper conflicts for this paper from
-     * the paper, so that all paper conflicts for the paper are ghost users. This
+     * the paper, so that all paper conflicts for the paper are guise users. This
      * seems problematic because other collaborators will suddenly lose access to the
      * paper, and reviewers may be wrongly assigned papers
      *
      * If all paper conflict users have unsubscribed, then the paper will seemingly have no
-     * paper conflicts; all ghost users will point to a ghost paper (which can be generated
+     * paper conflicts; all guise users will point to a guise paper (which can be generated
      * as a clone of the original).
      */
     edge_policies.insert("PaperConflict".to_string(),
@@ -381,7 +381,7 @@ fn get_edge_policies() -> HashMap<ObjectName, Rc<Vec<EdgePolicy>>> {
                 parent: "Paper".to_string(),
                 column: "paperId".to_string(),
                 // if the conflict is sensitive, we should remove it, preventing there from being
-                // even a ghost trace
+                // even a guise trace
                 pc_policy: Delete(0.0),
                 // if the paper is sensitive (e.g., the lead contact unsubscribes), we keep the
                 // conflicts of the paper because we want to keep the paper information 
@@ -611,8 +611,8 @@ fn get_edge_policies() -> HashMap<ObjectName, Rc<Vec<EdgePolicy>>> {
      *  The user's watched papers should be decorrelated from the user.
      *
      *  XXX Other users watching the same paper could potentially leak information who a
-     *  ghost user watching the same paper might be? (In the same way that paper conflicts
-     *  might?) To handle this, we could decorrelate the paper watch entries with ghost
+     *  guise user watching the same paper might be? (In the same way that paper conflicts
+     *  might?) To handle this, we could decorrelate the paper watch entries with guise
      *  user parents from their real papers.
      *
      */
@@ -741,8 +741,8 @@ fn get_edge_policies() -> HashMap<ObjectName, Rc<Vec<EdgePolicy>>> {
 pub fn get_hotcrp_policy() -> MaskPolicy {
     MaskPolicy{
         unsub_object_type: "ContactInfo".to_string(), 
-        pc_ghost_policies : get_pc_ghost_policies(), 
-        cp_ghost_policies : HashMap::new(), 
+        pc_guise_policies : get_pc_guise_policies(), 
+        cp_guise_policies : HashMap::new(), 
         edge_policies : get_edge_policies(),
     }
 }
