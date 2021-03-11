@@ -1,5 +1,5 @@
 [package]
-name = "decor-simple"
+name = "decor"
 version = "0.1.0"
 authors = ["Lily Tsai <tslilyai@mit.edu>"]
 edition = "2018"

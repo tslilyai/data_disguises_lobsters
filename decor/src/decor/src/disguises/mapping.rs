@@ -1,9 +1,8 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use crate::{guises, helpers, policy::ObjectGuisePolicies, ID_COL};
-use crate::views::{Views};
-use crate::types::{RowPtr, ObjectIdentifier};
-use crate::guises::{GuiseOidMapping, GuiseFamily, TemplateObject};
+use crate::types::ID;
+use crate::disguises::*;
 use std::sync::atomic::Ordering;
 use std::*;
 use log::{warn};
@@ -12,34 +11,63 @@ use std::collections::{HashMap};
 
 // the guises table contains ALL guise identifiers which map from any object to its guises
 // this assumes that all entities have an integer identifying key
-const GHOST_OID_COL : &'static str = "object_id";
-const GHOST_ID_COL: &'static str = "guise_id";
-const GHOST_DATA_COL: &'static str = "guise_data";
+const LOID_COL : &'static str = "lobject_id";
+const GID_COL: &'static str = "guise_id";
+const DATA_COL: &'static str = "guise_data";
 
-fn create_guises_table(name: String, db: &mut mysql::Conn, in_memory: bool) -> Result<(), mysql::Error> {
+fn create_mapping_table(table_name: String, db: &mut mysql::Conn, in_memory: bool) -> Result<(), mysql::Error> {
+    let name = format!("guise{}", table_name);
     db.query_drop(&format!("DROP TABLE IF EXISTS {};", name))?;
     let mut q = format!(
         r"CREATE TABLE IF NOT EXISTS {} (
             `{}` int unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
             `{}` int unsigned, 
             `{}` varchar(4096), INDEX oid (`{}`))", 
-        name, GHOST_ID_COL, GHOST_OID_COL, GHOST_DATA_COL, GHOST_OID_COL);
+        name, GID_COL, LOID_COL, DATA_COL, LOID_COL);
     if in_memory {
         q.push_str(" ENGINE = MEMORY");
     }
     warn!("drop/create/alter guises table {}: {}", name, q);
     db.query_drop(q)?;
     let q = format!(r"ALTER TABLE {} AUTO_INCREMENT={};",
-        name, guises::GHOST_ID_START);
+        name, guises::GID_START);
+    db.query_drop(q)?;
+    Ok(())
+}
+
+fn insert_into_mapping_table(table_name: String, db: &mut mysql::Conn, data: Vec<String>) -> Result<(), mysql::Error> {
+    let name = format!("guise{}", table_name);
+    let insert_query = &format!("INSERT INTO {} ({}, {}, {}) VALUES {};", 
+                                    name, GID_COL, LOID_COL, DATA_COL,
+        warn!("Inserting into guises table {}", insert_query);
+        db.query_iter(insert_query)?;
+        self.nqueries+=1;
+
+    db.query_drop(q)?;
+    let q = format!(r"ALTER TABLE {} AUTO_INCREMENT={};",
+        name, guises::GID_START);
+    db.query_drop(q)?;
+    Ok(())
+}
+
+fn read_from_mapping_table(table_name: String, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    let name = format!("guise{}", table_name);
+    let insert_query = &format!("INSERT INTO {} ({}, {}, {}) VALUES {};", 
+                                    name, GID_COL, LOID_COL, DATA_COL, pairs.join(","));
+        warn!("Inserting into guises table {}", insert_query);
+        db.query_iter(insert_query)?;
+        self.nqueries+=1;
+
+    db.query_drop(q)?;
+    let q = format!(r"ALTER TABLE {} AUTO_INCREMENT={};",
+        name, guises::GID_START);
     db.query_drop(q)?;
     Ok(())
 }
 
 /*
  * INVARIANTS:
- *  - guise map contains only mappings between real object oids and their guise counterpart GIDs;
- *      these mappings only exist for edges that are *preemptively* created because the edge type
- *      can be decorrelated.
+ *  - guise map contains only mappings between loids and their guise counterpart GIDs;
  *  - these GIDs always correspond to actual guises in the datatables, which always exist
  *  - these guise sibling entities MAY have parents who are also guises which are not present in
  *      the mapping to ensure referential integrity; these rptrs are contained in the mapping
@@ -47,8 +75,8 @@ fn create_guises_table(name: String, db: &mut mysql::Conn, in_memory: bool) -> R
 pub struct GuiseMap{
     table_name: String,
     name: String,
-    oid2gids: HashMap<u64, Vec<GuiseFamily>>,
-    gid2oid: HashMap<u64, u64>,
+    loid2gids: HashMap<u64, Vec<ID>>,
+    gid2loid: HashMap<u64, u64>,
     latest_gid: AtomicU64,
     
     pub nqueries: usize,
@@ -57,16 +85,15 @@ pub struct GuiseMap{
 
 impl GuiseMap {
     pub fn new(table_name: String, db: Option<&mut mysql::Conn>, in_memory: bool) -> Self {
-        let name = format!("guise{}", table_name);
         if let Some(db) = db {
-            create_guises_table(name.clone(), db, in_memory).unwrap();
+            create_mapping_table(name.clone(), db, in_memory).unwrap();
         }
         GuiseMap{
             table_name: table_name.clone(),
             name: name.clone(),
-            oid2gids: HashMap::new(),
-            gid2oid: HashMap::new(),
-            latest_gid: AtomicU64::new(guises::GHOST_ID_START),
+            loid2gids: HashMap::new(),
+            gid2loid: HashMap::new(),
+            latest_gid: AtomicU64::new(guises::GID_START),
             nqueries: 0,
         }
     }   
@@ -76,25 +103,20 @@ impl GuiseMap {
      * Returns a hash of the list of guises if user is not yet unsubscribed,
      * else None if the user is already unsubscribed
      */
-    fn unsubscribe(&mut self, oid:u64, db: &mut mysql::Conn) -> Result<Option<Vec<GuiseFamily>>, mysql::Error> {
+    fn unsubscribe(&mut self, oid:u64, db: &mut mysql::Conn) -> Result<Option<Vec<ID>>, mysql::Error> {
         warn!("{} Unsubscribing {}", self.name, oid);
         let start = time::Instant::now();
-        if let Some(guise_families) = self.oid2gids.remove(&oid) {
+        if let Some(guise_families) = self.loid2gids.remove(&oid) {
             let mut gids = vec![];
-            let mut families : Vec<GuiseFamily> = vec![];
+            let mut families : Vec<ID> = vec![];
             
             // remove gids from reverse mapping
-            for family in guise_families {
-                self.gid2oid.remove(&family.root_gid);
-                families.push(family.clone());
-                gids.push(family.root_gid);
-            }
 
             // delete from guises table
             let delete_stmt = Statement::Delete(DeleteStatement{
                 table_name: helpers::string_to_objname(&self.name),
                 selection: Some(Expr::InList{
-                    expr: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_ID_COL))),
+                    expr: Box::new(Expr::Identifier(helpers::string_to_idents(&GID_COL))),
                     list: gids.iter().map(|g| Expr::Value(Value::Number(g.to_string()))).collect(),
                     negated: false,
                 }),
@@ -115,20 +137,17 @@ impl GuiseMap {
      */
     pub fn resubscribe(&mut self, 
                        oid: u64, 
-                       guise_families: &Vec<GuiseFamily>,
                        db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
         warn!("{} Resubscribing {}", self.name, oid);
         let start = time::Instant::now();
        
         self.regenerate_cache_entry(oid, guise_families);
 
+        // TODO
         let mut pairs = vec![];
-        for family in guise_families {
-            pairs.push(family.guise_family_to_db_string(oid));
-        }
         // insert into guise table
         let insert_query = &format!("INSERT INTO {} ({}, {}, {}) VALUES {};", 
-                                    self.name, GHOST_ID_COL, GHOST_OID_COL, GHOST_DATA_COL, pairs.join(","));
+                                    self.name, GID_COL, LOID_COL, DATA_COL, pairs.join(","));
         warn!("Inserting into guises table {}", insert_query);
         db.query_iter(insert_query)?;
         self.nqueries+=1;
@@ -136,45 +155,33 @@ impl GuiseMap {
         Ok(true)
     }
 
-    fn regenerate_cache_entry(&mut self, oid: u64, guise_families: &Vec<GuiseFamily>) {
-        let mut families_of_oid = vec![];
-        for family in guise_families {
-            self.gid2oid.insert(family.root_gid, oid);
-            // save to insert into forward map
-            families_of_oid.push(family.clone());
-            self.latest_gid.fetch_max(family.root_gid, Ordering::SeqCst);
-        }
-
-        if let Some(families) = self.oid2gids.get_mut(&oid) {
-            families.append(&mut families_of_oid);
-        } else {
-            self.oid2gids.insert(oid, families_of_oid);
-        }
+    fn regenerate_cache_entry(&mut self, oid: u64, gids: &Vec<ID>) {
+        //TODO
     }
 
-    pub fn insert_gid_into_caches(&mut self, oid:u64, gfam: GuiseFamily) {
-        match self.oid2gids.get_mut(&oid) {
-            Some(gfams) => (*gfams).push(gfam.clone()),
+    pub fn insert_gid_into_caches(&mut self, oid:u64, gid: ID) {
+        match self.loid2gids.get_mut(&oid) {
+            Some(gfams) => (*gfams).push(gid.clone()),
             None => {
-                self.oid2gids.insert(oid, vec![gfam.clone()]);
+                self.loid2gids.insert(oid, vec![gid.clone()]);
             }
         }
-        self.gid2oid.insert(gfam.root_gid, oid);
+        self.gid2loid.insert(gid, oid);
     }
  
-    pub fn update_oid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn)
+    pub fn update_loid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn)
         -> Result<(), mysql::Error> 
     {
         let mut gids_to_delete = vec![];
         for (oid, gid) in pairs {
             // delete current mapping
-            let mut vals: Option<GuiseFamily> = None;
-            if let Some(oldoid) = self.gid2oid.get(gid) {
-                if let Some(gfams) = self.oid2gids.get_mut(&oldoid) {
+            let mut vals: Option<ID> = None;
+            if let Some(oldoid) = self.gid2loid.get(gid) {
+                if let Some(gfams) = self.loid2gids.get_mut(&oldoid) {
                     let pos = gfams.iter().position(|gfam| gfam.root_gid == *gid).unwrap();
                     vals = Some(gfams.remove(pos));
                 }
-                self.gid2oid.remove(&gid);
+                self.gid2loid.remove(&gid);
             }
 
             // delete from datatable if oid is none (set to NULL)
@@ -190,17 +197,17 @@ impl GuiseMap {
                 let update_stmt = Statement::Update(UpdateStatement {
                     table_name: helpers::string_to_objname(&self.name),
                     assignments: vec![Assignment{
-                        id: Ident::new(GHOST_OID_COL),
+                        id: Ident::new(LOID_COL),
                         value: Expr::Value(Value::Number(newoid.to_string())),
                     }],
                     selection: Some(Expr::BinaryOp{
                         left: Box::new(Expr::Identifier(
-                                      helpers::string_to_idents(GHOST_ID_COL))),
+                                      helpers::string_to_idents(GID_COL))),
                         op: BinaryOperator::Eq,
                         right: Box::new(Expr::Value(Value::Number(gid.to_string()))),
                     }),
                 });
-                warn!("{} issue_update_oid2gids_stmt: {}", self.name, update_stmt);
+                warn!("{} issue_update_loid2gids_stmt: {}", self.name, update_stmt);
                 db.query_drop(format!("{}", update_stmt))?;
                 self.nqueries+=1;
 
@@ -213,12 +220,12 @@ impl GuiseMap {
             let delete_stmt = Statement::Delete(DeleteStatement{
                 table_name: helpers::string_to_objname(&self.name),
                 selection: Some(Expr::InList{
-                    expr: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_ID_COL))),
+                    expr: Box::new(Expr::Identifier(helpers::string_to_idents(&GID_COL))),
                     list: gids_to_delete.clone(),
                     negated: false,
                 }),
             });
-            warn!("{} update oid2gids_with : {}", self.name, delete_stmt);
+            warn!("{} update loid2gids_with : {}", self.name, delete_stmt);
             db.query_drop(format!("{}", delete_stmt))?;
             self.nqueries+=1;
 
@@ -231,17 +238,17 @@ impl GuiseMap {
                     negated: false,
                 }),
             });
-            warn!("{} update oid2gids_with : {}", self.name, delete_stmt);
+            warn!("{} update loid2gids_with : {}", self.name, delete_stmt);
             db.query_drop(format!("{}", delete_stmt))?;
             self.nqueries+=1;
         }
         Ok(())
     }
 
-    pub fn take_one_guise_family_for_oid(&mut self, oid: u64, db: &mut mysql::Conn) -> 
-        Result<Option<GuiseFamily>, mysql::Error> 
+    pub fn take_one_guise_for_oid(&mut self, oid: u64, db: &mut mysql::Conn) -> 
+        Result<Option<ID>, mysql::Error> 
     {
-        let guise_fams = self.oid2gids.get_mut(&oid).ok_or(
+        let guise_fams = self.loid2gids.get_mut(&oid).ok_or(
                 mysql::Error::IoError(io::Error::new(
                     io::ErrorKind::Other, "get_gids: oid not present in cache?")))?;
 
@@ -250,12 +257,12 @@ impl GuiseMap {
             let delete_stmt = Statement::Delete(DeleteStatement{
                 table_name: helpers::string_to_objname(&self.name),
                 selection: Some(Expr::BinaryOp{
-                    left: Box::new(Expr::Identifier(helpers::string_to_idents(&GHOST_ID_COL))),
+                    left: Box::new(Expr::Identifier(helpers::string_to_idents(&GID_COL))),
                     op: BinaryOperator::Eq,
                     right: Box::new(Expr::Value(Value::Number(fam.root_gid.to_string()))),
                 }),
             });
-            warn!("{} delete from oid2gids_with : {}", self.name, delete_stmt);
+            warn!("{} delete from loid2gids_with : {}", self.name, delete_stmt);
             db.query_drop(format!("{}", delete_stmt))?;
             self.nqueries+=1;
             Ok(Some(fam))
@@ -267,8 +274,8 @@ impl GuiseMap {
     pub fn get_gids_for_oid(&mut self, oid: u64) -> 
         Result<Vec<u64>, mysql::Error> 
     {
-        //self.cache_oid2gids_for_oids(&vec![oid])?;
-        let gids = self.oid2gids.get(&oid).ok_or(
+        //self.cache_loid2gids_for_oids(&vec![oid])?;
+        let gids = self.loid2gids.get(&oid).ok_or(
                 mysql::Error::IoError(io::Error::new(
                     io::ErrorKind::Other, "get_gids: oid not present in cache?")))?;
         Ok(gids.iter().map(|fam| fam.root_gid).collect())
@@ -276,10 +283,10 @@ impl GuiseMap {
 
     pub fn get_gids_for_oids(&mut self, oids: &Vec<u64>) -> 
         Result<Vec<(u64, Vec<u64>)>, mysql::Error> {
-        //self.cache_oid2gids_for_oids(oids)?;
+        //self.cache_loid2gids_for_oids(oids)?;
         let mut gid_vecs = vec![];
         for oid in oids {
-            let gids = self.oid2gids.get(&oid).ok_or(
+            let gids = self.loid2gids.get(&oid).ok_or(
                     mysql::Error::IoError(io::Error::new(
                         io::ErrorKind::Other, "get_gids: oid not present in cache?")))?;
             let gids = gids.iter().map(|fam| fam.root_gid).collect();
@@ -326,7 +333,7 @@ impl GuiseMap {
 
         // insert into DB
         let insert_query = &format!("INSERT INTO {} ({}, {}, {}) VALUES {};", 
-                                    self.name, GHOST_ID_COL, GHOST_OID_COL, GHOST_DATA_COL, dbentry);
+                                    self.name, GID_COL, LOID_COL, DATA_COL, dbentry);
         warn!("Inserting into guises table {}", insert_query);
         db.query_drop(insert_query)?;
         self.nqueries+=1;
@@ -389,11 +396,11 @@ impl GuiseMaps {
     }
 
  
-    pub fn update_oid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn, parent_table: &str)
+    pub fn update_loid2gids_with(&mut self, pairs: &Vec<(Option<u64>, u64)>, db: &mut mysql::Conn, parent_table: &str)
         -> Result<(), mysql::Error> 
     {
         let gm = self.guise_maps.get_mut(parent_table).unwrap();
-        gm.update_oid2gids_with(pairs, db)
+        gm.update_loid2gids_with(pairs, db)
     }
 
     pub fn unsubscribe(&mut self, oid:u64, db: &mut mysql::Conn, parent_table: &str) -> Result<Option<Vec<GuiseFamily>>, mysql::Error> {

@@ -10,24 +10,17 @@ use std::*;
 use sql_parser::ast::*;
 use log::{warn};
 
-pub mod guises;
-pub mod graph;
+pub mod disguises;
 pub mod helpers;
 pub mod policy;
 pub mod querier;
-pub mod query_simplifier;
-pub mod select;
 pub mod subscriber;
-pub mod views;
 pub mod types;
-
-pub const ID_COL: &str = "id";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
     pub testname: String,
     pub use_decor: bool,
-    pub use_mv: bool,
     pub parse: bool,
     pub in_memory: bool,
     pub prime: bool,
@@ -51,7 +44,7 @@ impl Drop for Shim {
 }
 
 impl Shim {
-    pub fn new(db: mysql::Conn, schema: &'static str, policy: policy::MaskPolicy, test_params: TestParams) 
+    pub fn new(db: mysql::Conn, schema: &'static str, policy: policy::SchemaConfig, test_params: TestParams) 
         -> Self 
     {
         let querier = querier::Querier::new(policy, &test_params);
@@ -62,7 +55,7 @@ impl Shim {
     pub fn run_on_tcp(
         dbname: &str, 
         schema: &'static str, 
-        policy: policy::MaskPolicy,
+        policy: policy::SchemaConfig,
         test_params: TestParams, 
         s: net::TcpStream) 
         -> Result<(), mysql::Error> 
@@ -118,22 +111,7 @@ impl Shim {
                 let stmt_ast = self.get_single_parsed_stmt(&stmt)?;
                 
                 // if we're not priming, the table already exists!
-                // add it as a MV
-                if !self.test_params.prime {
-                    match stmt_ast {
-                        Statement::CreateTable(CreateTableStatement{
-                            name,
-                            columns,
-                            constraints,
-                            indexes,
-                            ..
-                        }) => {
-                            self.querier.rebuild_view_with_all_rows(
-                                &name.to_string(), columns, constraints, indexes, &mut self.db);
-                        }
-                        _ => (),
-                    }
-                } else {
+                if self.test_params.prime {
                     self.querier.query_drop(&stmt_ast, &mut self.db)?;                
                 }
                 stmt = String::new();
@@ -146,10 +124,6 @@ impl Shim {
 impl<W: io::Write> MysqlShim<W> for Shim {
     type Error = mysql::Error;
 
-    /* 
-     * Set all user_ids in the MV to guise ids, insert guise users into usersMV
-     * TODO actually delete entries? 
-     */
     fn on_unsubscribe(&mut self, uid: u64, w: QueryResultWriter<W>) -> Result<(), mysql::Error> {
         let start = time::Instant::now();
         let res = self.querier.unsubscribe(uid, &mut self.db, w);
@@ -158,12 +132,6 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         res
     }
 
-    /* 
-     * Set all user_ids in the guises table to specified user 
-     * refresh "materialized views"
-     * TODO add back deleted content from shard
-     * TODO check that user doesn't already exist
-     */
     fn on_resubscribe(&mut self, 
                       uid: u64, 
                       gidshard: String, 
@@ -226,7 +194,6 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 return Ok(w.error(ErrorKind::ER_BAD_DB_ERROR, &format!("{}", e).as_bytes())?);
             }
         }
-        // TODO update autoinc value (if exists)
         Ok(w.ok()?)
     }
 
@@ -250,7 +217,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
                 res = helpers::answer_rows(results, self.db.query_iter(query));
                 dur = start.elapsed();
             } else {
-                res = self.querier.query(results, &stmt_ast, &mut self.db, self.test_params.use_mv);
+                res = self.querier.query(results, &stmt_ast, &mut self.db);
                 dur = start.elapsed();
             }
         }

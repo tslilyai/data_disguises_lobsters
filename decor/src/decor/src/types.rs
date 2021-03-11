@@ -1,117 +1,106 @@
+use mysql::prelude::*;
 use serde::{Deserialize, Serialize};
-use sql_parser::ast::*;
-use std::cmp::Ordering;
-use std::cell::RefCell;
-use std::collections::{HashSet};
-use std::rc::Rc;
-use std::hash::{Hash, Hasher};
-use crate::helpers;
+use crate::{helpers, io, policy};
+use rand;
 
 #[derive(Hash, Serialize, Deserialize, PartialOrd, Ord, Debug, Clone, PartialEq, Eq)]
-pub struct ObjectIdentifier {
-    pub table: String,
-    pub oid: u64,
+pub struct Row {
+    pub id: ID,
+    pub columns: Vec<String>,
+    pub values: Vec<String>,
 }
 
 #[derive(Hash, Serialize, Deserialize, PartialOrd, Ord, Debug, Clone, PartialEq, Eq)]
-pub struct ForeignKey {
+pub struct TableCol {
+    pub table: String,
+    pub col_index: usize,
+    pub col_name: String,
+}
+
+#[derive(Hash, Serialize, Deserialize, PartialOrd, Ord, Debug, Clone, PartialEq, Eq)]
+pub struct ForeignKeyCol {
     pub child_table: String,
     pub col_index: usize,
+    pub col_name: usize,
     pub parent_table: String,
 }
 
-#[derive(Serialize, Deserialize, PartialOrd, Ord, Debug, Clone)]
-pub struct ObjectData {
-    pub name: ObjectIdentifier,
-    pub row_strs: Vec<String>,
+#[derive(Hash, Serialize, Deserialize, PartialOrd, Ord, Debug, Clone, PartialEq, Eq)]
+pub struct ID {
+    pub table: String,
+    pub id: u64,
+    pub id_col_name: String,
+    pub id_col_index: usize,
 }
-impl Hash for ObjectData {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-    }
-}
-impl PartialEq for ObjectData {
-    fn eq(&self, other: &ObjectData) -> bool {
-        self.name == other.name
-    }
-}
-impl Eq for ObjectData {} 
 
-/*
- * Object, object data, and parent fk information 
- */
-#[derive(Clone, Debug)]
-pub struct TraversedObject {
-    pub name: ObjectIdentifier,
-    pub hrptr: HashedRowPtr,
-    pub fk: ForeignKey,
-    pub from_pc_edge: bool,
-}
-impl Hash for TraversedObject {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name.hash(state);
-    }
-}
-impl PartialEq for TraversedObject {
-    fn eq(&self, other: &TraversedObject) -> bool {
-        self.name == other.name
-    }
-}
-impl Eq for TraversedObject {} 
-impl TraversedObject {
-    pub fn to_objectdata(&self) -> ObjectData {
-        ObjectData {
-            name: self.name.clone(),
-            row_strs: self.hrptr.to_strs(),
+impl ID {
+    pub fn get_row(&self, db: &mut mysql::Conn) -> Result<Row, mysql::Error> {
+        let res = db.query_iter(&format!("SELECT * FROM {} WHERE {}={} LIMIT 1", self.table, self.id_col_name, self.id))?;
+        let cols = res.columns().as_ref()
+                .iter()
+                .map(|c| c.name_str().to_string())
+                .collect();
+        let mut vals : Vec<String> = vec![];
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            vals = rowvals.iter().map(|v| helpers::mysql_val_to_string(v)).collect();
+            return Ok(Row {
+                id: self.clone(),
+                columns: cols,
+                values: vals,
+            })
         }
-    }
-}
-
-/* 
- * Rows and pointers to in-memory rows
- */
-pub type Row = Vec<Value>;
-pub type RowPtr = Rc<RefCell<Row>>;
-pub type RowPtrs = Vec<Rc<RefCell<Row>>>;
-
-#[derive(Debug, Clone, Eq)]
-pub struct HashedRowPtr(pub Rc<RefCell<Row>>, pub usize);
-impl Hash for HashedRowPtr {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.borrow()[self.1].hash(state);
-    }
-}
-impl Ord for HashedRowPtr {
-    fn cmp(&self, other: &Self) -> Ordering {
-        helpers::parser_vals_cmp(&self.0.borrow()[self.1], &other.0.borrow()[other.1])
-    }
-}
-impl PartialOrd for HashedRowPtr {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl PartialEq for HashedRowPtr {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.borrow()[self.1] == other.0.borrow()[other.1]
-    }
-}
-impl HashedRowPtr {
-    pub fn row(&self) -> &Rc<RefCell<Row>> {
-        &self.0
-    }
-    pub fn new(row: Rc<RefCell<Row>>, pki: usize) -> Self {
-        HashedRowPtr(row.clone(), pki)
-    }
-    pub fn id(&self) -> u64 {
-        helpers::parser_val_to_u64(&self.0.borrow()[self.1])
+        Err(mysql::Error::IoError(io::Error::new(io::ErrorKind::NotFound, format!("ID {}.{} not found", self.table, self.id))))
     }
 
-    pub fn to_strs(&self) -> Vec<String> {
-        self.row().borrow().iter().map(|v| v.to_string()).collect()
+    pub fn update_row_with_modifications(&self, modifications: Vec<(TableCol, Box<dyn Fn(&str) -> String>)>, db: &mut mysql::Conn) 
+        -> Result<(), mysql::Error> 
+    {
+        let mut row = self.get_row(db)?;
+        let mut set_strs = vec![]; 
+        for (tc, f) in modifications {
+            set_strs.push(format!("{} = {}", 
+                row.columns[tc.col_index], 
+                f(&row.values[tc.col_index]))
+            );
+        }
+        let set_str = set_strs.join(",");
+        db.query_drop(&format!("UPDATE {} SET {} WHERE {}={}", 
+                               self.table, set_str, self.id_col_name, self.id))
+    }
+    pub fn copy_row_with_modifications(&self, modifications: Vec<(TableCol, Box<dyn Fn(&str) -> String>)>, db: &mut mysql::Conn) 
+        -> Result<u64, mysql::Error> 
+    {
+        let mut row = self.get_row(db)?;
+        for (tc, f) in modifications {
+            row.values[tc.col_index] = f(&row.values[tc.col_index]);
+        }
+        // generate a random ID for now
+        let newid = rand::random::<u32>() as u64;
+        row.values[row.id.id_col_index] = newid.to_string();
+        let values_str = row.values.join(",");
+        db.query_drop(&format!("INSERT INTO {} VALUES ({})", self.table, values_str))?;
+        Ok(newid)
+    }
+    pub fn get_referencers(&self, schema: &policy::SchemaConfig, db: &mut mysql::Conn) -> Result<Vec<ID>, mysql::Error> {
+        let mut referencers = vec![];
+        if let Some(fkcols) = schema.referencers.get(&self.table) {
+            for fk in fkcols {
+                let id_col = schema.id_cols.get(&fk.child_table).unwrap();
+                let res = db.query_iter(&format!("SELECT {} FROM {} WHERE {}={}", id_col.col_name, fk.child_table, fk.col_name, self.id))?;
+                for row in res {
+                    let rowvals = row.unwrap().unwrap();
+                    assert_eq!(rowvals.len(), 1);
+                    let id = helpers::mysql_val_to_u64(&rowvals[0])?;
+                    referencers.push(ID {
+                        table: fk.child_table,
+                        id: id, 
+                        id_col_index: id_col.col_index,
+                        id_col_name: id_col.col_name,
+                    });
+                }
+            } 
+        }
+        Ok(referencers)
     }
 }
-
-pub type HashedRowPtrs = HashSet<HashedRowPtr>;
-
-

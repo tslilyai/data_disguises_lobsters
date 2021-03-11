@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::*;
 use log::{warn};
 use msql_srv::{QueryResultWriter};
-use crate::{helpers, guises::GuiseOidMapping, types::{ObjectData}}; 
+use crate::{helpers, types::Row};
 
 const OID_COL: &'static str = "object_id";
 const GM_HASH_COL: &'static str = "guise_mappings";
@@ -100,20 +100,21 @@ impl Subscriber {
     pub fn record_unsubbed_user_and_return_results<W: io::Write>(&mut self,
         writer: QueryResultWriter<W>,
         oid: u64,
-        guise_oid_mappings: &mut Vec<GuiseOidMapping>,
-        object_data: &mut HashSet<ObjectData>,
+        //guise_oid_mappings: &mut Vec<GuiseOidMapping>,
+        object_data: &mut HashSet<Row>,
         db: &mut mysql::Conn,
     ) -> Result<(), mysql::Error> {
         // cache the hash of the gids we are returning
-        guise_oid_mappings.sort();
-        let serialized1 = serde_json::to_string(&guise_oid_mappings).unwrap();
+        //guise_oid_mappings.sort();
+        /*let serialized1 = serde_json::to_string(&guise_oid_mappings).unwrap();
         self.hasher.input_str(&serialized1);
         let result1 = self.hasher.result_str();
         warn!("Hashing {}, got {}", serialized1, result1);
         self.hasher.reset();
+        */
     
         // note, the recipient has to just return the entities in order...
-        let mut object_data : Vec<&ObjectData> = object_data.iter().collect();
+        let mut object_data : Vec<&Row> = object_data.iter().collect();
         object_data.sort();
         let serialized2 = serde_json::to_string(&object_data).unwrap();
         self.hasher.input_str(&serialized2);
@@ -121,21 +122,22 @@ impl Subscriber {
         warn!("Hashing {}, got {}", serialized2, result2);
         self.hasher.reset();
         
-        insert_into_unsubscribed_table(db, oid, &result1, &result2)?;
+        /*insert_into_unsubscribed_table(db, oid, &result1, &result2)?;
         self.nqueries+=1;
         self.unsubscribed.insert(oid, (result1, result2));
-        answer_rows(writer, serialized1, serialized2)
+        answer_rows(writer, serialized1, serialized2)*/
+        Ok(())
     }
 
     pub fn check_and_sort_resubscribed_data(&mut self,
         oid: u64,
-        guise_oid_mappings: &mut Vec<GuiseOidMapping>,
-        object_data: &mut Vec<ObjectData>,
+        //guise_oid_mappings: &mut Vec<GuiseOidMapping>,
+        object_data: &mut Vec<Row>,
         db: &mut mysql::Conn,
     ) -> Result<(), mysql::Error> {
         match self.unsubscribed.get(&oid) {
             Some((gidshash, datahash)) => {
-                guise_oid_mappings.sort();
+                /*guise_oid_mappings.sort();
                 let serialized = serde_json::to_string(&guise_oid_mappings).unwrap();
                 self.hasher.input_str(&serialized);
                 let hashed = self.hasher.result_str();
@@ -145,7 +147,7 @@ impl Subscriber {
                                 io::ErrorKind::Other, format!(
                                     "User attempting to resubscribe with bad data {} {}", oid, serialized))));
                 }
-                self.hasher.reset();
+                self.hasher.reset();*/
 
                 object_data.sort();
                 let serialized = serde_json::to_string(&object_data).unwrap();
