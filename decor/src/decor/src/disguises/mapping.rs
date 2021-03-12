@@ -1,13 +1,6 @@
 use mysql::prelude::*;
-use sql_parser::ast::*;
-use crate::{guises, helpers, policy::ObjectGuisePolicies, ID_COL};
-use crate::types::ID;
-use crate::disguises::*;
-use std::sync::atomic::Ordering;
 use std::*;
 use log::{warn};
-use std::sync::atomic::{AtomicU64};
-use std::collections::{HashMap};
 
 // the guises table contains ALL guise identifiers which map from any object to its guises
 // this assumes that all entities have an integer identifying key
@@ -15,7 +8,7 @@ const LOID_COL : &'static str = "lobject_id";
 const GID_COL: &'static str = "guise_id";
 const DATA_COL: &'static str = "guise_data";
 
-fn create_mapping_table(table_name: String, db: &mut mysql::Conn, in_memory: bool) -> Result<(), mysql::Error> {
+/*fn create_mapping_table(table_name: String, db: &mut mysql::Conn, in_memory: bool) -> Result<(), mysql::Error> {
     let name = format!("guise{}", table_name);
     db.query_drop(&format!("DROP TABLE IF EXISTS {};", name))?;
     let mut q = format!(
@@ -28,10 +21,10 @@ fn create_mapping_table(table_name: String, db: &mut mysql::Conn, in_memory: boo
         q.push_str(" ENGINE = MEMORY");
     }
     warn!("drop/create/alter guises table {}: {}", name, q);
-    db.query_drop(q)?;
-    let q = format!(r"ALTER TABLE {} AUTO_INCREMENT={};",
-        name, guises::GID_START);
-    db.query_drop(q)?;
+    //db.query_drop(q)?;
+    /*let q = format!(r"ALTER TABLE {} AUTO_INCREMENT={};",
+        name, guises::GID_START);*/
+    //db.query_drop(q)?;
     Ok(())
 }
 
@@ -48,9 +41,9 @@ fn insert_into_mapping_table(table_name: String, db: &mut mysql::Conn, data: Vec
         name, guises::GID_START);
     db.query_drop(q)?;
     Ok(())
-}
+}*/
 
-fn read_from_mapping_table(table_name: String, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+/*fn read_from_mapping_table(table_name: String, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     let name = format!("guise{}", table_name);
     let insert_query = &format!("INSERT INTO {} ({}, {}, {}) VALUES {};", 
                                     name, GID_COL, LOID_COL, DATA_COL, pairs.join(","));
@@ -455,4 +448,4 @@ impl GuiseMaps {
             gm.regenerate_cache_entry(*oid, &vec![guise_family.clone()]);
         }
     }
-}
+}*/

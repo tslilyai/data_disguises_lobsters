@@ -1,65 +1,69 @@
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::collections::{HashMap, HashSet};
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::time::Duration;
 use std::*;
-use log::{warn};
 use crate::types::*;
+use crate::{policy, helpers};
 
 pub type GID = ID;
 pub type RefrID = ID;
 
+fn set_gid_closure(gid: u64) -> Box<dyn Fn(&str) -> String> {
+    Box::new(move |_| gid.to_string())
+}
+
 pub enum Action {
     // insert copy of guise of table Table with id GID
-    pub CopyGuise(GID),
+    CopyGuise(GID),
     // modify the table column of guise with ID GID according to the custom fxn
-    pub ModifyGuise(GID, Vec<(TableCol, Box<dyn Fn(&str) -> String)>),
+    ModifyGuise(GID, Vec<(TableCol, Box<dyn Fn(&str) -> String>)>),
     // rewrite the referencer's value in the current TableCol column to point to GID
-    pub RedirectReferencer(ForeignKeyCol, RefrID, GID),
+    RedirectReferencer(ForeignKeyCol, RefrID, GID),
     // delete the referencer and descendants
-    pub DeleteReferencer(RefrID),
+    DeleteReferencer(RefrID),
     // delete the specified guise and descendants 
-    pub DeleteGuise(GID),
+    DeleteGuise(GID),
 }
 
 // optionally returns a GID if a GID is created
 pub fn perform_action(
     action: Action,
+    schema_config: &policy::SchemaConfig,
     db: &mut mysql::Conn,
 ) -> Result<Option<GID>, mysql::Error>
 {
-    warn!("perform action: {}", action);
+    use Action::*;
+    //warn!("perform action: {}", action);
     
     match action {
         CopyGuise(gid) => {
             let new = gid.copy_row_with_modifications(vec![], db)?;
-            Ok(Some(new))
+            return Ok(Some(ID{
+                table: gid.table,
+                id: new,
+                id_col_index: gid.id_col_index,
+                id_col_name: gid.id_col_name,
+            }));
         }
         ModifyGuise(gid, mods) => {
-            gid.update(mods, db)?;
-            Ok(None)
+            gid.update_row_with_modifications(mods, db)?;
         }
         RedirectReferencer(fkcol, rid, gid) => {
-            let update_f = |_| gid.id;
             let mods = vec![(
                 TableCol {
                     table: fkcol.child_table,
-                    colname: fkcol.colname,
-                    colindex: fkcol.colindex,
+                    col_name: fkcol.col_name,
+                    col_index: fkcol.col_index,
                 }, 
-                Box::new(update_f)
+                set_gid_closure(gid.id)
             )];
-            rid.update(mods, db);
+            rid.update_row_with_modifications(mods, db);
         }
         DeleteReferencer(rid) => {
             recursive_remove_guise(rid, schema_config, db)?;
-            Ok(None)
         }
         DeleteGuise(gid) => {
             recursive_remove_guise(gid, schema_config, db)?;
-            Ok(None)
         }
     }
     Ok(None)
@@ -73,13 +77,13 @@ fn recursive_remove_guise(gid: ID, schema_config: &policy::SchemaConfig, db: &mu
     // do recursive traversal to get descendants, ignore cycles
     to_traverse.push(gid);
     while to_traverse.len() > 0 {
-        id = to_traverse.pop().unwrap();
-        seen.push(id);
+        let id = to_traverse.pop().unwrap();
+        seen.insert(id.clone());
 
-        let refs = id.get_referencers(schema_config, db);
-        for rid in refs {
+        let refs = id.get_referencers(schema_config, db)?;
+        for rid in &refs {
             if seen.get(rid) == None {
-                to_traverse.push(rid);
+                to_traverse.push(rid.clone());
                 match table_to_ids.get_mut(&id.table) {
                     Some(ids) => ids.push(id.id),
                     None => {
@@ -93,9 +97,9 @@ fn recursive_remove_guise(gid: ID, schema_config: &policy::SchemaConfig, db: &mu
     // actually delete, one query per table
     for (table, ids) in table_to_ids.iter() {
         let id_exprs : Vec<Expr> = ids.iter().map(|id| Expr::Value(Value::Number(id.to_string()))).collect();
-        let id_col = schema.get(&table).unwrap();
+        let id_col = schema_config.id_cols.get(table).unwrap();
         let selection = Some(Expr::InList{
-                expr: Box::new(id_col.col_name),
+                expr: Box::new(Expr::Value(Value::String(id_col.col_name.clone()))),
                 list: id_exprs,
                 negated: false,
         });

@@ -21,7 +21,7 @@ pub struct TableCol {
 pub struct ForeignKeyCol {
     pub child_table: String,
     pub col_index: usize,
-    pub col_name: usize,
+    pub col_name: String,
     pub parent_table: String,
 }
 
@@ -40,10 +40,9 @@ impl ID {
                 .iter()
                 .map(|c| c.name_str().to_string())
                 .collect();
-        let mut vals : Vec<String> = vec![];
         for row in res {
             let rowvals = row.unwrap().unwrap();
-            vals = rowvals.iter().map(|v| helpers::mysql_val_to_string(v)).collect();
+            let vals = rowvals.iter().map(|v| helpers::mysql_val_to_string(v)).collect();
             return Ok(Row {
                 id: self.clone(),
                 columns: cols,
@@ -56,7 +55,7 @@ impl ID {
     pub fn update_row_with_modifications(&self, modifications: Vec<(TableCol, Box<dyn Fn(&str) -> String>)>, db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
-        let mut row = self.get_row(db)?;
+        let row = self.get_row(db)?;
         let mut set_strs = vec![]; 
         for (tc, f) in modifications {
             set_strs.push(format!("{} = {}", 
@@ -93,10 +92,10 @@ impl ID {
                     assert_eq!(rowvals.len(), 1);
                     let id = helpers::mysql_val_to_u64(&rowvals[0])?;
                     referencers.push(ID {
-                        table: fk.child_table,
+                        table: fk.child_table.clone(),
                         id: id, 
                         id_col_index: id_col.col_index,
-                        id_col_name: id_col.col_name,
+                        id_col_name: id_col.col_name.clone(),
                     });
                 }
             } 

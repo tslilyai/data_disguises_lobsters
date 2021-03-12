@@ -111,9 +111,6 @@ impl Querier {
                 };
                 db.query_drop(dtstmt.to_string())?;
                 self.cur_stat.nqueries+=1;
-
-                // get parent columns so that we can keep track of the graph 
-                let parent_cols_of_table = helpers::get_parent_col_indices_of_datatable(&self.policy, &name, columns);
             }
             Statement::DropObjects(DropObjectsStatement{
                 object_type,

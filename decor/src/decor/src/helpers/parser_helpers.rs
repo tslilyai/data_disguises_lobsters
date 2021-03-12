@@ -4,7 +4,6 @@ use std::cmp::Ordering;
 use std::str::FromStr;
 use rand;
 use log::{debug};
-use crate::{views};
 
 /*****************************************
  * Parser helpers 
@@ -148,7 +147,7 @@ pub fn parser_val_to_common_val(val: &sql_parser::ast::Value) -> mysql_common::v
     }
 }
 
-pub fn string_vals_to_parser_vals(valstrs: &Vec<String>, columns: &Vec<views::TableColumnDef>) -> Vec<Value> {
+/*pub fn string_vals_to_parser_vals(valstrs: &Vec<String>, columns: &Vec<views::TableColumnDef>) -> Vec<Value> {
     let mut valsvec = vec![];
     for ci in 0..columns.len() {
         let valstr = trim_quotes(&valstrs[ci]);
@@ -177,7 +176,7 @@ pub fn string_vals_to_parser_vals(valstrs: &Vec<String>, columns: &Vec<views::Ta
         }
     }
     valsvec
-}
+}*/
 
 /***************************
  * IDENT STUFF

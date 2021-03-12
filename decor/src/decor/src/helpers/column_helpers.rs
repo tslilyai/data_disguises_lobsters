@@ -1,4 +1,4 @@
-use sql_parser::ast::{ObjectName};
+/*use sql_parser::ast::{ObjectName};
 use std::*;
 use log::{debug};
 use crate::{policy, views};
@@ -57,4 +57,4 @@ pub fn get_col_index(col: &str, columns: &Vec<views::TableColumnDef>) -> Option<
     debug!("found position {:?} for col {}", pos, col);
     pos
 }
-
+*/
