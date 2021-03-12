@@ -8,7 +8,7 @@ use crate::{policy, helpers};
 pub type GID = ID;
 pub type RefrID = ID;
 
-fn set_gid_closure(gid: u64) -> impl Fn(&str) -> String {
+fn set_gid_closure(gid: u64) -> Box<dyn Fn(&str) -> String> {
     Box::new(move |_| gid.to_string())
 }
 
@@ -16,7 +16,7 @@ pub enum Action {
     // insert copy of guise of table Table with id GID
     CopyGuise(GID),
     // modify the table column of guise with ID GID according to the custom fxn
-    ModifyGuise(GID, Vec<(TableCol, impl Fn(&str) -> String)>),
+    ModifyGuise(GID, Vec<(TableCol, Box<dyn Fn(&str) -> String>)>),
     // rewrite the referencer's value in the current TableCol column to point to GID
     RedirectReferencer(ForeignKeyCol, RefrID, GID),
     // delete the referencer and descendants
@@ -57,7 +57,7 @@ pub fn perform_action(
                 }, 
                 set_gid_closure(gid.id)
             )];
-            rid.update_row_with_modifications(mods, db);
+            rid.update_row_with_modifications(mods, db)?;
         }
         DeleteReferencer(rid) => {
             recursive_remove_guise(rid, schema_config, db)?;
