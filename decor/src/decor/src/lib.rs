@@ -31,7 +31,6 @@ pub struct Shim {
 
     querier: querier::Querier,
 
-    // NOTE: not *actually* static, but tied to our connection's lifetime.
     schema: String,
     test_params: TestParams,
 }

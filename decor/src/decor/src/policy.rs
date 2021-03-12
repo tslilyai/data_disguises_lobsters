@@ -1,14 +1,15 @@
 use std::collections::{HashMap};
 use crate::types::*;
-use crate::disguises::*;
 
 pub type TableName = String;
 
-pub struct SchemaConfig {
-    pub referencers : HashMap<TableName, Vec<ForeignKeyCol>>,
-    pub id_cols: HashMap<TableName, TableCol>,
+pub struct TableInfo {
+    pub referencers: Vec<ForeignKeyCol>,
+    pub id_col_info: TableCol,
+    pub guise_modifications: GuiseModifications,
 }
 
-pub fn leave_disguise(target: ID, schema_config: &SchemaConfig, db: &mut mysql::Conn) {
-    perform_action(Action::ModifyGuise(target, vec![]), schema_config, db);
+pub struct SchemaConfig {
+    pub user_table: String,
+    pub table_info: HashMap<TableName, TableInfo>,
 }

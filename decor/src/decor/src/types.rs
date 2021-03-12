@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use crate::{helpers, io, policy};
 use rand;
 
+pub type GuiseModifications = Vec<(TableCol, Box<dyn Fn(&str) -> String>)>;
+
 #[derive(Hash, Serialize, Deserialize, PartialOrd, Ord, Debug, Clone, PartialEq, Eq)]
 pub struct Row {
     pub id: ID,
@@ -19,10 +21,10 @@ pub struct TableCol {
 
 #[derive(Hash, Serialize, Deserialize, PartialOrd, Ord, Debug, Clone, PartialEq, Eq)]
 pub struct ForeignKeyCol {
-    pub child_table: String,
+    pub referencer_table: String,
+    pub referenced_table: String,
     pub col_index: usize,
     pub col_name: String,
-    pub parent_table: String,
 }
 
 #[derive(Hash, Serialize, Deserialize, PartialOrd, Ord, Debug, Clone, PartialEq, Eq)]
@@ -52,7 +54,7 @@ impl ID {
         Err(mysql::Error::IoError(io::Error::new(io::ErrorKind::NotFound, format!("ID {}.{} not found", self.table, self.id))))
     }
 
-    pub fn update_row_with_modifications(&self, modifications: Vec<(TableCol, Box<dyn Fn(&str) -> String>)>, db: &mut mysql::Conn) 
+    pub fn update_row_with_modifications(&self, modifications: &GuiseModifications, db: &mut mysql::Conn) 
         -> Result<(), mysql::Error> 
     {
         let row = self.get_row(db)?;
@@ -67,7 +69,7 @@ impl ID {
         db.query_drop(&format!("UPDATE {} SET {} WHERE {}={}", 
                                self.table, set_str, self.id_col_name, self.id))
     }
-    pub fn copy_row_with_modifications(&self, modifications: Vec<(TableCol, Box<dyn Fn(&str) -> String>)>, db: &mut mysql::Conn) 
+    pub fn copy_row_with_modifications(&self, modifications: &GuiseModifications, db: &mut mysql::Conn) 
         -> Result<u64, mysql::Error> 
     {
         let mut row = self.get_row(db)?;
@@ -81,22 +83,31 @@ impl ID {
         db.query_drop(&format!("INSERT INTO {} VALUES ({})", self.table, values_str))?;
         Ok(newid)
     }
-    pub fn get_referencers(&self, schema: &policy::SchemaConfig, db: &mut mysql::Conn) -> Result<Vec<ID>, mysql::Error> {
+    pub fn get_referencers(&self, schema: &policy::SchemaConfig, db: &mut mysql::Conn) -> Result<Vec<(Row, ForeignKeyCol)>, mysql::Error> {
         let mut referencers = vec![];
-        if let Some(fkcols) = schema.referencers.get(&self.table) {
+        if let Some(tabinfo) = schema.table_info.get(&self.table) {
+            let fkcols = &tabinfo.referencers;
+            let id_col_info = &tabinfo.id_col_info;
             for fk in fkcols {
-                let id_col = schema.id_cols.get(&fk.child_table).unwrap();
-                let res = db.query_iter(&format!("SELECT {} FROM {} WHERE {}={}", id_col.col_name, fk.child_table, fk.col_name, self.id))?;
+                let res = db.query_iter(&format!("SELECT * FROM {} WHERE {}={}", 
+                        fk.referencer_table, fk.col_name, self.id))?;
+                let cols = res.columns().as_ref()
+                        .iter()
+                        .map(|c| c.name_str().to_string())
+                        .collect();
                 for row in res {
                     let rowvals = row.unwrap().unwrap();
-                    assert_eq!(rowvals.len(), 1);
-                    let id = helpers::mysql_val_to_u64(&rowvals[0])?;
-                    referencers.push(ID {
-                        table: fk.child_table.clone(),
-                        id: id, 
-                        id_col_index: id_col.col_index,
-                        id_col_name: id_col.col_name.clone(),
-                    });
+                    let vals = rowvals.iter().map(|v| helpers::mysql_val_to_string(v)).collect();
+                    referencers.push((Row {
+                        id: ID {
+                            table: fk.referencer_table.clone(),
+                            id: self.id, 
+                            id_col_index: id_col_info.col_index,
+                            id_col_name: id_col_info.col_name.clone()
+                        },
+                        columns: cols,
+                        values: vals,
+                    }, fk.clone()));
                 }
             } 
         }
