@@ -1,23 +1,42 @@
 use mysql::prelude::*;
 use serde::{Deserialize, Serialize};
 use crate::{helpers, io, policy};
+use std::hash::{Hash, Hasher};
 use rand;
 
 pub type GuiseModifications = Vec<(TableCol, Box<dyn Fn(&str) -> String>)>;
 
-#[derive(Hash, Serialize, Deserialize, PartialOrd, Ord, Debug, Clone, PartialEq, Eq)]
-pub struct Row {
-    pub id: ID,
-    pub columns: Vec<String>,
-    pub values: Vec<String>,
-}
+pub type TableName = String;
 
 #[derive(Hash, Serialize, Deserialize, PartialOrd, Ord, Debug, Clone, PartialEq, Eq)]
 pub struct TableCol {
-    pub table: String,
+    pub table: TableName,
     pub col_index: usize,
     pub col_name: String,
 }
+
+pub struct TableNamePair {
+    pub type1: TableName, 
+    pub type2: TableName,
+}
+impl Hash for TableNamePair {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        if self.type1 < self.type2 {
+            self.type1.hash(state);
+            self.type2.hash(state);
+        } else {
+            self.type2.hash(state);
+            self.type1.hash(state);
+        }
+    }
+}
+impl PartialEq for TableNamePair {
+    fn eq(&self, other: &TableNamePair) -> bool {
+        (self.type2 == other.type2 && self.type1 == other.type1)
+        || (self.type1 == other.type2 && self.type2 == other.type1)
+    }
+}
+
 
 #[derive(Hash, Serialize, Deserialize, PartialOrd, Ord, Debug, Clone, PartialEq, Eq)]
 pub struct ForeignKeyCol {
@@ -33,6 +52,13 @@ pub struct ID {
     pub id: u64,
     pub id_col_name: String,
     pub id_col_index: usize,
+}
+
+#[derive(Hash, Serialize, Deserialize, PartialOrd, Ord, Debug, Clone, PartialEq, Eq)]
+pub struct Row {
+    pub id: ID,
+    pub columns: Vec<String>,
+    pub values: Vec<String>,
 }
 
 impl ID {
@@ -69,6 +95,7 @@ impl ID {
         db.query_drop(&format!("UPDATE {} SET {} WHERE {}={}", 
                                self.table, set_str, self.id_col_name, self.id))
     }
+
     pub fn copy_row_with_modifications(&self, modifications: &GuiseModifications, db: &mut mysql::Conn) 
         -> Result<u64, mysql::Error> 
     {
@@ -83,6 +110,7 @@ impl ID {
         db.query_drop(&format!("INSERT INTO {} VALUES ({})", self.table, values_str))?;
         Ok(newid)
     }
+
     pub fn get_referencers(&self, schema: &policy::SchemaConfig, db: &mut mysql::Conn) -> Result<Vec<(Row, ForeignKeyCol)>, mysql::Error> {
         let mut referencers = vec![];
         if let Some(tabinfo) = schema.table_info.get(&self.table) {
@@ -91,7 +119,7 @@ impl ID {
             for fk in fkcols {
                 let res = db.query_iter(&format!("SELECT * FROM {} WHERE {}={}", 
                         fk.referencer_table, fk.col_name, self.id))?;
-                let cols = res.columns().as_ref()
+                let cols : Vec<String> = res.columns().as_ref()
                         .iter()
                         .map(|c| c.name_str().to_string())
                         .collect();
@@ -105,12 +133,44 @@ impl ID {
                             id_col_index: id_col_info.col_index,
                             id_col_name: id_col_info.col_name.clone()
                         },
-                        columns: cols,
+                        columns: cols.clone(),
                         values: vals,
                     }, fk.clone()));
                 }
             } 
         }
         Ok(referencers)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash() {
+        let hm = HashMap::new();
+        hm.insert(TableNamePair{
+            type1: "hello",
+            type2: "world",
+        }, "first");
+        assert_eq!(hm.get(&TableNamePair{
+            type1: "hello",
+            type2: "world",
+        }), Some("first"));
+        assert_eq!(hm.get(&TableNamePair{
+            type1: "world",
+            type2: "hello",
+        }), Some("first"));
+        hm.insert(TableNamePair{
+            type1: "world",
+            type2: "hello",
+        }, "second");
+        assert_eq!(hm.get(&TableNamePair{
+            type1: "hello",
+            type2: "world",
+        }), Some("second"));
+
+        assert_eq!(hm.len(), 1);
     }
 }

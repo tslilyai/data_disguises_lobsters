@@ -12,24 +12,10 @@ fn set_gid_closure(gid: u64) -> Box<dyn Fn(&str) -> String> {
     Box::new(move |_| gid.to_string())
 }
 
-pub enum Action<'a> {
-    // insert copy of guise of table Table with id GID
-    CopyGuiseWithModifications(&'a GID, &'a GuiseModifications),
-    // modify the table column of guise with ID GID according to the custom fxn
-    ModifyGuise(GID, &'a GuiseModifications),
-    // rewrite the referencer's value in the current TableCol column to point to GID
-    RedirectReferencer(&'a ForeignKeyCol, &'a RefrID, u64),
-    // delete the referencer and descendants
-    DeleteReferencer(RefrID),
-    // delete the specified guise and descendants
-    DeleteGuise(GID),
-}
-
 // optionally returns a GID if a GID is created
 pub fn copy_guise_with_modifications(
     gid: &GID,
     mods: &GuiseModifications,
-    schema_config: &policy::SchemaConfig,
     db: &mut mysql::Conn,
 ) -> Result<GID, mysql::Error> {
     let new = gid.copy_row_with_modifications(mods, db)?;
@@ -44,7 +30,6 @@ pub fn copy_guise_with_modifications(
 pub fn update_guise_with_modifications(
     gid: &GID,
     mods: &GuiseModifications,
-    schema_config: &policy::SchemaConfig,
     db: &mut mysql::Conn,
 ) -> Result<(), mysql::Error> {
     gid.update_row_with_modifications(mods, db)
@@ -54,7 +39,6 @@ pub fn redirect_referencer(
     fkcol: &ForeignKeyCol,
     rid: &RefrID,
     new_id: u64,
-    schema_config: &policy::SchemaConfig,
     db: &mut mysql::Conn,
 ) -> Result<(), mysql::Error> {
     let mods = vec![(
@@ -79,15 +63,15 @@ pub fn delete_guise(
     let mut table_to_ids: HashMap<String, Vec<u64>> = HashMap::new();
 
     // do recursive traversal to get descendants, ignore cycles
-    to_traverse.push(gid);
+    to_traverse.push(gid.clone());
     while to_traverse.len() > 0 {
         let id = to_traverse.pop().unwrap();
         seen.insert(id.clone());
 
         let refs = id.get_referencers(schema_config, db)?;
-        for (rid, _) in &refs {
+        for (rid, _) in refs {
             if seen.get(&rid.id) == None {
-                to_traverse.push(&rid.id);
+                to_traverse.push(rid.id.clone());
                 removed.push(rid.clone());
                 match table_to_ids.get_mut(&id.table) {
                     Some(ids) => ids.push(id.id),

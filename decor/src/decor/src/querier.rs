@@ -14,7 +14,7 @@ use crate::{helpers, policy, subscriber};
  * The controller issues queries to the database
  */
 pub struct Querier {
-    schema: policy::SchemaConfig,
+    schema_config: policy::SchemaConfig,
     pub subscriber: subscriber::Subscriber,
 
     // for tests
@@ -26,7 +26,7 @@ pub struct Querier {
 impl Querier {
     pub fn new(schema_config: policy::SchemaConfig, params: &super::TestParams) -> Self {
         Querier {
-            schema: schema_config,
+            schema_config: schema_config,
             subscriber: subscriber::Subscriber::new(),
 
             params: params.clone(),
@@ -138,10 +138,10 @@ impl Querier {
         /*
          * 1. Get all reachable objects, organized by type
          */
-        let table_info = &self.schema.table_info.get(&self.schema.user_table).unwrap();
+        let table_info = &self.schema_config.table_info.get(&self.schema_config.user_table).unwrap();
         let id = ID {
             id: uid,
-            table: self.schema.user_table.clone(),
+            table: self.schema_config.user_table.clone(),
             id_col_index: table_info.id_col_info.col_index,
             id_col_name: table_info.id_col_info.col_name.clone(),
         };
@@ -149,24 +149,23 @@ impl Querier {
         /*
          * For now, just create user guises and redirect referencers
          */
-        let refs = id.get_referencers(&self.schema, db)?;
+        let refs = id.get_referencers(&self.schema_config, db)?;
         for (rid, fk) in refs {
             // create a unique guise with the given modifications
             let new_guise = disguises::copy_guise_with_modifications(
                 &id,
                 &table_info.guise_modifications,
-                &self.schema,
                 db,
             )?;
 
             // redirect the referencer to this guise
-            disguises::redirect_referencer(&fk, &rid.id, new_guise.id, &self.schema, db)?;
+            disguises::redirect_referencer(&fk, &rid.id, new_guise.id, db)?;
 
             created_ids.push(new_guise.clone());
         }
 
         // remove the user
-        disguises::delete_guise(&id, &self.schema, db)?;
+        removed_rows.append(&mut disguises::delete_guise(&id, &self.schema_config, db)?);
         Ok(())
     }
 
