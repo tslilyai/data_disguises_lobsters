@@ -9,12 +9,13 @@ use std::*;
 use crate::disguises;
 use crate::types::*;
 use crate::{helpers, policy, subscriber};
+use crate::policy::*;
 
 /*
  * The controller issues queries to the database
  */
 pub struct Querier {
-    schema_config: policy::SchemaConfig,
+    schema_config: SchemaConfig,
     pub subscriber: subscriber::Subscriber,
 
     // for tests
@@ -24,7 +25,7 @@ pub struct Querier {
 }
 
 impl Querier {
-    pub fn new(schema_config: policy::SchemaConfig, params: &super::TestParams) -> Self {
+    pub fn new(schema_config: SchemaConfig, params: &super::TestParams) -> Self {
         Querier {
             schema_config: schema_config,
             subscriber: subscriber::Subscriber::new(),
@@ -125,7 +126,6 @@ impl Querier {
     /*******************************************************
      ****************** UNSUBSCRIPTION *********************
      *******************************************************/
-
     pub fn unsubscribe<W: io::Write>(
         &mut self,
         uid: u64,
@@ -136,10 +136,14 @@ impl Querier {
         let mut created_ids: Vec<ID> = vec![];
 
         /*
-         * 1. Get all reachable objects, organized by type
+         * 0. Get target "global" object
          */
-        let table_info = &self.schema_config.table_info.get(&self.schema_config.user_table).unwrap();
-        let id = ID {
+        let table_info = &self
+            .schema_config
+            .table_info
+            .get(&self.schema_config.user_table)
+            .unwrap();
+        let target = ID {
             id: uid,
             table: self.schema_config.user_table.clone(),
             id_col_index: table_info.id_col_info.col_index,
@@ -147,12 +151,49 @@ impl Querier {
         };
 
         /*
-         * For now, just create user guises and redirect referencers
+         * 1. Get all single objects satisfying predicates
          */
-        let refs = id.get_referencers(&self.schema_config, db)?;
+        for (table, polvec) in self.schema_config.single_policies.iter() {
+            for pol in polvec {
+                let pred = helpers::subst_target_values_in_expr(&target, &pol.predicate);
+                let matching = self.get_objects_satisfying_pred(&table, &pred, db)?;
+                for row in matching {
+                    match pol.action {
+                        Action::Delete => {
+                            removed_rows.append(&mut disguises::delete_guise(&row.id, &self.schema_config, db)?);
+                        }
+                        Action::Modify => {
+                            if let Some(m) = &pol.modifications {
+                                row.id.update_row_with_modifications(m, db)?;
+                            }
+                        }
+                        _ => continue
+                    }
+                }
+            }
+        }
+        
+        /*
+         * 2. Get all pairs of objects satisfying predicates
+         * NOTE: Some may no longer satisfy the predicate because of the single policies already
+         * applied---is that ok?
+         */
+        for (pair, pol) in self.schema_config.pair_policies.iter(){
+            // query both tables using policy single predicates
+            // alter according to policy
+        }
+
+        /*let refs = id.get_referencers(&self.schema_config, db)?;
         for (rid, fk) in refs {
-            // create a unique guise with the given modifications
-            let new_guise = disguises::copy_guise_with_modifications(
+            let emptyv = vec![];
+            let pair_policies = self.schema_config.pair_policies.get(&TableNamePair {
+                type1: id.table.clone(),
+                type2: rid.id.table.clone(),
+            }).unwrap_or(&emptyv);
+
+            for p in pair_policies {
+                // do pair policies actions
+                let new_guise = disguises::copy_guise_with_modifications(
                 &id,
                 &table_info.guise_modifications,
                 db,
@@ -160,13 +201,39 @@ impl Querier {
 
             // redirect the referencer to this guise
             disguises::redirect_referencer(&fk, &rid.id, new_guise.id, db)?;
+            }
+
+            // create a unique guise with the given modifications
+            
 
             created_ids.push(new_guise.clone());
-        }
+        }*/
 
         // remove the user
-        removed_rows.append(&mut disguises::delete_guise(&id, &self.schema_config, db)?);
         Ok(())
+    }
+
+    fn get_objects_satisfying_pred(&self, table: &str, pred: &Predicate, db: &mut mysql::Conn) -> Result<Vec<Row>, mysql::Error> {
+        // create query using policy predicate
+        let q = Select {
+            distinct: true,
+            projection: vec![],
+            from: vec![TableWithJoins {
+                relation: TableFactor:: Table {
+                    name: helpers::string_to_objname(table),
+                    alias: None,
+                },
+                joins: vec![],
+            }],
+            selection: Some(pred.clone()),
+            group_by: vec![],
+            having: None,
+        }.to_string();
+
+        let id_col_info = &self.schema_config.table_info.get(table).unwrap().id_col_info;
+        let rows = helpers::get_rows_of_query(&q, table, &id_col_info.col_name, db)?;
+        
+        Ok(rows)
     }
 
     /*******************************************************

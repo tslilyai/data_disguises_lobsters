@@ -8,6 +8,244 @@ use log::{debug};
 /*****************************************
  * Parser helpers 
  ****************************************/
+
+pub fn subst_target_values_in_expr(target: &ID, expr: &Expr) -> Expr {
+   let new_expr = match expr {
+        Expr::FieldAccess {
+            expr,
+            field,
+        } => {
+            Expr::FieldAccess {
+                expr: Box::new(expr_to_value_expr(&expr, views)?),
+                field: field.clone(),
+            }
+        }
+        Expr::WildcardAccess(e) => {
+            Expr::WildcardAccess(Box::new(expr_to_value_expr(&e, views)?))
+        }
+        Expr::IsNull{
+            expr,
+            negated,
+        } => Expr::IsNull {
+            expr: Box::new(expr_to_value_expr(&expr, views)?),
+            negated: *negated,
+        },
+        Expr::InList {
+            expr,
+            list,
+            negated,
+        } => {
+            let mut new_list = vec![];
+            for e in list {
+                new_list.push(expr_to_value_expr(&e, views)?);
+            }
+            Expr::InList {
+                expr: Box::new(expr_to_value_expr(&expr, views)?),
+                list: new_list,
+                negated: *negated,
+            }
+        }
+        Expr::InSubquery {
+            expr,
+            subquery,
+            negated,
+        } => {
+            let new_query = query_to_value_query(&subquery, views)?;
+            // otherwise just return table column IN subquery
+            Expr::InSubquery {
+                expr: Box::new(expr_to_value_expr(&expr, views)?),
+                subquery: Box::new(new_query),
+                negated: *negated,
+            }                
+        }
+        Expr::Between {
+            expr,
+            negated,
+            low,
+            high,
+        } => {
+            let new_low = expr_to_value_expr(&low, views)?;
+            let new_high = expr_to_value_expr(&high, views)?;
+            Expr::Between {
+                expr: Box::new(expr_to_value_expr(&expr, views)?),
+                negated: *negated,
+                low: Box::new(new_low),
+                high: Box::new(new_high),
+            }
+        }
+        Expr::BinaryOp{
+            left,
+            op,
+            right
+        } => {
+            let new_left = expr_to_value_expr(&left, views)?;
+            let new_right = expr_to_value_expr(&right, views)?;
+            Expr::BinaryOp{
+                left: Box::new(new_left),
+                op: op.clone(),
+                right: Box::new(new_right),
+            }
+        }
+        Expr::UnaryOp{
+            op,
+            expr,
+        } => Expr::UnaryOp{
+            op: op.clone(),
+            expr: Box::new(expr_to_value_expr(&expr, views)?),
+        },
+        Expr::Cast{
+            expr,
+            data_type,
+        } => Expr::Cast{
+            expr: Box::new(expr_to_value_expr(&expr, views)?),
+            data_type: data_type.clone(),
+        },
+        Expr::Collate {
+            expr,
+            collation,
+        } => Expr::Collate{
+            expr: Box::new(expr_to_value_expr(&expr, views)?),
+            collation: collation.clone(),
+        },
+        Expr::Nested(expr) => Expr::Nested(Box::new(expr_to_value_expr(&expr, views)?)),
+        Expr::Row{
+            exprs,
+        } => {
+            let mut new_exprs = vec![];
+            for e in exprs {
+                new_exprs.push(expr_to_value_expr(&e, views)?);
+            }
+            Expr::Row{
+                exprs: new_exprs,
+            }
+        }
+        Expr::Function(f) => Expr::Function(Function{
+            name: f.name.clone(),
+            args: match &f.args {
+                FunctionArgs::Star => FunctionArgs::Star,
+                FunctionArgs::Args(exprs) => {
+                    let mut new_exprs = vec![];
+                    for e in exprs {
+                        new_exprs.push(expr_to_value_expr(&e, views)?);
+                    }
+                    FunctionArgs::Args(new_exprs)
+                }                
+            },
+            filter: match &f.filter {
+                Some(filt) => Some(Box::new(expr_to_value_expr(&filt, views)?)),
+                None => None,
+            },
+            over: match &f.over {
+                Some(ws) => {
+                    let mut new_pb = vec![];
+                    for e in &ws.partition_by {
+                        new_pb.push(expr_to_value_expr(&e, views)?);
+                    }
+                    let mut new_ob = vec![];
+                    for obe in &ws.order_by {
+                        new_ob.push(OrderByExpr {
+                            expr: expr_to_value_expr(&obe.expr, views)?,
+                            asc: obe.asc.clone(),
+                        });
+                    }
+                    Some(WindowSpec{
+                        partition_by: new_pb,
+                        order_by: new_ob,
+                        window_frame: ws.window_frame.clone(),
+                    })
+                }
+                None => None,
+            },
+            distinct: f.distinct,
+        }),
+        Expr::Case{
+            operand,
+            conditions,
+            results,
+            else_result,
+        } => {
+            let mut new_cond = vec![];
+            for e in conditions {
+                new_cond.push(expr_to_value_expr(&e, views)?);
+            }
+            let mut new_res= vec![];
+            for e in results {
+                new_res.push(expr_to_value_expr(&e, views)?);
+            }
+            Expr::Case{
+                operand: match operand {
+                    Some(e) => Some(Box::new(expr_to_value_expr(&e, views)?)),
+                    None => None,
+                },
+                conditions: new_cond ,
+                results: new_res, 
+                else_result: match else_result {
+                    Some(e) => Some(Box::new(expr_to_value_expr(&e, views)?)),
+                    None => None,
+                },
+            }
+        }
+        Expr::Exists(q) => Expr::Exists(Box::new(query_to_value_query(&q, views)?)),
+        Expr::Subquery(q) => Expr::Subquery(Box::new(query_to_value_query(&q, views)?)),
+        Expr::Any {
+            left,
+            op,
+            right,
+        } => Expr::Any {
+            left: Box::new(expr_to_value_expr(&left, views)?),
+            op: op.clone(),
+            right: Box::new(query_to_value_query(&right, views)?),
+        },
+        Expr::All{
+            left,
+            op,
+            right,
+        } => Expr::All{
+            left: Box::new(expr_to_value_expr(&left, views)?),
+            op: op.clone(),
+            right: Box::new(query_to_value_query(&right, views)?),
+        },
+        Expr::List(exprs) => {
+            let mut new_exprs = vec![];
+            for e in exprs {
+                new_exprs.push(expr_to_value_expr(&e, views)?);
+            }
+            Expr::List(new_exprs)
+        }
+        Expr::SubscriptIndex {
+            expr,
+            subscript,
+        } => Expr::SubscriptIndex{
+            expr: Box::new(expr_to_value_expr(&expr, views)?),
+            subscript: Box::new(expr_to_value_expr(&subscript, views)?),
+        },
+        Expr::SubscriptSlice{
+            expr,
+            positions,
+        } => {
+            let mut new_pos = vec![];
+            for pos in positions {
+                new_pos.push(SubscriptPosition {
+                    start: match &pos.start {
+                        Some(e) => Some(expr_to_value_expr(&e, views)?),
+                        None => None,
+                    },
+                    end: match &pos.end {
+                        Some(e) => Some(expr_to_value_expr(&e, views)?),
+                        None => None,
+                    },                
+                });
+            }
+            Expr::SubscriptSlice{
+                expr: Box::new(expr_to_value_expr(&expr, views)?),
+                positions: new_pos,
+            }
+        }
+        _ => expr.clone(),
+    };
+    new_expr
+}
+
 // returns if the first value is larger than the second
 pub fn parser_vals_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> cmp::Ordering {
     let res : cmp::Ordering;

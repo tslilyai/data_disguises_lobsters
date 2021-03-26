@@ -27,14 +27,6 @@ pub fn copy_guise_with_modifications(
     })
 }
 
-pub fn update_guise_with_modifications(
-    gid: &GID,
-    mods: &GuiseModifications,
-    db: &mut mysql::Conn,
-) -> Result<(), mysql::Error> {
-    gid.update_row_with_modifications(mods, db)
-}
-
 pub fn redirect_referencer(
     fkcol: &ForeignKeyCol,
     rid: &RefrID,
@@ -69,14 +61,16 @@ pub fn delete_guise(
         seen.insert(id.clone());
 
         let refs = id.get_referencers(schema_config, db)?;
-        for (rid, _) in refs {
-            if seen.get(&rid.id) == None {
-                to_traverse.push(rid.id.clone());
-                removed.push(rid.clone());
-                match table_to_ids.get_mut(&id.table) {
-                    Some(ids) => ids.push(id.id),
-                    None => {
-                        table_to_ids.insert(id.table.clone(), vec![id.id]);
+        for (ridvec, _) in refs {
+            for rid in ridvec {
+                if seen.get(&rid.id) == None {
+                    to_traverse.push(rid.id.clone());
+                    removed.push(rid.clone());
+                    match table_to_ids.get_mut(&id.table) {
+                        Some(ids) => ids.push(id.id),
+                        None => {
+                            table_to_ids.insert(id.table.clone(), vec![id.id]);
+                        }
                     }
                 }
             }

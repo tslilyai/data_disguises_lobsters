@@ -1,12 +1,64 @@
+use crate::types::*;
+use log::debug;
+use msql_srv::{Column, ColumnFlags, QueryResultWriter};
+use mysql::prelude::*;
 use sql_parser::ast::*;
-use std::*;
 use std::str::FromStr;
-use msql_srv::{QueryResultWriter, Column, ColumnFlags};
-use log::{debug};
+use std::*;
 
-/************************************ 
+/************************************
  * MYSQL HELPERS
  ************************************/
+pub fn get_rows_of_query(
+    q: &str,
+    table: &str,
+    id_col_name: &str,
+    db: &mut mysql::Conn,
+) -> Result<Vec<Row>, mysql::Error> {
+    let mut rows = vec![];
+    let mut id_col_index = 0;
+    let mut i = 0;
+
+    let res = db.query_iter(q)?;
+    let cols: Vec<TableCol> = res
+        .columns()
+        .as_ref()
+        .iter()
+        .map(|c| {
+            let index = i;
+            let name = c.name_str().to_string();
+            if name == id_col_name {
+                id_col_index = index;
+            }
+            i += 1;
+            TableCol {
+                table: table.to_string(),
+                col_index: index,
+                col_name: name,
+            }
+        })
+        .collect();
+
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let vals : Vec<String> = rowvals
+            .iter()
+            .map(|v| mysql_val_to_string(v))
+            .collect();
+        rows.push(Row {
+            id: ID {
+                table: table.to_string(),
+                id: u64::from_str(&vals[id_col_index]).unwrap(),
+                id_col_index: id_col_index,
+                id_col_name: id_col_name.to_string(),
+            },
+            columns: cols.clone(),
+            values: vals,
+        });
+    }
+    Ok(rows)
+}
+
 pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
     // get rid of unsupported types
     debug!("helpers:{}", stmt);
@@ -25,7 +77,7 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
     // get rid of DEFAULT/etc. commands after query
     let mut end_index = new.len();
     if let Some(i) = new.find("DEFAULT CHARSET") {
-        end_index = i; 
+        end_index = i;
     } else if let Some(i) = new.find("default charset") {
         end_index = i;
     }
@@ -52,24 +104,21 @@ pub fn remove_escaped_chars(s: &str) -> String {
 
 pub fn answer_rows<W: io::Write>(
     results: QueryResultWriter<W>,
-    rows: mysql::Result<mysql::QueryResult<mysql::Text>>) 
-    -> Result<(), mysql::Error> 
-{
+    rows: mysql::Result<mysql::QueryResult<mysql::Text>>,
+) -> Result<(), mysql::Error> {
     match rows {
         Ok(rows) => {
-            let cols : Vec<_> = rows
+            let cols: Vec<_> = rows
                 .columns()
                 .as_ref()
                 .into_iter()
-                .map(|c| {
-                    Column {
-                    table : c.table_str().to_string(),
-                    column : c.name_str().to_string(),
-                    coltype : get_coltype(&c.column_type()),
+                .map(|c| Column {
+                    table: c.table_str().to_string(),
+                    column: c.name_str().to_string(),
+                    coltype: get_coltype(&c.column_type()),
                     colflags: ColumnFlags::from_bits(c.flags().bits()).unwrap(),
-                }
-            })
-            .collect();
+                })
+                .collect();
             let mut writer = results.start(&cols)?;
             for row in rows {
                 let vals = row.unwrap().unwrap();
@@ -81,15 +130,18 @@ pub fn answer_rows<W: io::Write>(
             writer.finish()?;
         }
         Err(e) => {
-            results.error(msql_srv::ErrorKind::ER_BAD_SLAVE, format!("{:?}", e).as_bytes())?;
+            results.error(
+                msql_srv::ErrorKind::ER_BAD_SLAVE,
+                format!("{:?}", e).as_bytes(),
+            )?;
         }
     }
     Ok(())
 }
 
-/// Convert a MySQL type to MySQL_svr type 
+/// Convert a MySQL type to MySQL_svr type
 pub fn get_coltype(t: &mysql::consts::ColumnType) -> msql_srv::ColumnType {
-    use msql_srv::ColumnType as ColumnType;
+    use msql_srv::ColumnType;
     match t {
         mysql::consts::ColumnType::MYSQL_TYPE_DECIMAL => ColumnType::MYSQL_TYPE_DECIMAL,
         mysql::consts::ColumnType::MYSQL_TYPE_TINY => ColumnType::MYSQL_TYPE_TINY,
@@ -133,8 +185,12 @@ pub fn mysql_val_to_common_val(val: &mysql::Value) -> mysql_common::value::Value
         mysql::Value::UInt(i) => mysql_common::value::Value::UInt(*i),
         mysql::Value::Float(f) => mysql_common::value::Value::Double((*f).into()),
         mysql::Value::Double(f) => mysql_common::value::Value::Double((*f).into()),
-        mysql::Value::Date(a,b,c,d,e,f,g) => mysql_common::value::Value::Date(*a,*b,*c,*d,*e,*f,*g),
-        mysql::Value::Time(a,b,c,d,e,f) => mysql_common::value::Value::Time(*a,*b,*c,*d,*e,*f),
+        mysql::Value::Date(a, b, c, d, e, f, g) => {
+            mysql_common::value::Value::Date(*a, *b, *c, *d, *e, *f, *g)
+        }
+        mysql::Value::Time(a, b, c, d, e, f) => {
+            mysql_common::value::Value::Time(*a, *b, *c, *d, *e, *f)
+        }
     }
 }
 
@@ -145,15 +201,14 @@ pub fn mysql_val_to_parser_val(val: &mysql::Value) -> sql_parser::ast::Value {
             let res = str::from_utf8(&bs);
             match res {
                 Err(_) => Value::String(String::new()),
-                Ok(s) => {Value::String(remove_escaped_chars(s).to_string())}
+                Ok(s) => Value::String(remove_escaped_chars(s).to_string()),
             }
         }
         mysql::Value::Int(i) => Value::Number(format!("{}", i)),
         mysql::Value::UInt(i) => Value::Number(format!("{}", i)),
         mysql::Value::Float(f) => Value::Number(format!("{}", f)),
-        _ => unimplemented!("No sqlparser support for dates yet?")
-        /*mysql::Date(u16, u8, u8, u8, u8, u8, u32),
-        mysql::Time(bool, u32, u8, u8, u8, u32),8*/
+        _ => unimplemented!("No sqlparser support for dates yet?"), /*mysql::Date(u16, u8, u8, u8, u8, u8, u32),
+                                                                    mysql::Time(bool, u32, u8, u8, u8, u32),8*/
     }
 }
 
@@ -170,9 +225,8 @@ pub fn mysql_val_to_string(val: &mysql::Value) -> String {
         mysql::Value::Int(i) => format!("{}", i),
         mysql::Value::UInt(i) => format!("{}", i),
         mysql::Value::Float(f) => format!("{}", f),
-        _ => unimplemented!("No sqlparser support for dates yet?")
-        /*mysql::Date(u16, u8, u8, u8, u8, u8, u32),
-        mysql::Time(bool, u32, u8, u8, u8, u32),8*/
+        _ => unimplemented!("No sqlparser support for dates yet?"), /*mysql::Date(u16, u8, u8, u8, u8, u8, u32),
+                                                                    mysql::Time(bool, u32, u8, u8, u8, u32),8*/
     }
 }
 
@@ -185,6 +239,8 @@ pub fn mysql_val_to_u64(val: &mysql::Value) -> Result<u64, mysql::Error> {
         mysql::Value::Int(i) => Ok(u64::from_str(&i.to_string()).unwrap()), // TODO fix?
         mysql::Value::UInt(i) => Ok(*i),
         _ => Err(mysql::Error::IoError(io::Error::new(
-                io::ErrorKind::Other, format!("value {:?} is not an int", val)))),
+            io::ErrorKind::Other,
+            format!("value {:?} is not an int", val),
+        ))),
     }
 }
