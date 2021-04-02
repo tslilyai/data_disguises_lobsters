@@ -1,10 +1,28 @@
 use decor::disguise::*;
 use sql_parser::ast::{DataType, Expr, Ident, ObjectName, Statement, UnaryOperator, Value};
 
+pub struct fk {
+    pub referencer_col: String,
+    pub fk_name: String,
+    pub fk_col: String,
+}
+
+pub struct table_fks {
+    referencer_name: String,
+    fks: Vec<fk>,
+}
+
 const VAULT_FMT_STR: &'static str = "{}Vault";
 const VAULT_UID: &'static str = "uid";
 const SCHEMA_UID_COL: &'static str = "contactID";
 const SCHEMA_UID_TABLE: &'static str = "ContactInfo";
+const VAULT_COL_NAMES :Vec<Ident> = vec![
+    Ident::new(VAULT_UID), 
+    Ident::new("timestamp"), 
+    Ident::new("modifiedObjectName"), 
+    Ident::new("oldValue"), 
+    Ident::new("newValue"), 
+];
 const VAULT_COLS: Vec<ColumnDef> = vec![
     // user ID
     ColumnDef {
@@ -28,13 +46,10 @@ const VAULT_COLS: Vec<ColumnDef> = vec![
     },
     // table and column name
     ColumnDef {
-        name: Ident::new("modifiedObject"),
+        name: Ident::new("modifiedObjectName"),
         data_type: Datatype::Varbinary(4096),
         collation: None,
-        options: vec![ColumnOptionDef {
-            name: None,
-            option: ColumnOption::NotNull,
-        }],
+        options: vec![],
     },
     // value that object col was changed from
     ColumnDef {
@@ -68,17 +83,6 @@ const TABLE_NAMES: Vec<&'static str> = vec![
     "PaperTagAnno",
     "ContactInfo",
 ];
-
-pub struct fk {
-    pub referencer_col: String,
-    pub fk_name: String,
-    pub fk_col: String,
-}
-
-struct table_fks {
-    referencer_name: String,
-    fks: Vec<fk>,
-}
 
 fn str_to_tablewithjoins(name: &str) -> Vec<TableWithJoins> {
     vec![TableWithJoins {
@@ -125,7 +129,7 @@ fn get_vault_statements(in_memory: bool) -> Vec<Statement> {
 
     for name in TABLE_NAMES {
         stmts.push(Statement::CreateTableStatement {
-            name: helpers::str_to_objname(name),
+            name: helpers::str_to_objname(&format!(VAULT_FMT_STR, name)),
             columns: VAULT_COLS,
             constraints: vec![],
             indexes: indexes,

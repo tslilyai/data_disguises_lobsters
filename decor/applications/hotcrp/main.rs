@@ -149,7 +149,7 @@ fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'
             locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
             drop(locked_topo);
 
-            let app = get_hotcrp_application(SCHEMA);
+            let app = disguise::get_hotcrp_application(SCHEMA);
             let test_params = decor::TestParams{
                 testname: testname.to_string(), 
                 use_decor : use_decor,
@@ -300,39 +300,30 @@ fn main() {
     let prop_unsub = args.prop_unsub;
 
     use TestType::*;
-    //let tests = &[TestDecor];
-    //let testnames = vec!["decor"];
     let tests = vec![TestShimParse, TestNoShim, TestShim, TestDecor];
     let testnames = vec!["shim_parse", "no_shim", "shim_only", "decor"];
 
-    //let mut threads = vec![];
-    let mut core = 2;
+    //let mut core = 2;
     for i in 0..tests.len() {
         let testclone = tests[i].clone();
         let testname = testnames[i].clone();
-        let mut tid_core = core;
-        //threads.push(thread::spawn(move || {
-            // bind thread to core 1
-            let topo = Arc::new(Mutex::new(Topology::new()));
-            let tid = unsafe { libc::pthread_self() };
-            let mut locked_topo = topo.lock().unwrap();
-            let mut cpuset = cpuset_for_core(&mut *locked_topo, tid_core);
-            tid_core+=1;
-            cpuset.singlify();
-            locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
-            drop(locked_topo);
-            
-            let (mut db, jh) = init_db(topo, tid_core, testclone.clone(), testname, prime);
-            run_test(&mut db, testclone, nqueries, scale, prime, testname, prop_unsub);
-            
-            drop(db);
-            if let Some(t) = jh {
-                t.join().unwrap();
-            }
-        //}));
-        core += 2;
+        
+        // bind thread to core
+        let topo = Arc::new(Mutex::new(Topology::new()));
+        let tid = unsafe { libc::pthread_self() };
+        let mut locked_topo = topo.lock().unwrap();
+        let mut cpuset = cpuset_for_core(&mut *locked_topo, 2);
+        cpuset.singlify();
+        locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
+        drop(locked_topo);
+        
+        let (mut db, jh) = init_db(topo, 2, testclone.clone(), testname, prime);
+        run_test(&mut db, testclone, nqueries, scale, prime, testname, prop_unsub);
+        
+        drop(db);
+        if let Some(t) = jh {
+            t.join().unwrap();
+        }
+        //core += 2;
     }
-    /*for thread in threads {
-        thread.join().unwrap();
-    }*/
 }
