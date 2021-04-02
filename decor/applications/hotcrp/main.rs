@@ -16,7 +16,7 @@ use hwloc::{Topology, ObjectType, CPUBIND_THREAD, CpuSet};
 use std::sync::{Arc, Mutex};
 use log::warn;
 
-mod policy;
+mod disguise;
 use decor::*;
 
 const SCHEMA : &'static str = include_str!("schema.sql");
