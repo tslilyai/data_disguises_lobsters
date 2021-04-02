@@ -12,10 +12,8 @@ use log::{warn};
 
 pub mod disguises;
 pub mod helpers;
-pub mod policy;
 pub mod querier;
 pub mod subscriber;
-pub mod types;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
@@ -43,18 +41,16 @@ impl Drop for Shim {
 }
 
 impl Shim {
-    pub fn new(db: mysql::Conn, schema: &'static str, policy: policy::SchemaConfig, test_params: TestParams) 
+    pub fn new(db: mysql::Conn, application: &disguises::Application, test_params: TestParams) 
         -> Self 
     {
-        let querier = querier::Querier::new(policy, &test_params);
-        let schema = schema.to_string();
-        Shim{db, querier, schema, test_params}
+        let querier = querier::Querier::new(&test_params);
+        Shim{db, querier, appliaction, test_params}
     }   
 
     pub fn run_on_tcp(
         dbname: &str, 
-        schema: &'static str, 
-        policy: policy::SchemaConfig,
+        app: &disguises::Application, 
         test_params: TestParams, 
         s: net::TcpStream) 
         -> Result<(), mysql::Error> 
@@ -66,26 +62,8 @@ impl Shim {
         }
         assert_eq!(db.ping(), true);
         let rs = s.try_clone().unwrap();
-        MysqlIntermediary::run_on(Shim::new(db, schema, policy, test_params), 
+        MysqlIntermediary::run_on(Shim::new(db, app, test_params), 
                                     BufReader::new(rs), BufWriter::new(s))
-    }
-
-    fn get_single_parsed_stmt(&self, stmt: &String) 
-        -> Result<Statement, mysql::Error> 
-    {
-        warn!("Parsing stmt {}", stmt);
-        let asts = sql_parser::parser::parse_statements(stmt.to_string());
-        match asts {
-            Err(e) => Err(mysql::Error::IoError(io::Error::new(
-                        io::ErrorKind::InvalidInput, e))),
-            Ok(asts) => {
-                if asts.len() != 1 {
-                    return Err(mysql::Error::IoError(io::Error::new(
-                        io::ErrorKind::InvalidInput, format!("More than one stmt {:?}", asts))));
-                }
-                Ok(asts[0].clone())
-            }
-        }
     }
 
     /* 
@@ -107,7 +85,7 @@ impl Shim {
             stmt.push_str(line);
             if stmt.ends_with(';') {
                 stmt = helpers::process_schema_stmt(&stmt, self.test_params.in_memory);
-                let stmt_ast = self.get_single_parsed_stmt(&stmt)?;
+                let stmt_ast = helpers::get_single_parsed_stmt(&stmt)?;
                 
                 // if we're not priming, the table already exists!
                 if self.test_params.prime {

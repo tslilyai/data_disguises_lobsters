@@ -1,0 +1,1264 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<project name="schema_2.sql" id="Project_6bb" database="MySql" >
+	<schema name="Default" >
+		<table name="ActionLog" >
+			<column name="logId" type="int" length="11" jt="4" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="contactId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="destContactId" type="int" length="11" jt="4" />
+			<column name="trueContactId" type="int" length="11" jt="4" />
+			<column name="paperId" type="int" length="11" jt="4" />
+			<column name="timestamp" type="bigint" length="11" jt="-5" mandatory="y" />
+			<column name="ipaddr" type="varbinary" length="39" jt="-3" />
+			<column name="action" type="varbinary" length="4096" jt="-3" mandatory="y" />
+			<column name="data" type="varbinary" length="8192" jt="-3" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="logId" />
+			</index>
+			<fk name="fk_actionlog_contactinfo" virtual="y" to_schema="Default" to_table="ContactInfo" >
+				<fk_column name="contactId" pk="contactId" />
+			</fk>
+			<fk name="fk_actionlog_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+		</table>
+		<table name="Capability" >
+			<column name="capabilityType" type="int" length="11" jt="4" mandatory="y" />
+			<column name="contactId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="timeExpires" type="bigint" length="11" jt="-5" mandatory="y" />
+			<column name="salt" type="varbinary" length="255" jt="-3" mandatory="y" />
+			<column name="data" type="varbinary" length="4096" jt="-3" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="salt" />
+			</index>
+			<fk name="fk_capability_contactinfo" virtual="y" to_schema="Default" to_table="ContactInfo" >
+				<fk_column name="contactId" pk="contactId" />
+			</fk>
+			<fk name="fk_capability_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+		</table>
+		<table name="ContactInfo" >
+			<column name="contactId" type="int" length="11" jt="4" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="firstName" type="varbinary" length="120" jt="-3" mandatory="y" >
+				<defo><![CDATA['']]></defo>
+			</column>
+			<column name="lastName" type="varbinary" length="120" jt="-3" mandatory="y" >
+				<defo><![CDATA['']]></defo>
+			</column>
+			<column name="unaccentedName" type="varbinary" length="240" jt="-3" mandatory="y" >
+				<defo><![CDATA['']]></defo>
+			</column>
+			<column name="email" type="varchar" length="120" jt="12" mandatory="y" />
+			<column name="preferredEmail" type="varchar" length="120" jt="12" />
+			<column name="affiliation" type="varbinary" length="2048" jt="-3" mandatory="y" >
+				<defo><![CDATA['']]></defo>
+			</column>
+			<column name="phone" type="varbinary" length="64" jt="-3" />
+			<column name="country" type="varbinary" length="256" jt="-3" />
+			<column name="password" type="varbinary" length="2048" jt="-3" mandatory="y" />
+			<column name="passwordTime" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="passwordUseTime" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="collaborators" type="varbinary" length="8192" jt="-3" />
+			<column name="creationTime" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="updateTime" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="lastLogin" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="defaultWatch" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['2']]></defo>
+			</column>
+			<column name="roles" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="disabled" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="contactTags" type="varbinary" length="4096" jt="-3" />
+			<column name="birthday" type="int" length="11" jt="4" />
+			<column name="gender" type="varbinary" length="24" jt="-3" />
+			<column name="data" type="varbinary" length="32767" jt="-3" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="contactId" />
+			</index>
+			<index name="email" unique="NORMAL" >
+				<column name="email" />
+			</index>
+			<index name="roles" unique="NORMAL" >
+				<column name="roles" />
+			</index>
+		</table>
+		<table name="DeletedContactInfo" >
+			<column name="contactId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="firstName" type="varbinary" length="120" jt="-3" mandatory="y" />
+			<column name="lastName" type="varbinary" length="120" jt="-3" mandatory="y" />
+			<column name="unaccentedName" type="varbinary" length="240" jt="-3" mandatory="y" />
+			<column name="email" type="varchar" length="120" jt="12" mandatory="y" />
+			<fk name="fk_deletedcontactinfo_contactinfo" virtual="y" to_schema="Default" to_table="ContactInfo" >
+				<fk_column name="contactId" pk="contactId" />
+			</fk>
+		</table>
+		<table name="DocumentLink" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="linkId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="linkType" type="int" length="11" jt="4" mandatory="y" />
+			<column name="documentId" type="int" length="11" jt="4" mandatory="y" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="paperId" />
+				<column name="linkId" />
+				<column name="linkType" />
+			</index>
+			<fk name="fk_documentlink_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+			<fk name="fk_documentlink_documentlink" to_schema="Default" to_table="FilteredDocument" >
+				<fk_column name="documentId" pk="inDocId" />
+			</fk>
+		</table>
+		<table name="FilteredDocument" >
+			<column name="inDocId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="filterType" type="int" length="11" jt="4" mandatory="y" />
+			<column name="outDocId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="createdAt" type="bigint" length="11" jt="-5" mandatory="y" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="inDocId" />
+				<column name="filterType" />
+			</index>
+			<index name="unq_filtereddocument_indocid" unique="UNIQUE_KEY" >
+				<column name="inDocId" />
+			</index>
+		</table>
+		<table name="Formula" >
+			<column name="formulaId" type="int" length="11" jt="4" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="name" type="varchar" length="200" jt="12" mandatory="y" />
+			<column name="expression" type="varbinary" length="4096" jt="-3" mandatory="y" />
+			<column name="createdBy" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="timeModified" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="formulaId" />
+			</index>
+		</table>
+		<table name="MailLog" >
+			<column name="mailId" type="int" length="11" jt="4" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="recipients" type="varbinary" length="200" jt="-3" mandatory="y" />
+			<column name="q" type="varbinary" length="4096" jt="-3" />
+			<column name="t" type="varbinary" length="200" jt="-3" />
+			<column name="paperIds" type="blob" jt="2004" />
+			<column name="cc" type="blob" jt="2004" />
+			<column name="replyto" type="blob" jt="2004" />
+			<column name="subject" type="blob" jt="2004" />
+			<column name="emailBody" type="blob" jt="2004" />
+			<column name="fromNonChair" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="status" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="mailId" />
+			</index>
+		</table>
+		<table name="Paper" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="title" type="varbinary" length="512" jt="-3" />
+			<column name="authorInformation" type="varbinary" length="8192" jt="-3" />
+			<column name="abstract" type="varbinary" length="16384" jt="-3" />
+			<column name="collaborators" type="varbinary" length="8192" jt="-3" />
+			<column name="timeSubmitted" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="timeWithdrawn" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="timeFinalSubmitted" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="timeModified" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="paperStorageId" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="sha1" type="varbinary" length="64" jt="-3" mandatory="y" >
+				<defo><![CDATA['']]></defo>
+			</column>
+			<column name="finalPaperStorageId" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="blind" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['1']]></defo>
+			</column>
+			<column name="outcome" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="leadContactId" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="shepherdContactId" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="managerContactId" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="capVersion" type="int" length="1" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="size" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="mimetype" type="varbinary" length="80" jt="-3" mandatory="y" >
+				<defo><![CDATA['']]></defo>
+			</column>
+			<column name="timestamp" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="pdfFormatStatus" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="withdrawReason" type="varbinary" length="1024" jt="-3" />
+			<column name="paperFormat" type="tinyint" length="1" jt="-6" />
+			<column name="dataOverflow" type="longblob" jt="-4" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="paperId" />
+			</index>
+			<index name="timeSubmitted" unique="NORMAL" >
+				<column name="timeSubmitted" />
+			</index>
+			<index name="leadContactId" unique="NORMAL" >
+				<column name="leadContactId" />
+			</index>
+			<index name="shepherdContactId" unique="NORMAL" >
+				<column name="shepherdContactId" />
+			</index>
+			<fk name="fk_paper_paperstorage" virtual="y" to_schema="Default" to_table="PaperStorage" >
+				<fk_column name="paperId" pk="paperId" />
+				<fk_column name="paperStorageId" pk="paperStorageId" />
+			</fk>
+		</table>
+		<table name="PaperComment" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="commentId" type="int" length="11" jt="4" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="contactId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="timeModified" type="bigint" length="11" jt="-5" mandatory="y" />
+			<column name="timeNotified" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="timeDisplayed" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="comment" type="varbinary" length="32767" jt="-3" />
+			<column name="commentType" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="replyTo" type="int" length="11" jt="4" mandatory="y" />
+			<column name="ordinal" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="authorOrdinal" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="commentTags" type="varbinary" length="1024" jt="-3" />
+			<column name="commentRound" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="commentFormat" type="tinyint" length="1" jt="-6" />
+			<column name="commentOverflow" type="longblob" jt="-4" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="paperId" />
+				<column name="commentId" />
+			</index>
+			<index name="commentId" unique="NORMAL" >
+				<column name="commentId" />
+			</index>
+			<index name="contactId" unique="NORMAL" >
+				<column name="contactId" />
+			</index>
+			<index name="timeModifiedContact" unique="NORMAL" >
+				<column name="timeModified" />
+				<column name="contactId" />
+			</index>
+			<fk name="fk_papercomment_contactinfo" virtual="y" to_schema="Default" to_table="ContactInfo" >
+				<fk_column name="contactId" pk="contactId" />
+			</fk>
+			<fk name="fk_papercomment_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+		</table>
+		<table name="PaperConflict" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="contactId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="conflictType" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="contactId" />
+				<column name="paperId" />
+			</index>
+			<index name="paperId" unique="NORMAL" >
+				<column name="paperId" />
+			</index>
+			<fk name="fk_paperconflict_contactinfo" virtual="y" to_schema="Default" to_table="ContactInfo" >
+				<fk_column name="contactId" pk="contactId" />
+			</fk>
+			<fk name="fk_paperconflict_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+		</table>
+		<table name="PaperOption" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="optionId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="value" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="data" type="varbinary" length="32767" jt="-3" />
+			<column name="dataOverflow" type="longblob" jt="-4" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="paperId" />
+				<column name="optionId" />
+				<column name="value" />
+			</index>
+			<fk name="fk_paperoption_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+		</table>
+		<table name="PaperReview" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="reviewId" type="int" length="11" jt="4" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="contactId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="reviewToken" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="reviewType" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="reviewRound" type="int" length="1" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="requestedBy" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="timeRequested" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="timeRequestNotified" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="reviewBlind" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['1']]></defo>
+			</column>
+			<column name="reviewModified" type="bigint" length="1" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="reviewAuthorModified" type="bigint" length="1" jt="-5" />
+			<column name="reviewSubmitted" type="bigint" length="1" jt="-5" />
+			<column name="reviewNotified" type="bigint" length="1" jt="-5" />
+			<column name="reviewAuthorNotified" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="reviewAuthorSeen" type="bigint" length="1" jt="-5" />
+			<column name="reviewOrdinal" type="int" length="1" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="reviewViewScore" type="tinyint" length="2" jt="-6" mandatory="y" >
+				<defo><![CDATA['-3']]></defo>
+			</column>
+			<column name="timeDisplayed" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="timeApprovalRequested" type="bigint" length="11" jt="-5" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="reviewEditVersion" type="int" length="1" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="reviewNeedsSubmit" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['1']]></defo>
+			</column>
+			<column name="reviewWordCount" type="int" length="11" jt="4" />
+			<column name="reviewFormat" type="tinyint" length="1" jt="-6" />
+			<column name="overAllMerit" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="reviewerQualification" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="novelty" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="technicalMerit" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="interestToCommunity" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="longevity" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="grammar" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="likelyPresentation" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="suitableForShort" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="potential" type="tinyint" length="4" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="fixability" type="tinyint" length="4" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="tfields" type="longblob" jt="-4" />
+			<column name="sfields" type="varbinary" length="2048" jt="-3" />
+			<column name="data" type="varbinary" length="8192" jt="-3" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="paperId" />
+				<column name="reviewId" />
+			</index>
+			<index name="reviewId" unique="UNIQUE_KEY" >
+				<column name="reviewId" />
+			</index>
+			<index name="contactId" unique="NORMAL" >
+				<column name="contactId" />
+			</index>
+			<index name="reviewType" unique="NORMAL" >
+				<column name="reviewType" />
+			</index>
+			<index name="reviewRound" unique="NORMAL" >
+				<column name="reviewRound" />
+			</index>
+			<index name="requestedBy" unique="NORMAL" >
+				<column name="requestedBy" />
+			</index>
+			<fk name="fk_paperreview_contactinfo" virtual="y" to_schema="Default" to_table="ContactInfo" >
+				<fk_column name="contactId" pk="contactId" />
+			</fk>
+			<fk name="fk_paperreview_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+		</table>
+		<table name="PaperReviewPreference" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="contactId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="preference" type="int" length="4" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="expertise" type="int" length="4" jt="4" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="paperId" />
+				<column name="contactId" />
+			</index>
+			<fk name="fk_paperreviewpreference_contactinfo" virtual="y" to_schema="Default" to_table="ContactInfo" >
+				<fk_column name="contactId" pk="contactId" />
+			</fk>
+			<fk name="fk_paperreviewpreference_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+		</table>
+		<table name="PaperReviewRefused" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="email" type="varchar" length="120" jt="12" mandatory="y" />
+			<column name="firstName" type="varbinary" length="120" jt="-3" />
+			<column name="lastName" type="varbinary" length="120" jt="-3" />
+			<column name="affiliation" type="varbinary" length="2048" jt="-3" />
+			<column name="contactId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="requestedBy" type="int" length="11" jt="4" mandatory="y" />
+			<column name="timeRequested" type="bigint" length="11" jt="-5" />
+			<column name="refusedBy" type="int" length="11" jt="4" />
+			<column name="timeRefused" type="bigint" length="11" jt="-5" />
+			<column name="reviewType" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="reviewRound" type="int" length="1" jt="4" />
+			<column name="data" type="varbinary" length="8192" jt="-3" />
+			<column name="reason" type="varbinary" length="32767" jt="-3" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="paperId" />
+				<column name="email" />
+			</index>
+			<fk name="fk_paperreviewrefused_contactinfo" virtual="y" to_schema="Default" to_table="ContactInfo" >
+				<fk_column name="contactId" pk="contactId" />
+			</fk>
+			<fk name="fk_paperreviewrefused_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+		</table>
+		<table name="PaperStorage" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="paperStorageId" type="int" length="11" jt="4" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="timestamp" type="bigint" length="11" jt="-5" mandatory="y" />
+			<column name="mimetype" type="varbinary" length="80" jt="-3" mandatory="y" >
+				<defo><![CDATA['']]></defo>
+			</column>
+			<column name="paper" type="longblob" jt="-4" />
+			<column name="compression" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="sha1" type="varbinary" length="64" jt="-3" mandatory="y" >
+				<defo><![CDATA['']]></defo>
+			</column>
+			<column name="crc32" type="binary" length="4" jt="-2" />
+			<column name="documentType" type="int" length="3" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="filename" type="varbinary" length="255" jt="-3" />
+			<column name="infoJson" type="varbinary" length="32768" jt="-3" />
+			<column name="size" type="bigint" length="11" jt="-5" />
+			<column name="filterType" type="int" length="3" jt="4" />
+			<column name="originalStorageId" type="int" length="11" jt="4" />
+			<column name="inactive" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="paperId" />
+				<column name="paperStorageId" />
+			</index>
+			<index name="paperStorageId" unique="NORMAL" >
+				<column name="paperStorageId" />
+			</index>
+			<fk name="fk_paperstorage_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+		</table>
+		<table name="PaperTag" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="tag" type="varchar" length="80" jt="12" mandatory="y" />
+			<column name="tagIndex" type="float" jt="7" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="paperId" />
+				<column name="tag" />
+			</index>
+			<fk name="fk_papertag_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+			<fk name="fk_papertag_tag" to_schema="Default" to_table="tag" >
+				<fk_column name="tag" pk="text" />
+			</fk>
+		</table>
+		<table name="PaperTagAnno" >
+			<column name="tag" type="varchar" length="80" jt="12" mandatory="y" />
+			<column name="annoId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="tagIndex" type="float" jt="7" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<column name="heading" type="varbinary" length="8192" jt="-3" />
+			<column name="annoFormat" type="tinyint" length="1" jt="-6" />
+			<column name="infoJson" type="varbinary" length="32768" jt="-3" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="tag" />
+				<column name="annoId" />
+			</index>
+			<fk name="fk_papertaganno_tag" to_schema="Default" to_table="tag" >
+				<fk_column name="tag" pk="text" />
+			</fk>
+		</table>
+		<table name="PaperTopic" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="topicId" type="int" length="11" jt="4" mandatory="y" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="paperId" />
+				<column name="topicId" />
+			</index>
+			<fk name="fk_papertopic_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+			<fk name="fk_papertopic_topicarea" virtual="y" to_schema="Default" to_table="TopicArea" >
+				<fk_column name="topicId" pk="topicId" />
+			</fk>
+		</table>
+		<table name="PaperWatch" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="contactId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="watch" type="int" length="11" jt="4" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="paperId" />
+				<column name="contactId" />
+			</index>
+			<fk name="fk_paperwatch_contactinfo" virtual="y" to_schema="Default" to_table="ContactInfo" >
+				<fk_column name="contactId" pk="contactId" />
+			</fk>
+			<fk name="fk_paperwatch_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+		</table>
+		<table name="ReviewRating" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="reviewId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="contactId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="rating" type="tinyint" length="1" jt="-6" mandatory="y" >
+				<defo><![CDATA['0']]></defo>
+			</column>
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="paperId" />
+				<column name="reviewId" />
+				<column name="contactId" />
+			</index>
+			<fk name="fk_reviewrating_contactinfo" virtual="y" to_schema="Default" to_table="ContactInfo" >
+				<fk_column name="contactId" pk="contactId" />
+			</fk>
+			<fk name="fk_reviewrating_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+			<fk name="fk_reviewrating_paperreview" to_schema="Default" to_table="PaperReview" >
+				<fk_column name="reviewId" pk="reviewId" />
+			</fk>
+		</table>
+		<table name="ReviewRequest" >
+			<column name="paperId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="email" type="varchar" length="120" jt="12" mandatory="y" />
+			<column name="firstName" type="varbinary" length="120" jt="-3" />
+			<column name="lastName" type="varbinary" length="120" jt="-3" />
+			<column name="affiliation" type="varbinary" length="2048" jt="-3" />
+			<column name="reason" type="varbinary" length="32767" jt="-3" />
+			<column name="requestedBy" type="int" length="11" jt="4" mandatory="y" />
+			<column name="timeRequested" type="bigint" length="11" jt="-5" mandatory="y" />
+			<column name="reviewRound" type="int" length="1" jt="4" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="paperId" />
+				<column name="email" />
+			</index>
+			<fk name="fk_reviewrequest_paper" virtual="y" to_schema="Default" to_table="Paper" >
+				<fk_column name="paperId" pk="paperId" />
+			</fk>
+			<fk name="fk_reviewrequest_paperreviewrefused" virtual="y" to_schema="Default" to_table="PaperReviewRefused" >
+				<fk_column name="paperId" pk="paperId" />
+				<fk_column name="email" pk="email" />
+			</fk>
+		</table>
+		<table name="Settings" >
+			<column name="name" type="varbinary" length="256" jt="-3" mandatory="y" />
+			<column name="value" type="bigint" length="11" jt="-5" mandatory="y" />
+			<column name="data" type="varbinary" length="32767" jt="-3" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="name" />
+			</index>
+		</table>
+		<table name="TopicArea" >
+			<column name="topicId" type="int" length="11" jt="4" mandatory="y" >
+				<identity><![CDATA[AUTO_INCREMENT]]></identity>
+			</column>
+			<column name="topicName" type="varbinary" length="1024" jt="-3" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="topicId" />
+			</index>
+		</table>
+		<table name="TopicInterest" >
+			<column name="contactId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="topicId" type="int" length="11" jt="4" mandatory="y" />
+			<column name="interest" type="int" length="1" jt="4" mandatory="y" />
+			<index name="Primary" unique="PRIMARY_KEY" >
+				<column name="contactId" />
+				<column name="topicId" />
+			</index>
+			<fk name="fk_topicinterest_contactinfo" virtual="y" to_schema="Default" to_table="ContactInfo" >
+				<fk_column name="contactId" pk="contactId" />
+			</fk>
+			<fk name="fk_topicinterest_topicarea" virtual="y" to_schema="Default" to_table="TopicArea" >
+				<fk_column name="topicId" pk="topicId" />
+			</fk>
+		</table>
+		<table name="tag" prior="tags" >
+			<column name="text" type="varchar" length="250" jt="12" />
+			<index name="unq_tag_text" unique="UNIQUE_KEY" >
+				<column name="text" />
+			</index>
+			<options><![CDATA[engine=InnoDB]]></options>
+		</table>
+	</schema>
+	<layout name="Parsed Script Layout" id="Layout_194f" show_relation="columns" >
+		<entity schema="Default" name="ActionLog" color="669966" x="1984" y="496" />
+		<entity schema="Default" name="Capability" color="669966" x="416" y="736" />
+		<entity schema="Default" name="ContactInfo" color="FF0000" x="960" y="112" />
+		<entity schema="Default" name="DeletedContactInfo" color="BED3F4" x="608" y="160" />
+		<entity schema="Default" name="DocumentLink" color="8099FF" x="1344" y="1536" />
+		<entity schema="Default" name="FilteredDocument" color="003333" x="1632" y="1520" />
+		<entity schema="Default" name="Formula" color="BED3F4" x="64" y="160" />
+		<entity schema="Default" name="MailLog" color="BED3F4" x="240" y="48" />
+		<entity schema="Default" name="Paper" color="FF0000" x="1040" y="1216" />
+		<entity schema="Default" name="PaperComment" color="669966" x="1136" y="704" />
+		<entity schema="Default" name="PaperConflict" color="669966" x="208" y="768" />
+		<entity schema="Default" name="PaperOption" color="8099FF" x="1424" y="1312" />
+		<entity schema="Default" name="PaperReview" color="FF0000" x="2368" y="96" />
+		<entity schema="Default" name="PaperReviewPreference" color="669966" x="640" y="784" />
+		<entity schema="Default" name="PaperReviewRefused" color="669966" x="1712" y="656" />
+		<entity schema="Default" name="PaperStorage" color="8099FF" x="2000" y="1376" />
+		<entity schema="Default" name="PaperTag" color="8099FF" x="1664" y="1280" />
+		<entity schema="Default" name="PaperTagAnno" color="8099FF" x="2112" y="1216" />
+		<entity schema="Default" name="PaperTopic" color="8099FF" x="64" y="1408" />
+		<entity schema="Default" name="PaperWatch" color="669966" x="912" y="784" />
+		<entity schema="Default" name="ReviewRating" color="8099FF" x="2176" y="240" />
+		<entity schema="Default" name="ReviewRequest" color="669966" x="1392" y="752" />
+		<entity schema="Default" name="Settings" color="BED3F4" x="96" y="64" />
+		<entity schema="Default" name="TopicArea" color="8099FF" x="64" y="1136" />
+		<entity schema="Default" name="TopicInterest" color="8099FF" x="48" y="864" />
+		<entity schema="Default" name="tag" color="003333" x="1872" y="1280" />
+		<script name="schema_2.sql" id="Editor_c62" language="SQL" >
+			<string><![CDATA[--
+-- Table structure for table `ActionLog`
+--
+
+DROP TABLE IF EXISTS `ActionLog`;
+CREATE TABLE `ActionLog` (
+  `logId` int(11) NOT NULL AUTO_INCREMENT,
+  `contactId` int(11) NOT NULL,
+  `destContactId` int(11) DEFAULT NULL,
+  `trueContactId` int(11) DEFAULT NULL,
+  `paperId` int(11) DEFAULT NULL,
+  `timestamp` bigint(11) NOT NULL,
+  `ipaddr` varbinary(39) DEFAULT NULL,
+  `action` varbinary(4096) NOT NULL,
+  `data` varbinary(8192) DEFAULT NULL,
+  PRIMARY KEY (`logId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `Capability`
+--
+
+DROP TABLE IF EXISTS `Capability`;
+CREATE TABLE `Capability` (
+  `capabilityType` int(11) NOT NULL,
+  `contactId` int(11) NOT NULL,
+  `paperId` int(11) NOT NULL,
+  `timeExpires` bigint(11) NOT NULL,
+  `salt` varbinary(255) NOT NULL,
+  `data` varbinary(4096) DEFAULT NULL,
+  PRIMARY KEY (`salt`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `ContactInfo`
+--
+
+DROP TABLE IF EXISTS `ContactInfo`;
+CREATE TABLE `ContactInfo` (
+  `contactId` int(11) NOT NULL AUTO_INCREMENT,
+  `firstName` varbinary(120) NOT NULL DEFAULT '',
+  `lastName` varbinary(120) NOT NULL DEFAULT '',
+  `unaccentedName` varbinary(240) NOT NULL DEFAULT '',
+  `email` varchar(120) NOT NULL,
+  `preferredEmail` varchar(120) DEFAULT NULL,
+  `affiliation` varbinary(2048) NOT NULL DEFAULT '',
+  `phone` varbinary(64) DEFAULT NULL,
+  `country` varbinary(256) DEFAULT NULL,
+  `password` varbinary(2048) NOT NULL,
+  `passwordTime` bigint(11) NOT NULL DEFAULT '0',
+  `passwordUseTime` bigint(11) NOT NULL DEFAULT '0',
+  `collaborators` varbinary(8192) DEFAULT NULL,
+  `creationTime` bigint(11) NOT NULL DEFAULT '0',
+  `updateTime` bigint(11) NOT NULL DEFAULT '0',
+  `lastLogin` bigint(11) NOT NULL DEFAULT '0',
+  `defaultWatch` int(11) NOT NULL DEFAULT '2',
+  `roles` tinyint(1) NOT NULL DEFAULT '0',
+  `disabled` tinyint(1) NOT NULL DEFAULT '0',
+  `contactTags` varbinary(4096) DEFAULT NULL,
+  `birthday` int(11) DEFAULT NULL,
+  `gender` varbinary(24) DEFAULT NULL,
+  `data` varbinary(32767) DEFAULT NULL,
+  PRIMARY KEY (`contactId`),
+  UNIQUE KEY `email` (`email`),
+  KEY `roles` (`roles`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `DeletedContactInfo`
+--
+
+DROP TABLE IF EXISTS `DeletedContactInfo`;
+CREATE TABLE `DeletedContactInfo` (
+  `contactId` int(11) NOT NULL,
+  `firstName` varbinary(120) NOT NULL,
+  `lastName` varbinary(120) NOT NULL,
+  `unaccentedName` varbinary(240) NOT NULL,
+  `email` varchar(120) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `DocumentLink`
+--
+
+DROP TABLE IF EXISTS `DocumentLink`;
+CREATE TABLE `DocumentLink` (
+  `paperId` int(11) NOT NULL,
+  `linkId` int(11) NOT NULL,
+  `linkType` int(11) NOT NULL,
+  `documentId` int(11) NOT NULL,
+  PRIMARY KEY (`paperId`,`linkId`,`linkType`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `FilteredDocument`
+--
+
+DROP TABLE IF EXISTS `FilteredDocument`;
+CREATE TABLE `FilteredDocument` (
+  `inDocId` int(11) NOT NULL,
+  `filterType` int(11) NOT NULL,
+  `outDocId` int(11) NOT NULL,
+  `createdAt` bigint(11) NOT NULL,
+  PRIMARY KEY (`inDocId`,`filterType`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `Formula`
+--
+
+DROP TABLE IF EXISTS `Formula`;
+CREATE TABLE `Formula` (
+  `formulaId` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(200) NOT NULL,
+  `expression` varbinary(4096) NOT NULL,
+  `createdBy` int(11) NOT NULL DEFAULT '0',
+  `timeModified` bigint(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`formulaId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `MailLog`
+--
+
+DROP TABLE IF EXISTS `MailLog`;
+CREATE TABLE `MailLog` (
+  `mailId` int(11) NOT NULL AUTO_INCREMENT,
+  `recipients` varbinary(200) NOT NULL,
+  `q` varbinary(4096) DEFAULT NULL,
+  `t` varbinary(200) DEFAULT NULL,
+  `paperIds` blob,
+  `cc` blob,
+  `replyto` blob,
+  `subject` blob,
+  `emailBody` blob,
+  `fromNonChair` tinyint(1) NOT NULL DEFAULT '0',
+  `status` tinyint(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`mailId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `Paper`
+--
+
+DROP TABLE IF EXISTS `Paper`;
+CREATE TABLE `Paper` (
+  `paperId` int(11) NOT NULL AUTO_INCREMENT,
+  `title` varbinary(512) DEFAULT NULL,
+  `authorInformation` varbinary(8192) DEFAULT NULL,
+  `abstract` varbinary(16384) DEFAULT NULL,
+  `collaborators` varbinary(8192) DEFAULT NULL,
+  `timeSubmitted` bigint(11) NOT NULL DEFAULT '0',
+  `timeWithdrawn` bigint(11) NOT NULL DEFAULT '0',
+  `timeFinalSubmitted` bigint(11) NOT NULL DEFAULT '0',
+  `timeModified` bigint(11) NOT NULL DEFAULT '0',
+  `paperStorageId` int(11) NOT NULL DEFAULT '0',
+  `sha1` varbinary(64) NOT NULL DEFAULT '',
+  `finalPaperStorageId` int(11) NOT NULL DEFAULT '0',
+  `blind` tinyint(1) NOT NULL DEFAULT '1',
+  `outcome` tinyint(1) NOT NULL DEFAULT '0',
+  `leadContactId` int(11) NOT NULL DEFAULT '0',
+  `shepherdContactId` int(11) NOT NULL DEFAULT '0',
+  `managerContactId` int(11) NOT NULL DEFAULT '0',
+  `capVersion` int(1) NOT NULL DEFAULT '0',
+  `size` int(11) NOT NULL DEFAULT '0',
+  `mimetype` varbinary(80) NOT NULL DEFAULT '',
+  `timestamp` bigint(11) NOT NULL DEFAULT '0',
+  `pdfFormatStatus` bigint(11) NOT NULL DEFAULT '0',
+  `withdrawReason` varbinary(1024) DEFAULT NULL,
+  `paperFormat` tinyint(1) DEFAULT NULL,
+  `dataOverflow` longblob,
+  PRIMARY KEY (`paperId`),
+  KEY `timeSubmitted` (`timeSubmitted`),
+  KEY `leadContactId` (`leadContactId`),
+  KEY `shepherdContactId` (`shepherdContactId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `PaperComment`
+--
+
+DROP TABLE IF EXISTS `PaperComment`;
+CREATE TABLE `PaperComment` (
+  `paperId` int(11) NOT NULL,
+  `commentId` int(11) NOT NULL AUTO_INCREMENT,
+  `contactId` int(11) NOT NULL,
+  `timeModified` bigint(11) NOT NULL,
+  `timeNotified` bigint(11) NOT NULL DEFAULT '0',
+  `timeDisplayed` bigint(11) NOT NULL DEFAULT '0',
+  `comment` varbinary(32767) DEFAULT NULL,
+  `commentType` int(11) NOT NULL DEFAULT '0',
+  `replyTo` int(11) NOT NULL,
+  `ordinal` int(11) NOT NULL DEFAULT '0',
+  `authorOrdinal` int(11) NOT NULL DEFAULT '0',
+  `commentTags` varbinary(1024) DEFAULT NULL,
+  `commentRound` int(11) NOT NULL DEFAULT '0',
+  `commentFormat` tinyint(1) DEFAULT NULL,
+  `commentOverflow` longblob,
+  PRIMARY KEY (`paperId`,`commentId`),
+  UNIQUE KEY `commentId` (`commentId`),
+  KEY `contactId` (`contactId`),
+  KEY `timeModifiedContact` (`timeModified`,`contactId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `PaperConflict`
+--
+
+DROP TABLE IF EXISTS `PaperConflict`;
+CREATE TABLE `PaperConflict` (
+  `paperId` int(11) NOT NULL,
+  `contactId` int(11) NOT NULL,
+  `conflictType` tinyint(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`contactId`,`paperId`),
+  KEY `paperId` (`paperId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `PaperOption`
+--
+
+DROP TABLE IF EXISTS `PaperOption`;
+CREATE TABLE `PaperOption` (
+  `paperId` int(11) NOT NULL,
+  `optionId` int(11) NOT NULL,
+  `value` bigint(11) NOT NULL DEFAULT '0',
+  `data` varbinary(32767) DEFAULT NULL,
+  `dataOverflow` longblob,
+  PRIMARY KEY (`paperId`,`optionId`,`value`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `PaperReview`
+--
+
+DROP TABLE IF EXISTS `PaperReview`;
+CREATE TABLE `PaperReview` (
+  `paperId` int(11) NOT NULL,
+  `reviewId` int(11) NOT NULL AUTO_INCREMENT,
+  `contactId` int(11) NOT NULL,
+  `reviewToken` int(11) NOT NULL DEFAULT '0',
+  `reviewType` tinyint(1) NOT NULL DEFAULT '0',
+  `reviewRound` int(1) NOT NULL DEFAULT '0',
+  `requestedBy` int(11) NOT NULL DEFAULT '0',
+  `timeRequested` bigint(11) NOT NULL DEFAULT '0',
+  `timeRequestNotified` bigint(11) NOT NULL DEFAULT '0',
+  `reviewBlind` tinyint(1) NOT NULL DEFAULT '1',
+  `reviewModified` bigint(1) NOT NULL DEFAULT '0',
+  `reviewAuthorModified` bigint(1) DEFAULT NULL,
+  `reviewSubmitted` bigint(1) DEFAULT NULL,
+  `reviewNotified` bigint(1) DEFAULT NULL,
+  `reviewAuthorNotified` bigint(11) NOT NULL DEFAULT '0',
+  `reviewAuthorSeen` bigint(1) DEFAULT NULL,
+  `reviewOrdinal` int(1) NOT NULL DEFAULT '0',
+  `reviewViewScore` tinyint(2) NOT NULL DEFAULT '-3',
+  `timeDisplayed` bigint(11) NOT NULL DEFAULT '0',
+  `timeApprovalRequested` bigint(11) NOT NULL DEFAULT '0',
+  `reviewEditVersion` int(1) NOT NULL DEFAULT '0',
+  `reviewNeedsSubmit` tinyint(1) NOT NULL DEFAULT '1',
+  `reviewWordCount` int(11) DEFAULT NULL,
+  `reviewFormat` tinyint(1) DEFAULT NULL,
+  `overAllMerit` tinyint(1) NOT NULL DEFAULT '0',
+  `reviewerQualification` tinyint(1) NOT NULL DEFAULT '0',
+  `novelty` tinyint(1) NOT NULL DEFAULT '0',
+  `technicalMerit` tinyint(1) NOT NULL DEFAULT '0',
+  `interestToCommunity` tinyint(1) NOT NULL DEFAULT '0',
+  `longevity` tinyint(1) NOT NULL DEFAULT '0',
+  `grammar` tinyint(1) NOT NULL DEFAULT '0',
+  `likelyPresentation` tinyint(1) NOT NULL DEFAULT '0',
+  `suitableForShort` tinyint(1) NOT NULL DEFAULT '0',
+  `potential` tinyint(4) NOT NULL DEFAULT '0',
+  `fixability` tinyint(4) NOT NULL DEFAULT '0',
+  `tfields` longblob,
+  `sfields` varbinary(2048) DEFAULT NULL,
+  `data` varbinary(8192) DEFAULT NULL,
+  PRIMARY KEY (`paperId`,`reviewId`),
+  UNIQUE KEY `reviewId` (`reviewId`),
+  KEY `contactId` (`contactId`),
+  KEY `reviewType` (`reviewType`),
+  KEY `reviewRound` (`reviewRound`),
+  KEY `requestedBy` (`requestedBy`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `PaperReviewPreference`
+--
+
+DROP TABLE IF EXISTS `PaperReviewPreference`;
+CREATE TABLE `PaperReviewPreference` (
+  `paperId` int(11) NOT NULL,
+  `contactId` int(11) NOT NULL,
+  `preference` int(4) NOT NULL DEFAULT '0',
+  `expertise` int(4) DEFAULT NULL,
+  PRIMARY KEY (`paperId`,`contactId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `PaperReviewRefused`
+--
+
+DROP TABLE IF EXISTS `PaperReviewRefused`;
+CREATE TABLE `PaperReviewRefused` (
+  `paperId` int(11) NOT NULL,
+  `email` varchar(120) NOT NULL,
+  `firstName` varbinary(120) DEFAULT NULL,
+  `lastName` varbinary(120) DEFAULT NULL,
+  `affiliation` varbinary(2048) DEFAULT NULL,
+  `contactId` int(11) NOT NULL,
+  `requestedBy` int(11) NOT NULL,
+  `timeRequested` bigint(11) DEFAULT NULL,
+  `refusedBy` int(11) DEFAULT NULL,
+  `timeRefused` bigint(11) DEFAULT NULL,
+  `reviewType` tinyint(1) NOT NULL DEFAULT '0',
+  `reviewRound` int(1) DEFAULT NULL,
+  `data` varbinary(8192) DEFAULT NULL,
+  `reason` varbinary(32767) DEFAULT NULL,
+  PRIMARY KEY (`paperId`,`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `PaperStorage`
+--
+
+DROP TABLE IF EXISTS `PaperStorage`;
+CREATE TABLE `PaperStorage` (
+  `paperId` int(11) NOT NULL,
+  `paperStorageId` int(11) NOT NULL AUTO_INCREMENT,
+  `timestamp` bigint(11) NOT NULL,
+  `mimetype` varbinary(80) NOT NULL DEFAULT '',
+  `paper` longblob,
+  `compression` tinyint(1) NOT NULL DEFAULT '0',
+  `sha1` varbinary(64) NOT NULL DEFAULT '',
+  `crc32` binary(4) DEFAULT NULL,
+  `documentType` int(3) NOT NULL DEFAULT '0',
+  `filename` varbinary(255) DEFAULT NULL,
+  `infoJson` varbinary(32768) DEFAULT NULL,
+  `size` bigint(11) DEFAULT NULL,
+  `filterType` int(3) DEFAULT NULL,
+  `originalStorageId` int(11) DEFAULT NULL,
+  `inactive` tinyint(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`paperId`,`paperStorageId`),
+  UNIQUE KEY `paperStorageId` (`paperStorageId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `PaperTag`
+--
+
+DROP TABLE IF EXISTS `PaperTag`;
+CREATE TABLE `PaperTag` (
+  `paperId` int(11) NOT NULL,
+  `tag` varchar(80) NOT NULL,
+  `tagIndex` float NOT NULL DEFAULT '0',
+  PRIMARY KEY (`paperId`,`tag`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `PaperTagAnno`
+--
+
+DROP TABLE IF EXISTS `PaperTagAnno`;
+CREATE TABLE `PaperTagAnno` (
+  `tag` varchar(80) NOT NULL,   
+  `annoId` int(11) NOT NULL,
+  `tagIndex` float NOT NULL DEFAULT '0',
+  `heading` varbinary(8192) DEFAULT NULL,
+  `annoFormat` tinyint(1) DEFAULT NULL,
+  `infoJson` varbinary(32768) DEFAULT NULL,
+  PRIMARY KEY (`tag`,`annoId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `PaperTopic`
+--
+
+DROP TABLE IF EXISTS `PaperTopic`;
+CREATE TABLE `PaperTopic` (
+  `paperId` int(11) NOT NULL,
+  `topicId` int(11) NOT NULL,
+  PRIMARY KEY (`paperId`,`topicId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `PaperWatch`
+--
+
+DROP TABLE IF EXISTS `PaperWatch`;
+CREATE TABLE `PaperWatch` (
+  `paperId` int(11) NOT NULL,
+  `contactId` int(11) NOT NULL,
+  `watch` int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`paperId`,`contactId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `ReviewRating`
+--
+
+DROP TABLE IF EXISTS `ReviewRating`;
+CREATE TABLE `ReviewRating` (
+  `paperId` int(11) NOT NULL,
+  `reviewId` int(11) NOT NULL,
+  `contactId` int(11) NOT NULL,
+  `rating` tinyint(1) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`paperId`,`reviewId`,`contactId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `ReviewRequest`
+--
+
+DROP TABLE IF EXISTS `ReviewRequest`;
+CREATE TABLE `ReviewRequest` (
+  `paperId` int(11) NOT NULL,
+  `email` varchar(120) NOT NULL,
+  `firstName` varbinary(120) DEFAULT NULL,
+  `lastName` varbinary(120) DEFAULT NULL,
+  `affiliation` varbinary(2048) DEFAULT NULL,
+  `reason` varbinary(32767) DEFAULT NULL,
+  `requestedBy` int(11) NOT NULL,
+  `timeRequested` bigint(11) NOT NULL,
+  `reviewRound` int(1) DEFAULT NULL,
+  PRIMARY KEY (`paperId`,`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `Settings`
+--
+
+DROP TABLE IF EXISTS `Settings`;
+CREATE TABLE `Settings` (
+  `name` varbinary(256) NOT NULL,
+  `value` bigint(11) NOT NULL,
+  `data` varbinary(32767) DEFAULT NULL,
+  PRIMARY KEY (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `TopicArea`
+--
+
+DROP TABLE IF EXISTS `TopicArea`;
+CREATE TABLE `TopicArea` (
+  `topicId` int(11) NOT NULL AUTO_INCREMENT,
+  `topicName` varbinary(1024) DEFAULT NULL,
+  PRIMARY KEY (`topicId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+--
+-- Table structure for table `TopicInterest`
+--
+
+DROP TABLE IF EXISTS `TopicInterest`;
+CREATE TABLE `TopicInterest` (
+  `contactId` int(11) NOT NULL,
+  `topicId` int(11) NOT NULL,
+  `interest` int(1) NOT NULL,
+  PRIMARY KEY (`contactId`,`topicId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+
+
+insert into Settings (name, value) values ('allowPaperOption', 236);
+insert into Settings (name, value) values ('setupPhase', 1);
+-- there are no submissions yet
+insert into Settings (name, value) values ('no_papersub', 1);
+-- collect PC conflicts from authors by default, but not collaborators
+insert into Settings (name, value) values ('sub_pcconf', 1);
+-- default chair-only tags
+insert into Settings (name, value, data) values ('tag_chair', 1, 'accept reject pcpaper');
+-- default: allow PC members to review any paper
+insert into Settings (name, value) values ('pcrev_any', 1);
+-- default: allow external reviewers to see the other reviews
+insert into Settings (name, value) values ('extrev_view', 2);
+-- default: administrators must approve potentially-conflicted external reviews
+insert into Settings (name, value) values ('extrev_chairreq', 2);
+-- default outcome map
+insert into Settings (name, value, data) values ('outcome_map', 1, '{"0":"Unspecified","-1":"Rejected","1":"Accepted"}');
+-- default review form
+insert into Settings (name, value, data) values ('review_form',1,'{"overAllMerit":{"name":"Overall merit","position":1,"visibility":"au","options":["Reject","Weak reject","Weak accept","Accept","Strong accept"]},"reviewerQualification":{"name":"Reviewer expertise","position":2,"visibility":"au","options":["No familiarity","Some familiarity","Knowledgeable","Expert"]},"t01":{"name":"Paper summary","position":3,"display_space":5,"visibility":"au"},"t02":{"name":"Comments for author","position":4,"display_space":15,"visibility":"au"},"t03":{"name":"Comments for PC","position":5,"display_space":10,"visibility":"pc"}}');
+
+insert ignore into PaperStorage set
+    paperStorageId=1, paperId=0, timestamp=0, mimetype='text/plain',
+    paper='', sha1=x'da39a3ee5e6b4b0d3255bfef95601890afd80709',
+    documentType=0, size=0;]]></string>
+		</script>
+	</layout>
+</project>

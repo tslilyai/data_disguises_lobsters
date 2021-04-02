@@ -149,18 +149,18 @@ fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'
             locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
             drop(locked_topo);
 
-            let policy = policy::get_hotcrp_policy();
+            let app = get_hotcrp_application(SCHEMA);
+            let test_params = decor::TestParams{
+                testname: testname.to_string(), 
+                use_decor : use_decor,
+                use_mv: use_mv,
+                parse:parse, 
+                in_memory: true, 
+                prime: prime
+            };
             if let Ok((s, _)) = listener.accept() {
                 decor::Shim::run_on_tcp(
-                    &dbname, SCHEMA, policy,
-                    decor::TestParams{
-                        testname: testname.to_string(), 
-                        use_decor : use_decor,
-                        use_mv: use_mv,
-                        parse:parse, 
-                        in_memory: true, 
-                        prime: prime
-                    }, s).unwrap();
+                    &dbname, app, test_params, s).unwrap();
             }
         }));
         url = format!("mysql://127.0.0.1:{}", port);
