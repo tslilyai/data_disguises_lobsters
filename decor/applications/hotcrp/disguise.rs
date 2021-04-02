@@ -5,7 +5,6 @@ const VAULT_FMT_STR: &'static str = "{}Vault";
 const VAULT_UID: &'static str = "uid";
 const SCHEMA_UID_COL: &'static str = "contactID";
 const SCHEMA_UID_TABLE: &'static str = "ContactInfo";
-
 const VAULT_COLS: Vec<ColumnDef> = vec![
     // user ID
     ColumnDef {
@@ -52,7 +51,6 @@ const VAULT_COLS: Vec<ColumnDef> = vec![
         options: vec![],
     },
 ];
-
 const TABLE_NAMES: Vec<&'static str> = vec![
     // modified
     "PaperReviewRefused",
@@ -70,6 +68,27 @@ const TABLE_NAMES: Vec<&'static str> = vec![
     "PaperTagAnno",
     "ContactInfo",
 ];
+
+pub struct fk {
+    pub referencer_col: String,
+    pub fk_name: String,
+    pub fk_col: String,
+}
+
+struct table_fks {
+    referencer_name: String,
+    fks: Vec<fk>,
+}
+
+fn str_to_tablewithjoins(name: &str) -> Vec<TableWithJoins> {
+    vec![TableWithJoins {
+        relation: TableFactor::Table {
+            name: helpers::str_to_objname(name),
+            alias: None,
+        },
+        joins: vec![],
+    }]
+}
 
 fn get_schema_statements(schema: &str, in_memory: bool) -> Vec<Statement> {
     /* issue schema statements but only if we're not priming and not decor */
@@ -116,101 +135,6 @@ fn get_vault_statements(in_memory: bool) -> Vec<Statement> {
         });
     }
     stmts
-}
-
-fn str_to_tablewithjoins(name: &str) -> Vec<TableWithJoins> {
-    vec![TableWithJoins {
-        relation: TableFactor::Table {
-            name: helpers::str_to_objname(name),
-            alias: None,
-        },
-        joins: vec![],
-    }]
-}
-
-fn get_conference_anon_disguise() -> Disguise {
-    let mut txns = vec![];
-
-    // remove disguises
-    let remove_names = vec![
-        "PaperReviewPreference",
-        "Capability",
-        "PaperConflict",
-        "TopicInterest",
-        "PaperTag",
-        "PaperTagAnno",
-    ];
-    let decor_names_and_parents = vec![
-        (
-            "PaperReviewRefused",
-            vec![("requestedBy", "ContactInfo"), ("refusedBy", "ContactInfo")],
-        ),
-        (
-            "ActionLog",
-            vec![
-                ("contactId", "ContactInfo"),
-                ("destContactId", "ContactInfo"),
-                ("trueContactId", "ContactInfo"),
-            ],
-        ),
-        ("ReviewRating", vec![("contactId", "ContactInfo")]),
-        (
-            "PaperReview",
-            vec![("contactId", "ContactInfo"), ("requestedBy", "ContactInfo")],
-        ),
-        ("PaperComment", vec![("contactId", "ContactInfo")]),
-    ];
-
-    // vault: insert found value
-    // obj: delete found values
-    for name in remove_names {
-        txns.push(DisguiseTxn {
-            predicate: Select {
-                distinct: true,
-                projection: SelectItem::Wildcard,
-                from: str_to_tablewithjoins(name),
-                selection: None,
-                group_by: vec![],
-                having: None,
-            },
-            vault_updates: vec![],
-            obj_updates: vec![Statement::DeleteStatement {
-                table_name: helpers::str_to_objname(name),
-                selection: None,
-            }],
-        });
-    }
-
-    // vault:
-    //  - save referenced object and referencer
-    //  - save what anon object has been inserted into fk table
-    // obj:
-    //  - insert new anon row for fk table
-    //  - update referencer fk column
-    //  - remove referenced object in fk table
-    for (name, fk_cols) in decor_names_and_parents {
-        txns.push(DisguiseTxn {
-            predicate: Select {
-                distinct: true,
-                projection: SelectItem::Wildcard,
-                from: str_to_tablewithjoins(name),
-                selection: None,
-                group_by: vec![],
-                having: None,
-            },
-            vault_updates: vec![],
-            obj_updates: vec![Statement::DeleteStatement {
-                table_name: helpers::str_to_objname(name),
-                selection: None,
-            }],
-        });
-    }
-    Disguise(txns)
-}
-
-fn get_gdpr_removal_disguise() -> Disguise {
-    let mut txns = vec![];
-    Disguise(txns)
 }
 
 pub fn get_hotcrp_application(schema: &str, in_memory: bool) -> Application {
