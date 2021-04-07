@@ -70,6 +70,20 @@ fn get_contact_info_vals() -> Vec<Expr> {
     ]
 }
 
+fn select_statement(name: &str, selection: Option<Expr>) -> Statement {
+    Statement::Select(SelectStatement {
+        query: Box::new(Query::select(Select {
+            distinct: true,
+            projection: vec![SelectItem::Wildcard],
+            from: str_to_tablewithjoins(&name),
+            selection: selection.clone(),
+            group_by: vec![],
+            having: None,
+        })),
+        as_of: None,
+    })
+}
+
 fn get_random_email() -> String {
     let randstr: String = rand::thread_rng()
         .sample_iter(&Alphanumeric)
@@ -85,20 +99,7 @@ pub fn apply_conference_anon_disguise(db: &mut mysql::Conn) -> Result<(), mysql:
         let mut txn = db.start_transaction(TxOpts::default())?;
         let selection = None;
 
-        let predicated_objs = get_query_rows_txn(
-            &Statement::Select(SelectStatement {
-                query: Box::new(Query::select(Select {
-                    distinct: true,
-                    projection: vec![SelectItem::Wildcard],
-                    from: str_to_tablewithjoins(name),
-                    selection: selection.clone(),
-                    group_by: vec![],
-                    having: None,
-                })),
-                as_of: None,
-            }),
-            &mut txn,
-        )?;
+        let predicated_objs = get_query_rows_txn(&select_statement(name, None), &mut txn)?;
 
         get_query_rows_txn(
             &Statement::Delete(DeleteStatement {
@@ -143,21 +144,7 @@ pub fn apply_conference_anon_disguise(db: &mut mysql::Conn) -> Result<(), mysql:
     // DECORRELATION TXNS
     for tablefk in get_decor_names() {
         let mut txn = db.start_transaction(TxOpts::default())?;
-        let selection = None;
-        let predicated_objs = get_query_rows_txn(
-            &Statement::Select(SelectStatement {
-                query: Box::new(Query::select(Select {
-                    distinct: true,
-                    projection: vec![SelectItem::Wildcard],
-                    from: str_to_tablewithjoins(&tablefk.name),
-                    selection: selection.clone(),
-                    group_by: vec![],
-                    having: None,
-                })),
-                as_of: None,
-            }),
-            &mut txn,
-        )?;
+        let predicated_objs = get_query_rows_txn(&select_statement(&tablefk.name, None), &mut txn)?;
 
         // insert new users for all foreign keys for all objects
         let fk_cols = get_contact_info_cols();
@@ -177,25 +164,15 @@ pub fn apply_conference_anon_disguise(db: &mut mysql::Conn) -> Result<(), mysql:
 
                 // get current fk object pointed to
                 let mut fkobj = get_query_rows_txn(
-                    &Statement::Select(SelectStatement {
-                        query: Box::new(Query::select(Select {
-                            distinct: true,
-                            projection: vec![SelectItem::Wildcard],
-                            from: str_to_tablewithjoins(&fk.fk_name),
-                            selection: Some(Expr::BinaryOp {
+                &select_statement(&fk.fk_name, 
+                            Some(Expr::BinaryOp {
                                 left: Box::new(Expr::Identifier(vec![
                                     Ident::new(fk.fk_name.clone()),
                                     Ident::new(fk.fk_col.clone()),
                                 ])),
                                 op: BinaryOperator::Eq,
                                 right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
-                            }),
-                            group_by: vec![],
-                            having: None,
-                        })),
-                        as_of: None,
-                    }),
-                    &mut txn,
+                            })),&mut txn,
                 )?;
                 old_fk_objs.append(&mut fkobj);
 

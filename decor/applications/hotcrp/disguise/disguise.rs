@@ -1,5 +1,6 @@
 use decor::disguises::*;
 use decor::helpers::*;
+use crate::disguise::*;
 
 pub const SCHEMA_UID_COL: &'static str = "contactID";
 pub const SCHEMA_UID_TABLE: &'static str = "ContactInfo";
@@ -25,7 +26,7 @@ pub fn get_table_names() -> Vec<&'static str> {
 }
 
 pub fn get_hotcrp_application(schema: &str, in_memory: bool) -> Application {
-    let mut disguises = vec![];
+    let disguises = vec![Box::new(apply_conference_anon_disguise)];
 
     Application {
         disguises: disguises,
