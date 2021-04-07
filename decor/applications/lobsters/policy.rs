@@ -1,4 +1,4 @@
-use decor::policy::{GeneratePolicy, GuiseColumnPolicy, ObjectGuisePolicies, EdgePolicy, MaskPolicy, ObjectName};
+/*use decor::policy::{GeneratePolicy, GuiseColumnPolicy, ObjectGuisePolicies, EdgePolicy, MaskPolicy, ObjectName};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -246,4 +246,4 @@ pub fn get_lobsters_policy() -> MaskPolicy {
         cp_guise_policies : get_cp_guise_policies(), 
         edge_policies : get_edge_policies(),
     }
-}
+}*/

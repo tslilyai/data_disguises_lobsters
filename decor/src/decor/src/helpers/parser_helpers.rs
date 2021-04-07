@@ -1,4 +1,4 @@
-use sql_parser::ast::{Expr, Ident, ObjectName, DataType, UnaryOperator, Value, Statement};
+use sql_parser::ast::*;
 use std::*;
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -8,8 +8,80 @@ use log::{debug, warn};
 /*****************************************
  * Parser helpers 
  ****************************************/
+pub fn values_query(vals: Vec<Vec<Expr>>) -> Query {
+    Query {
+        ctes: vec![],
+        body: SetExpr::Values(Values(vals)),
+        order_by: vec![],
+        limit: None,
+        offset: None,
+        fetch: None,
+    }
+}
+pub fn str_to_tablewithjoins(name: &str) -> Vec<TableWithJoins> {
+    vec![TableWithJoins {
+        relation: TableFactor::Table {
+            name: string_to_objname(name),
+            alias: None,
+        },
+        joins: vec![],
+    }]
+}
 
-fn get_single_parsed_stmt(stmt: &String) 
+pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
+    // get rid of unsupported types
+    debug!("helpers:{}", stmt);
+    let mut new = stmt.replace(r"int unsigned", "int");
+    if in_memory {
+        new = new.replace(r"mediumtext", "varchar(255)");
+        new = new.replace(r"tinytext", "varchar(255)");
+        new = new.replace(r" text ", " varchar(255) ");
+        new = new.replace(r" text,", " varchar(255),");
+        new = new.replace(r" text)", " varchar(255))");
+        new = new.replace(r"FULLTEXT", "");
+        new = new.replace(r"fulltext", "");
+        new = new.replace(r"InnoDB", "MEMORY");
+    }
+
+    // get rid of DEFAULT/etc. commands after query
+    let mut end_index = new.len();
+    if let Some(i) = new.find("DEFAULT CHARSET") {
+        end_index = i;
+    } else if let Some(i) = new.find("default charset") {
+        end_index = i;
+    }
+    new.truncate(end_index);
+    if !new.ends_with(';') {
+        new.push_str(";");
+    }
+    debug!("helpers new:{}", new);
+    new
+}
+
+pub fn get_create_schema_statements(schema: &str, in_memory: bool) -> Vec<Statement> {
+    let mut stmts = vec![];
+    let mut stmt = String::new();
+    for line in schema.lines() {
+        if line.starts_with("--") || line.is_empty() {
+            continue;
+        }
+        if !stmt.is_empty() {
+            stmt.push_str(" ");
+        }
+        stmt.push_str(line);
+        if stmt.ends_with(';') {
+            // only save create table statements for now
+            if stmt.contains("CREATE") {
+                stmt = process_schema_stmt(&stmt, in_memory);
+                stmts.push(get_single_parsed_stmt(&stmt).unwrap());
+            }
+            stmt = String::new();
+        }
+    }
+    stmts
+}
+
+pub fn get_single_parsed_stmt(stmt: &String) 
     -> Result<Statement, mysql::Error> 
 {
     warn!("Parsing stmt {}", stmt);
@@ -139,7 +211,7 @@ pub fn get_parser_coltype(t: &DataType) -> msql_srv::ColumnType {
         DataType::Char(..) => ColumnType::MYSQL_TYPE_STRING,
         DataType::Boolean => ColumnType::MYSQL_TYPE_BIT,
         DataType::DateTime => ColumnType::MYSQL_TYPE_DATETIME,
-        DataType::Varbianry(..) => ColumnType::MYSQL_TYPE_VARCHAR,
+        DataType::Varbinary(..) => ColumnType::MYSQL_TYPE_VARCHAR,
         _ => unimplemented!("not a valid data type {:?}", t),
     }
 }

@@ -1,4 +1,4 @@
-use crate::types::*;
+use crate::disguises::*;
 use log::debug;
 use msql_srv::{Column, ColumnFlags, QueryResultWriter};
 use mysql::prelude::*;
@@ -9,84 +9,70 @@ use std::*;
 /************************************
  * MYSQL HELPERS
  ************************************/
-pub fn get_rows_of_query(
-    q: &str,
-    table: &str,
-    id_col_name: &str,
-    db: &mut mysql::Conn,
-) -> Result<Vec<Row>, mysql::Error> {
+pub fn get_query_rows_txn(
+    q: &Statement,
+    txn: &mut mysql::Transaction,
+) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     let mut rows = vec![];
-    let mut id_col_index = 0;
-    let mut i = 0;
 
-    let res = db.query_iter(q)?;
-    let cols: Vec<TableCol> = res
+    let res = txn.query_iter(q.to_string())?;
+    let cols: Vec<String> = res
         .columns()
         .as_ref()
         .iter()
-        .map(|c| {
-            let index = i;
-            let name = c.name_str().to_string();
-            if name == id_col_name {
-                id_col_index = index;
-            }
-            i += 1;
-            TableCol {
-                table: table.to_string(),
-                col_index: index,
-                col_name: name,
-            }
-        })
+        .map(|c| c.name_str().to_string())
         .collect();
 
     for row in res {
         let rowvals = row.unwrap().unwrap();
-        let vals : Vec<String> = rowvals
+        let mut i = 0;
+        let vals: Vec<RowVal> = rowvals
             .iter()
-            .map(|v| mysql_val_to_string(v))
+            .map(|v| {
+                let index = i;
+                i += 1;
+                RowVal {
+                    column: cols[index].clone(),
+                    value: mysql_val_to_string(v),
+                }
+            })
             .collect();
-        rows.push(Row {
-            id: ID {
-                table: table.to_string(),
-                id: u64::from_str(&vals[id_col_index]).unwrap(),
-                id_col_index: id_col_index,
-                id_col_name: id_col_name.to_string(),
-            },
-            columns: cols.clone(),
-            values: vals,
-        });
+        rows.push(vals);
     }
     Ok(rows)
 }
 
-pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
-    // get rid of unsupported types
-    debug!("helpers:{}", stmt);
-    let mut new = stmt.replace(r"int unsigned", "int");
-    if in_memory {
-        new = new.replace(r"mediumtext", "varchar(255)");
-        new = new.replace(r"tinytext", "varchar(255)");
-        new = new.replace(r" text ", " varchar(255) ");
-        new = new.replace(r" text,", " varchar(255),");
-        new = new.replace(r" text)", " varchar(255))");
-        new = new.replace(r"FULLTEXT", "");
-        new = new.replace(r"fulltext", "");
-        new = new.replace(r"InnoDB", "MEMORY");
-    }
+pub fn get_query_rows_db(
+    q: &Statement,
+    db: &mut mysql::Conn,
+) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
+    let mut rows = vec![];
 
-    // get rid of DEFAULT/etc. commands after query
-    let mut end_index = new.len();
-    if let Some(i) = new.find("DEFAULT CHARSET") {
-        end_index = i;
-    } else if let Some(i) = new.find("default charset") {
-        end_index = i;
+    let res = db.query_iter(q.to_string())?;
+    let cols: Vec<String> = res
+        .columns()
+        .as_ref()
+        .iter()
+        .map(|c| c.name_str().to_string())
+        .collect();
+
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let mut i = 0;
+        let vals: Vec<RowVal> = rowvals
+            .iter()
+            .map(|v| {
+                let index = i;
+                i += 1;
+                RowVal {
+                    column: cols[index].clone(),
+                    value: mysql_val_to_string(v),
+                }
+            })
+            .collect();
+        rows.push(vals);
     }
-    new.truncate(end_index);
-    if !new.ends_with(';') {
-        new.push_str(";");
-    }
-    debug!("helpers new:{}", new);
-    new
+    Ok(rows)
 }
 
 pub fn escape_quotes_mysql(s: &str) -> String {

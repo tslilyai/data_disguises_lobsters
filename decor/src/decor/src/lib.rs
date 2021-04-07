@@ -7,7 +7,6 @@ use msql_srv::*;
 use mysql::prelude::*;
 use std::io::{self, BufReader, BufWriter};
 use std::*;
-use sql_parser::ast::*;
 use log::{warn};
 
 pub mod disguises;
@@ -26,10 +25,8 @@ pub struct TestParams {
 
 pub struct Shim { 
     db: mysql::Conn,
-
     querier: querier::Querier,
-
-    schema: String,
+    app: disguises::Application,
     test_params: TestParams,
 }
 
@@ -41,16 +38,21 @@ impl Drop for Shim {
 }
 
 impl Shim {
-    pub fn new(db: mysql::Conn, application: &disguises::Application, test_params: TestParams) 
+    pub fn new(db: mysql::Conn, app: disguises::Application, test_params: TestParams) 
         -> Self 
     {
         let querier = querier::Querier::new(&test_params);
-        Shim{db, querier, appliaction, test_params}
+        Shim{
+            db: db, 
+            querier: querier, 
+            app: app, 
+            test_params: test_params
+        }
     }   
 
     pub fn run_on_tcp(
         dbname: &str, 
-        app: &disguises::Application, 
+        app: disguises::Application, 
         test_params: TestParams, 
         s: net::TcpStream) 
         -> Result<(), mysql::Error> 
@@ -69,29 +71,19 @@ impl Shim {
     /* 
      * Given schema in sql, issue queries to set up database.
      * Must be issued after select_db statement is issued.
+     * Also creates valut tables 
      * */
     fn create_schema(&mut self) -> Result<(), mysql::Error> {
         self.db.query_drop("SET max_heap_table_size = 4294967295;")?;
 
         /* issue schema statements but only if we're not priming and not decor */
-        let mut stmt = String::new();
-        for line in self.schema.lines() {
-            if line.starts_with("--") || line.is_empty() {
-                continue;
+        if self.test_params.prime {
+            let mut stmt = String::new();
+            for stmt in &self.app.schema {
+                self.querier.query_drop(&stmt, &mut self.db)?;                
             }
-            if !stmt.is_empty() {
-                stmt.push_str(" ");
-            }
-            stmt.push_str(line);
-            if stmt.ends_with(';') {
-                stmt = helpers::process_schema_stmt(&stmt, self.test_params.in_memory);
-                let stmt_ast = helpers::get_single_parsed_stmt(&stmt)?;
-                
-                // if we're not priming, the table already exists!
-                if self.test_params.prime {
-                    self.querier.query_drop(&stmt_ast, &mut self.db)?;                
-                }
-                stmt = String::new();
+            for stmt in &self.app.vault {
+                self.querier.query_drop(&stmt, &mut self.db)?;                
             }
         }
         Ok(())
@@ -121,10 +113,10 @@ impl<W: io::Write> MysqlShim<W> for Shim {
         let object_data = helpers::remove_escaped_chars(&object_data);
         warn!("RESUB got data {}, {}", gidshard, object_data);
         
-        let gidshard = serde_json::from_str(&gidshard).unwrap();
-        let object_data = serde_json::from_str(&object_data).unwrap();
+        /*let gidshard = serde_json::from_str(&gidshard).unwrap();
+        let object_data = serde_json::from_str(&object_data).unwrap();*/
  
-        match self.querier.resubscribe(uid, &gidshard, &object_data, &mut self.db) {
+        match self.querier.resubscribe(uid, &mut self.db) {
             Ok(()) => {
                 let dur = start.elapsed();
                 self.querier.record_query_stats(helpers::stats::QueryType::Resub, dur);
@@ -185,7 +177,7 @@ impl<W: io::Write> MysqlShim<W> for Shim {
             dur = start.elapsed();
         } else {
             let parsestart = time::Instant::now();
-            let stmt_ast = self.get_single_parsed_stmt(&query.to_string())?;
+            let stmt_ast = helpers::get_single_parsed_stmt(&query.to_string())?;
             let parsedur = parsestart.elapsed();
             warn!("parse {} duration is {}", query, parsedur.as_micros());
             

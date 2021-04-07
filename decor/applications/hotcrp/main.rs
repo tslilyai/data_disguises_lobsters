@@ -105,22 +105,18 @@ fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'
     let mut db : mysql::Conn;
       
     let mut use_decor = false;
-    let mut use_mv = false;
     let mut parse = false;
     match test {
         TestType::TestDecor => {
             use_decor = true;
-            use_mv = false;
             parse = true;
         }
         TestType::TestShimParse => {
             use_decor = false;
-            use_mv = false;
             parse = true;
         }
         TestType::TestShim => {
             use_decor = false;
-            use_mv = false;
             parse = false;
         }
         _ => (),
@@ -149,11 +145,10 @@ fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'
             locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
             drop(locked_topo);
 
-            let app = disguise::get_hotcrp_application(SCHEMA);
+            let app = disguise::get_hotcrp_application(SCHEMA, true);
             let test_params = decor::TestParams{
                 testname: testname.to_string(), 
                 use_decor : use_decor,
-                use_mv: use_mv,
                 parse:parse, 
                 in_memory: true, 
                 prime: prime
