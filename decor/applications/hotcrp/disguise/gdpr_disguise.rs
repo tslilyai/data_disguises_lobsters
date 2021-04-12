@@ -4,15 +4,28 @@ use decor::helpers::*;
 use mysql::TxOpts;
 use sql_parser::ast::*;
 
-fn remove_obj_txn(name: &str, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     let mut txn = db.start_transaction(TxOpts::default())?;
 
     /* PHASE 0: PREAMBLE */
-    // TODO undo any dependent disguises (XXX touches all vaults??)
+    // TODO undo any dependent disguises associated with user
 
     /* PHASE 1: REFERENCER SELECTION */
-    let predicated_objs = get_query_rows_txn(&select_statement(name, None), &mut txn)?;
-    
+    let predicated_objs = get_query_rows_txn(
+        &select_statement(
+            name,
+            Some(Expr::BinaryOp {
+                left: Box::new(Expr::Identifier(vec![
+                    Ident::new(name.clone()),
+                    Ident::new(SCHEMA_UID_COL.to_string()), // assumes fkcol is uid_col
+                ])),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
+            }),
+        ),
+        &mut txn,
+    )?;
+
     /* PHASE 2: REFERENCED SELECTION */
     // noop because we're dealing only with a single table, and not with any fks
 
@@ -59,7 +72,11 @@ fn remove_obj_txn(name: &str, db: &mut mysql::Conn) -> Result<(), mysql::Error> 
     txn.commit()
 }
 
-fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+fn decor_obj_txn(
+    user_id: u64,
+    tablefk: &TableFKs,
+    db: &mut mysql::Conn,
+) -> Result<(), mysql::Error> {
     let child_name = tablefk.name;
     let fks = tablefk.fks;
     let mut txn = db.start_transaction(TxOpts::default())?;
@@ -68,27 +85,33 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
     // TODO undo any dependent disguises (XXX touches all vaults??)
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
-    let child_objs = get_query_rows_txn(&select_statement(&child_name, None), &mut txn)?;
+    let mut selection = Expr::Value(Value::Boolean(false));
+    for fk in fks {
+        selection = Expr::BinaryOp {
+            left: Box::new(selection),
+            op: BinaryOperator::Or,
+            right: Box::new(Expr::BinaryOp {
+                left: Box::new(Expr::Identifier(vec![
+                    Ident::new(child_name.clone()),
+                    Ident::new(fk.referencer_col.to_string()),
+                ])),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
+            }),
+        };
+    }
+    let child_objs = get_query_rows_txn(&select_statement(&child_name, Some(selection)), &mut txn)?;
 
     /* PHASE 2: SELECT REFERENCED OBJECTS */
     // noop---we don't need the value of these objects of perform guise inserts
     
-    /* PHASE 3: OBJECT MODIFICATIONS */
-    /* PHASE 4: VAULT UPDATES */
     for fk in fks {
-        // get all the IDs of parents (all are of the same type for the same fk)
-        let mut fkids = vec![];
-        for child in child_objs {
-            let fkid: Vec<&RowVal> = child.iter().filter(|rc| rc.column == fk.fk_col).collect();
-            fkids.push(Expr::Value(Value::Number(fkid[0].value.to_string())));
-        }
+        /* PHASE 3: OBJECT MODIFICATIONS */
 
-        // Phase 3 insert guises for parents
+        // Phase 3 insert guises 
         let mut new_parents_vals = vec![];
         let fk_cols = get_contact_info_cols();
-        for _ in child_objs {
-            new_parents_vals.push(get_contact_info_vals());
-        }
+        new_parents_vals.push(get_contact_info_vals());
         get_query_rows_txn(
             &Statement::Insert(InsertStatement {
                 table_name: string_to_objname(&fk.fk_name),
@@ -104,7 +127,6 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
         let mut vault_vals = vec![];
         for (n, child) in child_objs.iter().enumerate() {
             cur_uid += 1;
-            let old_uid = fkids[n];
 
             // Phase 3 update child to point to new parent
             get_query_rows_txn(
@@ -114,18 +136,17 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                         id: Ident::new(fk.referencer_col.clone()),
                         value: Expr::Value(Value::Number(cur_uid.to_string())),
                     }],
-                    // TODO should use indexed child ID column
                     selection: Some(Expr::BinaryOp {
                         left: Box::new(Expr::Identifier(vec![
                             Ident::new(child_name.clone()),
                             Ident::new(fk.referencer_col.clone()),
                         ])),
                         op: BinaryOperator::Eq,
-                        right: Box::new(Expr::Value(Value::Number(old_uid.to_string()))),
+                        right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
                     }),
                 }),
                 &mut txn,
-            )?;
+            );
 
             // Phase 4: update the vault with new guises (calculating the uid from the last_insert_id)
             let mut i = 0;
@@ -144,7 +165,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
 
             let mut guise_vault_vals = vec![];
             // uid
-            guise_vault_vals.push(Expr::Value(Value::Number(old_uid.to_string())));
+            guise_vault_vals.push(Expr::Value(Value::Number(user_id.to_string())));
             // modifiedObjectName
             guise_vault_vals.push(Expr::Value(Value::String(fk.fk_name.clone())));
             // modified all columns
@@ -159,7 +180,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
             // Phase 4: update the vault with the modification to children
             let mut child_vault_vals = vec![];
             // uid
-            child_vault_vals.push(Expr::Value(Value::Number(old_uid.to_string())));
+            child_vault_vals.push(Expr::Value(Value::Number(user_id.to_string())));
             // modifiedObjectName
             child_vault_vals.push(Expr::Value(Value::String(fk.fk_name.clone())));
             // modified fk column
@@ -171,7 +192,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                 serde_json::to_string(&child).unwrap(),
             )));
             // new value
-            let new_child : Vec<RowVal> = child
+            let new_child: Vec<RowVal> = child
                 .iter()
                 .map(|v| {
                     if v.column == fk.referencer_col {
@@ -189,7 +210,9 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
             )));
             vault_vals.push(child_vault_vals);
         }
-        // Phase 4: batched updates for all children together
+        /* PHASE 4: VAULT UPDATES
+         * bulk insert modifications into vault
+         */
         get_query_rows_txn(
             &Statement::Insert(InsertStatement {
                 table_name: string_to_objname(&table_to_vault(&fk.fk_name)),
@@ -202,15 +225,18 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
     txn.commit()
 }
 
-pub fn apply_conference_anon_disguise(_: Option<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+pub fn apply_gdpr_disguise(user_id: Option<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    // user must be provided as input
+    let user_id = user_id.unwrap();
+
     // DECORRELATION TXNS
     for tablefk in get_decor_names() {
-        decor_obj_txn(&tablefk, db)?;
+        decor_obj_txn(user_id, &tablefk, db)?;
     }
-    
     // REMOVAL TXNS
     for name in get_remove_names() {
-        remove_obj_txn(name, db)?;
+        remove_obj_txn(user_id, name, db)?;
     }
+
     Ok(())
 }

@@ -21,7 +21,7 @@ pub struct TableFKs {
 }
 
 pub struct Application {
-    pub disguises: Vec<Box<dyn Fn(&mut mysql::Conn) -> Result<(), mysql::Error>>>,
+    pub disguises: Vec<Box<dyn Fn(Option<u64>, &mut mysql::Conn) -> Result<(), mysql::Error>>>,
     pub schema: Vec<Statement>,
     pub vault: Vec<Statement>,
 }

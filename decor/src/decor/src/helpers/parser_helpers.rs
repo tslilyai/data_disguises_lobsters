@@ -8,6 +8,20 @@ use log::{debug, warn};
 /*****************************************
  * Parser helpers 
  ****************************************/
+pub fn select_statement(table: &str, selection: Option<Expr>) -> Statement {
+    Statement::Select(SelectStatement {
+        query: Box::new(Query::select(Select {
+            distinct: true,
+            projection: vec![SelectItem::Wildcard],
+            from: str_to_tablewithjoins(&table),
+            selection: selection.clone(),
+            group_by: vec![],
+            having: None,
+        })),
+        as_of: None,
+    })
+}
+
 pub fn values_query(vals: Vec<Vec<Expr>>) -> Query {
     Query {
         ctes: vec![],
