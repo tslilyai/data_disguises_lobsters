@@ -1,4 +1,5 @@
 use crate::disguise::*;
+use crate::disguise::conference_anon::*;
 use decor::disguises::*;
 use decor::helpers::*;
 use mysql::TxOpts;
