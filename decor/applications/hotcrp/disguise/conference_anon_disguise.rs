@@ -214,3 +214,28 @@ pub fn apply_conference_anon_disguise(_: Option<u64>, db: &mut mysql::Conn) -> R
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn apply_none() {
+        let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let mut jh = None;
+        let url : String;
+        let mut db : mysql::Conn;
+          
+        let test_dbname = "test_none";
+        url = String::from("mysql://tslilyai:pass@127.0.0.1");
+        db = mysql::Conn::new(&url).unwrap();
+        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname)).unwrap();
+        db.query_drop(&format!("CREATE DATABASE {};", &test_dbname)).unwrap();
+        assert_eq!(db.ping(), true);
+        create_schema(&mut db).unwrap();
+        assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
+
+        assert_eq(apply_conference_anon_disguise(None, &db), Ok(()));
+    }
+}
