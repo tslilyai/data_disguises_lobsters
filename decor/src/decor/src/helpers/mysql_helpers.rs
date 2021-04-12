@@ -1,5 +1,5 @@
 use crate::disguises::*;
-use log::debug;
+use log::warn;
 use msql_srv::{Column, ColumnFlags, QueryResultWriter};
 use mysql::prelude::*;
 use sql_parser::ast::*;
@@ -15,6 +15,7 @@ pub fn get_query_rows_txn(
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     let mut rows = vec![];
 
+    warn!("get_query_rows_txn: {}", q);
     let res = txn.query_iter(q.to_string())?;
     let cols: Vec<String> = res
         .columns()
@@ -48,6 +49,7 @@ pub fn get_query_rows_db(
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     let mut rows = vec![];
 
+    warn!("get_query_rows_db: {}", q);
     let res = db.query_iter(q.to_string())?;
     let cols: Vec<String> = res
         .columns()

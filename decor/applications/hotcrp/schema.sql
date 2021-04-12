@@ -142,11 +142,11 @@ CREATE TABLE `MailLog` (
   `recipients` varbinary(200) NOT NULL,
   `q` varbinary(4096) DEFAULT NULL,
   `t` varbinary(200) DEFAULT NULL,
-  `paperIds` blob,
-  `cc` blob,
-  `replyto` blob,
-  `subject` blob,
-  `emailBody` blob,
+  `paperIds` varbinary(4096),
+  `cc` varbinary(4096),
+  `replyto` varbinary(4096),
+  `subject` varbinary(4096),
+  `emailBody` varbinary(4096),
   `fromNonChair` tinyint(1) NOT NULL DEFAULT '0',
   `status` tinyint(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (`mailId`)
@@ -170,7 +170,6 @@ CREATE TABLE `Paper` (
   `timeFinalSubmitted` bigint(11) NOT NULL DEFAULT '0',
   `timeModified` bigint(11) NOT NULL DEFAULT '0',
   `paperStorageId` int(11) NOT NULL DEFAULT '0',
-  # `sha1` copied from PaperStorage to reduce joins
   `sha1` varbinary(64) NOT NULL DEFAULT '',
   `finalPaperStorageId` int(11) NOT NULL DEFAULT '0',
   `blind` tinyint(1) NOT NULL DEFAULT '1',
@@ -179,14 +178,13 @@ CREATE TABLE `Paper` (
   `shepherdContactId` int(11) NOT NULL DEFAULT '0',
   `managerContactId` int(11) NOT NULL DEFAULT '0',
   `capVersion` int(1) NOT NULL DEFAULT '0',
-  # next 3 fields copied from PaperStorage to reduce joins
   `size` int(11) NOT NULL DEFAULT '0',
   `mimetype` varbinary(80) NOT NULL DEFAULT '',
   `timestamp` bigint(11) NOT NULL DEFAULT '0',
   `pdfFormatStatus` bigint(11) NOT NULL DEFAULT '0',
   `withdrawReason` varbinary(1024) DEFAULT NULL,
   `paperFormat` tinyint(1) DEFAULT NULL,
-  `dataOverflow` longblob,
+  `dataOverflow` varbinary(4096),
   PRIMARY KEY (`paperId`),
   KEY `timeSubmitted` (`timeSubmitted`),
   KEY `leadContactId` (`leadContactId`),
@@ -215,7 +213,7 @@ CREATE TABLE `PaperComment` (
   `commentTags` varbinary(1024) DEFAULT NULL,
   `commentRound` int(11) NOT NULL DEFAULT '0',
   `commentFormat` tinyint(1) DEFAULT NULL,
-  `commentOverflow` longblob,
+  `commentOverflow` varbinary(4096),
   PRIMARY KEY (`paperId`,`commentId`),
   UNIQUE KEY `commentId` (`commentId`),
   KEY `contactId` (`contactId`),
@@ -249,7 +247,7 @@ CREATE TABLE `PaperOption` (
   `optionId` int(11) NOT NULL,
   `value` bigint(11) NOT NULL DEFAULT '0',
   `data` varbinary(32767) DEFAULT NULL,
-  `dataOverflow` longblob,
+  `dataOverflow` varbinary(4096),
   PRIMARY KEY (`paperId`,`optionId`,`value`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -298,7 +296,7 @@ CREATE TABLE `PaperReview` (
   `potential` tinyint(4) NOT NULL DEFAULT '0',
   `fixability` tinyint(4) NOT NULL DEFAULT '0',
 
-  `tfields` longblob,
+  `tfields` varbinary(4096),
   `sfields` varbinary(2048) DEFAULT NULL,
   `data` varbinary(8192) DEFAULT NULL,
 
@@ -362,7 +360,7 @@ CREATE TABLE `PaperStorage` (
   `paperStorageId` int(11) NOT NULL AUTO_INCREMENT,
   `timestamp` bigint(11) NOT NULL,
   `mimetype` varbinary(80) NOT NULL DEFAULT '',
-  `paper` longblob,
+  `paper` varbinary(4096),
   `compression` tinyint(1) NOT NULL DEFAULT '0',
   `sha1` varbinary(64) NOT NULL DEFAULT '',
   `crc32` binary(4) DEFAULT NULL,
@@ -386,7 +384,7 @@ CREATE TABLE `PaperStorage` (
 DROP TABLE IF EXISTS `PaperTag`;
 CREATE TABLE `PaperTag` (
   `paperId` int(11) NOT NULL,
-  `tag` varchar(80) NOT NULL,		# case-insensitive; see TAG_MAXLEN in init.php
+  `tag` varchar(80) NOT NULL,		
   `tagIndex` float NOT NULL DEFAULT '0',
   PRIMARY KEY (`paperId`,`tag`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
@@ -399,7 +397,7 @@ CREATE TABLE `PaperTag` (
 
 DROP TABLE IF EXISTS `PaperTagAnno`;
 CREATE TABLE `PaperTagAnno` (
-  `tag` varchar(80) NOT NULL,   # case-insensitive; see TAG_MAXLEN in init.php
+  `tag` varchar(80) NOT NULL,   
   `annoId` int(11) NOT NULL,
   `tagIndex` float NOT NULL DEFAULT '0',
   `heading` varbinary(8192) DEFAULT NULL,
@@ -532,7 +530,7 @@ insert into Settings (name, value, data) values ('outcome_map', 1, '{"0":"Unspec
 -- default review form
 insert into Settings (name, value, data) values ('review_form',1,'{"overAllMerit":{"name":"Overall merit","position":1,"visibility":"au","options":["Reject","Weak reject","Weak accept","Accept","Strong accept"]},"reviewerQualification":{"name":"Reviewer expertise","position":2,"visibility":"au","options":["No familiarity","Some familiarity","Knowledgeable","Expert"]},"t01":{"name":"Paper summary","position":3,"display_space":5,"visibility":"au"},"t02":{"name":"Comments for author","position":4,"display_space":15,"visibility":"au"},"t03":{"name":"Comments for PC","position":5,"display_space":10,"visibility":"pc"}}');
 
-insert ignore into PaperStorage set
-    paperStorageId=1, paperId=0, timestamp=0, mimetype='text/plain',
-    paper='', sha1=x'da39a3ee5e6b4b0d3255bfef95601890afd80709',
+insert into PaperStorage set 
+    paperStorageId=1, paperId=0, timestamp=0, mimetype='text/plain', 
+    paper='', sha1=UNHEX('da39a3ee5e6b4b0d3255bfef95601890afd80709'), 
     documentType=0, size=0;

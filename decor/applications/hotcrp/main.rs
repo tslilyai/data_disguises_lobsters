@@ -16,11 +16,14 @@ use hwloc::{Topology, ObjectType, CPUBIND_THREAD, CpuSet};
 use std::sync::{Arc, Mutex};
 use log::warn;
 
-mod disguise;
+mod conference_anon_disguise;
+mod gdpr_disguise;
 use decor::*;
 
 const SCHEMA : &'static str = include_str!("schema.sql");
 const DBNAME : &'static str = &"test_hotcrp";
+const SCHEMA_UID_COL: &'static str = "contactID";
+const SCHEMA_UID_TABLE: &'static str = "ContactInfo";
 
 #[derive(Debug, Clone, PartialEq)]
 enum TestType {
@@ -58,11 +61,29 @@ struct Cli {
     prop_unsub: f64,
 }
 
+fn get_table_names() -> Vec<&'static str> {
+    vec![
+        "ContactInfo", 
+        "PaperReviewPreference",
+        "PaperWatch",
+        "Capability",
+        "PaperConflict",
+        "TopicInterest",
+        "PaperTag",
+        "PaperTagAnno",
+        "PaperReviewRefused",
+        "ActionLog",
+        "ReviewRating",
+        "PaperComment",
+        "PaperReview",
+    ]
+}
+
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        //.filter_level(log::LevelFilter::Warn)
-        .filter_level(log::LevelFilter::Error)
+        .filter_level(log::LevelFilter::Warn)
+        //.filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -87,13 +108,29 @@ fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         stmt.push_str(line);
         if stmt.ends_with(';') {
             let new_stmt = helpers::process_schema_stmt(&stmt, true); 
+            warn!("create_schema issuing new_stmt {}", new_stmt);
             txn.query_drop(new_stmt.to_string())?;
             stmt = String::new();
         }
     }
+
+    for stmt in disguises::get_create_vault_statements(get_table_names(), true) {
+        warn!("create_vault issuing new_stmt {}", stmt);
+        txn.query_drop(stmt.to_string())?;
+    }
     txn.commit()?;
     Ok(())
 }
+
+/*pub fn get_hotcrp_application(schema: &str, in_memory: bool) -> Application {
+    let disguises = vec![Box::new(apply_conference_anon_disguise), Box::new(apply_gdpr_disguise)];
+
+    Application {
+        disguises: disguises,
+        schema: get_create_schema_statements(schema, in_memory),
+        vault: get_create_vault_statements(get_table_names(), in_memory),
+    }
+}*/
 
 fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'static str, prime: bool) 
     -> (mysql::Conn, Option<thread::JoinHandle<()>>) 
@@ -286,6 +323,8 @@ fn run_test(db: &mut mysql::Conn, test: TestType, nqueries: u64, scale: f64, pri
 
 fn main() {
     init_logger();
+
+    /*
     let args = Cli::from_args();
     let test = args.test;
     let nqueries = args.nqueries;
@@ -298,7 +337,6 @@ fn main() {
     let tests = vec![TestShimParse, TestNoShim, TestShim, TestDecor];
     let testnames = vec!["shim_parse", "no_shim", "shim_only", "decor"];
 
-    //let mut core = 2;
     for i in 0..tests.len() {
         let testclone = tests[i].clone();
         let testname = testnames[i].clone();
@@ -311,14 +349,14 @@ fn main() {
         cpuset.singlify();
         locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
         drop(locked_topo);
+
         
         let (mut db, jh) = init_db(topo, 2, testclone.clone(), testname, prime);
         run_test(&mut db, testclone, nqueries, scale, prime, testname, prop_unsub);
-        
+       
         drop(db);
         if let Some(t) = jh {
             t.join().unwrap();
         }
-        //core += 2;
-    }
+    }*/
 }

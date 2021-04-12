@@ -2,7 +2,7 @@ use decor::disguises::*;
 use rand::{distributions::Alphanumeric, Rng};
 use sql_parser::ast::*; 
 
-pub const ANON_PW: &'static str = "password123";
+const ANON_PW: &'static str = "password123";
 
 pub fn get_remove_names() -> Vec<&'static str> {
     vec![
