@@ -60,15 +60,15 @@ fn remove_obj_txn(name: &str, db: &mut mysql::Conn) -> Result<(), mysql::Error> 
 }
 
 fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
-    let child_name = tablefk.name;
-    let fks = tablefk.fks;
+    let child_name = &tablefk.name;
+    let fks = &tablefk.fks;
     let mut txn = db.start_transaction(TxOpts::default())?;
 
     /* PHASE 0: PREAMBLE */
     // TODO undo any dependent disguises (XXX touches all vaults??)
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
-    let child_objs = get_query_rows_txn(&select_statement(&child_name, None), &mut txn)?;
+    let child_objs = get_query_rows_txn(&select_statement(child_name, None), &mut txn)?;
 
     /* PHASE 2: SELECT REFERENCED OBJECTS */
     // noop---we don't need the value of these objects of perform guise inserts
@@ -78,7 +78,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
     for fk in fks {
         // get all the IDs of parents (all are of the same type for the same fk)
         let mut fkids = vec![];
-        for child in child_objs {
+        for child in &child_objs {
             let fkid: Vec<&RowVal> = child.iter().filter(|rc| rc.column == fk.fk_col).collect();
             fkids.push(Expr::Value(Value::Number(fkid[0].value.to_string())));
         }
@@ -86,14 +86,14 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
         // Phase 3 insert guises for parents
         let mut new_parents_vals = vec![];
         let fk_cols = get_contact_info_cols();
-        for _ in child_objs {
+        for _ in &child_objs {
             new_parents_vals.push(get_contact_info_vals());
         }
         get_query_rows_txn(
             &Statement::Insert(InsertStatement {
                 table_name: string_to_objname(&fk.fk_name),
                 columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
-                source: InsertSource::Query(Box::new(values_query(new_parents_vals))),
+                source: InsertSource::Query(Box::new(values_query(new_parents_vals.clone()))),
             }),
             &mut txn,
         )?;
@@ -104,7 +104,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
         let mut vault_vals = vec![];
         for (n, child) in child_objs.iter().enumerate() {
             cur_uid += 1;
-            let old_uid = fkids[n];
+            let old_uid = &fkids[n];
 
             // Phase 3 update child to point to new parent
             get_query_rows_txn(
@@ -121,7 +121,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                             Ident::new(fk.referencer_col.clone()),
                         ])),
                         op: BinaryOperator::Eq,
-                        right: Box::new(Expr::Value(Value::Number(old_uid.to_string()))),
+                        right: Box::new(old_uid.clone()),
                     }),
                 }),
                 &mut txn,
@@ -136,7 +136,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                     let index = i;
                     i += 1;
                     RowVal {
-                        column: fk_cols[i].to_string(),
+                        column: fk_cols[index].to_string(),
                         value: v.to_string(),
                     }
                 })
@@ -144,7 +144,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
 
             let mut guise_vault_vals = vec![];
             // uid
-            guise_vault_vals.push(Expr::Value(Value::Number(old_uid.to_string())));
+            guise_vault_vals.push(old_uid.clone());
             // modifiedObjectName
             guise_vault_vals.push(Expr::Value(Value::String(fk.fk_name.clone())));
             // modified all columns
@@ -159,12 +159,12 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
             // Phase 4: update the vault with the modification to children
             let mut child_vault_vals = vec![];
             // uid
-            child_vault_vals.push(Expr::Value(Value::Number(old_uid.to_string())));
+            child_vault_vals.push(old_uid.clone());
             // modifiedObjectName
             child_vault_vals.push(Expr::Value(Value::String(fk.fk_name.clone())));
             // modified fk column
             child_vault_vals.push(Expr::Value(Value::String(
-                serde_json::to_string(&vec![fk.referencer_col]).unwrap(),
+                serde_json::to_string(&vec![fk.referencer_col.clone()]).unwrap(),
             )));
             // old value
             child_vault_vals.push(Expr::Value(Value::String(

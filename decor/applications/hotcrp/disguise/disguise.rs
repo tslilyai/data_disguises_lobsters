@@ -25,7 +25,7 @@ pub fn get_table_names() -> Vec<&'static str> {
     ]
 }
 
-pub fn get_hotcrp_application(schema: &str, in_memory: bool) -> Application {
+/*pub fn get_hotcrp_application(schema: &str, in_memory: bool) -> Application {
     let disguises = vec![Box::new(apply_conference_anon_disguise), Box::new(apply_gdpr_disguise)];
 
     Application {
@@ -33,4 +33,4 @@ pub fn get_hotcrp_application(schema: &str, in_memory: bool) -> Application {
         schema: get_create_schema_statements(schema, in_memory),
         vault: get_create_vault_statements(get_table_names(), in_memory),
     }
-}
+}*/

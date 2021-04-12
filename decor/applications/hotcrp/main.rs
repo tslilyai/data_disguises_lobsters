@@ -145,7 +145,7 @@ fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'
             locked_topo.set_cpubind_for_thread(tid, cpuset, CPUBIND_THREAD).unwrap();
             drop(locked_topo);
 
-            let app = disguise::get_hotcrp_application(SCHEMA, true);
+            /*let app = disguise::get_hotcrp_application(SCHEMA, true);
             let test_params = decor::TestParams{
                 testname: testname.to_string(), 
                 use_decor : use_decor,
@@ -156,7 +156,7 @@ fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'
             if let Ok((s, _)) = listener.accept() {
                 decor::Shim::run_on_tcp(
                     &dbname, app, test_params, s).unwrap();
-            }
+            }*/
         }));
         url = format!("mysql://127.0.0.1:{}", port);
         db = mysql::Conn::new(&url).unwrap();

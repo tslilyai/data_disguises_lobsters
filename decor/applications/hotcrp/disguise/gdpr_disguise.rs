@@ -77,8 +77,8 @@ fn decor_obj_txn(
     tablefk: &TableFKs,
     db: &mut mysql::Conn,
 ) -> Result<(), mysql::Error> {
-    let child_name = tablefk.name;
-    let fks = tablefk.fks;
+    let child_name = tablefk.name.clone();
+    let fks = &tablefk.fks;
     let mut txn = db.start_transaction(TxOpts::default())?;
 
     /* PHASE 0: PREAMBLE */
@@ -116,7 +116,7 @@ fn decor_obj_txn(
             &Statement::Insert(InsertStatement {
                 table_name: string_to_objname(&fk.fk_name),
                 columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
-                source: InsertSource::Query(Box::new(values_query(new_parents_vals))),
+                source: InsertSource::Query(Box::new(values_query(new_parents_vals.clone()))),
             }),
             &mut txn,
         )?;
@@ -146,7 +146,7 @@ fn decor_obj_txn(
                     }),
                 }),
                 &mut txn,
-            );
+            )?;
 
             // Phase 4: update the vault with new guises (calculating the uid from the last_insert_id)
             let mut i = 0;
@@ -157,7 +157,7 @@ fn decor_obj_txn(
                     let index = i;
                     i += 1;
                     RowVal {
-                        column: fk_cols[i].to_string(),
+                        column: fk_cols[index].to_string(),
                         value: v.to_string(),
                     }
                 })
@@ -185,7 +185,7 @@ fn decor_obj_txn(
             child_vault_vals.push(Expr::Value(Value::String(fk.fk_name.clone())));
             // modified fk column
             child_vault_vals.push(Expr::Value(Value::String(
-                serde_json::to_string(&vec![fk.referencer_col]).unwrap(),
+                serde_json::to_string(&vec![fk.referencer_col.clone()]).unwrap(),
             )));
             // old value
             child_vault_vals.push(Expr::Value(Value::String(
