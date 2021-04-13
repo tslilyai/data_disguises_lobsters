@@ -258,7 +258,7 @@ mod test {
         let url : String;
         let mut db : mysql::Conn;
           
-        let test_dbname = "test_none";
+        let test_dbname = "test_gdpr_none";
         url = String::from("mysql://tslilyai:pass@127.0.0.1");
         db = mysql::Conn::new(&url).unwrap();
         db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname)).unwrap();

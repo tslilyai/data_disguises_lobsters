@@ -252,3 +252,35 @@ pub fn apply(user_id: Option<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Er
 
     Ok(())
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn apply_none() {
+        let _ = env_logger::builder()
+        // Include all events in tests
+        .filter_level(log::LevelFilter::Warn)
+        //.filter_level(log::LevelFilter::Error)
+        // Ensure events are captured by `cargo test`
+        .is_test(true)
+        // Ignore errors initializing the logger if tests race to configure it
+        .try_init();
+
+        let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url : String;
+        let mut db : mysql::Conn;
+          
+        let test_dbname = "test_conf_none";
+        url = String::from("mysql://tslilyai:pass@127.0.0.1");
+        db = mysql::Conn::new(&url).unwrap();
+        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname)).unwrap();
+        db.query_drop(&format!("CREATE DATABASE {};", &test_dbname)).unwrap();
+        assert_eq!(db.ping(), true);
+        assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
+        create_schema(&mut db).unwrap();
+
+        apply(Some(1), &mut db).unwrap()
+    }
+}

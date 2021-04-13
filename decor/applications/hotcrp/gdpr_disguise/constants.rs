@@ -12,8 +12,8 @@ pub fn get_remove_names() -> Vec<&'static str> {
         "Capability",
         "PaperConflict",
         "TopicInterest",
-        "PaperTag",
-        "PaperTagAnno",
+        //"PaperTag",
+        //"PaperTagAnno",
     ]
 }
 
