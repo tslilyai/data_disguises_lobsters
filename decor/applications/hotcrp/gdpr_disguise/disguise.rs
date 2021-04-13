@@ -63,14 +63,16 @@ fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), 
         evals.push(Expr::Value(Value::Null));
         vault_vals.push(evals)
     }
-    get_query_rows_txn(
-        &Statement::Insert(InsertStatement {
-            table_name: string_to_objname(&table_to_vault(name)),
-            columns: get_insert_vault_colnames(),
-            source: InsertSource::Query(Box::new(values_query(vault_vals))),
-        }),
-        &mut txn,
-    )?;
+    if !vault_vals.is_empty() {
+        get_query_rows_txn(
+            &Statement::Insert(InsertStatement {
+                table_name: string_to_objname(&table_to_vault(name)),
+                columns: get_insert_vault_colnames(),
+                source: InsertSource::Query(Box::new(values_query(vault_vals))),
+            }),
+            &mut txn,
+        )?;
+    }
     txn.commit()
 }
 
@@ -103,17 +105,24 @@ fn decor_obj_txn(
         };
     }
     let child_objs = get_query_rows_txn(&select_statement(&child_name, Some(selection)), &mut txn)?;
+    if child_objs.is_empty() {
+        return Ok(());
+    }
 
     /* PHASE 2: SELECT REFERENCED OBJECTS */
     // noop---we don't need the value of these objects of perform guise inserts
 
     for fk in fks {
         /* PHASE 3: OBJECT MODIFICATIONS */
-
-        // Phase 3 insert guises
+        
+        // Phase 3 insert guises, one for each child
         let mut new_parents_vals = vec![];
         let fk_cols = get_contact_info_cols();
-        new_parents_vals.push(get_contact_info_vals());
+            
+        for _ in &child_objs {
+            new_parents_vals.push(get_contact_info_vals());
+        }
+        assert!(!new_parents_vals.is_empty());
         get_query_rows_txn(
             &Statement::Insert(InsertStatement {
                 table_name: string_to_objname(&fk.fk_name),
@@ -122,7 +131,7 @@ fn decor_obj_txn(
             }),
             &mut txn,
         )?;
-
+    
         let last_uid = txn.last_insert_id().unwrap();
         let mut cur_uid = last_uid - child_objs.len() as u64;
 
@@ -212,17 +221,18 @@ fn decor_obj_txn(
             )));
             vault_vals.push(child_vault_vals);
         }
-        /* PHASE 4: VAULT UPDATES
-         * bulk insert modifications into vault
-         */
-        get_query_rows_txn(
-            &Statement::Insert(InsertStatement {
-                table_name: string_to_objname(&table_to_vault(&fk.fk_name)),
-                columns: get_insert_vault_colnames(),
-                source: InsertSource::Query(Box::new(values_query(vault_vals))),
-            }),
-            &mut txn,
-        )?;
+        
+        /* PHASE 4: BULK VAULT UPDATES */
+        if !vault_vals.is_empty() {
+            get_query_rows_txn(
+                &Statement::Insert(InsertStatement {
+                    table_name: string_to_objname(&table_to_vault(&fk.fk_name)),
+                    columns: get_insert_vault_colnames(),
+                    source: InsertSource::Query(Box::new(values_query(vault_vals))),
+                }),
+                &mut txn,
+            )?;
+        }
     }
     txn.commit()
 }

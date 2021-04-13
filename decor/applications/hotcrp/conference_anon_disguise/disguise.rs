@@ -50,14 +50,16 @@ fn remove_obj_txn(name: &str, db: &mut mysql::Conn) -> Result<(), mysql::Error> 
         evals.push(Expr::Value(Value::Null));
         vault_vals.push(evals);
     }
-    get_query_rows_txn(
-        &Statement::Insert(InsertStatement {
-            table_name: string_to_objname(&table_to_vault(name)),
-            columns: get_insert_vault_colnames(),
-            source: InsertSource::Query(Box::new(values_query(vault_vals))),
-        }),
-        &mut txn,
-    )?;
+    if !vault_vals.is_empty() {
+        get_query_rows_txn(
+            &Statement::Insert(InsertStatement {
+                table_name: string_to_objname(&table_to_vault(name)),
+                columns: get_insert_vault_colnames(),
+                source: InsertSource::Query(Box::new(values_query(vault_vals))),
+            }),
+            &mut txn,
+        )?;
+    }
     txn.commit()
 }
 
@@ -71,6 +73,10 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
     let child_objs = get_query_rows_txn(&select_statement(child_name, None), &mut txn)?;
+    // no selected objects, return
+    if child_objs.is_empty() {
+        return Ok(());
+    }
 
     /* PHASE 2: SELECT REFERENCED OBJECTS */
     // noop---we don't need the value of these objects of perform guise inserts
@@ -91,6 +97,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
         for _ in &child_objs {
             new_parents_vals.push(get_contact_info_vals());
         }
+        assert!(!new_parents_vals.is_empty());
         get_query_rows_txn(
             &Statement::Insert(InsertStatement {
                 table_name: string_to_objname(&fk.fk_name),
@@ -191,15 +198,30 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
             )));
             vault_vals.push(child_vault_vals);
         }
+ 
+        /* PHASE 3: bulk update guise inserts */
+        if !new_parents_vals.is_empty() {
+            get_query_rows_txn(
+                &Statement::Insert(InsertStatement {
+                    table_name: string_to_objname(&fk.fk_name),
+                    columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
+                    source: InsertSource::Query(Box::new(values_query(new_parents_vals.clone()))),
+                }),
+                &mut txn,
+            )?;
+        }
+
         // Phase 4: batched updates for all children together
-        get_query_rows_txn(
-            &Statement::Insert(InsertStatement {
-                table_name: string_to_objname(&table_to_vault(&fk.fk_name)),
-                columns: get_insert_vault_colnames(),
-                source: InsertSource::Query(Box::new(values_query(vault_vals))),
-            }),
-            &mut txn,
-        )?;
+        if !vault_vals.is_empty() {
+            get_query_rows_txn(
+                &Statement::Insert(InsertStatement {
+                    table_name: string_to_objname(&table_to_vault(&fk.fk_name)),
+                    columns: get_insert_vault_colnames(),
+                    source: InsertSource::Query(Box::new(values_query(vault_vals))),
+                }),
+                &mut txn,
+            )?;
+        }
     }
     txn.commit()
 }
@@ -211,9 +233,9 @@ pub fn apply(_: Option<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     }
     
     // REMOVAL TXNS
-    for name in get_remove_names() {
+    /*for name in get_remove_names() {
         remove_obj_txn(name, db)?;
-    }
+    }*/
     Ok(())
 }
 
@@ -223,6 +245,15 @@ mod test {
 
     #[test]
     fn apply_none() {
+        let _ = env_logger::builder()
+        // Include all events in tests
+        .filter_level(log::LevelFilter::Warn)
+        //.filter_level(log::LevelFilter::Error)
+        // Ensure events are captured by `cargo test`
+        .is_test(true)
+        // Ignore errors initializing the logger if tests race to configure it
+        .try_init();
+
         let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
         let url : String;
         let mut db : mysql::Conn;
