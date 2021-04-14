@@ -16,6 +16,7 @@ use hwloc::{Topology, ObjectType, CPUBIND_THREAD, CpuSet};
 use std::sync::{Arc, Mutex};
 use log::warn;
 
+mod datagen;
 mod conference_anon_disguise;
 mod gdpr_disguise;
 use decor::*;

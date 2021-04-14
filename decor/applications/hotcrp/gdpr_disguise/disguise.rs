@@ -8,8 +8,10 @@ use sql_parser::ast::*;
 fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     let mut txn = db.start_transaction(TxOpts::default())?;
 
-    /* PHASE 0: PREAMBLE */
-    // TODO undo any dependent disguises associated with user
+    /* 
+     * PHASE 0: PREAMBLE 
+     * Undo decorrelations so we can remove
+     */
 
     /* PHASE 1: REFERENCER SELECTION */
     let predicated_objs = get_query_rows_txn(

@@ -1,4 +1,5 @@
 use crate::*;
+use crate::datagen::*;
 use crate::conference_anon_disguise::constants::*;
 use decor::disguises::*;
 use decor::helpers::*;
@@ -8,14 +9,18 @@ use sql_parser::ast::*;
 fn remove_obj_txn(name: &str, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     let mut txn = db.start_transaction(TxOpts::default())?;
 
-    /* PHASE 0: PREAMBLE */
-    // TODO undo any dependent disguises (XXX touches all vaults??)
+    /* 
+     * PHASE 0: PREAMBLE 
+     * We don't need to do anything because we don't select specific objects to delete
+     */
 
     /* PHASE 1: REFERENCER SELECTION */
     let predicated_objs = get_query_rows_txn(&select_statement(name, None), &mut txn)?;
     
-    /* PHASE 2: REFERENCED SELECTION */
-    // noop because we're dealing only with a single table, and not with any fks
+    /* 
+     * PHASE 2: REFERENCED SELECTION 
+     * noop because we're dealing only with a single table, and not with any fks
+     * */
 
     /* PHASE 3: OBJECT MODIFICATION */
     get_query_rows_txn(
@@ -233,9 +238,9 @@ pub fn apply(_: Option<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     }
     
     // REMOVAL TXNS
-    /*for name in get_remove_names() {
+    for name in get_remove_names() {
         remove_obj_txn(name, db)?;
-    }*/
+    }
     Ok(())
 }
 
@@ -266,6 +271,8 @@ mod test {
         assert_eq!(db.ping(), true);
         assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
         create_schema(&mut db).unwrap();
+
+        insert_contact_info(2, &mut db).unwrap();
 
         apply(None, &mut db).unwrap()
     }

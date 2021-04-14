@@ -1,12 +1,12 @@
 use decor::disguises::*;
 use rand::{distributions::Alphanumeric, Rng};
-use sql_parser::ast::*; 
+use sql_parser::ast::*;
 
 pub const ANON_PW: &'static str = "password123";
 
 pub fn get_remove_names() -> Vec<&'static str> {
     vec![
-        "ContactInfo", 
+        "ContactInfo",
         "PaperReviewPreference",
         "PaperWatch",
         "Capability",
@@ -16,7 +16,6 @@ pub fn get_remove_names() -> Vec<&'static str> {
         //"PaperTagAnno",
     ]
 }
-
 
 pub fn get_contact_info_cols() -> Vec<&'static str> {
     vec![
@@ -142,6 +141,26 @@ pub fn get_decor_names() -> Vec<TableFKs> {
                 },
                 FK {
                     referencer_col: "requestedBy".to_string(),
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "contactId".to_string(),
+                },
+            ],
+        },
+        TableFKs {
+            name: "Paper".to_string(),
+            fks: vec![
+                FK {
+                    referencer_col: "leadContactId".to_string(),
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "contactId".to_string(),
+                },
+                FK {
+                    referencer_col: "managerContactId".to_string(),
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "contactId".to_string(),
+                },
+                FK {
+                    referencer_col: "shepherdContactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
                 },

@@ -1,22 +1,21 @@
 use decor::disguises::*;
 use rand::{distributions::Alphanumeric, Rng};
-use sql_parser::ast::*; 
+use sql_parser::ast::*;
 
 const ANON_PW: &'static str = "password123";
 
 pub fn get_remove_names() -> Vec<&'static str> {
     vec![
         //"ContactInfo", // keep user accts to allow for e.g. PC members listing
-        "PaperReviewPreference",
-        "PaperWatch",
-        "Capability",
-        "PaperConflict",
-        "TopicInterest",
-        "PaperTag",
-        "PaperTagAnno",
+        //"PaperReviewPreference",
+        //"PaperWatch",
+        //"Capability",
+        //"PaperConflict",
+        //"TopicInterest",
+        //"PaperTag",
+        //"PaperTagAnno",
     ]
 }
-
 
 pub fn get_contact_info_cols() -> Vec<&'static str> {
     vec![
@@ -26,7 +25,6 @@ pub fn get_contact_info_cols() -> Vec<&'static str> {
         "email",
         "preferredEmail",
         "affiliation",
-        "orcid",
         "phone",
         "country",
         "password",
@@ -40,7 +38,6 @@ pub fn get_contact_info_cols() -> Vec<&'static str> {
         "disabled",
         "contactTags",
         "data",
-        "primaryContactId",
     ]
 }
 
@@ -63,7 +60,6 @@ pub fn get_contact_info_vals() -> Vec<Expr> {
         Expr::Value(Value::String(String::new())),
         Expr::Value(Value::Null),
         Expr::Value(Value::Null),
-        Expr::Value(Value::Null),
         Expr::Value(Value::String(ANON_PW.to_string())),
         Expr::Value(Value::Number(0.to_string())),
         Expr::Value(Value::Number(0.to_string())),
@@ -75,12 +71,31 @@ pub fn get_contact_info_vals() -> Vec<Expr> {
         Expr::Value(Value::Number(0.to_string())),
         Expr::Value(Value::Null),
         Expr::Value(Value::Null),
-        Expr::Value(Value::Number(0.to_string())),
     ]
 }
 
 pub fn get_decor_names() -> Vec<TableFKs> {
     vec![
+        TableFKs {
+            name: "PaperWatch".to_string(),
+            fks: vec![
+                FK {
+                    referencer_col: "contactId".to_string(),
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "contactId".to_string(),
+                },
+            ],
+        },
+        TableFKs {
+            name: "PaperReviewPreference".to_string(),
+            fks: vec![
+                FK {
+                    referencer_col: "contactId".to_string(),
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "contactId".to_string(),
+                },
+            ],
+        },
         TableFKs {
             name: "PaperReviewRefused".to_string(),
             fks: vec![
@@ -124,14 +139,14 @@ pub fn get_decor_names() -> Vec<TableFKs> {
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableFKs {
+        /*TableFKs {
             name: "PaperComment".to_string(),
             fks: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
             }],
-        },
+        },*/
         TableFKs {
             name: "PaperReview".to_string(),
             fks: vec![
@@ -149,5 +164,3 @@ pub fn get_decor_names() -> Vec<TableFKs> {
         },
     ]
 }
-
-
