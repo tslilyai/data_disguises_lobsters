@@ -4,19 +4,6 @@ use sql_parser::ast::*;
 
 const ANON_PW: &'static str = "password123";
 
-pub fn get_remove_names() -> Vec<&'static str> {
-    vec![
-        //"ContactInfo", // keep user accts to allow for e.g. PC members listing
-        //"PaperReviewPreference",
-        //"PaperWatch",
-        //"Capability",
-        //"PaperConflict",
-        //"TopicInterest",
-        //"PaperTag",
-        //"PaperTagAnno",
-    ]
-}
-
 pub fn get_contact_info_cols() -> Vec<&'static str> {
     vec![
         "firstName",
@@ -139,14 +126,24 @@ pub fn get_decor_names() -> Vec<TableFKs> {
                 fk_col: "contactId".to_string(),
             }],
         },
-        /*TableFKs {
+        TableFKs {
             name: "PaperComment".to_string(),
             fks: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
             }],
-        },*/
+        },
+        TableFKs {
+            name: "Paper".to_string(),
+            fks: vec![
+                FK {
+                    referencer_col: "shepardId".to_string(),
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "contactId".to_string(),
+                },
+            ],
+        },
         TableFKs {
             name: "PaperReview".to_string(),
             fks: vec![

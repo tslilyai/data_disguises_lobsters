@@ -10,10 +10,16 @@ fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), 
 
     /* 
      * PHASE 0: PREAMBLE 
-     * Undo decorrelations so we can remove
+     * Undo relevant decorrelations so we can remove
      */
 
-    /* PHASE 1: REFERENCER SELECTION */
+    // 
+    // select from vault
+    //
+
+    /* 
+     * PHASE 1: REFERENCER SELECTION 
+     * */
     let predicated_objs = get_query_rows_txn(
         &select_statement(
             name,
@@ -88,7 +94,7 @@ fn decor_obj_txn(
     let mut txn = db.start_transaction(TxOpts::default())?;
 
     /* PHASE 0: PREAMBLE */
-    // TODO undo any dependent disguises (XXX touches all vaults??)
+    // TODO
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
     let mut selection = Expr::Value(Value::Boolean(false));
@@ -115,9 +121,20 @@ fn decor_obj_txn(
     // noop---we don't need the value of these objects of perform guise inserts
 
     for fk in fks {
-        /* PHASE 3: OBJECT MODIFICATIONS */
-        
-        // Phase 3 insert guises, one for each child
+
+        /*
+         * PHASE 3: OBJECT MODIFICATIONS
+         * A) insert guises for parents
+         * B) update child to point to new guise
+         * */
+
+        /*
+         * PHASE 4: VAULT UPDATES
+         * A) insert guises, associate with old parent uid
+         * B) record update to child to point to new guise
+         * */
+
+        // Phase 3A: batch insertion of parents
         let mut new_parents_vals = vec![];
         let fk_cols = get_contact_info_cols();
             
@@ -141,7 +158,7 @@ fn decor_obj_txn(
         for (n, child) in child_objs.iter().enumerate() {
             cur_uid += 1;
 
-            // Phase 3 update child to point to new parent
+            // Phase 3B: update child to point to new parent
             get_query_rows_txn(
                 &Statement::Update(UpdateStatement {
                     table_name: string_to_objname(&child_name),
@@ -161,7 +178,7 @@ fn decor_obj_txn(
                 &mut txn,
             )?;
 
-            // Phase 4: update the vault with new guises (calculating the uid from the last_insert_id)
+            // Phase 4A: update the vault with new guises (calculating the uid from the last_insert_id)
             let mut i = 0;
             // first turn new_fkobj into Vec<RowVal>
             let new_parent_rowvals: Vec<RowVal> = new_parents_vals[n]
@@ -190,7 +207,7 @@ fn decor_obj_txn(
             guise_vault_vals.push(Expr::Value(Value::String(serialized)));
             vault_vals.push(guise_vault_vals);
 
-            // Phase 4: update the vault with the modification to children
+            // Phase 4B: update the vault with the modification to children
             let mut child_vault_vals = vec![];
             // uid
             child_vault_vals.push(Expr::Value(Value::Number(user_id.to_string())));
@@ -224,7 +241,7 @@ fn decor_obj_txn(
             vault_vals.push(child_vault_vals);
         }
         
-        /* PHASE 4: BULK VAULT UPDATES */
+        /* PHASE 4B: Batch vault updates */
         if !vault_vals.is_empty() {
             get_query_rows_txn(
                 &Statement::Insert(InsertStatement {

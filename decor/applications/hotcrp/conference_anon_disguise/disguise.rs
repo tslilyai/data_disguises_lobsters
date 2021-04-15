@@ -1,80 +1,19 @@
-use crate::*;
-use crate::datagen::*;
 use crate::conference_anon_disguise::constants::*;
+use crate::*;
 use decor::disguises::*;
 use decor::helpers::*;
 use mysql::TxOpts;
 use sql_parser::ast::*;
-
-fn remove_obj_txn(name: &str, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
-    let mut txn = db.start_transaction(TxOpts::default())?;
-
-    /* 
-     * PHASE 0: PREAMBLE 
-     * We don't need to do anything because we don't select specific objects to delete
-     */
-
-    /* PHASE 1: REFERENCER SELECTION */
-    let predicated_objs = get_query_rows_txn(&select_statement(name, None), &mut txn)?;
-    
-    /* 
-     * PHASE 2: REFERENCED SELECTION 
-     * noop because we're dealing only with a single table, and not with any fks
-     * */
-
-    /* PHASE 3: OBJECT MODIFICATION */
-    get_query_rows_txn(
-        &Statement::Delete(DeleteStatement {
-            table_name: string_to_objname(name),
-            selection: None,
-        }),
-        &mut txn,
-    )?;
-
-    /* PHASE 4: VAULT UPDATES */
-    let mut vault_vals = vec![];
-    for objrow in &predicated_objs {
-        let mut uid = String::new();
-        for v in objrow {
-            if &v.column == SCHEMA_UID_COL {
-                uid = v.value.clone();
-                break;
-            }
-        }
-        let mut evals = vec![];
-        // uid
-        evals.push(Expr::Value(Value::Number(uid.to_string())));
-        // name
-        evals.push(Expr::Value(Value::String(name.to_string())));
-        // modified columns
-        evals.push(Expr::Value(Value::Null));
-        // old value
-        let serialized = serde_json::to_string(&objrow).unwrap();
-        evals.push(Expr::Value(Value::String(serialized)));
-        // new value
-        evals.push(Expr::Value(Value::Null));
-        vault_vals.push(evals);
-    }
-    if !vault_vals.is_empty() {
-        get_query_rows_txn(
-            &Statement::Insert(InsertStatement {
-                table_name: string_to_objname(&table_to_vault(name)),
-                columns: get_insert_vault_colnames(),
-                source: InsertSource::Query(Box::new(values_query(vault_vals))),
-            }),
-            &mut txn,
-        )?;
-    }
-    txn.commit()
-}
 
 fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     let child_name = &tablefk.name;
     let fks = &tablefk.fks;
     let mut txn = db.start_transaction(TxOpts::default())?;
 
-    /* PHASE 0: PREAMBLE */
-    // TODO undo any dependent disguises (XXX touches all vaults??)
+    /*
+     * PHASE 0: PREAMBLE
+     * Noop: Should not undo any deletions; all decorrelations already occurred
+     */
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
     let child_objs = get_query_rows_txn(&select_statement(child_name, None), &mut txn)?;
@@ -83,11 +22,11 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
         return Ok(());
     }
 
-    /* PHASE 2: SELECT REFERENCED OBJECTS */
-    // noop---we don't need the value of these objects of perform guise inserts
-    
-    /* PHASE 3: OBJECT MODIFICATIONS */
-    /* PHASE 4: VAULT UPDATES */
+    /*
+     * PHASE 2: SELECT REFERENCED OBJECTS
+     * Noop: we don't need the value of these objects of perform guise inserts
+     */
+
     for fk in fks {
         // get all the IDs of parents (all are of the same type for the same fk)
         let mut fkids = vec![];
@@ -96,31 +35,47 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
             fkids.push(Expr::Value(Value::Number(fkid[0].value.to_string())));
         }
 
-        // Phase 3 insert guises for parents
+        /*
+         * PHASE 3: OBJECT MODIFICATIONS
+         * A) insert guises for parents
+         * B) update child to point to new guise
+         * */
+
+        /*
+         * PHASE 4: VAULT UPDATES
+         * A) insert guises, associate with old parent uid
+         * B) record update to child to point to new guise
+         * */
+
+        // Phase 3A: batch insertion of parents
         let mut new_parents_vals = vec![];
         let fk_cols = get_contact_info_cols();
         for _ in &child_objs {
             new_parents_vals.push(get_contact_info_vals());
         }
         assert!(!new_parents_vals.is_empty());
-        get_query_rows_txn(
-            &Statement::Insert(InsertStatement {
-                table_name: string_to_objname(&fk.fk_name),
-                columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
-                source: InsertSource::Query(Box::new(values_query(new_parents_vals.clone()))),
-            }),
-            &mut txn,
-        )?;
+        if !new_parents_vals.is_empty() {
+            get_query_rows_txn(
+                &Statement::Insert(InsertStatement {
+                    table_name: string_to_objname(&fk.fk_name),
+                    columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
+                    source: InsertSource::Query(Box::new(values_query(new_parents_vals.clone()))),
+                }),
+                &mut txn,
+            )?;
+        }
 
         let last_uid = txn.last_insert_id().unwrap();
         let mut cur_uid = last_uid - child_objs.len() as u64;
 
+        // Update children one-by-one
+        // Collect inputs for batch inserts to vault
         let mut vault_vals = vec![];
         for (n, child) in child_objs.iter().enumerate() {
             cur_uid += 1;
             let old_uid = &fkids[n];
 
-            // Phase 3 update child to point to new parent
+            // Phase 3B: update child to point to new parent
             get_query_rows_txn(
                 &Statement::Update(UpdateStatement {
                     table_name: string_to_objname(&child_name),
@@ -128,7 +83,6 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                         id: Ident::new(fk.referencer_col.clone()),
                         value: Expr::Value(Value::Number(cur_uid.to_string())),
                     }],
-                    // TODO should use indexed child ID column
                     selection: Some(Expr::BinaryOp {
                         left: Box::new(Expr::Identifier(vec![
                             Ident::new(child_name.clone()),
@@ -141,7 +95,6 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                 &mut txn,
             )?;
 
-            // Phase 4: update the vault with new guises (calculating the uid from the last_insert_id)
             let mut i = 0;
             // first turn new_fkobj into Vec<RowVal>
             let new_parent_rowvals: Vec<RowVal> = new_parents_vals[n]
@@ -156,6 +109,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                 })
                 .collect();
 
+            // Phase 4A: update the vault with new guise (calculating the uid from the last_insert_id)
             let mut guise_vault_vals = vec![];
             // uid
             guise_vault_vals.push(old_uid.clone());
@@ -170,7 +124,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
             guise_vault_vals.push(Expr::Value(Value::String(serialized)));
             vault_vals.push(guise_vault_vals);
 
-            // Phase 4: update the vault with the modification to children
+            // Phase 4B: update the vault with the modification to children
             let mut child_vault_vals = vec![];
             // uid
             child_vault_vals.push(old_uid.clone());
@@ -185,7 +139,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                 serde_json::to_string(&child).unwrap(),
             )));
             // new value
-            let new_child : Vec<RowVal> = child
+            let new_child: Vec<RowVal> = child
                 .iter()
                 .map(|v| {
                     if v.column == fk.referencer_col {
@@ -203,20 +157,8 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
             )));
             vault_vals.push(child_vault_vals);
         }
- 
-        /* PHASE 3: bulk update guise inserts */
-        if !new_parents_vals.is_empty() {
-            get_query_rows_txn(
-                &Statement::Insert(InsertStatement {
-                    table_name: string_to_objname(&fk.fk_name),
-                    columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
-                    source: InsertSource::Query(Box::new(values_query(new_parents_vals.clone()))),
-                }),
-                &mut txn,
-            )?;
-        }
 
-        // Phase 4: batched updates for all children together
+        /* PHASE 4B: Batch vault updates */
         if !vault_vals.is_empty() {
             get_query_rows_txn(
                 &Statement::Insert(InsertStatement {
@@ -236,11 +178,6 @@ pub fn apply(_: Option<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     for tablefk in get_decor_names() {
         decor_obj_txn(&tablefk, db)?;
     }
-    
-    // REMOVAL TXNS
-    for name in get_remove_names() {
-        remove_obj_txn(name, db)?;
-    }
     Ok(())
 }
 
@@ -251,28 +188,30 @@ mod test {
     #[test]
     fn apply_none() {
         let _ = env_logger::builder()
-        // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
-        //.filter_level(log::LevelFilter::Error)
-        // Ensure events are captured by `cargo test`
-        .is_test(true)
-        // Ignore errors initializing the logger if tests race to configure it
-        .try_init();
+            // Include all events in tests
+            .filter_level(log::LevelFilter::Warn)
+            //.filter_level(log::LevelFilter::Error)
+            // Ensure events are captured by `cargo test`
+            .is_test(true)
+            // Ignore errors initializing the logger if tests race to configure it
+            .try_init();
 
         let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let url : String;
-        let mut db : mysql::Conn;
-          
+        let url: String;
+        let mut db: mysql::Conn;
+
         let test_dbname = "test_gdpr_none";
         url = String::from("mysql://tslilyai:pass@127.0.0.1");
         db = mysql::Conn::new(&url).unwrap();
-        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname)).unwrap();
-        db.query_drop(&format!("CREATE DATABASE {};", &test_dbname)).unwrap();
+        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname))
+            .unwrap();
+        db.query_drop(&format!("CREATE DATABASE {};", &test_dbname))
+            .unwrap();
         assert_eq!(db.ping(), true);
         assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
         create_schema(&mut db).unwrap();
 
-        insert_contact_info(2, &mut db).unwrap();
+        datagen::insert_contact_info(2, &mut db).unwrap();
 
         apply(None, &mut db).unwrap()
     }

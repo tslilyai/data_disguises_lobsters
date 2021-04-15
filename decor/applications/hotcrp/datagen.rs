@@ -83,3 +83,32 @@ pub fn insert_contact_info(n: usize, db: &mut mysql::Conn) -> Result<(), mysql::
     )?;
     Ok(())
 }
+
+/*
+ * Follows a distribution of:
+ * - 1-4 papers authored by each user
+ * - 10-15 reviews by each user
+ * - 3-10 non-author paper conflicts
+ * - 5-10 paper comments on papers authored and reviewed by each user
+ * - 
+ */
+pub fn populate_database(nusers: usize, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    if n <= 0 {
+        return Ok(());
+    }
+
+    let mut new_ci = vec![];
+    let fk_cols = get_contact_info_cols();
+    for _ in 0..n {
+        new_ci.push(get_contact_info_vals());
+    }
+    get_query_rows_db(
+        &Statement::Insert(InsertStatement {
+            table_name: string_to_objname("ContactInfo"),
+            columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
+            source: InsertSource::Query(Box::new(values_query(new_ci))),
+        }),
+        db,
+    )?;
+    Ok(())
+}
