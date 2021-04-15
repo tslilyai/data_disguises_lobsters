@@ -210,9 +210,7 @@ mod test {
         assert_eq!(db.ping(), true);
         assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
         create_schema(&mut db).unwrap();
-
-        datagen::insert_contact_info(2, &mut db).unwrap();
-
+        datagen::populate_database(&mut db).unwrap();
         apply(None, &mut db).unwrap()
     }
 }

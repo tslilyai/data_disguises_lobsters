@@ -299,7 +299,7 @@ mod test {
         assert_eq!(db.ping(), true);
         assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
         create_schema(&mut db).unwrap();
-
+        datagen::populate_database(&mut db).unwrap();
         apply(Some(1), &mut db).unwrap()
     }
 }
