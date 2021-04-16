@@ -2,21 +2,22 @@ use decor::helpers::*;
 use sql_parser::ast::*;
 
 pub fn insert_paper_comment (
-    comment_id: usize,
     paper_id: usize,
     author_id: usize,
     db: &mut mysql::Conn,
 ) -> Result<(), mysql::Error> {
     let comment_cols = 
     vec![
-        "commentId",
         "paperId",
         "contactId",
+        "timeModified",
+        "replyTo",
     ];
     let comment_vals = vec![vec![
-        Expr::Value(Value::Number(comment_id.to_string())),
         Expr::Value(Value::Number(paper_id.to_string())),
         Expr::Value(Value::Number(author_id.to_string())),
+        Expr::Value(Value::Number(0.to_string())),
+        Expr::Value(Value::Number(0.to_string())),
     ]];
     get_query_rows_db(
         &Statement::Insert(InsertStatement {

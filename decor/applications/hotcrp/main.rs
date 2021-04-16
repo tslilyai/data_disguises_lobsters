@@ -21,7 +21,6 @@ mod conference_anon_disguise;
 mod gdpr_disguise;
 use decor::*;
 
-const SCHEMA : &'static str = include_str!("schema.sql");
 const DBNAME : &'static str = &"test_hotcrp";
 const SCHEMA_UID_COL: &'static str = "contactID";
 const SCHEMA_UID_TABLE: &'static str = "ContactInfo";
@@ -62,24 +61,6 @@ struct Cli {
     prop_unsub: f64,
 }
 
-fn get_table_names() -> Vec<&'static str> {
-    vec![
-        "ContactInfo", 
-        "PaperReviewPreference",
-        "PaperWatch",
-        "Capability",
-        "PaperConflict",
-        "TopicInterest",
-        "PaperTag",
-        "PaperTagAnno",
-        "PaperReviewRefused",
-        "ActionLog",
-        "ReviewRating",
-        "PaperComment",
-        "PaperReview",
-    ]
-}
-
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
@@ -89,38 +70,6 @@ fn init_logger() {
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
         .try_init();
-}
-
-fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
-    let mut txn = db.start_transaction(mysql::TxOpts::default())?;
-    txn.query_drop("SET max_heap_table_size = 4294967295;")?;
-    
-    /* issue schema statements */
-    let mut sql = String::new();
-    let mut stmt = String::new();
-    for line in SCHEMA.lines() {
-        if line.starts_with("--") || line.is_empty() {
-            continue;
-        }
-        if !sql.is_empty() {
-            sql.push_str(" ");
-            stmt.push_str(" ");
-        }
-        stmt.push_str(line);
-        if stmt.ends_with(';') {
-            let new_stmt = helpers::process_schema_stmt(&stmt, true); 
-            warn!("create_schema issuing new_stmt {}", new_stmt);
-            txn.query_drop(new_stmt.to_string())?;
-            stmt = String::new();
-        }
-    }
-
-    for stmt in disguises::get_create_vault_statements(get_table_names(), true) {
-        warn!("create_vault issuing new_stmt {}", stmt);
-        txn.query_drop(stmt.to_string())?;
-    }
-    txn.commit()?;
-    Ok(())
 }
 
 /*pub fn get_hotcrp_application(schema: &str, in_memory: bool) -> Application {
@@ -170,7 +119,7 @@ fn init_db(topo: Arc<Mutex<Topology>>, cpu: usize, test : TestType, testname: &'
             db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname)).unwrap();
             db.query_drop(&format!("CREATE DATABASE {};", &test_dbname)).unwrap();
             assert_eq!(db.ping(), true);
-            create_schema(&mut db).unwrap();
+            //create_schema(&mut db).unwrap();
         }
         assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
     } else {

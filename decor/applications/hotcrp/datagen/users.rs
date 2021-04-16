@@ -59,7 +59,7 @@ pub fn get_contact_info_vals(uid: usize) -> Vec<Expr> {
 pub fn insert_users(nusers: usize, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     // insert users
     let mut new_ci = vec![];
-    for uid in 1..nusers {
+    for uid in 1..nusers+1 {
         new_ci.push(get_contact_info_vals(uid));
     }
     let fk_cols = get_contact_info_cols();

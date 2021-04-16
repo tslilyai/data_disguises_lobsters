@@ -4,12 +4,11 @@ use rand::seq::SliceRandom;
 use sql_parser::ast::*;
 
 fn get_review_cols() -> Vec<&'static str> {
-    vec!["paperId", "reviewId", "contactId", "requestedBy"]
+    vec!["paperId", "contactId", "requestedBy"]
 }
 
-fn get_review_vals(review_id: usize, paper_id: usize, reviewer: usize) -> Vec<Expr> {
+fn get_review_vals(paper_id: usize, reviewer: usize) -> Vec<Expr> {
     vec![
-        Expr::Value(Value::Number(review_id.to_string())),
         Expr::Value(Value::Number(paper_id.to_string())),
         Expr::Value(Value::Number(reviewer.to_string())),
         Expr::Value(Value::Number(reviewer.to_string())),
@@ -27,12 +26,11 @@ pub fn insert_reviews(
     let mut new_reviews = vec![];
     let paper_ids: Vec<usize> = (1..npapers).collect();
     for pid in paper_ids {
-        
         let pc_mems: Vec<&usize> = users_pc
             .choose_multiple(&mut rand::thread_rng(), nconflicts + nreviews)
             .collect();
-        let reviewers = &pc_mems[nconflicts+1..];
-        
+        let reviewers = &pc_mems[nconflicts..];
+
         // insert some number of conflicts
         for conflict in 0..nconflicts {
             insert_paper_conflict(pid, *pc_mems[conflict], CONFLICT_PCMASK, db)?;
@@ -40,21 +38,21 @@ pub fn insert_reviews(
         // insert reviewer reviews and paper watches
         // assume reviewers preferred to review this paper
         for rid in 1..nreviews + 1 {
-            let reviewer = *reviewers[rid-1];
-            new_reviews.push(get_review_vals(rid, pid, reviewer));
+            let reviewer = *reviewers[rid - 1];
+            new_reviews.push(get_review_vals(pid, reviewer));
             insert_paper_watch(pid, reviewer, db)?;
             insert_review_preference(pid, reviewer, db)?;
         }
 
         // insert comments by reviewers
-        for comment_id in 1..ncomments+1 {
-            insert_paper_comment(comment_id, pid, *reviewers[comment_id % nreviews], db)?;
+        for i in 1..ncomments + 1 {
+            insert_paper_comment(pid, *reviewers[i % nreviews], db)?;
         }
     }
     let review_cols = get_review_cols();
     get_query_rows_db(
         &Statement::Insert(InsertStatement {
-            table_name: string_to_objname("Review"),
+            table_name: string_to_objname("PaperReview"),
             columns: review_cols
                 .iter()
                 .map(|c| Ident::new(c.to_string()))

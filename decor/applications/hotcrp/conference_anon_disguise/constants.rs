@@ -138,7 +138,7 @@ pub fn get_decor_names() -> Vec<TableFKs> {
             name: "Paper".to_string(),
             fks: vec![
                 FK {
-                    referencer_col: "shepardId".to_string(),
+                    referencer_col: "shepherdContactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
                 },

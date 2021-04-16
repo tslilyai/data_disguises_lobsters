@@ -33,11 +33,21 @@ pub fn get_vault_cols() -> Vec<ColumnDef> {
         // for ordering
         ColumnDef {
             name: Ident::new("timestamp"),
-            data_type: DataType::Timestamp,
+            data_type: DataType::BigInt,
             collation: None,
             options: vec![ColumnOptionDef {
                 name: None,
                 option: ColumnOption::NotNull,
+            },
+            ColumnOptionDef {
+                name: None,
+                option: ColumnOption::AutoIncrement,
+            },
+            ColumnOptionDef {
+                name: None,
+                option: ColumnOption::Unique {
+                    is_primary: true,
+                }
             }],
         },
         // table and column name

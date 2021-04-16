@@ -55,8 +55,8 @@ pub fn insert_papers(
         }
 
         // insert paper comments by authors
-        for comment_id in 1..ncomments + 1 {
-            insert_paper_comment(comment_id, *pid, *authors[comment_id % nconflicts], db)?;
+        for i in 1..ncomments + 1 {
+            insert_paper_comment(*pid, *authors[i % nconflicts], db)?;
         }
 
         let manager = users_pc.choose(&mut rand::thread_rng()).unwrap();
@@ -74,8 +74,8 @@ pub fn insert_papers(
         }
 
         // insert paper comments by authors
-        for comment_id in 1..ncomments + 1 {
-            insert_paper_comment(comment_id, *pid, *authors[comment_id % nconflicts], db)?;
+        for i in 1..ncomments + 1 {
+            insert_paper_comment(*pid, *authors[i % nconflicts], db)?;
         }
 
         let manager = users_pc.choose(&mut rand::thread_rng()).unwrap();

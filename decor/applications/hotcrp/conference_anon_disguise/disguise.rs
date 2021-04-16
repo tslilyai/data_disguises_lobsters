@@ -2,6 +2,7 @@ use crate::conference_anon_disguise::constants::*;
 use crate::*;
 use decor::disguises::*;
 use decor::helpers::*;
+use log::warn;
 use mysql::TxOpts;
 use sql_parser::ast::*;
 
@@ -31,8 +32,13 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
         // get all the IDs of parents (all are of the same type for the same fk)
         let mut fkids = vec![];
         for child in &child_objs {
-            let fkid: Vec<&RowVal> = child.iter().filter(|rc| rc.column == fk.fk_col).collect();
-            fkids.push(Expr::Value(Value::Number(fkid[0].value.to_string())));
+            for rc in child {
+                warn!("Checking {} = {} ? {}", rc.column, fk.referencer_col, rc.column == fk.referencer_col);
+                if rc.column == fk.referencer_col {
+                    warn!("Adding {} to fkids", rc.value);
+                    fkids.push(Expr::Value(Value::Number(rc.value.to_string())));
+                }
+            };
         }
 
         /*
@@ -54,19 +60,21 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
             new_parents_vals.push(get_contact_info_vals());
         }
         assert!(!new_parents_vals.is_empty());
-        if !new_parents_vals.is_empty() {
-            get_query_rows_txn(
-                &Statement::Insert(InsertStatement {
-                    table_name: string_to_objname(&fk.fk_name),
-                    columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
-                    source: InsertSource::Query(Box::new(values_query(new_parents_vals.clone()))),
-                }),
-                &mut txn,
-            )?;
-        }
-
-        let last_uid = txn.last_insert_id().unwrap();
-        let mut cur_uid = last_uid - child_objs.len() as u64;
+        get_query_rows_txn(
+            &Statement::Insert(InsertStatement {
+                table_name: string_to_objname(&fk.fk_name),
+                columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
+                source: InsertSource::Query(Box::new(values_query(new_parents_vals.clone()))),
+            }),
+            &mut txn,
+        )?;
+        // last_insert_id returns the ID of the first inserted value
+        let mut cur_uid = txn.last_insert_id().unwrap();
+        warn!(
+            "last inserted id was {}, number children was {}",
+            cur_uid,
+            child_objs.len()
+        );
 
         // Update children one-by-one
         // Collect inputs for batch inserts to vault
@@ -209,8 +217,9 @@ mod test {
             .unwrap();
         assert_eq!(db.ping(), true);
         assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
-        create_schema(&mut db).unwrap();
+        warn!("***************** POPULATING ****************");
         datagen::populate_database(&mut db).unwrap();
+        warn!("***************** APPLYING CONFANON DISGUISE ****************");
         apply(None, &mut db).unwrap()
     }
 }
