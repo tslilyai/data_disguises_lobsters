@@ -1,4 +1,5 @@
-use crate::helpers;
+use crate::helpers::*;
+use crate::disguises::*;
 use sql_parser::ast::*;
 
 pub const VAULT_UID: &'static str = "uid";
@@ -18,6 +19,7 @@ pub fn get_insert_vault_colnames() -> Vec<Ident> {
         Ident::new("newValue"),
     ]
 }
+
 pub fn get_vault_cols() -> Vec<ColumnDef> {
     vec![
         // user ID
@@ -97,7 +99,7 @@ pub fn get_create_vault_statements(table_names: Vec<&str>, in_memory: bool) -> V
 
     for name in table_names {
         stmts.push(Statement::CreateTable(CreateTableStatement {
-            name: helpers::string_to_objname(&table_to_vault(&name)),
+            name: string_to_objname(&table_to_vault(&name)),
             columns: get_vault_cols(),
             constraints: vec![],
             indexes: indexes.clone(),
@@ -107,4 +109,18 @@ pub fn get_create_vault_statements(table_names: Vec<&str>, in_memory: bool) -> V
         }));
     }
     stmts
+}
+
+pub fn get_user_entries_in_vault(table_name: &str, uid: u64, txn: &mut mysql::Transaction) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
+    get_query_rows_txn(
+        &select_statement(
+            &table_to_vault(table_name),
+            Some(Expr::BinaryOp {
+                left: Box::new(Expr::Identifier(vec![Ident::new(VAULT_UID)])),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
+            }),
+        ),
+        txn,
+    )
 }

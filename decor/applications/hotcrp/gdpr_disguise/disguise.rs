@@ -11,11 +11,17 @@ fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), 
     /* 
      * PHASE 0: PREAMBLE 
      * Undo relevant decorrelations so we can remove
+     * Only decorrelated tables are "PaperReviewPreference" and "PaperWatch"
      */
+    if name == "PaperReviewPreference" || name == "PaperWatch" {
+        // select entries from vault 
+        let vault_entries = get_user_entries_in_vault(name, user_id, &mut txn)?;
 
-    // 
-    // select from vault
-    //
+        // remove all guise entries
+
+        // XXX remove undone entries from vault?
+    }
+    
 
     /* 
      * PHASE 1: REFERENCER SELECTION 
@@ -50,16 +56,9 @@ fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), 
     /* PHASE 4: VAULT UPDATES */
     let mut vault_vals = vec![];
     for objrow in &predicated_objs {
-        let mut uid = String::new();
-        for v in objrow {
-            if &v.column == SCHEMA_UID_COL {
-                uid = v.value.clone();
-                break;
-            }
-        }
         let mut evals = vec![];
         // uid
-        evals.push(Expr::Value(Value::Number(uid.to_string())));
+        evals.push(Expr::Value(Value::Number(user_id.to_string())));
         // name
         evals.push(Expr::Value(Value::String(name.to_string())));
         // modified columns
@@ -212,7 +211,7 @@ fn decor_obj_txn(
             // uid
             child_vault_vals.push(Expr::Value(Value::Number(user_id.to_string())));
             // modifiedObjectName
-            child_vault_vals.push(Expr::Value(Value::String(fk.fk_name.clone())));
+            child_vault_vals.push(Expr::Value(Value::String(child_name.clone())));
             // modified fk column
             child_vault_vals.push(Expr::Value(Value::String(
                 serde_json::to_string(&vec![fk.referencer_col.clone()]).unwrap(),

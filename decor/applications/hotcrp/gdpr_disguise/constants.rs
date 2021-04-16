@@ -25,7 +25,6 @@ pub fn get_contact_info_cols() -> Vec<&'static str> {
         "email",
         "preferredEmail",
         "affiliation",
-        "orcid",
         "phone",
         "country",
         "password",
@@ -39,7 +38,6 @@ pub fn get_contact_info_cols() -> Vec<&'static str> {
         "disabled",
         "contactTags",
         "data",
-        "primaryContactId",
     ]
 }
 
@@ -62,7 +60,6 @@ pub fn get_contact_info_vals() -> Vec<Expr> {
         Expr::Value(Value::String(String::new())),
         Expr::Value(Value::Null),
         Expr::Value(Value::Null),
-        Expr::Value(Value::Null),
         Expr::Value(Value::String(ANON_PW.to_string())),
         Expr::Value(Value::Number(0.to_string())),
         Expr::Value(Value::Number(0.to_string())),
@@ -74,7 +71,6 @@ pub fn get_contact_info_vals() -> Vec<Expr> {
         Expr::Value(Value::Number(0.to_string())),
         Expr::Value(Value::Null),
         Expr::Value(Value::Null),
-        Expr::Value(Value::Number(0.to_string())),
     ]
 }
 
