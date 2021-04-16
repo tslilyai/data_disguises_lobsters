@@ -14,8 +14,10 @@ fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), 
      * Only decorrelated tables are "PaperReviewPreference" and "PaperWatch"
      */
     if name == "PaperReviewPreference" || name == "PaperWatch" {
-        // select entries from vault 
+        // select modified entries from vault 
         let vault_entries = get_user_entries_in_vault(name, user_id, &mut txn)?;
+
+        // select introduced guises from vault
 
         // remove all guise entries
 
@@ -61,6 +63,8 @@ fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), 
         evals.push(Expr::Value(Value::Number(user_id.to_string())));
         // name
         evals.push(Expr::Value(Value::String(name.to_string())));
+        // referencer name
+        evals.push(Expr::Value(Value::Null));
         // modified columns
         evals.push(Expr::Value(Value::Null));
         // old value
@@ -197,6 +201,8 @@ fn decor_obj_txn(
             guise_vault_vals.push(Expr::Value(Value::Number(user_id.to_string())));
             // modifiedObjectName
             guise_vault_vals.push(Expr::Value(Value::String(fk.fk_name.clone())));
+            // referencer name
+            guise_vault_vals.push(Expr::Value(Value::String(child_name.clone())));
             // modified all columns
             guise_vault_vals.push(Expr::Value(Value::Null));
             // old value

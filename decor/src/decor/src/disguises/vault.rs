@@ -14,6 +14,7 @@ pub fn get_insert_vault_colnames() -> Vec<Ident> {
         // leaving out timestamp to be automatically generated
         //Ident::new("timestamp"),
         Ident::new("name"),
+        Ident::new("referencerName"),
         Ident::new("modifiedCols"), // default NULL implies all
         Ident::new("oldValue"),
         Ident::new("newValue"),
@@ -59,6 +60,14 @@ pub fn get_vault_cols() -> Vec<ColumnDef> {
             collation: None,
             options: vec![],
         },
+        // optional name of referencer 
+        ColumnDef {
+            name: Ident::new("referencerName"),
+            data_type: DataType::Varbinary(4096),
+            collation: None,
+            options: vec![],
+        },
+
         // table and column name
         ColumnDef {
             name: Ident::new("modifiedCols"),

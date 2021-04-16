@@ -123,6 +123,8 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
             guise_vault_vals.push(old_uid.clone());
             // modifiedObjectName
             guise_vault_vals.push(Expr::Value(Value::String(fk.fk_name.clone())));
+            // referencer name
+            guise_vault_vals.push(Expr::Value(Value::String(child_name.clone())));
             // modified all columns
             guise_vault_vals.push(Expr::Value(Value::Null));
             // old value
