@@ -170,6 +170,7 @@ pub fn insert_vault_entries(
             evals.push(vec_to_expr(&ve.modified_cols));
             evals.push(vec_to_expr(&ve.old_value));
             evals.push(vec_to_expr(&ve.new_value));
+            evals.push(Expr::Value(Value::Boolean(ve.reversed)));
             evals
         })
         .collect();
