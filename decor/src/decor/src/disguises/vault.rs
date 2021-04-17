@@ -1,5 +1,6 @@
 use crate::disguises::*;
 use crate::helpers::*;
+use mysql::prelude::*;
 use serde::Serialize;
 use sql_parser::ast::*;
 
@@ -7,8 +8,6 @@ pub const VAULT_TABLE: &'static str = "VaultTable";
 pub const INSERT_GUISE: u64 = 0;
 pub const DELETE_GUISE: u64 = 1;
 pub const UPDATE_GUISE: u64 = 2;
-pub const START_DISGUISE: u64 = 4;
-pub const END_DISGUISE: u64 = 5;
 
 pub struct VaultEntry {
     pub user_id: u64,
@@ -30,6 +29,35 @@ fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
     }
 }
 
+pub fn get_user_entries_in_vault(
+    uid: u64,
+    is_reversed: bool,
+    txn: &mut mysql::Transaction,
+) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
+    let equal_uid_constraint = Expr::BinaryOp {
+        left: Box::new(Expr::Identifier(vec![Ident::new("userID")])),
+        op: BinaryOperator::Eq,
+        right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
+    };
+    let reversed_constraint = match is_reversed {
+        true => Expr::Identifier(vec![Ident::new("reversed")]),
+        false => Expr::UnaryOp {
+            op: UnaryOperator::Not,
+            expr: Box::new(Expr::Identifier(vec![Ident::new("reversed")])),
+        },
+    };
+    get_query_rows_txn(
+        &select_statement(
+            VAULT_TABLE,
+            Some(Expr::BinaryOp {
+                left: Box::new(equal_uid_constraint),
+                op: BinaryOperator::And,
+                right: Box::new(reversed_constraint),
+            }),
+        ),
+        txn,
+    )
+}
 pub fn insert_vault_entries(
     entries: &Vec<VaultEntry>,
     txn: &mut mysql::Transaction,
@@ -170,7 +198,7 @@ pub fn get_vault_cols() -> Vec<ColumnDef> {
     ]
 }
 
-pub fn get_create_vault_statements(in_memory: bool) -> Vec<Statement> {
+pub fn create_vault(in_memory: bool, txn: &mut mysql::Transaction) -> Result<(), mysql::Error> {
     let engine = Some(if in_memory {
         Engine::Memory
     } else {
@@ -182,33 +210,16 @@ pub fn get_create_vault_statements(in_memory: bool) -> Vec<Statement> {
         key_parts: vec![Ident::new("userID")],
     }];
 
-    let mut stmts = vec![];
-
-    stmts.push(Statement::CreateTable(CreateTableStatement {
-        name: string_to_objname(VAULT_TABLE),
-        columns: get_vault_cols(),
-        constraints: vec![],
-        indexes: indexes.clone(),
-        with_options: vec![],
-        if_not_exists: true,
-        engine: engine.clone(),
-    }));
-    stmts
-}
-
-pub fn get_user_entries_in_vault(
-    uid: u64,
-    txn: &mut mysql::Transaction,
-) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
-    get_query_rows_txn(
-        &select_statement(
-            VAULT_TABLE,
-            Some(Expr::BinaryOp {
-                left: Box::new(Expr::Identifier(vec![Ident::new("userID")])),
-                op: BinaryOperator::Eq,
-                right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
-            }),
-        ),
-        txn,
+    txn.query_drop(
+        &Statement::CreateTable(CreateTableStatement {
+            name: string_to_objname(VAULT_TABLE),
+            columns: get_vault_cols(),
+            constraints: vec![],
+            indexes: indexes.clone(),
+            with_options: vec![],
+            if_not_exists: true,
+            engine: engine.clone(),
+        })
+        .to_string(),
     )
 }

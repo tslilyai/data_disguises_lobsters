@@ -11,23 +11,24 @@ use sql_parser::ast::*;
 
 fn undo_previous_disguises(user_id: u64, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     // Only decorrelated tables are "PaperReviewPreference" and "PaperWatch"
-    // select modified entries from vault 
+
+    // select entries that have not yet been reversed from vault
     let mut txn = db.start_transaction(TxOpts::default())?;
-    let vault_entries = get_user_entries_in_vault(user_id, &mut txn)?;
+    let vault_entries = get_user_entries_in_vault(user_id, false, &mut txn)?;
 
     // select introduced guises from vault
 
     // remove all guise entries
 
     // mark as reversed entries from vault
-    
+
     Ok(())
 }
 
 fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     let mut txn = db.start_transaction(TxOpts::default())?;
-    /* 
-     * PHASE 1: REFERENCER SELECTION 
+    /*
+     * PHASE 1: REFERENCER SELECTION
      * */
     let predicated_objs = get_query_rows_txn(
         &select_statement(
@@ -44,10 +45,7 @@ fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), 
         &mut txn,
     )?;
 
-    /* PHASE 2: REFERENCED SELECTION */
-    // noop because we're dealing only with a single table, and not with any fks
-
-    /* PHASE 3: OBJECT MODIFICATION */
+    /* PHASE 2: OBJECT MODIFICATION */
     get_query_rows_txn(
         &Statement::Delete(DeleteStatement {
             table_name: string_to_objname(name),
@@ -56,19 +54,19 @@ fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), 
         &mut txn,
     )?;
 
-    /* PHASE 4: VAULT UPDATES */
+    /* PHASE 3: VAULT UPDATES */
     let mut vault_vals = vec![];
     for objrow in &predicated_objs {
         vault_vals.push(VaultEntry {
-                user_id: user_id,
-                guise_name: name.to_string(),
-                guise_id: 0,
-                referencer_name: "".to_string(),
-                update_type: DELETE_GUISE,
-                modified_cols: vec![],
-                old_value: objrow.clone(),
-                new_value: vec![], 
-            });
+            user_id: user_id,
+            guise_name: name.to_string(),
+            guise_id: 0,
+            referencer_name: "".to_string(),
+            update_type: DELETE_GUISE,
+            modified_cols: vec![],
+            old_value: objrow.clone(),
+            new_value: vec![],
+        });
     }
     insert_vault_entries(&vault_vals, &mut txn)?;
     txn.commit()
@@ -104,27 +102,23 @@ fn decor_obj_txn(
         return Ok(());
     }
 
-    /* PHASE 2: SELECT REFERENCED OBJECTS */
-    // noop---we don't need the value of these objects of perform guise inserts
-
     for fk in fks {
-
         /*
-         * PHASE 3: OBJECT MODIFICATIONS
+         * PHASE 2: OBJECT MODIFICATIONS
          * A) insert guises for parents
          * B) update child to point to new guise
          * */
 
         /*
-         * PHASE 4: VAULT UPDATES
+         * PHASE 3: VAULT UPDATES
          * A) insert guises, associate with old parent uid
          * B) record update to child to point to new guise
          * */
 
-        // Phase 3A: batch insertion of parents
+        // Phase 2A: batch insertion of parents
         let mut new_parents_vals = vec![];
         let fk_cols = get_contact_info_cols();
-            
+
         for _ in &child_objs {
             new_parents_vals.push(get_contact_info_vals());
         }
@@ -137,7 +131,7 @@ fn decor_obj_txn(
             }),
             &mut txn,
         )?;
-    
+
         let last_uid = txn.last_insert_id().unwrap();
         let mut cur_uid = last_uid - child_objs.len() as u64;
 
@@ -145,7 +139,7 @@ fn decor_obj_txn(
         for (n, child) in child_objs.iter().enumerate() {
             cur_uid += 1;
 
-            // Phase 3B: update child to point to new parent
+            // Phase 2B: update child to point to new parent
             get_query_rows_txn(
                 &Statement::Update(UpdateStatement {
                     table_name: string_to_objname(&child_name),
@@ -178,8 +172,8 @@ fn decor_obj_txn(
                     }
                 })
                 .collect();
-            
-            // Phase 4A: update the vault with new guises (calculating the uid from the last_insert_id)
+
+            // Phase 3A: update the vault with new guises (calculating the uid from the last_insert_id)
             vault_vals.push(VaultEntry {
                 user_id: user_id,
                 guise_name: fk.fk_name.clone(),
@@ -188,10 +182,10 @@ fn decor_obj_txn(
                 update_type: INSERT_GUISE,
                 modified_cols: vec![],
                 old_value: vec![],
-                new_value: new_parent_rowvals, 
+                new_value: new_parent_rowvals,
             });
 
-            // Phase 4B: update the vault with the modification to children
+            // Phase 3B: update the vault with the modification to children
             let new_child: Vec<RowVal> = child
                 .iter()
                 .map(|v| {
@@ -213,11 +207,11 @@ fn decor_obj_txn(
                 update_type: UPDATE_GUISE,
                 modified_cols: vec![fk.referencer_col.clone()],
                 old_value: child.clone(),
-                new_value: new_child, 
+                new_value: new_child,
             });
         }
 
-        /* PHASE 4B: Batch vault updates */
+        /* PHASE 3: Batch vault updates */
         insert_vault_entries(&vault_vals, &mut txn)?;
     }
     txn.commit()
@@ -248,23 +242,25 @@ mod test {
     #[test]
     fn apply_none() {
         let _ = env_logger::builder()
-        // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
-        //.filter_level(log::LevelFilter::Error)
-        // Ensure events are captured by `cargo test`
-        .is_test(true)
-        // Ignore errors initializing the logger if tests race to configure it
-        .try_init();
+            // Include all events in tests
+            .filter_level(log::LevelFilter::Warn)
+            //.filter_level(log::LevelFilter::Error)
+            // Ensure events are captured by `cargo test`
+            .is_test(true)
+            // Ignore errors initializing the logger if tests race to configure it
+            .try_init();
 
         let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let url : String;
-        let mut db : mysql::Conn;
-          
+        let url: String;
+        let mut db: mysql::Conn;
+
         let test_dbname = "test_conf_none";
         url = String::from("mysql://tslilyai:pass@127.0.0.1");
         db = mysql::Conn::new(&url).unwrap();
-        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname)).unwrap();
-        db.query_drop(&format!("CREATE DATABASE {};", &test_dbname)).unwrap();
+        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname))
+            .unwrap();
+        db.query_drop(&format!("CREATE DATABASE {};", &test_dbname))
+            .unwrap();
         assert_eq!(db.ping(), true);
         assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
         datagen::populate_database(&mut db).unwrap();

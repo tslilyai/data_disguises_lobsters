@@ -75,10 +75,7 @@ fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         }
     }
 
-    for stmt in disguises::get_create_vault_statements(true) {
-        warn!("create_vault issuing new_stmt {}", stmt);
-        txn.query_drop(stmt.to_string())?;
-    }
+    disguises::create_vault(true, &mut txn)?;
     txn.commit()?;
     Ok(())
 }

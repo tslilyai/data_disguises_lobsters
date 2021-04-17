@@ -28,11 +28,6 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
         return Ok(());
     }
 
-    /*
-     * PHASE 2: SELECT REFERENCED OBJECTS
-     * Noop: we don't need the value of these objects of perform guise inserts
-     */
-
     for fk in fks {
         // get all the IDs of parents (all are of the same type for the same fk)
         let mut fkids = vec![];
@@ -47,13 +42,13 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
         }
 
         /*
-         * PHASE 3: OBJECT MODIFICATIONS
+         * PHASE 2: OBJECT MODIFICATIONS
          * A) insert guises for parents
          * B) update child to point to new guise
          * */
 
         /*
-         * PHASE 4: VAULT UPDATES
+         * PHASE 3: VAULT UPDATES
          * A) insert guises, associate with old parent uid
          * B) record update to child to point to new guise
          * */
@@ -122,7 +117,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                 })
                 .collect();
 
-            // Phase 4A: update the vault with new guise (calculating the uid from the last_insert_id)
+            // Phase 3A: update the vault with new guise (calculating the uid from the last_insert_id)
             vault_vals.push(VaultEntry {
                 user_id: old_uid,
                 guise_name: fk.fk_name.clone(),
@@ -134,7 +129,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                 new_value: new_parent_rowvals, 
             });
 
-            // Phase 4B: update the vault with the modification to children
+            // Phase 3B: update the vault with the modification to children
             let new_child: Vec<RowVal> = child
                 .iter()
                 .map(|v| {
@@ -160,7 +155,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
             });
         }
 
-        /* PHASE 4B: Batch vault updates */
+        /* PHASE 3: Batch vault updates */
         insert_vault_entries(&vault_vals, &mut txn)?;
     }
     txn.commit()
