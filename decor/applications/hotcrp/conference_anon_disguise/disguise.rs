@@ -5,6 +5,11 @@ use decor::helpers::*;
 use log::warn;
 use mysql::TxOpts;
 use sql_parser::ast::*;
+use std::str::FromStr; 
+
+/*
+ * CONFERENCE ANONYMIZATION DISGUISE
+ */
 
 fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     let child_name = &tablefk.name;
@@ -36,7 +41,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                 warn!("Checking {} = {} ? {}", rc.column, fk.referencer_col, rc.column == fk.referencer_col);
                 if rc.column == fk.referencer_col {
                     warn!("Adding {} to fkids", rc.value);
-                    fkids.push(Expr::Value(Value::Number(rc.value.to_string())));
+                    fkids.push(rc.value.parse::<u64>().unwrap());
                 }
             };
         }
@@ -81,7 +86,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
         let mut vault_vals = vec![];
         for (n, child) in child_objs.iter().enumerate() {
             cur_uid += 1;
-            let old_uid = &fkids[n];
+            let old_uid = fkids[n];
 
             // Phase 3B: update child to point to new parent
             get_query_rows_txn(
@@ -97,7 +102,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                             Ident::new(fk.referencer_col.clone()),
                         ])),
                         op: BinaryOperator::Eq,
-                        right: Box::new(old_uid.clone()),
+                        right: Box::new(Expr::Value(Value::Number(old_uid.to_string()))),
                     }),
                 }),
                 &mut txn,
@@ -118,37 +123,18 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                 .collect();
 
             // Phase 4A: update the vault with new guise (calculating the uid from the last_insert_id)
-            let mut guise_vault_vals = vec![];
-            // uid
-            guise_vault_vals.push(old_uid.clone());
-            // modifiedObjectName
-            guise_vault_vals.push(Expr::Value(Value::String(fk.fk_name.clone())));
-            // referencer name
-            guise_vault_vals.push(Expr::Value(Value::String(child_name.clone())));
-            // modified all columns
-            guise_vault_vals.push(Expr::Value(Value::Null));
-            // old value
-            guise_vault_vals.push(Expr::Value(Value::Null));
-            // new value
-            let serialized = serde_json::to_string(&new_parent_rowvals).unwrap();
-            guise_vault_vals.push(Expr::Value(Value::String(serialized)));
-            vault_vals.push(guise_vault_vals);
+            vault_vals.push(VaultEntry {
+                user_id: old_uid,
+                guise_name: fk.fk_name.clone(),
+                guise_id: cur_uid,
+                referencer_name: child_name.clone(),
+                update_type: INSERT_GUISE,
+                modified_cols: vec![],
+                old_value: vec![],
+                new_value: new_parent_rowvals, 
+            });
 
             // Phase 4B: update the vault with the modification to children
-            let mut child_vault_vals = vec![];
-            // uid
-            child_vault_vals.push(old_uid.clone());
-            // modifiedObjectName
-            child_vault_vals.push(Expr::Value(Value::String(child_name.clone())));
-            // modified fk column
-            child_vault_vals.push(Expr::Value(Value::String(
-                serde_json::to_string(&vec![fk.referencer_col.clone()]).unwrap(),
-            )));
-            // old value
-            child_vault_vals.push(Expr::Value(Value::String(
-                serde_json::to_string(&child).unwrap(),
-            )));
-            // new value
             let new_child: Vec<RowVal> = child
                 .iter()
                 .map(|v| {
@@ -162,23 +148,20 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                     }
                 })
                 .collect();
-            child_vault_vals.push(Expr::Value(Value::String(
-                serde_json::to_string(&new_child).unwrap(),
-            )));
-            vault_vals.push(child_vault_vals);
+            vault_vals.push(VaultEntry {
+                user_id: old_uid,
+                guise_name: child_name.clone(),
+                guise_id: 0, // XXX nothing here for now
+                referencer_name: "".to_string(),
+                update_type: UPDATE_GUISE,
+                modified_cols: vec![fk.referencer_col.clone()],
+                old_value: child.clone(),
+                new_value: new_child, 
+            });
         }
 
         /* PHASE 4B: Batch vault updates */
-        if !vault_vals.is_empty() {
-            get_query_rows_txn(
-                &Statement::Insert(InsertStatement {
-                    table_name: string_to_objname(&table_to_vault(&fk.fk_name)),
-                    columns: get_insert_vault_colnames(),
-                    source: InsertSource::Query(Box::new(values_query(vault_vals))),
-                }),
-                &mut txn,
-            )?;
-        }
+        insert_vault_entries(&vault_vals, &mut txn)?;
     }
     txn.commit()
 }

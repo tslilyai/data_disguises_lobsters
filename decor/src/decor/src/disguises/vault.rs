@@ -1,74 +1,145 @@
-use crate::helpers::*;
 use crate::disguises::*;
+use crate::helpers::*;
+use serde::Serialize;
 use sql_parser::ast::*;
 
-pub const VAULT_UID: &'static str = "uid";
+pub const VAULT_TABLE: &'static str = "VaultTable";
+pub const INSERT_GUISE: u64 = 0;
+pub const DELETE_GUISE: u64 = 1;
+pub const UPDATE_GUISE: u64 = 2;
+pub const START_DISGUISE: u64 = 4;
+pub const END_DISGUISE: u64 = 5;
 
-pub fn table_to_vault(table: &str) -> String {
-    format!("{}Vault", table)
+pub struct VaultEntry {
+    pub user_id: u64,
+    pub guise_name: String,
+    pub guise_id: u64,
+    pub referencer_name: String,
+    pub update_type: u64,
+    pub modified_cols: Vec<String>,
+    pub old_value: Vec<RowVal>,
+    pub new_value: Vec<RowVal>,
+}
+
+fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
+    if vs.is_empty() {
+        Expr::Value(Value::Null)
+    } else {
+        let serialized = serde_json::to_string(&vs).unwrap();
+        Expr::Value(Value::String(serialized))
+    }
+}
+
+pub fn insert_vault_entries(
+    entries: &Vec<VaultEntry>,
+    txn: &mut mysql::Transaction,
+) -> Result<(), mysql::Error> {
+    let vault_vals: Vec<Vec<Expr>> = entries
+        .iter()
+        .map(|ve| {
+            let mut evals = vec![];
+            evals.push(Expr::Value(Value::Number(ve.user_id.to_string())));
+            evals.push(Expr::Value(Value::String(ve.guise_name.clone())));
+            evals.push(Expr::Value(Value::Number(ve.guise_id.to_string())));
+            evals.push(Expr::Value(Value::String(ve.referencer_name.clone())));
+            evals.push(Expr::Value(Value::Number(ve.update_type.to_string())));
+            evals.push(vec_to_expr(&ve.modified_cols));
+            evals.push(vec_to_expr(&ve.old_value));
+            evals.push(vec_to_expr(&ve.new_value));
+            evals
+        })
+        .collect();
+    if !vault_vals.is_empty() {
+        get_query_rows_txn(
+            &Statement::Insert(InsertStatement {
+                table_name: string_to_objname(VAULT_TABLE),
+                columns: get_insert_vault_colnames(),
+                source: InsertSource::Query(Box::new(values_query(vault_vals))),
+            }),
+            txn,
+        )?;
+    }
+    Ok(())
 }
 
 pub fn get_insert_vault_colnames() -> Vec<Ident> {
     vec![
-        Ident::new(VAULT_UID),
-        // leaving out timestamp to be automatically generated
-        //Ident::new("timestamp"),
-        Ident::new("name"),
+        Ident::new("userID"),
+        Ident::new("guiseName"),
+        Ident::new("guiseID"),
         Ident::new("referencerName"),
-        Ident::new("modifiedCols"), // default NULL implies all
+        Ident::new("updateType"),   // remove, add, or modify
+        Ident::new("modifiedCols"), // null if all modified
         Ident::new("oldValue"),
         Ident::new("newValue"),
+        Ident::new("reversed"),
     ]
 }
 
 pub fn get_vault_cols() -> Vec<ColumnDef> {
     vec![
-        // user ID
-        ColumnDef {
-            name: Ident::new(VAULT_UID),
-            data_type: DataType::BigInt,
-            collation: None,
-            options: vec![ColumnOptionDef {
-                name: None,
-                option: ColumnOption::NotNull,
-            }],
-        },
         // for ordering
         ColumnDef {
-            name: Ident::new("timestamp"),
+            name: Ident::new("vaultID"),
+            data_type: DataType::BigInt,
+            collation: None,
+            options: vec![
+                ColumnOptionDef {
+                    name: None,
+                    option: ColumnOption::NotNull,
+                },
+                ColumnOptionDef {
+                    name: None,
+                    option: ColumnOption::AutoIncrement,
+                },
+                ColumnOptionDef {
+                    name: None,
+                    option: ColumnOption::Unique { is_primary: true },
+                },
+            ],
+        },
+        // user ID
+        ColumnDef {
+            name: Ident::new("userID"),
             data_type: DataType::BigInt,
             collation: None,
             options: vec![ColumnOptionDef {
                 name: None,
                 option: ColumnOption::NotNull,
-            },
-            ColumnOptionDef {
-                name: None,
-                option: ColumnOption::AutoIncrement,
-            },
-            ColumnOptionDef {
-                name: None,
-                option: ColumnOption::Unique {
-                    is_primary: true,
-                }
             }],
         },
         // table and column name
         ColumnDef {
-            name: Ident::new("name"),
+            name: Ident::new("guiseName"),
             data_type: DataType::Varbinary(4096),
             collation: None,
             options: vec![],
         },
-        // optional name of referencer 
+        // guise ID
+        ColumnDef {
+            name: Ident::new("guiseID"),
+            data_type: DataType::BigInt,
+            collation: None,
+            options: vec![ColumnOptionDef {
+                name: None,
+                option: ColumnOption::NotNull,
+            }],
+        },
+        // optional name of referencer
         ColumnDef {
             name: Ident::new("referencerName"),
             data_type: DataType::Varbinary(4096),
             collation: None,
             options: vec![],
         },
-
-        // table and column name
+        // type of vault entry
+        ColumnDef {
+            name: Ident::new("updateType"),
+            data_type: DataType::Int,
+            collation: None,
+            options: vec![],
+        },
+        // modified columns, null if all modified
         ColumnDef {
             name: Ident::new("modifiedCols"),
             data_type: DataType::Varbinary(4096),
@@ -89,10 +160,17 @@ pub fn get_vault_cols() -> Vec<ColumnDef> {
             collation: None,
             options: vec![],
         },
+        // whether this update has been reversed
+        ColumnDef {
+            name: Ident::new("reversed"),
+            data_type: DataType::Boolean,
+            collation: None,
+            options: vec![],
+        },
     ]
 }
 
-pub fn get_create_vault_statements(table_names: Vec<&str>, in_memory: bool) -> Vec<Statement> {
+pub fn get_create_vault_statements(in_memory: bool) -> Vec<Statement> {
     let engine = Some(if in_memory {
         Engine::Memory
     } else {
@@ -101,31 +179,32 @@ pub fn get_create_vault_statements(table_names: Vec<&str>, in_memory: bool) -> V
     let indexes = vec![IndexDef {
         name: Ident::new("uid_index"),
         index_type: None,
-        key_parts: vec![Ident::new(VAULT_UID)],
+        key_parts: vec![Ident::new("userID")],
     }];
 
     let mut stmts = vec![];
 
-    for name in table_names {
-        stmts.push(Statement::CreateTable(CreateTableStatement {
-            name: string_to_objname(&table_to_vault(&name)),
-            columns: get_vault_cols(),
-            constraints: vec![],
-            indexes: indexes.clone(),
-            with_options: vec![],
-            if_not_exists: true,
-            engine: engine.clone(),
-        }));
-    }
+    stmts.push(Statement::CreateTable(CreateTableStatement {
+        name: string_to_objname(VAULT_TABLE),
+        columns: get_vault_cols(),
+        constraints: vec![],
+        indexes: indexes.clone(),
+        with_options: vec![],
+        if_not_exists: true,
+        engine: engine.clone(),
+    }));
     stmts
 }
 
-pub fn get_user_entries_in_vault(table_name: &str, uid: u64, txn: &mut mysql::Transaction) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
+pub fn get_user_entries_in_vault(
+    uid: u64,
+    txn: &mut mysql::Transaction,
+) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     get_query_rows_txn(
         &select_statement(
-            &table_to_vault(table_name),
+            VAULT_TABLE,
             Some(Expr::BinaryOp {
-                left: Box::new(Expr::Identifier(vec![Ident::new(VAULT_UID)])),
+                left: Box::new(Expr::Identifier(vec![Ident::new("userID")])),
                 op: BinaryOperator::Eq,
                 right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
             }),

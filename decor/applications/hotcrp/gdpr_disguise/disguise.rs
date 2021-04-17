@@ -5,26 +5,27 @@ use decor::helpers::*;
 use mysql::TxOpts;
 use sql_parser::ast::*;
 
+/*
+ * GDPR REMOVAL DISGUISE
+ */
+
+fn undo_previous_disguises(user_id: u64, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    // Only decorrelated tables are "PaperReviewPreference" and "PaperWatch"
+    // select modified entries from vault 
+    let mut txn = db.start_transaction(TxOpts::default())?;
+    let vault_entries = get_user_entries_in_vault(user_id, &mut txn)?;
+
+    // select introduced guises from vault
+
+    // remove all guise entries
+
+    // mark as reversed entries from vault
+    
+    Ok(())
+}
+
 fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     let mut txn = db.start_transaction(TxOpts::default())?;
-
-    /* 
-     * PHASE 0: PREAMBLE 
-     * Undo relevant decorrelations so we can remove
-     * Only decorrelated tables are "PaperReviewPreference" and "PaperWatch"
-     */
-    if name == "PaperReviewPreference" || name == "PaperWatch" {
-        // select modified entries from vault 
-        let vault_entries = get_user_entries_in_vault(name, user_id, &mut txn)?;
-
-        // select introduced guises from vault
-
-        // remove all guise entries
-
-        // XXX remove undone entries from vault?
-    }
-    
-
     /* 
      * PHASE 1: REFERENCER SELECTION 
      * */
@@ -58,32 +59,18 @@ fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), 
     /* PHASE 4: VAULT UPDATES */
     let mut vault_vals = vec![];
     for objrow in &predicated_objs {
-        let mut evals = vec![];
-        // uid
-        evals.push(Expr::Value(Value::Number(user_id.to_string())));
-        // name
-        evals.push(Expr::Value(Value::String(name.to_string())));
-        // referencer name
-        evals.push(Expr::Value(Value::Null));
-        // modified columns
-        evals.push(Expr::Value(Value::Null));
-        // old value
-        let serialized = serde_json::to_string(&objrow).unwrap();
-        evals.push(Expr::Value(Value::String(serialized)));
-        // new value
-        evals.push(Expr::Value(Value::Null));
-        vault_vals.push(evals)
+        vault_vals.push(VaultEntry {
+                user_id: user_id,
+                guise_name: name.to_string(),
+                guise_id: 0,
+                referencer_name: "".to_string(),
+                update_type: DELETE_GUISE,
+                modified_cols: vec![],
+                old_value: objrow.clone(),
+                new_value: vec![], 
+            });
     }
-    if !vault_vals.is_empty() {
-        get_query_rows_txn(
-            &Statement::Insert(InsertStatement {
-                table_name: string_to_objname(&table_to_vault(name)),
-                columns: get_insert_vault_colnames(),
-                source: InsertSource::Query(Box::new(values_query(vault_vals))),
-            }),
-            &mut txn,
-        )?;
-    }
+    insert_vault_entries(&vault_vals, &mut txn)?;
     txn.commit()
 }
 
@@ -95,9 +82,6 @@ fn decor_obj_txn(
     let child_name = tablefk.name.clone();
     let fks = &tablefk.fks;
     let mut txn = db.start_transaction(TxOpts::default())?;
-
-    /* PHASE 0: PREAMBLE */
-    // TODO
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
     let mut selection = Expr::Value(Value::Boolean(false));
@@ -181,7 +165,6 @@ fn decor_obj_txn(
                 &mut txn,
             )?;
 
-            // Phase 4A: update the vault with new guises (calculating the uid from the last_insert_id)
             let mut i = 0;
             // first turn new_fkobj into Vec<RowVal>
             let new_parent_rowvals: Vec<RowVal> = new_parents_vals[n]
@@ -195,38 +178,20 @@ fn decor_obj_txn(
                     }
                 })
                 .collect();
-
-            let mut guise_vault_vals = vec![];
-            // uid
-            guise_vault_vals.push(Expr::Value(Value::Number(user_id.to_string())));
-            // modifiedObjectName
-            guise_vault_vals.push(Expr::Value(Value::String(fk.fk_name.clone())));
-            // referencer name
-            guise_vault_vals.push(Expr::Value(Value::String(child_name.clone())));
-            // modified all columns
-            guise_vault_vals.push(Expr::Value(Value::Null));
-            // old value
-            guise_vault_vals.push(Expr::Value(Value::Null));
-            // new value
-            let serialized = serde_json::to_string(&new_parent_rowvals).unwrap();
-            guise_vault_vals.push(Expr::Value(Value::String(serialized)));
-            vault_vals.push(guise_vault_vals);
+            
+            // Phase 4A: update the vault with new guises (calculating the uid from the last_insert_id)
+            vault_vals.push(VaultEntry {
+                user_id: user_id,
+                guise_name: fk.fk_name.clone(),
+                guise_id: cur_uid,
+                referencer_name: child_name.clone(),
+                update_type: INSERT_GUISE,
+                modified_cols: vec![],
+                old_value: vec![],
+                new_value: new_parent_rowvals, 
+            });
 
             // Phase 4B: update the vault with the modification to children
-            let mut child_vault_vals = vec![];
-            // uid
-            child_vault_vals.push(Expr::Value(Value::Number(user_id.to_string())));
-            // modifiedObjectName
-            child_vault_vals.push(Expr::Value(Value::String(child_name.clone())));
-            // modified fk column
-            child_vault_vals.push(Expr::Value(Value::String(
-                serde_json::to_string(&vec![fk.referencer_col.clone()]).unwrap(),
-            )));
-            // old value
-            child_vault_vals.push(Expr::Value(Value::String(
-                serde_json::to_string(&child).unwrap(),
-            )));
-            // new value
             let new_child: Vec<RowVal> = child
                 .iter()
                 .map(|v| {
@@ -240,23 +205,20 @@ fn decor_obj_txn(
                     }
                 })
                 .collect();
-            child_vault_vals.push(Expr::Value(Value::String(
-                serde_json::to_string(&new_child).unwrap(),
-            )));
-            vault_vals.push(child_vault_vals);
+            vault_vals.push(VaultEntry {
+                user_id: user_id,
+                guise_name: child_name.clone(),
+                guise_id: 0, // XXX nothing here for now
+                referencer_name: "".to_string(),
+                update_type: UPDATE_GUISE,
+                modified_cols: vec![fk.referencer_col.clone()],
+                old_value: child.clone(),
+                new_value: new_child, 
+            });
         }
-        
+
         /* PHASE 4B: Batch vault updates */
-        if !vault_vals.is_empty() {
-            get_query_rows_txn(
-                &Statement::Insert(InsertStatement {
-                    table_name: string_to_objname(&table_to_vault(&fk.fk_name)),
-                    columns: get_insert_vault_colnames(),
-                    source: InsertSource::Query(Box::new(values_query(vault_vals))),
-                }),
-                &mut txn,
-            )?;
-        }
+        insert_vault_entries(&vault_vals, &mut txn)?;
     }
     txn.commit()
 }
@@ -264,6 +226,8 @@ fn decor_obj_txn(
 pub fn apply(user_id: Option<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     // user must be provided as input
     let user_id = user_id.unwrap();
+
+    undo_previous_disguises(user_id, db)?;
 
     // DECORRELATION TXNS
     for tablefk in get_decor_names() {
