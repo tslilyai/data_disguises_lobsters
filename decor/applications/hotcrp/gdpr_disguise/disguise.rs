@@ -8,19 +8,90 @@ use sql_parser::ast::*;
 /*
  * GDPR REMOVAL DISGUISE
  */
-
 fn undo_previous_disguises(user_id: u64, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     // Only decorrelated tables are "PaperReviewPreference" and "PaperWatch"
-
-    // select entries that have not yet been reversed from vault
     let mut txn = db.start_transaction(TxOpts::default())?;
-    let vault_entries = get_user_entries_in_vault(user_id, false, &mut txn)?;
 
-    // select introduced guises from vault
+    /* 
+     * Get decorrelated children, and restore ownership
+     */
+    let mut children = get_user_entries_of_table_in_vault(
+        user_id,
+        "PaperReviewPreference",
+        false, /* is_reversed */
+        &mut txn,
+    )?;
+    children.append(&mut get_user_entries_of_table_in_vault(
+        user_id,
+        "PaperWatch",
+        false, /* is_reversed */
+        &mut txn,
+    )?);
+    // we need some way to be able to identify these objects...
+    // assume that there is exactly one PaperWatch and one PaperReviewPreference for any user
+    for c in children {
+        let mut new_contact_id = String::new();
+        let mut old_contact_id = String::new();
+        for rv in &c.new_value {
+            if rv.column == "contactId" {
+                new_contact_id = rv.value.clone();
+            }
+        }
+        for rv in &c.old_value {
+            if rv.column == "contactId" {
+                old_contact_id = rv.value.clone();
+            }
+        }
+        assert!(old_contact_id == user_id.to_string());
+        get_query_rows_txn(
+            &Statement::Update(UpdateStatement {
+                table_name: string_to_objname(&"PaperReviewPreferences"),
+                assignments: vec![Assignment {
+                    id: Ident::new("contactId"),
+                    value: Expr::Value(Value::Number(user_id.to_string())),
+                }],
+                selection: Some(Expr::BinaryOp {
+                    left: Box::new(Expr::Identifier(vec![Ident::new("contactId".clone())])),
+                    op: BinaryOperator::Eq,
+                    right: Box::new(Expr::Value(Value::Number(new_contact_id))),
+                }),
+            }),
+            &mut txn,
+        )?;
+        mark_vault_entry_reversed(&c, &mut txn)?;
+    }
 
-    // remove all guise entries
-
-    // mark as reversed entries from vault
+    /* 
+     * Delete created guises from old disguise
+     */
+    let mut guise_ves = get_user_entries_with_referencer_in_vault(
+        user_id,
+        "PaperWatch",
+        false, /* is_reversed */
+        &mut txn,
+    )?;
+    guise_ves.append(&mut get_user_entries_with_referencer_in_vault(
+        user_id,
+        "PaperReviewPreference",
+        false, /* is_reversed */
+        &mut txn,
+    )?);
+    for guise in guise_ves {
+        // TODO delete guise
+        get_query_rows_txn(
+            &Statement::Delete(DeleteStatement {
+                table_name: string_to_objname(SCHEMA_UID_TABLE),
+                selection: Some(Expr::BinaryOp {
+                    left: Box::new(Expr::Identifier(vec![Ident::new("contactId".to_string())])),
+                    op: BinaryOperator::Eq,
+                    right: Box::new(Expr::Value(Value::Number(guise.guise_id.to_string()))),
+                }),
+            }),
+            &mut txn,
+        )?;
+        // mark vault entries as reversed
+        mark_vault_entry_reversed(&guise, &mut txn)?;
+    }
 
     Ok(())
 }
@@ -58,6 +129,7 @@ fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), 
     let mut vault_vals = vec![];
     for objrow in &predicated_objs {
         vault_vals.push(VaultEntry {
+            vault_id: 0,
             user_id: user_id,
             guise_name: name.to_string(),
             guise_id: 0,
@@ -66,6 +138,7 @@ fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), 
             modified_cols: vec![],
             old_value: objrow.clone(),
             new_value: vec![],
+            reversed: false,
         });
     }
     insert_vault_entries(&vault_vals, &mut txn)?;
@@ -175,6 +248,7 @@ fn decor_obj_txn(
 
             // Phase 3A: update the vault with new guises (calculating the uid from the last_insert_id)
             vault_vals.push(VaultEntry {
+                vault_id: 0,
                 user_id: user_id,
                 guise_name: fk.fk_name.clone(),
                 guise_id: cur_uid,
@@ -183,6 +257,7 @@ fn decor_obj_txn(
                 modified_cols: vec![],
                 old_value: vec![],
                 new_value: new_parent_rowvals,
+                reversed: false,
             });
 
             // Phase 3B: update the vault with the modification to children
@@ -200,6 +275,7 @@ fn decor_obj_txn(
                 })
                 .collect();
             vault_vals.push(VaultEntry {
+                vault_id: 0,
                 user_id: user_id,
                 guise_name: child_name.clone(),
                 guise_id: 0, // XXX nothing here for now
@@ -208,6 +284,7 @@ fn decor_obj_txn(
                 modified_cols: vec![fk.referencer_col.clone()],
                 old_value: child.clone(),
                 new_value: new_child,
+                reversed: false,
             });
         }
 

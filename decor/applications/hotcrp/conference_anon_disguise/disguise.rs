@@ -5,7 +5,7 @@ use decor::helpers::*;
 use log::warn;
 use mysql::TxOpts;
 use sql_parser::ast::*;
-use std::str::FromStr; 
+use std::str::FromStr;
 
 /*
  * CONFERENCE ANONYMIZATION DISGUISE
@@ -33,12 +33,17 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
         let mut fkids = vec![];
         for child in &child_objs {
             for rc in child {
-                warn!("Checking {} = {} ? {}", rc.column, fk.referencer_col, rc.column == fk.referencer_col);
+                warn!(
+                    "Checking {} = {} ? {}",
+                    rc.column,
+                    fk.referencer_col,
+                    rc.column == fk.referencer_col
+                );
                 if rc.column == fk.referencer_col {
                     warn!("Adding {} to fkids", rc.value);
                     fkids.push(rc.value.parse::<u64>().unwrap());
                 }
-            };
+            }
         }
 
         /*
@@ -119,6 +124,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
 
             // Phase 3A: update the vault with new guise (calculating the uid from the last_insert_id)
             vault_vals.push(VaultEntry {
+                vault_id: 0,
                 user_id: old_uid,
                 guise_name: fk.fk_name.clone(),
                 guise_id: cur_uid,
@@ -126,7 +132,8 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                 update_type: INSERT_GUISE,
                 modified_cols: vec![],
                 old_value: vec![],
-                new_value: new_parent_rowvals, 
+                new_value: new_parent_rowvals,
+                reversed: false,
             });
 
             // Phase 3B: update the vault with the modification to children
@@ -144,6 +151,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                 })
                 .collect();
             vault_vals.push(VaultEntry {
+                vault_id: 0,
                 user_id: old_uid,
                 guise_name: child_name.clone(),
                 guise_id: 0, // XXX nothing here for now
@@ -151,7 +159,8 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                 update_type: UPDATE_GUISE,
                 modified_cols: vec![fk.referencer_col.clone()],
                 old_value: child.clone(),
-                new_value: new_child, 
+                new_value: new_child,
+                reversed: false,
             });
         }
 

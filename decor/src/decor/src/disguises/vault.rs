@@ -3,13 +3,16 @@ use crate::helpers::*;
 use mysql::prelude::*;
 use serde::Serialize;
 use sql_parser::ast::*;
+use std::str::FromStr;
 
 pub const VAULT_TABLE: &'static str = "VaultTable";
 pub const INSERT_GUISE: u64 = 0;
 pub const DELETE_GUISE: u64 = 1;
 pub const UPDATE_GUISE: u64 = 2;
 
+#[derive(Default)]
 pub struct VaultEntry {
+    pub vault_id: u64,
     pub user_id: u64,
     pub guise_name: String,
     pub guise_id: u64,
@@ -18,6 +21,34 @@ pub struct VaultEntry {
     pub modified_cols: Vec<String>,
     pub old_value: Vec<RowVal>,
     pub new_value: Vec<RowVal>,
+    pub reversed: bool,
+}
+
+fn get_vault_entries_with_constraint(
+    constraint: Expr,
+    txn: &mut mysql::Transaction,
+) -> Result<Vec<VaultEntry>, mysql::Error> {
+    let rows = get_query_rows_txn(&select_statement(VAULT_TABLE, Some(constraint)), txn)?;
+    let mut ves = vec![];
+    for row in rows {
+        let mut ve: VaultEntry = Default::default();
+        for rv in row {
+            match rv.column.as_str() {
+                "vaultID" => ve.vault_id = u64::from_str(&rv.value).unwrap(),
+                "userID" => ve.user_id = u64::from_str(&rv.value).unwrap(),
+                "guiseName" => ve.guise_name = rv.value.clone(),
+                "guiseID" => ve.guise_id = u64::from_str(&rv.value).unwrap(),
+                "referencerName" => ve.referencer_name = rv.value.clone(),
+                "updateType" => ve.update_type = u64::from_str(&rv.value).unwrap(),
+                "modifiedCols" => ve.modified_cols = serde_json::from_str(&rv.value).unwrap(),
+                "oldValue" => ve.old_value = serde_json::from_str(&rv.value).unwrap(),
+                "newValue" => ve.new_value = serde_json::from_str(&rv.value).unwrap(),
+                _ => unimplemented!("Incorrect column name! {:?}", rv),
+            };
+        }
+        ves.push(ve);
+    }
+    Ok(ves)
 }
 
 fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
@@ -29,11 +60,34 @@ fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
     }
 }
 
-pub fn get_user_entries_in_vault(
+pub fn mark_vault_entry_reversed(
+    ve: &VaultEntry,
+    txn: &mut mysql::Transaction,
+) -> Result<(), mysql::Error> {
+    get_query_rows_txn(
+        &Statement::Update(UpdateStatement {
+            table_name: string_to_objname(&VAULT_TABLE),
+            assignments: vec![Assignment {
+                id: Ident::new("reversed"),
+                value: Expr::Value(Value::Boolean(true)),
+            }],
+            selection: Some(Expr::BinaryOp {
+                left: Box::new(Expr::Identifier(vec![Ident::new("vaultID")])),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(Value::Number(ve.vault_id.to_string()))),
+            }),
+        }),
+        txn,
+    )?;
+    Ok(())
+}
+
+pub fn get_user_entries_with_referencer_in_vault(
     uid: u64,
+    referencer_table: &str,
     is_reversed: bool,
     txn: &mut mysql::Transaction,
-) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
+) -> Result<Vec<VaultEntry>, mysql::Error> {
     let equal_uid_constraint = Expr::BinaryOp {
         left: Box::new(Expr::Identifier(vec![Ident::new("userID")])),
         op: BinaryOperator::Eq,
@@ -46,18 +100,60 @@ pub fn get_user_entries_in_vault(
             expr: Box::new(Expr::Identifier(vec![Ident::new("reversed")])),
         },
     };
-    get_query_rows_txn(
-        &select_statement(
-            VAULT_TABLE,
-            Some(Expr::BinaryOp {
-                left: Box::new(equal_uid_constraint),
-                op: BinaryOperator::And,
-                right: Box::new(reversed_constraint),
-            }),
-        ),
-        txn,
-    )
+    let ref_constraint = Expr::BinaryOp {
+        left: Box::new(Expr::Identifier(vec![Ident::new("referencerName")])),
+        op: BinaryOperator::Eq,
+        right: Box::new(Expr::Value(Value::String(referencer_table.to_string()))),
+    };
+    let intermed_constraint = Expr::BinaryOp {
+        left: Box::new(equal_uid_constraint),
+        op: BinaryOperator::And,
+        right: Box::new(reversed_constraint),
+    };
+    let final_constraint = Expr::BinaryOp {
+        left: Box::new(intermed_constraint),
+        op: BinaryOperator::And,
+        right: Box::new(ref_constraint),
+    };
+    get_vault_entries_with_constraint(final_constraint, txn)
 }
+
+pub fn get_user_entries_of_table_in_vault(
+    uid: u64,
+    guise_table: &str,
+    is_reversed: bool,
+    txn: &mut mysql::Transaction,
+) -> Result<Vec<VaultEntry>, mysql::Error> {
+    let equal_uid_constraint = Expr::BinaryOp {
+        left: Box::new(Expr::Identifier(vec![Ident::new("userID")])),
+        op: BinaryOperator::Eq,
+        right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
+    };
+    let reversed_constraint = match is_reversed {
+        true => Expr::Identifier(vec![Ident::new("reversed")]),
+        false => Expr::UnaryOp {
+            op: UnaryOperator::Not,
+            expr: Box::new(Expr::Identifier(vec![Ident::new("reversed")])),
+        },
+    };
+    let g_constraint = Expr::BinaryOp {
+        left: Box::new(Expr::Identifier(vec![Ident::new("guiseName")])),
+        op: BinaryOperator::Eq,
+        right: Box::new(Expr::Value(Value::String(guise_table.to_string()))),
+    };
+    let intermed_constraint = Expr::BinaryOp {
+        left: Box::new(equal_uid_constraint),
+        op: BinaryOperator::And,
+        right: Box::new(reversed_constraint),
+    };
+    let final_constraint = Expr::BinaryOp {
+        left: Box::new(intermed_constraint),
+        op: BinaryOperator::And,
+        right: Box::new(g_constraint),
+    };
+    get_vault_entries_with_constraint(final_constraint, txn)
+}
+
 pub fn insert_vault_entries(
     entries: &Vec<VaultEntry>,
     txn: &mut mysql::Transaction,
