@@ -19,7 +19,6 @@ fn decor_obj_txn(
 ) -> Result<(), mysql::Error> {
     let child_name = &tablefk.name;
     let fks = &tablefk.fks;
-    let mut txn = db.start_transaction(TxOpts::default())?;
 
     /*
      * PHASE 0: PREAMBLE
