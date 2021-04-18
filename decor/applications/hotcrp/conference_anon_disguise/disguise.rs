@@ -20,11 +20,6 @@ fn decor_obj_txn(
     let child_name = &tablefk.name;
     let fks = &tablefk.fks;
 
-    /*
-     * PHASE 0: PREAMBLE
-     * Noop: Should not undo any deletions; all decorrelations already occurred
-     */
-
     /* PHASE 1: SELECT REFERENCER OBJECTS */
     let child_objs = get_query_rows_txn(&select_statement(child_name, None), txn, stats)?;
     // no selected objects, return

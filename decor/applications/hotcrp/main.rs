@@ -14,6 +14,7 @@ mod datagen;
 mod gdpr_disguise;
 
 use decor::helpers::stats::QueryStat;
+use rand::seq::SliceRandom;
 
 const DBNAME: &'static str = &"test_hotcrp";
 const SCHEMA_UID_COL: &'static str = "contactID";
@@ -84,7 +85,10 @@ fn run_test(prime: bool) {
     let dur = start.elapsed();
     println!("Disguise, NQueries, NQueriesVault, Duration(ms)");
     println!("confAnon, {}, {}, {}", stats.nqueries, stats.nqueries_vault, dur.as_millis());
-    for user in 1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1) {
+    let uids : Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();
+    let mut rng = &mut rand::thread_rng();
+    let rand_users : Vec<usize>= uids.choose_multiple(&mut rng, uids.len()).cloned().collect();
+    for user in rand_users {
         let mut stats = QueryStat::new();
         let start = time::Instant::now();
         gdpr_disguise::apply(Some(user as u64), &mut db, &mut stats).unwrap();

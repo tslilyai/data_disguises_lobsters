@@ -40,12 +40,12 @@ fn undo_previous_disguises(
         let mut new_contact_id = String::new();
         let mut old_contact_id = String::new();
         for rv in &c.new_value {
-            if rv.column == "contactId" {
+            if rv.column == SCHEMA_UID_COL.to_string() {
                 new_contact_id = rv.value.clone();
             }
         }
         for rv in &c.old_value {
-            if rv.column == "contactId" {
+            if rv.column == SCHEMA_UID_COL.to_string() {
                 old_contact_id = rv.value.clone();
             }
         }
@@ -54,11 +54,11 @@ fn undo_previous_disguises(
             &Statement::Update(UpdateStatement {
                 table_name: string_to_objname(&"PaperReviewPreference"),
                 assignments: vec![Assignment {
-                    id: Ident::new("contactId"),
+                    id: Ident::new(SCHEMA_UID_COL.to_string()),
                     value: Expr::Value(Value::Number(user_id.to_string())),
                 }],
                 selection: Some(Expr::BinaryOp {
-                    left: Box::new(Expr::Identifier(vec![Ident::new("contactId".clone())])),
+                    left: Box::new(Expr::Identifier(vec![Ident::new(SCHEMA_UID_COL.to_string())])),
                     op: BinaryOperator::Eq,
                     right: Box::new(Expr::Value(Value::Number(new_contact_id))),
                 }),
@@ -92,7 +92,7 @@ fn undo_previous_disguises(
             &Statement::Delete(DeleteStatement {
                 table_name: string_to_objname(SCHEMA_UID_TABLE),
                 selection: Some(Expr::BinaryOp {
-                    left: Box::new(Expr::Identifier(vec![Ident::new("contactId".to_string())])),
+                    left: Box::new(Expr::Identifier(vec![Ident::new(SCHEMA_UID_COL.to_string())])),
                     op: BinaryOperator::Eq,
                     right: Box::new(Expr::Value(Value::Number(guise.guise_id.to_string()))),
                 }),
@@ -115,7 +115,6 @@ fn remove_obj_txn(
 ) -> Result<(), mysql::Error> {
     let selection = Some(Expr::BinaryOp {
         left: Box::new(Expr::Identifier(vec![
-            Ident::new(name.clone()),
             Ident::new(SCHEMA_UID_COL.to_string()), // assumes fkcol is uid_col
         ])),
         op: BinaryOperator::Eq,
@@ -175,7 +174,6 @@ fn decor_obj_txn(
             op: BinaryOperator::Or,
             right: Box::new(Expr::BinaryOp {
                 left: Box::new(Expr::Identifier(vec![
-                    Ident::new(child_name.clone()),
                     Ident::new(fk.referencer_col.to_string()),
                 ])),
                 op: BinaryOperator::Eq,
@@ -206,7 +204,7 @@ fn decor_obj_txn(
         // We can batch here because we know all selected children have not been decorrelated from
         // the parent (which is the user user_id) yet
         let mut new_parents_vals = vec![];
-        let fk_cols = get_contact_info_cols();
+        let fk_cols = get_guise_contact_info_cols();
         for _ in &child_objs {
             new_parents_vals.push(get_guise_contact_info_vals());
         }
@@ -238,7 +236,6 @@ fn decor_obj_txn(
                     }],
                     selection: Some(Expr::BinaryOp {
                         left: Box::new(Expr::Identifier(vec![
-                            Ident::new(child_name.clone()),
                             Ident::new(fk.referencer_col.clone()),
                         ])),
                         op: BinaryOperator::Eq,
@@ -333,6 +330,20 @@ pub fn apply(
     for name in get_remove_names() {
         remove_obj_txn(user_id, name, &mut txn, stats)?;
     }
+
+    txn.commit()
+}
+
+// TODO
+pub fn undo(
+    user_id: Option<u64>,
+    db: &mut mysql::Conn,
+    stats: &mut QueryStat,
+) -> Result<(), mysql::Error> {
+    // user must be provided as input
+    let user_id = user_id.unwrap();
+
+    let mut txn = db.start_transaction(TxOpts::default())?;
 
     txn.commit()
 }
