@@ -14,7 +14,7 @@ use std::str::FromStr;
 
 fn decor_obj_txn(
     tablefk: &TableFKs,
-    db: &mut mysql::Conn,
+    txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
     let child_name = &tablefk.name;
@@ -27,7 +27,7 @@ fn decor_obj_txn(
      */
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
-    let child_objs = get_query_rows_txn(&select_statement(child_name, None), &mut txn, stats)?;
+    let child_objs = get_query_rows_txn(&select_statement(child_name, None), txn, stats)?;
     // no selected objects, return
     if child_objs.is_empty() {
         return Ok(());
@@ -69,7 +69,7 @@ fn decor_obj_txn(
         for (n, child) in child_objs.iter().enumerate() {
             let old_uid = fkids[n];
 
-            if is_guise(&fk.fk_name, old_uid, &mut txn, stats)? {
+            if is_guise(&fk.fk_name, old_uid, txn, stats)? {
                 continue;
             }
 
@@ -81,7 +81,7 @@ fn decor_obj_txn(
                     columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
                     source: InsertSource::Query(Box::new(values_query(vec![new_parent.clone()]))),
                 }),
-                &mut txn,
+                txn,
                 stats,
             )?;
             let guise_id = txn.last_insert_id().unwrap();
@@ -103,7 +103,7 @@ fn decor_obj_txn(
                         right: Box::new(Expr::Value(Value::Number(old_uid.to_string()))),
                     }),
                 }),
-                &mut txn,
+                txn,
                 stats,
             )?;
 
@@ -164,9 +164,9 @@ fn decor_obj_txn(
         }
 
         /* PHASE 3: Batch vault updates */
-        insert_vault_entries(&vault_vals, &mut txn, stats)?;
+        insert_vault_entries(&vault_vals, txn, stats)?;
     }
-    txn.commit()
+    Ok(())
 }
 
 pub fn apply(
@@ -174,11 +174,14 @@ pub fn apply(
     db: &mut mysql::Conn,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
-    // DECORRELATION TXNS
+    let mut txn = db.start_transaction(TxOpts::default())?;
+
+    // DECORRELATION
     for tablefk in get_decor_names() {
-        decor_obj_txn(&tablefk, db, stats)?;
+        decor_obj_txn(&tablefk, &mut txn, stats)?;
     }
-    Ok(())
+
+    txn.commit()
 }
 
 #[cfg(test)]
