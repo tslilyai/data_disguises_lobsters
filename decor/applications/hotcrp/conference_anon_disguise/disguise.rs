@@ -1,4 +1,5 @@
 use crate::conference_anon_disguise::constants::*;
+use crate::datagen::*;
 use crate::*;
 use decor::disguises::*;
 use decor::helpers::*;
@@ -11,7 +12,11 @@ use std::str::FromStr;
  * CONFERENCE ANONYMIZATION DISGUISE
  */
 
-fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+fn decor_obj_txn(
+    tablefk: &TableFKs,
+    db: &mut mysql::Conn,
+    stats: &mut QueryStat,
+) -> Result<(), mysql::Error> {
     let child_name = &tablefk.name;
     let fks = &tablefk.fks;
     let mut txn = db.start_transaction(TxOpts::default())?;
@@ -22,7 +27,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
      */
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
-    let child_objs = get_query_rows_txn(&select_statement(child_name, None), &mut txn)?;
+    let child_objs = get_query_rows_txn(&select_statement(child_name, None), &mut txn, stats)?;
     // no selected objects, return
     if child_objs.is_empty() {
         return Ok(());
@@ -41,7 +46,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                 );
                 if rc.column == fk.referencer_col {
                     warn!("Adding {} to fkids", rc.value);
-                    fkids.push(rc.value.parse::<u64>().unwrap());
+                    fkids.push(u64::from_str(&rc.value).unwrap());
                 }
             }
         }
@@ -58,35 +63,28 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
          * B) record update to child to point to new guise
          * */
 
-        // Phase 3A: batch insertion of parents
-        let mut new_parents_vals = vec![];
-        let fk_cols = get_contact_info_cols();
-        for _ in &child_objs {
-            new_parents_vals.push(get_contact_info_vals());
-        }
-        assert!(!new_parents_vals.is_empty());
-        get_query_rows_txn(
-            &Statement::Insert(InsertStatement {
-                table_name: string_to_objname(&fk.fk_name),
-                columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
-                source: InsertSource::Query(Box::new(values_query(new_parents_vals.clone()))),
-            }),
-            &mut txn,
-        )?;
-        // last_insert_id returns the ID of the first inserted value
-        let mut cur_uid = txn.last_insert_id().unwrap();
-        warn!(
-            "last inserted id was {}, number children was {}",
-            cur_uid,
-            child_objs.len()
-        );
-
-        // Update children one-by-one
-        // Collect inputs for batch inserts to vault
+        // Phase 2
+        let fk_cols = get_guise_contact_info_cols();
         let mut vault_vals = vec![];
         for (n, child) in child_objs.iter().enumerate() {
-            cur_uid += 1;
             let old_uid = fkids[n];
+
+            if is_guise(&fk.fk_name, old_uid, &mut txn, stats)? {
+                continue;
+            }
+
+            // if parent of this fk is not a guise, then insert a new parent and update child
+            let new_parent = get_guise_contact_info_vals();
+            get_query_rows_txn(
+                &Statement::Insert(InsertStatement {
+                    table_name: string_to_objname(&fk.fk_name),
+                    columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
+                    source: InsertSource::Query(Box::new(values_query(vec![new_parent.clone()]))),
+                }),
+                &mut txn,
+                stats,
+            )?;
+            let guise_id = txn.last_insert_id().unwrap();
 
             // Phase 3B: update child to point to new parent
             get_query_rows_txn(
@@ -94,7 +92,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                     table_name: string_to_objname(&child_name),
                     assignments: vec![Assignment {
                         id: Ident::new(fk.referencer_col.clone()),
-                        value: Expr::Value(Value::Number(cur_uid.to_string())),
+                        value: Expr::Value(Value::Number(guise_id.to_string())),
                     }],
                     selection: Some(Expr::BinaryOp {
                         left: Box::new(Expr::Identifier(vec![
@@ -106,11 +104,12 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                     }),
                 }),
                 &mut txn,
+                stats,
             )?;
 
             let mut i = 0;
             // first turn new_fkobj into Vec<RowVal>
-            let new_parent_rowvals: Vec<RowVal> = new_parents_vals[n]
+            let new_parent_rowvals: Vec<RowVal> = new_parent
                 .iter()
                 .map(|v| {
                     let index = i;
@@ -127,7 +126,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                 vault_id: 0,
                 user_id: old_uid,
                 guise_name: fk.fk_name.clone(),
-                guise_id: cur_uid,
+                guise_id: guise_id,
                 referencer_name: child_name.clone(),
                 update_type: INSERT_GUISE,
                 modified_cols: vec![],
@@ -143,7 +142,7 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
                     if v.column == fk.referencer_col {
                         RowVal {
                             column: v.column.clone(),
-                            value: cur_uid.to_string(),
+                            value: guise_id.to_string(),
                         }
                     } else {
                         v.clone()
@@ -165,15 +164,19 @@ fn decor_obj_txn(tablefk: &TableFKs, db: &mut mysql::Conn) -> Result<(), mysql::
         }
 
         /* PHASE 3: Batch vault updates */
-        insert_vault_entries(&vault_vals, &mut txn)?;
+        insert_vault_entries(&vault_vals, &mut txn, stats)?;
     }
     txn.commit()
 }
 
-pub fn apply(_: Option<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+pub fn apply(
+    _: Option<u64>,
+    db: &mut mysql::Conn,
+    stats: &mut QueryStat,
+) -> Result<(), mysql::Error> {
     // DECORRELATION TXNS
     for tablefk in get_decor_names() {
-        decor_obj_txn(&tablefk, db)?;
+        decor_obj_txn(&tablefk, db, stats)?;
     }
     Ok(())
 }
@@ -209,6 +212,7 @@ mod test {
         warn!("***************** POPULATING ****************");
         datagen::populate_database(&mut db).unwrap();
         warn!("***************** APPLYING CONFANON DISGUISE ****************");
-        apply(None, &mut db).unwrap()
+        let mut stats = QueryStat::new();
+        apply(None, &mut db, &mut stats).unwrap()
     }
 }

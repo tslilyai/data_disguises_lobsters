@@ -5,6 +5,7 @@ use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::str::FromStr;
 use std::*;
+use crate::helpers::stats::QueryStat;
 
 /************************************
  * MYSQL HELPERS
@@ -12,11 +13,18 @@ use std::*;
 pub fn get_query_rows_txn(
     q: &Statement,
     txn: &mut mysql::Transaction,
+    stats: &mut QueryStat, 
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     let mut rows = vec![];
 
-    warn!("get_query_rows_txn: {}", q);
-    let res = txn.query_iter(q.to_string())?;
+    let qstr = q.to_string();
+    warn!("get_query_rows_txn: {}", qstr);
+    if qstr.contains(VAULT_TABLE) {
+        stats.nqueries_vault += 1;
+    } else {
+        stats.nqueries += 1;
+    }
+    let res = txn.query_iter(qstr)?;
     let cols: Vec<String> = res
         .columns()
         .as_ref()

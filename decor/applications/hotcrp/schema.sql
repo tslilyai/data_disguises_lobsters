@@ -64,11 +64,11 @@ CREATE TABLE `ContactInfo` (
   `birthday` int(11) DEFAULT NULL,
   `gender` varbinary(24) DEFAULT NULL,
   `data` varbinary(32767) DEFAULT NULL,
+  `isGuise` tinyint(1) NOT NULL DEFAULT '0',
   PRIMARY KEY (`contactId`),
   UNIQUE KEY `email` (`email`),
   KEY `roles` (`roles`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
 
 
 --

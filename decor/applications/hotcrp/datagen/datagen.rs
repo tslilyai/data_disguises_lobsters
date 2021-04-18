@@ -7,8 +7,8 @@ use log::*;
 const SCHEMA : &'static str = include_str!("../schema.sql");
 
 // Generates NUSERS_NONPC+NUSERS_PC users
-const NUSERS_NONPC: usize = 500;
-const NUSERS_PC: usize = 50;
+pub const NUSERS_NONPC: usize = 500;
+pub const NUSERS_PC: usize = 50;
 // Generates NPAPERS_REJ+NPAPER_ACCEPT papers.
 const NPAPERS_REJ: usize = 450;
 const NPAPERS_ACCEPT: usize = 50;
@@ -100,7 +100,6 @@ pub fn populate_database(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     // insert reviews, reviewer comments on papers, reviewer conflicts
     warn!("INSERTING REVIEWS");
     reviews::insert_reviews(&pc_uids, NPAPERS_REJ + NPAPERS_ACCEPT, NREVIEWS, NPAPER_COMMENTS, NCONFLICT_REVIEWER, db)?;
-
 
     Ok(())
 }

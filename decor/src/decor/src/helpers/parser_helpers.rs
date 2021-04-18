@@ -1,13 +1,30 @@
+use log::{debug, warn};
+use rand;
 use sql_parser::ast::*;
-use std::*;
 use std::cmp::Ordering;
 use std::str::FromStr;
-use rand;
-use log::{debug, warn};
+use std::*;
 
 /*****************************************
- * Parser helpers 
+ * Parser helpers
  ****************************************/
+pub fn select_1_statement(table: &str, selection: Option<Expr>) -> Statement {
+    Statement::Select(SelectStatement {
+        query: Box::new(Query::select(Select {
+            distinct: true,
+            projection: vec![SelectItem::Expr {
+                expr: Expr::Value(Value::Number(1.to_string())),
+                alias: None,
+            }],
+            from: str_to_tablewithjoins(&table),
+            selection: selection.clone(),
+            group_by: vec![],
+            having: None,
+        })),
+        as_of: None,
+    })
+}
+
 pub fn select_statement(table: &str, selection: Option<Expr>) -> Statement {
     Statement::Select(SelectStatement {
         query: Box::new(Query::select(Select {
@@ -95,18 +112,20 @@ pub fn get_create_schema_statements(schema: &str, in_memory: bool) -> Vec<Statem
     stmts
 }
 
-pub fn get_single_parsed_stmt(stmt: &String) 
-    -> Result<Statement, mysql::Error> 
-{
+pub fn get_single_parsed_stmt(stmt: &String) -> Result<Statement, mysql::Error> {
     warn!("Parsing stmt {}", stmt);
     let asts = sql_parser::parser::parse_statements(stmt.to_string());
     match asts {
         Err(e) => Err(mysql::Error::IoError(io::Error::new(
-                    io::ErrorKind::InvalidInput, e))),
+            io::ErrorKind::InvalidInput,
+            e,
+        ))),
         Ok(asts) => {
             if asts.len() != 1 {
                 return Err(mysql::Error::IoError(io::Error::new(
-                    io::ErrorKind::InvalidInput, format!("More than one stmt {:?}", asts))));
+                    io::ErrorKind::InvalidInput,
+                    format!("More than one stmt {:?}", asts),
+                )));
             }
             Ok(asts[0].clone())
         }
@@ -115,12 +134,27 @@ pub fn get_single_parsed_stmt(stmt: &String)
 
 // returns if the first value is larger than the second
 pub fn parser_vals_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> cmp::Ordering {
-    let res : cmp::Ordering;
+    let res: cmp::Ordering;
     debug!("comparing {:?} =? {:?}", v1, v2);
     match (v1, v2) {
-        (Value::Number(i1), Value::Number(i2)) => res = f64::from_str(i1).unwrap().partial_cmp(&f64::from_str(i2).unwrap()).unwrap(),
-        (Value::String(i1), Value::Number(i2)) => res = f64::from_str(i1).unwrap().partial_cmp(&f64::from_str(i2).unwrap()).unwrap(),
-        (Value::Number(i1), Value::String(i2)) => res = f64::from_str(i1).unwrap().partial_cmp(&f64::from_str(i2).unwrap()).unwrap(),
+        (Value::Number(i1), Value::Number(i2)) => {
+            res = f64::from_str(i1)
+                .unwrap()
+                .partial_cmp(&f64::from_str(i2).unwrap())
+                .unwrap()
+        }
+        (Value::String(i1), Value::Number(i2)) => {
+            res = f64::from_str(i1)
+                .unwrap()
+                .partial_cmp(&f64::from_str(i2).unwrap())
+                .unwrap()
+        }
+        (Value::Number(i1), Value::String(i2)) => {
+            res = f64::from_str(i1)
+                .unwrap()
+                .partial_cmp(&f64::from_str(i2).unwrap())
+                .unwrap()
+        }
         (Value::String(i1), Value::String(i2)) => res = i1.cmp(i2),
         (Value::Null, Value::Null) => res = Ordering::Equal,
         (_, Value::Null) => res = Ordering::Greater,
@@ -131,11 +165,17 @@ pub fn parser_vals_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value)
     res
 }
 
-pub fn plus_parser_vals(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> sql_parser::ast::Value {
+pub fn plus_parser_vals(
+    v1: &sql_parser::ast::Value,
+    v2: &sql_parser::ast::Value,
+) -> sql_parser::ast::Value {
     Value::Number((parser_val_to_f64(v1) + parser_val_to_f64(v2)).to_string())
 }
 
-pub fn minus_parser_vals(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> sql_parser::ast::Value {
+pub fn minus_parser_vals(
+    v1: &sql_parser::ast::Value,
+    v2: &sql_parser::ast::Value,
+) -> sql_parser::ast::Value {
     Value::Number((parser_val_to_f64(v1) - parser_val_to_f64(v2)).to_string())
 }
 
@@ -192,22 +232,23 @@ pub fn parser_val_to_u64_opt(val: &sql_parser::ast::Value) -> Option<u64> {
 pub fn parser_expr_to_u64(val: &Expr) -> Result<u64, mysql::Error> {
     match val {
         Expr::Value(Value::Number(i)) => Ok(u64::from_str(i).unwrap()),
-        Expr::Value(Value::String(i)) => {
-            match u64::from_str(i) {
-                Ok(v) => Ok(v),
-                Err(_e) => 
-                    Err(mysql::Error::IoError(io::Error::new(
-                        io::ErrorKind::Other, format!("expr {:?} is not an int", val)))),
-            }
-        }
+        Expr::Value(Value::String(i)) => match u64::from_str(i) {
+            Ok(v) => Ok(v),
+            Err(_e) => Err(mysql::Error::IoError(io::Error::new(
+                io::ErrorKind::Other,
+                format!("expr {:?} is not an int", val),
+            ))),
+        },
         _ => Err(mysql::Error::IoError(io::Error::new(
-                io::ErrorKind::Other, format!("expr {:?} is not an int", val)))),
+            io::ErrorKind::Other,
+            format!("expr {:?} is not an int", val),
+        ))),
     }
 }
 
-/// Convert a parser type to MySQL_svr type 
+/// Convert a parser type to MySQL_svr type
 pub fn get_parser_coltype(t: &DataType) -> msql_srv::ColumnType {
-    use msql_srv::ColumnType as ColumnType;
+    use msql_srv::ColumnType;
     match t {
         DataType::Decimal(..) => ColumnType::MYSQL_TYPE_DECIMAL,
         DataType::Float(..) => ColumnType::MYSQL_TYPE_FLOAT,
@@ -262,19 +303,19 @@ pub fn parser_val_to_common_val(val: &sql_parser::ast::Value) -> mysql_common::v
         } else {
             valsvec.push(
                 match columns[ci].column.data_type {
-                    DataType::Decimal(..) 
+                    DataType::Decimal(..)
                         | DataType::Float(..)
-                        | DataType::Double 
-                        | DataType::BigInt 
+                        | DataType::Double
+                        | DataType::BigInt
                         | DataType::SmallInt
-                        | DataType::TinyInt(..) 
+                        | DataType::TinyInt(..)
                         | DataType::Int => Value::Number(valstr.to_string()),
-                    DataType::Timestamp 
-                        | DataType::Date 
+                    DataType::Timestamp
+                        | DataType::Date
                         | DataType::DateTime
-                        | DataType::Time 
-                        | DataType::Varchar(..) 
-                        | DataType::Blob(..) 
+                        | DataType::Time
+                        | DataType::Varchar(..)
+                        | DataType::Blob(..)
                         | DataType::Char(..) => Value::String(trim_quotes(&valstr).to_string()),
                     DataType::Boolean => Value::Boolean(valstr == "1"),
                     _ => unimplemented!("type not supported yet {:?}", columns[ci].column.data_type)
@@ -307,34 +348,32 @@ pub fn string_to_objname(s: &str) -> ObjectName {
 }
 
 pub fn str_subset_of_idents(dt: &str, ids: &Vec<Ident>) -> Option<(usize, usize)> {
-    let dt_split : Vec<Ident> = dt.split(".")
-        .map(|i| Ident::new(i))
-        .collect();
+    let dt_split: Vec<Ident> = dt.split(".").map(|i| Ident::new(i)).collect();
     idents_subset_of_idents(&dt_split, ids)
- }
+}
 
 // end exclusive
 pub fn str_ident_match(shorts: &str, longs: &str) -> bool {
     let mut i = 0;
     let mut j = 0;
-    let shortvs : Vec<&str> = shorts.split(".").collect();
-    let longvs : Vec<&str> = longs.split(".").collect();
+    let shortvs: Vec<&str> = shorts.split(".").collect();
+    let longvs: Vec<&str> = longs.split(".").collect();
     while j < longvs.len() {
         if i < shortvs.len() {
             if shortvs[i] == longvs[j] {
-                i+=1;
+                i += 1;
             } else {
                 // reset comparison from beginning of dt
-                i = 0; 
+                i = 0;
             }
-            j+=1;
+            j += 1;
         } else {
             break;
         }
     }
     if i == shortvs.len() {
         return true;
-    } 
+    }
     false
 }
 
@@ -345,22 +384,21 @@ pub fn idents_subset_of_idents(id1: &Vec<Ident>, id2: &Vec<Ident>) -> Option<(us
     while j < id2.len() {
         if i < id1.len() {
             if id1[i] == id2[j] {
-                i+=1;
+                i += 1;
             } else {
                 // reset comparison from beginning of dt
-                i = 0; 
+                i = 0;
             }
-            j+=1;
+            j += 1;
         } else {
             break;
         }
     }
     if i == id1.len() {
-        return Some((j-i, j));
-    } 
+        return Some((j - i, j));
+    }
     None
 }
-
 
 /***************************
  * EXPR STUFF
@@ -383,10 +421,13 @@ pub fn expr_to_col(e: &Expr) -> (String, String) {
     }
 }
 
-pub fn expr_to_guise_parent_key(expr:&Expr, guiseed_cols : &Vec<(String, String)>) -> Option<(String, String)> {
+pub fn expr_to_guise_parent_key(
+    expr: &Expr,
+    guiseed_cols: &Vec<(String, String)>,
+) -> Option<(String, String)> {
     match expr {
         Expr::Identifier(ids) => {
-            let col = ids[ids.len()-1].to_string();
+            let col = ids[ids.len() - 1].to_string();
             if let Some(i) = guiseed_cols.iter().position(|(gc, _pc)| *gc == col) {
                 Some(guiseed_cols[i].clone())
             } else {
@@ -394,21 +435,21 @@ pub fn expr_to_guise_parent_key(expr:&Expr, guiseed_cols : &Vec<(String, String)
             }
         }
         _ => unimplemented!("Expr is not a col {}", expr),
-    } 
+    }
 }
 
-pub fn expr_is_col(expr:&Expr) -> bool {
+pub fn expr_is_col(expr: &Expr) -> bool {
     match expr {
         Expr::Identifier(_) | Expr::QualifiedWildcard(_) => true,
         _ => false,
-    } 
+    }
 }
 
-pub fn expr_is_value(expr:&Expr) -> bool {
+pub fn expr_is_value(expr: &Expr) -> bool {
     match expr {
         Expr::Value(_) => true,
         _ => false,
-    } 
+    }
 }
 
 pub fn lhs_expr_to_name(left: &Expr) -> String {
@@ -438,7 +479,7 @@ pub fn rhs_expr_to_name_or_value(right: &Expr) -> (Option<String>, Option<Value>
         Expr::Value(val) => {
             rval = Some(val.clone());
         }
-        Expr::UnaryOp{op, expr} => {
+        Expr::UnaryOp { op, expr } => {
             if let Expr::Value(ref val) = **expr {
                 match op {
                     UnaryOperator::Minus => {

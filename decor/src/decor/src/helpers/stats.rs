@@ -22,7 +22,7 @@ pub struct QueryStat {
     pub duration: Duration,
     pub nqueries: usize,
     pub nobjects: usize,
-    pub nqueries_mv: usize,
+    pub nqueries_vault: usize,
     pub qtype: QueryType,
 }
 
@@ -32,7 +32,7 @@ impl QueryStat {
             duration: Duration::new(0,0),
             nqueries : 0,
             nobjects : 0,
-            nqueries_mv : 0,
+            nqueries_vault : 0,
             qtype : QueryType::None,
         }
     }
@@ -40,7 +40,7 @@ impl QueryStat {
     pub fn clear(&mut self) {
         self.duration = Duration::new(0,0);
         self.nqueries = 0;
-        self.nqueries_mv = 0;
+        self.nqueries_vault = 0;
         self.qtype = QueryType::None;
     }
 }

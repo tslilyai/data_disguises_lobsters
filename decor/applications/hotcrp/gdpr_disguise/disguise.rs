@@ -1,6 +1,8 @@
+use crate::datagen::*;
 use crate::gdpr_disguise::constants::*;
 use crate::*;
 use decor::disguises::*;
+use decor::helpers::stats::QueryStat;
 use decor::helpers::*;
 use mysql::TxOpts;
 use sql_parser::ast::*;
@@ -8,11 +10,15 @@ use sql_parser::ast::*;
 /*
  * GDPR REMOVAL DISGUISE
  */
-fn undo_previous_disguises(user_id: u64, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+fn undo_previous_disguises(
+    user_id: u64,
+    db: &mut mysql::Conn,
+    stats: &mut QueryStat,
+) -> Result<(), mysql::Error> {
     // Only decorrelated tables are "PaperReviewPreference" and "PaperWatch"
     let mut txn = db.start_transaction(TxOpts::default())?;
 
-    /* 
+    /*
      * Get decorrelated children, and restore ownership
      */
     let mut children = get_user_entries_of_table_in_vault(
@@ -20,12 +26,14 @@ fn undo_previous_disguises(user_id: u64, db: &mut mysql::Conn) -> Result<(), mys
         "PaperReviewPreference",
         false, /* is_reversed */
         &mut txn,
+        stats,
     )?;
     children.append(&mut get_user_entries_of_table_in_vault(
         user_id,
         "PaperWatch",
         false, /* is_reversed */
         &mut txn,
+        stats,
     )?);
     // we need some way to be able to identify these objects...
     // assume that there is exactly one PaperWatch and one PaperReviewPreference for any user
@@ -45,7 +53,7 @@ fn undo_previous_disguises(user_id: u64, db: &mut mysql::Conn) -> Result<(), mys
         assert!(old_contact_id == user_id.to_string());
         get_query_rows_txn(
             &Statement::Update(UpdateStatement {
-                table_name: string_to_objname(&"PaperReviewPreferences"),
+                table_name: string_to_objname(&"PaperReviewPreference"),
                 assignments: vec![Assignment {
                     id: Ident::new("contactId"),
                     value: Expr::Value(Value::Number(user_id.to_string())),
@@ -57,11 +65,12 @@ fn undo_previous_disguises(user_id: u64, db: &mut mysql::Conn) -> Result<(), mys
                 }),
             }),
             &mut txn,
+            stats,
         )?;
-        mark_vault_entry_reversed(&c, &mut txn)?;
+        mark_vault_entry_reversed(&c, &mut txn, stats)?;
     }
 
-    /* 
+    /*
      * Delete created guises from old disguise
      */
     let mut guise_ves = get_user_entries_with_referencer_in_vault(
@@ -69,12 +78,14 @@ fn undo_previous_disguises(user_id: u64, db: &mut mysql::Conn) -> Result<(), mys
         "PaperWatch",
         false, /* is_reversed */
         &mut txn,
+        stats,
     )?;
     guise_ves.append(&mut get_user_entries_with_referencer_in_vault(
         user_id,
         "PaperReviewPreference",
         false, /* is_reversed */
         &mut txn,
+        stats,
     )?);
     for guise in guise_ves {
         // TODO delete guise
@@ -88,41 +99,49 @@ fn undo_previous_disguises(user_id: u64, db: &mut mysql::Conn) -> Result<(), mys
                 }),
             }),
             &mut txn,
+            stats,
         )?;
         // mark vault entries as reversed
-        mark_vault_entry_reversed(&guise, &mut txn)?;
+        mark_vault_entry_reversed(&guise, &mut txn, stats)?;
     }
 
     Ok(())
 }
 
-fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+fn remove_obj_txn(
+    user_id: u64,
+    name: &str,
+    db: &mut mysql::Conn,
+    stats: &mut QueryStat,
+) -> Result<(), mysql::Error> {
     let mut txn = db.start_transaction(TxOpts::default())?;
+
+    let selection = Some(Expr::BinaryOp {
+        left: Box::new(Expr::Identifier(vec![
+            Ident::new(name.clone()),
+            Ident::new(SCHEMA_UID_COL.to_string()), // assumes fkcol is uid_col
+        ])),
+        op: BinaryOperator::Eq,
+        right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
+    });
+
     /*
-     * PHASE 1: REFERENCER SELECTION
-     * */
+     * PHASE 1: OBJECT SELECTION
+     */
     let predicated_objs = get_query_rows_txn(
-        &select_statement(
-            name,
-            Some(Expr::BinaryOp {
-                left: Box::new(Expr::Identifier(vec![
-                    Ident::new(name.clone()),
-                    Ident::new(SCHEMA_UID_COL.to_string()), // assumes fkcol is uid_col
-                ])),
-                op: BinaryOperator::Eq,
-                right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
-            }),
-        ),
+        &select_statement(name, selection.clone()),
         &mut txn,
+        stats,
     )?;
 
     /* PHASE 2: OBJECT MODIFICATION */
     get_query_rows_txn(
         &Statement::Delete(DeleteStatement {
-            table_name: string_to_objname(name),
-            selection: None,
+            table_name: string_to_objname(SCHEMA_UID_TABLE),
+            selection: selection,
         }),
         &mut txn,
+        stats,
     )?;
 
     /* PHASE 3: VAULT UPDATES */
@@ -141,7 +160,7 @@ fn remove_obj_txn(user_id: u64, name: &str, db: &mut mysql::Conn) -> Result<(), 
             reversed: false,
         });
     }
-    insert_vault_entries(&vault_vals, &mut txn)?;
+    insert_vault_entries(&vault_vals, &mut txn, stats)?;
     txn.commit()
 }
 
@@ -149,6 +168,7 @@ fn decor_obj_txn(
     user_id: u64,
     tablefk: &TableFKs,
     db: &mut mysql::Conn,
+    stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
     let child_name = tablefk.name.clone();
     let fks = &tablefk.fks;
@@ -170,7 +190,11 @@ fn decor_obj_txn(
             }),
         };
     }
-    let child_objs = get_query_rows_txn(&select_statement(&child_name, Some(selection)), &mut txn)?;
+    let child_objs = get_query_rows_txn(
+        &select_statement(&child_name, Some(selection)),
+        &mut txn,
+        stats,
+    )?;
     if child_objs.is_empty() {
         return Ok(());
     }
@@ -189,11 +213,12 @@ fn decor_obj_txn(
          * */
 
         // Phase 2A: batch insertion of parents
+        // We can batch here because we know all selected children have not been decorrelated from
+        // the parent (which is the user user_id) yet
         let mut new_parents_vals = vec![];
         let fk_cols = get_contact_info_cols();
-
         for _ in &child_objs {
-            new_parents_vals.push(get_contact_info_vals());
+            new_parents_vals.push(get_guise_contact_info_vals());
         }
         assert!(!new_parents_vals.is_empty());
         get_query_rows_txn(
@@ -203,6 +228,7 @@ fn decor_obj_txn(
                 source: InsertSource::Query(Box::new(values_query(new_parents_vals.clone()))),
             }),
             &mut txn,
+            stats,
         )?;
 
         let last_uid = txn.last_insert_id().unwrap();
@@ -230,6 +256,7 @@ fn decor_obj_txn(
                     }),
                 }),
                 &mut txn,
+                stats,
             )?;
 
             let mut i = 0;
@@ -289,24 +316,28 @@ fn decor_obj_txn(
         }
 
         /* PHASE 3: Batch vault updates */
-        insert_vault_entries(&vault_vals, &mut txn)?;
+        insert_vault_entries(&vault_vals, &mut txn, stats)?;
     }
     txn.commit()
 }
 
-pub fn apply(user_id: Option<u64>, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+pub fn apply(
+    user_id: Option<u64>,
+    db: &mut mysql::Conn,
+    stats: &mut QueryStat,
+) -> Result<(), mysql::Error> {
     // user must be provided as input
     let user_id = user_id.unwrap();
 
-    undo_previous_disguises(user_id, db)?;
+    undo_previous_disguises(user_id, db, stats)?;
 
     // DECORRELATION TXNS
     for tablefk in get_decor_names() {
-        decor_obj_txn(user_id, &tablefk, db)?;
+        decor_obj_txn(user_id, &tablefk, db, stats)?;
     }
     // REMOVAL TXNS
     for name in get_remove_names() {
-        remove_obj_txn(user_id, name, db)?;
+        remove_obj_txn(user_id, name, db, stats)?;
     }
 
     Ok(())
@@ -341,6 +372,7 @@ mod test {
         assert_eq!(db.ping(), true);
         assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
         datagen::populate_database(&mut db).unwrap();
-        apply(Some(1), &mut db).unwrap()
+        let mut stats = QueryStat::new();
+        apply(Some(1), &mut db, &mut stats).unwrap()
     }
 }

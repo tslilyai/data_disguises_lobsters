@@ -12,3 +12,4 @@ pub use conflicts::*;
 pub use comments::*; 
 pub use watches::*; 
 pub use review_preferences::*; 
+pub use users::*; 

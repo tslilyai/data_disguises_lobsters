@@ -1,5 +1,6 @@
 use crate::disguises::*;
 use crate::helpers::*;
+use crate::helpers::stats::QueryStat;
 use mysql::prelude::*;
 use serde::Serialize;
 use sql_parser::ast::*;
@@ -27,8 +28,9 @@ pub struct VaultEntry {
 fn get_vault_entries_with_constraint(
     constraint: Expr,
     txn: &mut mysql::Transaction,
+    stats: &mut QueryStat
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
-    let rows = get_query_rows_txn(&select_statement(VAULT_TABLE, Some(constraint)), txn)?;
+    let rows = get_query_rows_txn(&select_statement(VAULT_TABLE, Some(constraint)), txn, stats)?;
     let mut ves = vec![];
     for row in rows {
         let mut ve: VaultEntry = Default::default();
@@ -40,9 +42,22 @@ fn get_vault_entries_with_constraint(
                 "guiseID" => ve.guise_id = u64::from_str(&rv.value).unwrap(),
                 "referencerName" => ve.referencer_name = rv.value.clone(),
                 "updateType" => ve.update_type = u64::from_str(&rv.value).unwrap(),
-                "modifiedCols" => ve.modified_cols = serde_json::from_str(&rv.value).unwrap(),
-                "oldValue" => ve.old_value = serde_json::from_str(&rv.value).unwrap(),
-                "newValue" => ve.new_value = serde_json::from_str(&rv.value).unwrap(),
+                "modifiedCols" => ve.modified_cols = if rv.value != Value::Null.to_string() {
+                    serde_json::from_str(&rv.value).unwrap()
+                } else {
+                    vec![]
+                },
+                "oldValue" => ve.old_value = if rv.value != Value::Null.to_string() {
+                    serde_json::from_str(&rv.value).unwrap()
+                } else {
+                    vec![]
+                },
+                "newValue" => ve.new_value = if rv.value != Value::Null.to_string() {
+                    serde_json::from_str(&rv.value).unwrap()
+                } else {
+                    vec![]
+                },
+                "reversed" => ve.reversed = rv.value != "0",
                 _ => unimplemented!("Incorrect column name! {:?}", rv),
             };
         }
@@ -63,6 +78,7 @@ fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
 pub fn mark_vault_entry_reversed(
     ve: &VaultEntry,
     txn: &mut mysql::Transaction,
+    stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
     get_query_rows_txn(
         &Statement::Update(UpdateStatement {
@@ -78,6 +94,7 @@ pub fn mark_vault_entry_reversed(
             }),
         }),
         txn,
+        stats
     )?;
     Ok(())
 }
@@ -87,6 +104,7 @@ pub fn get_user_entries_with_referencer_in_vault(
     referencer_table: &str,
     is_reversed: bool,
     txn: &mut mysql::Transaction,
+    stats: &mut QueryStat,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
     let equal_uid_constraint = Expr::BinaryOp {
         left: Box::new(Expr::Identifier(vec![Ident::new("userID")])),
@@ -115,7 +133,7 @@ pub fn get_user_entries_with_referencer_in_vault(
         op: BinaryOperator::And,
         right: Box::new(ref_constraint),
     };
-    get_vault_entries_with_constraint(final_constraint, txn)
+    get_vault_entries_with_constraint(final_constraint, txn, stats)
 }
 
 pub fn get_user_entries_of_table_in_vault(
@@ -123,6 +141,7 @@ pub fn get_user_entries_of_table_in_vault(
     guise_table: &str,
     is_reversed: bool,
     txn: &mut mysql::Transaction,
+    stats: &mut QueryStat,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
     let equal_uid_constraint = Expr::BinaryOp {
         left: Box::new(Expr::Identifier(vec![Ident::new("userID")])),
@@ -151,12 +170,13 @@ pub fn get_user_entries_of_table_in_vault(
         op: BinaryOperator::And,
         right: Box::new(g_constraint),
     };
-    get_vault_entries_with_constraint(final_constraint, txn)
+    get_vault_entries_with_constraint(final_constraint, txn, stats)
 }
 
 pub fn insert_vault_entries(
     entries: &Vec<VaultEntry>,
     txn: &mut mysql::Transaction,
+    stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
     let vault_vals: Vec<Vec<Expr>> = entries
         .iter()
@@ -182,6 +202,7 @@ pub fn insert_vault_entries(
                 source: InsertSource::Query(Box::new(values_query(vault_vals))),
             }),
             txn,
+            stats
         )?;
     }
     Ok(())
