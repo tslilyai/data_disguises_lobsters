@@ -20,6 +20,9 @@ const DBNAME: &'static str = &"test_hotcrp";
 const SCHEMA_UID_COL: &'static str = "contactID";
 const SCHEMA_UID_TABLE: &'static str = "ContactInfo";
 
+const GDPR_DISGUISE_ID: u64 = 1;
+const CONF_ANON_DISGUISE_ID: u64 = 2;
+
 #[derive(Debug, Clone, PartialEq)]
 enum TestType {
     TestDecor,

@@ -1,6 +1,6 @@
 use crate::disguises::*;
-use crate::helpers::*;
 use crate::helpers::stats::QueryStat;
+use crate::helpers::*;
 use mysql::prelude::*;
 use serde::Serialize;
 use sql_parser::ast::*;
@@ -14,6 +14,7 @@ pub const UPDATE_GUISE: u64 = 2;
 #[derive(Default)]
 pub struct VaultEntry {
     pub vault_id: u64,
+    pub disguise_id: u64,
     pub user_id: u64,
     pub guise_name: String,
     pub guise_id: u64,
@@ -28,7 +29,7 @@ pub struct VaultEntry {
 fn get_vault_entries_with_constraint(
     constraint: Expr,
     txn: &mut mysql::Transaction,
-    stats: &mut QueryStat
+    stats: &mut QueryStat,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
     let rows = get_query_rows_txn(&select_statement(VAULT_TABLE, Some(constraint)), txn, stats)?;
     let mut ves = vec![];
@@ -37,26 +38,33 @@ fn get_vault_entries_with_constraint(
         for rv in row {
             match rv.column.as_str() {
                 "vaultID" => ve.vault_id = u64::from_str(&rv.value).unwrap(),
+                "disguiseID" => ve.disguise_id = u64::from_str(&rv.value).unwrap(),
                 "userID" => ve.user_id = u64::from_str(&rv.value).unwrap(),
                 "guiseName" => ve.guise_name = rv.value.clone(),
                 "guiseID" => ve.guise_id = u64::from_str(&rv.value).unwrap(),
                 "referencerName" => ve.referencer_name = rv.value.clone(),
                 "updateType" => ve.update_type = u64::from_str(&rv.value).unwrap(),
-                "modifiedCols" => ve.modified_cols = if rv.value != Value::Null.to_string() {
-                    serde_json::from_str(&rv.value).unwrap()
-                } else {
-                    vec![]
-                },
-                "oldValue" => ve.old_value = if rv.value != Value::Null.to_string() {
-                    serde_json::from_str(&rv.value).unwrap()
-                } else {
-                    vec![]
-                },
-                "newValue" => ve.new_value = if rv.value != Value::Null.to_string() {
-                    serde_json::from_str(&rv.value).unwrap()
-                } else {
-                    vec![]
-                },
+                "modifiedCols" => {
+                    ve.modified_cols = if rv.value != Value::Null.to_string() {
+                        serde_json::from_str(&rv.value).unwrap()
+                    } else {
+                        vec![]
+                    }
+                }
+                "oldValue" => {
+                    ve.old_value = if rv.value != Value::Null.to_string() {
+                        serde_json::from_str(&rv.value).unwrap()
+                    } else {
+                        vec![]
+                    }
+                }
+                "newValue" => {
+                    ve.new_value = if rv.value != Value::Null.to_string() {
+                        serde_json::from_str(&rv.value).unwrap()
+                    } else {
+                        vec![]
+                    }
+                }
                 "reversed" => ve.reversed = rv.value != "0",
                 _ => unimplemented!("Incorrect column name! {:?}", rv),
             };
@@ -94,7 +102,7 @@ pub fn mark_vault_entry_reversed(
             }),
         }),
         txn,
-        stats
+        stats,
     )?;
     Ok(())
 }
@@ -182,6 +190,7 @@ pub fn insert_vault_entries(
         .iter()
         .map(|ve| {
             let mut evals = vec![];
+            evals.push(Expr::Value(Value::Number(ve.disguise_id.to_string())));
             evals.push(Expr::Value(Value::Number(ve.user_id.to_string())));
             evals.push(Expr::Value(Value::String(ve.guise_name.clone())));
             evals.push(Expr::Value(Value::Number(ve.guise_id.to_string())));
@@ -202,7 +211,7 @@ pub fn insert_vault_entries(
                 source: InsertSource::Query(Box::new(values_query(vault_vals))),
             }),
             txn,
-            stats
+            stats,
         )?;
     }
     Ok(())
@@ -210,6 +219,7 @@ pub fn insert_vault_entries(
 
 pub fn get_insert_vault_colnames() -> Vec<Ident> {
     vec![
+        Ident::new("disguiseID"),
         Ident::new("userID"),
         Ident::new("guiseName"),
         Ident::new("guiseID"),
@@ -244,15 +254,22 @@ pub fn get_vault_cols() -> Vec<ColumnDef> {
                 },
             ],
         },
-        // user ID
+        // FK to disguise history
         ColumnDef {
-            name: Ident::new("userID"),
+            name: Ident::new("disguiseID"),
             data_type: DataType::BigInt,
             collation: None,
             options: vec![ColumnOptionDef {
                 name: None,
                 option: ColumnOption::NotNull,
             }],
+        },
+        // user ID
+        ColumnDef {
+            name: Ident::new("userID"),
+            data_type: DataType::BigInt,
+            collation: None,
+            options: vec![],
         },
         // table and column name
         ColumnDef {
@@ -322,11 +339,18 @@ pub fn create_vault(in_memory: bool, txn: &mut mysql::Transaction) -> Result<(),
     } else {
         Engine::InnoDB
     });
-    let indexes = vec![IndexDef {
-        name: Ident::new("uid_index"),
-        index_type: None,
-        key_parts: vec![Ident::new("userID")],
-    }];
+    let indexes = vec![
+        IndexDef {
+            name: Ident::new("uidIndex"),
+            index_type: None,
+            key_parts: vec![Ident::new("userID")],
+        },
+        IndexDef {
+            name: Ident::new("disguiseIndex"),
+            index_type: None,
+            key_parts: vec![Ident::new("disguiseID")],
+        },
+    ];
 
     txn.query_drop(
         &Statement::CreateTable(CreateTableStatement {

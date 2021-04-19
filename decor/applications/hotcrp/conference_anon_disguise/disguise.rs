@@ -12,6 +12,113 @@ use std::str::FromStr;
  * CONFERENCE ANONYMIZATION DISGUISE
  */
 
+pub fn undo(
+    _: Option<u64>,
+    db: &mut mysql::Conn,
+    stats: &mut QueryStat,
+) -> Result<(), mysql::Error> {
+    let mut txn = db.start_transaction(TxOpts::default())?;
+
+    txn.commit()
+}
+
+pub fn undo_for_user (
+    user_id: u64,
+    txn: &mut mysql::Transaction,
+    stats: &mut QueryStat,
+) -> Result<(), mysql::Error> {
+    // Only decorrelated tables are "PaperReviewPreference" and "PaperWatch"
+
+    /*
+     * Get decorrelated children, and restore ownership
+     */
+    let mut children = get_user_entries_of_table_in_vault(
+        user_id,
+        "PaperReviewPreference",
+        false, /* is_reversed */
+        txn,
+        stats,
+    )?;
+    children.append(&mut get_user_entries_of_table_in_vault(
+        user_id,
+        "PaperWatch",
+        false, /* is_reversed */
+        txn,
+        stats,
+    )?);
+    // we need some way to be able to identify these objects...
+    // assume that there is exactly one PaperWatch and one PaperReviewPreference for any user
+    for c in children {
+        let mut new_contact_id = String::new();
+        let mut old_contact_id = String::new();
+        for rv in &c.new_value {
+            if rv.column == SCHEMA_UID_COL.to_string() {
+                new_contact_id = rv.value.clone();
+            }
+        }
+        for rv in &c.old_value {
+            if rv.column == SCHEMA_UID_COL.to_string() {
+                old_contact_id = rv.value.clone();
+            }
+        }
+        assert!(old_contact_id == user_id.to_string());
+        get_query_rows_txn(
+            &Statement::Update(UpdateStatement {
+                table_name: string_to_objname(&"PaperReviewPreference"),
+                assignments: vec![Assignment {
+                    id: Ident::new(SCHEMA_UID_COL.to_string()),
+                    value: Expr::Value(Value::Number(user_id.to_string())),
+                }],
+                selection: Some(Expr::BinaryOp {
+                    left: Box::new(Expr::Identifier(vec![Ident::new(SCHEMA_UID_COL.to_string())])),
+                    op: BinaryOperator::Eq,
+                    right: Box::new(Expr::Value(Value::Number(new_contact_id))),
+                }),
+            }),
+            txn,
+            stats,
+        )?;
+        mark_vault_entry_reversed(&c, txn, stats)?;
+    }
+
+    /*
+     * Delete created guises from old disguise
+     */
+    let mut guise_ves = get_user_entries_with_referencer_in_vault(
+        user_id,
+        "PaperWatch",
+        false, /* is_reversed */
+        txn,
+        stats,
+    )?;
+    guise_ves.append(&mut get_user_entries_with_referencer_in_vault(
+        user_id,
+        "PaperReviewPreference",
+        false, /* is_reversed */
+        txn,
+        stats,
+    )?);
+    for guise in guise_ves {
+        // TODO delete guise
+        get_query_rows_txn(
+            &Statement::Delete(DeleteStatement {
+                table_name: string_to_objname(SCHEMA_UID_TABLE),
+                selection: Some(Expr::BinaryOp {
+                    left: Box::new(Expr::Identifier(vec![Ident::new(SCHEMA_UID_COL.to_string())])),
+                    op: BinaryOperator::Eq,
+                    right: Box::new(Expr::Value(Value::Number(guise.guise_id.to_string()))),
+                }),
+            }),
+            txn,
+            stats,
+        )?;
+        // mark vault entries as reversed
+        mark_vault_entry_reversed(&guise, txn, stats)?;
+    }
+
+    Ok(())
+}
+
 fn decor_obj_txn(
     tablefk: &TableFKs,
     txn: &mut mysql::Transaction,
@@ -118,6 +225,7 @@ fn decor_obj_txn(
             // Phase 3A: update the vault with new guise (calculating the uid from the last_insert_id)
             vault_vals.push(VaultEntry {
                 vault_id: 0,
+                disguise_id: CONF_ANON_DISGUISE_ID,
                 user_id: old_uid,
                 guise_name: fk.fk_name.clone(),
                 guise_id: guise_id,
@@ -145,6 +253,7 @@ fn decor_obj_txn(
                 .collect();
             vault_vals.push(VaultEntry {
                 vault_id: 0,
+                disguise_id: CONF_ANON_DISGUISE_ID,
                 user_id: old_uid,
                 guise_name: child_name.clone(),
                 guise_id: 0, // XXX nothing here for now
@@ -169,6 +278,10 @@ pub fn apply(
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
     let mut txn = db.start_transaction(TxOpts::default())?;
+
+    // we should be able to reapply the conference anonymization disguise, in case more data has
+    // been added in the meantime
+    
 
     // DECORRELATION
     for tablefk in get_decor_names() {
@@ -208,7 +321,7 @@ mod test {
         assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
         warn!("***************** POPULATING ****************");
         datagen::populate_database(&mut db).unwrap();
-        warn!("***************** APPLYING CONFANON DISGUISE ****************");
+        warn!("***************** APPLYING CONF_ANON DISGUISE ****************");
         let mut stats = QueryStat::new();
         apply(None, &mut db, &mut stats).unwrap()
     }

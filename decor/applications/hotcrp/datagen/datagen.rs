@@ -51,37 +51,8 @@ fn get_table_names() -> Vec<&'static str> {
     ]
 }
 
-fn create_schema(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
-    let mut txn = db.start_transaction(mysql::TxOpts::default())?;
-    txn.query_drop("SET max_heap_table_size = 4294967295;")?;
-    
-    /* issue schema statements */
-    let mut sql = String::new();
-    let mut stmt = String::new();
-    for line in SCHEMA.lines() {
-        if line.starts_with("--") || line.is_empty() {
-            continue;
-        }
-        if !sql.is_empty() {
-            sql.push_str(" ");
-            stmt.push_str(" ");
-        }
-        stmt.push_str(line);
-        if stmt.ends_with(';') {
-            let new_stmt = helpers::process_schema_stmt(&stmt, true); 
-            warn!("create_schema issuing new_stmt {}", new_stmt);
-            txn.query_drop(new_stmt.to_string())?;
-            stmt = String::new();
-        }
-    }
-
-    disguises::create_vault(true, &mut txn)?;
-    txn.commit()?;
-    Ok(())
-}
-
 pub fn populate_database(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
-    create_schema(db).unwrap();
+    create_schema(SCHEMA, true, db).unwrap();
 
     let total_users = NUSERS_NONPC + NUSERS_PC;
     let other_uids: Vec<usize> = (1..NUSERS_NONPC + 1).collect();

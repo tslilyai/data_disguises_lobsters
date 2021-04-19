@@ -10,101 +10,18 @@ use sql_parser::ast::*;
 /*
  * GDPR REMOVAL DISGUISE
  */
-fn undo_previous_disguises(
-    user_id: u64,
-    txn: &mut mysql::Transaction,
+
+pub fn undo(
+    user_id: Option<u64>,
+    db: &mut mysql::Conn,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
-    // Only decorrelated tables are "PaperReviewPreference" and "PaperWatch"
+    // user must be provided as input
+    let user_id = user_id.unwrap();
 
-    /*
-     * Get decorrelated children, and restore ownership
-     */
-    let mut children = get_user_entries_of_table_in_vault(
-        user_id,
-        "PaperReviewPreference",
-        false, /* is_reversed */
-        txn,
-        stats,
-    )?;
-    children.append(&mut get_user_entries_of_table_in_vault(
-        user_id,
-        "PaperWatch",
-        false, /* is_reversed */
-        txn,
-        stats,
-    )?);
-    // we need some way to be able to identify these objects...
-    // assume that there is exactly one PaperWatch and one PaperReviewPreference for any user
-    for c in children {
-        let mut new_contact_id = String::new();
-        let mut old_contact_id = String::new();
-        for rv in &c.new_value {
-            if rv.column == SCHEMA_UID_COL.to_string() {
-                new_contact_id = rv.value.clone();
-            }
-        }
-        for rv in &c.old_value {
-            if rv.column == SCHEMA_UID_COL.to_string() {
-                old_contact_id = rv.value.clone();
-            }
-        }
-        assert!(old_contact_id == user_id.to_string());
-        get_query_rows_txn(
-            &Statement::Update(UpdateStatement {
-                table_name: string_to_objname(&"PaperReviewPreference"),
-                assignments: vec![Assignment {
-                    id: Ident::new(SCHEMA_UID_COL.to_string()),
-                    value: Expr::Value(Value::Number(user_id.to_string())),
-                }],
-                selection: Some(Expr::BinaryOp {
-                    left: Box::new(Expr::Identifier(vec![Ident::new(SCHEMA_UID_COL.to_string())])),
-                    op: BinaryOperator::Eq,
-                    right: Box::new(Expr::Value(Value::Number(new_contact_id))),
-                }),
-            }),
-            txn,
-            stats,
-        )?;
-        mark_vault_entry_reversed(&c, txn, stats)?;
-    }
+    let mut txn = db.start_transaction(TxOpts::default())?;
 
-    /*
-     * Delete created guises from old disguise
-     */
-    let mut guise_ves = get_user_entries_with_referencer_in_vault(
-        user_id,
-        "PaperWatch",
-        false, /* is_reversed */
-        txn,
-        stats,
-    )?;
-    guise_ves.append(&mut get_user_entries_with_referencer_in_vault(
-        user_id,
-        "PaperReviewPreference",
-        false, /* is_reversed */
-        txn,
-        stats,
-    )?);
-    for guise in guise_ves {
-        // TODO delete guise
-        get_query_rows_txn(
-            &Statement::Delete(DeleteStatement {
-                table_name: string_to_objname(SCHEMA_UID_TABLE),
-                selection: Some(Expr::BinaryOp {
-                    left: Box::new(Expr::Identifier(vec![Ident::new(SCHEMA_UID_COL.to_string())])),
-                    op: BinaryOperator::Eq,
-                    right: Box::new(Expr::Value(Value::Number(guise.guise_id.to_string()))),
-                }),
-            }),
-            txn,
-            stats,
-        )?;
-        // mark vault entries as reversed
-        mark_vault_entry_reversed(&guise, txn, stats)?;
-    }
-
-    Ok(())
+    txn.commit()
 }
 
 fn remove_obj_txn(
@@ -142,6 +59,7 @@ fn remove_obj_txn(
     for objrow in &predicated_objs {
         vault_vals.push(VaultEntry {
             vault_id: 0,
+            disguise_id: GDPR_DISGUISE_ID,
             user_id: user_id,
             guise_name: name.to_string(),
             guise_id: 0,
@@ -173,9 +91,9 @@ fn decor_obj_txn(
             left: Box::new(selection),
             op: BinaryOperator::Or,
             right: Box::new(Expr::BinaryOp {
-                left: Box::new(Expr::Identifier(vec![
-                    Ident::new(fk.referencer_col.to_string()),
-                ])),
+                left: Box::new(Expr::Identifier(vec![Ident::new(
+                    fk.referencer_col.to_string(),
+                )])),
                 op: BinaryOperator::Eq,
                 right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
             }),
@@ -235,9 +153,9 @@ fn decor_obj_txn(
                         value: Expr::Value(Value::Number(cur_uid.to_string())),
                     }],
                     selection: Some(Expr::BinaryOp {
-                        left: Box::new(Expr::Identifier(vec![
-                            Ident::new(fk.referencer_col.clone()),
-                        ])),
+                        left: Box::new(Expr::Identifier(vec![Ident::new(
+                            fk.referencer_col.clone(),
+                        )])),
                         op: BinaryOperator::Eq,
                         right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
                     }),
@@ -263,6 +181,7 @@ fn decor_obj_txn(
             // Phase 3A: update the vault with new guises (calculating the uid from the last_insert_id)
             vault_vals.push(VaultEntry {
                 vault_id: 0,
+                disguise_id: GDPR_DISGUISE_ID,
                 user_id: user_id,
                 guise_name: fk.fk_name.clone(),
                 guise_id: cur_uid,
@@ -290,6 +209,7 @@ fn decor_obj_txn(
                 .collect();
             vault_vals.push(VaultEntry {
                 vault_id: 0,
+                disguise_id: GDPR_DISGUISE_ID,
                 user_id: user_id,
                 guise_name: child_name.clone(),
                 guise_id: 0, // XXX nothing here for now
@@ -319,7 +239,8 @@ pub fn apply(
     let mut txn = db.start_transaction(TxOpts::default())?;
 
     // UNDO PHASE
-    undo_previous_disguises(user_id, &mut txn, stats)?;
+    // TODO check if previous disguises have been applied; if so, undo them for this user
+    //undo_previous_disguises(user_id, &mut txn, stats)?;
 
     // DECORRELATION TXNS
     for tablefk in get_decor_names() {
@@ -330,20 +251,6 @@ pub fn apply(
     for name in get_remove_names() {
         remove_obj_txn(user_id, name, &mut txn, stats)?;
     }
-
-    txn.commit()
-}
-
-// TODO
-pub fn undo(
-    user_id: Option<u64>,
-    db: &mut mysql::Conn,
-    stats: &mut QueryStat,
-) -> Result<(), mysql::Error> {
-    // user must be provided as input
-    let user_id = user_id.unwrap();
-
-    let mut txn = db.start_transaction(TxOpts::default())?;
 
     txn.commit()
 }
