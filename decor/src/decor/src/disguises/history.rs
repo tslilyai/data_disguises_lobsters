@@ -37,12 +37,12 @@ pub fn is_disguise_reversed (
      };
 
     let rows = get_query_rows_txn(&select_ordered_statement(HISTORY_TABLE, Some(constraint), "historyID"), txn, stats)?;
-    let mut is_reversed = false;
+    let mut is_reversed = true;
     for r in rows {
-        if get_value_of_col(&r, "reverse").is_some() {
-            is_reversed = true;
-        } else {
+        if &get_value_of_col(&r, "reverse").unwrap() == "0" {
             is_reversed = false;
+        } else {
+            is_reversed = true;
         }
     }
     Ok(is_reversed)

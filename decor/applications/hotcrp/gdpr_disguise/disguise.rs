@@ -1,3 +1,4 @@
+use crate::conference_anon_disguise;
 use crate::datagen::*;
 use crate::gdpr_disguise::constants::*;
 use crate::*;
@@ -13,15 +14,25 @@ use sql_parser::ast::*;
 
 pub fn undo(
     user_id: Option<u64>,
-    db: &mut mysql::Conn,
+    txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
     // user must be provided as input
     let user_id = user_id.unwrap();
 
-    let mut txn = db.start_transaction(TxOpts::default())?;
+    let de = DisguiseEntry {
+        disguise_id: GDPR_DISGUISE_ID,
+        user_id: user_id,
+        reverse: true,
+    };
 
-    txn.commit()
+    // only apply if disguise has been applied
+    if !is_disguise_reversed(&de, txn, stats)? {
+        // TODO undo disguise
+
+        insert_disguise_history_entry(&de, txn, stats)?;
+    }
+    Ok(())
 }
 
 fn remove_obj_txn(
@@ -238,28 +249,29 @@ pub fn apply(
 
     let mut txn = db.start_transaction(TxOpts::default())?;
 
-    // UNDO PHASE
-    // TODO check if previous disguises have been applied; if so, undo them for this user
-    //undo_previous_disguises(user_id, &mut txn, stats)?;
+    let de = DisguiseEntry {
+        disguise_id: GDPR_DISGUISE_ID,
+        user_id: user_id,
+        reverse: false,
+    };
 
-    insert_disguise_history_entry(
-        &DisguiseEntry {
-            disguise_id: GDPR_DISGUISE_ID,
-            user_id: user_id,
-            reverse: false,
-        },
-        &mut txn,
-        stats,
-    )?;
+    // only apply if disguise is reversed (or hasn't been applied)
+    if is_disguise_reversed(&de, &mut txn, stats)? {
+        // UNDO PRIOR DISGUISES
+        // TODO check if previous disguises have been applied; if so, undo them for this user
+        conference_anon_disguise::undo(Some(user_id), &mut txn, stats)?;
 
-    // DECORRELATION TXNS
-    for tablefk in get_decor_names() {
-        decor_obj_txn(user_id, &tablefk, &mut txn, stats)?;
-    }
+        // DECORRELATION TXNS
+        for tablefk in get_decor_names() {
+            decor_obj_txn(user_id, &tablefk, &mut txn, stats)?;
+        }
 
-    // REMOVAL TXNS
-    for name in get_remove_names() {
-        remove_obj_txn(user_id, name, &mut txn, stats)?;
+        // REMOVAL TXNS
+        for name in get_remove_names() {
+            remove_obj_txn(user_id, name, &mut txn, stats)?;
+        }
+
+        insert_disguise_history_entry(&de, &mut txn, stats)?;
     }
 
     txn.commit()

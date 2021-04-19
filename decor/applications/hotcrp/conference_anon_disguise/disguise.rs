@@ -13,16 +13,26 @@ use std::str::FromStr;
  */
 
 pub fn undo(
-    _: Option<u64>,
-    db: &mut mysql::Conn,
+    user_id: Option<u64>,
+    txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
-    let mut txn = db.start_transaction(TxOpts::default())?;
+    let de = DisguiseEntry {
+        disguise_id: CONF_ANON_DISGUISE_ID,
+        user_id: 0,
+        reverse: true,
+    };
 
-    txn.commit()
+    // only reverse if disguise has been applied
+    if !is_disguise_reversed(&de, txn, stats)? {
+        // TODO undo disguise
+
+        insert_disguise_history_entry(&de, txn, stats)?;
+    }
+    Ok(())
 }
 
-pub fn undo_for_user (
+pub fn undo_for_user(
     user_id: u64,
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
@@ -60,7 +70,9 @@ pub fn undo_for_user (
                     value: Expr::Value(Value::Number(user_id.to_string())),
                 }],
                 selection: Some(Expr::BinaryOp {
-                    left: Box::new(Expr::Identifier(vec![Ident::new(SCHEMA_UID_COL.to_string())])),
+                    left: Box::new(Expr::Identifier(vec![Ident::new(
+                        SCHEMA_UID_COL.to_string(),
+                    )])),
                     op: BinaryOperator::Eq,
                     right: Box::new(Expr::Value(Value::Number(new_contact_id))),
                 }),
@@ -94,7 +106,9 @@ pub fn undo_for_user (
             &Statement::Delete(DeleteStatement {
                 table_name: string_to_objname(SCHEMA_UID_TABLE),
                 selection: Some(Expr::BinaryOp {
-                    left: Box::new(Expr::Identifier(vec![Ident::new(SCHEMA_UID_COL.to_string())])),
+                    left: Box::new(Expr::Identifier(vec![Ident::new(
+                        SCHEMA_UID_COL.to_string(),
+                    )])),
                     op: BinaryOperator::Eq,
                     right: Box::new(Expr::Value(Value::Number(guise.guise_id.to_string()))),
                 }),
@@ -128,7 +142,9 @@ fn decor_obj_txn(
         // get all the IDs of parents (all are of the same type for the same fk)
         let mut fkids = vec![];
         for child in &child_objs {
-            fkids.push(u64::from_str(&get_value_of_col(child, &fk.referencer_col).unwrap()).unwrap());
+            fkids.push(
+                u64::from_str(&get_value_of_col(child, &fk.referencer_col).unwrap()).unwrap(),
+            );
         }
 
         /*
@@ -260,12 +276,18 @@ pub fn apply(
 
     // we should be able to reapply the conference anonymization disguise, in case more data has
     // been added in the meantime
-    
+    let de = DisguiseEntry {
+        disguise_id: CONF_ANON_DISGUISE_ID,
+        user_id: 0,
+        reverse: false,
+    };
 
     // DECORRELATION
     for tablefk in get_decor_names() {
         decor_obj_txn(&tablefk, &mut txn, stats)?;
     }
+    
+    insert_disguise_history_entry(&de, &mut txn, stats)?;
 
     txn.commit()
 }
