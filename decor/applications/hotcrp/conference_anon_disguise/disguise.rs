@@ -49,18 +49,8 @@ pub fn undo_for_user (
     // we need some way to be able to identify these objects...
     // assume that there is exactly one PaperWatch and one PaperReviewPreference for any user
     for c in children {
-        let mut new_contact_id = String::new();
-        let mut old_contact_id = String::new();
-        for rv in &c.new_value {
-            if rv.column == SCHEMA_UID_COL.to_string() {
-                new_contact_id = rv.value.clone();
-            }
-        }
-        for rv in &c.old_value {
-            if rv.column == SCHEMA_UID_COL.to_string() {
-                old_contact_id = rv.value.clone();
-            }
-        }
+        let new_contact_id = get_value_of_col(&c.new_value, SCHEMA_UID_COL).unwrap();
+        let old_contact_id = get_value_of_col(&c.old_value, SCHEMA_UID_COL).unwrap();
         assert!(old_contact_id == user_id.to_string());
         get_query_rows_txn(
             &Statement::Update(UpdateStatement {
@@ -138,18 +128,7 @@ fn decor_obj_txn(
         // get all the IDs of parents (all are of the same type for the same fk)
         let mut fkids = vec![];
         for child in &child_objs {
-            for rc in child {
-                warn!(
-                    "Checking {} = {} ? {}",
-                    rc.column,
-                    fk.referencer_col,
-                    rc.column == fk.referencer_col
-                );
-                if rc.column == fk.referencer_col {
-                    warn!("Adding {} to fkids", rc.value);
-                    fkids.push(u64::from_str(&rc.value).unwrap());
-                }
-            }
+            fkids.push(u64::from_str(&get_value_of_col(child, &fk.referencer_col).unwrap()).unwrap());
         }
 
         /*

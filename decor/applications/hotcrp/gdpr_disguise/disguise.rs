@@ -242,6 +242,16 @@ pub fn apply(
     // TODO check if previous disguises have been applied; if so, undo them for this user
     //undo_previous_disguises(user_id, &mut txn, stats)?;
 
+    insert_disguise_history_entry(
+        &DisguiseEntry {
+            disguise_id: GDPR_DISGUISE_ID,
+            user_id: user_id,
+            reverse: false,
+        },
+        &mut txn,
+        stats,
+    )?;
+
     // DECORRELATION TXNS
     for tablefk in get_decor_names() {
         decor_obj_txn(user_id, &tablefk, &mut txn, stats)?;

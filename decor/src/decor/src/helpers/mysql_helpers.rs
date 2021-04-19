@@ -10,6 +10,18 @@ use crate::helpers::stats::QueryStat;
 /************************************
  * MYSQL HELPERS
  ************************************/
+pub fn get_value_of_col(
+    row: &Vec<RowVal>,
+    col: &str
+) -> Option<String> {
+    for rv in row {
+        if &rv.column == col {
+            return Some(rv.value.clone());
+        } 
+    }
+    None
+}
+
 pub fn get_query_rows_txn(
     q: &Statement,
     txn: &mut mysql::Transaction,

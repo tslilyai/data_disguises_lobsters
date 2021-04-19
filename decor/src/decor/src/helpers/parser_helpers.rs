@@ -8,6 +8,33 @@ use std::*;
 /*****************************************
  * Parser helpers
  ****************************************/
+pub fn select_ordered_statement(table: &str, selection: Option<Expr>, order_by: &str) -> Statement {
+    Statement::Select(SelectStatement {
+        query: Box::new(Query {
+            ctes: vec![],
+            body: SetExpr::Select(Box::new(Select {
+                distinct: true,
+                projection: vec![SelectItem::Expr {
+                    expr: Expr::Value(Value::Number(1.to_string())),
+                    alias: None,
+                }],
+                from: str_to_tablewithjoins(&table),
+                selection: selection.clone(),
+                group_by: vec![],
+                having: None,
+            })),
+            order_by: vec![OrderByExpr {
+                expr: Expr::Identifier(vec![Ident::new(order_by.to_string())]),
+                asc: Some(true),
+            }],
+            limit: None,
+            offset: None,
+            fetch: None,
+        }),
+        as_of: None,
+    })
+}
+
 pub fn select_1_statement(table: &str, selection: Option<Expr>) -> Statement {
     Statement::Select(SelectStatement {
         query: Box::new(Query::select(Select {

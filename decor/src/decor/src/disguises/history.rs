@@ -1,10 +1,7 @@
-use crate::disguises::*;
 use crate::helpers::stats::QueryStat;
 use crate::helpers::*;
 use mysql::prelude::*;
-use serde::Serialize;
 use sql_parser::ast::*;
-use std::str::FromStr;
 
 pub const HISTORY_TABLE: &'static str = "DisguiseHistory";
 
@@ -15,7 +12,43 @@ pub struct DisguiseEntry {
     pub reverse: bool,
 }
 
-pub fn insert_disguise_entry(
+/* 
+ * Assumes that a disguise cannot be reversed or applied twice in sequence
+ */
+pub fn is_disguise_reversed (
+    de: &DisguiseEntry,
+    txn: &mut mysql::Transaction,
+    stats: &mut QueryStat,
+) -> Result<bool, mysql::Error> {
+    let equal_uid_constraint = Expr::BinaryOp {
+         left: Box::new(Expr::Identifier(vec![Ident::new("userID")])),
+         op: BinaryOperator::Eq,
+         right: Box::new(Expr::Value(Value::Number(de.user_id.to_string()))),
+     };
+     let disguise_constraint = Expr::BinaryOp {
+         left: Box::new(Expr::Identifier(vec![Ident::new("disguiseID")])),
+         op: BinaryOperator::Eq,
+         right: Box::new(Expr::Value(Value::Number(de.disguise_id.to_string()))),
+     };
+     let constraint = Expr::BinaryOp {
+         left: Box::new(equal_uid_constraint),
+         op: BinaryOperator::And,
+         right: Box::new(disguise_constraint),
+     };
+
+    let rows = get_query_rows_txn(&select_ordered_statement(HISTORY_TABLE, Some(constraint), "historyID"), txn, stats)?;
+    let mut is_reversed = false;
+    for r in rows {
+        if get_value_of_col(&r, "reverse").is_some() {
+            is_reversed = true;
+        } else {
+            is_reversed = false;
+        }
+    }
+    Ok(is_reversed)
+}
+
+pub fn insert_disguise_history_entry(
     de: &DisguiseEntry,
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
@@ -24,22 +57,19 @@ pub fn insert_disguise_entry(
     evals.push(Expr::Value(Value::Number(de.disguise_id.to_string())));
     evals.push(Expr::Value(Value::Number(de.user_id.to_string())));
     evals.push(Expr::Value(Value::Boolean(de.reverse)));
-    let vals: Vec<Vec<Expr>> = vec![evals];
-    if !vals.is_empty() {
-        get_query_rows_txn(
-            &Statement::Insert(InsertStatement {
-                table_name: string_to_objname(HISTORY_TABLE),
-                columns: get_insert_disguise_colnames(),
-                source: InsertSource::Query(Box::new(values_query(vals))),
-            }),
-            txn,
-            stats,
-        )?;
-    }
+    get_query_rows_txn(
+        &Statement::Insert(InsertStatement {
+            table_name: string_to_objname(HISTORY_TABLE),
+            columns: get_insert_disguise_colnames(),
+            source: InsertSource::Query(Box::new(values_query(vec![evals]))),
+        }),
+        txn,
+        stats,
+    )?;
     Ok(())
 }
 
-pub fn get_insert_disguise_colnames() -> Vec<Ident> {
+fn get_insert_disguise_colnames() -> Vec<Ident> {
     vec![
         Ident::new("disguiseID"),
         Ident::new("userID"),
