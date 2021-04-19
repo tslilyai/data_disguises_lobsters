@@ -1,9 +1,9 @@
 use crate::conference_anon_disguise::constants::*;
 use crate::decorrelate;
 use crate::*;
-use decor::disguises::*;
+use decor::vault::*;
+use decor::history::*;
 use decor::helpers::*;
-use mysql::TxOpts;
 use sql_parser::ast::*;
 
 /*
@@ -25,7 +25,7 @@ pub fn undo(
     if !is_disguise_reversed(&de, txn, stats)? {
         // TODO undo disguise
 
-        insert_disguise_history_entry(&de, txn, stats)?;
+        decor::record_disguise(&de, txn, stats)?;
     }
     Ok(())
 }
@@ -124,11 +124,9 @@ pub fn undo_for_user(
 
 pub fn apply(
     user_id: Option<u64>,
-    db: &mut mysql::Conn,
+    txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
-    let mut txn = db.start_transaction(TxOpts::default())?;
-
     // we should be able to reapply the conference anonymization disguise, in case more data has
     // been added in the meantime
     let de = DisguiseEntry {
@@ -136,18 +134,16 @@ pub fn apply(
         user_id: 0,
         reverse: false,
     };
-
+    
     // DECORRELATION
     for tablefk in get_decor_names() {
         match user_id {
-            Some(uid) => decorrelate::decor_obj_txn_for_user(uid, CONF_ANON_DISGUISE_ID, &tablefk, &mut txn, stats)?,
-            None => decorrelate::decor_obj_txn(CONF_ANON_DISGUISE_ID, &tablefk, &mut txn, stats)?,
+            Some(uid) => decorrelate::decor_obj_txn_for_user(uid, CONF_ANON_DISGUISE_ID, &tablefk, txn, stats)?,
+            None => decorrelate::decor_obj_txn(CONF_ANON_DISGUISE_ID, &tablefk, txn, stats)?,
         }
     }
-    
-    insert_disguise_history_entry(&de, &mut txn, stats)?;
-
-    txn.commit()
+    decor::record_disguise(&de, txn, stats)?;
+    Ok(())
 }
 
 #[cfg(test)]

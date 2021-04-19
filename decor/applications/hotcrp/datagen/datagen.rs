@@ -1,6 +1,5 @@
 use crate::datagen::*;
 use rand::{distributions::Alphanumeric, Rng};
-use mysql::prelude::*;
 use decor::*;
 use log::*;
 

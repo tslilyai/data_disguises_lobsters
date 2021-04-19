@@ -1,4 +1,5 @@
 use crate::datagen::*;
+use decor::stats::*;
 use decor::helpers::*;
 use sql_parser::ast::*;
 
@@ -8,7 +9,7 @@ fn get_random_email() -> String {
     format!("anonymous{}@secret.mail", get_random_string())
 }
 
-pub fn is_guise(table_name: &str, id: u64, txn: &mut mysql::Transaction, stats: &mut stats::QueryStat) -> Result<bool, mysql::Error> {
+pub fn is_guise(table_name: &str, id: u64, txn: &mut mysql::Transaction, stats: &mut QueryStat) -> Result<bool, mysql::Error> {
     let is_guise = get_query_rows_txn(
         &select_1_statement(
             &table_name,

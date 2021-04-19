@@ -1,4 +1,4 @@
-use decor::disguises::*;
+use decor::types::*;
 
 pub fn get_decor_names() -> Vec<TableFKs> {
     vec![

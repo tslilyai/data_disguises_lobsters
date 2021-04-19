@@ -1,23 +1,22 @@
-use crate::disguises::*;
+use crate::stats::QueryStat;
+use crate::types::*;
+use crate::history::HISTORY_TABLE;
+use crate::vault::VAULT_TABLE;
 use log::warn;
 use msql_srv::{Column, ColumnFlags, QueryResultWriter};
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::str::FromStr;
 use std::*;
-use crate::helpers::stats::QueryStat;
 
 /************************************
  * MYSQL HELPERS
  ************************************/
-pub fn get_value_of_col(
-    row: &Vec<RowVal>,
-    col: &str
-) -> Option<String> {
+pub fn get_value_of_col(row: &Vec<RowVal>, col: &str) -> Option<String> {
     for rv in row {
         if &rv.column == col {
             return Some(rv.value.clone());
-        } 
+        }
     }
     None
 }
@@ -25,13 +24,13 @@ pub fn get_value_of_col(
 pub fn get_query_rows_txn(
     q: &Statement,
     txn: &mut mysql::Transaction,
-    stats: &mut QueryStat, 
+    stats: &mut QueryStat,
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     let mut rows = vec![];
 
     let qstr = q.to_string();
     warn!("get_query_rows_txn: {}", qstr);
-    if qstr.contains(VAULT_TABLE) {
+    if qstr.contains(VAULT_TABLE) || qstr.contains(HISTORY_TABLE) {
         stats.nqueries_vault += 1;
     } else {
         stats.nqueries += 1;

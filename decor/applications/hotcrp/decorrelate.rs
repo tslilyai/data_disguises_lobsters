@@ -1,7 +1,8 @@
 use crate::datagen::*;
 use crate::*;
-use decor::disguises::*;
-use decor::helpers::stats::QueryStat;
+use decor::vault::*;
+use decor::types::*;
+use decor::stats::QueryStat;
 use decor::helpers::*;
 use sql_parser::ast::*;
 use std::str::FromStr;

@@ -38,10 +38,10 @@ histogram-sampler = "0.4.0"
 #path = "data-import.rs"
 #doc = false
 
-[[bin]]
-name = "lobsters"
-path = "lobsters/main.rs"
-doc = false
+#[[bin]]
+#name = "lobsters"
+#path = "lobsters/main.rs"
+#doc = false
 
 [[bin]]
 name = "hotcrp"

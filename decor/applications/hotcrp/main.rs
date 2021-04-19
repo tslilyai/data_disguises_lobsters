@@ -4,6 +4,7 @@ extern crate log;
 extern crate mysql;
 extern crate rand;
 
+use mysql::TxOpts;
 use mysql::prelude::*;
 use std::*;
 use structopt::StructOpt;
@@ -14,7 +15,7 @@ mod conference_anon_disguise;
 mod datagen;
 mod gdpr_disguise;
 
-use decor::helpers::stats::QueryStat;
+use decor::stats::QueryStat;
 use rand::seq::SliceRandom;
 
 const DBNAME: &'static str = &"test_hotcrp";
@@ -85,7 +86,9 @@ fn run_test(prime: bool) {
     let mut db = init_db(prime);
     let mut stats = QueryStat::new();
     let start = time::Instant::now();
-    conference_anon_disguise::apply(None, &mut db, &mut stats).unwrap();
+    let mut txn = db.start_transaction(TxOpts::default()).unwrap();
+    conference_anon_disguise::apply(None, &mut txn, &mut stats).unwrap();
+    txn.commit().unwrap();
     let dur = start.elapsed();
     println!("Disguise, NQueries, NQueriesVault, Duration(ms)");
     println!("confAnon, {}, {}, {}", stats.nqueries, stats.nqueries_vault, dur.as_millis());
@@ -95,7 +98,9 @@ fn run_test(prime: bool) {
     for user in rand_users {
         let mut stats = QueryStat::new();
         let start = time::Instant::now();
-        gdpr_disguise::apply(Some(user as u64), &mut db, &mut stats).unwrap();
+        let mut txn = db.start_transaction(TxOpts::default()).unwrap();
+        gdpr_disguise::apply(Some(user as u64), &mut txn, &mut stats).unwrap();
+        txn.commit().unwrap();
         let dur = start.elapsed();
         println!("{}, {}, {}, {}", user, stats.nqueries, stats.nqueries_vault, dur.as_millis());
     }

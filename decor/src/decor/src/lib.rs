@@ -7,10 +7,11 @@ use log::warn;
 use mysql::prelude::*;
 use std::*;
 
-pub mod disguises;
 pub mod helpers;
-pub mod querier;
-pub mod subscriber;
+pub mod history;
+pub mod stats;
+pub mod types;
+pub mod vault;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
@@ -21,7 +22,11 @@ pub struct TestParams {
     pub prime: bool,
 }
 
-pub fn create_schema(schema: &str, in_memory: bool, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+pub fn create_schema(
+    schema: &str,
+    in_memory: bool,
+    db: &mut mysql::Conn,
+) -> Result<(), mysql::Error> {
     let mut txn = db.start_transaction(mysql::TxOpts::default())?;
     txn.query_drop("SET max_heap_table_size = 4294967295;")?;
 
@@ -45,8 +50,17 @@ pub fn create_schema(schema: &str, in_memory: bool, db: &mut mysql::Conn) -> Res
         }
     }
 
-    disguises::create_vault(in_memory, &mut txn)?;
-    disguises::create_history(in_memory, &mut txn)?;
+    vault::create_vault(in_memory, &mut txn)?;
+    history::create_history(in_memory, &mut txn)?;
     txn.commit()?;
+    Ok(())
+}
+
+pub fn record_disguise(
+    de: &history::DisguiseEntry,
+    txn: &mut mysql::Transaction,
+    stats: &mut stats::QueryStat,
+) -> Result<(), mysql::Error> {
+    history::insert_disguise_history_entry(de, txn, stats)?;
     Ok(())
 }

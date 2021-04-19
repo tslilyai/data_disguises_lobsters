@@ -1,11 +1,10 @@
 use crate::conference_anon_disguise;
-use crate::decorrelate;
 use crate::gdpr_disguise::constants::*;
+use crate::decorrelate;
 use crate::*;
-use decor::disguises::*;
-use decor::helpers::stats::QueryStat;
+use decor::vault::*;
+use decor::history::*;
 use decor::helpers::*;
-use mysql::TxOpts;
 use sql_parser::ast::*;
 
 /*
@@ -30,7 +29,7 @@ pub fn undo(
     if !is_disguise_reversed(&de, txn, stats)? {
         // TODO undo disguise
 
-        insert_disguise_history_entry(&de, txn, stats)?;
+        decor::record_disguise(&de, txn, stats)?;
     }
     Ok(())
 }
@@ -88,13 +87,11 @@ fn remove_obj_txn(
 
 pub fn apply(
     user_id: Option<u64>,
-    db: &mut mysql::Conn,
+    txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
     // user must be provided as input
     let user_id = user_id.unwrap();
-
-    let mut txn = db.start_transaction(TxOpts::default())?;
 
     let de = DisguiseEntry {
         disguise_id: GDPR_DISGUISE_ID,
@@ -103,25 +100,27 @@ pub fn apply(
     };
 
     // only apply if disguise is reversed (or hasn't been applied)
-    if is_disguise_reversed(&de, &mut txn, stats)? {
+    if is_disguise_reversed(&de, txn, stats)? {
         // UNDO PRIOR DISGUISES
         // TODO check if previous disguises have been applied; if so, undo them for this user
-        conference_anon_disguise::undo(Some(user_id), &mut txn, stats)?;
+        conference_anon_disguise::undo(Some(user_id), txn, stats)?;
 
         // DECORRELATION TXNS
         for tablefk in get_decor_names() {
-            decorrelate::decor_obj_txn_for_user(user_id, GDPR_DISGUISE_ID, &tablefk, &mut txn, stats)?;
+            decorrelate::decor_obj_txn_for_user(user_id, GDPR_DISGUISE_ID, &tablefk, txn, stats)?;
         }
 
         // REMOVAL TXNS
         for name in get_remove_names() {
-            remove_obj_txn(user_id, name, &mut txn, stats)?;
+            remove_obj_txn(user_id, name, txn, stats)?;
         }
 
-        insert_disguise_history_entry(&de, &mut txn, stats)?;
-    }
+        // reapply conference anon disguise
+        conference_anon_disguise::apply(Some(user_id), txn, stats)?;
 
-    txn.commit()
+        decor::record_disguise(&de, txn, stats)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
