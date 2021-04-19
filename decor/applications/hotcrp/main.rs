@@ -9,6 +9,7 @@ use std::*;
 use structopt::StructOpt;
 use log::warn;
 
+mod decorrelate;
 mod conference_anon_disguise;
 mod datagen;
 mod gdpr_disguise;
