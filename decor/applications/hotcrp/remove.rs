@@ -26,16 +26,20 @@ pub fn remove_obj_txn_for_user(
      * TODO also undo any operations that happened in that disguise after these decorrelation
      * modifications?
      *
+     * TODO this only is correct if all decorrelated FKs are to the contactInfo table
+     *
      * Note: we don't need to redo these because deletion is final!
      */
-    vault::reverse_vault_decor_referencer_entries(
-        user_id,
-        name,
-        SCHEMA_UID_COL,
-        SCHEMA_UID_TABLE,
-        txn,
-        stats,
-    )?;
+    if name != SCHEMA_UID_TABLE {
+        vault::reverse_vault_decor_referencer_entries(
+            user_id,
+            name,
+            SCHEMA_UID_COL,
+            SCHEMA_UID_TABLE,
+            txn,
+            stats,
+        )?;
+    }
 
     /*
      * PHASE 1: OBJECT SELECTION

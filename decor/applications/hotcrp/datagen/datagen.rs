@@ -6,11 +6,11 @@ use log::*;
 const SCHEMA : &'static str = include_str!("../schema.sql");
 
 // Generates NUSERS_NONPC+NUSERS_PC users
-pub const NUSERS_NONPC: usize = 500;
-pub const NUSERS_PC: usize = 50;
+pub const NUSERS_NONPC: usize = 300;
+pub const NUSERS_PC: usize = 30;
 // Generates NPAPERS_REJ+NPAPER_ACCEPT papers.
-const NPAPERS_REJ: usize = 450;
-const NPAPERS_ACCEPT: usize = 50;
+const NPAPERS_REJ: usize = 45;
+const NPAPERS_ACCEPT: usize = 5;
 
 /*
  * Paper metadata:

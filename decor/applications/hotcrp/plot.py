@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import csv
 
-PC_UID = 500
+PC_UID = 300
 
 nqueries = []
 nqueries_vault = []

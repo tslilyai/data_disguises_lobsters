@@ -9,6 +9,8 @@ use sql_parser::ast::*;
 use std::str::FromStr;
 use std::*;
 
+pub const NULLSTR : &'static str = "NULL";
+
 /************************************
  * MYSQL HELPERS
  ************************************/

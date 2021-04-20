@@ -4,17 +4,19 @@ extern crate log;
 extern crate mysql;
 extern crate rand;
 
-use mysql::TxOpts;
+use log::warn;
 use mysql::prelude::*;
+use mysql::TxOpts;
+use std::fs::File;
+use std::io::Write;
 use std::*;
 use structopt::StructOpt;
-use log::warn;
 
-mod decorrelate;
-mod remove;
 mod conference_anon_disguise;
 mod datagen;
+mod decorrelate;
 mod gdpr_disguise;
+mod remove;
 
 use decor::stats::QueryStat;
 use rand::seq::SliceRandom;
@@ -86,16 +88,32 @@ fn init_db(prime: bool) -> mysql::Conn {
 fn run_test(prime: bool) {
     let mut db = init_db(prime);
     let mut stats = QueryStat::new();
+    let mut file = File::create("hotcrp.out".to_string()).unwrap();
     let start = time::Instant::now();
+
     let mut txn = db.start_transaction(TxOpts::default()).unwrap();
     conference_anon_disguise::apply(None, &mut txn, &mut stats).unwrap();
     txn.commit().unwrap();
+
     let dur = start.elapsed();
-    println!("Disguise, NQueries, NQueriesVault, Duration(ms)");
-    println!("confAnon, {}, {}, {}", stats.nqueries, stats.nqueries_vault, dur.as_millis());
-    let uids : Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();
+    file.write("Disguise, NQueries, NQueriesVault, Duration(ms)\n".as_bytes())
+        .unwrap();
+    file.write(
+        format!(
+            "confAnon, {}, {}, {}\n",
+            stats.nqueries,
+            stats.nqueries_vault,
+            dur.as_millis()
+        )
+        .as_bytes(),
+    )
+    .unwrap();
+    let uids: Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();
     let mut rng = &mut rand::thread_rng();
-    let rand_users : Vec<usize>= uids.choose_multiple(&mut rng, uids.len()).cloned().collect();
+    let rand_users: Vec<usize> = uids
+        .choose_multiple(&mut rng, uids.len())
+        .cloned()
+        .collect();
     for user in rand_users {
         let mut stats = QueryStat::new();
         let start = time::Instant::now();
@@ -103,9 +121,20 @@ fn run_test(prime: bool) {
         gdpr_disguise::apply(Some(user as u64), &mut txn, &mut stats).unwrap();
         txn.commit().unwrap();
         let dur = start.elapsed();
-        println!("{}, {}, {}, {}", user, stats.nqueries, stats.nqueries_vault, dur.as_millis());
+        file.write(
+            format!(
+                "{}, {}, {}, {}\n",
+                user,
+                stats.nqueries,
+                stats.nqueries_vault,
+                dur.as_millis()
+            )
+            .as_bytes(),
+        )
+        .unwrap();
     }
     drop(db);
+    file.flush().unwrap();
 }
 
 fn main() {

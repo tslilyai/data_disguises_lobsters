@@ -1,6 +1,7 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
 use crate::types::*;
+use log::warn;
 use mysql::prelude::*;
 use serde::Serialize;
 use sql_parser::ast::*;
@@ -60,31 +61,31 @@ fn get_vault_entries_with_constraint(
                 "referencerName" => ve.referencer_name = rv.value.clone(),
                 "updateType" => ve.update_type = u64::from_str(&rv.value).unwrap(),
                 "modifiedCols" => {
-                    ve.modified_cols = if rv.value != Value::Null.to_string() {
+                    ve.modified_cols = if &rv.value != NULLSTR {
                         serde_json::from_str(&rv.value).unwrap()
                     } else {
                         vec![]
                     }
                 }
                 "oldValue" => {
-                    ve.old_value = if rv.value != Value::Null.to_string() {
+                    ve.old_value = if &rv.value != NULLSTR {
                         serde_json::from_str(&rv.value).unwrap()
                     } else {
                         vec![]
                     }
                 }
                 "newValue" => {
-                    ve.new_value = if rv.value != Value::Null.to_string() {
+                    ve.new_value = if &rv.value != NULLSTR {
                         serde_json::from_str(&rv.value).unwrap()
                     } else {
                         vec![]
                     }
                 }
                 "reverses" => {
-                    ve.reverses = if rv.value != Value::Null.to_string() {
-                        None
-                    } else {
+                    ve.reverses = if &rv.value != NULLSTR {
                         Some(u64::from_str(&rv.value).unwrap())
+                    } else {
+                        None
                     }
                 }
                 _ => unimplemented!("Incorrect column name! {:?}", rv),
@@ -200,7 +201,7 @@ pub fn get_user_entries_of_table_in_vault(
     Ok(applied)
 }
 
-pub fn reapply_vault_decor_referencer_entries(
+/*pub fn reapply_vault_decor_referencer_entries(
     ves: &Vec<VaultEntry>,
     table_name: &str,
     fkcol: &str,
@@ -215,7 +216,8 @@ pub fn reapply_vault_decor_referencer_entries(
     }
 
     Ok(())
-}
+}*/
+
 pub fn reverse_vault_decor_referencer_entries(
     user_id: u64,
     table_name: &str,
@@ -233,6 +235,7 @@ pub fn reverse_vault_decor_referencer_entries(
     // we need some way to be able to identify these objects...
     // assume that there is exactly one object for any user?
     for ve in &vault_entries {
+        warn!("Getting fkcol {} from ve {:?}", fkcol, ve);
         let new_id = get_value_of_col(&ve.new_value, fkcol).unwrap();
         let old_id = get_value_of_col(&ve.old_value, fkcol).unwrap();
         assert!(old_id == user_id.to_string());

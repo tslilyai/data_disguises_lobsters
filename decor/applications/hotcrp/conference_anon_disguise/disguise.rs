@@ -7,7 +7,7 @@ use decor::history::*;
  * CONFERENCE ANONYMIZATION DISGUISE
  */
 pub fn undo(
-    user_id: Option<u64>,
+    _user_id: Option<u64>,
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
