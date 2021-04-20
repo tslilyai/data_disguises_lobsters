@@ -11,6 +11,7 @@ use structopt::StructOpt;
 use log::warn;
 
 mod decorrelate;
+mod remove;
 mod conference_anon_disguise;
 mod datagen;
 mod gdpr_disguise;

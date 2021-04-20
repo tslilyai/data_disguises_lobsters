@@ -1,6 +1,6 @@
 use crate::datagen::*;
 use crate::*;
-use decor::vault::*;
+use decor::vault;
 use decor::types::*;
 use decor::stats::QueryStat;
 use decor::helpers::*;
@@ -112,18 +112,18 @@ pub fn decor_obj_txn_for_user(
                 .collect();
 
             // Phase 3A: update the vault with new guises (calculating the uid from the last_insert_id)
-            vault_vals.push(VaultEntry {
+            vault_vals.push(vault::VaultEntry {
                 vault_id: 0,
                 disguise_id: disguise_id,
                 user_id: user_id,
                 guise_name: fk.fk_name.clone(),
                 guise_id: cur_uid,
                 referencer_name: child_name.clone(),
-                update_type: INSERT_GUISE,
+                update_type: vault::INSERT_GUISE,
                 modified_cols: vec![],
                 old_value: vec![],
                 new_value: new_parent_rowvals,
-                reversed: false,
+                reverses: None,
             });
 
             // Phase 3B: update the vault with the modification to children
@@ -140,23 +140,23 @@ pub fn decor_obj_txn_for_user(
                     }
                 })
                 .collect();
-            vault_vals.push(VaultEntry {
+            vault_vals.push(vault::VaultEntry {
                 vault_id: 0,
                 disguise_id: disguise_id,
                 user_id: user_id,
                 guise_name: child_name.clone(),
                 guise_id: 0, // XXX nothing here for now
                 referencer_name: "".to_string(),
-                update_type: UPDATE_GUISE,
+                update_type: vault::UPDATE_GUISE,
                 modified_cols: vec![fk.referencer_col.clone()],
                 old_value: child.clone(),
                 new_value: new_child,
-                reversed: false,
+                reverses: None,
             });
         }
 
         /* PHASE 3: Batch vault updates */
-        insert_vault_entries(&vault_vals, txn, stats)?;
+        vault::insert_vault_entries(&vault_vals, txn, stats)?;
     }
     Ok(())
 }
@@ -257,18 +257,18 @@ pub fn decor_obj_txn(
                 .collect();
 
             // Phase 3A: update the vault with new guise (calculating the uid from the last_insert_id)
-            vault_vals.push(VaultEntry {
+            vault_vals.push(vault::VaultEntry {
                 vault_id: 0,
                 disguise_id: disguise_id,
                 user_id: old_uid,
                 guise_name: fk.fk_name.clone(),
                 guise_id: guise_id,
                 referencer_name: child_name.clone(),
-                update_type: INSERT_GUISE,
+                update_type: vault::INSERT_GUISE,
                 modified_cols: vec![],
                 old_value: vec![],
                 new_value: new_parent_rowvals,
-                reversed: false,
+                reverses: None,
             });
 
             // Phase 3B: update the vault with the modification to children
@@ -285,23 +285,23 @@ pub fn decor_obj_txn(
                     }
                 })
                 .collect();
-            vault_vals.push(VaultEntry {
+            vault_vals.push(vault::VaultEntry {
                 vault_id: 0,
                 disguise_id: disguise_id,
                 user_id: old_uid,
                 guise_name: child_name.clone(),
                 guise_id: 0, // XXX nothing here for now
                 referencer_name: "".to_string(),
-                update_type: UPDATE_GUISE,
+                update_type: vault::UPDATE_GUISE,
                 modified_cols: vec![fk.referencer_col.clone()],
                 old_value: child.clone(),
                 new_value: new_child,
-                reversed: false,
+                reverses: None,
             });
         }
 
         /* PHASE 3: Batch vault updates */
-        insert_vault_entries(&vault_vals, txn, stats)?;
+        vault::insert_vault_entries(&vault_vals, txn, stats)?;
     }
     Ok(())
 }

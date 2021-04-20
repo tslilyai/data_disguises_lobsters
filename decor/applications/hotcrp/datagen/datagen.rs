@@ -32,7 +32,7 @@ pub fn get_random_string() -> String {
         .collect()
 }
 
-fn get_table_names() -> Vec<&'static str> {
+/*fn get_table_names() -> Vec<&'static str> {
     vec![
         "ContactInfo", 
         "PaperReviewPreference",
@@ -48,7 +48,7 @@ fn get_table_names() -> Vec<&'static str> {
         "PaperComment",
         "PaperReview",
     ]
-}
+}*/
 
 pub fn populate_database(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
     create_schema(SCHEMA, true, db).unwrap();

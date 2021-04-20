@@ -200,6 +200,22 @@ pub fn get_user_entries_of_table_in_vault(
     Ok(applied)
 }
 
+pub fn reapply_vault_decor_referencer_entries(
+    ves: &Vec<VaultEntry>,
+    table_name: &str,
+    fkcol: &str,
+    fktable: &str,
+    txn: &mut mysql::Transaction,
+    stats: &mut QueryStat,
+) -> Result<(), mysql::Error> {
+    /*
+     * Redo modifications to objects of this table
+     */
+    for ve in ves {
+    }
+
+    Ok(())
+}
 pub fn reverse_vault_decor_referencer_entries(
     user_id: u64,
     table_name: &str,
