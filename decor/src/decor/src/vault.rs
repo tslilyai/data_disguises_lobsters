@@ -4,14 +4,16 @@ use crate::types::*;
 use mysql::prelude::*;
 use serde::Serialize;
 use sql_parser::ast::*;
+use std::collections::HashSet;
 use std::str::FromStr;
 
 pub const VAULT_TABLE: &'static str = "VaultTable";
 pub const INSERT_GUISE: u64 = 0;
 pub const DELETE_GUISE: u64 = 1;
 pub const UPDATE_GUISE: u64 = 2;
+pub const REVERSE_VE: u64 = 3;
 
-#[derive(Default)]
+#[derive(Default, Clone, Debug)]
 pub struct VaultEntry {
     pub vault_id: u64,
     pub disguise_id: u64,
@@ -23,7 +25,16 @@ pub struct VaultEntry {
     pub modified_cols: Vec<String>,
     pub old_value: Vec<RowVal>,
     pub new_value: Vec<RowVal>,
-    pub reversed: bool,
+    pub reverses: Option<u64>,
+}
+
+fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
+    if vs.is_empty() {
+        Expr::Value(Value::Null)
+    } else {
+        let serialized = serde_json::to_string(&vs).unwrap();
+        Expr::Value(Value::String(serialized))
+    }
 }
 
 fn get_vault_entries_with_constraint(
@@ -31,7 +42,11 @@ fn get_vault_entries_with_constraint(
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
-    let rows = get_query_rows_txn(&select_statement(VAULT_TABLE, Some(constraint)), txn, stats)?;
+    let rows = get_query_rows_txn(
+        &select_ordered_statement(VAULT_TABLE, Some(constraint), "vaultID"),
+        txn,
+        stats,
+    )?;
     let mut ves = vec![];
     for row in rows {
         let mut ve: VaultEntry = Default::default();
@@ -65,7 +80,13 @@ fn get_vault_entries_with_constraint(
                         vec![]
                     }
                 }
-                "reversed" => ve.reversed = rv.value != "0",
+                "reverses" => {
+                    ve.reverses = if rv.value != Value::Null.to_string() {
+                        None
+                    } else {
+                        Some(u64::from_str(&rv.value).unwrap())
+                    }
+                }
                 _ => unimplemented!("Incorrect column name! {:?}", rv),
             };
         }
@@ -74,32 +95,30 @@ fn get_vault_entries_with_constraint(
     Ok(ves)
 }
 
-fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
-    if vs.is_empty() {
-        Expr::Value(Value::Null)
-    } else {
-        let serialized = serde_json::to_string(&vs).unwrap();
-        Expr::Value(Value::String(serialized))
-    }
-}
-
-pub fn mark_vault_entry_reversed(
+fn insert_reversed_vault_entry(
     ve: &VaultEntry,
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
+    let mut evals = vec![];
+    // store vault entry metadata
+    evals.push(Expr::Value(Value::Number(ve.disguise_id.to_string())));
+    evals.push(Expr::Value(Value::Number(ve.user_id.to_string())));
+    evals.push(Expr::Value(Value::String(ve.guise_name.clone())));
+    evals.push(Expr::Value(Value::Number(ve.guise_id.to_string())));
+    evals.push(Expr::Value(Value::String(ve.referencer_name.clone())));
+    evals.push(Expr::Value(Value::Number(REVERSE_VE.to_string())));
+    // but don't actually store the updates
+    evals.push(Expr::Value(Value::Null));
+    evals.push(Expr::Value(Value::Null));
+    evals.push(Expr::Value(Value::Null));
+    evals.push(Expr::Value(Value::Number(ve.vault_id.to_string())));
+    let vault_vals: Vec<Vec<Expr>> = vec![evals];
     get_query_rows_txn(
-        &Statement::Update(UpdateStatement {
-            table_name: string_to_objname(&VAULT_TABLE),
-            assignments: vec![Assignment {
-                id: Ident::new("reversed"),
-                value: Expr::Value(Value::Boolean(true)),
-            }],
-            selection: Some(Expr::BinaryOp {
-                left: Box::new(Expr::Identifier(vec![Ident::new("vaultID")])),
-                op: BinaryOperator::Eq,
-                right: Box::new(Expr::Value(Value::Number(ve.vault_id.to_string()))),
-            }),
+        &Statement::Insert(InsertStatement {
+            table_name: string_to_objname(VAULT_TABLE),
+            columns: get_insert_vault_colnames(),
+            source: InsertSource::Query(Box::new(values_query(vault_vals))),
         }),
         txn,
         stats,
@@ -107,10 +126,12 @@ pub fn mark_vault_entry_reversed(
     Ok(())
 }
 
-pub fn get_user_entries_with_referencer_in_vault(
+/*
+ * Returns unreversed vault entries belonging to the user that modified this table and had the specified referencer
+ */
+fn get_user_entries_with_referencer_in_vault(
     uid: u64,
     referencer_table: &str,
-    is_reversed: bool,
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
@@ -118,36 +139,36 @@ pub fn get_user_entries_with_referencer_in_vault(
         left: Box::new(Expr::Identifier(vec![Ident::new("userID")])),
         op: BinaryOperator::Eq,
         right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
-    };
-    let reversed_constraint = match is_reversed {
-        true => Expr::Identifier(vec![Ident::new("reversed")]),
-        false => Expr::UnaryOp {
-            op: UnaryOperator::Not,
-            expr: Box::new(Expr::Identifier(vec![Ident::new("reversed")])),
-        },
     };
     let ref_constraint = Expr::BinaryOp {
         left: Box::new(Expr::Identifier(vec![Ident::new("referencerName")])),
         op: BinaryOperator::Eq,
         right: Box::new(Expr::Value(Value::String(referencer_table.to_string()))),
     };
-    let intermed_constraint = Expr::BinaryOp {
-        left: Box::new(equal_uid_constraint),
-        op: BinaryOperator::And,
-        right: Box::new(reversed_constraint),
-    };
     let final_constraint = Expr::BinaryOp {
-        left: Box::new(intermed_constraint),
+        left: Box::new(equal_uid_constraint),
         op: BinaryOperator::And,
         right: Box::new(ref_constraint),
     };
-    get_vault_entries_with_constraint(final_constraint, txn, stats)
+    let mut ves = get_vault_entries_with_constraint(final_constraint, txn, stats)?;
+    let mut reversed = HashSet::new();
+    let mut applied = vec![];
+    while let Some(ve) = ves.pop() {
+        if let Some(vid) = ve.reverses {
+            reversed.insert(vid);
+        } else if !reversed.contains(&ve.vault_id) {
+            applied.push(ve);
+        }
+    }
+    Ok(applied)
 }
 
+/*
+ * Returns unreversed vault entries belonging to the user that modified this table
+ */
 pub fn get_user_entries_of_table_in_vault(
     uid: u64,
     guise_table: &str,
-    is_reversed: bool,
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
@@ -156,29 +177,27 @@ pub fn get_user_entries_of_table_in_vault(
         op: BinaryOperator::Eq,
         right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
     };
-    let reversed_constraint = match is_reversed {
-        true => Expr::Identifier(vec![Ident::new("reversed")]),
-        false => Expr::UnaryOp {
-            op: UnaryOperator::Not,
-            expr: Box::new(Expr::Identifier(vec![Ident::new("reversed")])),
-        },
-    };
     let g_constraint = Expr::BinaryOp {
         left: Box::new(Expr::Identifier(vec![Ident::new("guiseName")])),
         op: BinaryOperator::Eq,
         right: Box::new(Expr::Value(Value::String(guise_table.to_string()))),
     };
-    let intermed_constraint = Expr::BinaryOp {
-        left: Box::new(equal_uid_constraint),
-        op: BinaryOperator::And,
-        right: Box::new(reversed_constraint),
-    };
     let final_constraint = Expr::BinaryOp {
-        left: Box::new(intermed_constraint),
+        left: Box::new(equal_uid_constraint),
         op: BinaryOperator::And,
         right: Box::new(g_constraint),
     };
-    get_vault_entries_with_constraint(final_constraint, txn, stats)
+    let mut ves = get_vault_entries_with_constraint(final_constraint, txn, stats)?;
+    let mut reversed = HashSet::new();
+    let mut applied = vec![];
+    while let Some(ve) = ves.pop() {
+        if let Some(vid) = ve.reverses {
+            reversed.insert(vid);
+        } else if !reversed.contains(&ve.vault_id) {
+            applied.push(ve);
+        }
+    }
+    Ok(applied)
 }
 
 pub fn reverse_vault_decor_referencer_entries(
@@ -190,21 +209,20 @@ pub fn reverse_vault_decor_referencer_entries(
     stats: &mut QueryStat,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
     /*
+     * Undo modifications to objects of this table
      * TODO undo any vault modifications that were dependent on this one, namely "filters" that
      * join with this "filter" (any updates that happened after this?)
      */
-    let mut vault_entries = get_user_entries_of_table_in_vault(
-        user_id, table_name, is_reversed, /* is_reversed */
-        txn, stats,
-    )?;
+    let mut vault_entries = get_user_entries_of_table_in_vault(user_id, table_name, txn, stats)?;
     // we need some way to be able to identify these objects...
     // assume that there is exactly one object for any user?
     for ve in &vault_entries {
-        let new_contact_id = get_value_of_col(&ve.new_value, fkcol).unwrap();
-        let old_contact_id = get_value_of_col(&ve.old_value, fkcol).unwrap();
-        assert!(old_contact_id == user_id.to_string());
+        let new_id = get_value_of_col(&ve.new_value, fkcol).unwrap();
+        let old_id = get_value_of_col(&ve.old_value, fkcol).unwrap();
+        assert!(old_id == user_id.to_string());
 
-        // this vault entry logged a modification to the ContactInfo FK. Restore the original value
+        // this vault entry logged a modification to the FK. Restore the original value
+        // TODO assuming that all FKs point to users
         if ve.modified_cols.contains(&fkcol.to_string()) {
             get_query_rows_txn(
                 &Statement::Update(UpdateStatement {
@@ -216,22 +234,20 @@ pub fn reverse_vault_decor_referencer_entries(
                     selection: Some(Expr::BinaryOp {
                         left: Box::new(Expr::Identifier(vec![Ident::new(fkcol.to_string())])),
                         op: BinaryOperator::Eq,
-                        right: Box::new(Expr::Value(Value::Number(new_contact_id))),
+                        right: Box::new(Expr::Value(Value::Number(new_id))),
                     }),
                 }),
                 txn,
                 stats,
             )?;
-            mark_vault_entry_reversed(&ve, txn, stats)?;
+            insert_reversed_vault_entry(&ve, txn, stats)?;
         }
     }
+
     /*
-     * PHASE 0: Delete created guises
+     * Delete created guises if objects in this table had been decorrelated
      */
-    let mut guise_ves = get_user_entries_with_referencer_in_vault(
-        user_id, table_name, false, /* is_reversed */
-        txn, stats,
-    )?;
+    let mut guise_ves = get_user_entries_with_referencer_in_vault(user_id, table_name, txn, stats)?;
     for ve in &guise_ves {
         // delete guise
         get_query_rows_txn(
@@ -247,7 +263,7 @@ pub fn reverse_vault_decor_referencer_entries(
             stats,
         )?;
         // mark vault entries as reversed
-        mark_vault_entry_reversed(&ve, txn, stats)?;
+        insert_reversed_vault_entry(&ve, txn, stats)?;
     }
     vault_entries.append(&mut guise_ves);
     Ok(vault_entries)
@@ -271,7 +287,10 @@ pub fn insert_vault_entries(
             evals.push(vec_to_expr(&ve.modified_cols));
             evals.push(vec_to_expr(&ve.old_value));
             evals.push(vec_to_expr(&ve.new_value));
-            evals.push(Expr::Value(Value::Boolean(ve.reversed)));
+            match ve.reverses {
+                None => evals.push(Expr::Value(Value::Null)),
+                Some(v) => evals.push(Expr::Value(Value::Number(v.to_string()))),
+            }
             evals
         })
         .collect();
@@ -300,7 +319,7 @@ pub fn get_insert_vault_colnames() -> Vec<Ident> {
         Ident::new("modifiedCols"), // null if all modified
         Ident::new("oldValue"),
         Ident::new("newValue"),
-        Ident::new("reversed"),
+        Ident::new("reverses"),
     ]
 }
 
@@ -395,9 +414,9 @@ pub fn get_vault_cols() -> Vec<ColumnDef> {
             collation: None,
             options: vec![],
         },
-        // whether this update has been reversed
+        // whether this update reverses a prior vault entry
         ColumnDef {
-            name: Ident::new("reversed"),
+            name: Ident::new("reverses"),
             data_type: DataType::Boolean,
             collation: None,
             options: vec![],
@@ -436,4 +455,8 @@ pub fn create_vault(in_memory: bool, txn: &mut mysql::Transaction) -> Result<(),
         })
         .to_string(),
     )
+}
+
+pub fn print_vault_as_filters() -> Result<(), mysql::Error> {
+    Ok(())
 }
