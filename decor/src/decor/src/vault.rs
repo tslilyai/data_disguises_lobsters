@@ -3,6 +3,7 @@ use crate::stats::QueryStat;
 use crate::types::*;
 use log::warn;
 use mysql::prelude::*;
+use mysql::TxOpts;
 use serde::Serialize;
 use sql_parser::ast::*;
 use std::collections::HashSet;
@@ -20,7 +21,8 @@ pub struct VaultEntry {
     pub disguise_id: u64,
     pub user_id: u64,
     pub guise_name: String,
-    pub guise_id: u64,
+    pub guise_id_cols: Vec<String>,
+    pub guise_ids: Vec<String>,
     pub referencer_name: String,
     pub update_type: u64,
     pub modified_cols: Vec<String>,
@@ -57,7 +59,16 @@ fn get_vault_entries_with_constraint(
                 "disguiseID" => ve.disguise_id = u64::from_str(&rv.value).unwrap(),
                 "userID" => ve.user_id = u64::from_str(&rv.value).unwrap(),
                 "guiseName" => ve.guise_name = rv.value.clone(),
-                "guiseID" => ve.guise_id = u64::from_str(&rv.value).unwrap(),
+                "guiseIDCols" => ve.guise_id_cols = if &rv.value != NULLSTR {
+                        serde_json::from_str(&rv.value).unwrap()
+                    } else {
+                        vec![]
+                    },
+                "guiseIDs" => ve.guise_ids = if &rv.value != NULLSTR {
+                        serde_json::from_str(&rv.value).unwrap()
+                    } else {
+                        vec![]
+                    },
                 "referencerName" => ve.referencer_name = rv.value.clone(),
                 "updateType" => ve.update_type = u64::from_str(&rv.value).unwrap(),
                 "modifiedCols" => {
@@ -106,7 +117,8 @@ fn insert_reversed_vault_entry(
     evals.push(Expr::Value(Value::Number(ve.disguise_id.to_string())));
     evals.push(Expr::Value(Value::Number(ve.user_id.to_string())));
     evals.push(Expr::Value(Value::String(ve.guise_name.clone())));
-    evals.push(Expr::Value(Value::Number(ve.guise_id.to_string())));
+    evals.push(vec_to_expr(&ve.guise_id_cols));
+    evals.push(vec_to_expr(&ve.guise_ids));
     evals.push(Expr::Value(Value::String(ve.referencer_name.clone())));
     evals.push(Expr::Value(Value::Number(REVERSE_VE.to_string())));
     // but don't actually store the updates
@@ -275,7 +287,8 @@ pub fn reverse_vault_decor_referencer_entries(
                 selection: Some(Expr::BinaryOp {
                     left: Box::new(Expr::Identifier(vec![Ident::new(fkcol.to_string())])),
                     op: BinaryOperator::Eq,
-                    right: Box::new(Expr::Value(Value::Number(ve.guise_id.to_string()))),
+                    // XXX assuming guise is a user... only has one id
+                    right: Box::new(Expr::Value(Value::Number(ve.guise_ids[0].clone())))
                 }),
             }),
             txn,
@@ -300,7 +313,8 @@ pub fn insert_vault_entries(
             evals.push(Expr::Value(Value::Number(ve.disguise_id.to_string())));
             evals.push(Expr::Value(Value::Number(ve.user_id.to_string())));
             evals.push(Expr::Value(Value::String(ve.guise_name.clone())));
-            evals.push(Expr::Value(Value::Number(ve.guise_id.to_string())));
+            evals.push(vec_to_expr(&ve.guise_id_cols));
+            evals.push(vec_to_expr(&ve.guise_ids));
             evals.push(Expr::Value(Value::String(ve.referencer_name.clone())));
             evals.push(Expr::Value(Value::Number(ve.update_type.to_string())));
             evals.push(vec_to_expr(&ve.modified_cols));
@@ -327,12 +341,32 @@ pub fn insert_vault_entries(
     Ok(())
 }
 
+pub fn print_vault_as_filters(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    let mut stats: QueryStat = QueryStat::new();
+    let mut txn = db.start_transaction(TxOpts::default()).unwrap();
+    let ves =
+        get_vault_entries_with_constraint(Expr::Value(Value::Boolean(true)), &mut txn, &mut stats)?;
+    txn.commit()?;
+
+    for ve in ves {
+        let filter = match ve.update_type {
+            INSERT_GUISE => format!("INSERT INTO {} VALUES({:?})", ve.guise_name, ve.new_value),
+            DELETE_GUISE => format!("DELETE FROM {} WHERE {:?} = {:?}", ve.guise_name, ve.guise_id_cols, ve.guise_ids),
+            UPDATE_GUISE => "".to_string(),
+            REVERSE_VE => "".to_string(),
+            _ => unimplemented!("Bad vault update type! {}", ve.update_type),
+        };
+    }
+    Ok(())
+}
+
 pub fn get_insert_vault_colnames() -> Vec<Ident> {
     vec![
         Ident::new("disguiseID"),
         Ident::new("userID"),
         Ident::new("guiseName"),
-        Ident::new("guiseID"),
+        Ident::new("guiseIDCols"),
+        Ident::new("guiseIDs"),
         Ident::new("referencerName"),
         Ident::new("updateType"),   // remove, add, or modify
         Ident::new("modifiedCols"), // null if all modified
@@ -476,6 +510,3 @@ pub fn create_vault(in_memory: bool, txn: &mut mysql::Transaction) -> Result<(),
     )
 }
 
-pub fn print_vault_as_filters() -> Result<(), mysql::Error> {
-    Ok(())
-}

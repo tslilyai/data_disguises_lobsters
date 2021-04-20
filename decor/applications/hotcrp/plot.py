@@ -12,7 +12,7 @@ nqueries_pc = []
 nqueries_vault_pc = []
 latencies_pc = []
 
-with open('out','r') as csvfile:
+with open('hotcrp.out','r') as csvfile:
     rows = csvfile.readlines()
     for row in rows[2:]:
         p = row.split(',')
@@ -53,4 +53,4 @@ axes_flat[2].set_ylabel('#GDPRRemoval Disguises')
 
 fig.tight_layout(h_pad=4)
 fig.legend(loc='upper right')
-plt.savefig('{}.pdf'.format("pc_users"), dpi=250)
+plt.savefig('{}.pdf'.format("hotcrp_gdpr_removal"), dpi=250)

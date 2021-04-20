@@ -15,6 +15,7 @@ pub fn decor_obj_txn_for_user(
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
     let child_name = tablefk.name.clone();
+    let child_id_cols = tablefk.id_cols.clone();
     let fks = &tablefk.fks;
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
@@ -117,7 +118,9 @@ pub fn decor_obj_txn_for_user(
                 disguise_id: disguise_id,
                 user_id: user_id,
                 guise_name: fk.fk_name.clone(),
-                guise_id: cur_uid,
+                // XXX assume this is a user guise
+                guise_id_cols: vec![SCHEMA_UID_COL.to_string()],
+                guise_ids: vec![cur_uid.to_string()],
                 referencer_name: child_name.clone(),
                 update_type: vault::INSERT_GUISE,
                 modified_cols: vec![],
@@ -140,12 +143,14 @@ pub fn decor_obj_txn_for_user(
                     }
                 })
                 .collect();
+            let child_ids = child_id_cols.iter().map(|id_col| get_value_of_col(child, &id_col).unwrap()).collect();
             vault_vals.push(vault::VaultEntry {
                 vault_id: 0,
                 disguise_id: disguise_id,
                 user_id: user_id,
                 guise_name: child_name.clone(),
-                guise_id: 0, // XXX nothing here for now
+                guise_id_cols: child_id_cols.clone(), 
+                guise_ids: child_ids, 
                 referencer_name: "".to_string(),
                 update_type: vault::UPDATE_GUISE,
                 modified_cols: vec![fk.referencer_col.clone()],
@@ -168,6 +173,7 @@ pub fn decor_obj_txn(
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
     let child_name = &tablefk.name;
+    let child_id_cols = tablefk.id_cols.clone();
     let fks = &tablefk.fks;
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
@@ -262,7 +268,9 @@ pub fn decor_obj_txn(
                 disguise_id: disguise_id,
                 user_id: old_uid,
                 guise_name: fk.fk_name.clone(),
-                guise_id: guise_id,
+                // XXX assume is ContactInfo table guise
+                guise_id_cols: vec![SCHEMA_UID_COL.to_string()],
+                guise_ids: vec![guise_id.to_string()],
                 referencer_name: child_name.clone(),
                 update_type: vault::INSERT_GUISE,
                 modified_cols: vec![],
@@ -285,12 +293,14 @@ pub fn decor_obj_txn(
                     }
                 })
                 .collect();
+            let child_ids = child_id_cols.iter().map(|id_col| get_value_of_col(child, &id_col).unwrap()).collect();
             vault_vals.push(vault::VaultEntry {
                 vault_id: 0,
                 disguise_id: disguise_id,
                 user_id: old_uid,
                 guise_name: child_name.clone(),
-                guise_id: 0, // XXX nothing here for now
+                guise_id_cols: child_id_cols.clone(),
+                guise_ids: child_ids, 
                 referencer_name: "".to_string(),
                 update_type: vault::UPDATE_GUISE,
                 modified_cols: vec![fk.referencer_col.clone()],

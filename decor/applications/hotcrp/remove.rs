@@ -1,15 +1,19 @@
 use crate::*;
 use decor::helpers::*;
+use decor::types::*;
 use decor::vault;
 use sql_parser::ast::*;
 
 pub fn remove_obj_txn_for_user(
     user_id: u64,
     disguise_id: u64,
-    name: &str,
+    tablefk: &TableFKs,
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
+    let name = tablefk.name.clone();
+    let id_cols = tablefk.id_cols.clone();
+
     let selection = Some(Expr::BinaryOp {
         left: Box::new(Expr::Identifier(vec![
             Ident::new(SCHEMA_UID_COL.to_string()), // assumes fkcol is uid_col
@@ -33,7 +37,7 @@ pub fn remove_obj_txn_for_user(
     if name != SCHEMA_UID_TABLE {
         vault::reverse_vault_decor_referencer_entries(
             user_id,
-            name,
+            &name,
             SCHEMA_UID_COL,
             SCHEMA_UID_TABLE,
             txn,
@@ -45,7 +49,7 @@ pub fn remove_obj_txn_for_user(
      * PHASE 1: OBJECT SELECTION
      */
     let predicated_objs =
-        get_query_rows_txn(&select_statement(name, selection.clone()), txn, stats)?;
+        get_query_rows_txn(&select_statement(&name, selection.clone()), txn, stats)?;
 
     /* PHASE 2: OBJECT MODIFICATION */
     get_query_rows_txn(
@@ -60,12 +64,14 @@ pub fn remove_obj_txn_for_user(
     /* PHASE 3: VAULT UPDATES */
     let mut vault_vals = vec![];
     for objrow in &predicated_objs {
+        let ids = id_cols.iter().map(|c| get_value_of_col(objrow, &c).unwrap()).collect();
         vault_vals.push(vault::VaultEntry {
             vault_id: 0,
             disguise_id: disguise_id,
             user_id: user_id,
-            guise_name: name.to_string(),
-            guise_id: 0,
+            guise_name: name.clone(),
+            guise_id_cols: id_cols.clone(),
+            guise_ids: ids,
             referencer_name: "".to_string(),
             update_type: vault::DELETE_GUISE,
             modified_cols: vec![],
@@ -77,5 +83,3 @@ pub fn remove_obj_txn_for_user(
     vault::insert_vault_entries(&vault_vals, txn, stats)?;
     Ok(())
 }
-
-

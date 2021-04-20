@@ -16,5 +16,6 @@ pub struct FK {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TableFKs {
     pub name: String,
+    pub id_cols: Vec<String>,
     pub fks: Vec<FK>,
 }

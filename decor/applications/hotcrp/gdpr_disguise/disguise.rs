@@ -53,8 +53,8 @@ pub fn apply(
         }
 
         // REMOVAL TXNS
-        for name in get_remove_names() {
-            remove::remove_obj_txn_for_user(user_id, GDPR_DISGUISE_ID, name, txn, stats)?;
+        for tablefk in get_remove_names() {
+            remove::remove_obj_txn_for_user(user_id, GDPR_DISGUISE_ID, &tablefk, txn, stats)?;
         }
 
         decor::record_disguise(&de, txn, stats)?;
