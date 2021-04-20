@@ -1,10 +1,9 @@
-use crate::conference_anon_disguise;
-use crate::gdpr_disguise::constants::*;
 use crate::decorrelate;
+use crate::gdpr_disguise::constants::*;
 use crate::*;
-use decor::vault::*;
-use decor::history::*;
 use decor::helpers::*;
+use decor::history;
+use decor::vault;
 use sql_parser::ast::*;
 
 /*
@@ -19,14 +18,14 @@ pub fn undo(
     // user must be provided as input
     let user_id = user_id.unwrap();
 
-    let de = DisguiseEntry {
+    let de = history::DisguiseEntry {
         disguise_id: GDPR_DISGUISE_ID,
         user_id: user_id,
         reverse: true,
     };
 
     // only apply if disguise has been applied
-    if !is_disguise_reversed(&de, txn, stats)? {
+    if !history::is_disguise_reversed(&de, txn, stats)? {
         // TODO undo disguise
 
         decor::record_disguise(&de, txn, stats)?;
@@ -49,6 +48,25 @@ fn remove_obj_txn(
     });
 
     /*
+     * PHASE 0: What vault operations must come "after" removal?
+     * ==> Those that have made the object to remove inaccessible, namely those that would have
+     * satisfied the predicate, but no longer do.
+     *
+     * TODO also undo any operations that happened in that disguise after these decorrelation
+     * modifications?
+     *
+     * Note: we don't need to redo these because deletion is final!
+     */
+    let mut vault_entries = vault::reverse_vault_decor_referencer_entries(
+        user_id,
+        name,
+        SCHEMA_UID_COL,
+        SCHEMA_UID_TABLE,
+        txn,
+        stats,
+    )?;
+
+    /*
      * PHASE 1: OBJECT SELECTION
      */
     let predicated_objs =
@@ -67,21 +85,21 @@ fn remove_obj_txn(
     /* PHASE 3: VAULT UPDATES */
     let mut vault_vals = vec![];
     for objrow in &predicated_objs {
-        vault_vals.push(VaultEntry {
+        vault_vals.push(vault::VaultEntry {
             vault_id: 0,
             disguise_id: GDPR_DISGUISE_ID,
             user_id: user_id,
             guise_name: name.to_string(),
             guise_id: 0,
             referencer_name: "".to_string(),
-            update_type: DELETE_GUISE,
+            update_type: vault::DELETE_GUISE,
             modified_cols: vec![],
             old_value: objrow.clone(),
             new_value: vec![],
             reversed: false,
         });
     }
-    insert_vault_entries(&vault_vals, txn, stats)?;
+    vault::insert_vault_entries(&vault_vals, txn, stats)?;
     Ok(())
 }
 
@@ -93,18 +111,14 @@ pub fn apply(
     // user must be provided as input
     let user_id = user_id.unwrap();
 
-    let de = DisguiseEntry {
+    let de = history::DisguiseEntry {
         disguise_id: GDPR_DISGUISE_ID,
         user_id: user_id,
         reverse: false,
     };
 
     // only apply if disguise is reversed (or hasn't been applied)
-    if is_disguise_reversed(&de, txn, stats)? {
-        // UNDO PRIOR DISGUISES
-        // TODO check if previous disguises have been applied; if so, undo them for this user
-        conference_anon_disguise::undo(Some(user_id), txn, stats)?;
-
+    if history::is_disguise_reversed(&de, txn, stats)? {
         // DECORRELATION TXNS
         for tablefk in get_decor_names() {
             decorrelate::decor_obj_txn_for_user(user_id, GDPR_DISGUISE_ID, &tablefk, txn, stats)?;
@@ -114,9 +128,6 @@ pub fn apply(
         for name in get_remove_names() {
             remove_obj_txn(user_id, name, txn, stats)?;
         }
-
-        // reapply conference anon disguise
-        conference_anon_disguise::apply(Some(user_id), txn, stats)?;
 
         decor::record_disguise(&de, txn, stats)?;
     }

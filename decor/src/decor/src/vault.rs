@@ -1,6 +1,6 @@
+use crate::helpers::*;
 use crate::stats::QueryStat;
 use crate::types::*;
-use crate::helpers::*;
 use mysql::prelude::*;
 use serde::Serialize;
 use sql_parser::ast::*;
@@ -179,6 +179,78 @@ pub fn get_user_entries_of_table_in_vault(
         right: Box::new(g_constraint),
     };
     get_vault_entries_with_constraint(final_constraint, txn, stats)
+}
+
+pub fn reverse_vault_decor_referencer_entries(
+    user_id: u64,
+    table_name: &str,
+    fkcol: &str,
+    fktable: &str,
+    txn: &mut mysql::Transaction,
+    stats: &mut QueryStat,
+) -> Result<Vec<VaultEntry>, mysql::Error> {
+    /*
+     * TODO undo any vault modifications that were dependent on this one, namely "filters" that
+     * join with this "filter" (any updates that happened after this?)
+     */
+    let mut vault_entries = get_user_entries_of_table_in_vault(
+        user_id, table_name, is_reversed, /* is_reversed */
+        txn, stats,
+    )?;
+    // we need some way to be able to identify these objects...
+    // assume that there is exactly one object for any user?
+    for ve in &vault_entries {
+        let new_contact_id = get_value_of_col(&ve.new_value, fkcol).unwrap();
+        let old_contact_id = get_value_of_col(&ve.old_value, fkcol).unwrap();
+        assert!(old_contact_id == user_id.to_string());
+
+        // this vault entry logged a modification to the ContactInfo FK. Restore the original value
+        if ve.modified_cols.contains(&fkcol.to_string()) {
+            get_query_rows_txn(
+                &Statement::Update(UpdateStatement {
+                    table_name: string_to_objname(table_name),
+                    assignments: vec![Assignment {
+                        id: Ident::new(fkcol.to_string()),
+                        value: Expr::Value(Value::Number(user_id.to_string())),
+                    }],
+                    selection: Some(Expr::BinaryOp {
+                        left: Box::new(Expr::Identifier(vec![Ident::new(fkcol.to_string())])),
+                        op: BinaryOperator::Eq,
+                        right: Box::new(Expr::Value(Value::Number(new_contact_id))),
+                    }),
+                }),
+                txn,
+                stats,
+            )?;
+            mark_vault_entry_reversed(&ve, txn, stats)?;
+        }
+    }
+    /*
+     * PHASE 0: Delete created guises
+     */
+    let mut guise_ves = get_user_entries_with_referencer_in_vault(
+        user_id, table_name, false, /* is_reversed */
+        txn, stats,
+    )?;
+    for ve in &guise_ves {
+        // delete guise
+        get_query_rows_txn(
+            &Statement::Delete(DeleteStatement {
+                table_name: string_to_objname(fktable),
+                selection: Some(Expr::BinaryOp {
+                    left: Box::new(Expr::Identifier(vec![Ident::new(fkcol.to_string())])),
+                    op: BinaryOperator::Eq,
+                    right: Box::new(Expr::Value(Value::Number(ve.guise_id.to_string()))),
+                }),
+            }),
+            txn,
+            stats,
+        )?;
+        // mark vault entries as reversed
+        mark_vault_entry_reversed(&ve, txn, stats)?;
+    }
+    vault_entries.append(&mut guise_ves);
+    Ok(vault_entries)
 }
 
 pub fn insert_vault_entries(
