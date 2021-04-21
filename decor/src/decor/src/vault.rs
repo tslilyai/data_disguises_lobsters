@@ -422,15 +422,19 @@ pub fn get_vault_cols() -> Vec<ColumnDef> {
             collation: None,
             options: vec![],
         },
-        // guise ID
+        // guise ID colss
         ColumnDef {
-            name: Ident::new("guiseID"),
-            data_type: DataType::BigInt,
+            name: Ident::new("guiseIDCols"),
+            data_type: DataType::Varbinary(4096),
             collation: None,
-            options: vec![ColumnOptionDef {
-                name: None,
-                option: ColumnOption::NotNull,
-            }],
+            options: vec![],
+        },
+        // guise IDs
+        ColumnDef {
+            name: Ident::new("guiseIDs"),
+            data_type: DataType::Varbinary(4096),
+            collation: None,
+            options: vec![],
         },
         // optional name of referencer
         ColumnDef {

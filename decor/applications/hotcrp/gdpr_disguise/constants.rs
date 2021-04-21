@@ -10,7 +10,7 @@ pub fn get_remove_names() -> Vec<TableFKs> {
 
         TableFKs {
             name: "PaperReviewPreference".to_string(),
-            id_cols: vec!["salt".to_string()],
+            id_cols: vec!["paperId".to_string(), "contactId".to_string()],
             fks: vec![],
         },
         TableFKs {
@@ -86,7 +86,7 @@ pub fn get_decor_names() -> Vec<TableFKs> {
         },
         TableFKs {
             name: "PaperComment".to_string(),
-            id_cols: vec!["commendId".to_string()],
+            id_cols: vec!["commentId".to_string()],
             fks: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
