@@ -19,6 +19,7 @@ mod gdpr_disguise;
 mod remove;
 
 use decor::stats::QueryStat;
+use decor::vault;
 use rand::seq::SliceRandom;
 
 const DBNAME: &'static str = &"test_hotcrp";
@@ -57,8 +58,8 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        //.filter_level(log::LevelFilter::Warn)
-        .filter_level(log::LevelFilter::Error)
+        .filter_level(log::LevelFilter::Warn)
+        //.filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -133,8 +134,11 @@ fn run_test(prime: bool) {
         )
         .unwrap();
     }
-    drop(db);
     file.flush().unwrap();
+
+    vault::print_as_filters(&mut db).unwrap();
+
+    drop(db);
 }
 
 fn main() {

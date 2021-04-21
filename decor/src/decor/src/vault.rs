@@ -8,12 +8,14 @@ use serde::Serialize;
 use sql_parser::ast::*;
 use std::collections::HashSet;
 use std::str::FromStr;
+ use std::fs::File;
+ use std::io::Write;
+
 
 pub const VAULT_TABLE: &'static str = "VaultTable";
 pub const INSERT_GUISE: u64 = 0;
 pub const DELETE_GUISE: u64 = 1;
 pub const UPDATE_GUISE: u64 = 2;
-pub const REVERSE_VE: u64 = 3;
 
 #[derive(Default, Clone, Debug)]
 pub struct VaultEntry {
@@ -54,6 +56,7 @@ fn get_vault_entries_with_constraint(
     for row in rows {
         let mut ve: VaultEntry = Default::default();
         for rv in row {
+            warn!("getting vault entry value {:?}", rv);
             match rv.column.as_str() {
                 "vaultID" => ve.vault_id = u64::from_str(&rv.value).unwrap(),
                 "disguiseID" => ve.disguise_id = u64::from_str(&rv.value).unwrap(),
@@ -112,6 +115,7 @@ fn insert_reversed_vault_entry(
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
+    warn!("Reversing {:?}", ve);
     let mut evals = vec![];
     // store vault entry metadata
     evals.push(Expr::Value(Value::Number(ve.disguise_id.to_string())));
@@ -120,7 +124,7 @@ fn insert_reversed_vault_entry(
     evals.push(vec_to_expr(&ve.guise_id_cols));
     evals.push(vec_to_expr(&ve.guise_ids));
     evals.push(Expr::Value(Value::String(ve.referencer_name.clone())));
-    evals.push(Expr::Value(Value::Number(REVERSE_VE.to_string())));
+    evals.push(Expr::Value(Value::Number(ve.update_type.to_string())));
     // but don't actually store the updates
     evals.push(Expr::Value(Value::Null));
     evals.push(Expr::Value(Value::Null));
@@ -244,10 +248,10 @@ pub fn reverse_vault_decor_referencer_entries(
      * join with this "filter" (any updates that happened after this?)
      */
     let mut vault_entries = get_user_entries_of_table_in_vault(user_id, table_name, txn, stats)?;
+    warn!("User {} entries of table {} in vault: {:?}", user_id, table_name, vault_entries);
     // we need some way to be able to identify these objects...
     // assume that there is exactly one object for any user?
     for ve in &vault_entries {
-        warn!("Getting fkcol {} from ve {:?}", fkcol, ve);
         let new_id = get_value_of_col(&ve.new_value, fkcol).unwrap();
         let old_id = get_value_of_col(&ve.old_value, fkcol).unwrap();
         assert!(old_id == user_id.to_string());
@@ -279,6 +283,7 @@ pub fn reverse_vault_decor_referencer_entries(
      * Delete created guises if objects in this table had been decorrelated
      */
     let mut guise_ves = get_user_entries_with_referencer_in_vault(user_id, table_name, txn, stats)?;
+    warn!("User {} entries with referencer {} in vault: {:?}", user_id, table_name, vault_entries);
     for ve in &guise_ves {
         // delete guise
         get_query_rows_txn(
@@ -341,7 +346,8 @@ pub fn insert_vault_entries(
     Ok(())
 }
 
-pub fn print_vault_as_filters(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+pub fn print_as_filters(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+    let mut file = File::create("vault_filters.out".to_string())?;
     let mut stats: QueryStat = QueryStat::new();
     let mut txn = db.start_transaction(TxOpts::default()).unwrap();
     let ves =
@@ -349,18 +355,70 @@ pub fn print_vault_as_filters(db: &mut mysql::Conn) -> Result<(), mysql::Error> 
     txn.commit()?;
 
     for ve in ves {
-        let filter = match ve.update_type {
-            INSERT_GUISE => format!("INSERT INTO {} VALUES({:?})", ve.guise_name, ve.new_value),
-            DELETE_GUISE => format!("DELETE FROM {} WHERE {:?} = {:?}", ve.guise_name, ve.guise_id_cols, ve.guise_ids),
-            UPDATE_GUISE => "".to_string(),
-            REVERSE_VE => "".to_string(),
-            _ => unimplemented!("Bad vault update type! {}", ve.update_type),
+        let filter = match ve.reverses {
+            Some(vid) => {
+                file.write(format!("Rev D{}:{}\t", ve.disguise_id, vid).as_bytes())?;
+                match ve.update_type {
+                    INSERT_GUISE => format!("DELETE FROM {} WHERE {:?} = {:?}\n", ve.guise_name, ve.guise_id_cols, ve.guise_ids),
+                    DELETE_GUISE => format!("INSERT INTO {} VALUES ({:?})\n", ve.guise_name, ve.new_value),
+                    UPDATE_GUISE => format!("UPDATE {} SET {:?} = {:?}\n", ve.guise_name, ve.modified_cols, ve.old_value),
+                    _ => unimplemented!("Bad vault update type! {}\n", ve.update_type),
+                }
+            }
+            None => {
+                file.write(format!("D{}:{}\t", ve.disguise_id, ve.vault_id).as_bytes())?;
+                match ve.update_type {
+                    INSERT_GUISE => format!("INSERT INTO {} VALUES({:?})\n", ve.guise_name, ve.new_value),
+                    DELETE_GUISE => format!("DELETE FROM {} WHERE {:?} = {:?}\n", ve.guise_name, ve.guise_id_cols, ve.guise_ids),
+                    UPDATE_GUISE => format!("UPDATE {} SET {:?} = {:?}\n", ve.guise_name, ve.modified_cols, ve.new_value),
+                    _ => unimplemented!("Bad vault update type! {}\n", ve.update_type),
+                }
+            }
         };
+        file.write(filter.as_bytes())?;
     }
+    file.flush()?;
     Ok(())
 }
 
-pub fn get_insert_vault_colnames() -> Vec<Ident> {
+pub fn create_vault(in_memory: bool, txn: &mut mysql::Transaction) -> Result<(), mysql::Error> {
+    let engine = Some(if in_memory {
+        Engine::Memory
+    } else {
+        Engine::InnoDB
+    });
+    let indexes = vec![
+        IndexDef {
+            name: Ident::new("uidIndex"),
+            index_type: None,
+            key_parts: vec![Ident::new("userID")],
+        },
+        IndexDef {
+            name: Ident::new("disguiseIndex"),
+            index_type: None,
+            key_parts: vec![Ident::new("disguiseID")],
+        },
+    ];
+
+    txn.query_drop(
+        &Statement::CreateTable(CreateTableStatement {
+            name: string_to_objname(VAULT_TABLE),
+            columns: get_vault_cols(),
+            constraints: vec![],
+            indexes: indexes.clone(),
+            with_options: vec![],
+            if_not_exists: true,
+            engine: engine.clone(),
+        })
+        .to_string(),
+    )
+}
+
+/***********************************************
+ ********* VAULT DEFINITIONS *******************
+***********************************************/
+
+fn get_insert_vault_colnames() -> Vec<Ident> {
     vec![
         Ident::new("disguiseID"),
         Ident::new("userID"),
@@ -376,7 +434,7 @@ pub fn get_insert_vault_colnames() -> Vec<Ident> {
     ]
 }
 
-pub fn get_vault_cols() -> Vec<ColumnDef> {
+fn get_vault_cols() -> Vec<ColumnDef> {
     vec![
         // for ordering
         ColumnDef {
@@ -479,38 +537,5 @@ pub fn get_vault_cols() -> Vec<ColumnDef> {
             options: vec![],
         },
     ]
-}
-
-pub fn create_vault(in_memory: bool, txn: &mut mysql::Transaction) -> Result<(), mysql::Error> {
-    let engine = Some(if in_memory {
-        Engine::Memory
-    } else {
-        Engine::InnoDB
-    });
-    let indexes = vec![
-        IndexDef {
-            name: Ident::new("uidIndex"),
-            index_type: None,
-            key_parts: vec![Ident::new("userID")],
-        },
-        IndexDef {
-            name: Ident::new("disguiseIndex"),
-            index_type: None,
-            key_parts: vec![Ident::new("disguiseID")],
-        },
-    ];
-
-    txn.query_drop(
-        &Statement::CreateTable(CreateTableStatement {
-            name: string_to_objname(VAULT_TABLE),
-            columns: get_vault_cols(),
-            constraints: vec![],
-            indexes: indexes.clone(),
-            with_options: vec![],
-            if_not_exists: true,
-            engine: engine.clone(),
-        })
-        .to_string(),
-    )
 }
 
