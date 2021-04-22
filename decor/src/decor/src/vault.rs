@@ -1,7 +1,7 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
 use crate::types::*;
-use log::{debug, warn, error};
+use log::{debug, warn};
 use mysql::prelude::*;
 use mysql::TxOpts;
 use serde::Serialize;
@@ -128,10 +128,9 @@ fn insert_reversed_vault_entry(
     evals.push(vec_to_expr(&ve.guise_ids));
     evals.push(Expr::Value(Value::String(ve.referencer_name.clone())));
     evals.push(Expr::Value(Value::Number(ve.update_type.to_string())));
-    // but don't actually store the updates
-    evals.push(Expr::Value(Value::Null));
-    evals.push(Expr::Value(Value::Null));
-    evals.push(Expr::Value(Value::Null));
+    evals.push(vec_to_expr(&ve.modified_cols));
+    evals.push(vec_to_expr(&ve.old_value));
+    evals.push(vec_to_expr(&ve.new_value));
     evals.push(Expr::Value(Value::Number(ve.vault_id.to_string())));
     let vault_vals: Vec<Vec<Expr>> = vec![evals];
     get_query_rows_txn(
@@ -259,7 +258,6 @@ pub fn reverse_vault_decor_referencer_entries(
     // we need some way to be able to identify these objects...
     // assume that there is exactly one object for any user?
     for ve in &vault_entries {
-
         if ve.update_type == DELETE_GUISE {
             continue;
         }
@@ -377,38 +375,65 @@ pub fn print_as_filters(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
 
     for ve in ves {
         let filter = match ve.reverses {
-            Some(vid) => {
-                file.write(format!("Rev D{}:{}\t", ve.disguise_id, vid).as_bytes())?;
+            Some(_) => {
+                file.write(format!("\t-D{}: ", ve.disguise_id).as_bytes())?;
                 match ve.update_type {
                     INSERT_GUISE => format!(
                         "DELETE FROM {} WHERE {:?} = {:?}\n",
                         ve.guise_name, ve.guise_id_cols, ve.guise_ids
                     ),
-                    DELETE_GUISE => format!(
-                        "INSERT INTO {} VALUES ({:?})\n",
-                        ve.guise_name, ve.new_value
-                    ),
-                    UPDATE_GUISE => format!(
-                        "UPDATE {} SET {:?} = {:?}\n",
-                        ve.guise_name, ve.modified_cols, ve.old_value
-                    ),
+                    DELETE_GUISE => {
+                        let mut cols = vec![];
+                        let mut vals = vec![];
+                        for rc in ve.old_value {
+                            cols.push(rc.column);
+                            vals.push(rc.value);
+                        }
+                        format!(
+                            "INSERT INTO {} ({:?}) VALUES({:?})\n",
+                            ve.guise_name, cols, vals
+                        )
+                    }
+                    UPDATE_GUISE => {
+                        let mut setstr = String::new();
+                        for rc in ve.old_value {
+                            if ve.modified_cols.contains(&rc.column) {
+                                setstr.push_str(&format!("{} = {}, ", rc.column, rc.value));
+                            }
+                        }
+                        format!("UPDATE {} SET {}\n", ve.guise_name, setstr)
+                    }
                     _ => unimplemented!("Bad vault update type! {}\n", ve.update_type),
                 }
             }
             None => {
-                file.write(format!("D{}:{}\t", ve.disguise_id, ve.vault_id).as_bytes())?;
+                file.write(format!("+D{}: ", ve.disguise_id).as_bytes())?;
                 match ve.update_type {
                     INSERT_GUISE => {
-                        format!("INSERT INTO {} VALUES({:?})\n", ve.guise_name, ve.new_value)
+                        let mut cols = vec![];
+                        let mut vals = vec![];
+                        for rc in ve.new_value {
+                            cols.push(rc.column);
+                            vals.push(rc.value);
+                        }
+                        format!(
+                            "INSERT INTO {} ({:?}) VALUES({:?})\n",
+                            ve.guise_name, cols, vals
+                        )
                     }
                     DELETE_GUISE => format!(
                         "DELETE FROM {} WHERE {:?} = {:?}\n",
                         ve.guise_name, ve.guise_id_cols, ve.guise_ids
                     ),
-                    UPDATE_GUISE => format!(
-                        "UPDATE {} SET {:?} = {:?}\n",
-                        ve.guise_name, ve.modified_cols, ve.new_value
-                    ),
+                    UPDATE_GUISE => {
+                        let mut setstr = String::new();
+                        for rc in ve.new_value {
+                            if ve.modified_cols.contains(&rc.column) {
+                                setstr.push_str(&format!("{} = {}, ", rc.column, rc.value));
+                            }
+                        }
+                        format!("UPDATE {} SET {}\n", ve.guise_name, setstr)
+                    }
                     _ => unimplemented!("Bad vault update type! {}\n", ve.update_type),
                 }
             }
