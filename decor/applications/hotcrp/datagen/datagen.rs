@@ -16,7 +16,7 @@ const NPAPERS_ACCEPT: usize = 10;
  * Paper metadata:
  * - Each paper is assigned 1 leadContactId
  * - Each paper is assigned 1 managerContactId
- * - Accepted papers are assigned a shepherdID that is one of the reviewers
+ * - Accepted papers are assigned a shepherdId that is one of the reviewers
  * - Reviews and paper conflicts per paper
  */
 const NREVIEWS: usize = 4;

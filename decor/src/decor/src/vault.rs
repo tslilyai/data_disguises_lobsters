@@ -47,7 +47,7 @@ fn get_vault_entries_with_constraint(
     stats: &mut QueryStat,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
     let rows = get_query_rows_txn(
-        &select_ordered_statement(VAULT_TABLE, Some(constraint), "vaultID"),
+        &select_ordered_statement(VAULT_TABLE, Some(constraint), "vaultId"),
         txn,
         stats,
     )?;
@@ -57,18 +57,18 @@ fn get_vault_entries_with_constraint(
         debug!("GetVaultEntries: got entry {:?}", ve);
         for rv in row {
             match rv.column.as_str() {
-                "vaultID" => ve.vault_id = u64::from_str(&rv.value).unwrap(),
-                "disguiseID" => ve.disguise_id = u64::from_str(&rv.value).unwrap(),
-                "userID" => ve.user_id = u64::from_str(&rv.value).unwrap(),
+                "vaultId" => ve.vault_id = u64::from_str(&rv.value).unwrap(),
+                "disguiseId" => ve.disguise_id = u64::from_str(&rv.value).unwrap(),
+                "userId" => ve.user_id = u64::from_str(&rv.value).unwrap(),
                 "guiseName" => ve.guise_name = rv.value.clone(),
-                "guiseIDCols" => {
+                "guiseIdCols" => {
                     ve.guise_id_cols = if &rv.value != NULLSTR {
                         serde_json::from_str(&rv.value).unwrap()
                     } else {
                         vec![]
                     }
                 }
-                "guiseIDs" => {
+                "guiseIds" => {
                     ve.guise_ids = if &rv.value != NULLSTR {
                         serde_json::from_str(&rv.value).unwrap()
                     } else {
@@ -156,7 +156,7 @@ fn get_user_entries_with_referencer_in_vault(
     stats: &mut QueryStat,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
     let equal_uid_constraint = Expr::BinaryOp {
-        left: Box::new(Expr::Identifier(vec![Ident::new("userID")])),
+        left: Box::new(Expr::Identifier(vec![Ident::new("userId")])),
         op: BinaryOperator::Eq,
         right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
     };
@@ -193,7 +193,7 @@ pub fn get_user_entries_of_table_in_vault(
     stats: &mut QueryStat,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
     let equal_uid_constraint = Expr::BinaryOp {
-        left: Box::new(Expr::Identifier(vec![Ident::new("userID")])),
+        left: Box::new(Expr::Identifier(vec![Ident::new("userId")])),
         op: BinaryOperator::Eq,
         right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
     };
@@ -429,12 +429,12 @@ pub fn create_vault(in_memory: bool, txn: &mut mysql::Transaction) -> Result<(),
         IndexDef {
             name: Ident::new("uidIndex"),
             index_type: None,
-            key_parts: vec![Ident::new("userID")],
+            key_parts: vec![Ident::new("userId")],
         },
         IndexDef {
             name: Ident::new("disguiseIndex"),
             index_type: None,
-            key_parts: vec![Ident::new("disguiseID")],
+            key_parts: vec![Ident::new("disguiseId")],
         },
     ];
 
@@ -458,11 +458,11 @@ pub fn create_vault(in_memory: bool, txn: &mut mysql::Transaction) -> Result<(),
 
 fn get_insert_vault_colnames() -> Vec<Ident> {
     vec![
-        Ident::new("disguiseID"),
-        Ident::new("userID"),
+        Ident::new("disguiseId"),
+        Ident::new("userId"),
         Ident::new("guiseName"),
-        Ident::new("guiseIDCols"),
-        Ident::new("guiseIDs"),
+        Ident::new("guiseIdCols"),
+        Ident::new("guiseIds"),
         Ident::new("referencerName"),
         Ident::new("updateType"),   // remove, add, or modify
         Ident::new("modifiedCols"), // null if all modified
@@ -476,7 +476,7 @@ fn get_vault_cols() -> Vec<ColumnDef> {
     vec![
         // for ordering
         ColumnDef {
-            name: Ident::new("vaultID"),
+            name: Ident::new("vaultId"),
             data_type: DataType::BigInt,
             collation: None,
             options: vec![
@@ -496,7 +496,7 @@ fn get_vault_cols() -> Vec<ColumnDef> {
         },
         // FK to disguise history
         ColumnDef {
-            name: Ident::new("disguiseID"),
+            name: Ident::new("disguiseId"),
             data_type: DataType::BigInt,
             collation: None,
             options: vec![ColumnOptionDef {
@@ -504,9 +504,9 @@ fn get_vault_cols() -> Vec<ColumnDef> {
                 option: ColumnOption::NotNull,
             }],
         },
-        // user ID
+        // user Id
         ColumnDef {
-            name: Ident::new("userID"),
+            name: Ident::new("userId"),
             data_type: DataType::BigInt,
             collation: None,
             options: vec![],
@@ -518,16 +518,16 @@ fn get_vault_cols() -> Vec<ColumnDef> {
             collation: None,
             options: vec![],
         },
-        // guise ID colss
+        // guise Id colss
         ColumnDef {
-            name: Ident::new("guiseIDCols"),
+            name: Ident::new("guiseIdCols"),
             data_type: DataType::Varbinary(4096),
             collation: None,
             options: vec![],
         },
-        // guise IDs
+        // guise Ids
         ColumnDef {
-            name: Ident::new("guiseIDs"),
+            name: Ident::new("guiseIds"),
             data_type: DataType::Varbinary(4096),
             collation: None,
             options: vec![],

@@ -21,12 +21,12 @@ pub fn is_disguise_reversed (
     stats: &mut QueryStat,
 ) -> Result<bool, mysql::Error> {
     let equal_uid_constraint = Expr::BinaryOp {
-         left: Box::new(Expr::Identifier(vec![Ident::new("userID")])),
+         left: Box::new(Expr::Identifier(vec![Ident::new("userId")])),
          op: BinaryOperator::Eq,
          right: Box::new(Expr::Value(Value::Number(de.user_id.to_string()))),
      };
      let disguise_constraint = Expr::BinaryOp {
-         left: Box::new(Expr::Identifier(vec![Ident::new("disguiseID")])),
+         left: Box::new(Expr::Identifier(vec![Ident::new("disguiseId")])),
          op: BinaryOperator::Eq,
          right: Box::new(Expr::Value(Value::Number(de.disguise_id.to_string()))),
      };
@@ -36,7 +36,7 @@ pub fn is_disguise_reversed (
          right: Box::new(disguise_constraint),
      };
 
-    let rows = get_query_rows_txn(&select_ordered_statement(HISTORY_TABLE, Some(constraint), "historyID"), txn, stats)?;
+    let rows = get_query_rows_txn(&select_ordered_statement(HISTORY_TABLE, Some(constraint), "historyId"), txn, stats)?;
     let mut is_reversed = true;
     for r in rows {
         if &get_value_of_col(&r, "reverse").unwrap() == "0" {
@@ -71,8 +71,8 @@ pub fn insert_disguise_history_entry(
 
 fn get_insert_disguise_colnames() -> Vec<Ident> {
     vec![
-        Ident::new("disguiseID"),
-        Ident::new("userID"),
+        Ident::new("disguiseId"),
+        Ident::new("userId"),
         Ident::new("reverse"),
     ]
 }
@@ -81,7 +81,7 @@ pub fn get_history_cols() -> Vec<ColumnDef> {
     vec![
         // for ordering
         ColumnDef {
-            name: Ident::new("historyID"),
+            name: Ident::new("historyId"),
             data_type: DataType::BigInt,
             collation: None,
             options: vec![
@@ -101,7 +101,7 @@ pub fn get_history_cols() -> Vec<ColumnDef> {
         },
         // for ordering
         ColumnDef {
-            name: Ident::new("disguiseID"),
+            name: Ident::new("disguiseId"),
             data_type: DataType::BigInt,
             collation: None,
             options: vec![ColumnOptionDef {
@@ -109,9 +109,9 @@ pub fn get_history_cols() -> Vec<ColumnDef> {
                 option: ColumnOption::NotNull,
             }],
         },
-        // user ID
+        // user Id
         ColumnDef {
-            name: Ident::new("userID"),
+            name: Ident::new("userId"),
             data_type: DataType::BigInt,
             collation: None,
             options: vec![],
@@ -135,7 +135,7 @@ pub fn create_history(in_memory: bool, txn: &mut mysql::Transaction) -> Result<(
     let indexes = vec![IndexDef {
         name: Ident::new("userDisguiseIndex"),
         index_type: None,
-        key_parts: vec![Ident::new("disguiseID"), Ident::new("userID")],
+        key_parts: vec![Ident::new("disguiseId"), Ident::new("userId")],
     }];
 
     txn.query_drop(
