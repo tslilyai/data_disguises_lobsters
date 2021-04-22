@@ -1,16 +1,15 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
 use crate::types::*;
-use log::warn;
+use log::{debug, warn, error};
 use mysql::prelude::*;
 use mysql::TxOpts;
 use serde::Serialize;
 use sql_parser::ast::*;
 use std::collections::HashSet;
+use std::fs::File;
+use std::io::Write;
 use std::str::FromStr;
- use std::fs::File;
- use std::io::Write;
-
 
 pub const VAULT_TABLE: &'static str = "VaultTable";
 pub const INSERT_GUISE: u64 = 0;
@@ -55,23 +54,27 @@ fn get_vault_entries_with_constraint(
     let mut ves = vec![];
     for row in rows {
         let mut ve: VaultEntry = Default::default();
+        debug!("GetVaultEntries: got entry {:?}", ve);
         for rv in row {
-            warn!("getting vault entry value {:?}", rv);
             match rv.column.as_str() {
                 "vaultID" => ve.vault_id = u64::from_str(&rv.value).unwrap(),
                 "disguiseID" => ve.disguise_id = u64::from_str(&rv.value).unwrap(),
                 "userID" => ve.user_id = u64::from_str(&rv.value).unwrap(),
                 "guiseName" => ve.guise_name = rv.value.clone(),
-                "guiseIDCols" => ve.guise_id_cols = if &rv.value != NULLSTR {
+                "guiseIDCols" => {
+                    ve.guise_id_cols = if &rv.value != NULLSTR {
                         serde_json::from_str(&rv.value).unwrap()
                     } else {
                         vec![]
-                    },
-                "guiseIDs" => ve.guise_ids = if &rv.value != NULLSTR {
+                    }
+                }
+                "guiseIDs" => {
+                    ve.guise_ids = if &rv.value != NULLSTR {
                         serde_json::from_str(&rv.value).unwrap()
                     } else {
                         vec![]
-                    },
+                    }
+                }
                 "referencerName" => ve.referencer_name = rv.value.clone(),
                 "updateType" => ve.update_type = u64::from_str(&rv.value).unwrap(),
                 "modifiedCols" => {
@@ -248,10 +251,21 @@ pub fn reverse_vault_decor_referencer_entries(
      * join with this "filter" (any updates that happened after this?)
      */
     let mut vault_entries = get_user_entries_of_table_in_vault(user_id, table_name, txn, stats)?;
-    warn!("User {} entries of table {} in vault: {:?}", user_id, table_name, vault_entries);
+    warn!(
+        "ReverseDecor: User {} entries of table {} in vault: {:?}",
+        user_id, table_name, vault_entries
+    );
+
     // we need some way to be able to identify these objects...
     // assume that there is exactly one object for any user?
     for ve in &vault_entries {
+
+        if ve.update_type == DELETE_GUISE {
+            continue;
+        }
+
+        //error!("ve is {:?} with fkcol {}", ve, fkcol);
+
         let new_id = get_value_of_col(&ve.new_value, fkcol).unwrap();
         let old_id = get_value_of_col(&ve.old_value, fkcol).unwrap();
         assert!(old_id == user_id.to_string());
@@ -283,7 +297,10 @@ pub fn reverse_vault_decor_referencer_entries(
      * Delete created guises if objects in this table had been decorrelated
      */
     let mut guise_ves = get_user_entries_with_referencer_in_vault(user_id, table_name, txn, stats)?;
-    warn!("User {} entries with referencer {} in vault: {:?}", user_id, table_name, vault_entries);
+    warn!(
+        "User {} entries with referencer {} in vault: {:?}",
+        user_id, table_name, vault_entries
+    );
     for ve in &guise_ves {
         // delete guise
         get_query_rows_txn(
@@ -293,7 +310,7 @@ pub fn reverse_vault_decor_referencer_entries(
                     left: Box::new(Expr::Identifier(vec![Ident::new(fkcol.to_string())])),
                     op: BinaryOperator::Eq,
                     // XXX assuming guise is a user... only has one id
-                    right: Box::new(Expr::Value(Value::Number(ve.guise_ids[0].clone())))
+                    right: Box::new(Expr::Value(Value::Number(ve.guise_ids[0].clone()))),
                 }),
             }),
             txn,
@@ -329,6 +346,10 @@ pub fn insert_vault_entries(
                 None => evals.push(Expr::Value(Value::Null)),
                 Some(v) => evals.push(Expr::Value(Value::Number(v.to_string()))),
             }
+            warn!(
+                "InsertVEs: User {} inserting into table {} in vault: {:?}",
+                ve.user_id, ve.guise_name, ve
+            );
             evals
         })
         .collect();
@@ -359,18 +380,35 @@ pub fn print_as_filters(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
             Some(vid) => {
                 file.write(format!("Rev D{}:{}\t", ve.disguise_id, vid).as_bytes())?;
                 match ve.update_type {
-                    INSERT_GUISE => format!("DELETE FROM {} WHERE {:?} = {:?}\n", ve.guise_name, ve.guise_id_cols, ve.guise_ids),
-                    DELETE_GUISE => format!("INSERT INTO {} VALUES ({:?})\n", ve.guise_name, ve.new_value),
-                    UPDATE_GUISE => format!("UPDATE {} SET {:?} = {:?}\n", ve.guise_name, ve.modified_cols, ve.old_value),
+                    INSERT_GUISE => format!(
+                        "DELETE FROM {} WHERE {:?} = {:?}\n",
+                        ve.guise_name, ve.guise_id_cols, ve.guise_ids
+                    ),
+                    DELETE_GUISE => format!(
+                        "INSERT INTO {} VALUES ({:?})\n",
+                        ve.guise_name, ve.new_value
+                    ),
+                    UPDATE_GUISE => format!(
+                        "UPDATE {} SET {:?} = {:?}\n",
+                        ve.guise_name, ve.modified_cols, ve.old_value
+                    ),
                     _ => unimplemented!("Bad vault update type! {}\n", ve.update_type),
                 }
             }
             None => {
                 file.write(format!("D{}:{}\t", ve.disguise_id, ve.vault_id).as_bytes())?;
                 match ve.update_type {
-                    INSERT_GUISE => format!("INSERT INTO {} VALUES({:?})\n", ve.guise_name, ve.new_value),
-                    DELETE_GUISE => format!("DELETE FROM {} WHERE {:?} = {:?}\n", ve.guise_name, ve.guise_id_cols, ve.guise_ids),
-                    UPDATE_GUISE => format!("UPDATE {} SET {:?} = {:?}\n", ve.guise_name, ve.modified_cols, ve.new_value),
+                    INSERT_GUISE => {
+                        format!("INSERT INTO {} VALUES({:?})\n", ve.guise_name, ve.new_value)
+                    }
+                    DELETE_GUISE => format!(
+                        "DELETE FROM {} WHERE {:?} = {:?}\n",
+                        ve.guise_name, ve.guise_id_cols, ve.guise_ids
+                    ),
+                    UPDATE_GUISE => format!(
+                        "UPDATE {} SET {:?} = {:?}\n",
+                        ve.guise_name, ve.modified_cols, ve.new_value
+                    ),
                     _ => unimplemented!("Bad vault update type! {}\n", ve.update_type),
                 }
             }
@@ -532,10 +570,9 @@ fn get_vault_cols() -> Vec<ColumnDef> {
         // whether this update reverses a prior vault entry
         ColumnDef {
             name: Ident::new("reverses"),
-            data_type: DataType::Boolean,
+            data_type: DataType::BigInt,
             collation: None,
             options: vec![],
         },
     ]
 }
-

@@ -1,18 +1,18 @@
 use crate::datagen::*;
-use rand::{distributions::Alphanumeric, Rng};
 use decor::*;
 use log::*;
+use rand::{distributions::Alphanumeric, Rng};
 
-const SCHEMA : &'static str = include_str!("../schema.sql");
+const SCHEMA: &'static str = include_str!("../schema.sql");
 
 // Generates NUSERS_NONPC+NUSERS_PC users
 pub const NUSERS_NONPC: usize = 300;
 pub const NUSERS_PC: usize = 30;
 // Generates NPAPERS_REJ+NPAPER_ACCEPT papers.
-const NPAPERS_REJ: usize = 45;
-const NPAPERS_ACCEPT: usize = 5;
+const NPAPERS_REJ: usize = 40;
+const NPAPERS_ACCEPT: usize = 10;
 
-/*
+/*shepherd_val
  * Paper metadata:
  * - Each paper is assigned 1 leadContactId
  * - Each paper is assigned 1 managerContactId
@@ -34,7 +34,7 @@ pub fn get_random_string() -> String {
 
 /*fn get_table_names() -> Vec<&'static str> {
     vec![
-        "ContactInfo", 
+        "ContactInfo",
         "PaperReviewPreference",
         "PaperWatch",
         "Capability",
@@ -55,21 +55,36 @@ pub fn populate_database(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
 
     let total_users = NUSERS_NONPC + NUSERS_PC;
     let other_uids: Vec<usize> = (1..NUSERS_NONPC + 1).collect();
-    let pc_uids: Vec<usize> = (NUSERS_NONPC + 1..total_users+ 1).collect();
-    let papers_rej : Vec<usize> = (1..NPAPERS_REJ + 1).collect();
-    let papers_acc : Vec<usize> = (NPAPERS_REJ + 1..NPAPERS_ACCEPT + 1).collect();
+    let pc_uids: Vec<usize> = (NUSERS_NONPC + 1..total_users + 1).collect();
+    let papers_rej: Vec<usize> = (1..NPAPERS_REJ + 1).collect();
+    let papers_acc: Vec<usize> = (NPAPERS_REJ + 1..(NPAPERS_REJ + NPAPERS_ACCEPT + 1)).collect();
 
-    // insert users 
+    // insert users
     warn!("INSERTING USERS");
     users::insert_users(NUSERS_NONPC + NUSERS_PC, db)?;
 
     // insert papers, author comments on papers, coauthorship conflicts
     warn!("INSERTING PAPERS");
-    papers::insert_papers(&other_uids, &pc_uids, &papers_rej, &papers_acc, NPAPER_COMMENTS, NCONFLICT_AUTHOR, db)?;
+    papers::insert_papers(
+        &other_uids,
+        &pc_uids,
+        &papers_rej,
+        &papers_acc,
+        NPAPER_COMMENTS,
+        NCONFLICT_AUTHOR,
+        db,
+    )?;
 
     // insert reviews, reviewer comments on papers, reviewer conflicts
     warn!("INSERTING REVIEWS");
-    reviews::insert_reviews(&pc_uids, NPAPERS_REJ + NPAPERS_ACCEPT, NREVIEWS, NPAPER_COMMENTS, NCONFLICT_REVIEWER, db)?;
+    reviews::insert_reviews(
+        &pc_uids,
+        NPAPERS_REJ + NPAPERS_ACCEPT,
+        NREVIEWS,
+        NPAPER_COMMENTS,
+        NCONFLICT_REVIEWER,
+        db,
+    )?;
 
     Ok(())
 }

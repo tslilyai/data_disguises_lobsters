@@ -38,11 +38,17 @@ pub fn apply(
         user_id: 0,
         reverse: false,
     };
-    
+
     // DECORRELATION
     for tablefk in get_decor_names() {
         match user_id {
-            Some(uid) => decorrelate::decor_obj_txn_for_user(uid, CONF_ANON_DISGUISE_ID, &tablefk, txn, stats)?,
+            Some(uid) => decorrelate::decor_obj_txn_for_user(
+                uid,
+                CONF_ANON_DISGUISE_ID,
+                &tablefk,
+                txn,
+                stats,
+            )?,
             None => decorrelate::decor_obj_txn(CONF_ANON_DISGUISE_ID, &tablefk, txn, stats)?,
         }
     }

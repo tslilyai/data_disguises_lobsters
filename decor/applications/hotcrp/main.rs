@@ -23,7 +23,7 @@ use decor::vault;
 use rand::seq::SliceRandom;
 
 const DBNAME: &'static str = &"test_hotcrp";
-const SCHEMA_UID_COL: &'static str = "contactID";
+const SCHEMA_UID_COL: &'static str = "contactId";
 const SCHEMA_UID_TABLE: &'static str = "ContactInfo";
 
 const GDPR_DISGUISE_ID: u64 = 1;
@@ -58,8 +58,8 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
-        //.filter_level(log::LevelFilter::Error)
+        //.filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -109,12 +109,14 @@ fn run_test(prime: bool) {
         .as_bytes(),
     )
     .unwrap();
+
     let uids: Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();
     let mut rng = &mut rand::thread_rng();
     let rand_users: Vec<usize> = uids
         .choose_multiple(&mut rng, uids.len())
         .cloned()
         .collect();
+
     for user in rand_users {
         let mut stats = QueryStat::new();
         let start = time::Instant::now();

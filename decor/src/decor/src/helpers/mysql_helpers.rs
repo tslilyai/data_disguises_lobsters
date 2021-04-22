@@ -2,7 +2,7 @@ use crate::stats::QueryStat;
 use crate::types::*;
 use crate::history::HISTORY_TABLE;
 use crate::vault::VAULT_TABLE;
-use log::warn;
+use log::debug;
 use msql_srv::{Column, ColumnFlags, QueryResultWriter};
 use mysql::prelude::*;
 use sql_parser::ast::*;
@@ -16,7 +16,7 @@ pub const NULLSTR : &'static str = "NULL";
  ************************************/
 pub fn get_value_of_col(row: &Vec<RowVal>, col: &str) -> Option<String> {
     for rv in row {
-        warn!("Comparing col {} to argcol {}", rv.column, col);
+        debug!("Comparing col {} to argcol {}", rv.column, col);
         if &rv.column == col {
             return Some(rv.value.clone());
         }
@@ -32,7 +32,7 @@ pub fn get_query_rows_txn(
     let mut rows = vec![];
 
     let qstr = q.to_string();
-    warn!("get_query_rows_txn: {}", qstr);
+    debug!("get_query_rows_txn: {}", qstr);
     if qstr.contains(VAULT_TABLE) || qstr.contains(HISTORY_TABLE) {
         stats.nqueries_vault += 1;
     } else {
@@ -71,7 +71,7 @@ pub fn get_query_rows_db(
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     let mut rows = vec![];
 
-    warn!("get_query_rows_db: {}", q);
+    debug!("get_query_rows_db: {}", q);
     let res = db.query_iter(q.to_string())?;
     let cols: Vec<String> = res
         .columns()

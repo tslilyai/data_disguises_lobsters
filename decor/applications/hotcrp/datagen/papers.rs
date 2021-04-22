@@ -1,5 +1,6 @@
 use crate::datagen::*;
 use decor::helpers::*;
+use log::debug;
 use rand::seq::SliceRandom;
 use sql_parser::ast::*;
 
@@ -24,6 +25,7 @@ fn get_paper_vals(
         None => 0,
         Some(s) => s,
     };
+    debug!("Creating paper with shepherd {}", shepherd_val);
     vec![
         Expr::Value(Value::Number(paper_id.to_string())),
         Expr::Value(Value::Number(accepted.to_string())),
@@ -81,6 +83,7 @@ pub fn insert_papers(
         let manager = users_pc.choose(&mut rand::thread_rng()).unwrap();
         // for now, shepherd is just a random pc member (not necessarily a reviewer)
         let shepherd = users_pc.choose(&mut rand::thread_rng()).unwrap();
+        debug!("Creating new accepted paper with shepherd {}", shepherd);
         new_papers.push(get_paper_vals(
             *pid,
             *authors[0],
