@@ -38,7 +38,6 @@ pub fn get_decor_filters(tablefks: &Vec<types::TableFKs>) -> Vec<String> {
 pub fn get_remove_filters(id_val: &str, tablefks: &Vec<types::TableFKs>) -> Vec<String> {
     let mut filters = vec![];
     for tablefk in tablefks {
-        println!("Remove filters: Looking at tablefk {:?}", tablefk);
         let mut fk_comps = vec![];
         for fk in &tablefk.fks {
             fk_comps.push(format!("{} != {}", fk.referencer_col, id_val)); 
