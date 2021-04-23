@@ -1,6 +1,7 @@
 use crate::conference_anon_disguise::constants::*;
-use crate::decorrelate;
+use crate::datagen;
 use crate::*;
+use decor::decorrelate;
 use decor::history::*;
 
 /*
@@ -46,10 +47,21 @@ pub fn apply(
                 uid,
                 CONF_ANON_DISGUISE_ID,
                 &tablefk,
+                SCHEMA_UID_COL,
+                datagen::get_insert_guise_contact_info_cols,
+                datagen::get_insert_guise_contact_info_vals,
                 txn,
                 stats,
             )?,
-            None => decorrelate::decor_obj_txn(CONF_ANON_DISGUISE_ID, &tablefk, txn, stats)?,
+            None => decorrelate::decor_obj_txn(
+                CONF_ANON_DISGUISE_ID,
+                &tablefk,
+                SCHEMA_UID_COL,
+                datagen::get_insert_guise_contact_info_cols,
+                datagen::get_insert_guise_contact_info_vals,
+                txn,
+                stats,
+            )?,
         }
     }
     decor::record_disguise(&de, txn, stats)?;

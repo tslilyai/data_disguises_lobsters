@@ -1,8 +1,8 @@
-use crate::decorrelate;
 use crate::gdpr_disguise::constants::*;
-use crate::remove;
 use crate::*;
+use decor::decorrelate;
 use decor::history;
+use decor::remove;
 
 /*
  * GDPR REMOVAL DISGUISE
@@ -49,12 +49,29 @@ pub fn apply(
     if history::is_disguise_reversed(&de, txn, stats)? {
         // DECORRELATION TXNS
         for tablefk in get_decor_names() {
-            decorrelate::decor_obj_txn_for_user(user_id, GDPR_DISGUISE_ID, &tablefk, txn, stats)?;
+            decorrelate::decor_obj_txn_for_user(
+                user_id,
+                GDPR_DISGUISE_ID,
+                &tablefk,
+                SCHEMA_UID_COL,
+                datagen::get_insert_guise_contact_info_cols,
+                datagen::get_insert_guise_contact_info_vals,
+                txn,
+                stats,
+            )?;
         }
 
         // REMOVAL TXNS
         for tablefk in get_remove_names() {
-            remove::remove_obj_txn_for_user(user_id, GDPR_DISGUISE_ID, &tablefk, txn, stats)?;
+            remove::remove_obj_txn_for_user(
+                user_id,
+                GDPR_DISGUISE_ID,
+                &tablefk,
+                SCHEMA_UID_COL,
+                SCHEMA_UID_TABLE,
+                txn,
+                stats,
+            )?;
         }
 
         decor::record_disguise(&de, txn, stats)?;

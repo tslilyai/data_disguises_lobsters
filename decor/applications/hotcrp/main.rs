@@ -14,9 +14,7 @@ use structopt::StructOpt;
 
 mod conference_anon_disguise;
 mod datagen;
-mod decorrelate;
 mod gdpr_disguise;
-mod remove;
 
 use decor::stats::QueryStat;
 use decor::vault;

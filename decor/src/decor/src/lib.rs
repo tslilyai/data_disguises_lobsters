@@ -6,9 +6,12 @@ extern crate ordered_float;
 use log::warn;
 use mysql::prelude::*;
 use std::*;
+use sql_parser::ast::*;
 
+pub mod decorrelate;
 pub mod helpers;
 pub mod history;
+pub mod remove;
 pub mod stats;
 pub mod types;
 pub mod vault;
@@ -63,4 +66,27 @@ pub fn record_disguise(
 ) -> Result<(), mysql::Error> {
     history::insert_disguise_history_entry(de, txn, stats)?;
     Ok(())
+}
+
+pub fn is_guise(
+    table_name: &str,
+    id: u64,
+    txn: &mut mysql::Transaction,
+    stats: &mut stats::QueryStat,
+) -> Result<bool, mysql::Error> {
+    let is_guise = helpers::get_query_rows_txn(
+        &helpers::select_1_statement(
+            &table_name,
+            Some(Expr::BinaryOp {
+                left: Box::new(Expr::Identifier(vec![Ident::new("isGuise".to_string())])),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(Value::Number(id.to_string()))),
+            }),
+        ),
+        txn,
+        stats,
+    )?;
+
+    // if it is a guise, continue
+    Ok(!is_guise.is_empty())
 }

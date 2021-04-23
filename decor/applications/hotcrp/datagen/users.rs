@@ -9,30 +9,7 @@ fn get_random_email() -> String {
     format!("anonymous{}@secret.mail", get_random_string())
 }
 
-pub fn is_guise(
-    table_name: &str,
-    id: u64,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
-) -> Result<bool, mysql::Error> {
-    let is_guise = get_query_rows_txn(
-        &select_1_statement(
-            &table_name,
-            Some(Expr::BinaryOp {
-                left: Box::new(Expr::Identifier(vec![Ident::new("isGuise".to_string())])),
-                op: BinaryOperator::Eq,
-                right: Box::new(Expr::Value(Value::Number(id.to_string()))),
-            }),
-        ),
-        txn,
-        stats,
-    )?;
-
-    // if it is a guise, continue
-    Ok(!is_guise.is_empty())
-}
-
-pub fn get_guise_contact_info_cols() -> Vec<&'static str> {
+pub fn get_insert_guise_contact_info_cols() -> Vec<&'static str> {
     vec![
         "firstName",
         "lastName",
@@ -57,7 +34,7 @@ pub fn get_guise_contact_info_cols() -> Vec<&'static str> {
     ]
 }
 
-pub fn get_guise_contact_info_vals() -> Vec<Expr> {
+pub fn get_insert_guise_contact_info_vals() -> Vec<Expr> {
     vec![
         Expr::Value(Value::String(String::new())),
         Expr::Value(Value::String(String::new())),

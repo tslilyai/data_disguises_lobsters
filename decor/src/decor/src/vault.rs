@@ -1,7 +1,7 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
 use crate::types::*;
-use log::{debug, warn};
+use log::{debug, warn, error};
 use mysql::prelude::*;
 use mysql::TxOpts;
 use serde::Serialize;
@@ -262,10 +262,17 @@ pub fn reverse_vault_decor_referencer_entries(
             continue;
         }
 
-        //error!("ve is {:?} with fkcol {}", ve, fkcol);
-
-        let new_id = get_value_of_col(&ve.new_value, fkcol).unwrap();
-        let old_id = get_value_of_col(&ve.old_value, fkcol).unwrap();
+        // this may be none if this vault entry is an insert, and not a modification
+        let new_id : String;
+        let old_id: String;
+        match get_value_of_col(&ve.new_value, fkcol) {
+            Some(n) => new_id = n,
+            None => continue,
+        }
+        match get_value_of_col(&ve.old_value, fkcol) {
+            Some(n) => old_id = n,
+            None => continue,
+        }
         assert!(old_id == user_id.to_string());
 
         // this vault entry logged a modification to the FK. Restore the original value
@@ -401,7 +408,7 @@ pub fn print_as_filters(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
                                 setstr.push_str(&format!("{} = {}, ", rc.column, rc.value));
                             }
                         }
-                        format!("UPDATE {} SET {}\n", ve.guise_name, setstr)
+                        format!("UPDATE {} SET {} WHERE {:?} = {:?}\n", ve.guise_name, setstr, ve.guise_id_cols, ve.guise_ids)
                     }
                     _ => unimplemented!("Bad vault update type! {}\n", ve.update_type),
                 }
@@ -432,7 +439,7 @@ pub fn print_as_filters(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
                                 setstr.push_str(&format!("{} = {}, ", rc.column, rc.value));
                             }
                         }
-                        format!("UPDATE {} SET {}\n", ve.guise_name, setstr)
+                        format!("UPDATE {} SET {} WHERE {:?} = {:?}\n", ve.guise_name, setstr, ve.guise_id_cols, ve.guise_ids)
                     }
                     _ => unimplemented!("Bad vault update type! {}\n", ve.update_type),
                 }
