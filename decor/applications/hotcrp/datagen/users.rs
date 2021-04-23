@@ -1,6 +1,5 @@
 use crate::datagen::*;
 use decor::helpers::*;
-use decor::stats::*;
 use sql_parser::ast::*;
 
 pub const ANON_PW: &'static str = "password123";

@@ -1855,6 +1855,10 @@ impl Parser {
             ColumnOption::Default(self.parse_expr()?)
         } else if self.parse_keywords(vec!["PRIMARY", "KEY"]) {
             ColumnOption::Unique { is_primary: true }
+        } else if self.parse_keywords(vec!["UNIQUE", "KEY"]) {
+            ColumnOption::Unique { is_primary: false}
+        } else if self.parse_keywords(vec!["KEY"]) {
+            ColumnOption::Key 
         } else if self.parse_keyword("UNIQUE") {
             ColumnOption::Unique { is_primary: false }
         } else if self.parse_keyword("REFERENCES") {

@@ -4,6 +4,7 @@ use sql_parser::ast::*;
 use std::cmp::Ordering;
 use std::str::FromStr;
 use std::*;
+use regex::*;
 
 /*****************************************
  * Parser helpers
@@ -116,6 +117,10 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
 pub fn get_create_schema_statements(schema: &str, in_memory: bool) -> Vec<Statement> {
     let mut stmts = vec![];
     let mut stmt = String::new();
+    let int_re = Regex::new(r"int\(\d+\)").unwrap();
+    let varbinary_re = Regex::new(r"varbinary\(\d+\)").unwrap();
+    let binary_re = Regex::new(r"binary\(\d+\)").unwrap();
+    let space_re = Regex::new(r",\x20+\)").unwrap();
     for line in schema.lines() {
         if line.starts_with("--") || line.is_empty() {
             continue;
@@ -123,11 +128,18 @@ pub fn get_create_schema_statements(schema: &str, in_memory: bool) -> Vec<Statem
         if !stmt.is_empty() {
             stmt.push_str(" ");
         }
-        stmt.push_str(line);
+        // XXX hack
+        if !line.contains("UNIQUE KEY") && !line.contains("KEY") {
+            stmt.push_str(line);
+        }
         if stmt.ends_with(';') {
             // only save create table statements for now
             if stmt.contains("CREATE") {
-                stmt = process_schema_stmt(&stmt, in_memory);
+                let res1 = int_re.replace_all(&stmt, "int");
+                let res2 = varbinary_re.replace_all(&res1, "int");
+                let res3 = binary_re.replace_all(&res2, "int");
+                let res4 = space_re.replace_all(&res3, ")");
+                let stmt = process_schema_stmt(&res4, in_memory);
                 stmts.push(get_single_parsed_stmt(&stmt).unwrap());
             }
             stmt = String::new();
@@ -356,6 +368,7 @@ pub fn parser_val_to_common_val(val: &sql_parser::ast::Value) -> mysql_common::v
 pub fn trim_quotes(s: &str) -> &str {
     let mut s = s.trim_matches('\'');
     s = s.trim_matches('\"');
+    s = s.trim_matches('`');
     s
 }
 

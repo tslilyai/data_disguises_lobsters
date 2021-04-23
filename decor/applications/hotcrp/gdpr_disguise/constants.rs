@@ -5,32 +5,56 @@ pub fn get_remove_names() -> Vec<TableFKs> {
         TableFKs {
             name: "ContactInfo".to_string(),
             id_cols: vec!["contactId".to_string()],
-            fks: vec![],
+            fks: vec![FK {
+                referencer_col: "contactId".to_string(),
+                fk_name: "ContactInfo".to_string(),
+                fk_col: "contactId".to_string(),
+            }],
         },
         TableFKs {
             name: "PaperReviewPreference".to_string(),
             id_cols: vec!["paperId".to_string(), "contactId".to_string()],
-            fks: vec![],
+            fks: vec![FK {
+                referencer_col: "contactId".to_string(),
+                fk_name: "ContactInfo".to_string(),
+                fk_col: "contactId".to_string(),
+            }],
         },
         TableFKs {
             name: "PaperWatch".to_string(),
             id_cols: vec!["paperId".to_string(), "contactId".to_string()],
-            fks: vec![],
+            fks: vec![FK {
+                referencer_col: "contactId".to_string(),
+                fk_name: "ContactInfo".to_string(),
+                fk_col: "contactId".to_string(),
+            }],
         },
         TableFKs {
             name: "Capability".to_string(),
             id_cols: vec!["salt".to_string()],
-            fks: vec![],
+            fks: vec![FK {
+                referencer_col: "contactId".to_string(),
+                fk_name: "ContactInfo".to_string(),
+                fk_col: "contactId".to_string(),
+            }],
         },
         TableFKs {
             name: "PaperConflict".to_string(),
             id_cols: vec!["contactId".to_string(), "paperId".to_string()],
-            fks: vec![],
+            fks: vec![FK {
+                referencer_col: "contactId".to_string(),
+                fk_name: "ContactInfo".to_string(),
+                fk_col: "contactId".to_string(),
+            }],
         },
         TableFKs {
             name: "TopicInterest".to_string(),
             id_cols: vec!["contactId".to_string(), "topicId".to_string()],
-            fks: vec![],
+            fks: vec![FK {
+                referencer_col: "contactId".to_string(),
+                fk_name: "ContactInfo".to_string(),
+                fk_col: "contactId".to_string(),
+            }],
         },
     ]
 }

@@ -453,10 +453,12 @@ pub enum ColumnOption {
     NotNull,
     /// `DEFAULT <restricted-expr>`
     Default(Expr),
-    /// `{ PRIMARY KEY | UNIQUE }`
+    /// `{ PRIMARY KEY | UNIQUE KEY }`
     Unique {
         is_primary: bool,
     },
+    /// `{ KEY }`
+    Key,
     /// A referential integrity constraint (`[FOREIGN KEY REFERENCES
     /// <foreign_table> (<referred_columns>)`).
     ForeignKey {
@@ -484,6 +486,9 @@ impl AstDisplay for ColumnOption {
                 } else {
                     f.write_str("UNIQUE");
                 }
+            }
+            Key => {
+                f.write_str("KEY");
             }
             ForeignKey {
                 foreign_table,

@@ -89,6 +89,11 @@ fn run_test(prime: bool) {
     let mut db = init_db(prime);
     let mut stats = QueryStat::new();
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
+
+    println!("{:?}", spec::get_decor_filters(&conference_anon_disguise::get_decor_names()));
+    println!("{:?}", spec::get_remove_filters("1", &gdpr_disguise::get_remove_names()));
+    println!("{:?}", spec::get_decor_filters(&gdpr_disguise::get_decor_names()));
+    
     let start = time::Instant::now();
 
     let mut txn = db.start_transaction(TxOpts::default()).unwrap();
@@ -138,6 +143,7 @@ fn run_test(prime: bool) {
     file.flush().unwrap();
 
     vault::print_as_filters(&mut db).unwrap();
+    
 
     drop(db);
 }
