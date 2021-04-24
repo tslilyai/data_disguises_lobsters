@@ -90,10 +90,6 @@ fn run_test(prime: bool) {
     let mut stats = QueryStat::new();
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
 
-    println!("{:?}", spec::get_decor_filters(&conference_anon_disguise::get_decor_names()));
-    println!("{:?}", spec::get_remove_filters("1", &gdpr_disguise::get_remove_names()));
-    println!("{:?}", spec::get_decor_filters(&gdpr_disguise::get_decor_names()));
-    
     let start = time::Instant::now();
 
     let mut txn = db.start_transaction(TxOpts::default()).unwrap();
@@ -143,7 +139,6 @@ fn run_test(prime: bool) {
     file.flush().unwrap();
 
     vault::print_as_filters(&mut db).unwrap();
-    
 
     drop(db);
 }
@@ -153,5 +148,39 @@ fn main() {
 
     let args = Cli::from_args();
     let prime = args.prime;
+
+    let mut spec_file = File::create("spec.sql".to_string()).unwrap();
+    let conf_stmts = spec::get_decor_filters(&conference_anon_disguise::get_decor_names());
+    let gdpr_decor_stmts = spec::get_decor_filters(&gdpr_disguise::get_decor_names());
+    let gdpr_remove_stmts = spec::get_remove_where_fk_filters("1", &gdpr_disguise::get_remove_names());
+    spec_file
+        .write("*********Conference Anonymization Filters*********\n".as_bytes())
+        .unwrap();
+    for (table, stmts) in conf_stmts.iter() {
+        spec_file.write(format!("{}:\n", table).as_bytes()).unwrap();
+        for stmt in stmts {
+            spec_file.write(format!("\t{}\n", stmt).as_bytes()).unwrap();
+        }
+    }
+    spec_file
+        .write("*********GDPR Remove Filters*********\n".as_bytes())
+        .unwrap();
+    for (table, stmts) in gdpr_remove_stmts.iter() {
+        spec_file.write(format!("{}:\n", table).as_bytes()).unwrap();
+        for stmt in stmts {
+            spec_file.write(format!("\t{}\n", stmt).as_bytes()).unwrap();
+        }
+    }
+    spec_file
+        .write("*********GDPR Decor Filters*********\n".as_bytes())
+        .unwrap();
+    for (table, stmts) in gdpr_decor_stmts.iter() {
+        spec_file.write(format!("{}:\n", table).as_bytes()).unwrap();
+        for stmt in stmts {
+            spec_file.write(format!("\t{}\n", stmt).as_bytes()).unwrap();
+        }
+    }
+    spec_file.flush().unwrap();
+
     run_test(prime);
 }
