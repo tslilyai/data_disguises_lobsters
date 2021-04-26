@@ -40,7 +40,8 @@ impl Ident {
     where
         S: Into<String>,
     {
-        Ident(value.into().to_lowercase())
+        //Ident(value.into().to_lowercase())
+        Ident(value.into())
     }
 
     /// An identifier can be printed in bare mode if

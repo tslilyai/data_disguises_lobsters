@@ -41,21 +41,21 @@ pub fn apply(
     };
 
     // DECORRELATION
-    for tablefk in get_decor_names() {
+    for tableinfo in get_modify_names() {
         match user_id {
-            Some(uid) => decorrelate::decor_obj_txn_for_user(
+            Some(uid) => decorrelate::modify_obj_txn_for_user(
                 uid,
                 CONF_ANON_DISGUISE_ID,
-                &tablefk,
+                &tableinfo,
                 SCHEMA_UID_COL,
                 datagen::get_insert_guise_contact_info_cols,
                 datagen::get_insert_guise_contact_info_vals,
                 txn,
                 stats,
             )?,
-            None => decorrelate::decor_obj_txn(
+            None => decorrelate::modify_obj_txn(
                 CONF_ANON_DISGUISE_ID,
-                &tablefk,
+                &tableinfo,
                 SCHEMA_UID_COL,
                 datagen::get_insert_guise_contact_info_cols,
                 datagen::get_insert_guise_contact_info_vals,

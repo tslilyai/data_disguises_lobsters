@@ -48,11 +48,11 @@ pub fn apply(
     // only apply if disguise is reversed (or hasn't been applied)
     if history::is_disguise_reversed(&de, txn, stats)? {
         // DECORRELATION TXNS
-        for tablefk in get_decor_names() {
+        for tableinfo in get_modify_names() {
             decorrelate::decor_obj_txn_for_user(
                 user_id,
                 GDPR_DISGUISE_ID,
-                &tablefk,
+                &tableinfo,
                 SCHEMA_UID_COL,
                 datagen::get_insert_guise_contact_info_cols,
                 datagen::get_insert_guise_contact_info_vals,
@@ -62,11 +62,11 @@ pub fn apply(
         }
 
         // REMOVAL TXNS
-        for tablefk in get_remove_names() {
+        for tableinfo in get_remove_names() {
             remove::remove_obj_txn_for_user(
                 user_id,
                 GDPR_DISGUISE_ID,
-                &tablefk,
+                &tableinfo,
                 SCHEMA_UID_COL,
                 SCHEMA_UID_TABLE,
                 txn,

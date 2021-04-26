@@ -52,6 +52,8 @@ impl std::str::FromStr for TestType {
 struct Cli {
     #[structopt(long = "prime")]
     prime: bool,
+    #[structopt(long = "spec")]
+    spec: bool,
 }
 
 fn init_logger() {
@@ -85,8 +87,7 @@ fn init_db(prime: bool) -> mysql::Conn {
     db
 }
 
-fn run_test(prime: bool) {
-    let mut db = init_db(prime);
+fn run_test(db: &mut mysql::Conn) {
     let mut stats = QueryStat::new();
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
 
@@ -138,9 +139,7 @@ fn run_test(prime: bool) {
     }
     file.flush().unwrap();
 
-    vault::print_as_filters(&mut db).unwrap();
-
-    drop(db);
+    vault::print_as_filters(db).unwrap();
 }
 
 fn main() {
@@ -148,39 +147,26 @@ fn main() {
 
     let args = Cli::from_args();
     let prime = args.prime;
+    let spec = args.spec;
 
-    let mut spec_file = File::create("spec.sql".to_string()).unwrap();
-    let conf_stmts = spec::get_decor_filters(&conference_anon_disguise::get_decor_names());
-    let gdpr_decor_stmts = spec::get_decor_filters(&gdpr_disguise::get_decor_names());
-    let gdpr_remove_stmts = spec::get_remove_where_fk_filters("1", &gdpr_disguise::get_remove_names());
-    spec_file
-        .write("*********Conference Anonymization Filters*********\n".as_bytes())
-        .unwrap();
-    for (table, stmts) in conf_stmts.iter() {
-        spec_file.write(format!("{}:\n", table).as_bytes()).unwrap();
-        for stmt in stmts {
-            spec_file.write(format!("\t{}\n", stmt).as_bytes()).unwrap();
-        }
-    }
-    spec_file
-        .write("*********GDPR Remove Filters*********\n".as_bytes())
-        .unwrap();
-    for (table, stmts) in gdpr_remove_stmts.iter() {
-        spec_file.write(format!("{}:\n", table).as_bytes()).unwrap();
-        for stmt in stmts {
-            spec_file.write(format!("\t{}\n", stmt).as_bytes()).unwrap();
-        }
-    }
-    spec_file
-        .write("*********GDPR Decor Filters*********\n".as_bytes())
-        .unwrap();
-    for (table, stmts) in gdpr_decor_stmts.iter() {
-        spec_file.write(format!("{}:\n", table).as_bytes()).unwrap();
-        for stmt in stmts {
-            spec_file.write(format!("\t{}\n", stmt).as_bytes()).unwrap();
-        }
-    }
-    spec_file.flush().unwrap();
+    let mut conf_stmts = spec::get_modify_filters(None, &conference_anon_disguise::get_modify_names());
+    let mut gdpr_modify_stmts = spec::get_modify_filters(Some("1"), &gdpr_disguise::get_modify_names());
+    let mut gdpr_remove_stmts = spec::get_remove_where_fk_filters("1", &gdpr_disguise::get_remove_names());
+    spec::merge_hashmaps(&mut gdpr_remove_stmts, &mut conf_stmts);
+    spec::merge_hashmaps(&mut gdpr_remove_stmts, &mut gdpr_modify_stmts);
+    let create_spec_stmts = spec::create_mv_from_filters_stmts(&gdpr_remove_stmts);
 
-    run_test(prime);
+    if spec {
+        let mut spec_file = File::create("spec.sql".to_string()).unwrap();
+        for stmt in create_spec_stmts {
+            spec_file.write(format!("{}\n\n", stmt).as_bytes()).unwrap();
+        }
+        spec_file.flush().unwrap();
+    } else {
+        //let disguises_to_apply = vec![];
+        let mut db = init_db(prime);
+        //run_test(&mut db);
+        drop(db);
+    }
+    //filters = conf_stmts
 }

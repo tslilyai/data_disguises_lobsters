@@ -1,14 +1,43 @@
 use log::{debug, warn};
 use rand;
+use regex::*;
 use sql_parser::ast::*;
 use std::cmp::Ordering;
 use std::str::FromStr;
 use std::*;
-use regex::*;
 
 /*****************************************
  * Parser helpers
  ****************************************/
+pub fn update_select_from(setexpr: &mut SetExpr, to_name: &Option<String>) {
+    match setexpr {
+        SetExpr::Select(ref mut s) => {
+            // select from the last created table
+            if let Some(name) = to_name {
+                s.from = vec![TableWithJoins {
+                    relation: TableFactor::Table {
+                        name: string_to_objname(&name),
+                        alias: None,
+                    },
+                    joins: vec![],
+                }];
+            }
+        }
+        SetExpr::SetOperation {
+            op,
+            ref mut left,
+            ref mut right,
+            ..
+        } => {
+            if op == &SetOperator::Union {
+                update_select_from(left, to_name);
+                update_select_from(right, to_name);
+            }
+        }
+        _ => unimplemented!("{:?} Not a select query!", setexpr),
+    }
+}
+
 pub fn select_ordered_statement(table: &str, selection: Option<Expr>, order_by: &str) -> Statement {
     Statement::Select(SelectStatement {
         query: Box::new(Query {

@@ -1,56 +1,62 @@
 use decor::types::*;
 
-pub fn get_remove_names() -> Vec<TableFKs> {
+pub fn get_remove_names() -> Vec<TableInfo> {
     vec![
-        TableFKs {
+        TableInfo {
             name: "ContactInfo".to_string(),
             id_cols: vec!["contactId".to_string()],
-            fks: vec![FK {
+            used_cols: vec![],
+            used_fks: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableFKs {
+        TableInfo {
             name: "PaperReviewPreference".to_string(),
             id_cols: vec!["paperId".to_string(), "contactId".to_string()],
-            fks: vec![FK {
+            used_cols: vec![],
+            used_fks: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableFKs {
+        TableInfo {
             name: "PaperWatch".to_string(),
             id_cols: vec!["paperId".to_string(), "contactId".to_string()],
-            fks: vec![FK {
+            used_cols: vec![],
+            used_fks: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableFKs {
+        TableInfo {
             name: "Capability".to_string(),
             id_cols: vec!["salt".to_string()],
-            fks: vec![FK {
+            used_cols: vec![],
+            used_fks: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableFKs {
+        TableInfo {
             name: "PaperConflict".to_string(),
             id_cols: vec!["contactId".to_string(), "paperId".to_string()],
-            fks: vec![FK {
+            used_cols: vec![],
+            used_fks: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableFKs {
+        TableInfo {
             name: "TopicInterest".to_string(),
             id_cols: vec!["contactId".to_string(), "topicId".to_string()],
-            fks: vec![FK {
+            used_cols: vec![],
+            used_fks: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
@@ -59,12 +65,13 @@ pub fn get_remove_names() -> Vec<TableFKs> {
     ]
 }
 
-pub fn get_decor_names() -> Vec<TableFKs> {
+pub fn get_modify_names() -> Vec<TableInfo> {
     vec![
-        TableFKs {
+        TableInfo {
             name: "PaperReviewRefused".to_string(),
             id_cols: vec!["paperId".to_string(), "email".to_string()],
-            fks: vec![
+            used_cols: vec![],
+            used_fks: vec![
                 FK {
                     referencer_col: "requestedBy".to_string(),
                     fk_name: "ContactInfo".to_string(),
@@ -76,11 +83,13 @@ pub fn get_decor_names() -> Vec<TableFKs> {
                     fk_col: "contactId".to_string(),
                 },
             ],
+
         },
-        TableFKs {
+        TableInfo {
             name: "ActionLog".to_string(),
             id_cols: vec!["logId".to_string()],
-            fks: vec![
+            used_cols: vec![],
+            used_fks: vec![
                 FK {
                     referencer_col: "contactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
@@ -98,32 +107,35 @@ pub fn get_decor_names() -> Vec<TableFKs> {
                 },
             ],
         },
-        TableFKs {
+        TableInfo {
             name: "ReviewRating".to_string(),
             id_cols: vec![
                 "paperId".to_string(),
                 "reviewId".to_string(),
                 "contactId".to_string(),
             ],
-            fks: vec![FK {
+            used_cols: vec![],
+            used_fks: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableFKs {
+        TableInfo {
             name: "PaperComment".to_string(),
             id_cols: vec!["commentId".to_string()],
-            fks: vec![FK {
+            used_cols: vec![],
+            used_fks: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableFKs {
+        TableInfo {
             name: "PaperReview".to_string(),
             id_cols: vec!["reviewId".to_string()],
-            fks: vec![
+            used_cols: vec![],
+            used_fks: vec![
                 FK {
                     referencer_col: "contactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
@@ -136,10 +148,11 @@ pub fn get_decor_names() -> Vec<TableFKs> {
                 },
             ],
         },
-        TableFKs {
+        TableInfo {
             name: "Paper".to_string(),
             id_cols: vec!["paperId".to_string()],
-            fks: vec![
+            used_cols: vec![],
+            used_fks: vec![
                 FK {
                     referencer_col: "leadContactId".to_string(),
                     fk_name: "ContactInfo".to_string(),

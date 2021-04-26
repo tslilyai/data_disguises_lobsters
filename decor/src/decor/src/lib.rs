@@ -9,6 +9,7 @@ use std::*;
 use sql_parser::ast::*;
 
 pub mod decorrelate;
+pub mod modify;
 pub mod helpers;
 pub mod history;
 pub mod remove;

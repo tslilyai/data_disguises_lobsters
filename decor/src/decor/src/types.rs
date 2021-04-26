@@ -20,8 +20,9 @@ pub struct TableColumns {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TableFKs {
+pub struct TableInfo {
     pub name: String,
     pub id_cols: Vec<String>,
-    pub fks: Vec<FK>,
+    pub used_cols: Vec<String>,
+    pub used_fks: Vec<FK>,
 }
