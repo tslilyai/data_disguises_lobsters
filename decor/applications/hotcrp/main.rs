@@ -90,45 +90,21 @@ fn init_db(prime: bool) -> mysql::Conn {
 fn run_test(db: &mut mysql::Conn, disguises: &Vec<decor::types::Disguise>) {
     let mut stats = QueryStat::new();
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
-    
-    let start = time::Instant::now();
-
-    let mut txn = db.start_transaction(TxOpts::default()).unwrap();
-    decor::disguise::apply(None, &disguises[0], &mut txn, &mut stats).unwrap();
-    txn.commit().unwrap();
-
-    let dur = start.elapsed();
-    file.write("Disguise, NQueries, NQueriesVault, Duration(ms)\n".as_bytes())
-        .unwrap();
-    file.write(
-        format!(
-            "confAnon, {}, {}, {}\n",
-            stats.nqueries,
-            stats.nqueries_vault,
-            dur.as_millis()
-        )
-        .as_bytes(),
-    )
-    .unwrap();
-
-    let uids: Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();
-    let mut rng = &mut rand::thread_rng();
-    let rand_users: Vec<usize> = uids
-        .choose_multiple(&mut rng, uids.len())
-        .cloned()
-        .collect();
-
-    for user in rand_users {
-        let mut stats = QueryStat::new();
+   
+   file.write("Disguise, NQueries, NQueriesVault, Duration(ms)\n".as_bytes())
+        .unwrap();  
+   for disguise in disguises {
         let start = time::Instant::now();
         let mut txn = db.start_transaction(TxOpts::default()).unwrap();
-        decor::disguise::apply(Some(user as u64), &disguises[1], &mut txn, &mut stats).unwrap();
+        decor::disguise::apply(None, &disguises[0], &mut txn, &mut stats).unwrap();
         txn.commit().unwrap();
+
         let dur = start.elapsed();
+   
         file.write(
             format!(
-                "{}, {}, {}, {}\n",
-                user,
+                "disguise{}, {}, {}, {}\n",
+                disguise.disguise_id,
                 stats.nqueries,
                 stats.nqueries_vault,
                 dur.as_millis()
@@ -137,6 +113,8 @@ fn run_test(db: &mut mysql::Conn, disguises: &Vec<decor::types::Disguise>) {
         )
         .unwrap();
     }
+
+    
     file.flush().unwrap();
 
     vault::print_as_filters(db).unwrap();
@@ -149,14 +127,22 @@ fn main() {
     let prime = args.prime;
     let spec = args.spec;
 
-    let disguises = vec![
+    let mut disguises = vec![
         conf_anon_disguise::get_disguise(),
-        gdpr_disguise::get_disguise(),
     ];
+    let uids: Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();
+    let mut rng = &mut rand::thread_rng();
+    let rand_users: Vec<usize> = uids
+        .choose_multiple(&mut rng, uids.len())
+        .cloned()
+        .collect();
+    for user in rand_users {
+        disguises.push(gdpr_disguise::get_disguise(user as u64));
+    }
 
-    let mut ca_stmts = spec::get_disguise_filters(None, &disguises[0]);
-    let mut gdpr_stmts = spec::get_disguise_filters(Some("1"), &disguises[1]);
-    spec::merge_hashmaps(&mut gdpr_stmts, &mut ca_stmts);
+    let mut ca_stmts = spec::get_disguise_filters(&disguises[0]);
+    let mut gdpr_stmts = spec::get_disguise_filters(&disguises[1]);
+    decor::helpers::merge_vector_hashmaps(&mut gdpr_stmts, &mut ca_stmts);
     let create_spec_stmts = spec::create_mv_from_filters_stmts(&gdpr_stmts);
 
     if spec {

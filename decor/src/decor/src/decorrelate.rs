@@ -15,7 +15,7 @@ pub fn decor_obj_txn(
 ) -> Result<(), mysql::Error> {
     let child_name = &tableinfo.name;
     let child_id_cols = tableinfo.id_cols.clone();
-    let fks: Vec<&FK> = tableinfo.used_fks.iter().filter(|fk| fk.is_owner).collect();
+    let fks = &tableinfo.used_fks;
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
     let child_objs = get_query_rows_txn(&select_statement(child_name, None), txn, stats)?;
@@ -24,12 +24,7 @@ pub fn decor_obj_txn(
         return Ok(());
     }
 
-    for fk in &fks {
-        // skip foreign keys that shouldn't be decorrelated / don't belong to some owning user
-        if !fk.is_owner {
-            continue;
-        }
-
+    for fk in fks {
         // get all the IDs of parents (all are of the same type for the same fk)
         let mut fkids = vec![];
         for child in &child_objs {
@@ -181,11 +176,11 @@ pub fn decor_obj_txn_for_user(
 ) -> Result<(), mysql::Error> {
     let child_name = tableinfo.name.clone();
     let child_id_cols = tableinfo.id_cols.clone();
-    let fks: Vec<&FK> = tableinfo.used_fks.iter().filter(|fk| fk.is_owner).collect();
+    let fks = &tableinfo.used_fks;
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
     let mut selection = Expr::Value(Value::Boolean(false));
-    for fk in &fks {
+    for fk in fks {
         selection = Expr::BinaryOp {
             left: Box::new(selection),
             op: BinaryOperator::Or,
@@ -204,7 +199,7 @@ pub fn decor_obj_txn_for_user(
         return Ok(());
     }
 
-    for fk in &fks {
+    for fk in fks {
         /*
          * PHASE 2: OBJECT MODIFICATIONS
          * A) insert guises for parents

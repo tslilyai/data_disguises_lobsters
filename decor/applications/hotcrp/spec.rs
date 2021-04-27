@@ -1,47 +1,35 @@
 use crate::datagen;
 use decor::{helpers, types};
+use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::collections::HashMap;
 
-pub fn merge_hashmaps(
-    h1: &mut HashMap<String, Vec<String>>,
-    h2: &mut HashMap<String, Vec<String>>,
-) {
-    for (k, vs1) in h1.iter_mut() {
-        if let Some(mut vs2) = h2.get_mut(k) {
-            vs1.append(&mut vs2);
-        }
-    }
-    for (k, vs2) in h2.iter_mut() {
-        if let Some(vs1) = h1.get_mut(k) {
-            vs1.append(vs2);
-        } else {
-            h1.insert(k.to_string(), vs2.clone());
-        }
-    }
+pub fn check_disguise_properties(disguise: &types::Disguise, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
+    let mut correct = true;
+
+
+    Ok(correct)
 }
 
-
-// note: guises are violating ref integrity, just some arbitrary high value
+// note: guises are violating ref integrity, just some arbitrary 0 value for now
 pub fn get_disguise_filters(
-    user_id: Option<&str>,
     disguise: &types::Disguise,
 ) -> HashMap<String, Vec<String>> {
     let mut filters: HashMap<String, Vec<String>> = HashMap::new();
-   
-    if let Some(uid) = user_id {
+
+    if let Some(uid) = disguise.user_id {
         get_remove_where_fk_filters(uid, &disguise.remove_names, &mut filters);
     } else {
         get_remove_filters(&disguise.remove_names, &mut filters);
     }
 
-    get_update_filters(user_id, &disguise.update_names, &mut filters);
+    get_update_filters(disguise.user_id, &disguise.update_names, &mut filters);
     filters
 }
 
 // note: guises are violating ref integrity, just some arbitrary high value
 fn get_update_filters(
-    user_id: Option<&str>,
+    user_id: Option<u64>,
     tableinfos: &Vec<types::TableInfo>,
     filters: &mut HashMap<String, Vec<String>>,
 ) {
@@ -68,7 +56,12 @@ fn get_update_filters(
         let mut where_not_fk = vec![];
 
         for (i, col) in cols.iter().enumerate() {
-            if tableinfo.used_fks.iter().find(|fk| fk.referencer_col == *col).is_some() {
+            if tableinfo
+                .used_fks
+                .iter()
+                .find(|fk| fk.referencer_col == *col)
+                .is_some()
+            {
                 fk_cols.push(format!("0 as `{}`", col));
                 if let Some(v) = user_id {
                     where_fk.push(format!("`{}` = {}", col, v));
@@ -76,8 +69,16 @@ fn get_update_filters(
                 }
             } else if let Some(mc) = tableinfo.used_cols.iter().find(|mc| mc.col == *col) {
                 match &table_info.colformats[i] {
-                    types::ColFormat::NonQuoted => modified_cols.push(format!("{} as `{}`", (*mc.generate_modified_value)(), col)),
-                    types::ColFormat::Quoted => modified_cols.push(format!("'{}' as `{}`", (*mc.generate_modified_value)(), col)),
+                    types::ColFormat::NonQuoted => modified_cols.push(format!(
+                        "{} as `{}`",
+                        (*mc.generate_modified_value)(),
+                        col
+                    )),
+                    types::ColFormat::Quoted => modified_cols.push(format!(
+                        "'{}' as `{}`",
+                        (*mc.generate_modified_value)(),
+                        col
+                    )),
                 }
             } else {
                 normal_cols.push(format!("`{}`.`{}` as `{}`", table, col, col));
@@ -98,11 +99,7 @@ fn get_update_filters(
                 where_not_fk.join(" AND "),
             );
         } else {
-            filter = format!(
-                "SELECT {} FROM {};",
-                normal_cols.join(", "),
-                table,
-            );
+            filter = format!("SELECT {} FROM {};", normal_cols.join(", "), table,);
         }
         match filters.get_mut(table) {
             Some(fs) => fs.push(filter),
@@ -118,10 +115,7 @@ fn get_remove_filters(
     filters: &mut HashMap<String, Vec<String>>,
 ) {
     for tableinfo in tableinfos {
-        let filter = format!(
-            "SELECT * FROM {} WHERE FALSE;",
-            tableinfo.name
-        );
+        let filter = format!("SELECT * FROM {} WHERE FALSE;", tableinfo.name);
         match filters.get_mut(&tableinfo.name) {
             Some(fs) => fs.push(filter),
             None => {
@@ -132,7 +126,7 @@ fn get_remove_filters(
 }
 
 fn get_remove_where_fk_filters(
-    user_id: &str,
+    user_id: u64,
     tableinfos: &Vec<types::TableInfo>,
     filters: &mut HashMap<String, Vec<String>>,
 ) {
@@ -158,9 +152,7 @@ fn get_remove_where_fk_filters(
     }
 }
 
-pub fn create_mv_from_filters_stmts(
-    filters: &HashMap<String, Vec<String>>,
-) -> Vec<String> {
+pub fn create_mv_from_filters_stmts(filters: &HashMap<String, Vec<String>>) -> Vec<String> {
     let mut results = vec![];
     for (table, filters) in filters.iter() {
         let mut parsed_fs: Vec<Statement> = filters
@@ -183,7 +175,7 @@ pub fn create_mv_from_filters_stmts(
         let total_filters = parsed_fs.len();
         for (i, f) in parsed_fs.iter_mut().enumerate() {
             let create_stmt: String;
-            if i == total_filters-1 {
+            if i == total_filters - 1 {
                 // last created table replaces the name of the original base table!
                 create_stmt = format!("CREATE TEMPORARY TABLE {} AS {}", table, f.to_string());
             } else {
@@ -195,9 +187,7 @@ pub fn create_mv_from_filters_stmts(
     results
 }
 
-pub fn check_spec_assertions(
-    filters: &HashMap<String, Vec<String>>,
-) -> Vec<String> {
+pub fn check_spec_assertions(filters: &HashMap<String, Vec<String>>) -> Vec<String> {
     let mut results = vec![];
     for (table, filters) in filters.iter() {
         let mut parsed_fs: Vec<Statement> = filters
@@ -220,7 +210,7 @@ pub fn check_spec_assertions(
         let total_filters = parsed_fs.len();
         for (i, f) in parsed_fs.iter_mut().enumerate() {
             let create_stmt: String;
-            if i == total_filters-1 {
+            if i == total_filters - 1 {
                 // last created table replaces the name of the original base table!
                 create_stmt = format!("CREATE TEMPORARY TABLE {} AS {}", table, f.to_string());
             } else {

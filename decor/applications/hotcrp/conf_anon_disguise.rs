@@ -4,6 +4,7 @@ use decor::types::*;
 
 pub fn get_disguise() -> Disguise {
     Disguise {
+        user_id: None,
         disguise_id: CONF_ANON_DISGUISE_ID,
         update_names: get_update_names(),
         remove_names: get_remove_names(),
@@ -38,7 +39,6 @@ fn get_update_names() -> Vec<TableInfo> {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
-                is_owner: true,
             }],
         },
         TableInfo {
@@ -49,7 +49,6 @@ fn get_update_names() -> Vec<TableInfo> {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
-                is_owner: true,
             }],
         },
         TableInfo {
@@ -61,13 +60,11 @@ fn get_update_names() -> Vec<TableInfo> {
                     referencer_col: "requestedBy".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                    is_owner: true,
                 },
                 FK {
                     referencer_col: "refusedBy".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                    is_owner: true,
                 },
             ],
         },
@@ -80,19 +77,16 @@ fn get_update_names() -> Vec<TableInfo> {
                     referencer_col: "contactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                    is_owner: true,
                 },
                 FK {
                     referencer_col: "destContactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                    is_owner: true,
                 },
                 FK {
                     referencer_col: "trueContactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                    is_owner: true,
                 },
             ],
         },
@@ -108,7 +102,6 @@ fn get_update_names() -> Vec<TableInfo> {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
-                is_owner: true,
             }],
         },
         TableInfo {
@@ -119,7 +112,6 @@ fn get_update_names() -> Vec<TableInfo> {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
-                is_owner: true,
             }],
         },
         TableInfo {
@@ -131,13 +123,11 @@ fn get_update_names() -> Vec<TableInfo> {
                     referencer_col: "contactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                    is_owner: true,
                 },
                 FK {
                     referencer_col: "requestedBy".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                    is_owner: true,
                 },
             ],
         },
@@ -150,19 +140,16 @@ fn get_update_names() -> Vec<TableInfo> {
                     referencer_col: "leadContactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                    is_owner: true,
                 },
                 FK {
                     referencer_col: "managerContactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                    is_owner: true,
                 },
                 FK {
                     referencer_col: "shepherdContactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                    is_owner: true,
                 },
             ],
         },

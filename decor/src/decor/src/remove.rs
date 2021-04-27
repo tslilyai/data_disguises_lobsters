@@ -13,7 +13,7 @@ pub fn remove_obj_txn(
 ) -> Result<(), mysql::Error> {
     let name = tableinfo.name.clone();
     let id_cols = tableinfo.id_cols.clone();
-    let fks: Vec<&FK> = tableinfo.used_fks.iter().filter(|fk| fk.is_owner).collect();
+    let fks = &tableinfo.used_fks;
 
     let mut idents = vec![];
     for id in &disguise.guise_info.ids {
@@ -68,7 +68,7 @@ pub fn remove_obj_txn(
             .iter()
             .map(|c| get_value_of_col(objrow, &c).unwrap())
             .collect();
-        for fk in &fks {
+        for fk in fks {
             let uid = get_value_of_col(&objrow, &fk.referencer_col).unwrap();
             vault_vals.push(vault::VaultEntry {
                 vault_id: 0,

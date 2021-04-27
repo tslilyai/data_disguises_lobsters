@@ -14,7 +14,7 @@ pub fn modify_obj_txn(
     let name = &tableinfo.name;
     let id_cols = tableinfo.id_cols.clone();
     let modified_cols = &tableinfo.used_cols;
-    let fks: Vec<&FK> = tableinfo.used_fks.iter().filter(|fk| fk.is_owner).collect();
+    let fks = &tableinfo.used_fks;
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
     let objs = get_query_rows_txn(&select_statement(&name, None), txn, stats)?;
@@ -78,7 +78,7 @@ pub fn modify_obj_txn(
                 })
                 .collect();
             // insert a vault entry for every owning user
-            for fk in &fks {
+            for fk in fks {
                 let uid = get_value_of_col(&obj, &fk.referencer_col).unwrap();
                 vault_vals.push(vault::VaultEntry {
                     vault_id: 0,
