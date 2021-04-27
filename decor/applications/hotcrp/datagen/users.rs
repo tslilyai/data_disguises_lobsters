@@ -4,7 +4,7 @@ use sql_parser::ast::*;
 
 pub const ANON_PW: &'static str = "password123";
 
-fn get_random_email() -> String {
+pub fn get_random_email() -> String {
     format!("anonymous{}@secret.mail", get_random_string())
 }
 

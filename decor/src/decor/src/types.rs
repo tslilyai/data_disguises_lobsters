@@ -11,6 +11,9 @@ pub struct FK {
     pub referencer_col: String,
     pub fk_name: String,
     pub fk_col: String,
+    // does this FK point to a owning user of this referencer?
+    // i.e., do we decorrelate + put it in the corresponding vault?
+    pub is_owner: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

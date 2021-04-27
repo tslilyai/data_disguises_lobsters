@@ -48,7 +48,7 @@ pub fn apply(
     // only apply if disguise is reversed (or hasn't been applied)
     if history::is_disguise_reversed(&de, txn, stats)? {
         // DECORRELATION TXNS
-        for tableinfo in get_modify_names() {
+        for tableinfo in get_update_names() {
             decorrelate::decor_obj_txn_for_user(
                 user_id,
                 GDPR_DISGUISE_ID,

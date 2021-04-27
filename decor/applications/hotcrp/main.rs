@@ -149,11 +149,11 @@ fn main() {
     let prime = args.prime;
     let spec = args.spec;
 
-    let mut conf_stmts = spec::get_modify_filters(None, &conference_anon_disguise::get_modify_names());
-    let mut gdpr_modify_stmts = spec::get_modify_filters(Some("1"), &gdpr_disguise::get_modify_names());
+    let mut conf_stmts = spec::get_update_filters(None, &conference_anon_disguise::get_update_names());
+    let mut gdpr_update_stmts = spec::get_update_filters(Some("1"), &gdpr_disguise::get_update_names());
     let mut gdpr_remove_stmts = spec::get_remove_where_fk_filters("1", &gdpr_disguise::get_remove_names());
     spec::merge_hashmaps(&mut gdpr_remove_stmts, &mut conf_stmts);
-    spec::merge_hashmaps(&mut gdpr_remove_stmts, &mut gdpr_modify_stmts);
+    spec::merge_hashmaps(&mut gdpr_remove_stmts, &mut gdpr_update_stmts);
     let create_spec_stmts = spec::create_mv_from_filters_stmts(&gdpr_remove_stmts);
 
     if spec {

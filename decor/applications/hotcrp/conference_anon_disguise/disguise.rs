@@ -1,7 +1,7 @@
 use crate::conference_anon_disguise::constants::*;
 use crate::datagen;
 use crate::*;
-use decor::decorrelate;
+use decor::{decorrelate, modify};
 use decor::history::*;
 
 /*
@@ -41,27 +41,46 @@ pub fn apply(
     };
 
     // DECORRELATION
-    for tableinfo in get_modify_names() {
+    for tableinfo in get_update_names() {
         match user_id {
-            Some(uid) => decorrelate::modify_obj_txn_for_user(
-                uid,
-                CONF_ANON_DISGUISE_ID,
-                &tableinfo,
-                SCHEMA_UID_COL,
-                datagen::get_insert_guise_contact_info_cols,
-                datagen::get_insert_guise_contact_info_vals,
-                txn,
-                stats,
-            )?,
-            None => decorrelate::modify_obj_txn(
-                CONF_ANON_DISGUISE_ID,
-                &tableinfo,
-                SCHEMA_UID_COL,
-                datagen::get_insert_guise_contact_info_cols,
-                datagen::get_insert_guise_contact_info_vals,
-                txn,
-                stats,
-            )?,
+            Some(uid) => {
+                modify::modify_obj_txn_for_user(
+                    uid,
+                    CONF_ANON_DISGUISE_ID,
+                    &tableinfo,
+                    get_modified_email_val,
+                    txn,
+                    stats,
+                )?;
+                decorrelate::decor_obj_txn_for_user(
+                    uid,
+                    CONF_ANON_DISGUISE_ID,
+                    &tableinfo,
+                    SCHEMA_UID_COL,
+                    datagen::get_insert_guise_contact_info_cols,
+                    datagen::get_insert_guise_contact_info_vals,
+                    txn,
+                    stats,
+                )?;
+            }
+            None => {
+                modify::modify_obj_txn(
+                    CONF_ANON_DISGUISE_ID,
+                    &tableinfo,
+                    get_modified_email_val,
+                    txn,
+                    stats,
+                )?;
+                decorrelate::decor_obj_txn(
+                    CONF_ANON_DISGUISE_ID,
+                    &tableinfo,
+                    SCHEMA_UID_COL,
+                    datagen::get_insert_guise_contact_info_cols,
+                    datagen::get_insert_guise_contact_info_vals,
+                    txn,
+                    stats,
+                )?;
+            }
         }
     }
     decor::record_disguise(&de, txn, stats)?;

@@ -34,24 +34,6 @@ pub fn get_random_string() -> String {
         .collect()
 }
 
-/*fn get_table_names() -> Vec<&'static str> {
-    vec![
-        "ContactInfo",
-        "PaperReviewPreference",
-        "PaperWatch",
-        "Capability",
-        "PaperConflict",
-        "TopicInterest",
-        "PaperTag",
-        "PaperTagAnno",
-        "PaperReviewRefused",
-        "ActionLog",
-        "ReviewRating",
-        "PaperComment",
-        "PaperReview",
-    ]
-}*/
-
 pub fn get_schema_tables() -> Vec<types::TableColumns> {
     let mut table_cols = vec![];
     let stmts = helpers::get_create_schema_statements(SCHEMA, true);

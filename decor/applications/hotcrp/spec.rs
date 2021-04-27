@@ -23,7 +23,7 @@ pub fn merge_hashmaps(
 }
 
 // note: guises are violating ref integrity, just some arbitrary high value
-pub fn get_modify_filters(
+pub fn get_update_filters(
     fk_val: Option<&str>,
     tableinfos: &Vec<types::TableInfo>,
 ) -> HashMap<String, Vec<String>> {
