@@ -1,14 +1,31 @@
 use crate::datagen::*;
+use crate::*;
 use decor::types::*;
 
-pub fn get_update_names() -> Vec<TableInfo> {
+pub fn get_disguise() -> Disguise {
+    Disguise {
+        disguise_id: CONF_ANON_DISGUISE_ID,
+        update_names: get_update_names(),
+        remove_names: get_remove_names(),
+        guise_info: GuiseInfo {
+            name: SCHEMA_UID_TABLE.to_string(),
+            ids: vec![SCHEMA_UID_COL.to_string()],
+            col_generation: Box::new(get_insert_guise_contact_info_cols),
+            val_generation: Box::new(get_insert_guise_contact_info_vals),
+        },
+    }
+}
+
+fn get_update_names() -> Vec<TableInfo> {
     vec![
         TableInfo {
             name: "ContactInfo".to_string(),
             id_cols: vec!["contactId".to_string()],
             used_cols: vec![ColumnModification {
                 col: "email".to_string(),
-                satisfies_modification: Box::new(|v| v.contains("anonymous") && v.contains("secret")),
+                satisfies_modification: Box::new(|v| {
+                    v.contains("anonymous") && v.contains("secret")
+                }),
                 generate_modified_value: Box::new(users::get_random_email),
             }],
             used_fks: vec![],
@@ -150,4 +167,8 @@ pub fn get_update_names() -> Vec<TableInfo> {
             ],
         },
     ]
+}
+
+fn get_remove_names() -> Vec<TableInfo> {
+    vec![]
 }

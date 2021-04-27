@@ -1,6 +1,6 @@
+use crate::history::HISTORY_TABLE;
 use crate::stats::QueryStat;
 use crate::types::*;
-use crate::history::HISTORY_TABLE;
 use crate::vault::VAULT_TABLE;
 use log::debug;
 use msql_srv::{Column, ColumnFlags, QueryResultWriter};
@@ -9,7 +9,7 @@ use sql_parser::ast::*;
 use std::str::FromStr;
 use std::*;
 
-pub const NULLSTR : &'static str = "NULL";
+pub const NULLSTR: &'static str = "NULL";
 
 /************************************
  * MYSQL HELPERS
@@ -128,7 +128,7 @@ pub fn answer_rows<W: io::Write>(
                 .map(|c| Column {
                     table: c.table_str().to_string(),
                     column: c.name_str().to_string(),
-                    coltype: get_coltype(&c.column_type()),
+                    coltype: get_msql_srv_coltype(&c.column_type()),
                     colflags: ColumnFlags::from_bits(c.flags().bits()).unwrap(),
                 })
                 .collect();
@@ -152,8 +152,45 @@ pub fn answer_rows<W: io::Write>(
     Ok(())
 }
 
+/// Convert a MySQL type to ColFormat 
+pub fn get_colformat(t: &mysql::consts::ColumnType) -> ColFormat {
+    match t {
+        mysql::consts::ColumnType::MYSQL_TYPE_DECIMAL
+        | mysql::consts::ColumnType::MYSQL_TYPE_TINY
+        | mysql::consts::ColumnType::MYSQL_TYPE_SHORT
+        | mysql::consts::ColumnType::MYSQL_TYPE_LONG
+        | mysql::consts::ColumnType::MYSQL_TYPE_FLOAT
+        | mysql::consts::ColumnType::MYSQL_TYPE_DOUBLE
+        | mysql::consts::ColumnType::MYSQL_TYPE_NULL
+        | mysql::consts::ColumnType::MYSQL_TYPE_TIMESTAMP
+        | mysql::consts::ColumnType::MYSQL_TYPE_LONGLONG
+        | mysql::consts::ColumnType::MYSQL_TYPE_INT24
+        | mysql::consts::ColumnType::MYSQL_TYPE_DATE
+        | mysql::consts::ColumnType::MYSQL_TYPE_TIME
+        | mysql::consts::ColumnType::MYSQL_TYPE_DATETIME
+        | mysql::consts::ColumnType::MYSQL_TYPE_YEAR
+        | mysql::consts::ColumnType::MYSQL_TYPE_NEWDATE
+        | mysql::consts::ColumnType::MYSQL_TYPE_BIT => ColFormat::NonQuoted,
+        mysql::consts::ColumnType::MYSQL_TYPE_VARCHAR
+        | mysql::consts::ColumnType::MYSQL_TYPE_TIMESTAMP2
+        | mysql::consts::ColumnType::MYSQL_TYPE_DATETIME2
+        | mysql::consts::ColumnType::MYSQL_TYPE_TIME2
+        | mysql::consts::ColumnType::MYSQL_TYPE_JSON
+        | mysql::consts::ColumnType::MYSQL_TYPE_NEWDECIMAL
+        | mysql::consts::ColumnType::MYSQL_TYPE_ENUM
+        | mysql::consts::ColumnType::MYSQL_TYPE_SET
+        | mysql::consts::ColumnType::MYSQL_TYPE_TINY_BLOB
+        | mysql::consts::ColumnType::MYSQL_TYPE_MEDIUM_BLOB
+        | mysql::consts::ColumnType::MYSQL_TYPE_LONG_BLOB
+        | mysql::consts::ColumnType::MYSQL_TYPE_BLOB
+        | mysql::consts::ColumnType::MYSQL_TYPE_VAR_STRING
+        | mysql::consts::ColumnType::MYSQL_TYPE_STRING
+        | mysql::consts::ColumnType::MYSQL_TYPE_GEOMETRY => ColFormat::Quoted,
+    }
+}
+
 /// Convert a MySQL type to MySQL_svr type
-pub fn get_coltype(t: &mysql::consts::ColumnType) -> msql_srv::ColumnType {
+pub fn get_msql_srv_coltype(t: &mysql::consts::ColumnType) -> msql_srv::ColumnType {
     use msql_srv::ColumnType;
     match t {
         mysql::consts::ColumnType::MYSQL_TYPE_DECIMAL => ColumnType::MYSQL_TYPE_DECIMAL,

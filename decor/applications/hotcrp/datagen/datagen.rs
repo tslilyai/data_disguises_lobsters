@@ -43,6 +43,7 @@ pub fn get_schema_tables() -> Vec<types::TableColumns> {
                 table_cols.push(types::TableColumns {
                     name: name.to_string(),
                     cols: columns.iter().map(|c| c.name.to_string()).collect(),
+                    colformats: columns.iter().map(|c| helpers::get_parser_colformat(&c.data_type)).collect(),
                 });
             }
             _ => unimplemented!("Not a create table statement?"),

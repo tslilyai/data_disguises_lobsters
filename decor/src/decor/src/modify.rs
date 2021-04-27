@@ -6,7 +6,7 @@ use sql_parser::ast::*;
 use std::str::FromStr;
 
 pub fn modify_obj_txn(
-    disguise_id: u64,
+    disguise: &Disguise,
     tableinfo: &TableInfo,
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
@@ -82,7 +82,7 @@ pub fn modify_obj_txn(
                 let uid = get_value_of_col(&obj, &fk.referencer_col).unwrap();
                 vault_vals.push(vault::VaultEntry {
                     vault_id: 0,
-                    disguise_id: disguise_id,
+                    disguise_id: disguise.disguise_id,
                     user_id: u64::from_str(&uid).unwrap(),
                     guise_name: name.clone(),
                     guise_id_cols: id_cols.clone(),

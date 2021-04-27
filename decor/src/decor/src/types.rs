@@ -1,4 +1,11 @@
 use serde::{Deserialize, Serialize};
+use sql_parser::ast::*;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ColFormat {
+    Quoted,
+    NonQuoted
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RowVal {
@@ -20,6 +27,7 @@ pub struct FK {
 pub struct TableColumns {
     pub name: String,
     pub cols: Vec<String>,
+    pub colformats: Vec<ColFormat>,
 }
 
 pub struct ColumnModification {
@@ -33,4 +41,18 @@ pub struct TableInfo {
     pub id_cols: Vec<String>,
     pub used_cols: Vec<ColumnModification>,
     pub used_fks: Vec<FK>,
+}
+
+pub struct GuiseInfo {
+    pub name: String,
+    pub ids: Vec<String>,
+    pub col_generation: Box<dyn Fn() -> Vec<&'static str>>,
+    pub val_generation: Box<dyn Fn() -> Vec<Expr>>,
+}
+
+pub struct Disguise {
+    pub disguise_id: u64,
+    pub update_names: Vec<TableInfo>,
+    pub remove_names: Vec<TableInfo>,
+    pub guise_info: GuiseInfo, 
 }

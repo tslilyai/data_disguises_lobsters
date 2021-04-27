@@ -1,3 +1,4 @@
+use crate::types::*;
 use log::{debug, warn};
 use rand;
 use regex::*;
@@ -308,6 +309,30 @@ pub fn parser_expr_to_u64(val: &Expr) -> Result<u64, mysql::Error> {
             io::ErrorKind::Other,
             format!("expr {:?} is not an int", val),
         ))),
+    }
+}
+
+/// Convert a parser type to ColFormat
+pub fn get_parser_colformat(t: &DataType) -> ColFormat {
+    match t {
+        DataType::Decimal(..)
+        | DataType::Float(..)
+        | DataType::Double
+        | DataType::Boolean
+        | DataType::BigInt
+        | DataType::SmallInt
+        | DataType::TinyInt(..)
+        | DataType::Int => ColFormat::NonQuoted,
+        DataType::Date
+        | DataType::Time
+        | DataType::Varchar(..)
+        | DataType::Jsonb
+        | DataType::Blob(..)
+        | DataType::Char(..)
+        | DataType::DateTime
+        | DataType::Timestamp
+        | DataType::Varbinary(..) => ColFormat::Quoted,
+        _ => unimplemented!("not a valid data type {:?}", t),
     }
 }
 

@@ -12,7 +12,7 @@ use std::io::Write;
 use std::*;
 use structopt::StructOpt;
 
-mod conference_anon_disguise;
+mod conf_anon_disguise;
 mod datagen;
 mod gdpr_disguise;
 mod spec;
@@ -87,14 +87,14 @@ fn init_db(prime: bool) -> mysql::Conn {
     db
 }
 
-fn run_test(db: &mut mysql::Conn) {
+fn run_test(db: &mut mysql::Conn, disguises: &Vec<decor::types::Disguise>) {
     let mut stats = QueryStat::new();
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
-
+    
     let start = time::Instant::now();
 
     let mut txn = db.start_transaction(TxOpts::default()).unwrap();
-    conference_anon_disguise::apply(None, &mut txn, &mut stats).unwrap();
+    decor::disguise::apply(None, &disguises[0], &mut txn, &mut stats).unwrap();
     txn.commit().unwrap();
 
     let dur = start.elapsed();
@@ -122,7 +122,7 @@ fn run_test(db: &mut mysql::Conn) {
         let mut stats = QueryStat::new();
         let start = time::Instant::now();
         let mut txn = db.start_transaction(TxOpts::default()).unwrap();
-        gdpr_disguise::apply(Some(user as u64), &mut txn, &mut stats).unwrap();
+        decor::disguise::apply(Some(user as u64), &disguises[1], &mut txn, &mut stats).unwrap();
         txn.commit().unwrap();
         let dur = start.elapsed();
         file.write(
@@ -149,12 +149,15 @@ fn main() {
     let prime = args.prime;
     let spec = args.spec;
 
-    let mut conf_stmts = spec::get_update_filters(None, &conference_anon_disguise::get_update_names());
-    let mut gdpr_update_stmts = spec::get_update_filters(Some("1"), &gdpr_disguise::get_update_names());
-    let mut gdpr_remove_stmts = spec::get_remove_where_fk_filters("1", &gdpr_disguise::get_remove_names());
-    spec::merge_hashmaps(&mut gdpr_remove_stmts, &mut conf_stmts);
-    spec::merge_hashmaps(&mut gdpr_remove_stmts, &mut gdpr_update_stmts);
-    let create_spec_stmts = spec::create_mv_from_filters_stmts(&gdpr_remove_stmts);
+    let disguises = vec![
+        conf_anon_disguise::get_disguise(),
+        gdpr_disguise::get_disguise(),
+    ];
+
+    let mut ca_stmts = spec::get_disguise_filters(None, &disguises[0]);
+    let mut gdpr_stmts = spec::get_disguise_filters(Some("1"), &disguises[1]);
+    spec::merge_hashmaps(&mut gdpr_stmts, &mut ca_stmts);
+    let create_spec_stmts = spec::create_mv_from_filters_stmts(&gdpr_stmts);
 
     if spec {
         let mut spec_file = File::create("spec.sql".to_string()).unwrap();

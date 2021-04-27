@@ -16,6 +16,7 @@ pub mod remove;
 pub mod stats;
 pub mod types;
 pub mod vault;
+pub mod disguise;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
