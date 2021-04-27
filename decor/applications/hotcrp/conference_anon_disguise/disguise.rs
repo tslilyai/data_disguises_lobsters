@@ -7,6 +7,65 @@ use decor::history::*;
 /*
  * CONFERENCE ANONYMIZATION DISGUISE
  */
+pub fn apply(
+    user_id: Option<u64>,
+    txn: &mut mysql::Transaction,
+    stats: &mut QueryStat,
+) -> Result<(), mysql::Error> {
+    // we should be able to reapply the conference anonymization disguise, in case more data has
+    // been added in the meantime
+    let de = DisguiseEntry {
+        disguise_id: CONF_ANON_DISGUISE_ID,
+        user_id: 0,
+        reverse: false,
+    };
+
+    // DECORRELATION
+    for tableinfo in get_update_names() {
+        match user_id {
+            Some(uid) => {
+                // TODO add predicate...
+                /*modify::modify_obj_txn_for_user(
+                    uid,
+                    CONF_ANON_DISGUISE_ID,
+                    &tableinfo,
+                    txn,
+                    stats,
+                )?;*/
+                decorrelate::decor_obj_txn_for_user(
+                    uid,
+                    CONF_ANON_DISGUISE_ID,
+                    &tableinfo,
+                    SCHEMA_UID_COL,
+                    datagen::get_insert_guise_contact_info_cols,
+                    datagen::get_insert_guise_contact_info_vals,
+                    txn,
+                    stats,
+                )?;
+            }
+            None => {
+                modify::modify_obj_txn(
+                    CONF_ANON_DISGUISE_ID,
+                    &tableinfo,
+                    txn,
+                    stats,
+                )?;
+                decorrelate::decor_obj_txn(
+                    CONF_ANON_DISGUISE_ID,
+                    &tableinfo,
+                    SCHEMA_UID_COL,
+                    datagen::get_insert_guise_contact_info_cols,
+                    datagen::get_insert_guise_contact_info_vals,
+                    txn,
+                    stats,
+                )?;
+            }
+        }
+    }
+    decor::record_disguise(&de, txn, stats)?;
+    Ok(())
+}
+
 pub fn undo(
     _user_id: Option<u64>,
     txn: &mut mysql::Transaction,
@@ -27,65 +86,6 @@ pub fn undo(
     Ok(())
 }
 
-pub fn apply(
-    user_id: Option<u64>,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
-) -> Result<(), mysql::Error> {
-    // we should be able to reapply the conference anonymization disguise, in case more data has
-    // been added in the meantime
-    let de = DisguiseEntry {
-        disguise_id: CONF_ANON_DISGUISE_ID,
-        user_id: 0,
-        reverse: false,
-    };
-
-    // DECORRELATION
-    for tableinfo in get_update_names() {
-        match user_id {
-            Some(uid) => {
-                modify::modify_obj_txn_for_user(
-                    uid,
-                    CONF_ANON_DISGUISE_ID,
-                    &tableinfo,
-                    get_modified_email_val,
-                    txn,
-                    stats,
-                )?;
-                decorrelate::decor_obj_txn_for_user(
-                    uid,
-                    CONF_ANON_DISGUISE_ID,
-                    &tableinfo,
-                    SCHEMA_UID_COL,
-                    datagen::get_insert_guise_contact_info_cols,
-                    datagen::get_insert_guise_contact_info_vals,
-                    txn,
-                    stats,
-                )?;
-            }
-            None => {
-                modify::modify_obj_txn(
-                    CONF_ANON_DISGUISE_ID,
-                    &tableinfo,
-                    get_modified_email_val,
-                    txn,
-                    stats,
-                )?;
-                decorrelate::decor_obj_txn(
-                    CONF_ANON_DISGUISE_ID,
-                    &tableinfo,
-                    SCHEMA_UID_COL,
-                    datagen::get_insert_guise_contact_info_cols,
-                    datagen::get_insert_guise_contact_info_vals,
-                    txn,
-                    stats,
-                )?;
-            }
-        }
-    }
-    decor::record_disguise(&de, txn, stats)?;
-    Ok(())
-}
 
 #[cfg(test)]
 mod test {

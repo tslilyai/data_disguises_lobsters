@@ -1,6 +1,5 @@
 use crate::datagen;
 use decor::{helpers, types};
-use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::collections::HashMap;
 
@@ -24,7 +23,7 @@ pub fn merge_hashmaps(
 
 // note: guises are violating ref integrity, just some arbitrary high value
 pub fn get_update_filters(
-    fk_val: Option<&str>,
+    user_id: Option<&str>,
     tableinfos: &Vec<types::TableInfo>,
 ) -> HashMap<String, Vec<String>> {
     let mut filters: HashMap<String, Vec<String>> = HashMap::new();
@@ -45,38 +44,42 @@ pub fn get_update_filters(
             .collect();
 
         let mut normal_cols = vec![];
+        let mut modified_cols = vec![];
         let mut fk_cols = vec![];
-        let mut fk_comps = vec![];
-        let mut non_fk_comps = vec![];
+        let mut where_fk = vec![];
+        let mut where_not_fk = vec![];
 
         for col in cols {
-            match tableinfo.used_fks.iter().find(|fk| fk.referencer_col == col) {
-                Some(_) => {
-                    fk_cols.push(format!("0 as {}", col));
-                    if let Some(v) = fk_val {
-                        fk_comps.push(format!("{} = {}", col, v));
-                        non_fk_comps.push(format!("{} != {}", col, v));
-                    }
+            if tableinfo.used_fks.iter().find(|fk| fk.referencer_col == col).is_some() {
+                fk_cols.push(format!("0 as `{}`", col));
+                if let Some(v) = user_id {
+                    where_fk.push(format!("`{}` = {}", col, v));
+                    where_not_fk.push(format!("`{}` != {}", col, v));
                 }
-                None => normal_cols.push(format!("{}.{} as {}", table, col, col)),
+            } else if let Some(mc) = tableinfo.used_cols.iter().find(|mc| mc.col == col) {
+                modified_cols.push(format!("'{}' as `{}`", (*mc.generate_modified_value)(), col));
+            } else {
+                normal_cols.push(format!("`{}`.`{}` as `{}`", table, col, col));
             }
         }
+
         let filter: String;
-        if !fk_comps.is_empty() {
+        normal_cols.append(&mut modified_cols);
+        normal_cols.append(&mut fk_cols);
+        if !where_fk.is_empty() {
+            // put all column selections together
             filter = format!(
-                "SELECT {}, {} FROM {} WHERE {} UNION SELECT * FROM {} WHERE {};",
+                "SELECT {} FROM {} WHERE {} UNION SELECT * FROM {} WHERE {};",
                 normal_cols.join(", "),
-                fk_cols.join(", "),
                 table,
-                fk_comps.join(" OR "),
+                where_fk.join(" OR "),
                 table,
-                non_fk_comps.join(" AND "),
+                where_not_fk.join(" AND "),
             );
         } else {
             filter = format!(
-                "SELECT {}, {} FROM {};",
+                "SELECT {} FROM {};",
                 normal_cols.join(", "),
-                fk_cols.join(", "),
                 table,
             );
         }
@@ -91,14 +94,14 @@ pub fn get_update_filters(
 }
 
 pub fn get_remove_where_fk_filters(
-    fk_val: &str,
+    user_id: &str,
     tableinfos: &Vec<types::TableInfo>,
 ) -> HashMap<String, Vec<String>> {
     let mut filters: HashMap<String, Vec<String>> = HashMap::new();
     for tableinfo in tableinfos {
         let mut fk_comps = vec![];
         for fk in &tableinfo.used_fks {
-            fk_comps.push(format!("{} != {}", fk.referencer_col, fk_val));
+            fk_comps.push(format!("{} != {}", fk.referencer_col, user_id));
         }
         if fk_comps.is_empty() {
             fk_comps = vec!["TRUE".to_string()]

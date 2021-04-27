@@ -5,127 +5,12 @@ use crate::vault;
 use sql_parser::ast::*;
 use std::str::FromStr;
 
-pub fn modify_obj_txn_for_user<A>(
-    user_id: u64,
+pub fn modify_obj_txn(
     disguise_id: u64,
     tableinfo: &TableInfo,
-    get_modified_vals: A,
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
-) -> Result<(), mysql::Error>
-where
-    A: Fn() -> Vec<String>,
-{
-    let name = &tableinfo.name;
-    let id_cols = tableinfo.id_cols.clone();
-    let modified_cols = &tableinfo.used_cols;
-    let fks: Vec<&FK> = tableinfo.used_fks.iter().filter(|fk| fk.is_owner).collect();
-
-    /* PHASE 1: SELECT REFERENCER OBJECTS */
-    let mut selection = Expr::Value(Value::Boolean(false));
-    for fk in fks {
-        selection = Expr::BinaryOp {
-            left: Box::new(selection),
-            op: BinaryOperator::Or,
-            right: Box::new(Expr::BinaryOp {
-                left: Box::new(Expr::Identifier(vec![Ident::new(
-                    fk.referencer_col.to_string(),
-                )])),
-                op: BinaryOperator::Eq,
-                right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
-            }),
-        };
-    }
-    let objs = get_query_rows_txn(&select_statement(&name, Some(selection)), txn, stats)?;
-    if objs.is_empty() {
-        return Ok(());
-    }
-
-    let mut vault_vals = vec![];
-    for obj in &objs {
-        let vs = get_modified_vals();
-        for (i, col) in modified_cols.iter().enumerate() {
-            let mut selection = Expr::Value(Value::Boolean(true));
-            let ids: Vec<String> = id_cols
-                .iter()
-                .map(|id_col| get_value_of_col(&obj, &id_col).unwrap())
-                .collect();
-            for (i, id) in ids.iter().enumerate() {
-                let eq_selection = Expr::BinaryOp {
-                    left: Box::new(Expr::Identifier(vec![Ident::new(id_cols[i].clone())])),
-                    op: BinaryOperator::Eq,
-                    right: Box::new(Expr::Value(Value::String(id.to_string()))),
-                };
-                selection = Expr::BinaryOp {
-                    left: Box::new(selection),
-                    op: BinaryOperator::And,
-                    right: Box::new(eq_selection),
-                };
-            }
-
-            /*
-             * PHASE 2: OBJECT MODIFICATIONS
-             * */
-            get_query_rows_txn(
-                &Statement::Update(UpdateStatement {
-                    table_name: string_to_objname(&name),
-                    assignments: vec![Assignment {
-                        id: Ident::new(col.clone()),
-                        value: Expr::Value(Value::String(vs[i].to_string())),
-                    }],
-                    selection: Some(selection),
-                }),
-                txn,
-                stats,
-            )?;
-
-            /*
-             * PHASE 3: VAULT UPDATES
-             * */
-            let new_obj: Vec<RowVal> = obj
-                .iter()
-                .map(|v| {
-                    if &v.column == col {
-                        RowVal {
-                            column: v.column.clone(),
-                            value: vs[i].to_string(),
-                        }
-                    } else {
-                        v.clone()
-                    }
-                })
-                .collect();
-            vault_vals.push(vault::VaultEntry {
-                vault_id: 0,
-                disguise_id: disguise_id,
-                user_id: user_id,
-                guise_name: name.clone(),
-                guise_id_cols: id_cols.clone(),
-                guise_ids: ids,
-                referencer_name: "".to_string(),
-                update_type: vault::UPDATE_GUISE,
-                modified_cols: vs.iter().map(|v| v.to_string()).collect(),
-                old_value: obj.clone(),
-                new_value: new_obj,
-                reverses: None,
-            });
-        }
-    }
-    /* PHASE 3: Batch vault updates */
-    vault::insert_vault_entries(&vault_vals, txn, stats)?;
-    Ok(())
-}
-
-pub fn modify_obj_txn<A>(
-    disguise_id: u64,
-    tableinfo: &TableInfo,
-    get_modified_vals: A,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
-) -> Result<(), mysql::Error>
-where
-    A: Fn() -> Vec<String>,
-{
+) -> Result<(), mysql::Error> {
     let name = &tableinfo.name;
     let id_cols = tableinfo.id_cols.clone();
     let modified_cols = &tableinfo.used_cols;
@@ -139,8 +24,9 @@ where
 
     let mut vault_vals = vec![];
     for obj in &objs {
-        let vs = get_modified_vals();
-        for (i, col) in modified_cols.iter().enumerate() {
+        for colmod in modified_cols {
+            let new_val = (*(colmod.generate_modified_value))();
+            
             let mut selection = Expr::Value(Value::Boolean(true));
             let ids: Vec<String> = id_cols
                 .iter()
@@ -166,8 +52,8 @@ where
                 &Statement::Update(UpdateStatement {
                     table_name: string_to_objname(&name),
                     assignments: vec![Assignment {
-                        id: Ident::new(col.clone()),
-                        value: Expr::Value(Value::String(vs[i].to_string())),
+                        id: Ident::new(colmod.col.clone()),
+                        value: Expr::Value(Value::String(new_val.clone())),
                     }],
                     selection: Some(selection),
                 }),
@@ -181,10 +67,10 @@ where
             let new_obj: Vec<RowVal> = obj
                 .iter()
                 .map(|v| {
-                    if &v.column == col {
+                    if v.column == colmod.col {
                         RowVal {
                             column: v.column.clone(),
-                            value: vs[i].to_string(),
+                            value: new_val.clone(),
                         }
                     } else {
                         v.clone()
@@ -203,7 +89,7 @@ where
                     guise_ids: ids.clone(),
                     referencer_name: "".to_string(),
                     update_type: vault::UPDATE_GUISE,
-                    modified_cols: vs.iter().map(|v| v.to_string()).collect(),
+                    modified_cols: modified_cols.iter().map(|mc| mc.col.clone()).collect(),
                     old_value: obj.clone(),
                     new_value: new_obj.clone(),
                     reverses: None,

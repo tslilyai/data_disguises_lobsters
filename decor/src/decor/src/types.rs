@@ -22,10 +22,15 @@ pub struct TableColumns {
     pub cols: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ColumnModification {
+    pub col: String,
+    pub satisfies_modification: Box<dyn Fn(&str) -> bool>,
+    pub generate_modified_value: Box<dyn Fn() -> String>,
+}
+
 pub struct TableInfo {
     pub name: String,
     pub id_cols: Vec<String>,
-    pub used_cols: Vec<String>,
+    pub used_cols: Vec<ColumnModification>,
     pub used_fks: Vec<FK>,
 }

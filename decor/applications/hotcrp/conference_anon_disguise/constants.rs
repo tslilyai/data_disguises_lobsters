@@ -1,16 +1,16 @@
 use crate::datagen::*;
 use decor::types::*;
 
-pub fn get_modified_email_val() -> Vec<String> {
-    vec![users::get_random_email()]
-}
-
 pub fn get_update_names() -> Vec<TableInfo> {
     vec![
         TableInfo {
             name: "ContactInfo".to_string(),
             id_cols: vec!["contactId".to_string()],
-            used_cols: vec!["email".to_string()],
+            used_cols: vec![ColumnModification {
+                col: "email".to_string(),
+                satisfies_modification: Box::new(|v| v.contains("anonymous") && v.contains("secret")),
+                generate_modified_value: Box::new(users::get_random_email),
+            }],
             used_fks: vec![],
         },
         TableInfo {
