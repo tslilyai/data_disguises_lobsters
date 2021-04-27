@@ -7,8 +7,39 @@ use std::collections::HashMap;
 pub fn check_disguise_properties(disguise: &types::Disguise, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
     let mut correct = true;
 
+    for name in &disguise.remove_names {
+        correct &= properly_removed(disguise.user_id, &name, db);
+    }
+    for name in &disguise.update_names {
+        correct &= properly_modified(&name, db);
+        correct &= properly_decorrelated(disguise.user_id, &name, db);
+    }
+
 
     Ok(correct)
+}
+
+fn properly_decorrelated(
+    uid: Option<u64>,
+    tableinfo: &types::TableInfo,
+    db: &mut mysql::Conn,
+) -> bool {
+    false
+}
+
+fn properly_modified(
+    tableinfo: &types::TableInfo,
+    db: &mut mysql::Conn,
+) -> bool {
+    false
+}
+
+fn properly_removed(
+    uid: Option<u64>,
+    tableinfo: &types::TableInfo,
+    db: &mut mysql::Conn,
+) -> bool {
+    false
 }
 
 // note: guises are violating ref integrity, just some arbitrary 0 value for now
@@ -153,41 +184,6 @@ fn get_remove_where_fk_filters(
 }
 
 pub fn create_mv_from_filters_stmts(filters: &HashMap<String, Vec<String>>) -> Vec<String> {
-    let mut results = vec![];
-    for (table, filters) in filters.iter() {
-        let mut parsed_fs: Vec<Statement> = filters
-            .iter()
-            .map(|f| helpers::get_single_parsed_stmt(&f).unwrap())
-            .collect();
-
-        // TODO sort filters
-
-        let mut last_name: Option<String> = None;
-        for (i, f) in parsed_fs.iter_mut().enumerate() {
-            match f {
-                Statement::Select(SelectStatement { query, .. }) => {
-                    helpers::update_select_from(&mut query.body, &last_name);
-                    last_name = Some(format!("{}{}", table, i));
-                }
-                _ => unimplemented!("Not a select projection filter?"),
-            }
-        }
-        let total_filters = parsed_fs.len();
-        for (i, f) in parsed_fs.iter_mut().enumerate() {
-            let create_stmt: String;
-            if i == total_filters - 1 {
-                // last created table replaces the name of the original base table!
-                create_stmt = format!("CREATE TEMPORARY TABLE {} AS {}", table, f.to_string());
-            } else {
-                create_stmt = format!("CREATE VIEW {}{} AS {}", table, i, f.to_string());
-            }
-            results.push(create_stmt);
-        }
-    }
-    results
-}
-
-pub fn check_spec_assertions(filters: &HashMap<String, Vec<String>>) -> Vec<String> {
     let mut results = vec![];
     for (table, filters) in filters.iter() {
         let mut parsed_fs: Vec<Statement> = filters
