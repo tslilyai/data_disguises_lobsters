@@ -4,7 +4,10 @@ use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::collections::HashMap;
 
-pub fn check_disguise_properties(disguise: &types::Disguise, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
+pub fn check_disguise_properties(
+    disguise: &types::Disguise,
+    db: &mut mysql::Conn,
+) -> Result<bool, mysql::Error> {
     let mut correct = true;
 
     for name in &disguise.remove_names {
@@ -14,7 +17,6 @@ pub fn check_disguise_properties(disguise: &types::Disguise, db: &mut mysql::Con
         correct &= properly_modified(&name, db);
         correct &= properly_decorrelated(disguise.user_id, &name, db);
     }
-
 
     Ok(correct)
 }
@@ -27,25 +29,22 @@ fn properly_decorrelated(
     false
 }
 
-fn properly_modified(
-    tableinfo: &types::TableInfo,
-    db: &mut mysql::Conn,
-) -> bool {
+fn properly_modified(tableinfo: &types::TableInfo, db: &mut mysql::Conn) -> bool {
     false
 }
 
-fn properly_removed(
-    uid: Option<u64>,
-    tableinfo: &types::TableInfo,
-    db: &mut mysql::Conn,
-) -> bool {
+fn properly_removed(uid: Option<u64>, tableinfo: &types::TableInfo, db: &mut mysql::Conn) -> bool {
+    let selection = match uid {
+        Some(user) => Some()
+        None => None,
+    };
+
+    get_query_rows_txn(&select_statement(&child_name, selection), txn, stats)?;
     false
 }
 
 // note: guises are violating ref integrity, just some arbitrary 0 value for now
-pub fn get_disguise_filters(
-    disguise: &types::Disguise,
-) -> HashMap<String, Vec<String>> {
+pub fn get_disguise_filters(disguise: &types::Disguise) -> HashMap<String, Vec<String>> {
     let mut filters: HashMap<String, Vec<String>> = HashMap::new();
 
     if let Some(uid) = disguise.user_id {

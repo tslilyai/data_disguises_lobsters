@@ -45,7 +45,8 @@ pub struct TableInfo {
 
 pub struct GuiseInfo {
     pub name: String,
-    pub ids: Vec<String>,
+    // assume there's only one id col for a guise
+    pub id: String,
     pub col_generation: Box<dyn Fn() -> Vec<&'static str>>,
     pub val_generation: Box<dyn Fn() -> Vec<Expr>>,
 }

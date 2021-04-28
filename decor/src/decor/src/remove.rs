@@ -100,16 +100,36 @@ pub fn remove_obj_txn_for_user(
     let name = tableinfo.name.clone();
     let id_cols = tableinfo.id_cols.clone();
 
-    let mut idents = vec![];
-    for id in &disguise.guise_info.ids {
-        idents.push(Ident::new(id))
+    let mut selection = Expr::Value(Value::Boolean(false));
+    // if this is the user table, check for ID equivalence
+    if name == disguise.guise_info.name {
+        selection = Expr::BinaryOp {
+            left: Box::new(selection),
+            op: BinaryOperator::Or,
+            right: Box::new(Expr::BinaryOp {
+                left: Box::new(Expr::Identifier(vec![Ident::new(
+                    disguise.guise_info.id.to_string(),
+                )])),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
+            }),
+        };
+    } else {
+        // otherwise, we want to remove all objects possibly referencing the user
+        for fk in &tableinfo.fks {
+            selection = Expr::BinaryOp {
+                left: Box::new(selection),
+                op: BinaryOperator::Or,
+                right: Box::new(Expr::BinaryOp {
+                    left: Box::new(Expr::Identifier(vec![Ident::new(
+                        fk.referencer_col.to_string(),
+                    )])),
+                    op: BinaryOperator::Eq,
+                    right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
+                }),
+            };
+        }
     }
-    let selection = Some(Expr::BinaryOp {
-        left: Box::new(Expr::Identifier(idents)),
-        op: BinaryOperator::Eq,
-        right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
-    });
-
     /*
      * PHASE 0: What vault operations must come "after" removal?
      * ==> Those that have made the object to remove inaccessible, namely those that would have
