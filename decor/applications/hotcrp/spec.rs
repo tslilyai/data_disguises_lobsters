@@ -10,27 +10,38 @@ pub fn check_disguise_properties(
     let mut correct = true;
 
     for name in &disguise.remove_names {
-        let select = disguise::get_select(disguise.user_id, &name, &disguise);
+        let select = disguise::get_select(disguise.user_id, &name, disguise);
         let matching = helpers::get_query_rows_db(&helpers::select_statement(&name.name, select), db)?;
         correct &= properly_removed(&matching);
     }
     for name in &disguise.update_names {
-        let select = disguise::get_select(disguise.user_id, &name, &disguise);
+        let select = disguise::get_select(disguise.user_id, &name, disguise);
         let matching =
             helpers::get_query_rows_db(&helpers::select_statement(&name.name, select), db)?;
-        correct &= properly_modified(&matching);
-        correct &= properly_decorrelated(&matching);
+        correct &= properly_modified(&matching, &name, disguise);
+        correct &= properly_decorrelated(&matching, &name, disguise);
     }
 
     Ok(correct)
 }
 
-fn properly_decorrelated(matching: &Vec<Vec<types::RowVal>>) -> bool {
+fn properly_decorrelated(matching: &Vec<Vec<types::RowVal>>, tableinfo: &types::TableInfo, disguise: &types::Disguise) -> bool {
+    for row in matching {
+
+    }
     false
 }
 
-fn properly_modified(matching: &Vec<Vec<types::RowVal>>) -> bool {
-    false
+fn properly_modified(matching: &Vec<Vec<types::RowVal>>, tableinfo: &types::TableInfo, disguise: &types::Disguise) -> bool {
+    for row in matching {
+        for colmod in &tableinfo.used_cols {
+            let value = helpers::get_value_of_col(&row, &colmod.col);
+            if value == None || !(*colmod.satisfies_modification)(&value.unwrap()) {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 fn properly_removed(matching: &Vec<Vec<types::RowVal>>) -> bool {
