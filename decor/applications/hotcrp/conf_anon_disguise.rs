@@ -10,7 +10,7 @@ pub fn get_disguise() -> Disguise {
         remove_names: get_remove_names(),
         guise_info: GuiseInfo {
             name: SCHEMA_UID_TABLE.to_string(),
-            id: SCHEMA_UID_COL.to_string(),
+            id_col: SCHEMA_UID_COL.to_string(),
             col_generation: Box::new(get_insert_guise_contact_info_cols),
             val_generation: Box::new(get_insert_guise_contact_info_vals),
         },
@@ -22,20 +22,20 @@ fn get_update_names() -> Vec<TableInfo> {
         TableInfo {
             name: "ContactInfo".to_string(),
             id_cols: vec!["contactId".to_string()],
-            used_cols: vec![ColumnModification {
+            cols_to_update: vec![ColumnModification {
                 col: "email".to_string(),
                 satisfies_modification: Box::new(|v| {
                     v.contains("anonymous") && v.contains("secret")
                 }),
                 generate_modified_value: Box::new(users::get_random_email),
             }],
-            used_fks: vec![],
+            fks_to_decor: vec![],
         },
         TableInfo {
             name: "PaperWatch".to_string(),
             id_cols: vec!["paperId".to_string(), "contactId".to_string()],
-            used_cols: vec![],
-            used_fks: vec![FK {
+            cols_to_update: vec![],
+            fks_to_decor: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
@@ -44,8 +44,8 @@ fn get_update_names() -> Vec<TableInfo> {
         TableInfo {
             name: "PaperReviewPreference".to_string(),
             id_cols: vec!["paperId".to_string(), "contactId".to_string()],
-            used_cols: vec![],
-            used_fks: vec![FK {
+            cols_to_update: vec![],
+            fks_to_decor: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
@@ -54,8 +54,8 @@ fn get_update_names() -> Vec<TableInfo> {
         TableInfo {
             name: "PaperReviewRefused".to_string(),
             id_cols: vec!["paperId".to_string(), "email".to_string()],
-            used_cols: vec![],
-            used_fks: vec![
+            cols_to_update: vec![],
+            fks_to_decor: vec![
                 FK {
                     referencer_col: "requestedBy".to_string(),
                     fk_name: "ContactInfo".to_string(),
@@ -71,8 +71,8 @@ fn get_update_names() -> Vec<TableInfo> {
         TableInfo {
             name: "ActionLog".to_string(),
             id_cols: vec!["logId".to_string()],
-            used_cols: vec![],
-            used_fks: vec![
+            cols_to_update: vec![],
+            fks_to_decor: vec![
                 FK {
                     referencer_col: "contactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
@@ -97,8 +97,8 @@ fn get_update_names() -> Vec<TableInfo> {
                 "reviewId".to_string(),
                 "contactId".to_string(),
             ],
-            used_cols: vec![],
-            used_fks: vec![FK {
+            cols_to_update: vec![],
+            fks_to_decor: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
@@ -107,8 +107,8 @@ fn get_update_names() -> Vec<TableInfo> {
         TableInfo {
             name: "PaperComment".to_string(),
             id_cols: vec!["commentId".to_string()],
-            used_cols: vec![],
-            used_fks: vec![FK {
+            cols_to_update: vec![],
+            fks_to_decor: vec![FK {
                 referencer_col: "contactId".to_string(),
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
@@ -117,8 +117,8 @@ fn get_update_names() -> Vec<TableInfo> {
         TableInfo {
             name: "PaperReview".to_string(),
             id_cols: vec!["reviewId".to_string()],
-            used_cols: vec![],
-            used_fks: vec![
+            cols_to_update: vec![],
+            fks_to_decor: vec![
                 FK {
                     referencer_col: "contactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
@@ -134,8 +134,8 @@ fn get_update_names() -> Vec<TableInfo> {
         TableInfo {
             name: "Paper".to_string(),
             id_cols: vec!["paperId".to_string()],
-            used_cols: vec![],
-            used_fks: vec![
+            cols_to_update: vec![],
+            fks_to_decor: vec![
                 FK {
                     referencer_col: "leadContactId".to_string(),
                     fk_name: "ContactInfo".to_string(),

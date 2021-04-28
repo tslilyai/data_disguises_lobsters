@@ -6,7 +6,6 @@ use sql_parser::ast::*;
 use std::str::FromStr;
 
 pub fn modify_obj_txn(
-    user: Option<u64>,
     disguise: &Disguise,
     tableinfo: &TableInfo,
     txn: &mut mysql::Transaction,
@@ -14,10 +13,10 @@ pub fn modify_obj_txn(
 ) -> Result<(), mysql::Error> {
     let name = &tableinfo.name;
     let id_cols = tableinfo.id_cols.clone();
-    let modified_cols = &tableinfo.used_cols;
-    let fks = &tableinfo.used_fks;
+    let modified_cols = &tableinfo.cols_to_update;
+    let fks = &tableinfo.fks_to_decor;
     
-    let selection = disguise::get_select(user, tableinfo, disguise);
+    let selection = disguise::get_select(disguise.user_id, tableinfo, disguise);
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
     let objs = get_query_rows_txn(&select_statement(&name, selection), txn, stats)?;
@@ -80,7 +79,8 @@ pub fn modify_obj_txn(
                     }
                 })
                 .collect();
-            // insert a vault entry for every owning user
+            // XXX insert a vault entry for every owning user
+            // should just update for the calling user, if there is one?
             for fk in fks {
                 let uid = get_value_of_col(&obj, &fk.referencer_col).unwrap();
                 vault_vals.push(vault::VaultEntry {

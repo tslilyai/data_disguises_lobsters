@@ -95,12 +95,11 @@ pub fn get_qtype(query: &str) -> Result<QueryType, mysql::Error> {
                  * ShowDatabases, ShowCreateTable, DropDatabase, Transactions,
                  * ShowColumns, SetVariable (mysql exprs in set var not supported yet)
                  *
-                 * XXX: ShowVariable, ShowCreateView and ShowCreateIndex will return 
-                 *  queries that used the materialized views, rather than the 
-                 *  application-issued tables. This is probably not a big issue, 
-                 *  since these queries are used to create the table again?
+                 * ShowVariable, ShowCreateView and ShowCreateIndex will return 
+                 * queries that used the materialized views, rather than the 
+                 * application-issued tables. This is probably not a big issue, 
+                 * since these queries are used to create the table again?
                  *
-                 * XXX: SHOW * from users will not return any guise users in guiseusersMV
                  * */
                 _ => Ok(QueryType::Read)
             }

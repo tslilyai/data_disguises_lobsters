@@ -5,18 +5,19 @@ extern crate ordered_float;
 
 use log::warn;
 use mysql::prelude::*;
-use std::*;
 use sql_parser::ast::*;
+use std::*;
 
 pub mod decorrelate;
-pub mod modify;
+pub mod disguise;
 pub mod helpers;
 pub mod history;
+pub mod modify;
 pub mod remove;
+pub mod spec;
 pub mod stats;
 pub mod types;
 pub mod vault;
-pub mod disguise;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {

@@ -1,5 +1,4 @@
-use crate::datagen;
-use decor::{disguise, helpers, types};
+use crate::{disguise, helpers, types};
 use log::warn;
 use sql_parser::ast::*;
 use std::collections::HashMap;
@@ -35,7 +34,7 @@ fn properly_decorrelated(
     disguise: &types::Disguise,
 ) -> bool {
     for row in matching {
-        for fk in &tableinfo.used_fks {
+        for fk in &tableinfo.fks_to_decor {
             // should have referential integrity!
             let value = helpers::get_value_of_col(&row, &fk.referencer_col).unwrap();
             warn!(
@@ -63,7 +62,7 @@ fn properly_decorrelated(
 
 fn properly_modified(matching: &Vec<Vec<types::RowVal>>, tableinfo: &types::TableInfo) -> bool {
     for row in matching {
-        for colmod in &tableinfo.used_cols {
+        for colmod in &tableinfo.cols_to_update {
             let value = helpers::get_value_of_col(&row, &colmod.col).unwrap();
             warn!(
                 "Checking modification for fk col {:?}, value {:?}",
@@ -78,7 +77,7 @@ fn properly_modified(matching: &Vec<Vec<types::RowVal>>, tableinfo: &types::Tabl
 }
 
 // note: guises are violating ref integrity, just some arbitrary 0 value for now
-pub fn get_disguise_filters(disguise: &types::Disguise) -> HashMap<String, Vec<String>> {
+pub fn get_disguise_filters(table_cols: &Vec<types::TableColumns>, disguise: &types::Disguise) -> HashMap<String, Vec<String>> {
     let mut filters: HashMap<String, Vec<String>> = HashMap::new();
 
     if let Some(uid) = disguise.user_id {
@@ -87,18 +86,17 @@ pub fn get_disguise_filters(disguise: &types::Disguise) -> HashMap<String, Vec<S
         get_remove_filters(&disguise.remove_names, &mut filters);
     }
 
-    get_update_filters(disguise.user_id, &disguise.update_names, &mut filters);
+    get_update_filters(table_cols, disguise.user_id, &disguise.update_names, &mut filters);
     filters
 }
 
 // note: guises are violating ref integrity, just some arbitrary high value
 fn get_update_filters(
+    table_cols: &Vec<types::TableColumns>,
     user_id: Option<u64>,
     tableinfos: &Vec<types::TableInfo>,
     filters: &mut HashMap<String, Vec<String>>,
 ) {
-    let table_cols = datagen::get_schema_tables();
-
     // for each table
     for tableinfo in tableinfos {
         let table_info = &table_cols
@@ -121,7 +119,7 @@ fn get_update_filters(
 
         for (i, col) in cols.iter().enumerate() {
             if tableinfo
-                .used_fks
+                .fks_to_decor
                 .iter()
                 .find(|fk| fk.referencer_col == *col)
                 .is_some()
@@ -131,7 +129,7 @@ fn get_update_filters(
                     where_fk.push(format!("`{}` = {}", col, v));
                     where_not_fk.push(format!("`{}` != {}", col, v));
                 }
-            } else if let Some(mc) = tableinfo.used_cols.iter().find(|mc| mc.col == *col) {
+            } else if let Some(mc) = tableinfo.cols_to_update.iter().find(|mc| mc.col == *col) {
                 match &table_info.colformats[i] {
                     types::ColFormat::NonQuoted => modified_cols.push(format!(
                         "{} as `{}`",
@@ -196,7 +194,7 @@ fn get_remove_where_fk_filters(
 ) {
     for tableinfo in tableinfos {
         let mut fk_comps = vec![];
-        for fk in &tableinfo.used_fks {
+        for fk in &tableinfo.fks_to_decor {
             fk_comps.push(format!("{} != {}", fk.referencer_col, user_id));
         }
         if fk_comps.is_empty() {

@@ -6,7 +6,6 @@ use sql_parser::ast::*;
 use std::str::FromStr;
 
 pub fn remove_obj_txn(
-    user_id: Option<u64>,
     disguise: &Disguise,
     tableinfo: &TableInfo,
     txn: &mut mysql::Transaction,
@@ -14,9 +13,9 @@ pub fn remove_obj_txn(
 ) -> Result<(), mysql::Error> {
     let name = tableinfo.name.clone();
     let id_cols = tableinfo.id_cols.clone();
-    let fks = &tableinfo.used_fks;
+    let fks = &tableinfo.fks_to_decor;
 
-    let selection = disguise::get_select(user_id, tableinfo, disguise);
+    let selection = disguise::get_select(disguise.user_id, tableinfo, disguise);
 
     /*
      * PHASE 0: What vault operations must come "after" removal?

@@ -37,16 +37,15 @@ pub struct TableInfo {
     pub name: String,
     pub id_cols: Vec<String>,
     // which columns are modified and how they should be modified
-    pub used_cols: Vec<ColumnModification>,
-    // which columns should refer to guises; if a userID is specified, only those FKs that were the
-    // userID should be set to guiseIDs; the others simply cannot be equal to the userID
-    pub used_fks: Vec<FK>,
+    pub cols_to_update: Vec<ColumnModification>,
+    // which columns should refer to guises after updates.
+    // if a disguise userID is specified, only decorrelate FKs == userID
+    pub fks_to_decor: Vec<FK>,
 }
 
 pub struct GuiseInfo {
     pub name: String,
-    // assume there's only one id col for a guise
-    pub id: String,
+    pub id_col: String, // XXX assume there's only one id col for a guise
     pub col_generation: Box<dyn Fn() -> Vec<&'static str>>,
     pub val_generation: Box<dyn Fn() -> Vec<Expr>>,
 }

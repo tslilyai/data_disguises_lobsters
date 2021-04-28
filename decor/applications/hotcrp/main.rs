@@ -15,10 +15,9 @@ use structopt::StructOpt;
 mod conf_anon_disguise;
 mod datagen;
 mod gdpr_disguise;
-mod spec;
 
 use decor::stats::QueryStat;
-use decor::vault;
+use decor::{vault, spec};
 use rand::seq::SliceRandom;
 
 const DBNAME: &'static str = &"test_hotcrp";
@@ -96,7 +95,7 @@ fn run_test(db: &mut mysql::Conn, disguises: &Vec<decor::types::Disguise>) {
    for disguise in disguises {
         let start = time::Instant::now();
         let mut txn = db.start_transaction(TxOpts::default()).unwrap();
-        decor::disguise::apply(None, &disguises[0], &mut txn, &mut stats).unwrap();
+        decor::disguise::apply(&disguises[0], &mut txn, &mut stats).unwrap();
         txn.commit().unwrap();
 
         let dur = start.elapsed();
@@ -140,8 +139,9 @@ fn main() {
         disguises.push(gdpr_disguise::get_disguise(user as u64));
     }
 
-    let mut ca_stmts = spec::get_disguise_filters(&disguises[0]);
-    let mut gdpr_stmts = spec::get_disguise_filters(&disguises[1]);
+    let table_cols = datagen::get_schema_tables();
+    let mut ca_stmts = spec::get_disguise_filters(&table_cols, &disguises[0]);
+    let mut gdpr_stmts = spec::get_disguise_filters(&table_cols, &disguises[1]);
     decor::helpers::merge_vector_hashmaps(&mut gdpr_stmts, &mut ca_stmts);
     let create_spec_stmts = spec::create_mv_from_filters_stmts(&gdpr_stmts);
         
