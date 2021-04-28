@@ -126,7 +126,7 @@ fn get_update_filters(
                     )),
                 }
             } else {
-                normal_cols.push(format!("`{}`.`{}` as `{}`", table, col, col));
+                normal_cols.push(format!("`{}` as `{}`", col, col));
             }
         }
 

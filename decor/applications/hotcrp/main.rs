@@ -59,8 +59,8 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        //.filter_level(log::LevelFilter::Warn)
-        .filter_level(log::LevelFilter::Error)
+        .filter_level(log::LevelFilter::Warn)
+        //.filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -144,6 +144,8 @@ fn main() {
     let mut gdpr_stmts = spec::get_disguise_filters(&disguises[1]);
     decor::helpers::merge_vector_hashmaps(&mut gdpr_stmts, &mut ca_stmts);
     let create_spec_stmts = spec::create_mv_from_filters_stmts(&gdpr_stmts);
+        
+    let mut db = init_db(prime);
 
     if spec {
         let mut spec_file = File::create("spec.sql".to_string()).unwrap();
@@ -151,16 +153,14 @@ fn main() {
             spec_file.write(format!("{}\n\n", stmt).as_bytes()).unwrap();
         }
         spec_file.flush().unwrap();
-        let mut db = init_db(prime);
         for stmt in &create_spec_stmts {
+            warn!("Spec stmt dropping {}", stmt);
             db.query_drop(stmt).unwrap();
         }
         assert!(spec::check_disguise_properties(&disguises[0], &mut db).unwrap());
         assert!(spec::check_disguise_properties(&disguises[1], &mut db).unwrap());
-        drop(db);
     } else {
-        let mut db = init_db(prime);
         run_test(&mut db, &disguises);
-        drop(db);
     }
+    drop(db);
 }
