@@ -3,6 +3,8 @@ use decor::{disguise, helpers, types};
 use sql_parser::ast::*;
 use std::collections::HashMap;
 
+const GUISE_ID: u64 = 0;
+
 pub fn check_disguise_properties(
     disguise: &types::Disguise,
     db: &mut mysql::Conn,
@@ -27,16 +29,29 @@ pub fn check_disguise_properties(
 
 fn properly_decorrelated(matching: &Vec<Vec<types::RowVal>>, tableinfo: &types::TableInfo, disguise: &types::Disguise) -> bool {
     for row in matching {
-
+        for fk in &tableinfo.used_fks {
+            // should have referential integrity!
+            let value = helpers::get_value_of_col(&row, &fk.referencer_col).unwrap();
+            match disguise.user_id {
+                // return false if FK still points to user
+                Some(uid) => if value == uid.to_string() {
+                    return false;
+                }
+                // return false if FK still points to any user
+                None => if value != GUISE_ID.to_string() {
+                    return false;
+                }
+            }
+        }
     }
-    false
+    true
 }
 
 fn properly_modified(matching: &Vec<Vec<types::RowVal>>, tableinfo: &types::TableInfo, disguise: &types::Disguise) -> bool {
     for row in matching {
         for colmod in &tableinfo.used_cols {
-            let value = helpers::get_value_of_col(&row, &colmod.col);
-            if value == None || !(*colmod.satisfies_modification)(&value.unwrap()) {
+            let value = helpers::get_value_of_col(&row, &colmod.col).unwrap();
+            if !(*colmod.satisfies_modification)(&value) {
                 return false;
             }
         }
@@ -97,7 +112,7 @@ fn get_update_filters(
                 .find(|fk| fk.referencer_col == *col)
                 .is_some()
             {
-                fk_cols.push(format!("0 as `{}`", col));
+                fk_cols.push(format!("{} as `{}`", GUISE_ID, col));
                 if let Some(v) = user_id {
                     where_fk.push(format!("`{}` = {}", col, v));
                     where_not_fk.push(format!("`{}` != {}", col, v));
