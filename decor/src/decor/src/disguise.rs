@@ -1,7 +1,53 @@
-use crate::*;
-use crate::types::*;
 use crate::stats::*;
-use crate::{history, decorrelate, modify};
+use crate::types::*;
+use crate::*;
+use crate::{decorrelate, history, modify};
+
+pub fn get_select(
+    user_id: Option<u64>,
+    tableinfo: &TableInfo,
+    disguise: &Disguise,
+) -> Option<Expr> {
+    let mut select = None;
+    match user_id {
+        Some(user_id) => {
+            let mut selection = Expr::Value(Value::Boolean(false));
+            // if this is the user table, check for ID equivalence
+            if tableinfo.name == disguise.guise_info.name {
+                selection = Expr::BinaryOp {
+                    left: Box::new(selection),
+                    op: BinaryOperator::Or,
+                    right: Box::new(Expr::BinaryOp {
+                        left: Box::new(Expr::Identifier(vec![Ident::new(
+                            disguise.guise_info.id.to_string(),
+                        )])),
+                        op: BinaryOperator::Eq,
+                        right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
+                    }),
+                };
+            } else {
+                // otherwise, we want to remove all objects possibly referencing the user
+                // NOTE : this assumes that all "used_fks" point to users table
+                for fk in &tableinfo.used_fks {
+                    selection = Expr::BinaryOp {
+                        left: Box::new(selection),
+                        op: BinaryOperator::Or,
+                        right: Box::new(Expr::BinaryOp {
+                            left: Box::new(Expr::Identifier(vec![Ident::new(
+                                fk.referencer_col.to_string(),
+                            )])),
+                            op: BinaryOperator::Eq,
+                            right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
+                        }),
+                    };
+                }
+            }
+            select = Some(selection);
+        }
+        None => (),
+    }
+    select
+}
 
 pub fn apply(
     user_id: Option<u64>,
@@ -18,62 +64,20 @@ pub fn apply(
         reverse: false,
     };
 
-    // REMOVAL 
+    // REMOVAL
     for tableinfo in &disguise.remove_names {
-        match user_id {
-            Some(uid) => {
-                remove::remove_obj_txn_for_user(
-                    uid,
-                    disguise, 
-                    tableinfo,
-                    txn,
-                    stats,
-                )?;
-            }
-            None => {
-                remove::remove_obj_txn(
-                    disguise,
-                    tableinfo,
-                    txn,
-                    stats,
-                )?;
-            }
-        }
+        remove::remove_obj_txn(user_id, disguise, tableinfo, txn, stats)?;
     }
 
     // DECORRELATION
     for tableinfo in &disguise.update_names {
+        modify::modify_obj_txn(user_id, disguise, tableinfo, txn, stats)?;
         match user_id {
             Some(uid) => {
-                // TODO add predicate...
-                /*modify::modify_obj_txn_for_user(
-                    uid,
-                    disguise_id,
-                    &tableinfo,
-                    txn,
-                    stats,
-                )?;*/
-                decorrelate::decor_obj_txn_for_user(
-                    uid,
-                    disguise, 
-                    tableinfo,
-                    txn,
-                    stats,
-                )?;
+                decorrelate::decor_obj_txn_for_user(uid, disguise, tableinfo, txn, stats)?;
             }
             None => {
-                modify::modify_obj_txn(
-                    disguise,
-                    tableinfo,
-                    txn,
-                    stats,
-                )?;
-                decorrelate::decor_obj_txn(
-                    disguise, 
-                    tableinfo,
-                    txn,
-                    stats,
-                )?;
+                decorrelate::decor_obj_txn(disguise, tableinfo, txn, stats)?;
             }
         }
     }
@@ -104,7 +108,6 @@ pub fn undo(
     }
     Ok(())
 }
-
 
 #[cfg(test)]
 mod test {

@@ -1,5 +1,5 @@
 use crate::datagen;
-use decor::{helpers, types, stats};
+use decor::{disguise, helpers, types};
 use sql_parser::ast::*;
 use std::collections::HashMap;
 
@@ -10,68 +10,31 @@ pub fn check_disguise_properties(
     let mut correct = true;
 
     for name in &disguise.remove_names {
-        correct &= properly_removed(disguise.user_id, &name, &disguise, db)?;
+        let select = disguise::get_select(disguise.user_id, &name, &disguise);
+        let matching = helpers::get_query_rows_db(&helpers::select_statement(&name.name, select), db)?;
+        correct &= properly_removed(&matching);
     }
     for name in &disguise.update_names {
-        correct &= properly_modified(&name, &disguise, db)?;
-        correct &= properly_decorrelated(disguise.user_id, &name, &disguise, db)?;
+        let select = disguise::get_select(disguise.user_id, &name, &disguise);
+        let matching =
+            helpers::get_query_rows_db(&helpers::select_statement(&name.name, select), db)?;
+        correct &= properly_modified(&matching);
+        correct &= properly_decorrelated(&matching);
     }
 
     Ok(correct)
 }
 
-fn properly_decorrelated(
-    uid: Option<u64>,
-    tableinfo: &types::TableInfo,
-    disguise: &types::Disguise,
-    db: &mut mysql::Conn,
-) -> Result<bool, mysql::Error> {
-    Ok(false)
+fn properly_decorrelated(matching: &Vec<Vec<types::RowVal>>) -> bool {
+    false
 }
 
-fn properly_modified(tableinfo: &types::TableInfo, disguise: &types::Disguise, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
-    Ok(false)
+fn properly_modified(matching: &Vec<Vec<types::RowVal>>) -> bool {
+    false
 }
 
-fn properly_removed(uid: Option<u64>, tableinfo: &types::TableInfo, disguise: &types::Disguise, db: &mut mysql::Conn) -> Result<bool, mysql::Error> {
-    let mut select = None;
-    match uid {
-        Some(user) => {
-              let mut selection = Expr::Value(Value::Boolean(false));
-            // if this is the user table, check for ID equivalence
-            if tableinfo.name == disguise.guise_info.name {
-                selection = Expr::BinaryOp {
-                    left: Box::new(selection),
-                    op: BinaryOperator::Or,
-                    right: Box::new(Expr::BinaryOp {
-                        left: Box::new(Expr::Identifier(vec![Ident::new(
-                            disguise.guise_info.id.to_string(),
-                        )])),
-                        op: BinaryOperator::Eq,
-                        right: Box::new(Expr::Value(Value::Number(user.to_string()))),
-                    }),
-                };
-                select = Some(selection)
-            } else {
-                // otherwise, we want to remove all objects possibly referencing the user
-                for fk in &tableinfo.used_fks {
-                    selection = Expr::BinaryOp {
-                        left: Box::new(selection),
-                        op: BinaryOperator::Or,
-                        right: Box::new(Expr::BinaryOp {
-                            left: Box::new(Expr::Identifier(vec![Ident::new(
-                                fk.referencer_col.to_string(),
-                            )])),
-                            op: BinaryOperator::Eq,
-                            right: Box::new(Expr::Value(Value::Number(user.to_string()))),
-                        }),
-                    };
-                }
-            }
-        }
-        None => ()
-    }
-    Ok(helpers::get_query_rows_db(&helpers::select_1_statement(&tableinfo.name, select), db)?.is_empty())
+fn properly_removed(matching: &Vec<Vec<types::RowVal>>) -> bool {
+    matching.is_empty()
 }
 
 // note: guises are violating ref integrity, just some arbitrary 0 value for now

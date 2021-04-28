@@ -3,10 +3,13 @@ use crate::is_guise;
 use crate::stats::QueryStat;
 use crate::types::*;
 use crate::vault;
+use crate::disguise;
 use log::warn;
 use sql_parser::ast::*;
 use std::str::FromStr;
 
+// updates *all* FKs to the contactInfo table,
+// instead of just the FKs that point to the user
 pub fn decor_obj_txn(
     disguise: &Disguise,
     tableinfo: &TableInfo,
@@ -17,8 +20,10 @@ pub fn decor_obj_txn(
     let child_id_cols = tableinfo.id_cols.clone();
     let fks = &tableinfo.used_fks;
 
+    let selection = disguise::get_select(None, tableinfo, disguise);
+    
     /* PHASE 1: SELECT REFERENCER OBJECTS */
-    let child_objs = get_query_rows_txn(&select_statement(child_name, None), txn, stats)?;
+    let child_objs = get_query_rows_txn(&select_statement(child_name, selection), txn, stats)?;
     // no selected objects, return
     if child_objs.is_empty() {
         return Ok(());
@@ -178,23 +183,13 @@ pub fn decor_obj_txn_for_user(
     let child_id_cols = tableinfo.id_cols.clone();
     let fks = &tableinfo.used_fks;
 
+    // don't decorrelate a user from another user row?
+    assert!(tableinfo.name != disguise.guise_info.name);
+
     /* PHASE 1: SELECT REFERENCER OBJECTS */
-    let mut selection = Expr::Value(Value::Boolean(false));
-    for fk in fks {
-        selection = Expr::BinaryOp {
-            left: Box::new(selection),
-            op: BinaryOperator::Or,
-            right: Box::new(Expr::BinaryOp {
-                left: Box::new(Expr::Identifier(vec![Ident::new(
-                    fk.referencer_col.to_string(),
-                )])),
-                op: BinaryOperator::Eq,
-                right: Box::new(Expr::Value(Value::Number(user_id.to_string()))),
-            }),
-        };
-    }
+    let selection = disguise::get_select(Some(user_id), tableinfo, disguise);
     let child_objs =
-        get_query_rows_txn(&select_statement(&child_name, Some(selection)), txn, stats)?;
+        get_query_rows_txn(&select_statement(&child_name, selection), txn, stats)?;
     if child_objs.is_empty() {
         return Ok(());
     }

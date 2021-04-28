@@ -1,11 +1,12 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
 use crate::types::*;
-use crate::vault;
+use crate::{vault, disguise};
 use sql_parser::ast::*;
 use std::str::FromStr;
 
 pub fn modify_obj_txn(
+    user: Option<u64>,
     disguise: &Disguise,
     tableinfo: &TableInfo,
     txn: &mut mysql::Transaction,
@@ -15,9 +16,11 @@ pub fn modify_obj_txn(
     let id_cols = tableinfo.id_cols.clone();
     let modified_cols = &tableinfo.used_cols;
     let fks = &tableinfo.used_fks;
+    
+    let selection = disguise::get_select(user, tableinfo, disguise);
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
-    let objs = get_query_rows_txn(&select_statement(&name, None), txn, stats)?;
+    let objs = get_query_rows_txn(&select_statement(&name, selection), txn, stats)?;
     if objs.is_empty() {
         return Ok(());
     }
