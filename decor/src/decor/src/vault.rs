@@ -1,7 +1,7 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
 use crate::types::*;
-use log::{debug, warn, error};
+use log::{debug, warn};
 use mysql::prelude::*;
 use mysql::TxOpts;
 use serde::Serialize;

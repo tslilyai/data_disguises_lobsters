@@ -147,15 +147,20 @@ fn main() {
 
     if spec {
         let mut spec_file = File::create("spec.sql".to_string()).unwrap();
-        for stmt in create_spec_stmts {
+        for stmt in &create_spec_stmts {
             spec_file.write(format!("{}\n\n", stmt).as_bytes()).unwrap();
         }
         spec_file.flush().unwrap();
-    } else {
-        //let disguises_to_apply = vec![];
         let mut db = init_db(prime);
-        //run_test(&mut db);
+        for stmt in &create_spec_stmts {
+            db.query_drop(stmt).unwrap();
+        }
+        assert!(spec::check_disguise_properties(&disguises[0], &mut db).unwrap());
+        assert!(spec::check_disguise_properties(&disguises[1], &mut db).unwrap());
+        drop(db);
+    } else {
+        let mut db = init_db(prime);
+        run_test(&mut db, &disguises);
         drop(db);
     }
-    //filters = conf_stmts
 }
