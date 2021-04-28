@@ -1,5 +1,6 @@
 use crate::datagen;
 use decor::{disguise, helpers, types};
+use log::warn;
 use sql_parser::ast::*;
 use std::collections::HashMap;
 
@@ -13,7 +14,9 @@ pub fn check_disguise_properties(
 
     for name in &disguise.remove_names {
         let select = disguise::get_select(disguise.user_id, &name, disguise);
-        correct &= helpers::get_query_rows_db(&helpers::select_1_statement(&name.name, select), db)?.is_empty();
+        correct &=
+            helpers::get_query_rows_db(&helpers::select_1_statement(&name.name, select), db)?
+                .is_empty();
     }
     for name in &disguise.update_names {
         let select = disguise::get_select(disguise.user_id, &name, disguise);
@@ -26,19 +29,31 @@ pub fn check_disguise_properties(
     Ok(correct)
 }
 
-fn properly_decorrelated(matching: &Vec<Vec<types::RowVal>>, tableinfo: &types::TableInfo, disguise: &types::Disguise) -> bool {
+fn properly_decorrelated(
+    matching: &Vec<Vec<types::RowVal>>,
+    tableinfo: &types::TableInfo,
+    disguise: &types::Disguise,
+) -> bool {
     for row in matching {
         for fk in &tableinfo.used_fks {
             // should have referential integrity!
             let value = helpers::get_value_of_col(&row, &fk.referencer_col).unwrap();
+            warn!(
+                "Checking decorrelation for fk col {:?}, value {:?}",
+                fk.referencer_col, value
+            );
             match disguise.user_id {
                 // return false if FK still points to user
-                Some(uid) => if value == uid.to_string() {
-                    return false;
+                Some(uid) => {
+                    if value == uid.to_string() {
+                        return false;
+                    }
                 }
                 // return false if FK still points to any user
-                None => if value != GUISE_ID.to_string() {
-                    return false;
+                None => {
+                    if value != GUISE_ID.to_string() {
+                        return false;
+                    }
                 }
             }
         }
@@ -50,6 +65,10 @@ fn properly_modified(matching: &Vec<Vec<types::RowVal>>, tableinfo: &types::Tabl
     for row in matching {
         for colmod in &tableinfo.used_cols {
             let value = helpers::get_value_of_col(&row, &colmod.col).unwrap();
+            warn!(
+                "Checking modification for fk col {:?}, value {:?}",
+                colmod.col, value
+            );
             if !(*colmod.satisfies_modification)(&value) {
                 return false;
             }
