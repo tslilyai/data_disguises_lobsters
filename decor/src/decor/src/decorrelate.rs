@@ -118,7 +118,7 @@ pub fn decor_obj_txn(
                 disguise_id: disguise.disguise_id,
                 user_id: old_uid,
                 guise_name: fk.fk_name.clone(),
-                guise_id_cols: disguise.guise_info.ids.clone(),
+                guise_id_cols: vec![disguise.guise_info.id.clone()],
                 guise_ids: vec![guise_id.to_string()],
                 referencer_name: child_name.clone(),
                 update_type: vault::INSERT_GUISE,
@@ -279,7 +279,7 @@ pub fn decor_obj_txn_for_user(
                 user_id: user_id,
                 guise_name: fk.fk_name.clone(),
                 // XXX assume this is a user guise
-                guise_id_cols: disguise.guise_info.ids.clone(),
+                guise_id_cols: vec![disguise.guise_info.id.clone()],
                 guise_ids: vec![cur_uid.to_string()],
                 referencer_name: child_name.clone(),
                 update_type: vault::INSERT_GUISE,

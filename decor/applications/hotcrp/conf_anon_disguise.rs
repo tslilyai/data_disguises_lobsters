@@ -10,7 +10,7 @@ pub fn get_disguise() -> Disguise {
         remove_names: get_remove_names(),
         guise_info: GuiseInfo {
             name: SCHEMA_UID_TABLE.to_string(),
-            ids: vec![SCHEMA_UID_COL.to_string()],
+            id: SCHEMA_UID_COL.to_string(),
             col_generation: Box::new(get_insert_guise_contact_info_cols),
             val_generation: Box::new(get_insert_guise_contact_info_vals),
         },

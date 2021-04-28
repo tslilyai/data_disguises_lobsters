@@ -15,10 +15,6 @@ pub fn remove_obj_txn(
     let id_cols = tableinfo.id_cols.clone();
     let fks = &tableinfo.used_fks;
 
-    let mut idents = vec![];
-    for id in &disguise.guise_info.ids {
-        idents.push(Ident::new(id))
-    }
     let selection = None;
 
     /*
@@ -116,7 +112,7 @@ pub fn remove_obj_txn_for_user(
         };
     } else {
         // otherwise, we want to remove all objects possibly referencing the user
-        for fk in &tableinfo.fks {
+        for fk in &tableinfo.used_fks {
             selection = Expr::BinaryOp {
                 left: Box::new(selection),
                 op: BinaryOperator::Or,
@@ -158,13 +154,13 @@ pub fn remove_obj_txn_for_user(
      * PHASE 1: OBJECT SELECTION
      */
     let predicated_objs =
-        get_query_rows_txn(&select_statement(&name, selection.clone()), txn, stats)?;
+        get_query_rows_txn(&select_statement(&name, Some(selection.clone())), txn, stats)?;
 
     /* PHASE 2: OBJECT MODIFICATION */
     get_query_rows_txn(
         &Statement::Delete(DeleteStatement {
             table_name: string_to_objname(&name),
-            selection: selection,
+            selection: Some(selection),
         }),
         txn,
         stats,
