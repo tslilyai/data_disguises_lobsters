@@ -7,15 +7,13 @@ use std::str::FromStr;
 
 pub fn remove_obj_txn(
     disguise: &Disguise,
-    tableinfo: &TableInfo,
+    table_dis: &TableDisguise,
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
-    let name = tableinfo.name.clone();
-    let id_cols = tableinfo.id_cols.clone();
-    let fks = &tableinfo.fks_to_decor;
-
-    let selection = get_select(disguise.user_id, tableinfo, disguise);
+    let name = table_dis.name.clone();
+    let id_cols = table_dis.id_cols.clone();
+    let fks = &table_dis.fks_to_decor;
 
     /*
      * PHASE 0: What vault operations must come "after" removal?
@@ -45,13 +43,13 @@ pub fn remove_obj_txn(
      * PHASE 1: OBJECT SELECTION
      */
     let predicated_objs =
-        get_query_rows_txn(&select_statement(&name, selection.clone()), txn, stats)?;
+        get_query_rows_txn(&select_statement(&name, table_dis.remove_predicate), txn, stats)?;
 
     /* PHASE 2: OBJECT MODIFICATION */
     get_query_rows_txn(
         &Statement::Delete(DeleteStatement {
             table_name: string_to_objname(&name),
-            selection: selection,
+            selection: table_dis.remove_predicate,
         }),
         txn,
         stats,
@@ -61,7 +59,7 @@ pub fn remove_obj_txn(
     // XXX removal entries get stored in *all* vaults????
     let mut vault_vals = vec![];
     for objrow in &predicated_objs {
-        let ids = get_ids(tableinfo, objrow);
+        let ids = get_ids(table_dis, objrow);
         for fk in fks {
             let uid = get_value_of_col(&objrow, &fk.referencer_col).unwrap();
             vault_vals.push(vault::VaultEntry {

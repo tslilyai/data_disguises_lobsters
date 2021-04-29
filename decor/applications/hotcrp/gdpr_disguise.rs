@@ -17,9 +17,9 @@ pub fn get_disguise(user_id: u64) -> Disguise {
     }
 }
 
-pub fn get_remove_names() -> Vec<TableInfo> {
+pub fn get_remove_names() -> Vec<TableDisguise> {
     vec![
-        TableInfo {
+        TableDisguise {
             name: "ContactInfo".to_string(),
             id_cols: vec!["contactId".to_string()],
             cols_to_update: vec![],
@@ -29,7 +29,7 @@ pub fn get_remove_names() -> Vec<TableInfo> {
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableInfo {
+        TableDisguise {
             name: "PaperReviewPreference".to_string(),
             id_cols: vec!["paperId".to_string(), "contactId".to_string()],
             cols_to_update: vec![],
@@ -39,7 +39,7 @@ pub fn get_remove_names() -> Vec<TableInfo> {
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableInfo {
+        TableDisguise {
             name: "PaperWatch".to_string(),
             id_cols: vec!["paperId".to_string(), "contactId".to_string()],
             cols_to_update: vec![],
@@ -49,7 +49,7 @@ pub fn get_remove_names() -> Vec<TableInfo> {
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableInfo {
+        TableDisguise {
             name: "Capability".to_string(),
             id_cols: vec!["salt".to_string()],
             cols_to_update: vec![],
@@ -59,7 +59,7 @@ pub fn get_remove_names() -> Vec<TableInfo> {
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableInfo {
+        TableDisguise {
             name: "PaperConflict".to_string(),
             id_cols: vec!["contactId".to_string(), "paperId".to_string()],
             cols_to_update: vec![],
@@ -69,7 +69,7 @@ pub fn get_remove_names() -> Vec<TableInfo> {
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableInfo {
+        TableDisguise {
             name: "TopicInterest".to_string(),
             id_cols: vec!["contactId".to_string(), "topicId".to_string()],
             cols_to_update: vec![],
@@ -82,9 +82,9 @@ pub fn get_remove_names() -> Vec<TableInfo> {
     ]
 }
 
-pub fn get_update_names() -> Vec<TableInfo> {
+pub fn get_update_names() -> Vec<TableDisguise> {
     vec![
-        TableInfo {
+        TableDisguise {
             name: "PaperReviewRefused".to_string(),
             id_cols: vec!["paperId".to_string(), "email".to_string()],
             cols_to_update: vec![],
@@ -101,7 +101,7 @@ pub fn get_update_names() -> Vec<TableInfo> {
                 },
             ],
         },
-        TableInfo {
+        TableDisguise {
             name: "ActionLog".to_string(),
             id_cols: vec!["logId".to_string()],
             cols_to_update: vec![],
@@ -123,7 +123,7 @@ pub fn get_update_names() -> Vec<TableInfo> {
                 },
             ],
         },
-        TableInfo {
+        TableDisguise {
             name: "ReviewRating".to_string(),
             id_cols: vec![
                 "paperId".to_string(),
@@ -137,7 +137,7 @@ pub fn get_update_names() -> Vec<TableInfo> {
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableInfo {
+        TableDisguise {
             name: "PaperComment".to_string(),
             id_cols: vec!["commentId".to_string()],
             cols_to_update: vec![],
@@ -147,7 +147,7 @@ pub fn get_update_names() -> Vec<TableInfo> {
                 fk_col: "contactId".to_string(),
             }],
         },
-        TableInfo {
+        TableDisguise {
             name: "PaperReview".to_string(),
             id_cols: vec!["reviewId".to_string()],
             cols_to_update: vec![],
@@ -164,7 +164,7 @@ pub fn get_update_names() -> Vec<TableInfo> {
                 },
             ],
         },
-        TableInfo {
+        TableDisguise {
             name: "Paper".to_string(),
             id_cols: vec!["paperId".to_string()],
             cols_to_update: vec![],

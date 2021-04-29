@@ -15,14 +15,14 @@ pub fn apply(
     };
 
     // REMOVAL
-    for tableinfo in &disguise.remove_names {
-        remove::remove_obj_txn(disguise, tableinfo, txn, stats)?;
+    for table_dis in &disguise.remove_names {
+        remove::remove_obj_txn(disguise, table_dis, txn, stats)?;
     }
 
     // DECORRELATION
-    for tableinfo in &disguise.update_names {
-        modify::modify_obj_txn(disguise, tableinfo, txn, stats)?;
-        decorrelate::decor_obj_txn(disguise, tableinfo, txn, stats)?;
+    for table_dis in &disguise.update_names {
+        modify::modify_obj_txn(disguise, table_dis, txn, stats)?;
+        decorrelate::decor_obj_txn(disguise, table_dis, txn, stats)?;
     }
     record_disguise(&de, txn, stats)?;
     Ok(())

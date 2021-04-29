@@ -7,30 +7,28 @@ use std::str::FromStr;
 
 pub fn modify_obj_txn(
     disguise: &Disguise,
-    tableinfo: &TableInfo,
+    table_dis: &TableDisguise,
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
-    let name = &tableinfo.name;
-    let id_cols = tableinfo.id_cols.clone();
-    let modified_cols = &tableinfo.cols_to_update;
-    let fks = &tableinfo.fks_to_decor;
-
-    let selection = get_select(disguise.user_id, tableinfo, disguise);
+    let name = &table_dis.name;
+    let id_cols = table_dis.id_cols.clone();
+    let modified_cols = &table_dis.cols_to_update;
+    let fks = &table_dis.fks_to_decor;
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
-    let objs = get_query_rows_txn(&select_statement(&name, selection), txn, stats)?;
-    if objs.is_empty() {
-        return Ok(());
-    }
-
     let mut vault_vals = vec![];
-    for obj in &objs {
-        for colmod in modified_cols {
-            let new_val = (*(colmod.generate_modified_value))();
+    for colmod in modified_cols {
+        let objs = get_query_rows_txn(&select_statement(&name, colmod.modify_predicate), txn, stats)?;
+        if objs.is_empty() {
+            continue;
+        }
 
-            let ids = get_ids(tableinfo, obj);
-            let selection = get_select_of_row(tableinfo, obj);
+        for obj in &objs {
+            let old_val = get_value_of_col(&obj, &colmod.col).unwrap();
+            let new_val = (*(colmod.generate_modified_value))(&old_val);
+
+            let selection = get_select_of_row(table_dis, obj);
 
             /*
              * PHASE 2: OBJECT MODIFICATIONS
@@ -64,8 +62,10 @@ pub fn modify_obj_txn(
                     }
                 })
                 .collect();
-            // XXX insert a vault entry for every owning user
+            
+            // XXX insert a vault entry for every owning user (every fk)
             // should just update for the calling user, if there is one?
+            let ids = get_ids(table_dis, obj);
             for fk in fks {
                 let uid = get_value_of_col(&obj, &fk.referencer_col).unwrap();
                 vault_vals.push(vault::VaultEntry {

@@ -13,7 +13,7 @@ pub struct RowVal {
     pub value: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FK {
     pub referencer_col: String,
     pub fk_name: String,
@@ -28,19 +28,24 @@ pub struct TableColumns {
 }
 
 pub struct ColumnModification {
+    // name of column
     pub col: String,
+    // how to generate a modified value
+    pub generate_modified_value: Box<dyn Fn(&str) -> String>,
+    // post-application check that value satisfies modification
     pub satisfies_modification: Box<dyn Fn(&str) -> bool>,
-    pub generate_modified_value: Box<dyn Fn() -> String>,
 }
 
-pub struct TableInfo {
+pub enum ModificationType {
+    Remove{pred: Option<Expr>},
+    Modify{pred: Option<Expr>, colmod: ColumnModification},
+    Decor{pred: Option<Expr>, fk: FK},
+}
+
+pub struct TableDisguise {
     pub name: String,
     pub id_cols: Vec<String>,
-    // which columns are modified and how they should be modified
-    pub cols_to_update: Vec<ColumnModification>,
-    // which columns should refer to guises after updates.
-    // if a disguise userID is specified, only decorrelate FKs == userID
-    pub fks_to_decor: Vec<FK>,
+    pub modifications: Vec<ModificationType>,
 }
 
 pub struct GuiseInfo {
@@ -51,9 +56,7 @@ pub struct GuiseInfo {
 }
 
 pub struct Disguise {
-    pub user_id: Option<u64>,
     pub disguise_id: u64,
-    pub update_names: Vec<TableInfo>,
-    pub remove_names: Vec<TableInfo>,
+    pub tables: Vec<TableDisguise>,
     pub guise_info: GuiseInfo,
 }

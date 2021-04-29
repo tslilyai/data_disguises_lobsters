@@ -11,24 +11,22 @@ use std::str::FromStr;
 // instead of just the FKs that point to the user
 pub fn decor_obj_txn(
     disguise: &Disguise,
-    tableinfo: &TableInfo,
+    table_dis: &TableDisguise,
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
-    let child_name = &tableinfo.name;
-    let child_id_cols = tableinfo.id_cols.clone();
-    let fks = &tableinfo.fks_to_decor;
+    let child_name = &table_dis.name;
+    let child_id_cols = table_dis.id_cols.clone();
+    let fks = &table_dis.fks_to_decor;
 
-    let selection = get_select(disguise.user_id, tableinfo, disguise);
-    
-    /* PHASE 1: SELECT REFERENCER OBJECTS */
-    let child_objs = get_query_rows_txn(&select_statement(child_name, selection), txn, stats)?;
-    // no selected objects, return
-    if child_objs.is_empty() {
-        return Ok(());
-    }
-
+    let mut vault_vals = vec![];
     for fk in fks {
+        /* PHASE 1: SELECT REFERENCER OBJECTS */
+        let child_objs = get_query_rows_txn(&select_statement(child_name, fk.decor_predicate), txn, stats)?;
+        if child_objs.is_empty() {
+            continue;
+        }
+
         // get all the IDs of parents (all are of the same type for the same fk)
         let mut fkids = vec![];
         for child in &child_objs {
@@ -48,18 +46,8 @@ pub fn decor_obj_txn(
          * */
 
         let fk_cols = (*disguise.guise_info.col_generation)();
-        let mut vault_vals = vec![];
         for (n, child) in child_objs.iter().enumerate() {
             let old_uid = fkids[n];
-
-            // if we only want to decorrelate this user's referencers, skip when old_uid is not
-            // equal to the disguise user_id
-            if let Some(uid) = disguise.user_id {
-                if old_uid != uid {
-                    continue;
-                }
-            }
-
             // skip already decorrelated users
             if is_guise(&fk.fk_name, old_uid, txn, stats)? {
                 warn!(
@@ -68,7 +56,6 @@ pub fn decor_obj_txn(
                 );
                 continue;
             }
-
 
             /*
              * PHASE 2: OBJECT MODIFICATIONS
@@ -155,7 +142,7 @@ pub fn decor_obj_txn(
                     }
                 })
                 .collect();
-            let child_ids = get_ids(tableinfo, child);
+            let child_ids = get_ids(table_dis, child);
             vault_vals.push(vault::VaultEntry {
                 vault_id: 0,
                 disguise_id: disguise.disguise_id,
@@ -171,9 +158,8 @@ pub fn decor_obj_txn(
                 reverses: None,
             });
         }
-
-        /* PHASE 3: Batch vault updates */
-        vault::insert_vault_entries(&vault_vals, txn, stats)?;
     }
+    /* PHASE 3: Batch vault updates */
+    vault::insert_vault_entries(&vault_vals, txn, stats)?;
     Ok(())
 }

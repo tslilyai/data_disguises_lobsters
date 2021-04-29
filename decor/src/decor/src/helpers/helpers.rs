@@ -3,8 +3,8 @@ use crate::types::*;
 use crate::*;
 use crate::helpers::*;
 
-pub fn get_ids(tableinfo: &TableInfo, row: &Vec<RowVal>) -> Vec<String> {
-    tableinfo
+pub fn get_ids(table_dis: &TableDisguise, row: &Vec<RowVal>) -> Vec<String> {
+    table_dis
         .id_cols
         .iter()
         .map(|id_col| get_value_of_col(row, &id_col).unwrap())
@@ -13,7 +13,7 @@ pub fn get_ids(tableinfo: &TableInfo, row: &Vec<RowVal>) -> Vec<String> {
 
 pub fn get_select(
     user_id: Option<u64>,
-    tableinfo: &TableInfo,
+    table_dis: &TableDisguise,
     disguise: &Disguise,
 ) -> Option<Expr> {
     let mut select = None;
@@ -21,7 +21,7 @@ pub fn get_select(
         Some(user_id) => {
             let mut selection = Expr::Value(Value::Boolean(false));
             // if this is the user table, check for ID equivalence
-            if tableinfo.name == disguise.guise_info.name {
+            if table_dis.name == disguise.guise_info.name {
                 selection = Expr::BinaryOp {
                     left: Box::new(selection),
                     op: BinaryOperator::Or,
@@ -36,7 +36,7 @@ pub fn get_select(
             } else {
                 // otherwise, we want to remove all objects possibly referencing the user
                 // NOTE : this assumes that all "fks_to_decor" point to users table
-                for fk in &tableinfo.fks_to_decor {
+                for fk in &table_dis.fks_to_decor {
                     selection = Expr::BinaryOp {
                         left: Box::new(selection),
                         op: BinaryOperator::Or,
@@ -57,12 +57,12 @@ pub fn get_select(
     select
 }
 
-pub fn get_select_of_row(tableinfo: &TableInfo, row: &Vec<RowVal>) -> Expr {
+pub fn get_select_of_row(table_dis: &TableDisguise, row: &Vec<RowVal>) -> Expr {
     let mut selection = Expr::Value(Value::Boolean(true));
-    let ids = get_ids(tableinfo, row);
+    let ids = get_ids(table_dis, row);
     for (i, id) in ids.iter().enumerate() {
         let eq_selection = Expr::BinaryOp {
-            left: Box::new(Expr::Identifier(vec![Ident::new(tableinfo.id_cols[i].clone())])),
+            left: Box::new(Expr::Identifier(vec![Ident::new(table_dis.id_cols[i].clone())])),
             op: BinaryOperator::Eq,
             right: Box::new(Expr::Value(Value::String(id.to_string()))),
         };
