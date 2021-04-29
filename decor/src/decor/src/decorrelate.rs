@@ -3,7 +3,6 @@ use crate::is_guise;
 use crate::stats::QueryStat;
 use crate::types::*;
 use crate::vault;
-use crate::disguise;
 use log::warn;
 use sql_parser::ast::*;
 use std::str::FromStr;
@@ -20,7 +19,7 @@ pub fn decor_obj_txn(
     let child_id_cols = tableinfo.id_cols.clone();
     let fks = &tableinfo.fks_to_decor;
 
-    let selection = disguise::get_select(disguise.user_id, tableinfo, disguise);
+    let selection = get_select(disguise.user_id, tableinfo, disguise);
     
     /* PHASE 1: SELECT REFERENCER OBJECTS */
     let child_objs = get_query_rows_txn(&select_statement(child_name, selection), txn, stats)?;
@@ -156,10 +155,7 @@ pub fn decor_obj_txn(
                     }
                 })
                 .collect();
-            let child_ids = child_id_cols
-                .iter()
-                .map(|id_col| get_value_of_col(child, &id_col).unwrap())
-                .collect();
+            let child_ids = get_ids(tableinfo, child);
             vault_vals.push(vault::VaultEntry {
                 vault_id: 0,
                 disguise_id: disguise.disguise_id,

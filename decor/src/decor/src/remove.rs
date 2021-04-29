@@ -1,7 +1,7 @@
 use crate::helpers::*;
 use crate::stats::*;
 use crate::types::*;
-use crate::{vault, disguise};
+use crate::vault;
 use sql_parser::ast::*;
 use std::str::FromStr;
 
@@ -15,7 +15,7 @@ pub fn remove_obj_txn(
     let id_cols = tableinfo.id_cols.clone();
     let fks = &tableinfo.fks_to_decor;
 
-    let selection = disguise::get_select(disguise.user_id, tableinfo, disguise);
+    let selection = get_select(disguise.user_id, tableinfo, disguise);
 
     /*
      * PHASE 0: What vault operations must come "after" removal?
@@ -61,10 +61,7 @@ pub fn remove_obj_txn(
     // XXX removal entries get stored in *all* vaults????
     let mut vault_vals = vec![];
     for objrow in &predicated_objs {
-        let ids: Vec<String> = id_cols
-            .iter()
-            .map(|c| get_value_of_col(objrow, &c).unwrap())
-            .collect();
+        let ids = get_ids(tableinfo, objrow);
         for fk in fks {
             let uid = get_value_of_col(&objrow, &fk.referencer_col).unwrap();
             vault_vals.push(vault::VaultEntry {

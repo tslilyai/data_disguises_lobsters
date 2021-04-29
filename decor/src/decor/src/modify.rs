@@ -1,7 +1,7 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
 use crate::types::*;
-use crate::{vault, disguise};
+use crate::vault;
 use sql_parser::ast::*;
 use std::str::FromStr;
 
@@ -15,8 +15,8 @@ pub fn modify_obj_txn(
     let id_cols = tableinfo.id_cols.clone();
     let modified_cols = &tableinfo.cols_to_update;
     let fks = &tableinfo.fks_to_decor;
-    
-    let selection = disguise::get_select(disguise.user_id, tableinfo, disguise);
+
+    let selection = get_select(disguise.user_id, tableinfo, disguise);
 
     /* PHASE 1: SELECT REFERENCER OBJECTS */
     let objs = get_query_rows_txn(&select_statement(&name, selection), txn, stats)?;
@@ -28,24 +28,9 @@ pub fn modify_obj_txn(
     for obj in &objs {
         for colmod in modified_cols {
             let new_val = (*(colmod.generate_modified_value))();
-            
-            let mut selection = Expr::Value(Value::Boolean(true));
-            let ids: Vec<String> = id_cols
-                .iter()
-                .map(|id_col| get_value_of_col(&obj, &id_col).unwrap())
-                .collect();
-            for (i, id) in ids.iter().enumerate() {
-                let eq_selection = Expr::BinaryOp {
-                    left: Box::new(Expr::Identifier(vec![Ident::new(id_cols[i].clone())])),
-                    op: BinaryOperator::Eq,
-                    right: Box::new(Expr::Value(Value::String(id.to_string()))),
-                };
-                selection = Expr::BinaryOp {
-                    left: Box::new(selection),
-                    op: BinaryOperator::And,
-                    right: Box::new(eq_selection),
-                };
-            }
+
+            let ids = get_ids(tableinfo, obj);
+            let selection = get_select_of_row(tableinfo, obj);
 
             /*
              * PHASE 2: OBJECT MODIFICATIONS

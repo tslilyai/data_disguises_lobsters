@@ -1,4 +1,4 @@
-use crate::{disguise, helpers, types};
+use crate::{helpers, types};
 use log::warn;
 use sql_parser::ast::*;
 use std::collections::HashMap;
@@ -11,18 +11,23 @@ pub fn check_disguise_properties(
 ) -> Result<bool, mysql::Error> {
     let mut correct = true;
 
-    for name in &disguise.remove_names {
-        let select = disguise::get_select(disguise.user_id, &name, disguise);
+    for tableinfo in &disguise.remove_names {
+        let tmp_name = format!("{}Temp", tableinfo.name);
+        let select_temp = helpers::get_select(disguise.user_id, &tableinfo, disguise);
         correct &=
-            helpers::get_query_rows_db(&helpers::select_1_statement(&name.name, select), db)?
+            helpers::get_query_rows_db(&helpers::select_1_statement(&tmp_name, select_temp), db)?
                 .is_empty();
     }
-    for name in &disguise.update_names {
-        let select = disguise::get_select(disguise.user_id, &name, disguise);
-        let matching =
-            helpers::get_query_rows_db(&helpers::select_statement(&name.name, select), db)?;
-        correct &= properly_modified(&matching, &name);
-        correct &= properly_decorrelated(&matching, &name, disguise);
+    for tableinfo in &disguise.update_names {
+        // what rows matched this initially?
+        let select_phys = helpers::get_select(disguise.user_id, &tableinfo, disguise);
+        let matching = helpers::get_query_rows_db(
+            &helpers::select_statement(&tableinfo.name, select_phys),
+            db,
+        )?;
+
+        correct &= properly_modified(&matching, &tableinfo, db)?;
+        correct &= properly_decorrelated(&matching, &tableinfo, disguise, db)?;
     }
 
     Ok(correct)
@@ -32,52 +37,87 @@ fn properly_decorrelated(
     matching: &Vec<Vec<types::RowVal>>,
     tableinfo: &types::TableInfo,
     disguise: &types::Disguise,
-) -> bool {
+    db: &mut mysql::Conn,
+) -> Result<bool, mysql::Error> {
+    let tmp_name = format!("{}Temp", tableinfo.name);
     for row in matching {
+        let selection = helpers::get_select_of_row(tableinfo, row);
+        let tmp_rows = helpers::get_query_rows_db(
+            &helpers::select_statement(&tmp_name, Some(selection)),
+            db,
+        )?;
+        assert!(tmp_rows.len() <= 1);
+        if tmp_rows.is_empty() {
+            // ok this row was removed, that's fine
+            continue;
+        }
+
         for fk in &tableinfo.fks_to_decor {
             // should have referential integrity!
-            let value = helpers::get_value_of_col(&row, &fk.referencer_col).unwrap();
+            let value_tmp = helpers::get_value_of_col(&tmp_rows[0], &fk.referencer_col).unwrap();
+            let value_orig = helpers::get_value_of_col(&row, &fk.referencer_col).unwrap();
             warn!(
-                "Checking decorrelation for fk col {:?}, value {:?}",
-                fk.referencer_col, value
+                "Checking decorrelation for fk col {:?}, value_tmp {:?}, value_orig {:?}",
+                fk.referencer_col, value_tmp, value_orig
             );
             match disguise.user_id {
                 // return false if FK still points to user
                 Some(uid) => {
-                    if value == uid.to_string() {
-                        return false;
+                    if value_tmp == uid.to_string() {
+                        return Ok(false);
                     }
+                    // also check that original value hasn't changed
+                    assert_eq!(value_tmp, value_orig);
                 }
                 // return false if FK still points to any user
                 None => {
-                    if value != GUISE_ID.to_string() {
-                        return false;
+                    if value_tmp != GUISE_ID.to_string() {
+                        return Ok(false);
                     }
                 }
             }
         }
     }
-    true
+    Ok(true)
 }
 
-fn properly_modified(matching: &Vec<Vec<types::RowVal>>, tableinfo: &types::TableInfo) -> bool {
+fn properly_modified(
+    matching: &Vec<Vec<types::RowVal>>,
+    tableinfo: &types::TableInfo,
+    db: &mut mysql::Conn,
+) -> Result<bool, mysql::Error> {
+    let tmp_name = format!("{}Temp", tableinfo.name);
     for row in matching {
+        let selection = helpers::get_select_of_row(tableinfo, row);
+        let tmp_rows = helpers::get_query_rows_db(
+            &helpers::select_statement(&tmp_name, Some(selection)),
+            db,
+        )?;
+        assert!(tmp_rows.len() <= 1);
+        if tmp_rows.is_empty() {
+            // ok this row was removed, that's fine
+            continue;
+        }
+
         for colmod in &tableinfo.cols_to_update {
-            let value = helpers::get_value_of_col(&row, &colmod.col).unwrap();
+            let value_tmp = helpers::get_value_of_col(&tmp_rows[0], &colmod.col).unwrap();
             warn!(
                 "Checking modification for fk col {:?}, value {:?}",
-                colmod.col, value
+                colmod.col, value_tmp
             );
-            if !(*colmod.satisfies_modification)(&value) {
-                return false;
+            if !(*colmod.satisfies_modification)(&value_tmp) {
+                return Ok(false);
             }
         }
     }
-    true
+    Ok(true)
 }
 
 // note: guises are violating ref integrity, just some arbitrary 0 value for now
-pub fn get_disguise_filters(table_cols: &Vec<types::TableColumns>, disguise: &types::Disguise) -> HashMap<String, Vec<String>> {
+pub fn get_disguise_filters(
+    table_cols: &Vec<types::TableColumns>,
+    disguise: &types::Disguise,
+) -> HashMap<String, Vec<String>> {
     let mut filters: HashMap<String, Vec<String>> = HashMap::new();
 
     if let Some(uid) = disguise.user_id {
@@ -86,7 +126,12 @@ pub fn get_disguise_filters(table_cols: &Vec<types::TableColumns>, disguise: &ty
         get_remove_filters(&disguise.remove_names, &mut filters);
     }
 
-    get_update_filters(table_cols, disguise.user_id, &disguise.update_names, &mut filters);
+    get_update_filters(
+        table_cols,
+        disguise.user_id,
+        &disguise.update_names,
+        &mut filters,
+    );
     filters
 }
 
@@ -239,7 +284,7 @@ pub fn create_mv_from_filters_stmts(filters: &HashMap<String, Vec<String>>) -> V
             let create_stmt: String;
             if i == total_filters - 1 {
                 // last created table replaces the name of the original base table!
-                create_stmt = format!("CREATE TEMPORARY TABLE {} AS {}", table, f.to_string());
+                create_stmt = format!("CREATE TEMPORARY TABLE {}Temp AS {}", table, f.to_string());
             } else {
                 create_stmt = format!("CREATE VIEW {}{} AS {}", table, i, f.to_string());
             }
