@@ -140,27 +140,46 @@ fn main() {
     }
 
     let table_cols = datagen::get_schema_tables();
-    let mut ca_stmts = spec::get_disguise_filters(&table_cols, &disguises[0]);
-    let mut gdpr_stmts = spec::get_disguise_filters(&table_cols, &disguises[1]);
-    decor::helpers::merge_vector_hashmaps(&mut gdpr_stmts, &mut ca_stmts);
-    let create_spec_stmts = spec::create_mv_from_filters_stmts(&gdpr_stmts);
+    let ca_stmts = spec::get_disguise_filters(&table_cols, &disguises[0]);
+    let gdpr_stmts = spec::get_disguise_filters(&table_cols, &disguises[1]);
+    let correct = decor::helpers::merge_vector_hashmaps(&gdpr_stmts, &ca_stmts);
+    let incorrect = decor::helpers::merge_vector_hashmaps(&ca_stmts, &gdpr_stmts);
+    
+    let create_spec_stmts_correct = spec::create_mv_from_filters_stmts(&correct);
+    let create_spec_stmts_incorrect = spec::create_mv_from_filters_stmts(&incorrect);
         
-    let mut db = init_db(prime);
-
     if spec {
-        let mut spec_file = File::create("spec.sql".to_string()).unwrap();
-        for stmt in &create_spec_stmts {
+        /*let mut db = init_db(prime);
+        let mut spec_file = File::create("spec_correct.sql".to_string()).unwrap();
+        for stmt in &create_spec_stmts_correct {
             spec_file.write(format!("{}\n\n", stmt).as_bytes()).unwrap();
         }
         spec_file.flush().unwrap();
-        for stmt in &create_spec_stmts {
+        for stmt in &create_spec_stmts_correct {
             warn!("Spec stmt dropping {}", stmt);
             db.query_drop(stmt).unwrap();
         }
         assert!(spec::check_disguise_properties(&disguises[0], &mut db).unwrap());
         assert!(spec::check_disguise_properties(&disguises[1], &mut db).unwrap());
+        drop(db);*/
+
+        let mut db = init_db(prime);
+        let mut spec_file = File::create("spec_incorrect.sql".to_string()).unwrap();
+        for stmt in &create_spec_stmts_incorrect {
+            spec_file.write(format!("{}\n\n", stmt).as_bytes()).unwrap();
+        }
+        spec_file.flush().unwrap();
+        for stmt in &create_spec_stmts_incorrect {
+            warn!("Spec stmt dropping {}", stmt);
+            db.query_drop(stmt).unwrap();
+        }
+        // confanon passes
+        assert!(spec::check_disguise_properties(&disguises[0], &mut db).unwrap());
+        // gdpr fails
+        assert!(!spec::check_disguise_properties(&disguises[1], &mut db).unwrap());
     } else {
+        let mut db = init_db(prime);
         run_test(&mut db, &disguises);
+        drop(db);
     }
-    drop(db);
 }

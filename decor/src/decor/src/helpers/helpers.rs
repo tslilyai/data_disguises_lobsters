@@ -76,20 +76,22 @@ pub fn get_select_of_row(tableinfo: &TableInfo, row: &Vec<RowVal>) -> Expr {
 }
 
 pub fn merge_vector_hashmaps(
-    h1: &mut HashMap<String, Vec<String>>,
-    h2: &mut HashMap<String, Vec<String>>,
-) {
-    for (k, vs1) in h1.iter_mut() {
-        if let Some(mut vs2) = h2.get_mut(k) {
-            vs1.append(&mut vs2);
+    h1: &HashMap<String, Vec<String>>,
+    h2: &HashMap<String, Vec<String>>,
+) -> HashMap<String, Vec<String>> {
+    let mut hm = h1.clone();
+    for (k, vs1) in hm.iter_mut() {
+        if let Some(vs2) = h2.get(k) {
+            vs1.extend_from_slice(vs2);
         }
     }
-    for (k, vs2) in h2.iter_mut() {
-        if let Some(vs1) = h1.get_mut(k) {
-            vs1.append(vs2);
+    for (k, vs2) in h2.iter() {
+        if let Some(vs1) = hm.get_mut(k) {
+            vs1.extend_from_slice(vs2);
         } else {
-            h1.insert(k.to_string(), vs2.clone());
+            hm.insert(k.to_string(), vs2.clone());
         }
     }
+    hm
 }
 

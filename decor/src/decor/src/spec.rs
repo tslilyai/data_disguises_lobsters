@@ -42,13 +42,12 @@ fn properly_decorrelated(
     let tmp_name = format!("{}Temp", tableinfo.name);
     for row in matching {
         let selection = helpers::get_select_of_row(tableinfo, row);
-        let tmp_rows = helpers::get_query_rows_db(
-            &helpers::select_statement(&tmp_name, Some(selection)),
-            db,
-        )?;
+        let tmp_rows =
+            helpers::get_query_rows_db(&helpers::select_statement(&tmp_name, Some(selection)), db)?;
         assert!(tmp_rows.len() <= 1);
         if tmp_rows.is_empty() {
             // ok this row was removed, that's fine
+            warn!("Selection of row {:?} returns nothing", row);
             continue;
         }
 
@@ -65,9 +64,9 @@ fn properly_decorrelated(
                 Some(uid) => {
                     if value_tmp == uid.to_string() {
                         return Ok(false);
+                    } else if value_tmp != value_orig || value_tmp != GUISE_ID.to_string() {
+                        return Ok(false);
                     }
-                    // also check that original value hasn't changed
-                    assert_eq!(value_tmp, value_orig);
                 }
                 // return false if FK still points to any user
                 None => {
@@ -89,13 +88,12 @@ fn properly_modified(
     let tmp_name = format!("{}Temp", tableinfo.name);
     for row in matching {
         let selection = helpers::get_select_of_row(tableinfo, row);
-        let tmp_rows = helpers::get_query_rows_db(
-            &helpers::select_statement(&tmp_name, Some(selection)),
-            db,
-        )?;
+        let tmp_rows =
+            helpers::get_query_rows_db(&helpers::select_statement(&tmp_name, Some(selection)), db)?;
         assert!(tmp_rows.len() <= 1);
         if tmp_rows.is_empty() {
             // ok this row was removed, that's fine
+            warn!("Selection of row {:?} returns nothing", row);
             continue;
         }
 
