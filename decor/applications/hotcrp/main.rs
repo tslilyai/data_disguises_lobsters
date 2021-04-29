@@ -149,7 +149,7 @@ fn main() {
     let create_spec_stmts_incorrect = spec::create_mv_from_filters_stmts(&incorrect);
         
     if spec {
-        /*let mut db = init_db(prime);
+        let mut db = init_db(prime);
         let mut spec_file = File::create("spec_correct.sql".to_string()).unwrap();
         for stmt in &create_spec_stmts_correct {
             spec_file.write(format!("{}\n\n", stmt).as_bytes()).unwrap();
@@ -161,7 +161,7 @@ fn main() {
         }
         assert!(spec::check_disguise_properties(&disguises[0], &mut db).unwrap());
         assert!(spec::check_disguise_properties(&disguises[1], &mut db).unwrap());
-        drop(db);*/
+        drop(db);
 
         let mut db = init_db(prime);
         let mut spec_file = File::create("spec_incorrect.sql".to_string()).unwrap();
@@ -175,8 +175,10 @@ fn main() {
         }
         // confanon passes
         assert!(spec::check_disguise_properties(&disguises[0], &mut db).unwrap());
-        // gdpr fails
-        assert!(!spec::check_disguise_properties(&disguises[1], &mut db).unwrap());
+        // gdpr fails (checking only those users who have paperwatches)
+        for i in datagen::NUSERS_NONPC..datagen::NUSERS_NONPC+datagen::NUSERS_PC+1 {
+            assert!(!spec::check_disguise_properties(&disguises[i], &mut db).unwrap());
+        }
     } else {
         let mut db = init_db(prime);
         run_test(&mut db, &disguises);

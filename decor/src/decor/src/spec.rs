@@ -2,6 +2,7 @@ use crate::{helpers, types};
 use log::warn;
 use sql_parser::ast::*;
 use std::collections::HashMap;
+use std::str::FromStr;
 
 const GUISE_ID: u64 = 0;
 
@@ -53,8 +54,8 @@ fn properly_decorrelated(
 
         for fk in &tableinfo.fks_to_decor {
             // should have referential integrity!
-            let value_tmp = helpers::get_value_of_col(&tmp_rows[0], &fk.referencer_col).unwrap();
-            let value_orig = helpers::get_value_of_col(&row, &fk.referencer_col).unwrap();
+            let value_tmp = u64::from_str(&helpers::get_value_of_col(&tmp_rows[0], &fk.referencer_col).unwrap()).unwrap();
+            let value_orig = u64::from_str(&helpers::get_value_of_col(&row, &fk.referencer_col).unwrap()).unwrap();
             warn!(
                 "Checking decorrelation for fk col {:?}, value_tmp {:?}, value_orig {:?}",
                 fk.referencer_col, value_tmp, value_orig
@@ -62,15 +63,18 @@ fn properly_decorrelated(
             match disguise.user_id {
                 // return false if FK still points to user
                 Some(uid) => {
-                    if value_tmp == uid.to_string() {
+                    if value_tmp == uid {
+                        warn!("Decor check tmp value {:?} == uid {}", value_tmp, uid);
                         return Ok(false);
-                    } else if value_tmp != value_orig || value_tmp != GUISE_ID.to_string() {
+                    } else if value_tmp != value_orig && value_tmp != GUISE_ID {
+                        warn!("Decor check tmp value {} != original value {} or guise {}", value_tmp, value_orig, GUISE_ID);
                         return Ok(false);
                     }
                 }
                 // return false if FK still points to any user
                 None => {
-                    if value_tmp != GUISE_ID.to_string() {
+                    if value_tmp != GUISE_ID {
+                        warn!("Decor check tmp value {:?} != guise {}", value_tmp, GUISE_ID);
                         return Ok(false);
                     }
                 }
@@ -104,6 +108,8 @@ fn properly_modified(
                 colmod.col, value_tmp
             );
             if !(*colmod.satisfies_modification)(&value_tmp) {
+                let value_orig = helpers::get_value_of_col(&row, &colmod.col).unwrap();
+                warn!("Modified check tmp value {:?},  original value {:?}", value_tmp, value_orig);
                 return Ok(false);
             }
         }
