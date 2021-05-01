@@ -23,7 +23,7 @@ fn get_eq_expr(col: &str, val: Value) -> Expr {
     }
 }
 
-pub fn get_table_disguises(user_id: u64) -> Vec<TableDisguise> {
+fn get_table_disguises(user_id: u64) -> Vec<TableDisguise> {
     vec![
         // REMOVED
         TableDisguise {

@@ -44,6 +44,7 @@ pub enum Transform {
 pub struct TableDisguise {
     pub name: String,
     pub id_cols: Vec<String>,
+    pub owner_cols: Vec<String>,
     pub transforms: Vec<Transform>,
 }
 
