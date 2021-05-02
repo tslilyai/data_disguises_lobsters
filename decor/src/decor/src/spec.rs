@@ -188,7 +188,6 @@ fn get_update_filters(
         let mut modified_cols = vec![];
         let mut fk_cols = vec![];
         let mut where_pred = vec![];
-        let mut where_not_pred = vec![];
 
         for (i, c) in cols.iter().enumerate() {
             if let Some(t) = table_disguise.transforms.iter().find(|t| match t {
@@ -199,8 +198,7 @@ fn get_update_filters(
                 match t {
                     types::Transform::Decor { pred, .. } => {
                         if let Some(p) = pred {
-                            where_pred.push(format!("`{}` = {}", c, p));
-                            where_not_pred.push(format!("`{}` != {}", c, p));
+                            where_pred.push(p.to_string());
                         }
                     }
                     _ => (),
@@ -230,8 +228,7 @@ fn get_update_filters(
                             )),
                         }
                         if let Some(p) = pred {
-                            where_pred.push(format!("`{}` = {}", c, p));
-                            where_not_pred.push(format!("`{}` != {}", c, p));
+                            where_pred.push(p.to_string());
                         }
                     }
                     _ => (),
@@ -245,14 +242,15 @@ fn get_update_filters(
         normal_cols.append(&mut modified_cols);
         normal_cols.append(&mut fk_cols);
         if !where_pred.is_empty() {
+            let preds = where_pred.join(" OR ");
             // put all column selections together
             filter = format!(
-                "SELECT {} FROM {} WHERE {} UNION SELECT * FROM {} WHERE {};",
+                "SELECT {} FROM {} WHERE {} UNION SELECT * FROM {} WHERE NOT ({});",
                 normal_cols.join(", "),
                 table,
-                where_pred.join(" OR "),
+                preds,
                 table,
-                where_not_pred.join(" AND "),
+                preds,
             );
         } else {
             filter = format!("SELECT {} FROM {};", normal_cols.join(", "), table,);
@@ -289,7 +287,7 @@ fn get_remove_filters(
                         }
                     }
                 },
-                _ => unimplemented!("Only shoudl be called on remove"),
+                _ => (),
             }
         }
     }

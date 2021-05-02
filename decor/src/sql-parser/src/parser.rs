@@ -757,8 +757,8 @@ impl Parser {
 
     /// Parse an operator following an expression
     fn parse_infix(&mut self, expr: Expr, precedence: Precedence) -> Result<Expr, ParserError> {
-        debug!("parsing infix");
         let tok = self.next_token().unwrap(); // safe as EOF's precedence is the lowest
+        debug!("parsing infix {:?}", tok);
 
         let regular_binary_operator = match tok {
             Token::Eq => Some(BinaryOperator::Eq),
@@ -773,6 +773,8 @@ impl Parser {
             Token::Mod => Some(BinaryOperator::Modulus),
             Token::Div => Some(BinaryOperator::Divide),
             Token::Concat => Some(BinaryOperator::Concat),
+            Token::BitwiseOr => Some(BinaryOperator::BitwiseOr),
+            Token::Ampersand => Some(BinaryOperator::BitwiseAnd),
             Token::RegexMatch => Some(BinaryOperator::RegexMatch),
             Token::RegexIMatch => Some(BinaryOperator::RegexIMatch),
             Token::RegexNotMatch => Some(BinaryOperator::RegexNotMatch),
@@ -810,7 +812,7 @@ impl Parser {
             if let Some(kw) = self.parse_one_of_keywords(&["ANY", "SOME", "ALL"]) {
                 use BinaryOperator::*;
                 match op {
-                    Eq | NotEq | Gt | GtEq | Lt | LtEq => (),
+                    BitwiseAnd | BitwiseOr | Eq | NotEq | Gt | GtEq | Lt | LtEq => (),
                     _ => self.expected(op_range, "comparison operator", Some(tok))?,
                 }
                 self.expect_token(&Token::LParen)?;
@@ -1007,9 +1009,14 @@ impl Parser {
                 Token::Word(k) if k.keyword == "IN" => Precedence::Like,
                 Token::Word(k) if k.keyword == "BETWEEN" => Precedence::Like,
                 Token::Word(k) if k.keyword == "LIKE" => Precedence::Like,
-                Token::Eq | Token::Lt | Token::LtEq | Token::Neq | Token::Gt | Token::GtEq => {
-                    Precedence::Cmp
-                }
+                Token::Ampersand
+                | Token::BitwiseOr
+                | Token::Eq
+                | Token::Lt
+                | Token::LtEq
+                | Token::Neq
+                | Token::Gt
+                | Token::GtEq => Precedence::Cmp,
                 Token::JsonContainsJson
                 | Token::JsonContainedInJson
                 | Token::JsonContainsField
@@ -1767,11 +1774,11 @@ impl Parser {
             index_type = Some(IndexType::Fulltext);
         } else if self.parse_keyword("UNIQUE") {
             index_type = Some(IndexType::Unique);
-        } 
+        }
         if self.parse_keyword("INDEX") {
             let name = self.parse_identifier()?;
             let key_parts = self.parse_parenthesized_column_list(Mandatory)?;
-            return Ok(Some(IndexDef{
+            return Ok(Some(IndexDef {
                 name: name,
                 index_type: index_type,
                 key_parts: key_parts,
@@ -1780,7 +1787,9 @@ impl Parser {
         Ok(None)
     }
 
-    fn parse_columns(&mut self) -> Result<(Vec<ColumnDef>, Vec<TableConstraint>, Vec<IndexDef>), ParserError> {
+    fn parse_columns(
+        &mut self,
+    ) -> Result<(Vec<ColumnDef>, Vec<TableConstraint>, Vec<IndexDef>), ParserError> {
         let mut columns = vec![];
         let mut constraints = vec![];
         let mut indexes = vec![];
@@ -1856,9 +1865,9 @@ impl Parser {
         } else if self.parse_keywords(vec!["PRIMARY", "KEY"]) {
             ColumnOption::Unique { is_primary: true }
         } else if self.parse_keywords(vec!["UNIQUE", "KEY"]) {
-            ColumnOption::Unique { is_primary: false}
+            ColumnOption::Unique { is_primary: false }
         } else if self.parse_keywords(vec!["KEY"]) {
-            ColumnOption::Key 
+            ColumnOption::Key
         } else if self.parse_keyword("UNIQUE") {
             ColumnOption::Unique { is_primary: false }
         } else if self.parse_keyword("REFERENCES") {
@@ -1957,21 +1966,21 @@ impl Parser {
                 };
                 if engine == None {
                     return self.expected(
-                            self.peek_prev_range(),
-                            "Memory or InnoDB engine",
-                            self.peek_token(),
-                    );
-                } else {
-                   return Ok(engine);
-                }
-            } else {
-                return self.expected(
                         self.peek_prev_range(),
                         "Memory or InnoDB engine",
                         self.peek_token(),
+                    );
+                } else {
+                    return Ok(engine);
+                }
+            } else {
+                return self.expected(
+                    self.peek_prev_range(),
+                    "Memory or InnoDB engine",
+                    self.peek_token(),
                 );
             }
-        } 
+        }
         Ok(None)
     }
 

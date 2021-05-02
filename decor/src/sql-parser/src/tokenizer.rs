@@ -76,6 +76,8 @@ pub enum Token {
     Mod,
     /// Concat operator '||'
     Concat,
+    /// Bitwise or operator `|`
+    BitwiseOr,
     /// Regex match operator `~`
     RegexMatch,
     /// Regex case-insensitive match operator `~*`
@@ -158,6 +160,7 @@ impl fmt::Display for Token {
             Token::Div => f.write_str("/"),
             Token::Mod => f.write_str("%"),
             Token::Concat => f.write_str("||"),
+            Token::BitwiseOr => f.write_str("|"),
             Token::RegexMatch => f.write_str("~"),
             Token::RegexIMatch => f.write_str("~*"),
             Token::RegexNotMatch => f.write_str("!~"),
@@ -497,7 +500,7 @@ impl Tokenizer {
                     chars.next(); // consume '|'
                     match chars.peek() {
                         Some('|') => self.consume_and_return(chars, Token::Concat),
-                        _ => Err("Unrecognized token".to_string()),
+                        _ => Ok(Some(Token::BitwiseOr)),
                     }
                 }
                 '~' => {
