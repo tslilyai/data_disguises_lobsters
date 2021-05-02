@@ -8,12 +8,9 @@ use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::*;
 
-pub mod decorrelate;
 pub mod disguise;
 pub mod helpers;
 pub mod history;
-pub mod modify;
-pub mod remove;
 pub mod spec;
 pub mod stats;
 pub mod types;

@@ -80,7 +80,7 @@ pub fn select_1_statement(table: &str, selection: Option<Expr>) -> Statement {
     })
 }
 
-pub fn select_statement(table: &str, selection: Option<Expr>) -> Statement {
+pub fn select_statement(table: &str, selection: &Option<Expr>) -> Statement {
     Statement::Select(SelectStatement {
         query: Box::new(Query::select(Select {
             distinct: true,

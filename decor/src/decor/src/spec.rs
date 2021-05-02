@@ -10,41 +10,83 @@ pub fn check_disguise_properties(
     disguise: &types::Disguise,
     db: &mut mysql::Conn,
 ) -> Result<bool, mysql::Error> {
+    use types::Transform::*;
     let mut correct = true;
 
-    for table_dis in &disguise.remove_names {
-        let tmp_name = format!("{}Temp", table_dis.name);
-        let select_temp = helpers::get_select(disguise.user_id, &table_dis, disguise);
-        correct &=
-            helpers::get_query_rows_db(&helpers::select_1_statement(&tmp_name, select_temp), db)?
-                .is_empty();
+    for table_disguise in &disguise.tables {
+        for t in &table_disguise.transforms {
+            match t {
+                Decor {
+                    pred,
+                    referencer_col,
+                    ..
+                } => {
+                    correct &= properly_decorrelated(
+                        &pred,
+                        &table_disguise.name,
+                        &table_disguise.id_cols,
+                        &referencer_col,
+                        db,
+                    )?;
+                }
+                Remove { pred, .. } => {
+                    correct &=
+                        properly_removed(&pred, &table_disguise.name, &table_disguise.id_cols, db)?;
+                }
+                Modify {
+                    pred,
+                    col,
+                    satisfies_modification,
+                    ..
+                } => {
+                    correct &= properly_modified(
+                        &pred,
+                        &table_disguise.name,
+                        &table_disguise.id_cols,
+                        &col,
+                        satisfies_modification,
+                        db,
+                    )?;
+                }
+            }
+        }
     }
-    for table_dis in &disguise.update_names {
-        // what rows matched this initially?
-        let select_phys = helpers::get_select(disguise.user_id, &table_dis, disguise);
-        let matching = helpers::get_query_rows_db(
-            &helpers::select_statement(&table_dis.name, select_phys),
-            db,
-        )?;
-
-        correct &= properly_modified(&matching, &table_dis, db)?;
-        correct &= properly_decorrelated(&matching, &table_dis, disguise, db)?;
-    }
-
     Ok(correct)
 }
 
-fn properly_decorrelated(
-    matching: &Vec<Vec<types::RowVal>>,
-    table_dis: &types::TableDisguise,
-    disguise: &types::Disguise,
+fn properly_removed(
+    pred: &Option<Expr>,
+    table_name: &str,
+    id_cols: &Vec<String>,
     db: &mut mysql::Conn,
 ) -> Result<bool, mysql::Error> {
-    let tmp_name = format!("{}Temp", table_dis.name);
-    for row in matching {
-        let selection = helpers::get_select_of_row(table_dis, row);
+    let matching = helpers::get_query_rows_db(&helpers::select_statement(&table_name, pred), db)?;
+    let tmp_name = format!("{}Temp", table_name);
+    for row in &matching {
+        let selection = helpers::get_select_of_row(id_cols, row);
         let tmp_rows =
-            helpers::get_query_rows_db(&helpers::select_statement(&tmp_name, Some(selection)), db)?;
+            helpers::get_query_rows_db(&helpers::select_statement(&tmp_name, &Some(selection)), db)?;
+        if !tmp_rows.is_empty() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn properly_decorrelated(
+    pred: &Option<Expr>,
+    table_name: &str,
+    id_cols: &Vec<String>,
+    referencer_col: &str,
+    db: &mut mysql::Conn,
+) -> Result<bool, mysql::Error> {
+    let matching = helpers::get_query_rows_db(&helpers::select_statement(&table_name, pred), db)?;
+
+    let tmp_name = format!("{}Temp", table_name);
+    for row in &matching {
+        let selection = helpers::get_select_of_row(id_cols, row);
+        let tmp_rows =
+            helpers::get_query_rows_db(&helpers::select_statement(&tmp_name, &Some(selection)), db)?;
         assert!(tmp_rows.len() <= 1);
         if tmp_rows.is_empty() {
             // ok this row was removed, that's fine
@@ -52,48 +94,39 @@ fn properly_decorrelated(
             continue;
         }
 
-        for fk in &table_dis.fks_to_decor {
-            // should have referential integrity!
-            let value_tmp = u64::from_str(&helpers::get_value_of_col(&tmp_rows[0], &fk.referencer_col).unwrap()).unwrap();
-            let value_orig = u64::from_str(&helpers::get_value_of_col(&row, &fk.referencer_col).unwrap()).unwrap();
-            warn!(
-                "Checking decorrelation for fk col {:?}, value_tmp {:?}, value_orig {:?}",
-                fk.referencer_col, value_tmp, value_orig
-            );
-            match disguise.user_id {
-                // return false if FK still points to user
-                Some(uid) => {
-                    if value_tmp == uid {
-                        warn!("Decor check tmp value {:?} == uid {}", value_tmp, uid);
-                        return Ok(false);
-                    } else if value_tmp != value_orig && value_tmp != GUISE_ID {
-                        warn!("Decor check tmp value {} != original value {} or guise {}", value_tmp, value_orig, GUISE_ID);
-                        return Ok(false);
-                    }
-                }
-                // return false if FK still points to any user
-                None => {
-                    if value_tmp != GUISE_ID {
-                        warn!("Decor check tmp value {:?} != guise {}", value_tmp, GUISE_ID);
-                        return Ok(false);
-                    }
-                }
-            }
+        // should have referential integrity!
+        let value_tmp =
+            u64::from_str(&helpers::get_value_of_col(&tmp_rows[0], referencer_col).unwrap())
+                .unwrap();
+        let value_orig =
+            u64::from_str(&helpers::get_value_of_col(&row, referencer_col).unwrap()).unwrap();
+        warn!(
+            "Checking decorrelation for fk col {:?}, value_tmp {:?}, {:?}",
+            referencer_col, value_tmp, value_orig
+        );
+        if value_tmp != GUISE_ID {
+            warn!("Decor check tmp value {} != guise {}", value_tmp, GUISE_ID);
+            return Ok(false);
         }
     }
     Ok(true)
 }
 
 fn properly_modified(
-    matching: &Vec<Vec<types::RowVal>>,
-    table_dis: &types::TableDisguise,
+    pred: &Option<Expr>,
+    table_name: &str,
+    id_cols: &Vec<String>,
+    col: &str,
+    satisfies_modification: &Box<dyn Fn(&str) -> bool>,
     db: &mut mysql::Conn,
 ) -> Result<bool, mysql::Error> {
-    let tmp_name = format!("{}Temp", table_dis.name);
-    for row in matching {
-        let selection = helpers::get_select_of_row(table_dis, row);
+    let matching = helpers::get_query_rows_db(&helpers::select_statement(&table_name, pred), db)?;
+
+    let tmp_name = format!("{}Temp", table_name);
+    for row in &matching {
+        let selection = helpers::get_select_of_row(id_cols, row);
         let tmp_rows =
-            helpers::get_query_rows_db(&helpers::select_statement(&tmp_name, Some(selection)), db)?;
+            helpers::get_query_rows_db(&helpers::select_statement(&tmp_name, &Some(selection)), db)?;
         assert!(tmp_rows.len() <= 1);
         if tmp_rows.is_empty() {
             // ok this row was removed, that's fine
@@ -101,17 +134,18 @@ fn properly_modified(
             continue;
         }
 
-        for colmod in &table_dis.cols_to_update {
-            let value_tmp = helpers::get_value_of_col(&tmp_rows[0], &colmod.col).unwrap();
+        let value_tmp = helpers::get_value_of_col(&tmp_rows[0], col).unwrap();
+        warn!(
+            "Checking modification for fk col {:?}, value {:?}",
+            col, value_tmp
+        );
+        if !(*satisfies_modification)(&value_tmp) {
+            let value_orig = helpers::get_value_of_col(&row, &col).unwrap();
             warn!(
-                "Checking modification for fk col {:?}, value {:?}",
-                colmod.col, value_tmp
+                "Modified check tmp value {:?},  original value {:?}",
+                value_tmp, value_orig
             );
-            if !(*colmod.satisfies_modification)(&value_tmp) {
-                let value_orig = helpers::get_value_of_col(&row, &colmod.col).unwrap();
-                warn!("Modified check tmp value {:?},  original value {:?}", value_tmp, value_orig);
-                return Ok(false);
-            }
+            return Ok(false);
         }
     }
     Ok(true)
@@ -124,33 +158,23 @@ pub fn get_disguise_filters(
 ) -> HashMap<String, Vec<String>> {
     let mut filters: HashMap<String, Vec<String>> = HashMap::new();
 
-    if let Some(uid) = disguise.user_id {
-        get_remove_where_fk_filters(uid, &disguise.remove_names, &mut filters);
-    } else {
-        get_remove_filters(&disguise.remove_names, &mut filters);
-    }
+    get_remove_filters(&disguise.tables, &mut filters);
 
-    get_update_filters(
-        table_cols,
-        disguise.user_id,
-        &disguise.update_names,
-        &mut filters,
-    );
+    get_update_filters(table_cols, &disguise.tables, &mut filters);
     filters
 }
 
 // note: guises are violating ref integrity, just some arbitrary high value
 fn get_update_filters(
     table_cols: &Vec<types::TableColumns>,
-    user_id: Option<u64>,
-    table_diss: &Vec<types::TableDisguise>,
+    table_disguises: &Vec<types::TableDisguise>,
     filters: &mut HashMap<String, Vec<String>>,
 ) {
     // for each table
-    for table_dis in table_diss {
+    for table_disguise in table_disguises {
         let table_info = &table_cols
             .iter()
-            .find(|&tc| helpers::trim_quotes(&tc.name) == table_dis.name)
+            .find(|&tc| helpers::trim_quotes(&tc.name) == table_disguise.name)
             .unwrap();
 
         let table = helpers::trim_quotes(&table_info.name);
@@ -163,51 +187,72 @@ fn get_update_filters(
         let mut normal_cols = vec![];
         let mut modified_cols = vec![];
         let mut fk_cols = vec![];
-        let mut where_fk = vec![];
-        let mut where_not_fk = vec![];
+        let mut where_pred = vec![];
+        let mut where_not_pred = vec![];
 
-        for (i, col) in cols.iter().enumerate() {
-            if table_dis
-                .fks_to_decor
-                .iter()
-                .find(|fk| fk.referencer_col == *col)
-                .is_some()
-            {
-                fk_cols.push(format!("{} as `{}`", GUISE_ID, col));
-                if let Some(v) = user_id {
-                    where_fk.push(format!("`{}` = {}", col, v));
-                    where_not_fk.push(format!("`{}` != {}", col, v));
+        for (i, c) in cols.iter().enumerate() {
+            if let Some(t) = table_disguise.transforms.iter().find(|t| match t {
+                types::Transform::Decor { referencer_col, .. } => referencer_col == *c,
+                _ => false,
+            }) {
+                fk_cols.push(format!("{} as `{}`", GUISE_ID, c));
+                match t {
+                    types::Transform::Decor { pred, .. } => {
+                        if let Some(p) = pred {
+                            where_pred.push(format!("`{}` = {}", c, p));
+                            where_not_pred.push(format!("`{}` != {}", c, p));
+                        }
+                    }
+                    _ => (),
                 }
-            } else if let Some(mc) = table_dis.cols_to_update.iter().find(|mc| mc.col == *col) {
-                match &table_info.colformats[i] {
-                    types::ColFormat::NonQuoted => modified_cols.push(format!(
-                        "{} as `{}`",
-                        (*mc.generate_modified_value)("old value"), // XXX
-                        col
-                    )),
-                    types::ColFormat::Quoted => modified_cols.push(format!(
-                        "'{}' as `{}`",
-                        (*mc.generate_modified_value)("old value"), // XXX
-                        col
-                    )),
+            }
+            if let Some(t) = table_disguise.transforms.iter().find(|t| match t {
+                types::Transform::Modify { col, .. } => col == *c,
+                _ => false,
+            }) {
+                modified_cols.push(format!("{} as `{}`", GUISE_ID, c));
+                match t {
+                    types::Transform::Modify {
+                        pred,
+                        generate_modified_value,
+                        ..
+                    } => {
+                        match &table_info.colformats[i] {
+                            types::ColFormat::NonQuoted => modified_cols.push(format!(
+                                "{} as `{}`",
+                                (*generate_modified_value)("old value"), // XXX
+                                c
+                            )),
+                            types::ColFormat::Quoted => modified_cols.push(format!(
+                                "'{}' as `{}`",
+                                (*generate_modified_value)("old value"), // XXX
+                                c
+                            )),
+                        }
+                        if let Some(p) = pred {
+                            where_pred.push(format!("`{}` = {}", c, p));
+                            where_not_pred.push(format!("`{}` != {}", c, p));
+                        }
+                    }
+                    _ => (),
                 }
             } else {
-                normal_cols.push(format!("`{}` as `{}`", col, col));
+                normal_cols.push(format!("`{}` as `{}`", c, c));
             }
         }
 
         let filter: String;
         normal_cols.append(&mut modified_cols);
         normal_cols.append(&mut fk_cols);
-        if !where_fk.is_empty() {
+        if !where_pred.is_empty() {
             // put all column selections together
             filter = format!(
                 "SELECT {} FROM {} WHERE {} UNION SELECT * FROM {} WHERE {};",
                 normal_cols.join(", "),
                 table,
-                where_fk.join(" OR "),
+                where_pred.join(" OR "),
                 table,
-                where_not_fk.join(" AND "),
+                where_not_pred.join(" AND "),
             );
         } else {
             filter = format!("SELECT {} FROM {};", normal_cols.join(", "), table,);
@@ -222,46 +267,29 @@ fn get_update_filters(
 }
 
 fn get_remove_filters(
-    table_diss: &Vec<types::TableDisguise>,
+    table_disguises: &Vec<types::TableDisguise>,
     filters: &mut HashMap<String, Vec<String>>,
 ) {
-    for table_dis in table_diss {
-        let pred = match table_dis.remove_predicate {
-            None => "false".to_string(),
-            Some(s) => s.to_string(),
-        };
-        let filter = format!("SELECT * FROM {} WHERE NOT ({});", table_dis.name, pred);
-        match filters.get_mut(&table_dis.name) {
-            Some(fs) => fs.push(filter),
-            None => {
-                filters.insert(table_dis.name.clone(), vec![filter]);
-            }
-        }
-    }
-}
-
-fn get_remove_where_fk_filters(
-    user_id: u64,
-    table_diss: &Vec<types::TableDisguise>,
-    filters: &mut HashMap<String, Vec<String>>,
-) {
-    for table_dis in table_diss {
-        let mut fk_comps = vec![];
-        for fk in &table_dis.fks_to_decor {
-            fk_comps.push(format!("{} != {}", fk.referencer_col, user_id));
-        }
-        if fk_comps.is_empty() {
-            fk_comps = vec!["TRUE".to_string()]
-        }
-        let filter = format!(
-            "SELECT * FROM {} WHERE {};",
-            table_dis.name,
-            fk_comps.join(" AND "),
-        );
-        match filters.get_mut(&table_dis.name) {
-            Some(fs) => fs.push(filter),
-            None => {
-                filters.insert(table_dis.name.clone(), vec![filter]);
+    for table_disguise in table_disguises {
+        for transform in &table_disguise.transforms {
+            match transform {
+                types::Transform::Remove { pred } => {
+                    let pred = match pred {
+                        None => "false".to_string(),
+                        Some(s) => s.to_string(),
+                    };
+                    let filter = format!(
+                        "SELECT * FROM {} WHERE NOT ({});",
+                        table_disguise.name, pred
+                    );
+                    match filters.get_mut(&table_disguise.name) {
+                        Some(fs) => fs.push(filter),
+                        None => {
+                            filters.insert(table_disguise.name.clone(), vec![filter]);
+                        }
+                    }
+                },
+                _ => unimplemented!("Only shoudl be called on remove"),
             }
         }
     }

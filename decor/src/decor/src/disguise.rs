@@ -21,17 +21,17 @@ pub fn apply(
 
     let mut vault_vals = vec![];
     for table in &disguise.tables {
-        for transform in table.transforms {
+        for transform in &table.transforms {
             match transform {
                 Decor {
                     pred,
                     referencer_col,
                     fk_name,
-                    fk_col,
+                    ..
                 } => {
                     /* PHASE 1: SELECT REFERENCER OBJECTS */
                     let child_objs =
-                        get_query_rows_txn(&select_statement(&table.name, pred), txn, stats)?;
+                        get_query_rows_txn(&select_statement(&table.name, &pred), txn, stats)?;
                     if child_objs.is_empty() {
                         continue;
                     }
@@ -146,7 +146,7 @@ pub fn apply(
                         let new_child: Vec<RowVal> = child
                             .iter()
                             .map(|v| {
-                                if v.column == referencer_col {
+                                if &v.column == referencer_col {
                                     RowVal {
                                         column: v.column.clone(),
                                         value: guise_id.to_string(),
@@ -156,7 +156,7 @@ pub fn apply(
                                 }
                             })
                             .collect();
-                        let child_ids = get_ids(table, child);
+                        let child_ids = get_ids(&table.id_cols, child);
                         vault_vals.push(vault::VaultEntry {
                             vault_id: 0,
                             disguise_id: disguise.disguise_id,
@@ -199,7 +199,7 @@ pub fn apply(
                      * PHASE 1: OBJECT SELECTION
                      */
                     let predicated_objs = helpers::get_query_rows_txn(
-                        &select_statement(&table.name, pred),
+                        &select_statement(&table.name, &pred),
                         txn,
                         stats,
                     )?;
@@ -208,7 +208,7 @@ pub fn apply(
                     helpers::get_query_rows_txn(
                         &Statement::Delete(DeleteStatement {
                             table_name: string_to_objname(&table.name),
-                            selection: pred,
+                            selection: pred.clone(),
                         }),
                         txn,
                         stats,
@@ -218,8 +218,8 @@ pub fn apply(
                     // XXX removal entries get stored in *all* vaults????
                     let mut vault_vals = vec![];
                     for objrow in &predicated_objs {
-                        let ids = get_ids(table, objrow);
-                        for owner_col in table.owner_cols {
+                        let ids = get_ids(&table.id_cols, objrow);
+                        for owner_col in &table.owner_cols {
                             let uid = get_value_of_col(&objrow, &owner_col).unwrap();
                             vault_vals.push(vault::VaultEntry {
                                 vault_id: 0,
@@ -242,11 +242,11 @@ pub fn apply(
                     pred,
                     col,
                     generate_modified_value,
-                    satisfies_modification,
+                    ..
                 } => {
                     /* PHASE 1: SELECT REFERENCER OBJECTS */
                     let objs =
-                        get_query_rows_txn(&select_statement(&table.name, pred), txn, stats)?;
+                        get_query_rows_txn(&select_statement(&table.name, &pred), txn, stats)?;
                     if objs.is_empty() {
                         continue;
                     }
@@ -255,7 +255,7 @@ pub fn apply(
                         let old_val = get_value_of_col(&obj, &col).unwrap();
                         let new_val = (*(generate_modified_value))(&old_val);
 
-                        let selection = get_select_of_row(table, obj);
+                        let selection = get_select_of_row(&table.id_cols, obj);
 
                         /*
                          * PHASE 2: OBJECT MODIFICATIONS
@@ -279,7 +279,7 @@ pub fn apply(
                         let new_obj: Vec<RowVal> = obj
                             .iter()
                             .map(|v| {
-                                if v.column == col {
+                                if &v.column == col {
                                     RowVal {
                                         column: v.column.clone(),
                                         value: new_val.clone(),
@@ -292,8 +292,8 @@ pub fn apply(
 
                         // XXX insert a vault entry for every owning user (every fk)
                         // should just update for the calling user, if there is one?
-                        let ids = get_ids(table, obj);
-                        for owner_col in table.owner_cols {
+                        let ids = get_ids(&table.id_cols, obj);
+                        for owner_col in &table.owner_cols {
                             let uid = get_value_of_col(&obj, &owner_col).unwrap();
                             vault_vals.push(vault::VaultEntry {
                                 vault_id: 0,
@@ -304,7 +304,7 @@ pub fn apply(
                                 guise_ids: ids.clone(),
                                 referencer_name: "".to_string(),
                                 update_type: vault::UPDATE_GUISE,
-                                modified_cols: vec![col],
+                                modified_cols: vec![col.clone()],
                                 old_value: obj.clone(),
                                 new_value: new_obj.clone(),
                                 reverses: None,
