@@ -20,7 +20,7 @@ pub fn apply(
     };
 
     let mut vault_vals = vec![];
-    for table in &disguise.tables {
+    for table in &disguise.table_disguises {
         for transform in &table.transforms {
             match transform {
                 Decor {
@@ -221,20 +221,22 @@ pub fn apply(
                         let ids = get_ids(&table.id_cols, objrow);
                         for owner_col in &table.owner_cols {
                             let uid = get_value_of_col(&objrow, &owner_col).unwrap();
-                            vault_vals.push(vault::VaultEntry {
-                                vault_id: 0,
-                                disguise_id: disguise.disguise_id,
-                                user_id: u64::from_str(&uid).unwrap(),
-                                guise_name: table.name.clone(),
-                                guise_id_cols: table.id_cols.clone(),
-                                guise_ids: ids.clone(),
-                                referencer_name: "".to_string(),
-                                update_type: vault::DELETE_GUISE,
-                                modified_cols: vec![],
-                                old_value: objrow.clone(),
-                                new_value: vec![],
-                                reverses: None,
-                            });
+                            if (*disguise.is_owner)(&uid) {
+                                vault_vals.push(vault::VaultEntry {
+                                    vault_id: 0,
+                                    disguise_id: disguise.disguise_id,
+                                    user_id: u64::from_str(&uid).unwrap(),
+                                    guise_name: table.name.clone(),
+                                    guise_id_cols: table.id_cols.clone(),
+                                    guise_ids: ids.clone(),
+                                    referencer_name: "".to_string(),
+                                    update_type: vault::DELETE_GUISE,
+                                    modified_cols: vec![],
+                                    old_value: objrow.clone(),
+                                    new_value: vec![],
+                                    reverses: None,
+                                });
+                            }
                         }
                     }
                 }
@@ -295,20 +297,22 @@ pub fn apply(
                         let ids = get_ids(&table.id_cols, obj);
                         for owner_col in &table.owner_cols {
                             let uid = get_value_of_col(&obj, &owner_col).unwrap();
-                            vault_vals.push(vault::VaultEntry {
-                                vault_id: 0,
-                                disguise_id: disguise.disguise_id,
-                                user_id: u64::from_str(&uid).unwrap(),
-                                guise_name: table.name.clone(),
-                                guise_id_cols: table.id_cols.clone(),
-                                guise_ids: ids.clone(),
-                                referencer_name: "".to_string(),
-                                update_type: vault::UPDATE_GUISE,
-                                modified_cols: vec![col.clone()],
-                                old_value: obj.clone(),
-                                new_value: new_obj.clone(),
-                                reverses: None,
-                            });
+                            if (*disguise.is_owner)(&uid) {
+                                vault_vals.push(vault::VaultEntry {
+                                    vault_id: 0,
+                                    disguise_id: disguise.disguise_id,
+                                    user_id: u64::from_str(&uid).unwrap(),
+                                    guise_name: table.name.clone(),
+                                    guise_id_cols: table.id_cols.clone(),
+                                    guise_ids: ids.clone(),
+                                    referencer_name: "".to_string(),
+                                    update_type: vault::UPDATE_GUISE,
+                                    modified_cols: vec![col.clone()],
+                                    old_value: obj.clone(),
+                                    new_value: new_obj.clone(),
+                                    reverses: None,
+                                });
+                            }
                         }
                     }
                 }

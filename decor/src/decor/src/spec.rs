@@ -13,7 +13,7 @@ pub fn check_disguise_properties(
     use types::Transform::*;
     let mut correct = true;
 
-    for table_disguise in &disguise.tables {
+    for table_disguise in &disguise.table_disguises {
         for t in &table_disguise.transforms {
             match t {
                 Decor {
@@ -158,9 +158,9 @@ pub fn get_disguise_filters(
 ) -> HashMap<String, Vec<String>> {
     let mut filters: HashMap<String, Vec<String>> = HashMap::new();
 
-    get_remove_filters(&disguise.tables, &mut filters);
+    get_remove_filters(&disguise.table_disguises, &mut filters);
 
-    get_update_filters(table_cols, &disguise.tables, &mut filters);
+    get_update_filters(table_cols, &disguise.table_disguises, &mut filters);
     filters
 }
 

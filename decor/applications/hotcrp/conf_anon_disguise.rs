@@ -8,7 +8,8 @@ const ROLE_PC: u64 = 1;
 pub fn get_disguise() -> Disguise {
     Disguise {
         disguise_id: CONF_ANON_DISGUISE_ID,
-        tables: get_table_disguises(),
+        table_disguises: get_table_disguises(),
+        is_owner: Box::new(|_| true),
         guise_info: GuiseInfo {
             name: SCHEMA_UID_TABLE.to_string(),
             id_col: SCHEMA_UID_COL.to_string(),
@@ -23,6 +24,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
         TableDisguise {
             name: "ContactInfo".to_string(),
             id_cols: vec!["contactId".to_string()],
+            owner_cols: vec!["contactId".to_string()],
             transforms: vec![Transform::Modify {
                 // only modify if a PC member
                 pred: Some(Expr::BinaryOp {
@@ -35,7 +37,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
                     right: Box::new(Expr::Value(Value::Number(1.to_string()))),
                 }),
                 col: "email".to_string(),
-                generate_modified_value: Box::new(users::get_random_email),
+                generate_modified_value: Box::new(|_| users::get_random_email()),
                 satisfies_modification: Box::new(|v| {
                     v.contains("anonymous") && v.contains("secret")
                 }),
@@ -44,6 +46,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
         TableDisguise {
             name: "PaperWatch".to_string(),
             id_cols: vec!["paperId".to_string(), "contactId".to_string()],
+            owner_cols: vec!["contactId".to_string()],
             transforms: vec![Transform::Decor {
                 pred: None,
                 referencer_col: "contactId".to_string(),
@@ -54,6 +57,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
         TableDisguise {
             name: "PaperReviewPreference".to_string(),
             id_cols: vec!["paperId".to_string(), "contactId".to_string()],
+            owner_cols: vec!["contactId".to_string()],
             transforms: vec![Transform::Decor {
                 pred: None,
                 referencer_col: "contactId".to_string(),
@@ -64,6 +68,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
         TableDisguise {
             name: "PaperReviewRefused".to_string(),
             id_cols: vec!["paperId".to_string(), "email".to_string()],
+            owner_cols: vec!["requestedBy".to_string(), "refusedBy".to_string()],
             transforms: vec![
                 Transform::Decor {
                     pred: None,
@@ -82,6 +87,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
         TableDisguise {
             name: "ActionLog".to_string(),
             id_cols: vec!["logId".to_string()],
+            owner_cols: vec!["contactId".to_string(), "destContactId".to_string(), "trueContactId".to_string()],
             transforms: vec![
                 Transform::Decor {
                     pred: None,
@@ -110,6 +116,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
                 "reviewId".to_string(),
                 "contactId".to_string(),
             ],
+            owner_cols: vec!["contactId".to_string()],
             transforms: vec![Transform::Decor {
                 pred: None,
                 referencer_col: "contactId".to_string(),
@@ -120,6 +127,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
         TableDisguise {
             name: "PaperComment".to_string(),
             id_cols: vec!["commentId".to_string()],
+            owner_cols: vec!["contactId".to_string()],
             transforms: vec![Transform::Decor {
                 pred: None,
                 referencer_col: "contactId".to_string(),
@@ -130,6 +138,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
         TableDisguise {
             name: "PaperReview".to_string(),
             id_cols: vec!["reviewId".to_string()],
+            owner_cols: vec!["contactId".to_string(), "requestedBy".to_string()],
             transforms: vec![
                 Transform::Decor {
                     pred: None,
@@ -148,6 +157,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
         TableDisguise {
             name: "Paper".to_string(),
             id_cols: vec!["paperId".to_string()],
+            owner_cols: vec!["leadContactId".to_string(), "managerContactId".to_string(), "shepherdContactId".to_string()],
             transforms: vec![
                 Transform::Decor {
                     pred: None,
@@ -170,8 +180,4 @@ fn get_table_disguises() -> Vec<TableDisguise> {
             ],
         },
     ]
-}
-
-fn get_remove_names() -> Vec<TableDisguise> {
-    vec![]
 }

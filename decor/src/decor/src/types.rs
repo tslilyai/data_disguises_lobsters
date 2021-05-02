@@ -57,6 +57,9 @@ pub struct GuiseInfo {
 
 pub struct Disguise {
     pub disguise_id: u64,
-    pub tables: Vec<TableDisguise>,
+    pub table_disguises: Vec<TableDisguise>,
+    // used to determine if a particular UID belongs to the "owner" of the disguise
+    pub is_owner: Box<dyn Fn(&str) -> bool>,
+    // used to generate new guises
     pub guise_info: GuiseInfo,
 }

@@ -86,16 +86,16 @@ fn init_db(prime: bool) -> mysql::Conn {
     db
 }
 
-fn run_test(db: &mut mysql::Conn, disguises: &Vec<decor::types::Disguise>) {
+fn run_test(db: &mut mysql::Conn, users: &Vec<usize>, disguises: &Vec<decor::types::Disguise>) {
     let mut stats = QueryStat::new();
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
    
    file.write("Disguise, NQueries, NQueriesVault, Duration(ms)\n".as_bytes())
         .unwrap();  
-   for disguise in disguises {
+   for (i, disguise) in disguises.iter().enumerate() {
         let start = time::Instant::now();
         let mut txn = db.start_transaction(TxOpts::default()).unwrap();
-        decor::disguise::apply(&disguises[0], &mut txn, &mut stats).unwrap();
+        decor::disguise::apply(Some(users[i] as u64), &disguise, &mut txn, &mut stats).unwrap();
         txn.commit().unwrap();
 
         let dur = start.elapsed();
@@ -135,8 +135,8 @@ fn main() {
         .choose_multiple(&mut rng, uids.len())
         .cloned()
         .collect();
-    for user in rand_users {
-        disguises.push(gdpr_disguise::get_disguise(user as u64));
+    for user in &rand_users {
+        disguises.push(gdpr_disguise::get_disguise(*user as u64));
     }
 
     let table_cols = datagen::get_schema_tables();
@@ -181,7 +181,7 @@ fn main() {
         }
     } else {
         let mut db = init_db(prime);
-        run_test(&mut db, &disguises);
+        run_test(&mut db, &rand_users, &disguises);
         drop(db);
     }
 }
