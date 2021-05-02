@@ -203,12 +203,10 @@ fn get_update_filters(
                     }
                     _ => (),
                 }
-            }
-            if let Some(t) = table_disguise.transforms.iter().find(|t| match t {
+            } else if let Some(t) = table_disguise.transforms.iter().find(|t| match t {
                 types::Transform::Modify { col, .. } => col == *c,
                 _ => false,
             }) {
-                modified_cols.push(format!("{} as `{}`", GUISE_ID, c));
                 match t {
                     types::Transform::Modify {
                         pred,

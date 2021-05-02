@@ -29,7 +29,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
                 // only modify if a PC member
                 pred: Some(Expr::BinaryOp {
                     left: Box::new(Expr::BinaryOp {
-                        left: Box::new(Expr::Identifier(vec![Ident::new("role")])),
+                        left: Box::new(Expr::Identifier(vec![Ident::new("roles")])),
                         op: BinaryOperator::BitwiseAnd,
                         right: Box::new(Expr::Value(Value::Number(ROLE_PC.to_string()))),
                     }),
