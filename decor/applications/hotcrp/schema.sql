@@ -214,13 +214,13 @@ CREATE TABLE `PaperComment` (
   `commentRound` int(11) NOT NULL DEFAULT '0',
   `commentFormat` tinyint(1) DEFAULT NULL,
   `commentOverflow` varbinary(4096),
-  PRIMARY KEY (`paperId`,`commentId`),
+  PRIMARY KEY (`commentId`),
   UNIQUE KEY `commentId` (`commentId`),
   KEY `contactId` (`contactId`),
   KEY `timeModifiedContact` (`timeModified`,`contactId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
+--PRIMARY KEY (`paperId`,`commentId`),
 
 --
 -- Table structure for table `PaperConflict`
@@ -228,14 +228,15 @@ CREATE TABLE `PaperComment` (
 
 DROP TABLE IF EXISTS `PaperConflict`;
 CREATE TABLE `PaperConflict` (
+  `paperConflictId` int(11) NOT NULL AUTO_INCREMENT,
   `paperId` int(11) NOT NULL,
   `contactId` int(11) NOT NULL,
   `conflictType` tinyint(1) NOT NULL DEFAULT '0',
-  PRIMARY KEY (`contactId`,`paperId`),
+  PRIMARY KEY (`paperConflictId`),
   KEY `paperId` (`paperId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
+--PRIMARY KEY (`contactId`,`paperId`),
 
 --
 -- Table structure for table `PaperOption`
@@ -316,14 +317,15 @@ CREATE TABLE `PaperReview` (
 
 DROP TABLE IF EXISTS `PaperReviewPreference`;
 CREATE TABLE `PaperReviewPreference` (
+  `paperRevPrefId` int(11) NOT NULL AUTO_INCREMENT,
   `paperId` int(11) NOT NULL,
   `contactId` int(11) NOT NULL,
   `preference` int(4) NOT NULL DEFAULT '0',
   `expertise` int(4) DEFAULT NULL,
-  PRIMARY KEY (`paperId`,`contactId`)
+  PRIMARY KEY (`paperRevPrefId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-
+--,`paperId`, `contactId`)
 
 --
 -- Table structure for table `PaperReviewRefused`
@@ -427,12 +429,14 @@ CREATE TABLE `PaperTopic` (
 
 DROP TABLE IF EXISTS `PaperWatch`;
 CREATE TABLE `PaperWatch` (
+  `paperWatchId` int(11) NOT NULL AUTO_INCREMENT,
   `paperId` int(11) NOT NULL,
   `contactId` int(11) NOT NULL,
   `watch` int(11) NOT NULL DEFAULT '0',
-  PRIMARY KEY (`paperId`,`contactId`)
+  PRIMARY KEY (`paperWatchId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+---`paperId`,`contactId`)
 
 
 --
@@ -441,13 +445,15 @@ CREATE TABLE `PaperWatch` (
 
 DROP TABLE IF EXISTS `ReviewRating`;
 CREATE TABLE `ReviewRating` (
+  `ratingId` int(11) NOT NULL AUTO_INCREMENT,
   `paperId` int(11) NOT NULL,
   `reviewId` int(11) NOT NULL,
   `contactId` int(11) NOT NULL,
   `rating` tinyint(1) NOT NULL DEFAULT '0',
-  PRIMARY KEY (`paperId`,`reviewId`,`contactId`)
+  PRIMARY KEY (`ratingId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+--PRIMARY KEY (`paperId`,`reviewId`,`contactId`)
 
 
 --
@@ -503,12 +509,14 @@ CREATE TABLE `TopicArea` (
 
 DROP TABLE IF EXISTS `TopicInterest`;
 CREATE TABLE `TopicInterest` (
+  `topicInterestId` int(11) NOT NULL AUTO_INCREMENT,
   `contactId` int(11) NOT NULL,
   `topicId` int(11) NOT NULL,
   `interest` int(1) NOT NULL,
-  PRIMARY KEY (`contactId`,`topicId`)
+  PRIMARY KEY (`topicInterestId`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+--PRIMARY KEY (`contactId`,`topicId`)
 
 
 insert into Settings (name, value) values ('allowPaperOption', 236);

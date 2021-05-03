@@ -58,7 +58,7 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Debug)
+        .filter_level(log::LevelFilter::Warn)
         //.filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
@@ -131,24 +131,22 @@ fn main() {
     ];
     let uids: Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();
     let mut rng = &mut rand::thread_rng();
-    let rand_users: Vec<usize> = uids
-        .choose_multiple(&mut rng, uids.len())
+    let rand_users: Vec<usize> = uids;
+        /*.choose_multiple(&mut rng, uids.len())
         .cloned()
-        .collect();
+        .collect();*/
     for user in &rand_users {
         disguises.push(gdpr_disguise::get_disguise(*user as u64));
     }
 
-    let table_cols = datagen::get_schema_tables();
-    let ca_stmts = spec::get_disguise_filters(&table_cols, &disguises[0]);
-    let gdpr_stmts = spec::get_disguise_filters(&table_cols, &disguises[1]);
-    let correct = decor::helpers::merge_vector_hashmaps(&gdpr_stmts, &ca_stmts);
-    let incorrect = decor::helpers::merge_vector_hashmaps(&ca_stmts, &gdpr_stmts);
-    
-    let create_spec_stmts_correct = spec::create_mv_from_filters_stmts(&correct);
-    let create_spec_stmts_incorrect = spec::create_mv_from_filters_stmts(&incorrect);
-        
     if spec {
+        let table_cols = datagen::get_schema_tables();
+        let ca_stmts = spec::get_disguise_filters(&table_cols, &disguises[0]);
+        let gdpr_stmts = spec::get_disguise_filters(&table_cols, &disguises[datagen::NUSERS_NONPC]);
+
+        // test correctly ordered filters
+        let correct = decor::helpers::merge_vector_hashmaps(&gdpr_stmts, &ca_stmts);
+        let create_spec_stmts_correct = spec::create_mv_from_filters_stmts(&correct);
         let mut db = init_db(prime);
         let mut spec_file = File::create("spec_correct.sql".to_string()).unwrap();
         for stmt in &create_spec_stmts_correct {
@@ -160,8 +158,12 @@ fn main() {
             db.query_drop(stmt).unwrap();
         }
         assert!(spec::check_disguise_properties(&disguises[0], &mut db).unwrap());
-        assert!(spec::check_disguise_properties(&disguises[1], &mut db).unwrap());
+        assert!(spec::check_disguise_properties(&disguises[datagen::NUSERS_NONPC], &mut db).unwrap());
         drop(db);
+
+        // test incorrectly ordered filters
+        let incorrect = decor::helpers::merge_vector_hashmaps(&ca_stmts, &gdpr_stmts);
+        let create_spec_stmts_incorrect = spec::create_mv_from_filters_stmts(&incorrect);
 
         let mut db = init_db(prime);
         let mut spec_file = File::create("spec_incorrect.sql".to_string()).unwrap();
@@ -176,9 +178,8 @@ fn main() {
         // confanon passes
         assert!(spec::check_disguise_properties(&disguises[0], &mut db).unwrap());
         // gdpr fails (checking only those users who have paperwatches)
-        for i in datagen::NUSERS_NONPC..datagen::NUSERS_NONPC+datagen::NUSERS_PC+1 {
-            assert!(!spec::check_disguise_properties(&disguises[i], &mut db).unwrap());
-        }
+        assert!(!spec::check_disguise_properties(&disguises[datagen::NUSERS_NONPC], &mut db).unwrap());
+
     } else {
         let mut db = init_db(prime);
         run_test(&mut db, &rand_users, &disguises);

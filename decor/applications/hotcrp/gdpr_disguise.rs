@@ -1,7 +1,7 @@
-use sql_parser::ast::*;
 use crate::datagen::*;
 use crate::*;
 use decor::types::*;
+use sql_parser::ast::*;
 
 pub fn get_disguise(user_id: u64) -> Disguise {
     Disguise {
@@ -39,7 +39,7 @@ fn get_table_disguises(user_id: u64) -> Vec<TableDisguise> {
         },
         TableDisguise {
             name: "PaperReviewPreference".to_string(),
-            id_cols: vec!["paperId".to_string(), "contactId".to_string()],
+            id_cols: vec!["paperRevPrefId".to_string()],
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![Remove {
                 pred: Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
@@ -47,7 +47,7 @@ fn get_table_disguises(user_id: u64) -> Vec<TableDisguise> {
         },
         TableDisguise {
             name: "PaperWatch".to_string(),
-            id_cols: vec!["paperId".to_string(), "contactId".to_string()],
+            id_cols: vec!["paperWatchId".to_string()],
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![Remove {
                 pred: Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
@@ -63,7 +63,7 @@ fn get_table_disguises(user_id: u64) -> Vec<TableDisguise> {
         },
         TableDisguise {
             name: "PaperConflict".to_string(),
-            id_cols: vec!["contactId".to_string(), "paperId".to_string()],
+            id_cols: vec!["paperConflictId".to_string()],
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![Remove {
                 pred: Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
@@ -71,7 +71,7 @@ fn get_table_disguises(user_id: u64) -> Vec<TableDisguise> {
         },
         TableDisguise {
             name: "TopicInterest".to_string(),
-            id_cols: vec!["contactId".to_string(), "topicId".to_string()],
+            id_cols: vec!["topicInterestId".to_string()],
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![Remove {
                 pred: Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
@@ -84,7 +84,10 @@ fn get_table_disguises(user_id: u64) -> Vec<TableDisguise> {
             owner_cols: vec!["requestedBy".to_string(), "refusedBy".to_string()],
             transforms: vec![
                 Transform::Decor {
-                    pred: Some(get_eq_expr("requestedBy", Value::Number(user_id.to_string()))),
+                    pred: Some(get_eq_expr(
+                        "requestedBy",
+                        Value::Number(user_id.to_string()),
+                    )),
                     referencer_col: "requestedBy".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
@@ -130,11 +133,7 @@ fn get_table_disguises(user_id: u64) -> Vec<TableDisguise> {
         },
         TableDisguise {
             name: "ReviewRating".to_string(),
-            id_cols: vec![
-                "paperId".to_string(),
-                "reviewId".to_string(),
-                "contactId".to_string(),
-            ],
+            id_cols: vec!["ratingId".to_string()],
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![Transform::Decor {
                 pred: Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
@@ -166,7 +165,10 @@ fn get_table_disguises(user_id: u64) -> Vec<TableDisguise> {
                     fk_col: "contactId".to_string(),
                 },
                 Transform::Decor {
-                    pred: Some(get_eq_expr("requestedBy", Value::Number(user_id.to_string()))),
+                    pred: Some(get_eq_expr(
+                        "requestedBy",
+                        Value::Number(user_id.to_string()),
+                    )),
                     referencer_col: "requestedBy".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
@@ -176,7 +178,11 @@ fn get_table_disguises(user_id: u64) -> Vec<TableDisguise> {
         TableDisguise {
             name: "Paper".to_string(),
             id_cols: vec!["paperId".to_string()],
-            owner_cols: vec!["leadContactId".to_string(), "managerContactId".to_string(), "shepherdContactId".to_string()],
+            owner_cols: vec![
+                "leadContactId".to_string(),
+                "managerContactId".to_string(),
+                "shepherdContactId".to_string(),
+            ],
             transforms: vec![
                 Transform::Decor {
                     pred: Some(get_eq_expr(

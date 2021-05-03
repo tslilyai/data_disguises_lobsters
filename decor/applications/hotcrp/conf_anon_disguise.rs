@@ -45,7 +45,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
         },
         TableDisguise {
             name: "PaperWatch".to_string(),
-            id_cols: vec!["paperId".to_string(), "contactId".to_string()],
+            id_cols: vec!["paperWatchId".to_string()],
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![Transform::Decor {
                 pred: None,
@@ -56,7 +56,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
         },
         TableDisguise {
             name: "PaperReviewPreference".to_string(),
-            id_cols: vec!["paperId".to_string(), "contactId".to_string()],
+            id_cols: vec!["paperRevPrefId".to_string()],
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![Transform::Decor {
                 pred: None,
@@ -87,7 +87,11 @@ fn get_table_disguises() -> Vec<TableDisguise> {
         TableDisguise {
             name: "ActionLog".to_string(),
             id_cols: vec!["logId".to_string()],
-            owner_cols: vec!["contactId".to_string(), "destContactId".to_string(), "trueContactId".to_string()],
+            owner_cols: vec![
+                "contactId".to_string(),
+                "destContactId".to_string(),
+                "trueContactId".to_string(),
+            ],
             transforms: vec![
                 Transform::Decor {
                     pred: None,
@@ -111,11 +115,7 @@ fn get_table_disguises() -> Vec<TableDisguise> {
         },
         TableDisguise {
             name: "ReviewRating".to_string(),
-            id_cols: vec![
-                "paperId".to_string(),
-                "reviewId".to_string(),
-                "contactId".to_string(),
-            ],
+            id_cols: vec!["ratingId".to_string()],
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![Transform::Decor {
                 pred: None,
@@ -157,7 +157,11 @@ fn get_table_disguises() -> Vec<TableDisguise> {
         TableDisguise {
             name: "Paper".to_string(),
             id_cols: vec!["paperId".to_string()],
-            owner_cols: vec!["leadContactId".to_string(), "managerContactId".to_string(), "shepherdContactId".to_string()],
+            owner_cols: vec![
+                "leadContactId".to_string(),
+                "managerContactId".to_string(),
+                "shepherdContactId".to_string(),
+            ],
             transforms: vec![
                 Transform::Decor {
                     pred: None,

@@ -21,10 +21,10 @@ const NPAPERS_ACCEPT: usize = 5;
  * - Accepted papers are assigned a shepherdId that is one of the reviewers
  * - Reviews and paper conflicts per paper
  */
-const NREVIEWS: usize = 1;
-const NCONFLICT_REVIEWER: usize = 1; // from PC
-const NCONFLICT_AUTHOR: usize = 1; // from pool of other users
-const NPAPER_COMMENTS: usize = 1; // made by reviewers, users w/authorship conflicts
+const NREVIEWS: usize = 4;
+const NCONFLICT_REVIEWER: usize = 2; // from PC
+const NCONFLICT_AUTHOR: usize = 2; // from pool of other users
+const NPAPER_COMMENTS: usize = 3; // made by reviewers, users w/authorship conflicts
 
 pub fn get_random_string() -> String {
     rand::thread_rng()

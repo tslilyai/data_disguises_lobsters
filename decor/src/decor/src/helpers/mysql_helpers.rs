@@ -16,7 +16,6 @@ pub const NULLSTR: &'static str = "NULL";
  ************************************/
 pub fn get_value_of_col(row: &Vec<RowVal>, col: &str) -> Option<String> {
     for rv in row {
-        debug!("Comparing col {} to argcol {}", rv.column, col);
         if &rv.column == col {
             return Some(rv.value.clone());
         }

@@ -14,6 +14,7 @@ pub fn check_disguise_properties(
     let mut correct = true;
 
     for table_disguise in &disguise.table_disguises {
+        warn!("Checking disguise {}, table {}", disguise.disguise_id, table_disguise.name);
         for t in &table_disguise.transforms {
             match t {
                 Decor {
@@ -61,12 +62,14 @@ fn properly_removed(
     db: &mut mysql::Conn,
 ) -> Result<bool, mysql::Error> {
     let matching = helpers::get_query_rows_db(&helpers::select_statement(&table_name, pred), db)?;
+    warn!("Found {} rows matching {:?}", matching.len(), pred);
     let tmp_name = format!("{}Temp", table_name);
     for row in &matching {
         let selection = helpers::get_select_of_row(id_cols, row);
         let tmp_rows =
             helpers::get_query_rows_db(&helpers::select_statement(&tmp_name, &Some(selection)), db)?;
         if !tmp_rows.is_empty() {
+            warn!("Row not properly removed {:?}", row);
             return Ok(false);
         }
     }
@@ -81,6 +84,7 @@ fn properly_decorrelated(
     db: &mut mysql::Conn,
 ) -> Result<bool, mysql::Error> {
     let matching = helpers::get_query_rows_db(&helpers::select_statement(&table_name, pred), db)?;
+    warn!("Found {} rows matching {:?}", matching.len(), pred);
 
     let tmp_name = format!("{}Temp", table_name);
     for row in &matching {
@@ -90,7 +94,7 @@ fn properly_decorrelated(
         assert!(tmp_rows.len() <= 1);
         if tmp_rows.is_empty() {
             // ok this row was removed, that's fine
-            warn!("Selection of row {:?} returns nothing", row);
+            warn!("Selection of row {:?} returns nothing, matching pred was {:?}", row, pred);
             continue;
         }
 
@@ -98,14 +102,14 @@ fn properly_decorrelated(
         let value_tmp =
             u64::from_str(&helpers::get_value_of_col(&tmp_rows[0], referencer_col).unwrap())
                 .unwrap();
-        let value_orig =
+        /*let value_orig =
             u64::from_str(&helpers::get_value_of_col(&row, referencer_col).unwrap()).unwrap();
         warn!(
             "Checking decorrelation for fk col {:?}, value_tmp {:?}, {:?}",
             referencer_col, value_tmp, value_orig
-        );
+        );*/
         if value_tmp != GUISE_ID {
-            warn!("Decor check tmp value {} != guise {}", value_tmp, GUISE_ID);
+            warn!("Improperly decorrelated tmp value {} != guise {}", value_tmp, GUISE_ID);
             return Ok(false);
         }
     }
@@ -121,6 +125,7 @@ fn properly_modified(
     db: &mut mysql::Conn,
 ) -> Result<bool, mysql::Error> {
     let matching = helpers::get_query_rows_db(&helpers::select_statement(&table_name, pred), db)?;
+    warn!("Found {} rows matching {:?}", matching.len(), pred);
 
     let tmp_name = format!("{}Temp", table_name);
     for row in &matching {
@@ -130,19 +135,19 @@ fn properly_modified(
         assert!(tmp_rows.len() <= 1);
         if tmp_rows.is_empty() {
             // ok this row was removed, that's fine
-            warn!("Selection of row {:?} returns nothing", row);
+            warn!("Selection of row {:?} returns nothing, matching pred was {:?}", row, pred);
             continue;
         }
 
         let value_tmp = helpers::get_value_of_col(&tmp_rows[0], col).unwrap();
-        warn!(
+        /*warn!(
             "Checking modification for fk col {:?}, value {:?}",
             col, value_tmp
-        );
+        );*/
         if !(*satisfies_modification)(&value_tmp) {
             let value_orig = helpers::get_value_of_col(&row, &col).unwrap();
             warn!(
-                "Modified check tmp value {:?},  original value {:?}",
+                "Improperly modified check tmp value {:?},  original value {:?}",
                 value_tmp, value_orig
             );
             return Ok(false);
