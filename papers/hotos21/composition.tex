@@ -50,8 +50,8 @@ The tool applies disguises in a four-phase procedure:
 User vaults act as append-only logs of all updates performed to a user's data.
 They can be flexibly configured: for example, they can be stored by the application and
 encrypted with a per-user key, which can be secret-shared using a (2, 3)
-threshold scheme~\cite{secretsharing} between the user, \sys, and a trusted third party (\eg
-Amazon S3), so that the user can authorize \sys and the third party to restore the key if
+threshold scheme~\cite{secretsharing} between the user, the tool, and a trusted third party (\eg
+Amazon S3), so that the user can authorize the tool and the third party to restore the key if
 the user forgets their share. The vault entries can be configured to expire after a certain
 time, requiring that the tool either prevent application of future disguises that may be incorrectly
 applied because data dependencies cannot be restored, or prevent application of disguises that
