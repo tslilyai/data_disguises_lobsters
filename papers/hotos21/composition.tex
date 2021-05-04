@@ -2,32 +2,85 @@
 \subsection{User Vaults and Disguise Composition}
 \label{sec:composition}
 %-------------------------------------------------------------------------------
+A data disguising tool handles the complexity behind disguise composition, applying disguises in
+sequence and generating the necessary storage operations to achieve the correct end state.  The
+developer-provided descriptions for which objects to update and how to update these objects
+translate straightforwardly into storage operations.  However, the tool must also ensure that the
+prior application of other disguises does not interfere with applying a new disguise. In particular,
+the tool must manage the complexity caused by conflicts and shared dependencies between disguises. 
 
+To do so, the tool relies on (1) the constrained structure of possible disguises to statically determine
+whether disguises share dependencies, and (2) the key abstraction of \emph{user vaults}, namely per-user
+logs of disguise updates to that user's data. The need for user vaults stems from the key
+insight that disguises inherently destroy data necessary to correctly achieve the end-state of
+future disguises. For example, \texttt{ConfAnon} destroys information linking data records back to a
+user, thus making it impossible for \texttt{RTBF} to properly remove these records. 
+User vaults solve this impossibility, allowing the tool to temporarily restore destroyed data (\eg
+decorrelated foreign key relationships) in order to apply the disguise correctly.
+
+Of course, the tool cannot arbitrarily restore destroyed data: the end-state of application data
+should reflect more than just the application of the latest disguise to the initial state of data.
+For example, removal of an object should take precedence over decorrelation or modification of that
+object, even if the removal was performed by a prior disguise: the tool should not ``undo'' the
+removal to then apply a modification to the object. The tool ensures that prior disguises do not
+affect \emph{which} objects are updated by future disguises, with the exception of removal: a
+disguise will update all objects that it would have updated if performed on the original,
+undisguised state of application data, unless a prior disguise has removed that object. If two
+disguises modify the same object attribute, the tool establishes no precedence between the
+modifications unless explicitly specified by the developer. 
 
 %-------------------------------------------------------------------------------
-\subsection{Applying Disguises}
-\label{sec:applying}
+\paragraph{Applying Disguises}
 %-------------------------------------------------------------------------------
-Each disguise proceeds in four phases:
+The tool applies disguises in a four-phase procedure:
 \begin{enumerate}
-    \item Prepare: reconcile any data dependencies between this disguise and prior disguises using per-user vaults (automated).
-       % undo transformations by prior disguises that destroyed any data dependencies of
-       % this disguise, drawing on information from per-user vaults.
-    \item Read: get all objects that satisfy (per-type) developer-specified predicates.
-    \item Update: modify, decorrelate, or remove objects read in step (2) according to the
+    \item \textbf{Prepare}: reconcile any data dependencies between this disguise and prior disguises (automated).
+            The tool detects read-after-write dependencies between the new disguise's predicates and prior disguises'
+            updates, and undoes any writes that may affect the new disguise's predicates; after
+            applying the new disguise, the temporarily reversed modifications are reapplied.
+        \item \textbf{Read}: get all objects that satisfy (per-type) developer-specified predicates.
+        \item \textbf{Update}: modify, decorrelate, or remove objects read in step (2) according to the
         developer's specification.
-    \item Record: store records of all updates in the appropriate per-user vaults (automated).
+    \item \textbf{Record}: store records of all updates in the appropriate per-user vaults (automated).
 \end{enumerate}
 
+%-------------------------------------------------------------------------------
+\paragraph{User Vaults}
+%-------------------------------------------------------------------------------
+User vaults act as append-only logs of all updates performed to a user's data.
+They can be flexibly configured: for example, they can be stored by the application and
+encrypted with a per-user key, which can be secret-shared using a (2, 3)
+threshold scheme~\cite{secretsharing} between the user, \sys, and a trusted third party (\eg
+Amazon S3), so that the user can authorize \sys and the third party to restore the key if
+the user forgets their share. The vault entries can be configured to expire after a certain
+time, requiring that the tool either prevent application of future disguises that may be incorrectly
+applied because data dependencies cannot be restored, or prevent application of disguises that
+conflict with legally required disguises such as GDPR deletion.
+Or perhaps the vault entries are stored entirely by some third party or locally by the user, whose
+server runs a corresponding interface to allow disguise tools to read and write the vault.
+
+The tool should, with user permission, be able to read and write the vaults: a user invoking their
+GDPR right to be forgotten could provide the key to their vault, and the application invoking the
+universal conference anonymization disguise might notify each user for approval (and temporary vault
+access) prior to disguise application.  \lyt{Might want to say more about how often user vaults are
+queried---what if one disguise needs access to many user vaults, but is being done on behalf of a
+single user?}
+
+The tool must also be able to determine which user vault should record each modification.
+Currently, the tool uses the heuristic that if a user invokes the disguise (\eg GDPR deletion),
+modifications to data records will be stored only to that user's vault; however, if the application
+invokes a general disguise, then any users connected to modified data records will store the
+modification in their vault.
+\lyt{Add citation for implicit flows / odlaw to help determine the owner of a data record}
+
+% TODO: 
+\lyt{What about application updates between disguises, during disguises?}
 
 \iffalse
 \sys also handles user data management and storage.
 While unsubscribing a user, \sys tracks all deletions and modifications to the database.
 \sys encrypts this log with a per-user key, and stores this encrypted
-blob in a dedicated application datastore (Figure~\ref{fig:arch}, step 5). The user key is secret-shared using a (2, 3)
-threshold scheme~\cite{secretsharing} between the user, \sys, and a trusted third party (\eg
-Amazon S3), so that the user can authorize \sys and the third party to restore the key if
-the user forgets their share.
+blob in a dedicated application datastore (Figure~\ref{fig:arch}, step 5). The user key is .
 %Alternatively, the key can also be password-encrypted, which relies
 %on the user not forgetting their password.
 The user can optionally choose to store this encrypted data themselves

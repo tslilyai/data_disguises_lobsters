@@ -1,6 +1,5 @@
 %-------------------------------------------------------------------------------
 \section{Data Disguises}
-\label{sec:disguises}
 %-------------------------------------------------------------------------------
 \begin{figure}[t!]
     \centering
@@ -99,8 +98,10 @@ We assume that:
     rows in the same table).
 \end{enumerate}
 %
+Application developers reason about and specify disguises in isolation, providing descriptions of
+the disguise transformations to be performed to achieve the desired end-state (\S\ref{sec:disguises}).
 A data disguising tool takes the disguise specification and turns it into storage operations that
-apply the transformation.
+achieve these privacy properties.
 % (disguise) or its reverse (reveal).
 
 %
@@ -114,14 +115,16 @@ apply the transformation.
 %Data disguises transform this object graph.
 
 \subsection{Writing Disguises}
-Disguises offer developers the ability to transform objects into guises: they can modify
-guises at per-attribute (\ie per-column) granularity, or \emph{decorrelate} an object from any guise that
+\label{sec:disguises}
+Disguises offer developers the ability to transform objects into guises: they can modify guises at
+per-attribute (\ie per-column) granularity, or \emph{decorrelate} an object from any object that
 references it (via \eg foreign-key relationships). Decorrelation creates multiple guises for the
 object, reassociating each referencing object to a unique guise to preserve referential integrity.
-Objects can also be removed entirely.
-Developers must specify both the desired transformations, and a predicate for each transformation
-that selects the objects to be transformed.
-\lyt{This predicate is specified as a read-only SQL WHERE clause}.
+Objects can also be removed entirely.  Developers must specify both the desired
+transformations---the end-state the disguise should ensure---and
+a predicate for each transformation that selects the objects to be transformed.  
+\lyt{This predicate is specified as a read-only SQL WHERE clause}. For example, developers can
+specify that all email addresses be obfuscated in an anonymous manner for users who are reviewers in HotCRP. 
 
 To create a guise from an object, developers specify how to transform attributes of the
 object (\eg table column values) into guise attributes.
@@ -184,5 +187,3 @@ values (as described above).
 This enables the application to retain the original object semantics (\eg a count of how many
 users want notifications) without creating duplicates.
 %
-
-
