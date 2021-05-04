@@ -1,7 +1,23 @@
 %-------------------------------------------------------------------------------
-\section{Tackling Disguise Composition}
+\section{Applying Disguises}
 \label{sec:composition}
 %-------------------------------------------------------------------------------
+Each disguise proceeds in four phases:
+\begin{enumerate}
+    \item Prepare: reconcile any data dependencies between this disguise and prior disguises using per-user vaults (automated).
+       % undo transformations by prior disguises that destroyed any data dependencies of
+       % this disguise, drawing on information from per-user vaults.
+    \item Read: get all objects that satisfy (per-type) developer-specified predicates.
+    \item Update: modify, decorrelate, or remove objects read in step (2) according to the
+        developer's specification.
+    \item Record: store records of all updates in the appropriate per-user vaults (automated).
+\end{enumerate}
+
+%-------------------------------------------------------------------------------
+\subsection{Tackling Disguise Composition}
+\label{sec:composition}
+%-------------------------------------------------------------------------------
+
 
 \iffalse
 \sys also handles user data management and storage.

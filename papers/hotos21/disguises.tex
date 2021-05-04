@@ -114,46 +114,26 @@ apply the transformation.
 %Data disguises transform this object graph.
 
 \subsection{Writing Disguises}
-Disguises offer developers the ability to transform guises in the following ways: they can modify
-guises at per-attribute (\ie per-column)
-granularity; decorrelate a guise from any guise that references it via \eg foreign-key
-relationships; and remove objects entirely.
+Disguises offer developers the ability to transform objects into guises: they can modify
+guises at per-attribute (\ie per-column) granularity, or \emph{decorrelate} an object from any guise that
+references it (via \eg foreign-key relationships). Decorrelation creates multiple guises for the
+object, reassociating each referencing object to a unique guise to preserve referential integrity.
+Objects can also be removed entirely.
 Developers must specify both the desired transformations, and a predicate for each transformation
 that selects the objects to be transformed.
 \lyt{This predicate is specified as a read-only SQL WHERE clause}.
 
-
-
-%
-%A disguising tool applies these transformations by traversing the graph starting from a
-%developer-specified target object, such as a deleted user.
-%
-%The developer chooses one transformation for each object type, and
-%one for each edge type.
-%Object type transformations specify how to transform a template object of that type into guises; edge type
-%transformations specify whether to delete, retain, or decorrelate edges of that type.
-%where decorrelation replaces the edge with edges to guises.
-
-%We next describe a menu of object and edge transformations sufficient to write disguises for the
-%privacy transformations in Section~\ref{sec:survey}.
-
-\subsection{Creating Guises for Objects}
+\subsection{Creating Object Guises}
 \label{sec:guises}
 %
 To create a guise from an object, developers specify how to transform attributes of the
-object into guise attributes.
+object (\eg table column values) into guise attributes.
 %
 Figure~\ref{fig:guises} shows an example, producing guises for user objects.
 %
 User objects have identifier \texttt{id}; a reference \texttt{tag\_id}
-forms an edge in the graph (a foreign key constraint to tag objects).
+associates the user via a foreign key constraint to tag objects.
 %
-
-%An object has three kinds of attributes: a unique identifier attribute; value
-%(non-referential) attributes such as timestamps or usernames; and edge (\eg foreign key)
-%attributes that refer to other objects.
-%
-
 
 %
 Guises always have unique, random identifiers.
@@ -164,8 +144,7 @@ Developers choose how to create other guise attributes, selecting from among the
 %
 Guises of the same object all share the object's attribute values.
 %
-If the attribute is an edge attribute (\eg a foreign key column), all guises will have
-edges to the same object.
+If the attribute is a reference attribute (\eg a foreign key column), all guises will refer to the same object.
 %
 %
 Copying allows developers to retain the object's content, without worrying about how to
@@ -189,10 +168,10 @@ Figure~\ref{fig:guises} illustrates an example of random (\texttt{name}) and def
 (\texttt{active}) generated value attributes.
 %
 %
-Creating new guise edge attributes (\eg new foreign key relationships) requires
+Creating new guise reference attributes (\eg new foreign key relationships) requires
 creating a new guise for the referenced object in order to maintain referential
 integrity;
-the data disguise rewrites the edge to point to the new guise.
+the data disguise rewrites the reference to point to the new guise.
 %
 In Figure~\ref{fig:guises}, creating two user guises requires creating two
 tag guises, and the tag guises' identifiers become the user guises' foreign keys.
@@ -209,13 +188,4 @@ This enables the application to retain the original object semantics (\eg a coun
 users want notifications) without creating duplicates.
 %
 
-Each disguise proceeds in four phases:
-\begin{enumerate}
-    \item Prepare: reconcile any data dependencies between this disguise and prior disguises using per-user vaults (automated).
-       % undo transformations by prior disguises that destroyed any data dependencies of
-       % this disguise, drawing on information from per-user vaults.
-    \item Read: get all objects that satisfy (per-type) developer-specified predicates.
-    \item Update: modify, decorrelate, or remove objects read in step (2) according to the
-        developer's specification.
-    \item Record: store records of all updates in the appropriate per-user vaults (automated).
-\end{enumerate}
+
