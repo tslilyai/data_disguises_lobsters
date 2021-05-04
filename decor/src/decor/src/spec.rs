@@ -13,6 +13,7 @@ pub fn check_disguise_properties(
     use types::Transform::*;
     let mut correct = true;
 
+    // TODO don't use autoinc id_col
     for table_disguise in &disguise.table_disguises {
         warn!("Checking disguise {}, table {}", disguise.disguise_id, table_disguise.name);
         for t in &table_disguise.transforms {
@@ -303,15 +304,14 @@ pub fn create_mv_from_filters_stmts(filters: &HashMap<String, Vec<String>>) -> V
             .iter()
             .map(|f| helpers::get_single_parsed_stmt(&f).unwrap())
             .collect();
-
-        // TODO sort filters
-
+        
         let mut last_name: Option<String> = None;
         for (i, f) in parsed_fs.iter_mut().enumerate() {
             match f {
                 Statement::Select(SelectStatement { query, .. }) => {
                     helpers::update_select_from(&mut query.body, &last_name);
                     last_name = Some(format!("{}{}", table, i));
+                    // TODO sort filters
                 }
                 _ => unimplemented!("Not a select projection filter?"),
             }

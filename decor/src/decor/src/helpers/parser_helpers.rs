@@ -10,6 +10,54 @@ use std::*;
 /*****************************************
  * Parser helpers
  ****************************************/
+
+// get which columnsh have updated values set 
+// get which columns are predicated on
+pub fn get_updated_cols(setexpr: &mut SetExpr) -> Vec<String> {
+    let mut updated = vec![];
+    match setexpr {
+        SetExpr::Select(ref mut s) => {
+            for si in &s.projection {
+                match si {
+                    SelectItem::Expr { expr, alias } => match expr {
+                        Expr::Value(_) => {
+                            assert!(alias.is_some());
+                            let a = alias.as_ref().unwrap();
+                            updated.push(a.to_string());
+                        }
+                        _ => warn!("Found expr identifier {}, {:?}", expr, alias),
+                    },
+                    SelectItem::Wildcard => (),
+                }
+            }
+        }
+        SetExpr::SetOperation {
+            op,
+            ref mut left,
+            ref mut right,
+            ..
+        } => if op == &SetOperator::Union {
+            updated.append(&mut get_updated_cols(left));
+            updated.append(&mut get_updated_cols(right));
+        },
+        _ => unimplemented!("{:?} Not a select query!", setexpr),
+    }
+    updated
+}
+
+pub fn get_conditional_cols(setexpr: &mut SetExpr) {
+    match setexpr {
+        SetExpr::Select(ref mut s) => {}
+        SetExpr::SetOperation {
+            op,
+            ref mut left,
+            ref mut right,
+            ..
+        } => if op == &SetOperator::Union {},
+        _ => unimplemented!("{:?} Not a select query!", setexpr),
+    }
+}
+
 pub fn update_select_from(setexpr: &mut SetExpr, to_name: &Option<String>) {
     match setexpr {
         SetExpr::Select(ref mut s) => {

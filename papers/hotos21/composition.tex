@@ -1,0 +1,26 @@
+%-------------------------------------------------------------------------------
+\section{Tackling Disguise Composition}
+\label{sec:composition}
+%-------------------------------------------------------------------------------
+
+\iffalse
+\sys also handles user data management and storage.
+While unsubscribing a user, \sys tracks all deletions and modifications to the database.
+\sys encrypts this log with a per-user key, and stores this encrypted
+blob in a dedicated application datastore (Figure~\ref{fig:arch}, step 5). The user key is secret-shared using a (2, 3)
+threshold scheme~\cite{secretsharing} between the user, \sys, and a trusted third party (\eg
+Amazon S3), so that the user can authorize \sys and the third party to restore the key if
+the user forgets their share.
+%Alternatively, the key can also be password-encrypted, which relies
+%on the user not forgetting their password.
+The user can optionally choose to store this encrypted data themselves
+%(or in a third party cloud provider),
+and be in charge of providing their data and key to \sys to decrypt the data upon
+resubscription.
+
+To resubscribe, a user authorizes the decryption of their data and associated metadata by
+providing their share of the key (or authorizing a trusted third party to reconstruct the secret
+with the application). \sys decrypts the data with the key, and systematically reverses
+the modifications made during unsubscription, restoring removed entities and correlations between
+entities.
+\fi
