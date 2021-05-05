@@ -16,8 +16,8 @@ a minimum.
 
 %
 To make these challenges concrete, suppose we were to implement the following two privacy
-transformations in HotCRP as SQL transactions: (1) \texttt{ConfAnon}, implements ``universal conference
-anonymization,'' reassociating reviews and other metadata (e.g., review preferences) with
+transformations in HotCRP as SQL transactions: (1) \texttt{ConfAnon}, implements universal conference
+anonymization by reassociating reviews and other metadata (e.g., review preferences) with
 placeholder users; (2) \texttt{RTBF}, implements GDPR's ``right-to-be-forgotten'' removal of user data. 
 \texttt{ConfAnon} must decorrelate users from their data: for example, no review should reference a
 user's account (via a foreign key relationship). Furthermore, 
@@ -43,7 +43,7 @@ To solve these challenges, we propose \emph{data disguising}, a systematic appro
 transformations. Data disguising reasons about \emph{disguises}, namely privacy transformations that
 follow an organized structure and perform a restricted set of actions (\S\ref{sec:disguises}). 
 The structured nature of disguises allows a data disguising tool to automatically determine how to correctly
-compose multiple disguises, and check that the end-state achieves the desired privacy properties.
+compose multiple disguises, and to check that the end-state achieves the desired privacy properties.
 The tool uses the abstraction of \emph{per-user vaults}, which allow the tool to
 reintroduce destroyed data from prior disguises as necessary, while still ensuring that user data
 remains protected (\S\ref{sec:composition}). 
