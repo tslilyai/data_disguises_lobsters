@@ -8,49 +8,44 @@ Bob would prefer his papers and reviews to be unlinked from his identity.
 HotCRP, on the other hand, would like to retain paper and review information that other users
 find useful.
 %
-A careful selection of edge and object transformations achieves both.
+An application developer can easily achieve both with disguises.
+%A careful selection of edge and object transformations achieves both.
 %
 
+The application developer writes a short specifcation of the disguise. Bob is unlinked from his
+reviews via a predicated-transformation that decorrelates any reviews that reference Bob.
 %
-To decorrelate reviews from Bob, the disguise \texttt{Decorrelate}s user-to-review edges.
-%
-This requires transforming Bob into one unique user guise per review.
+This transforms Bob into one unique user guise per review.
 %
 The disguise generates guise attribute values using suitable defaults;
 %
-in particular, HotCRP users' \texttt{disabled} attribute is set for the guises,
-ensuring that guises have no permissions and never review papers.
+in particular, HotCRP users' \texttt{disabled} attribute is set for the guises, ensuring that guises
+have no permissions and never review papers.
 %
 
 %
-Bob is further linked to papers through conflicts, which can indicate coauthorship or a
-reviewer conflict.
+Bob is linked to papers through conflicts, which can indicate coauthorship or a reviewer conflict.
 %
-These conflicts are not reassigned to the new guises, since preserved
-conflicts could reidentify Bob as the likely author of a review. Thus, the
-conflict edges that link a disguised user to papers need a \texttt{Delete} annotation.
-%
-%% Edge directionality matters here: paper-to-conflict edges should not be removed, as doing so
-%% could incorrectly allow conflicted users to see the paper!
+These conflicts are not reassigned to the new guises, since preserved conflicts could reidentify Bob
+as the likely author of a review. Thus, conflicts predicated on linking Bob to papers will be
+removed.
 
-The disguise \texttt{Retain}s all other edge types, ensuring that review and paper
-artifacts remain correctly linked. Active reviewers still see the correct paper for their reviews,
-and active authors see the correct reviews for their papers, albeit potentially authored by
-anonymous, unlinkable guises of the original reviewer.
+%The disguise leaves all other edge types, ensuring that review and paper artifacts remain correctly
+%linked: active reviewers still see the correct paper for their reviews, and active authors see the
+%correct reviews for their papers, albeit potentially authored by anonymous, unlinkable guises of the
+%original reviewer.
+Unlike the current real-world HotCRP account deletion policy~\cite{hotcrp:privacy}, which deletes
+all objects belonging to Bob, this disguise strikes a balance between decorrelating Bob's identity
+from his reviews and papers, and maintaining useful information for other HotCRP users.
 %
-%Review and paper guises copy the original object, retaining paper and review information.
-%
-%\ms{Does this mean duplicate papers/reviews can show up?}
-
-%
-Unlike the current real-world HotCRP account deletion policy~\cite{hotcrp:privacy}, which
-deletes all objects belonging to Bob, this disguise strikes a balance between decorrelating
-Bob's identity from his reviews and papers, and maintaining useful information for other
-HotCRP users.
-%
-Furthermore, it is easy to imagine extending this disguise to automatically disguise Bob
-after some time (\eg 2 years after the conference), protecting his future research career
-by hiding youthful reviewing sins.
+Furthermore, it is easy to imagine extending this disguise to automatically disguise Bob after some
+time (\eg 2 years after the conference), protecting his future research career by hiding youthful
+reviewing sins.
 %
 
-
+The tool performs the disguise when Bob invokes HotCRP account deletion. To do so correctly, Bob
+provides his secret key to decrypt and read from his vault. The tool retrieves and temporarily reverses any conflicting
+transformations that would make Bob's deletion fail: in particular, it recorrelates any of Bob's decorrelated
+paper conflicts and then properly removes them. (Because the conflicts are removed, the
+decorrelation is not reapplied). After performing the transformations specified in the disguise, the
+tool records each transformation in the vault, and re-encrypts it, forgetting the key.

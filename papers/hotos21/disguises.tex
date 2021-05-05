@@ -75,30 +75,18 @@ When Bob deletes his account, his profile and contributions move to different, p
 guises: his name has been anonymized, his email address has been redacted, and his contributions
 have been decorrelated and attributed to individual, unidentified user guises.
 %
+Decorrelation makes it seem as if a different user provided each of Bob's contributions. This allows
+these contributions to be retained, while preventing an observer from correlating these
+contributions back to Bob's identity, and while preserving referential integrity.
 
-%
-%JH's summary, would be nice to include something like this somewhere here: 
-% "When keeping a user's contributions around after the user has been deleted,
-% we want to pretend that each contribution came from a different user, to
-% prevent observers from correlating them and de-anonymizing the original user.
-% Thus, when a user is deleted, we might create as many guises (unique user
-% identites, each with unique nicknames) for that user as seperable
-% contributions (eg posting records). If the user ever re-joins the system,
-% we'll drop that transformation, collapsing the user back to a single
-% identity."
-%
+Disguises transform a guise by modifying it at per-attribute (\ie per-column) granularity, or
+splitting it into multiple guises in order to decorrelating from objects that reference it (via \eg foreign-key relationships).
+Guises can also be removed entirely. 
 At any given moment, an application's data object graph comprises a mix of identity-revealing guises
-and privacy-preserving ones. Disguises split and combine individual guises when triggered.
+and privacy-preserving ones. Disguises modify, split, and/or combine individual guises when triggered.
 
-%
-The application developer writes a disguise for each privacy transformation needed
+The application developer writes a disguise specification for each privacy transformation needed
 in the application.
-%
-%This specification is a declarative statement similar to a relational schema, with entries for
-%graph vertices (objects) to be transformed.
-%and directed edges (relationships between pairs of objects)
-%to be transformed (see \S\ref{sec:spec}).
-%
 We assume that:
 \begin{enumerate}[nosep]
   \item developers use their domain knowledge to write correct and complete disguises;
@@ -109,11 +97,8 @@ We assume that:
     rows in the same table).
 \end{enumerate}
 %
-Application developers reason about and specify disguises in isolation, providing descriptions of
-the disguise transformations to be performed to achieve the desired end-state (\S\ref{sec:disguises}).
 A data disguising tool takes the disguise specification and turns it into storage operations that
-achieve these privacy properties.
-% (disguise) or its reverse (reveal).
+achieve the desired application data state.
 
 %
 %\lyt{Not sure if we need this paragraph anymore.}
@@ -127,17 +112,13 @@ achieve these privacy properties.
 
 \subsection{Writing Disguises}
 \label{sec:disguises}
-Disguises offer developers the ability to transform objects into guises: they can modify guises at
-per-attribute (\ie per-column) granularity, or \emph{decorrelate} an object from any object that
-references it (via \eg foreign-key relationships). Decorrelation creates multiple guises for the
-object, reassociating each referencing object to a unique guise to preserve referential integrity.
-Objects can also be removed entirely.  
-
-Developers must specify both the desired
-transformations---the end-state the disguise should ensure---and
-a predicate for each transformation that selects the objects to be transformed.  
+Developers must specify both the desired transformations---the end-state the disguise should
+ensure---and a predicate for each transformation that selects the objects to be transformed.
 \lyt{This predicate is specified as a read-only SQL WHERE clause}. For example, developers can
-specify that all email addresses be obfuscated in an anonymous manner for users who are reviewers in HotCRP. 
+specify that all email addresses be obfuscated in an anonymous manner for users who are reviewers in
+HotCRP.  When writing a disguise, developers can reason about its specification in isolation;
+interactions between different disguises is handled by the disguising tool
+(\S\ref{sec:composition}).
 
 To create a guise from an object, developers specify how to transform attributes of the
 object (\eg table column values) into guise attributes.

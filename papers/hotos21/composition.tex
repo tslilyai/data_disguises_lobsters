@@ -34,18 +34,18 @@ modifications unless explicitly specified by the developer.
 %-------------------------------------------------------------------------------
 The tool applies disguises in a four-phase procedure:
 \begin{enumerate}
-    \item \textbf{Prepare}: reconcile any data dependencies between this disguise and prior disguises (automated).
+    \item \emph{Prepare}: reconcile any data dependencies between this disguise and prior disguises.
             The tool detects read-after-write dependencies between the new disguise's predicates and prior disguises'
             updates, and undoes any writes that may affect the new disguise's predicates; after
             applying the new disguise, the temporarily reversed modifications are reapplied.
-        \item \textbf{Read}: get all objects that satisfy (per-type) developer-specified predicates.
-        \item \textbf{Update}: modify, decorrelate, or remove objects read in step (2) according to the
+        \item \emph{Read}: get all objects that satisfy (per-type) developer-specified predicates.
+        \item \emph{Update}: modify, decorrelate, or remove objects read in step (2) according to the
         developer's specification.
-    \item \textbf{Record}: store records of all updates in the appropriate per-user vaults (automated).
+    \item \emph{Record}: store records of all updates in the appropriate per-user vaults.
 \end{enumerate}
 
 %-------------------------------------------------------------------------------
-\paragraph{User Vaults}
+\paragraph{User Vaults.}
 %-------------------------------------------------------------------------------
 User vaults act as append-only logs of all updates performed to a user's data.
 They can be flexibly configured: for example, they can be stored by the application and
