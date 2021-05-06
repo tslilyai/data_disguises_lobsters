@@ -16,12 +16,15 @@ a minimum.
 
 %
 To make these challenges concrete, suppose we were to implement the following two privacy
-transformations in HotCRP as SQL transactions: (1) \texttt{ConfAnon}, implements universal conference
+transformations in HotCRP as SQL transactions. (1) \texttt{ConfAnon} implements universal conference
 anonymization by reassociating reviews and other metadata (e.g., review preferences) with
-placeholder users; (2) \texttt{RTBF}, implements GDPR's ``right-to-be-forgotten'' removal of user data. 
-\texttt{ConfAnon} must decorrelate users from their data: for example, no review should reference a
-user's account (via a foreign key relationship). Furthermore, 
-decorrelation must maintain referential integrity by, \eg, creating referenced fake users.
+placeholder users; this is a form of data decay, preventing leaking reviewer identities for historic data in
+the case of a data breach. (2) \texttt{RTBF} implements GDPR's ``right-to-be-forgotten'' removal of user data. 
+%
+\texttt{ConfAnon} decorrelates reviewer profiles from their contributions: no review should reference a
+user's account (via a foreign key relationship). 
+Furthermore, decorrelation must maintain referential integrity, requiring changes to foreign key
+attributes to reference some fake user profile.
 \texttt{RTBF} must properly remove the leaving user's owned data.
 
 While both of these transformations seem relatively straightforward to implement, composing even
@@ -51,4 +54,5 @@ remains protected (\S\ref{sec:composition}).
 A data disguising tool sits alongside the application database, and exposes an API to the
 application allowing it to invoke disguises when necessary. Developers only need to determine when
 to invoke the tool's API, and to provide the (necessarily application-specific) schema annotations
-that describe each disguise.
+that describe each disguise; the tool then performs the necessary physical modifications to the application's
+database to transform data as necessary.

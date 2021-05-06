@@ -59,8 +59,10 @@
     \label{fig:guises}
 \end{figure*}
 
+Data disguising offers a systematic technique to tackle the complexity and challenges of performing
+privacy transformations.
 %
-The key idea behind \emph{data disguising} is to associate multiple \emph{guises} with a target data
+The key idea behind data disguising is to associate multiple \emph{guises} with a target data
 object (\ie a row in a relational database). Guises vary in how they reveal identities or preserve privacy.
 %
 Objects move between different guises by means of disguises---a set of constrained privacy
@@ -117,9 +119,10 @@ ensure---and a predicate for each transformation that selects the objects to be 
 \lyt{This predicate is specified as a read-only SQL WHERE clause}. For example, developers can
 specify that all email addresses be obfuscated in an anonymous manner for users who are reviewers in
 HotCRP.  When writing a disguise, developers can reason about its specification in isolation;
-interactions between different disguises is handled by the disguising tool
+interactions between different disguises are handled by the disguising tool
 (\S\ref{sec:composition}).
 
+Transformations can either remove objects, or change objects into one or more guises.
 To create a guise from an object, developers specify how to transform attributes of the
 object (\eg table column values) into guise attributes.
 %
