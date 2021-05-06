@@ -86,8 +86,10 @@ The tool applies disguises in a four-phase procedure:
 %modification in their vault.
 \end{enumerate}
 
-
-% TODO: 
-\lyt{Add note about application updates between disguises, during disguises---assumptions here?}
-
-
+%-------------------------------------------------------------------------------
+\paragraph{Reversing Disguises.}
+%-------------------------------------------------------------------------------
+To correctly reverse a disguise and ensure that reintroduced data is not mistakenly revealed because
+it missed a subsequent disguise, the tool keeps a persistent log of all disguises performed by the 
+application. Any other disguises performed between this disguise's application and its reversal and
+applied to any reintroduced data.

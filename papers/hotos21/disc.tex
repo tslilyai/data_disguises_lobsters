@@ -15,7 +15,7 @@ deletion.
 %
 Data disguising also has some clear limitations.
 %
-It assumes that transformations on the object graph capture all data that needs transforming;
+It assumes that transformations on application objects capture all data that needs transforming;
 application snapshots, backups, or external data copies are out of scope, and require
 \eg taint tracking techniques~\cite{schengendb}.
 %\name assumes that legal and societal incentives will sufficiently convince applications to adopt
@@ -41,9 +41,22 @@ updates to the application schema or disguise specification.
 %
 Database schema evolution research~\cite{schema:evo} may offer insights
 into supporting disguises and disguise reversals after such updates.
+
+Note that \sys does not currently reason about the composition of disguise modifications with normal
+application updates. For example, reintroduced data from a disguise reversal is not affected by
+updates that occurred since its removal. In addition, application updates that modify particular
+objects to be outside the scope of the disguise (i.e., so they no longer satisfy the disguise
+predicate) are not tracked nor temporarily reversed. One possible strategy makes crucial updates
+themselves disguises, so \sys can reason about how these updates should compose. However, disguises
+must be carefully chosen: \sys incurs heavy performance costs to perform each disguise, making it
+impractical to instrument every update of the application.
+
+\sys also runs each disguise in a transaction to ensure that no concurrent application updates are
+performed; we imagine that an eventually consistent disguised state would be acceptable, so long as
+no two disguises run in parallel.
 %, since \sys cannot restore data removed using the old policy upon resubscription.
 
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \iffalse
 \subsection{Limitations}
