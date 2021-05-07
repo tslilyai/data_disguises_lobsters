@@ -1,3 +1,4 @@
+\
 %-------------------------------------------------------------------------------
 \section{Case Studies}
 %-------------------------------------------------------------------------------
@@ -11,28 +12,28 @@
         \textbf{Disguise} \\
         \textbf{Disguise} & \textbf{Types} & \textbf{LoC} & \textbf{LoC} \\
     \midrule
-    Lobsters-Current & 19 & 318 & 220 \\
-    HotCRP-Current & 25 & 352 & 378 \\
-    HotCRP-Granular & 25 & 352 & 407 \\
+    \lrtbf & 19 & 318 & 100 \\
+    \hrtbf & 25 & 352 & 142 \\
+    \hrtbfplus & 25 & 352 & 255 \\
+    \hconfanon & 25 & 352 & 232 \\
 \end{tabular}
     \caption{Data disguise specifications for Lobsters and HotCRP have similar complexity to
     a relational schema.
-    %Lobsters retains and reassigns user contributions to an anonymous user, and HotCRP deletes
-    %direct correlations to the user.
-    }
+}
 \label{tab:loc}
 \end{table}
 
 %
-We evaluate the ease of writing single disguises by writing disguises for user account deletion in
+We evaluate the ease of writing single disguises by writing disguises for GDPR deletion in
 Lobsters~\cite{lobsters}, an open-source news feed application, and HotCRP~\cite{hotcrp}.
 %
-We consider three settings: Lobsters-Current and HotCRP-Current implement the current account
+We consider four disguises: \lrtbf and \hrtbf implement the current account
 deletion policies in the two applications~\cite{lobsters:privacy, hotcrp:privacy}.
 %
-HotCRP-Granular specifies a HotCRP account deletion policy that balances useful data retention with
+\hrtbfplus specifies a HotCRP account deletion policy that balances useful data retention with
 data deletion for privacy (\S\ref{design:eg}).
 %
+Finally, \hconfanon specifies the conference anonymization disguise for HotCRP.
 
 \paragraph{Complexity.}
 %
@@ -47,7 +48,7 @@ application schema.
 %
 Table~\ref{tab:loc} shows that the disguise specification for our applications is indeed
 comparable in size to the applications' schemas.
-\lyt{TODO should write in new framework?}
+\lyt{(This has been updated in new framework.)}
 %
 
 \paragraph{Performance.}
@@ -56,7 +57,7 @@ comparable in size to the applications' schemas.
 \begin{figure}[t!]
     \centerline{\includegraphics[width=.5\textwidth]{img/perf}}
     \vspace{-\baselineskip}
-    \caption{Number of queries required by Lobsters-Current to disguise and reveal a target user, depending on the number of
+    \caption{Number of queries required by \lrtbf to disguise and reveal a target user, depending on the number of
     objects created by the user.}
     \label{fig:latencies}
     \vspace{-\baselineskip}
@@ -73,7 +74,7 @@ When executing a disguise such as user account deletion, \sys generates as many 
 objects referencing the user, each requiring one or more SQL queries to create.
 %
 Figure~\ref{fig:latencies} shows the number of queries run when applying and reversing
-Lobsters-Current on an object graph with 3K users and 80K total user contributions, with no prior
+\lrtbf on an object graph with 3K users and 80K total user contributions, with no prior
 disguises having been applied.
 %
 The overhead increases linearly with the number of objects created by the target user.  \sys

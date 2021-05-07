@@ -3,6 +3,14 @@ use crate::*;
 use decor::types::*;
 use sql_parser::ast::*;
 
+fn get_eq_expr(col: &str, val: Value) -> Expr {
+    Expr::BinaryOp {
+        left: Box::new(Expr::Identifier(vec![Ident::new(col)])),
+        op: BinaryOperator::Eq,
+        right: Box::new(Expr::Value(val)),
+    }
+}
+
 pub fn get_disguise(user_id: u64) -> Disguise {
     Disguise {
         disguise_id: GDPR_DISGUISE_ID,
@@ -17,13 +25,6 @@ pub fn get_disguise(user_id: u64) -> Disguise {
     }
 }
 
-fn get_eq_expr(col: &str, val: Value) -> Expr {
-    Expr::BinaryOp {
-        left: Box::new(Expr::Identifier(vec![Ident::new(col)])),
-        op: BinaryOperator::Eq,
-        right: Box::new(Expr::Value(val)),
-    }
-}
 
 fn get_table_disguises(user_id: u64) -> Vec<TableDisguise> {
     use Transform::*;
