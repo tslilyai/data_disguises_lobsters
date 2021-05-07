@@ -48,7 +48,6 @@ application schema.
 %
 Table~\ref{tab:loc} shows that the disguise specification for our applications is indeed
 comparable in size to the applications' schemas.
-\lyt{(This has been updated in new framework.)}
 %
 
 \paragraph{Performance.}
@@ -70,8 +69,9 @@ to quite frequent (in a privacy-supporting world where users freely disguise and
 or where data automatically ages out).
 
 %
-When executing a disguise such as user account deletion, \sys generates as many guises as there are
-objects referencing the user, each requiring one or more SQL queries to create.
+When executing a disguise such as user account deletion, \sys may generate as many guises as there are
+objects referencing the user, each requiring one or more SQL queries to create. \sys must also
+log all updates in the vault, and potentially read and reverse prior vault entries.
 %
 Figure~\ref{fig:latencies} shows the number of queries run when applying and reversing
 \lrtbf on an object graph with 3K users and 80K total user contributions, with no prior

@@ -42,6 +42,6 @@ been removed) that \sys ensures holds on the materialized view specification.
 \sys's composition technique may reorder filters from one disguise with those from a subsequent disguise in order to achieve the
 correct result.
 %
-Because \sys can map these filters to physical database operations (where reordering filters corresponds to
-temporarily undoing vault entries), the developer can use the materialized view filters as a way to
+\sys maps these filters directly to physical database operations (where reordering filters corresponds to
+temporarily undoing vault entries). Thus, the developer can use the materialized view filters as a way to
 test the correctness of \sys and their disguises prior to permanently altering the application database. 
