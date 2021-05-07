@@ -26,6 +26,8 @@ the disguise correctly.
 User vaults can be flexibly configured and deployed. It remains important, however, that any
 configuration of user vaults should not violate the guarantee that disguises indeed destroy data,
 from the viewpoint of the application and any users. 
+We imagine several exciting directions to explore for designing vaults that are both
+performant and secure.
 %
 
 %
@@ -41,13 +43,17 @@ legally required disguises such as GDPR deletion).
 Or perhaps the vault entries are stored entirely by some third party or locally by the user, whose
 server runs a corresponding interface to allow disguise tools to read and write the vault.
 
-The tool should, with user permission, be able to read and write the vaults: a user invoking their
-GDPR right to be forgotten could provide the key to their vault, and the application invoking the
-universal conference anonymization disguise might notify each user for approval (and temporary vault
-access) prior to disguise application.  \lyt{Might want to say more about how often user vaults are
-queried---what if one disguise needs access to many user vaults, but is being done on behalf of a
-single user? Perhaps there could be multiple ``levels'' of security in vaults, and any
-application-imposed disguise would be protected by application-known keys.}
+The tool should, with user permission, be able to read and write the vaults: a user invoking GDPR
+\texttt{RTBF} could provide the key to their vault, and the application invoking the
+\texttt{ConfAnon} might notify each user for approval (and temporary vault access) prior to disguise
+application. An alternative might be a multi-tier security design, in which the tool and application
+are trusted with access to vaults in one tier, allowing them to perform application-instigated
+disguises, and untrusted in a second tier, which stores updates from user-invoked disguises.
+
+%\lyt{Might want to say more about how often user vaults are
+%queried---what if one disguise needs access to many user vaults, but is being done on behalf of a
+%single user? Perhaps there could be multiple ``levels'' of security in vaults, and any
+%application-imposed disguise would be protected by application-known keys.}
 
 %-------------------------------------------------------------------------------
 \paragraph{Applying Disguises.}
@@ -77,13 +83,13 @@ The tool applies disguises in a four-phase procedure:
         \item \emph{Update}: modify, decorrelate, or remove objects read in step (2) according to the
         developer's specification.
     \item \emph{Record}: store records of all updates in the appropriate per-user vaults. The tool
-        must be able to determine which user vault should record each modification; this can be
-        developer-specified, or rely on a set of heuristics 
-\lyt{Add citation for implicit flows / odlaw to help determine the owner of a data record}
-%Currently, the tool uses the heuristic that if a user invokes the disguise (\eg GDPR deletion),
-%modifications to data records will be stored only to that user's vault; however, if the application
-%invokes a general disguise, then any users connected to modified data records will store the
-%modification in their vault.
+        must be able to determine which user vault should record each modification. This can be
+        developer-specified, or rely on a set of heuristics (\eg assigning ownership by traversing,
+        starting from each user, the application's object graph expressed in an object-relational
+        model (ORM)~\cite{orm}, or implicitly via foreign keys). 
+        %or use techniques such as IFC tracking .  
+        \lyt{Should we mention taint tracking/IFC here? We mention in related how
+        disguising explicitly does not need such heavyweight techniques.}
 \end{enumerate}
 
 %-------------------------------------------------------------------------------

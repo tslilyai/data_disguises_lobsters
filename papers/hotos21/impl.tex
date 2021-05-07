@@ -18,6 +18,10 @@ disguise reintroduced data from disguise reversals.
 \lyt{The current implementation of \sys has no per-user encryption of vaults, allowing \sys to read and
 write vaults at any point. We plan to add per-user encryption keys that are not stored by \sys.}
 %
+%Currently, the tool uses the heuristic that if a user invokes the disguise (\eg GDPR deletion),
+%modifications to data records will be stored only to that user's vault; however, if the application
+%invokes a general disguise, then any users connected to modified data records will store the
+%modification in their vault.
 
 %
 Disguises written for \sys associate each table in the application schema with a set of
