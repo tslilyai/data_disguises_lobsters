@@ -304,6 +304,17 @@ pub fn create_mv_from_filters_stmts(filters: &HashMap<String, Vec<String>>) -> V
             .iter()
             .map(|f| helpers::get_single_parsed_stmt(&f).unwrap())
             .collect();
+                    
+        // TODO sort filters
+        for f in &parsed_fs {
+            match f {
+                Statement::Select(SelectStatement { query, .. }) => {
+                     let updated_cols = helpers::get_updated_cols(&query.body);
+                     let pred_cols = helpers::get_conditional_cols(&query.body);
+                }
+                _ => unimplemented!("Not a select projection filter?"),
+            }
+        }
         
         let mut last_name: Option<String> = None;
         for (i, f) in parsed_fs.iter_mut().enumerate() {
@@ -311,7 +322,6 @@ pub fn create_mv_from_filters_stmts(filters: &HashMap<String, Vec<String>>) -> V
                 Statement::Select(SelectStatement { query, .. }) => {
                     helpers::update_select_from(&mut query.body, &last_name);
                     last_name = Some(format!("{}{}", table, i));
-                    // TODO sort filters
                 }
                 _ => unimplemented!("Not a select projection filter?"),
             }

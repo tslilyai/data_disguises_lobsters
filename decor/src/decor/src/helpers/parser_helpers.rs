@@ -11,10 +11,10 @@ use std::*;
  * Parser helpers
  ****************************************/
 // get which columns have updated values set
-pub fn get_updated_cols(setexpr: &mut SetExpr) -> Vec<String> {
+pub fn get_updated_cols(setexpr: &SetExpr) -> Vec<String> {
     let mut updated = vec![];
     match setexpr {
-        SetExpr::Select(ref mut s) => {
+        SetExpr::Select(s) => {
             for si in &s.projection {
                 match si {
                     SelectItem::Expr { expr, alias } => match expr {
@@ -34,8 +34,8 @@ pub fn get_updated_cols(setexpr: &mut SetExpr) -> Vec<String> {
         }
         SetExpr::SetOperation {
             op,
-            ref mut left,
-            ref mut right,
+            left,
+            right,
             ..
         } => {
             if op == &SetOperator::Union {
@@ -49,16 +49,16 @@ pub fn get_updated_cols(setexpr: &mut SetExpr) -> Vec<String> {
 }
 
 // get which columns are predicated on
-pub fn get_conditional_cols(setexpr: &mut SetExpr) -> Vec<String> {
+pub fn get_conditional_cols(setexpr: &SetExpr) -> Vec<String> {
     let mut ids = vec![];
     match setexpr {
-        SetExpr::Select(ref mut s) => if let Some(select) = &s.selection {
+        SetExpr::Select(s) => if let Some(select) = &s.selection {
             ids = get_expr_idents(&select);
         },
         SetExpr::SetOperation {
             op,
-            ref mut left,
-            ref mut right,
+            left,
+            right,
             ..
         } => if op == &SetOperator::Union {
             ids.append(&mut get_updated_cols(left));
@@ -482,37 +482,38 @@ pub fn get_expr_idents(e: &Expr) -> Vec<String> {
     let mut ids = vec![];
     match e {
         Expr::Identifier(_) => ids.push(e.to_string()),
-        Expr::IsNull { expr, negated } => ids.append(&mut get_expr_idents(&expr)),
+        Expr::IsNull { expr, ..} => ids.append(&mut get_expr_idents(&expr)),
         Expr::InList {
             expr,
             list,
-            negated,
+            ..
         } => {
+            ids.append(&mut get_expr_idents(&expr));
             for e in list {
                 ids.append(&mut get_expr_idents(&e));
             }
         }
         Expr::Between {
             expr,
-            negated,
             low,
             high,
+            ..
         } => {
             ids.append(&mut get_expr_idents(&expr));
             ids.append(&mut get_expr_idents(&low));
             ids.append(&mut get_expr_idents(&high));
         }
-        Expr::BinaryOp { left, op, right } => {
+        Expr::BinaryOp { left, right, .. } => {
             ids.append(&mut get_expr_idents(&left));
             ids.append(&mut get_expr_idents(&right));
         }
-        Expr::UnaryOp { op, expr } => {
+        Expr::UnaryOp { expr, .. } => {
             ids.append(&mut get_expr_idents(&expr));
         }
-        Expr::Cast { expr, data_type } => {
+        Expr::Cast { expr, ..} => {
             ids.append(&mut get_expr_idents(&expr));
         }
-        Expr::Collate { expr, collation } => {
+        Expr::Collate { expr, ..} => {
             ids.append(&mut get_expr_idents(&expr));
         }
         Expr::Nested(expr) => {
@@ -524,10 +525,9 @@ pub fn get_expr_idents(e: &Expr) -> Vec<String> {
             }
         }
         Expr::Case {
-            operand,
             conditions,
             results,
-            else_result,
+            ..
         } => {
             for e in conditions {
                 ids.append(&mut get_expr_idents(&e));
