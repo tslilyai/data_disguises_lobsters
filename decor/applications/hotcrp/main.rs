@@ -145,8 +145,8 @@ fn main() {
         let gdpr_stmts = spec::get_disguise_filters(&table_cols, &disguises[datagen::NUSERS_NONPC]);
 
         // test correctly ordered filters
-        let correct = decor::helpers::merge_vector_hashmaps(&gdpr_stmts, &ca_stmts);
-        let create_spec_stmts_correct = spec::create_mv_from_filters_stmts(&correct);
+        let mut correct = decor::helpers::merge_vector_hashmaps(&gdpr_stmts, &ca_stmts);
+        let create_spec_stmts_correct = spec::create_mv_from_filters_stmts(&mut correct);
         let mut db = init_db(prime);
         let mut spec_file = File::create("spec_correct.sql".to_string()).unwrap();
         for stmt in &create_spec_stmts_correct {
@@ -162,8 +162,8 @@ fn main() {
         drop(db);
 
         // test incorrectly ordered filters
-        let incorrect = decor::helpers::merge_vector_hashmaps(&ca_stmts, &gdpr_stmts);
-        let create_spec_stmts_incorrect = spec::create_mv_from_filters_stmts(&incorrect);
+        let mut incorrect = decor::helpers::merge_vector_hashmaps(&ca_stmts, &gdpr_stmts);
+        let create_spec_stmts_incorrect = spec::create_mv_from_filters_stmts(&mut incorrect);
 
         let mut db = init_db(prime);
         let mut spec_file = File::create("spec_incorrect.sql".to_string()).unwrap();

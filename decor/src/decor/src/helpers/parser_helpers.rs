@@ -482,6 +482,7 @@ pub fn get_expr_idents(e: &Expr) -> Vec<String> {
     let mut ids = vec![];
     match e {
         Expr::Identifier(_) => ids.push(e.to_string()),
+        Expr::Value(_) => (),
         Expr::IsNull { expr, ..} => ids.append(&mut get_expr_idents(&expr)),
         Expr::InList {
             expr,
@@ -541,7 +542,7 @@ pub fn get_expr_idents(e: &Expr) -> Vec<String> {
                 ids.append(&mut get_expr_idents(&e));
             }
         }
-        _ => unimplemented!("No identifier tracking for expr {}", e),
+        _ => unimplemented!("No identifier tracking for expr {:?}", e),
     }
     ids
 }

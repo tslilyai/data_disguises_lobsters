@@ -28,10 +28,10 @@ pub fn get_select_of_row(id_cols: &Vec<String>, row: &Vec<RowVal>) -> Expr {
     selection
 }
 
-pub fn merge_vector_hashmaps(
-    h1: &HashMap<String, Vec<String>>,
-    h2: &HashMap<String, Vec<String>>,
-) -> HashMap<String, Vec<String>> {
+pub fn merge_vector_hashmaps<T: Clone>(
+    h1: &HashMap<String, Vec<T>>,
+    h2: &HashMap<String, Vec<T>>,
+) -> HashMap<String, Vec<T>> {
     let mut hm = h1.clone();
     for (k, vs1) in hm.iter_mut() {
         if let Some(vs2) = h2.get(k) {

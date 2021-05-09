@@ -20,6 +20,13 @@ pub struct TableColumns {
     pub colformats: Vec<ColFormat>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TransformType {
+    Remove, 
+    Modify,
+    Decor,
+}
+
 pub enum Transform {
     Remove {
         pred: Option<Expr>,
