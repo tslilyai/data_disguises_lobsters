@@ -10,9 +10,7 @@ use std::*;
 /*****************************************
  * Parser helpers
  ****************************************/
-
-// get which columnsh have updated values set 
-// get which columns are predicated on
+// get which columns have updated values set
 pub fn get_updated_cols(setexpr: &mut SetExpr) -> Vec<String> {
     let mut updated = vec![];
     match setexpr {
@@ -25,7 +23,10 @@ pub fn get_updated_cols(setexpr: &mut SetExpr) -> Vec<String> {
                             let a = alias.as_ref().unwrap();
                             updated.push(a.to_string());
                         }
-                        _ => warn!("Found expr identifier {}, {:?}", expr, alias),
+                        _ => warn!(
+                            "get_updated_cols: Found expr non-value {}, {:?}",
+                            expr, alias
+                        ),
                     },
                     SelectItem::Wildcard => (),
                 }
@@ -36,26 +37,36 @@ pub fn get_updated_cols(setexpr: &mut SetExpr) -> Vec<String> {
             ref mut left,
             ref mut right,
             ..
-        } => if op == &SetOperator::Union {
-            updated.append(&mut get_updated_cols(left));
-            updated.append(&mut get_updated_cols(right));
-        },
+        } => {
+            if op == &SetOperator::Union {
+                updated.append(&mut get_updated_cols(left));
+                updated.append(&mut get_updated_cols(right));
+            }
+        }
         _ => unimplemented!("{:?} Not a select query!", setexpr),
     }
     updated
 }
 
-pub fn get_conditional_cols(setexpr: &mut SetExpr) {
+// get which columns are predicated on
+pub fn get_conditional_cols(setexpr: &mut SetExpr) -> Vec<String> {
+    let mut ids = vec![];
     match setexpr {
-        SetExpr::Select(ref mut s) => {}
+        SetExpr::Select(ref mut s) => if let Some(select) = &s.selection {
+            ids = get_expr_idents(&select);
+        },
         SetExpr::SetOperation {
             op,
             ref mut left,
             ref mut right,
             ..
-        } => if op == &SetOperator::Union {},
+        } => if op == &SetOperator::Union {
+            ids.append(&mut get_updated_cols(left));
+            ids.append(&mut get_updated_cols(right));
+        },
         _ => unimplemented!("{:?} Not a select query!", setexpr),
     }
+    ids
 }
 
 pub fn update_select_from(setexpr: &mut SetExpr, to_name: &Option<String>) {
@@ -466,6 +477,74 @@ pub fn parser_val_to_common_val(val: &sql_parser::ast::Value) -> mysql_common::v
 /***************************
  * IDENT STUFF
  ***************************/
+
+pub fn get_expr_idents(e: &Expr) -> Vec<String> {
+    let mut ids = vec![];
+    match e {
+        Expr::Identifier(_) => ids.push(e.to_string()),
+        Expr::IsNull { expr, negated } => ids.append(&mut get_expr_idents(&expr)),
+        Expr::InList {
+            expr,
+            list,
+            negated,
+        } => {
+            for e in list {
+                ids.append(&mut get_expr_idents(&e));
+            }
+        }
+        Expr::Between {
+            expr,
+            negated,
+            low,
+            high,
+        } => {
+            ids.append(&mut get_expr_idents(&expr));
+            ids.append(&mut get_expr_idents(&low));
+            ids.append(&mut get_expr_idents(&high));
+        }
+        Expr::BinaryOp { left, op, right } => {
+            ids.append(&mut get_expr_idents(&left));
+            ids.append(&mut get_expr_idents(&right));
+        }
+        Expr::UnaryOp { op, expr } => {
+            ids.append(&mut get_expr_idents(&expr));
+        }
+        Expr::Cast { expr, data_type } => {
+            ids.append(&mut get_expr_idents(&expr));
+        }
+        Expr::Collate { expr, collation } => {
+            ids.append(&mut get_expr_idents(&expr));
+        }
+        Expr::Nested(expr) => {
+            ids.append(&mut get_expr_idents(&expr));
+        }
+        Expr::Row { exprs } => {
+            for e in exprs {
+                ids.append(&mut get_expr_idents(&e));
+            }
+        }
+        Expr::Case {
+            operand,
+            conditions,
+            results,
+            else_result,
+        } => {
+            for e in conditions {
+                ids.append(&mut get_expr_idents(&e));
+            }
+            for e in results {
+                ids.append(&mut get_expr_idents(&e));
+            }
+        }
+        Expr::List(exprs) => {
+            for e in exprs {
+                ids.append(&mut get_expr_idents(&e));
+            }
+        }
+        _ => unimplemented!("No identifier tracking for expr {}", e),
+    }
+    ids
+}
 
 pub fn trim_quotes(s: &str) -> &str {
     let mut s = s.trim_matches('\'');
