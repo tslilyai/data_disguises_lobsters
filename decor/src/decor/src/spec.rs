@@ -2,6 +2,7 @@ use crate::{helpers, types};
 use log::warn;
 use sql_parser::ast::*;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::str::FromStr;
 
 const GUISE_ID: u64 = 0;
@@ -339,15 +340,32 @@ fn get_remove_filters(
     }
 }
 
-pub fn create_mv_from_filters_stmts(all: &mut HashMap<String, Vec<(types::TransformType, Statement)>>) -> Vec<String> {
+pub fn create_mv_from_filters_stmts(
+    all: &mut HashMap<String, Vec<(types::TransformType, Statement)>>,
+) -> Vec<String> {
     let mut results = vec![];
     for (table, filters) in all.iter_mut() {
+        let mut prior_updated: Vec<HashSet<String>> = HashSet::new();
+        let mut prior_pred: Vec<HashSet<String>> = HashSet::new();
+
         // TODO sort filters
         for f in filters.iter() {
             match &f.1 {
                 Statement::Select(SelectStatement { query, .. }) => {
                     let updated_cols = helpers::get_updated_cols(&query.body);
                     let pred_cols = helpers::get_conditional_cols(&query.body);
+                    let rar: HashSet<_> = prior_pred.intersection(&pred_cols).collect();
+                    let raw: HashSet<_> = prior_pred.intersection(&pred_cols).collect();
+                    let war: HashSet<_> = prior_pred.intersection(&pred_cols).collect();
+                    if !rar.is_empty() {
+                        // predicated on the same thing as prior filters
+                    }
+                    if !raw.is_empty() {
+                        // read-after-write
+                    }
+                    if !war.is_empty() {
+                        // write-after-read
+                    }
                 }
                 _ => unimplemented!("Not a select projection filter?"),
             }
@@ -368,7 +386,11 @@ pub fn create_mv_from_filters_stmts(all: &mut HashMap<String, Vec<(types::Transf
             let create_stmt: String;
             if i == total_filters - 1 {
                 // last created table replaces the name of the original base table!
-                create_stmt = format!("CREATE TEMPORARY TABLE {}Temp AS {}", table, f.1.to_string());
+                create_stmt = format!(
+                    "CREATE TEMPORARY TABLE {}Temp AS {}",
+                    table,
+                    f.1.to_string()
+                );
             } else {
                 create_stmt = format!("CREATE VIEW {}{} AS {}", table, i, f.1.to_string());
             }

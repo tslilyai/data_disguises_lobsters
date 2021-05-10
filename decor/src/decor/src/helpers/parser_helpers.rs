@@ -6,13 +6,14 @@ use sql_parser::ast::*;
 use std::cmp::Ordering;
 use std::str::FromStr;
 use std::*;
+use std::collections::HashSet;
 
 /*****************************************
  * Parser helpers
  ****************************************/
 // get which columns have updated values set
-pub fn get_updated_cols(setexpr: &SetExpr) -> Vec<String> {
-    let mut updated = vec![];
+pub fn get_updated_cols(setexpr: &SetExpr) -> HashSet<String> {
+    let mut updated = HashSet::new(); 
     match setexpr {
         SetExpr::Select(s) => {
             for si in &s.projection {
@@ -21,7 +22,7 @@ pub fn get_updated_cols(setexpr: &SetExpr) -> Vec<String> {
                         Expr::Value(_) => {
                             assert!(alias.is_some());
                             let a = alias.as_ref().unwrap();
-                            updated.push(a.to_string());
+                            updated.insert(a.to_string());
                         }
                         _ => warn!(
                             "get_updated_cols: Found expr non-value {}, {:?}",
@@ -39,8 +40,8 @@ pub fn get_updated_cols(setexpr: &SetExpr) -> Vec<String> {
             ..
         } => {
             if op == &SetOperator::Union {
-                updated.append(&mut get_updated_cols(left));
-                updated.append(&mut get_updated_cols(right));
+                updated.extend(get_updated_cols(left));
+                updated.extend(get_updated_cols(right));
             }
         }
         _ => unimplemented!("{:?} Not a select query!", setexpr),
@@ -49,11 +50,11 @@ pub fn get_updated_cols(setexpr: &SetExpr) -> Vec<String> {
 }
 
 // get which columns are predicated on
-pub fn get_conditional_cols(setexpr: &SetExpr) -> Vec<String> {
-    let mut ids = vec![];
+pub fn get_conditional_cols(setexpr: &SetExpr) -> HashSet<String> {
+    let mut ids = HashSet::new();
     match setexpr {
         SetExpr::Select(s) => if let Some(select) = &s.selection {
-            ids = get_expr_idents(&select);
+            ids = get_expr_idents(&select).into_iter().collect();
         },
         SetExpr::SetOperation {
             op,
@@ -61,8 +62,8 @@ pub fn get_conditional_cols(setexpr: &SetExpr) -> Vec<String> {
             right,
             ..
         } => if op == &SetOperator::Union {
-            ids.append(&mut get_updated_cols(left));
-            ids.append(&mut get_updated_cols(right));
+            ids.extend(get_conditional_cols(left));
+            ids.extend(get_conditional_cols(right));
         },
         _ => unimplemented!("{:?} Not a select query!", setexpr),
     }
