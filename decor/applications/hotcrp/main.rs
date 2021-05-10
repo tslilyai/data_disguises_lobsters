@@ -86,7 +86,7 @@ fn init_db(prime: bool) -> mysql::Conn {
     db
 }
 
-fn run_test(db: &mut mysql::Conn, users: &Vec<usize>, disguises: &Vec<decor::types::Disguise>) {
+fn run_test(db: &mut mysql::Conn, disguises: &Vec<decor::types::Disguise>) {
     let mut stats = QueryStat::new();
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
    
@@ -95,7 +95,7 @@ fn run_test(db: &mut mysql::Conn, users: &Vec<usize>, disguises: &Vec<decor::typ
    for (i, disguise) in disguises.iter().enumerate() {
         let start = time::Instant::now();
         let mut txn = db.start_transaction(TxOpts::default()).unwrap();
-        decor::disguise::apply(Some(users[i] as u64), &disguise, &mut txn, &mut stats).unwrap();
+        decor::disguise::apply(Some(disguises[i].user_id as u64), &disguise, &mut txn, &mut stats).unwrap();
         txn.commit().unwrap();
 
         let dur = start.elapsed();
@@ -128,16 +128,19 @@ fn main() {
 
     let mut disguises = vec![
         conf_anon_disguise::get_disguise(),
+        gdpr_disguise::get_disguise((datagen::NUSERS_NONPC+1) as u64),
+        gdpr_disguise::get_disguise((1) as u64),
+        conf_anon_disguise::get_disguise(),
     ];
     let uids: Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();
-    let mut rng = &mut rand::thread_rng();
+    /*let mut rng = &mut rand::thread_rng();
     let rand_users: Vec<usize> = uids;
-        /*.choose_multiple(&mut rng, uids.len())
+        .choose_multiple(&mut rng, uids.len())
         .cloned()
-        .collect();*/
+        .collect();
     for user in &rand_users {
         disguises.push(gdpr_disguise::get_disguise(*user as u64));
-    }
+    }*/
 
     if spec {
         let table_cols = datagen::get_schema_tables();
@@ -145,7 +148,7 @@ fn main() {
         let gdpr_stmts = spec::get_disguise_filters(&table_cols, &disguises[datagen::NUSERS_NONPC]);
 
         // test correctly ordered filters
-        let mut correct = decor::helpers::merge_vector_hashmaps(&gdpr_stmts, &ca_stmts);
+        /*let mut correct = decor::helpers::merge_vector_hashmaps(&gdpr_stmts, &ca_stmts);
         let create_spec_stmts_correct = spec::create_mv_from_filters_stmts(&mut correct);
         let mut db = init_db(prime);
         let mut spec_file = File::create("spec_correct.sql".to_string()).unwrap();
@@ -179,10 +182,10 @@ fn main() {
         assert!(spec::check_disguise_properties(&disguises[0], &mut db).unwrap());
         // gdpr fails (checking only those users who have paperwatches)
         assert!(!spec::check_disguise_properties(&disguises[datagen::NUSERS_NONPC], &mut db).unwrap());
-
+        */
     } else {
         let mut db = init_db(prime);
-        run_test(&mut db, &rand_users, &disguises);
+        run_test(&mut db, &disguises);
         drop(db);
     }
 }

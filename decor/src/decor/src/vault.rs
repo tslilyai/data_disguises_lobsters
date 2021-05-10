@@ -238,21 +238,24 @@ pub fn get_user_entries_of_table_in_vault(
 
 pub fn reverse_vault_decor_referencer_entries(
     user_id: u64,
-    table_name: &str,
-    fkcol: &str,
+    referencer_table: &str,
+    referencer_col: &str,
     fktable: &str,
+    fkcol: &str,
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
+    // TODO assuming that all FKs point to users
+    
     /*
      * Undo modifications to objects of this table
      * TODO undo any vault modifications that were dependent on this one, namely "filters" that
      * join with this "filter" (any updates that happened after this?)
      */
-    let mut vault_entries = get_user_entries_of_table_in_vault(user_id, table_name, txn, stats)?;
+    let mut vault_entries = get_user_entries_of_table_in_vault(user_id, referencer_table, txn, stats)?;
     warn!(
         "ReverseDecor: User {} entries of table {} in vault: {:?}",
-        user_id, table_name, vault_entries
+        user_id, referencer_table, vault_entries
     );
 
     // we need some way to be able to identify these objects...
@@ -265,28 +268,27 @@ pub fn reverse_vault_decor_referencer_entries(
         // this may be none if this vault entry is an insert, and not a modification
         let new_id : String;
         let old_id: String;
-        match get_value_of_col(&ve.new_value, fkcol) {
+        match get_value_of_col(&ve.new_value, referencer_col) {
             Some(n) => new_id = n,
             None => continue,
         }
-        match get_value_of_col(&ve.old_value, fkcol) {
+        match get_value_of_col(&ve.old_value, referencer_col) {
             Some(n) => old_id = n,
             None => continue,
         }
         assert!(old_id == user_id.to_string());
 
         // this vault entry logged a modification to the FK. Restore the original value
-        // TODO assuming that all FKs point to users
-        if ve.modified_cols.contains(&fkcol.to_string()) {
+        if ve.modified_cols.contains(&referencer_col.to_string()) {
             get_query_rows_txn(
                 &Statement::Update(UpdateStatement {
-                    table_name: string_to_objname(table_name),
+                    table_name: string_to_objname(referencer_table),
                     assignments: vec![Assignment {
-                        id: Ident::new(fkcol.to_string()),
+                        id: Ident::new(referencer_col.to_string()),
                         value: Expr::Value(Value::Number(user_id.to_string())),
                     }],
                     selection: Some(Expr::BinaryOp {
-                        left: Box::new(Expr::Identifier(vec![Ident::new(fkcol.to_string())])),
+                        left: Box::new(Expr::Identifier(vec![Ident::new(referencer_col.to_string())])),
                         op: BinaryOperator::Eq,
                         right: Box::new(Expr::Value(Value::Number(new_id))),
                     }),
@@ -300,11 +302,12 @@ pub fn reverse_vault_decor_referencer_entries(
 
     /*
      * Delete created guises if objects in this table had been decorrelated
+     * TODO can make per-guise-table, rather than assume that only users are guises
      */
-    let mut guise_ves = get_user_entries_with_referencer_in_vault(user_id, table_name, txn, stats)?;
+    let mut guise_ves = get_user_entries_with_referencer_in_vault(user_id, referencer_table, txn, stats)?;
     warn!(
         "User {} entries with referencer {} in vault: {:?}",
-        user_id, table_name, vault_entries
+        user_id, referencer_table, vault_entries
     );
     for ve in &guise_ves {
         // delete guise

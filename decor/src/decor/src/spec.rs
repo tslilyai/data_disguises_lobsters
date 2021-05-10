@@ -2,7 +2,6 @@ use crate::{helpers, types};
 use log::warn;
 use sql_parser::ast::*;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::str::FromStr;
 
 const GUISE_ID: u64 = 0;
@@ -340,7 +339,7 @@ fn get_remove_filters(
     }
 }
 
-pub fn create_mv_from_filters_stmts(
+/*pub fn create_mv_from_filters_stmts(
     all: &mut HashMap<String, Vec<(types::TransformType, Statement)>>,
 ) -> Vec<String> {
     let mut results = vec![];
@@ -398,4 +397,4 @@ pub fn create_mv_from_filters_stmts(
         }
     }
     results
-}
+}*/

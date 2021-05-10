@@ -45,15 +45,15 @@ pub fn apply(
                         );
                     }
                     warn!(
-                        "decor_obj_txn: Creating guises for fkids {:?} {:?}",
-                        fk_name, fkids
+                        "decor_obj_txn {}: Creating guises for fkids {:?} {:?}",
+                        table.name, fk_name, fkids
                     );
 
                     let fk_cols = (*disguise.guise_info.col_generation)();
                     for (n, child) in child_objs.iter().enumerate() {
                         let old_uid = fkids[n];
                         // skip already decorrelated users
-                        if is_guise(&fk_name, old_uid, txn, stats)? {
+                        if is_guise(&fk_name, &disguise.guise_info.id_col, old_uid, txn, stats)? {
                             warn!(
                                 "decor_obj_txn: skipping decorrelation for {}.{}, already a guise",
                                 fk_name, old_uid
@@ -184,16 +184,22 @@ pub fn apply(
                      * Note: we don't need to redo these because deletion is final!
                      * TODO need a way to figure out how to get fks to recorrelate...
                      */
-                    /*
-                       vault::reverse_vault_decor_referencer_entries(
-                        user_id,
-                        &name,
-                        &
-                        &disguise.guise_info.name,
-                        txn,
-                        stats,
-                    )?;
-                    */
+                    
+                    // reverse all possible decorrelations for this table
+                    for (ref_table, ref_col) in &disguise.guise_info.referencers {
+                        if ref_table == &table.name {
+                            vault::reverse_vault_decor_referencer_entries(
+                                disguise.user_id,
+                                &ref_table,
+                                &ref_col, 
+                                // assume just one id col for user
+                                &table.name,
+                                &table.id_cols[0], 
+                                txn,
+                                stats,
+                            )?;
+                         }
+                    }
 
                     /*
                      * PHASE 1: OBJECT SELECTION

@@ -60,10 +60,13 @@ pub struct GuiseInfo {
     pub id_col: String, // XXX assume there's only one id col for a guise
     pub col_generation: Box<dyn Fn() -> Vec<&'static str>>,
     pub val_generation: Box<dyn Fn() -> Vec<Expr>>,
+    pub referencers: Vec<(String, String)>,
 }
 
 pub struct Disguise {
     pub disguise_id: u64,
+    // XXX temp for now
+    pub user_id: u64,
     pub table_disguises: Vec<TableDisguise>,
     // used to determine if a particular UID belongs to the "owner" of the disguise
     pub is_owner: Box<dyn Fn(&str) -> bool>,

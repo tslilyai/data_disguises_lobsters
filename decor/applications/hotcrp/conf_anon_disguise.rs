@@ -8,6 +8,7 @@ const ROLE_PC: u64 = 1;
 pub fn get_disguise() -> Disguise {
     Disguise {
         disguise_id: CONF_ANON_DISGUISE_ID,
+        user_id: 0,
         table_disguises: get_table_disguises(),
         is_owner: Box::new(|_| true),
         guise_info: GuiseInfo {
@@ -15,6 +16,7 @@ pub fn get_disguise() -> Disguise {
             id_col: SCHEMA_UID_COL.to_string(),
             col_generation: Box::new(get_insert_guise_contact_info_cols),
             val_generation: Box::new(get_insert_guise_contact_info_vals),
+            referencers: vec![],
         },
     }
 }

@@ -14,6 +14,7 @@ fn get_eq_expr(col: &str, val: Value) -> Expr {
 pub fn get_disguise(user_id: u64) -> Disguise {
     Disguise {
         disguise_id: GDPR_DISGUISE_ID,
+        user_id: user_id,
         table_disguises: get_table_disguises(user_id),
         is_owner: Box::new(move |uid| uid == user_id.to_string()),
         guise_info: GuiseInfo {
@@ -21,6 +22,16 @@ pub fn get_disguise(user_id: u64) -> Disguise {
             id_col: SCHEMA_UID_COL.to_string(),
             col_generation: Box::new(get_insert_guise_contact_info_cols),
             val_generation: Box::new(get_insert_guise_contact_info_vals),
+            referencers: vec![
+                // TODO list all referencers
+                // right now we're assuming that we're "smart" enough to only restore referencers
+                // if we don't decorrelate them later
+                ("PaperReviewPreference".to_string(), "contactId".to_string()),
+                ("Capability".to_string(), "contactId".to_string()),
+                ("PaperWatch".to_string(), "contactId".to_string()),
+                ("PaperConflict".to_string(), "contactId".to_string()),
+                ("TopicInterest".to_string(), "contactId".to_string()),
+            ]
         },
     }
 }
