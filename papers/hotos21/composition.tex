@@ -65,13 +65,16 @@ disguises, and untrusted in a second tier, which stores updates from user-invoke
 %application-imposed disguise would be protected by application-known keys.}
 
 %-------------------------------------------------------------------------------
-\paragraph{Applying Disguises.}
+\paragraph{How do disguises compose?}
 %-------------------------------------------------------------------------------
-The tool ensures that prior disguises do not affect \emph{which} objects are updated by future
-disguises: disguise will update all objects that it would have updated if performed on the original,
-undisguised state of application data. 
+Correct composition of multiple disguises achieves an end-state equivalent to combining the
+end-states achieved by each disguise when applied to the original application database in isolation.
+%
+In particular, the tool ensures that prior disguises do not affect \emph{which} objects are updated
+by future disguises: a disguise will update all objects that it would have updated if performed on
+the original, undisguised state of application data. 
 
-The tool allows developers to reason about multiple update to the same object by ensuring that 
+The tool allows developers to reason about multiple conflicting updates to the same object by ensuring that 
 if one disguise removes an object that another disguise modifies, the removal takes
 precedence.
 %
