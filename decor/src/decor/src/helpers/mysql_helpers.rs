@@ -2,7 +2,7 @@ use crate::history::HISTORY_TABLE;
 use crate::stats::QueryStat;
 use crate::types::*;
 use crate::vault::VAULT_TABLE;
-use log::debug;
+use log::warn;
 use msql_srv::{Column, ColumnFlags, QueryResultWriter};
 use mysql::prelude::*;
 use sql_parser::ast::*;
@@ -31,7 +31,7 @@ pub fn get_query_rows_txn(
     let mut rows = vec![];
 
     let qstr = q.to_string();
-    debug!("get_query_rows_txn: {}", qstr);
+    warn!("get_query_rows_txn: {}", qstr);
     if qstr.contains(VAULT_TABLE) || qstr.contains(HISTORY_TABLE) {
         stats.nqueries_vault += 1;
     } else {
@@ -70,7 +70,7 @@ pub fn get_query_rows_db(
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     let mut rows = vec![];
 
-    debug!("get_query_rows_db: {}", q);
+    warn!("get_query_rows_db: {}", q);
     let res = db.query_iter(q.to_string())?;
     let cols: Vec<String> = res
         .columns()

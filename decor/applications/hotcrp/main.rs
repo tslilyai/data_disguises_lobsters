@@ -129,8 +129,6 @@ fn main() {
     let mut disguises = vec![
         conf_anon_disguise::get_disguise(),
         gdpr_disguise::get_disguise((datagen::NUSERS_NONPC+1) as u64),
-        gdpr_disguise::get_disguise((1) as u64),
-        conf_anon_disguise::get_disguise(),
     ];
     let uids: Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();
     /*let mut rng = &mut rand::thread_rng();

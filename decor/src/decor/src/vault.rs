@@ -246,16 +246,19 @@ pub fn reverse_vault_decor_referencer_entries(
     stats: &mut QueryStat,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
     // TODO assuming that all FKs point to users
-    
+
     /*
      * Undo modifications to objects of this table
      * TODO undo any vault modifications that were dependent on this one, namely "filters" that
      * join with this "filter" (any updates that happened after this?)
      */
-    let mut vault_entries = get_user_entries_of_table_in_vault(user_id, referencer_table, txn, stats)?;
+    let mut vault_entries =
+        get_user_entries_of_table_in_vault(user_id, referencer_table, txn, stats)?;
     warn!(
-        "ReverseDecor: User {} entries of table {} in vault: {:?}",
-        user_id, referencer_table, vault_entries
+        "ReverseDecor: User {} reversing {} entries of table {} in vault",
+        user_id,
+        vault_entries.len(),
+        referencer_table
     );
 
     // we need some way to be able to identify these objects...
@@ -266,7 +269,7 @@ pub fn reverse_vault_decor_referencer_entries(
         }
 
         // this may be none if this vault entry is an insert, and not a modification
-        let new_id : String;
+        let new_id: String;
         let old_id: String;
         match get_value_of_col(&ve.new_value, referencer_col) {
             Some(n) => new_id = n,
@@ -288,7 +291,9 @@ pub fn reverse_vault_decor_referencer_entries(
                         value: Expr::Value(Value::Number(user_id.to_string())),
                     }],
                     selection: Some(Expr::BinaryOp {
-                        left: Box::new(Expr::Identifier(vec![Ident::new(referencer_col.to_string())])),
+                        left: Box::new(Expr::Identifier(vec![Ident::new(
+                            referencer_col.to_string(),
+                        )])),
                         op: BinaryOperator::Eq,
                         right: Box::new(Expr::Value(Value::Number(new_id))),
                     }),
@@ -304,10 +309,13 @@ pub fn reverse_vault_decor_referencer_entries(
      * Delete created guises if objects in this table had been decorrelated
      * TODO can make per-guise-table, rather than assume that only users are guises
      */
-    let mut guise_ves = get_user_entries_with_referencer_in_vault(user_id, referencer_table, txn, stats)?;
+    let mut guise_ves =
+        get_user_entries_with_referencer_in_vault(user_id, referencer_table, txn, stats)?;
     warn!(
-        "User {} entries with referencer {} in vault: {:?}",
-        user_id, referencer_table, vault_entries
+        "ReverseDecor: User {} reversing {} entries with referencer {} in vault",
+        user_id,
+        vault_entries.len(),
+        referencer_table
     );
     for ve in &guise_ves {
         // delete guise
@@ -411,7 +419,10 @@ pub fn print_as_filters(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
                                 setstr.push_str(&format!("{} = {}, ", rc.column, rc.value));
                             }
                         }
-                        format!("UPDATE {} SET {} WHERE {:?} = {:?}\n", ve.guise_name, setstr, ve.guise_id_cols, ve.guise_ids)
+                        format!(
+                            "UPDATE {} SET {} WHERE {:?} = {:?}\n",
+                            ve.guise_name, setstr, ve.guise_id_cols, ve.guise_ids
+                        )
                     }
                     _ => unimplemented!("Bad vault update type! {}\n", ve.update_type),
                 }
@@ -442,7 +453,10 @@ pub fn print_as_filters(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
                                 setstr.push_str(&format!("{} = {}, ", rc.column, rc.value));
                             }
                         }
-                        format!("UPDATE {} SET {} WHERE {:?} = {:?}\n", ve.guise_name, setstr, ve.guise_id_cols, ve.guise_ids)
+                        format!(
+                            "UPDATE {} SET {} WHERE {:?} = {:?}\n",
+                            ve.guise_name, setstr, ve.guise_id_cols, ve.guise_ids
+                        )
                     }
                     _ => unimplemented!("Bad vault update type! {}\n", ve.update_type),
                 }
