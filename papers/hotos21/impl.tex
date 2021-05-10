@@ -32,8 +32,8 @@ modification of a particular column. To modify a column value, developers provid
 %
 \sys also requires developers to describe how to create new rows---\eg generate fake users---for all
 tables that may be decorrelated.
-\lyt{Would it help to have pseudo-code here?}
 
+\iffalse
 \sys also provides a specification of the end-state after it applies a sequence of
 disguises; this allows developers to double-check that their disguises achieve their privacy
 transformation goals.
@@ -49,3 +49,4 @@ correct result.
 \sys maps these filters directly to physical database operations (where reordering filters corresponds to
 temporarily undoing vault entries). Thus, the developer can use the materialized view filters as a way to
 test the correctness of \sys and their disguises prior to permanently altering the application database. 
+\fi

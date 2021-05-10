@@ -10,52 +10,6 @@
     \label{fig:example}
 \end{figure}
 
-\begin{figure*}[t!]
-    \centering
-    \footnotesize
-\begin{tabular}{@{}c|c|c|c@{}}
-\textbf{User Transformation Spec} & \textbf{User Object} & \textbf{Guise 1} &
-    \textbf{Guise 2} \\
-\begin{lstlisting}[language=Rust]
-"id":       IDAttribute,
-"name":     Gen(Random),
-"active":   Gen(Default(false)),
-"darkmode": CopyAll,
-"notifs":   CopyOnce+Gen(Default(false)),
-"tag_id":   GenForeignKey,
-\end{lstlisting}
-    &
-\begin{lstlisting}[language=Rust]
-"id":       19,
-"name":     BobParr,
-"active":   true,
-"darkmode": false,
-"notifs":   true,
-"tag_id":   11
-\end{lstlisting}
-&
-\begin{lstlisting}[language=Rust]
-"id":       295,
-"name":     MrIncredible,
-"active":   false,
-"darkmode": false,
-"notifs":   true,
-"tag_id":   81483
-\end{lstlisting}
-&
-\begin{lstlisting}[language=Rust]
-"id":       918,
-"name":     SuperDad,
-"active":   false,
-"darkmode": false,
-"notifs":   false,
-"tag_id":   15592
-\end{lstlisting}
-\end{tabular}
-    \caption{Creating two guises of an example user (of a synthetic application schema).}
-    \label{fig:guises}
-\end{figure*}
-
 Data disguising offers a systematic technique to tackle the complexity and challenges of performing
 privacy transformations.
 %
@@ -84,8 +38,15 @@ Guises can also be removed entirely.
 At any given moment, an application's data object graph comprises a mix of identity-revealing guises
 and privacy-preserving ones. Disguises modify, split, and/or combine individual guises when triggered.
 
+\subsection{Writing Disguises}
+\label{sec:disguises}
 The application developer writes a disguise specification for each privacy transformation needed
 in the application.
+%
+When writing a disguise, developers can reason about its
+specification in isolation; interactions between different disguises are handled by the disguising
+tool (\S\ref{sec:composition}).
+%
 We assume that:
 \begin{enumerate}[nosep]
   \item developers use their domain knowledge to write correct and complete disguises;
@@ -99,38 +60,15 @@ We assume that:
 A data disguising tool takes the disguise specification and turns it into storage operations that
 achieve the desired application data state.
 
+Developers specify predicated transformations, which describes the disguised end-state of all
+objects satisfying the predicate. For
+example, Figure~\ref{fig:example} would include a specification that all email addresses be obfuscated in an anonymous manner for the user with name ``Bob Parr''.  
 %
-%\lyt{Not sure if we need this paragraph anymore.}
-%Data disguising builds on the existing structure of web applications.
-%
-%Web applications are often structured as object graphs, either explicitly~\cite{tao, delf},
-%through an object-relational model (ORM)~\cite{orm}, or implicitly via foreign keys (edges)
-%between tables (vertices) in relational databases.
-%
-%Data disguises transform this object graph.
-
-\subsection{Writing Disguises}
-\label{sec:disguises}
-Developers must specify both the desired transformations---the end-state the disguise should
-ensure---and a predicate for each transformation that selects the objects to be transformed.  For
-example, developers can specify that all email addresses be obfuscated in an anonymous manner for
-users who are reviewers in HotCRP.  When writing a disguise, developers can reason about its
-specification in isolation; interactions between different disguises are handled by the disguising
-tool (\S\ref{sec:composition}).
-
 Transformations can either remove objects, or change objects into one or more guises.
 To create a guise from an object, developers specify how to transform attributes of the
-object (\eg table column values) into guise attributes.
-%
-Figure~\ref{fig:guises} shows an example, producing guises for user objects.
-%
-User objects have identifier \texttt{id}; a reference \texttt{tag\_id}
-associates the user via a foreign key constraint to tag objects.
-%
+object (\eg table column values) into guise attributes (\eg changing email addresses).
 
-%
-Guises always have unique, random identifiers.
-%
+\iffalse
 Developers choose how to create other guise attributes, selecting from among the following:
 %
 \paragraph{(1) Copy object content.}
@@ -180,3 +118,50 @@ values (as described above).
 This enables the application to retain the original object semantics (\eg a count of how many
 users want notifications) without creating duplicates.
 %
+\begin{figure*}[t!]
+    \centering
+    \footnotesize
+\begin{tabular}{@{}c|c|c|c@{}}
+\textbf{User Transformation Spec} & \textbf{User Object} & \textbf{Guise 1} &
+    \textbf{Guise 2} \\
+\begin{lstlisting}[language=Rust]
+"id":       IDAttribute,
+"name":     Gen(Random),
+"active":   Gen(Default(false)),
+"darkmode": CopyAll,
+"notifs":   CopyOnce+Gen(Default(false)),
+"tag_id":   GenForeignKey,
+\end{lstlisting}
+    &
+\begin{lstlisting}[language=Rust]
+"id":       19,
+"name":     BobParr,
+"active":   true,
+"darkmode": false,
+"notifs":   true,
+"tag_id":   11
+\end{lstlisting}
+&
+\begin{lstlisting}[language=Rust]
+"id":       295,
+"name":     MrIncredible,
+"active":   false,
+"darkmode": false,
+"notifs":   true,
+"tag_id":   81483
+\end{lstlisting}
+&
+\begin{lstlisting}[language=Rust]
+"id":       918,
+"name":     SuperDad,
+"active":   false,
+"darkmode": false,
+"notifs":   false,
+"tag_id":   15592
+\end{lstlisting}
+\end{tabular}
+    \caption{Creating two guises of an example user (of a synthetic application schema).}
+    \label{fig:guises}
+\end{figure*}
+
+\fi

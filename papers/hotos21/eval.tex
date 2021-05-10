@@ -1,4 +1,3 @@
-\
 %-------------------------------------------------------------------------------
 \section{Case Studies}
 %-------------------------------------------------------------------------------
@@ -6,7 +5,7 @@
 
 \begin{table}[t!]
     \centering
-    \footnotesize
+    %\footnotesize
     \begin{tabular}{@{}cccc@{}}
         \textbf{Application} & \textbf{\#Object} & \textbf{Schema} &
         \textbf{Disguise} \\
@@ -53,57 +52,26 @@ comparable in size to the applications' schemas.
 \paragraph{Performance.}
 \label{sec:perf}
 
-\begin{figure}[t!]
-    \centerline{\includegraphics[width=.5\textwidth]{img/perf}}
-    \vspace{-\baselineskip}
-    \caption{Number of queries required by \lrtbf to disguise and reveal a target user, depending on the number of
-    objects created by the user.}
-    \label{fig:latencies}
-    \vspace{-\baselineskip}
-\end{figure}
-
-Our experience implementing \sys exposed the challenging performance implications of both efficiently
-executing normal application queries, and achieving low-latency disguise operation. The right
-balance depends on the rate of disguising, which may range from rare (as in today's applications)
-to quite frequent (in a privacy-supporting world where users freely disguise and reveal themselves,
-or where data automatically ages out).
+Data disguising faces several performance challenges. 
+%
+First, disguise application should not unduly impact the performance of normal application queries.
+\sys currently runs a disguise in one large SQL transaction, and performs transformation queries
+sequentially; some batching and parallelization is possible and could improve this performance.
+Furthermore, eventually consistent disguises would remove the expensive nature of a single large
+transaction.  The importance of reducing the cost of disguise application depends on the rate of
+disguising, which may range from rare (as in today's applications) to quite frequent (in a
+privacy-supporting world where users freely disguise and reveal themselves, or where data
+automatically ages out).
 
 %
-When executing a disguise such as user account deletion, \sys may generate as many guises as there are
-objects referencing the user, each requiring one or more SQL queries to create. \sys must also
+\sys must also be careful to do as little work as possible to handle disguise interdependencies. 
+When executing a disguise, \sys not only modifies the relevant objects, but must also 
 log all updates in the vault, and potentially read and reverse prior vault entries.
 %
-Figure~\ref{fig:latencies} shows the number of queries run when applying and reversing
-\lrtbf on an object graph with 3K users and 80K total user contributions, with no prior
-disguises having been applied.
-%
-The overhead increases linearly with the number of objects created by the target user.  \sys
-currently performs transformation queries sequentially; some batching and parallelization is
-possible and could improve this performance.
-%
-The reverse transformation (reveal) starts with the complete data and batches by table.
-%
-\sys currently runs a disguise in one large SQL transaction, impacting the performance of any other
-application queries during disguise execution. 
-
-%
-Our results indicate the need for privacy-aware database designs, which spread the cost of
-disguising across normal execution.
-%
-One possibility keeps a ``shadow'' copy of the database that reflects the disguised state, with
-guises already created and modified.
-%
-Pre-created guises are hidden by transparently exposing materialized views (MV) to the
-application.
-%
-Disguising then exposes the shadow copy in the MV, and removes disguised objects.
-%
-This achieves good read performance---queries read from MVs instead of the database---albeit
-at the cost of space overhead.
-%
-However, normal execution write queries must potentially update multiple guises in the
-shadow copy, and pre-created guises consume space during normal execution, even if disguises
-are never applied.
-%
-Other possibilities include making disguises eventually consistent; updating the shadow copy
-asynchronously; and caching disguises for target objects disguised most often.
+As expected, the number of queries performed by \sys to fetch and update the relevant to-be-disguised objects
+grows linearly with the number of objects. This disguise overhead is unavoidable: these
+modifications are crucial to ensuring proper disguise application. 
+However, \sys could potentially need to read from, reverse, and reapply all entries in the vault
+that correspond to all previous disguises.
+\lyt{TODO experiment here for cost of disguise when undoes nothing, vs. undoes dependent operations
+in vault}
