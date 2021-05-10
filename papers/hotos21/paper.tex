@@ -11,7 +11,7 @@
 %\acmDOI{10.1145/1122445.1122456}
 
 %% These commands are for a PROCEEDINGS abstract or paper.
-\acmConference[HotOS '21]{HotOS '21: TODO}{TODO date}{TODO location}
+\acmConference[HotOS '21]{HotOS '21: 18th Workshop on Hot Topics in Operating Systems}{May 31--June 2, 2021}{Virtual Conference}
 %^\acmBooktitle{Woodstock '18: ACM Symposium on Neural Gaze Detection,
 %  June 03--05, 2018, Woodstock, NY}
 %\acmPrice{15.00}
@@ -32,6 +32,7 @@
 \usepackage{wasysym}
 \usepackage{subcaption}
 \usepackage{enumitem}
+\usepackage[utf8]{inputenc}
 \usepackage[compact, small]{titlesec}
 
 % BibLaTeX for bibliography
@@ -103,7 +104,7 @@
 %% The "title" command has an optional parameter,
 %% allowing the author to define a "short title" to be used in page headers.
 % make title bold and 14 pt font (Latex default is non-bold, 16 pt)
-\title{\Large \bf Privacy Heroes Need Data Disguises}
+\title{Privacy Heroes Need Data Disguises}
 %\name-ing Your Data from the Internet }
 %An Invisibility Cloak for the Internet}
 
@@ -114,33 +115,40 @@
 %% "authornote" and "authornotemark" commands
 %% used to denote shared contribution to the research.
 \author{Lillian Tsai}
-\email{tslilyai@mit.edu}
 \affiliation{%
-  \institution{MIT}
-  \state{MA}
-  \country{USA}
+  \institution{MIT CSAIL}
+%\email{tslilyai@mit.edu}
+%\affiliation{%
+%  \institution{MIT}
+%  \state{}
+  \country{}
 }
 \author{Malte Schwarzkopf}
-\email{malte@cs.brown.edu}
 \affiliation{%
   \institution{Brown University}
-  \state{RI}
-  \country{USA}
+%\email{malte@cs.brown.edu}
+%\affiliation{%
+%  \institution{Brown University}
+%  \state{RI}
+  \country{}
 }
 \author{Eddie Kohler}
-\email{kohler@seas.harvard.edu}
 \affiliation{%
   \institution{Harvard University}
-  \state{MA}
-  \country{USA}
+%\email{kohler@seas.harvard.edu}
+%\affiliation{%
+%  \institution{Harvard University}
+%  \state{MA}
+  \country{}
 }
+
+\input{abstract}
 
 \maketitle
 %\vspace{-2\baselineskip}
 
 \lyt{NOTE: need to add page numbers somehow, fix formatting, add info to authors?}
 
-\input{abstract}
 \input{intro}
 \input{tool}
 \input{disguises}
