@@ -22,15 +22,16 @@ orders~\cite{amazon:privacy, prestashop:privacy}).
 %
 %The treatment of other user contributions varies.
 
-Some services keep most deleted users' contributions publicly and indefinitely available (\eg StackOverflow
-answers~\cite{stackoverflow:privacy}, sometimes
-associated with the original user name (\eg Wikipedia edit history~\cite{wikipedia:privacy}).
+Some services keep most deleted users' contributions publicly and indefinitely available (\eg
+StackOverflow answers~\cite{stackoverflow:privacy}), sometimes associated with the original user
+name (\eg Wikipedia edit history~\cite{wikipedia:privacy}).
 %shared Strava routes~\cite{strava:privacy}), 
 %
-Some social networking platforms delete posts, but keep data like private messages unanonymized and visible to their recipients (Facebook/Twitter~\cite{facebook:privacy, twitter:privacy}).
+Some platforms delete posts, but keep private messages unanonymized and visible to
+their recipients (Facebook/Twitter~\cite{facebook:privacy, twitter:privacy});
 %LinkedIn updates~\cite{linkedin:privacy}).
 %
-Others keep contributions visible but anonymized, reattributing the contribution to a placeholder user
+others keep posts visible but anonymized, reattributing the contribution to a placeholder user
 (\eg GitHub's ``@ghost''~\cite{github:privacy}, Reddit/Lobsters'
 ``[deleted]''~\cite{reddit:privacy, lobsters:privacy}).
 %
@@ -51,14 +52,13 @@ Others keep contributions visible but anonymized, reattributing the contribution
 %
 
 \subsection{The Potential of Privacy Transformations}
-Privacy transformations can achieve much more than what they do today.
-%\paragraph{Nuanced policies.}
+Privacy transformations can achieve much more than they do today.
 %
 Users and application developers can both benefit from \textbf{more nuanced} privacy policies:
 %
-for example, a confidential paper review system like HotCRP~\cite{hotcrp} keeps a
-user's contributions (papers, reviews) after they delete their account to preserve utility for
-others, but could also associate each review with a different placeholder to avoid revealing the deleted
+for example, a confidential paper review system like HotCRP~\cite{hotcrp} keeps a user's
+contributions (papers, reviews) after they delete their account to preserve utility for others, but
+could also associate each review with a different placeholder to avoid revealing the deleted
 reviewer's identity.
 %
 %Likewise, contributions with a shared property (\eg Reddit posts with a common tag)
@@ -116,9 +116,9 @@ their data along.
 
 \subsection{Challenges}
 %
-Supporting practical privacy transformations poses several challenges. First, modifying
-or deleting data must not compromise application correctness: for example, privacy transformations
-must maintain referential integrity of an application's relational database.
+Although privacy transformations offer many potential benefits, practically supporting them is hard.
+First, modifying or deleting data must not compromise application correctness: for example, privacy
+transformations must maintain referential integrity of an application's relational database.
 %
 Furthermore, one application may apply several privacy transformations, intermixed with
 transformation reversals.  When these transformations may share dependencies or contradict each
