@@ -101,7 +101,12 @@ fn run_test(db: &mut mysql::Conn, disguises: &Vec<decor::types::Disguise>) {
    
         file.write(
             format!(
-                "disguise{}, {}, {}, {}, {}, {}, {}, ({}, {}, {}-{}-{}-{}, {}-{}, {}), {}\n",
+                "disguise{}, {}, {}, {}, {}, {}\n
+                Decor: Total Duration {}, Pred {}, Guise {}\n
+                Decor: 2A(Gen Parent {}, Insert {}, Update {}, #Queries {})\n
+                Decor: 2B(Duration {}, #Queries {})\n
+                Decor: Vault Entries {}\n
+                Total disguise duration: {}\n",
                 disguise.disguise_id,
                 stats.nqueries,
                 stats.nqueries_vault,
