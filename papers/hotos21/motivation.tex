@@ -1,16 +1,20 @@
 \section{Challenges of Privacy Transformations}
 \label{sec:survey}
-%\subsection{Challenges}
-%We investigate the challenges of implementing privacy transformations, and envision how solving 
-%these challenges and treating transformations as first-class citizens in application design can enhance application privacy.
-
 %
+%We investigate the potential of privacy transformations as a first-class
+%citizen in application design, and the challenges to support these
+%transformations.
+%%
+%These challenges argue for a systematic approach to privacy transformations.
+%%
+
 Although privacy transformations offer many potential benefits, practically supporting them is hard.
 First, modifying or deleting data must not compromise application correctness: for example, privacy
 transformations must maintain referential integrity of an application's relational database.
 Developers must be careful to properly transform user data without violating application invariants,
+which they do today via ad-hoc database operations in their application code.
 %
-%Even describing the transformation may not be straightforward: 
+%Even describing the transformation may not be straightforward:
 %for example, on account deletion, surveyed applications only selectively delete user data (\eg
 %passwords) from underlying databases, and retain the remainder for legal or necessary business purposes
 %(\eg Spotify fraud detection~\cite{spotify:privacy}, Amazon
@@ -29,7 +33,6 @@ Developers must be careful to properly transform user data without violating app
 %%via ad-hoc database operations in their application code.
 %%, and only trigger them on explicit, user-initiated account
 %%deletion.
-which they do today via ad-hoc database operations in their application code.
 
 Furthermore, one application may apply several privacy transformations, intermixed with
 transformation reversals.  When these transformations may share dependencies or contradict each
@@ -41,7 +44,7 @@ Finally, practical privacy transformations should require minimal application ch
 
 %
 To make these challenges concrete, suppose we were to implement the following two privacy
-transformations in HotCRP. 
+transformations in HotCRP.
 %
 (1) \texttt{ConfAnon} implements universal conference anonymization to
 prevent reviewer identification in case of a data breach.
@@ -66,17 +69,18 @@ Due to data dependencies between these transformations, \texttt{GDPR} fails to a
 privacy properties, namely the complete removal of the user's data.
 %
 
-\subsection{The Potential of Privacy Transformations}
+\subsection{The Utility of Privacy Transformations}
 If we can address these challenges, privacy transformations have the potential to provide many
 privacy benefits to web applications and their users.
 Widely-used web applications today~\cite{spotify:privacy, amazon:privacy,
 strava:privacy, hotcrp:privacy, wikipedia:privacy, facebook:privacy, twitter:privacy,
-reddit:privacy, github:privacy, lobsters:privacy} mainly support variants of an account deletion privacy transformation,
-one that \eg the GDPR~\cite[Art.\ 17]{eu:gdpr} mandates.
-However, privacy transformations can achieve much more.
-
-Users and application developers can both benefit from \textbf{more nuanced} privacy policies:
+reddit:privacy, github:privacy, lobsters:privacy} mainly support variants of an account
+deletion privacy transformation, as requried by, \eg the GDPR~\cite[Art.\ 17]{eu:gdpr}.
 %
+But many applications would benefit from support for other privacy transformations.
+
+%
+Users and application developers can both benefit from \textbf{more nuanced} privacy policies:
 for example, a confidential paper review system like HotCRP~\cite{hotcrp} keeps users'
 contributions (papers, reviews) after they delete their account to preserve utility for others, but
 could additionally associate each review with a different placeholder to avoid revealing the deleted
@@ -121,4 +125,4 @@ their data along.
 
 We envision that a systematic approach to privacy transformations can help address the challenges
 identified; if we can overcome these challenges, privacy transformations have the potential to enhance application
-privacy even beyond what we have discussed here.
+privacy beyond what we have discussed here.
