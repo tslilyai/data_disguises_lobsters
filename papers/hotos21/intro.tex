@@ -75,11 +75,10 @@ add significant implementation burden.
 %
 With more nuanced and reversible privacy transformations, developers face an even greater challenge:
 they must reason about how these privacy transformations compose. For example, an application may
-automatically decay data over time, but must still support users leaving or returning to the
-application. Performing one privacy transformation should not affect the privacy properties
-achieved by future transformations, even if they both transform the same data.
-For example, data decay should not prevent a user from removing their data when they delete their
-account.
+automatically decay data over time, but must still correctly remove a user's data when they delete
+their account, even if this data has been anonymized. 
+Ensuring that one privacy transformation does not affect the privacy properties
+achieved by future transformations, even if they both transform the same data, is a non-trivial task.
 %
 
 %
