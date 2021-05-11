@@ -92,14 +92,15 @@ deleting users' identifiers, or decorrelating identifying object relationships) 
 application invariants and utility.
 %
 Since many data disguises edit the physical database contents in (often necessarily)
-information-destroying ways, the disguising framework includes \emph{per-user vaults},
-individually owned storage shards that log all disguises applied to a user's data, but which
-aren't accessible to the application's queries.
+information-destroying ways, the disguising framework includes \emph{per-user vaults}.
+These vaults are individually owned storage shards that log all disguises applied to a single user's data,
+and cannot be accessed by application's queries.
 %
-If a disguise is reversible, either through explicit action---\eg a user might chose to return
-to the application after removing their data---or when applying a second, data-dependent
-disguise---the disguising tool accesses the relevant user vaults to obtain the unmodified,
-original data.
+If a disguise should be reversed, either through explicit action---\eg a user might choose to return
+to the application---or in order to apply a second, data-dependent
+disguise---the disguising tool accesses the relevant user vaults to obtain the original,
+unmodified data.
+\lyt{The implicit reversal for data-dependent disguises is confusing, need to edit this.}
 %
 Vaults can be deployed in different ways and for different levels of privacy guarantee: they
 might be physically co-located or separate from the the application storage, encrypted or
@@ -115,11 +116,11 @@ However, our framework is far from complete and realizing it will require solvin
 research problems.
 %
 First, when an application contains more than one privacy transformation, the respective
-data disguises might have co-dependencies: for example, removing a user's data on account
+data disguises may have co-dependencies: for example, removing a user's data on account
 deletion is challenging if that data has already been anonymized and decorrelated from the
-user, and not all disguises might be reversible.
+user, and not all disguises may be reversible.
 %
-A practical data disguising tool might use a combination of static analysis, warnings to
+A practical data disguising tool could use a combination of static analysis, warnings to
 developers, and privacy assertions to ensure disguises compose correctly.
 %
 Second, the performance impact of data disguises could be substantial, particularly if they
