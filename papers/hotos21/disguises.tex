@@ -44,7 +44,7 @@ The application developer writes a disguise specification for each privacy trans
 in the application.
 %
 When writing a disguise, developers can reason about its
-specification in isolation; interactions between different disguises are handled by the disguising
+specification in isolation; interactions between different disguises are handled by a disguising
 tool (\S\ref{sec:composition}).
 %
 We assume that:
@@ -57,10 +57,10 @@ We assume that:
     rows in the same table).
 \end{enumerate}
 %
-A data disguising tool takes the disguise specification and turns it into storage operations that
+A data disguising tool takes a disguise specification and turns it into storage operations that
 achieve the desired application data state.
 
-Developers specify predicated transformations, which describes the disguised end-state of all
+Developers specify predicated transformations, which describes a disguised end-state of all
 objects satisfying the predicate. For
 example, Figure~\ref{fig:example} would include a specification that all email addresses be obfuscated in an anonymous manner for the user with name ``Bob Parr''.
 %

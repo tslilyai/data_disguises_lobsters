@@ -21,6 +21,22 @@ them with complexity and results in ad-hoc solutions. %(\S\ref{sec:survey}).
 %minimization, to support user-chosen privacy settings? we do only really talk about user account
 %deletion in webapps today, though}
 %
+%
+To write a privacy transformation, developers must carefully map the high-level privacy policy to
+operations that delete or rewrite data objects, while ensuring that the application preserves
+utility for other users, retains legally-mandated anonymized data, and avoids violating application
+invariants.
+%
+For example, deleting a user's account should not unexpectedly grant broad access to
+previously-private content by deleting objects that restrict access, nor should it make
+non-sensitive shared content disappear.
+%
+Developers must also consider indirectly identifying correlations between data objects: for example,
+anonymized public running routes can identify the user's hometown and even the
+user~\cite{strava:heatmap}, and anonymized order histories in e-commerce sites can reidentify
+buyers.
+
+\iffalse
 To get privacy transformations right, developers must carefully map the high-level privacy
 policy to operations that delete or rewrite data objects, while ensuring that the application preserves
 utility for other users, retains legally-mandated anonymized data, and avoids violating
@@ -28,21 +44,17 @@ application invariants.
 %
 For example, deleting a user's account should not unexpectedly grant broad
 access to previously-private content by deleting objects that restrict access,
-%\eddie{Not sure I understand why the preceding would happen?}
 nor should it make non-sensitive shared content disappear.
-%
 %
 Privacy transformation designers must correctly handle identifying data, as well as indirectly identifying
 correlations between data objects.
-%
 For example, anonymized public running routes can identify the user's hometown and be
 reassociated with the user~\cite{strava:heatmap},
-%\ms{cite Strava privacy issues?};
 %anonymized posts on Reddit correlated with a subreddit with very few subscribers can be
 %associated back to a single user;
 % papers' affiliation and reviewer conflicts in HotCRP can reidentify the author;
 and anonymized order histories in e-commerce sites can reidentify buyers.
-%
+\fi
 
 %
 The burden of implementing privacy transformations grows with the underlying privacy policy's
@@ -58,20 +70,21 @@ Likewise, reversible privacy transformations might strike a sweet
 spot---allowing users to remove identifiable information on demand,
 but accommodating service providers' interest to make it easy for users to return---but
 add significant implementation burden.
+%
 
+%
+With more nuanced and reversible privacy transformations, developers face an even greater challenge:
+they must reason about how these privacy transformations compose. For example, an application may
+automatically decay data over time, but must still support users leaving or returning to the
+application. Performing one privacy transformation should not affect the privacy properties
+achieved by future transformations, even if they both transform the same data.
+For example, data decay should not prevent a user from removing their data when they delete their
+account.
+%
 
-%The developer burden to implement the these transformations is prohibitive today.
-%imposed by implementing the transformations required to enact these policies
-%
-%
-%We next describe a wide range of privacy transformations, some from existing applications' privacy policies,
-%and others that demonstrate the potential for better, more nuanced privacy policies. Implementing
-%these transformations using ad-hoc methods places undue labor on the developer and, as policies grow
-%more complex, becomes more error-prone.
-%
 %
 We propose \emph{data disguising}, a new framework
-for systematically specifying and implementing privacy transformations.
+for systematically specifying, implementing, and reasoning about  privacy transformations.
 %
 In this framework, developers specify transformations required in privacy policies as
 high-level \emph{data disguises} over existing application data types and associations.
@@ -87,10 +100,14 @@ rather than universal deletion, is what real applications require.
 %Disguises consist of transformations performed on the high-level object graph embedded in
 %database-based applications (encoded by \eg foreign key relationships in relational
 %databases)~\cite{orms}.
-%
+
 A data disguising tool takes a disguise and its target, and automatically applies the appropriate
 transformations to application data to achieve the disguised state, reducing the developer burden.
 %
+It also handles disguise composition and disguise interdependencies; developers can
+thus reason about each disguise in isolation.
+%
+
 Our proof-of-concept, \sys, demonstrates the potential of such a tool.
 %
 \sys proxies relational database operations and exposes APIs to invoke privacy transformations.
