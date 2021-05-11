@@ -9,20 +9,18 @@ Consumer Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' rights and assoc
 consequences and reputational damage with data breaches~\cite{breach:amazon,
 breach:twitter, breach:fb, breach:marriott, breach:quora}.
 %
-Beyond legal mandates, it is good practice to minimize user data retained.
+Beyond legal mandates, it is good practice to minimize retained user data.
 %
 
 %
-Consequently, application developers increasingly face the need to implement implement
+Consequently, application developers increasingly face the need to implement
 \emph{privacy transformations} over their applications' data.
 %
 For example, GDPR compliance requires a transformation that deletes a user's account and
 data, and anonymizes any data retained due to legal requirements or to preserve
 application utility for other users.
 %
-As another example, consider the possibility of anonymizing old peer review data in a
-system like HotCRP~\cite{hotcrp}, to avoid having a future data breach expose reviewer
-identities.
+As another example, a system like HotCRP~\cite{hotcrp} could anonymize old peer review data to avoid having a future data breach expose reviewer identities.
 %
 Today, developers must manually implement these transformations as part of their application
 code, which is error-prone, laborious, and begets ad-hoc solutions.
@@ -85,7 +83,7 @@ of database-backed web applications specify, implement, and reason about privacy
 Data disguising supports a broad range of privacy transformations and separates the application
 of privacy transformations (``data disguises'') from application code.
 %
-Developers provide a disguise specification to an external tool, which computes the necessary
+Developers provide disguise specifications to an external disguising tool, which computes the necessary
 database changes and applies them to the application's database backend (Figure~\ref{fig:tool}).
 %
 Applying a disguise transforms the application data in privacy-preserving ways (\eg
@@ -94,17 +92,13 @@ application invariants and utility.
 %
 
 %
-In some situations, reversible disguises are desirable.
-%
-For example, a user might choose to return to the applicaton, or a disguise may
-modify the same data already modified by a prior disguise.
-%
-Many disguises edit the physical database contents in (often necessarily)
-information-destroying ways, so the disguising framework includes \emph{per-user
-vaults} that allow reversing some disguises.
-%
-These vaults are individually owned storage shards that log all disguises applied
-to an individual user's data.
+Because many disguises edit the physical database contents in (often necessarily)
+information-destroying ways, the disguising framework includes \emph{per-user vaults}, namely
+individually owned storage shards that log all disguises applied to an individual user's data.
+Vaults allow for selective disguise reversal, which may be triggered explicitly (\eg by a user who
+wants to return to the application), or by necessity, in order to correctly apply a disguise that
+needs to modify the same data modified by a prior disguise. Partial or full disguise reversal
+requires access to the relevant user vaults to revert back to the original, unmodified data.
 %
 Vaults cannot be accessed by application queries, and can be deployed in different
 ways and with different levels of privacy guarantee.
@@ -113,28 +107,28 @@ For instance, vaults might be physically co-located with or separate from the th
 application storage; encrypted or unencrypted; and access might require explicit
 user approval.
 %
-On disguise reversal, the disguising tool accesses the relevant user vaults to obtain the
-original, unmodified data.
+
 %
 
 %
-We believe that flexible disguising is importy to meet applications' diverse privacy
-requirements, and that better user privacy on the web is best achieved through a
-systematic approach that reduces developer burden.
+We believe that a systematic, yet flexible approach to disguising addresses applications'
+diverse privacy requirements, reduces developer burden, and ultimately achieves better user privacy on
+the web.
 %
-However, our framework is far from complete and realizing it will require solving several
-research problems.
+However, our framework is far from complete and realizing it will require solving several research
+problems.
 %
-First, when an application contains more than one privacy transformation, the respective
-data disguises may have co-dependencies: for example, removing a user's data on account
-deletion is challenging if that data has already been anonymized and decorrelated from the
-user, and not all disguises may be reversible.
+First, when an application contains more than one privacy transformation, the respective data
+disguises may be inter-dependent: for example, removing a user's data on account deletion may need
+to access data which has already been anonymized and decorrelated from the user. Careful use of user
+vaults and selective disguise reversal may be able to handle these disguise conflicts, but this
+method works only if disguises are reversible.
 %
 A practical data disguising tool could use a combination of static analysis, warnings to
 developers, and privacy assertions to ensure disguises compose correctly.
 %
 Second, the performance impact of data disguises could be substantial, particularly if they
-transform many database rows, particularly if applied on a live application database.
+transform many database rows, and especially if they act on a live application database.
 %
 We argue that these are important challenges for researchers to investigate to make data
 disguising practical.
