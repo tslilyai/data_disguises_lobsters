@@ -47,8 +47,9 @@ code, which is error-prone, laborious, and begets ad-hoc solutions.
     \centering
     \includegraphics[width=0.35\textwidth]{img/disguise_tool}
     \caption{A data disguising tool takes a developer's disguise specification and transforms
-	     a web application's database contents to protect user privacy. Per-user vaults (which
-	     might be encrypted) help support reversible privacy transformations.}
+	     a web application's database contents. Per-user vaults
+	     (which can be encrypted and stored on third-party storage) support reversible
+	     privacy transformations by logging the changes to each user's data.}
     \label{fig:tool}
 \end{figure}
 
@@ -126,7 +127,11 @@ developers, and privacy assertions to ensure disguises compose correctly.
 Second, the performance impact of data disguises could be substantial, particularly if they
 transform many database rows, particularly if applied on a live application database.
 %
-We believe that these are important challenges for researchers to work on; yet,
+We argue that these are important challenges for researchers to investigate to make data
+disguising practical.
+%
+Our proof-of-concept data disguising tool, \sys, demonstrates the potential of this
+approach.
 %
 %Disguises do not guarantee strict privacy---a disguise's content might still expose user
 %information or correlated data if not redacted by the policy---but flexible disguising,
@@ -141,7 +146,6 @@ We believe that these are important challenges for researchers to work on; yet,
 %disguise composition and disguise interdependencies. Developers can
 %thus reason at a high level about each disguise in isolation, reducing the developer burden.
 %
-our proof-of-concept data disguising tool, \sys, demonstrates the potential of our approach.
 %
 %\sys proxies relational database operations and exposes APIs to invoke privacy transformations.
 %
