@@ -1,18 +1,26 @@
 \begin{abstract}
 %\paragraph{Abstract.}
 
-Conscientious application developers want to provide better user privacy;
-legal mandates and user demand increasingly require it.
+Conscientious application developers want to provide better user privacy,
+and legal mandates and users increasingly demand it.
+%
+Better privacy often requires that applications transform the data they store
+(\eg when a user deletes their account).
 %
 Unfortunately, privacy in complex, data-rich applications is fundamentally
-hard. Consider a user who wants to remove their account from a service. Even
-finding the corresponding data is nontrivial, but once it is found, only some
-of it should be removed; other data should be anonymized or decorrelated (for
-legal reasons, or to maintain application utility for others),
-and some of these transformations should be reversible (in case a user wants to return). 
-Furthermore, some of this data may have already been transformed by prior privacy requests,
-but this should not prevent the removal of the user's data.
-\lyt{I wanted to put in something about composition here, but I'm not sure if this really fits}
+hard: finding the affected data is nontrivial, and even once found, only some
+of it should be removed; other data must be retained in anonymized form,
+%(for legal reasons, or to maintain application utility for others),
+and multiple different privacy-enhancing transformations might apply to the
+same data at different times.
+%
+Burdening application developers with the correct implementation of these
+transformations won't work.
+%
+%and some of these transformations should be reversible (in case a user wants to return).
+%Furthermore, some of this data may have already been transformed by prior privacy requests,
+%but this should not prevent the removal of the user's data.
+%\lyt{I wanted to put in something about composition here, but I'm not sure if this really fits}
 %
 % Conscientious application developers face increasing legal and user demands to provide better privacy for their users.
 % %    \lyt{Need some defn of privacy-enhancing data transformations?}
@@ -26,13 +34,12 @@ but this should not prevent the removal of the user's data.
 % transformations.
 %
 
-We propose \emph{data disguising}, a systematic approach that helps developers generate
-privacy transformations for database-backed web applications from a high-level specification.
-    %and preexisting data relationships.
+We propose \emph{data disguising}, a systematic approach that helps
+developers apply privacy transformations in database-backed web applications.
 %
-Data disguising simplifies privacy transformations that applications use today, 
-    supports fine-grained and nuanced policies that would be cumbersome to implement manually, 
-    enables reversible transformations for users who change their mind, 
+Data disguising simplifies privacy transformations that applications use today,
+    supports fine-grained and nuanced policies that would be cumbersome to implement manually,
+    enables reversible transformations for users who change their mind,
     and automatically handles the complex interactions between transformations to correctly compose
     them.
 %
