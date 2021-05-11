@@ -80,7 +80,16 @@ users. We then compare the cost of invoking \hrtbf after a conflicting disguise,
 already been applied.
 The disguises are applied to a database with 430 users (30 PC members), 450 papers, and 1400
 reviews.
-The unoptimized application of \hrtbf of a PC member after an independent \hrtbf application for a different user requires 1.3s;
-the same \hrtbf disguise applied after \hconfanon requires takes 1.5s (\hconfanon itself takes
-7s). While \sys's selective reintroduction of data from user vaults is not free, it is noticeable
-cheaper than completely undoing prior disguises.
+The unoptimized application of \hrtbf of a PC member after an independent \hrtbf application for a
+   different user requires 135ms on average;
+the same \hrtbf disguise applied after \hconfanon requires takes 118ms (\hconfanon itself takes
+   7000ms). 
+
+\sys avoids unnecessarily redoing decorrelation updates applied by \hconfanon when applying \hrtbf;
+however, \sys
+incurs overhead from temporarily recorrelating objects using vault data, so these
+objects can then be correctly removed. 
+While \sys's selective reintroduction of data from user vaults is not free, it is noticeable
+   cheaper than completely undoing prior disguises.
+\sys currently relies on manual input to analysize which operations must be selectively undone and
+(not) reapplied, and we imagine that we will be able to use static analysis to replace the manual annotations.
