@@ -16,7 +16,7 @@ sequence and generating the necessary storage operations to achieve the correct 
 When applying a disguise, the tool must both correctly apply the specified transformations, and also
 manage the complexity caused by conflicts and shared dependencies between the new disguise and any
 prior disguises.  For example, \texttt{ConfAnon} destroys information linking data records back to a
-user, thus making it impossible for \texttt{RTBF} to properly remove these records. 
+user, thus making it impossible for \texttt{GDPR} to properly remove these records.
 
 To handle inter-disguise dependencies, the tool relies on (1) the structured nature of disguises to
 statically determine whether disguises share dependencies, and (2) the key abstraction of \emph{user
@@ -53,7 +53,7 @@ Or perhaps the vault entries are stored entirely by some third party or locally 
 server runs a corresponding interface to allow disguise tools to read and write the vault.
 
 The tool should, with user permission, be able to read and write the vaults: a user invoking GDPR
-\texttt{RTBF} could provide the key to their vault, and the application invoking the
+\texttt{GDPR} could provide the key to their vault, and the application invoking the
 \texttt{ConfAnon} might notify each user for approval (and temporary vault access) prior to disguise
 application. An alternative might be a multi-tier security design, in which the tool and application
 are trusted with access to vaults in one tier, allowing them to perform application-instigated

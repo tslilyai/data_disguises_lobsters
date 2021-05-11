@@ -19,19 +19,19 @@ To make these challenges concrete, suppose we were to implement the following tw
 transformations in HotCRP as SQL transactions. (1) \texttt{ConfAnon} implements universal conference
 anonymization by reassociating reviews and other metadata (e.g., review preferences) with
 placeholder users; this is a form of data decay, preventing leaking reviewer identities for historic data in
-the case of a data breach. (2) \texttt{RTBF} implements GDPR's ``right-to-be-forgotten'' removal of user data.
+the case of a data breach. (2) \texttt{GDPR} implements GDPR's ``right-to-be-forgotten'' removal of user data.
 %
 \texttt{ConfAnon} decorrelates reviewer profiles from their contributions: no review should reference a
 user's account (via a foreign key relationship).
 Furthermore, decorrelation must maintain referential integrity, requiring changes to foreign key
 attributes to reference some fake user profile.
-\texttt{RTBF} must properly remove the leaving user's owned data.
+\texttt{GDPR} must properly remove the leaving user's owned data.
 
 While both of these transformations seem relatively straightforward to implement, composing even
 these simple transformations is tricky. \texttt{ConfAnon} destroys links between a user's data and
-their profile, making it impossible for a subsequent \texttt{RTBF} application to correctly remove
+their profile, making it impossible for a subsequent \texttt{GDPR} application to correctly remove
 all of the user's data. Due to data dependencies between the two transformations---applying
-\texttt{RTBF} requires knowing data that \texttt{ConfAnon} has destroyed---developers cannot assume
+\texttt{GDPR} requires knowing data that \texttt{ConfAnon} has destroyed---developers cannot assume
 that applying multiple transformations will achieve the desired privacy properties.
 %
 
