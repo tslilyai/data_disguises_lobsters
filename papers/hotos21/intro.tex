@@ -96,27 +96,31 @@ Our proof-of-concept, \sys, demonstrates the potential of such a tool.
 \sys proxies relational database operations and exposes APIs to invoke privacy transformations.
 %
 
-\section{The Need for Privacy Transformations}
+\section{Privacy Transformations}
 \label{sec:survey}
 
+\subsection{Privacy Transformations In Practice Today}
 %
-We surveyed the account deletion behavior of several widely-used web applications
-to understand what privacy transformations they apply.
+We surveyed widely-used web applications to understand the privacy
+transformations they apply.
 %
-A set of common themes emerged, as well as directions for future improvement.
+The main privacy transformation these applications support is account deletion,
+a transformation that \eg the GDPR~\cite[Art.\ 17]{eu:gdpr} mandates.
+%
 %~\cite{facebook:privacy, twitter:privacy, hotcrp:privacy, reddit:privacy,
 %github:privacy, hackernews:privacy, strava:privacy, linkedin:privacy, stackoverflow:privacy,
 %wikipedia:privacy, amazon:privacy, prestashop:privacy, spotify:privacy, lobsters:privacy}:
 
 
-\paragraph{Treatment of user contributions.}
-
-The applications surveyed delete some user profile information (\eg passwords)
-from underlying databases, though all applications surveyed retain some
-information for legal or necessary business purposes (\eg Spotify fraud
-detection~\cite{spotify:privacy}, PrestaShop/Amazon
-orders~\cite{amazon:privacy, prestashop:privacy}). The treatment of other user
-contributions varies.
+%\paragraph{Treatment of user contributions.}
+%
+On account removal, all applications surveyed delete some user profile
+information (\eg passwords) from underlying databases, but all applications
+also retain some information for legal or necessary business purposes
+(\eg Spotify fraud detection~\cite{spotify:privacy}, PrestaShop/Amazon
+orders~\cite{amazon:privacy, prestashop:privacy}).
+%
+The treatment of other user contributions varies.
 %
 Some services keep most contributions publicly and indefinitely available (\eg StackOverflow
 answers~\cite{stackoverflow:privacy}, shared Strava routes~\cite{strava:privacy}), sometimes
@@ -149,6 +153,8 @@ Most developers appear to pay little attention to identifying correlations
 within the remaining data.
 %
 
+
+\subsection{Desirable PTs That Don't Exist Today}
 
 \paragraph{Nuanced policies.}
 %
@@ -212,6 +218,8 @@ the ACLU or EFF).
 %
 
 \paragraph{Privacy transformations.}
+%
+\ms{This doesn't fit well currently.}
 %
 Taken together, these properties argue for a systematic treatment of privacy transformations that makes them a
 first-class citizen in application design.
