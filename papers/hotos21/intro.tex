@@ -36,6 +36,15 @@ anonymized public running routes can identify the user's hometown and even the
 user~\cite{strava:heatmap}, and anonymized order histories in e-commerce sites can reidentify
 buyers.
 
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.35\textwidth]{img/disguise_tool}
+
+    \caption{A data disguising tool sits alongside the application code and database.}
+    \label{fig:tool}
+\end{figure}
+
+
 \iffalse
 To get privacy transformations right, developers must carefully map the high-level privacy
 policy to operations that delete or rewrite data objects, while ensuring that the application preserves
@@ -76,7 +85,7 @@ add significant implementation burden.
 With more nuanced and reversible privacy transformations, developers face an even greater challenge:
 they must reason about how these privacy transformations compose. For example, an application may
 automatically decay data over time, but must still correctly remove a user's data when they delete
-their account, even if this data has been anonymized. 
+their account, even if this data has been anonymized.
 Ensuring that one privacy transformation does not affect the privacy properties
 achieved by future transformations, even if they both transform the same data, is a non-trivial task.
 %
@@ -101,7 +110,7 @@ rather than universal deletion, is what real applications require.
 %databases)~\cite{orms}.
 
 A data disguising tool takes a disguise and its target, and automatically applies the appropriate
-transformations to application data to achieve the disguised state, handling 
+transformations to application data to achieve the disguised state, handling
 disguise composition and disguise interdependencies. Developers can
 thus reason at a high level about each disguise in isolation, reducing the developer burden.
 %
