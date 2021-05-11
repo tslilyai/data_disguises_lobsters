@@ -1,17 +1,80 @@
-\section{Privacy Transformations}
+\section{Challenges of Privacy Transformations}
 \label{sec:survey}
+%\subsection{Challenges}
+%We investigate the challenges of implementing privacy transformations, and envision how solving 
+%these challenges and treating transformations as first-class citizens in application design can enhance application privacy.
 
-We investigate the potential of privacy transformations as a first-class citizen in application
-design, and the challenges we face to support these transformations. These challenges argue for the
-need for a systematic approach to privacy transformations.
+%
+Although privacy transformations offer many potential benefits, practically supporting them is hard.
+First, modifying or deleting data must not compromise application correctness: for example, privacy
+transformations must maintain referential integrity of an application's relational database.
+Developers must be careful to properly transform user data without violating application invariants,
+%
+%Even describing the transformation may not be straightforward: 
+%for example, on account deletion, surveyed applications only selectively delete user data (\eg
+%passwords) from underlying databases, and retain the remainder for legal or necessary business purposes
+%(\eg Spotify fraud detection~\cite{spotify:privacy}, Amazon
+%orders~\cite{amazon:privacy}).
+%%
+%%Some services keep most deleted users' contributions indefinitely available (\eg
+%%StackOverflow answers~\cite{stackoverflow:privacy}), sometimes associated with the original user
+%%%name (\eg Wikipedia edit history~\cite{wikipedia:privacy}).
+%%
+%Platforms like Facebook and Twitter delete posts, but keep private messages unanonymized and visible to
+%their recipients~\cite{facebook:privacy, twitter:privacy};
+%others keep posts visible but anonymized, reattributing the contribution to a placeholder user
+%(\eg GitHub's ``@ghost''~\cite{github:privacy}, Reddit/Lobsters'
+%``[deleted]''~\cite{reddit:privacy, lobsters:privacy}).
+%%In the open-source applications surveyed, developers implement privacy transformations
+%%via ad-hoc database operations in their application code.
+%%, and only trigger them on explicit, user-initiated account
+%%deletion.
+which they do today via ad-hoc database operations in their application code.
+
+Furthermore, one application may apply several privacy transformations, intermixed with
+transformation reversals.  When these transformations may share dependencies or contradict each
+other, correctly composing transformations to achieve the desired privacy properties is a daunting
+task.
+%
+Finally, practical privacy transformations should require minimal application changes.
+%
+
+%
+To make these challenges concrete, suppose we were to implement the following two privacy
+transformations in HotCRP. 
+%
+(1) \texttt{ConfAnon} implements universal conference anonymization to
+prevent reviewer identification in case of a data breach.
+%
+(2) \texttt{GDPR} implements GDPR's ``right-to-be-forgotten'' removal of user data.
+%
+\texttt{ConfAnon} decorrelates reviews and review metadata (\eg review preferences) from reviewers
+by ensuring that no review references a real user's account (via a foreign key relationship).
+To maintain referential integrity, decorrelation requires updating foreign key
+attributes to reference fake user profiles.
+\texttt{GDPR} finds and deletes the leaving user's data.
+%
+
+%
+In isolation, each transformation may seem simple; however, composing them is tricky.
+\texttt{ConfAnon} destroys information linking a user's data to their account by relinking this data
+to anonymous, fake users (\eg rewriting the foreign key linking a review preference to a user to
+point to a fake user profile).  If the user later invokes \texttt{GDPR}, the
+disguise needs to know which data to remove, which is impossible without the original links.
+%
+Due to data dependencies between these transformations, \texttt{GDPR} fails to achieve its desired
+privacy properties, namely the complete removal of the user's data.
+%
 
 \subsection{The Potential of Privacy Transformations}
+If we can address these challenges, privacy transformations have the potential to provide many
+privacy benefits to web applications and their users.
 Widely-used web applications today~\cite{spotify:privacy, amazon:privacy,
 strava:privacy, hotcrp:privacy, wikipedia:privacy, facebook:privacy, twitter:privacy,
 reddit:privacy, github:privacy, lobsters:privacy} mainly support variants of an account deletion privacy transformation,
 one that \eg the GDPR~\cite[Art.\ 17]{eu:gdpr} mandates.
 However, privacy transformations can achieve much more.
-%
+
 Users and application developers can both benefit from \textbf{more nuanced} privacy policies:
 %
 for example, a confidential paper review system like HotCRP~\cite{hotcrp} keeps users'
@@ -56,65 +119,6 @@ After all, if services must allow users to remove their data on request, it is i
 interest as well as the user's to make it easy for a user to change their mind and return, bringing
 their data along.
 
-\subsection{Challenges}
-%
-Although privacy transformations offer many potential benefits, practically supporting them is hard.
-First, modifying or deleting data must not compromise application correctness: for example, privacy
-transformations must maintain referential integrity of an application's relational database.
-Developers must be careful to properly transform user data without violating application invariants,
-%
-%Even describing the transformation may not be straightforward: 
-%for example, on account deletion, surveyed applications only selectively delete user data (\eg
-%passwords) from underlying databases, and retain the remainder for legal or necessary business purposes
-%(\eg Spotify fraud detection~\cite{spotify:privacy}, Amazon
-%orders~\cite{amazon:privacy}).
-%%
-%%Some services keep most deleted users' contributions indefinitely available (\eg
-%%StackOverflow answers~\cite{stackoverflow:privacy}), sometimes associated with the original user
-%%%name (\eg Wikipedia edit history~\cite{wikipedia:privacy}).
-%%
-%Platforms like Facebook and Twitter delete posts, but keep private messages unanonymized and visible to
-%their recipients~\cite{facebook:privacy, twitter:privacy};
-%others keep posts visible but anonymized, reattributing the contribution to a placeholder user
-%(\eg GitHub's ``@ghost''~\cite{github:privacy}, Reddit/Lobsters'
-%``[deleted]''~\cite{reddit:privacy, lobsters:privacy}).
-%%In the open-source applications surveyed, developers implement privacy transformations
-%%via ad-hoc database operations in their application code.
-%%, and only trigger them on explicit, user-initiated account
-%%deletion.
-which they do today via ad-hoc database operations in their application code.
-
-Furthermore, one application may apply several privacy transformations, intermixed with
-transformation reversals.  When these transformations may share dependencies or contradict each
-other, correctly composing transformations to achieve the desired privacy properties is a daunting
-task.
-%
-Finally, practical privacy transformations should require minimal application changes.
-%
-
-%
-To make these challenges concrete, suppose we were to implement the following two privacy
-transformations in HotCRP. 
-%
-(1) \texttt{ConfAnon} implements universal conference anonymization, a form of data decay to
-prevent reviewer identification in case of a data breach.
-%
-(2) \texttt{GDPR} implements GDPR's ``right-to-be-forgotten'' removal of user data.
-%
-\texttt{ConfAnon} decorrelates reviews and review metadata (\eg review preferences) from reviewers
-by ensuring that no review references a real user's account (via a foreign key relationship).
-To maintain referential integrity, decorrelation requires updating foreign key
-attributes to reference fake user profiles.
-\texttt{GDPR} finds and deletes the leaving user's data.
-%
-
-%
-In isolation, each transformation may seem simple; however, composing them is tricky.
-\texttt{ConfAnon} destroys information linking a user's data to their account by relinking this data
-to anonymous, fake users (\eg rewriting the foreign key linking a review preference to a user to
-point to a fake user profile).  If the user later invokes \texttt{GDPR}, the
-disguise needs to know which data to remove, which is impossible without the original links.
-%
-Due to data dependencies between these transformations, \texttt{GDPR} fails to achieve its desired
-privacy properties, namely the complete removal of the user's data.
-%
+We envision that a systematic approach to privacy transformations can help address the challenges
+identified; if we can overcome these challenges, privacy transformations have the potential to enhance application
+privacy even beyond what we have discussed here.
