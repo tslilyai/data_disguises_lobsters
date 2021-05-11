@@ -20,7 +20,7 @@ For example, GDPR compliance requires a transformation that deletes a user's acc
 data, and anonymizes any data retained due to legal requirements or to preserve
 application utility for other users.
 %
-As another example, consider the possibility of anonymizing old peer review data in a 
+As another example, consider the possibility of anonymizing old peer review data in a
 system like HotCRP~\cite{hotcrp}, to avoid having a future data breach expose reviewer
 identities.
 %
@@ -88,30 +88,39 @@ of privacy transformations (``data disguises'') from application code.
 Developers provide a disguise specification to an external tool, which computes the necessary
 database changes and applies them to the application's database backend (Figure~\ref{fig:tool}).
 %
-Applying a disguise transforms the state of application data in privacy-preserving ways (\eg
+Applying a disguise transforms the application data in privacy-preserving ways (\eg
 deleting users' identifiers, or decorrelating identifying object relationships) while preserving
 application invariants and utility.
 %
-Since many data disguises edit the physical database contents in (often necessarily)
-information-destroying ways, the disguising framework includes \emph{per-user vaults}.
-These vaults are individually owned storage shards that log all disguises applied to a single user's data,
-and cannot be accessed by application queries.
+
 %
-If a disguise should be reversed, either through explicit action---\eg a user might choose to return
-to the application---or in order to apply a second, data-dependent
-disguise---the disguising tool accesses the relevant user vaults to obtain the original,
-unmodified data.
-\lyt{The implicit reversal for data-dependent disguises is confusing, need to edit this.}
+In some situations, reversible disguises are desirable.
 %
-Vaults can be deployed in different ways and for different levels of privacy guarantee: they
-might be physically co-located or separate from the the application storage, encrypted or
-unencrypted, and access might require explicit user approval.
+For example, a user might choose to return to the applicaton, or a disguise may
+modify the same data already modified by a prior disguise.
+%
+Many disguises edit the physical database contents in (often necessarily)
+information-destroying ways, so the disguising framework includes \emph{per-user
+vaults} that allow reversing some disguises.
+%
+These vaults are individually owned storage shards that log all disguises applied
+to an individual user's data.
+%
+Vaults cannot be accessed by application queries, and can be deployed in different
+ways and with different levels of privacy guarantee.
+%
+For instance, vaults might be physically co-located with or separate from the the
+application storage; encrypted or unencrypted; and access might require explicit
+user approval.
+%
+On disguise reversal, the disguising tool accesses the relevant user vaults to obtain the
+original, unmodified data.
 %
 
 %
-We believe that flexible disguising is what real applications require, and that better user
-privacy on the web is best achieved through a systematic approach that reduces developer
-burden.
+We believe that flexible disguising is importy to meet applications' diverse privacy
+requirements, and that better user privacy on the web is best achieved through a
+systematic approach that reduces developer burden.
 %
 However, our framework is far from complete and realizing it will require solving several
 research problems.
