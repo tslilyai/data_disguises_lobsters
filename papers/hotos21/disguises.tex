@@ -1,5 +1,5 @@
 %-------------------------------------------------------------------------------
-\section{The Details of Data Disguising}
+\section{Data Disguising}
 %-------------------------------------------------------------------------------
 \begin{figure}[t!]
     \centering
@@ -9,6 +9,24 @@
     guise to privacy-preserving guises.}
     \label{fig:example}
 \end{figure}
+
+\ms{dumped some text here, will edit}
+To solve these challenges, we propose \emph{data disguising}, a systematic approach to privacy
+transformations. Data disguising reasons about \emph{disguises}, namely privacy transformations that
+follow an organized structure and perform a restricted set of actions (\S\ref{sec:disguises}).
+The structured nature of disguises allows a data disguising tool to automatically determine how to correctly
+compose multiple disguises, and to check that the end-state achieves the desired privacy properties.
+The tool uses the abstraction of \emph{per-user vaults}, which allow the tool to
+reintroduce destroyed data from prior disguises as necessary, while still ensuring that user data
+remains protected (\S\ref{sec:composition}).
+
+A data disguising tool sits alongside the application database, and exposes an API to the
+application allowing it to invoke disguises when necessary. Developers only need to determine when
+to invoke the tool's API, and to provide the (necessarily application-specific) schema annotations
+that describe each disguise; the tool then performs the necessary physical modifications to the application's
+database to transform data as necessary.
+
+\ms{old text follows}
 
 Data disguising offers a systematic technique to tackle the complexity and challenges of performing
 privacy transformations.
