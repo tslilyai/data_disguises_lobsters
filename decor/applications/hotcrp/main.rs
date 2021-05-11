@@ -88,7 +88,6 @@ fn init_db(prime: bool) -> mysql::Conn {
 
 fn run_test(db: &mut mysql::Conn, disguises: &Vec<decor::types::Disguise>) {
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
-   
    file.write("Disguise, NQueries, NQueriesVault, UndoDur, RecordDur, RemoveDur, DecorDur, Duration(ms)\n".as_bytes())
         .unwrap();  
    for (i, disguise) in disguises.iter().enumerate() {
@@ -144,7 +143,7 @@ fn main() {
     let spec = args.spec;
 
     let mut disguises = vec![
-        //conf_anon_disguise::get_disguise(),
+        conf_anon_disguise::get_disguise(),
         //gdpr_disguise::get_disguise((1) as u64),
         gdpr_disguise::get_disguise((datagen::NUSERS_NONPC+1) as u64),
     ];
