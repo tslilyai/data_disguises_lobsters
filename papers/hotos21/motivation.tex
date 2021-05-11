@@ -1,9 +1,10 @@
 \section{Privacy Transformations}
 \label{sec:survey}
 
-To motivate the need for a systematic approach to privacy transformations, we investigate how 
-privacy transformations are used in applications today, how they could be used to achieve better
-privacy in the future, and the challenges faced when implementing these transformations. 
+We motivate a systematic treatment of privacy transformations, in which they are a first-class citizen in
+application design, by investigating how privacy transformations are used in applications today,
+their potential to achieve better privacy in the future, and the challenges we face to support these
+transformations.
 
 \subsection{Privacy Transformations In Practice Today}
 %
@@ -21,17 +22,16 @@ orders~\cite{amazon:privacy, prestashop:privacy}).
 %
 %The treatment of other user contributions varies.
 
-Some services keep most contributions publicly and indefinitely available (\eg StackOverflow
+Some services keep most deleted users' contributions publicly and indefinitely available (\eg StackOverflow
 answers~\cite{stackoverflow:privacy}, sometimes
-associated with the original user name (\eg Wikipedia edit history~\cite{wikipedia:privacy}), even
-if a user deletes their account.
+associated with the original user name (\eg Wikipedia edit history~\cite{wikipedia:privacy}).
 %shared Strava routes~\cite{strava:privacy}), 
 %
 Some social networking platforms delete posts, but keep data like private messages unanonymized and visible to their recipients (Facebook/Twitter~\cite{facebook:privacy, twitter:privacy}).
 %LinkedIn updates~\cite{linkedin:privacy}).
 %
-Other platforms keep user contributions visible but anonymized, reattributing the contribution to a placeholder user
-(\eg GitHub's ``@ghost''~\cite{github:privacy}, Reddit and Lobsters'
+Others keep contributions visible but anonymized, reattributing the contribution to a placeholder user
+(\eg GitHub's ``@ghost''~\cite{github:privacy}, Reddit/Lobsters'
 ``[deleted]''~\cite{reddit:privacy, lobsters:privacy}).
 %
 %    \item Keep certain user contributions unanonymized and visible to its intended audience (\eg
@@ -42,67 +42,61 @@ Other platforms keep user contributions visible but anonymized, reattributing th
 %\end{itemize}
 %
 
-In the open-source applications surveyed, developers implement privacy transformations
-via ad-hoc database operations, and only trigger them on explicit, user-initiated account
-deletion.
+%In the open-source applications surveyed, developers implement privacy transformations
+%via ad-hoc database operations, and only trigger them on explicit, user-initiated account
+%deletion.
 %
 %Most developers appear to pay little attention to identifying correlations
 %within the remaining data.
 %
 
-\subsection{Desirable Privacy Transformations Missing Today}
+\subsection{The Potential of Privacy Transformations}
 Privacy transformations can achieve much more than what they do today.
-
-\paragraph{Nuanced policies.}
+%\paragraph{Nuanced policies.}
 %
-Users and application developers can both benefit from more nuanced privacy policies.
+Users and application developers can both benefit from \textbf{more nuanced} privacy policies:
 %
-For example, a confidential paper review system like HotCRP~\cite{hotcrp} must keep a
-user's contributions
-(papers, reviews) after they delete their account to preserve utility for others, but could
-associate each review with a different placeholder to avoid revealing the deleted reviewer's
-identity.
+for example, a confidential paper review system like HotCRP~\cite{hotcrp} keeps a
+user's contributions (papers, reviews) after they delete their account to preserve utility for
+others, but could also associate each review with a different placeholder to avoid revealing the deleted
+reviewer's identity.
 %
 %Likewise, contributions with a shared property (\eg Reddit posts with a common tag)
 %might be removed entirely to avoid inference attacks, or retained and decorrelated from the
 %property (\ie keeping the user's Reddit posts, but removing their tags).
 %\eddie{Would like more explanation of that}
 In some cases, a policy could preserve utility while reducing the efficacy of later inference
-attacks by changing posts, such as by modifying their metadata (\eg tags, posting times).
+attacks by \eg modifying sensitive metadata (\eg tags, creation times).
 %
-Some transformations should be performed only on sensitive metadata:
+%Some transformations should be performed only on sensitive metadata:
 %Similar policies could apply \emph{only if} the property was created by the user (\eg keeping
 %the user's Reddit posts, but removing any user-created tags),
-a tag like “\#cat” is likely insensitive and useful to preserve, whereas one naming a person is not.
+% tag like “\#cat” is likely insensitive and useful to preserve, whereas one naming a person is not.
 %
 %(\eg remove the user's posts on Reddit with tag $t$ if these posts comprise more than 10\%
 %of all posts with tag $t$).
 %
-Individual users may even specify different preferences for their data.
+Individual users could even specify different preferences for their data.
 %
 %% A privacy transformation framework is necessary to turn these preferences into concrete
 %% operations without undue developer burden.
 %
 
-\paragraph{Data decay.}
 %
-Applications could go beyond simple account deletion and support a data expiration policy that
-anonymizes a user's contributions after the user has been inactive for a period of time,
-possibly restoring the user's profile and contributions if the user ever logs back in.
+Applications could go beyond simple account deletion and support \textbf{data
+expiration} policies, which anonymize a user's contributions after the user has been inactive for a
+period of time, possibly restoring the user's profile and contributions if the user ever logs back
+in.
 %
-Or the application could gradually ``decay'' sensitive data by applying several privacy
-transformations that incrementally remove identifiable information over time.
-%from it as it ages.
-%
-%% This requires periodic, automated privacy transformations.
+Or the application could support gradual \textbf{data decay} policies that ``decay'' sensitive data
+by applying incremental privacy transformations over time.
 
-\paragraph{Reversibility.}
-%
-Many applications might wish to employ \emph{reversible} transformations to, for example, support
-account reactivation instead of permanent and irrevocable account deletion.
+Furthermore, many applications might wish to employ \textbf{reversible} transformations to, for
+example, support account reactivation instead of permanent and irrevocable account deletion.
 %
 After all, if services must allow users to remove their data on request, it is in the operator's
-interest as well as the user's to make it easy for a user to change their mind and return, bringing their data along.
+interest as well as the user's to make it easy for a user to change their mind and return, bringing
+their data along.
 %
 %An advanced reversible transformation might record all data transformed, and push an encrypted
 %archive to third-party cloud storage.
@@ -114,23 +108,11 @@ interest as well as the user's to make it easy for a user to change their mind a
 %the ACLU or EFF).
 %
 
-\subsection{The Future of Privacy Transformations}
 %
-\ms{This doesn't fit well currently.}
-\lyt{Took a shot a rewording/reorganizing...}
+%In particular, we imagine that developers declaratively specify the above and other
+%transformation policies like they specify a storage structure (\eg a relational schema) today.
 %
-Privacy transformations and their potential properties allow them to act as powerful mechanisms for
-privacy. This argues for a systematic treatment of privacy transformations that makes them a
-first-class citizen in application design.
-%
-In particular, we imagine that developers declaratively specify the above and other
-transformation policies like they specify a storage structure (\eg a relational schema) today.
-%
-This also allows for new policies and use cases that benefit both end-users and service operators.
-%
-%% Our \emph{data disguising} approach supports these new policies and concepts,
-%% which are missing from today's applications but easily described via disguises.
-%
+%This also allows for new policies and use cases that benefit both end-users and service operators.
 
 \subsection{Challenges}
 %
@@ -138,10 +120,10 @@ Supporting practical privacy transformations poses several challenges. First, mo
 or deleting data must not compromise application correctness: for example, privacy transformations
 must maintain referential integrity of an application's relational database.
 %
-Furthermore, one application may apply several privacy transformations. Composed
-transformations---multiple transformations applied in sequence---should achieve each individual
-transformation's privacy properties, even when these transformations may share dependencies or
-contradict each other.
+Furthermore, one application may apply several privacy transformations, intermixed with
+transformation reversals.  When these transformations may share dependencies or contradict each
+other, correctly composing transformations to achieve the desired privacy properties is a daunting
+task.
 %
 Finally, practical privacy transformations should require minimal application changes.
 %
@@ -151,7 +133,7 @@ To make these challenges concrete, suppose we were to implement the following tw
 transformations in HotCRP. 
 %
 (1) \texttt{ConfAnon} implements universal conference anonymization, a form of data decay to
-preventing past-conference reviewer identification in case of a data breach.
+prevent reviewer identification in case of a data breach.
 %
 (2) \texttt{GDPR} implements GDPR's ``right-to-be-forgotten'' removal of user data.
 %
@@ -165,10 +147,10 @@ attributes to reference fake user profiles.
 %
 In isolation, each transformation may seem simple; however, composing them is tricky.
 \texttt{ConfAnon} destroys information linking a user's data to their account by relinking this data
-to anonymous, fake users (\eg the foreign key linking review preferences to a user has been rewritten to
+to anonymous, fake users (\eg rewriting the foreign key linking a review preference to a user to
 point to a fake user profile).  If the user later invokes \texttt{GDPR}, the
 disguise needs to know which data to remove, which is impossible without the original links.
 %
-Data dependencies between these transformations causes \texttt{GDPR} to
-fail to achieve its desired privacy properties, namely the complete removal of the user's data.
+Due to data dependencies between these transformations, \texttt{GDPR} fails to achieve its desired
+privacy properties, namely the complete removal of the user's data.
 %
