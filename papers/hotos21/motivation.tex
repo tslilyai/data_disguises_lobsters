@@ -1,41 +1,36 @@
 \section{Privacy Transformations}
 \label{sec:survey}
 
+To motivate the need for a systematic approach to privacy transformations, we investigate how 
+privacy transformations are used in applications today, how they could be used to achieve better
+privacy in the future, and the challenges faced when implementing these transformations. 
+
 \subsection{Privacy Transformations In Practice Today}
 %
-We surveyed widely-used web applications to understand the privacy
-transformations they apply.
+%We surveyed widely-used web applications to understand the privacy
+%transformations they apply.
 %
-The main privacy transformation these applications support is account deletion,
-a transformation that \eg the GDPR~\cite[Art.\ 17]{eu:gdpr} mandates.
-%
-%~\cite{facebook:privacy, twitter:privacy, hotcrp:privacy, reddit:privacy,
-%github:privacy, hackernews:privacy, strava:privacy, linkedin:privacy, stackoverflow:privacy,
-%wikipedia:privacy, amazon:privacy, prestashop:privacy, spotify:privacy, lobsters:privacy}:
-
-
-%\paragraph{Treatment of user contributions.}
+Widely-used web applications mainly support an account deletion privacy transformation,
+one that \eg the GDPR~\cite[Art.\ 17]{eu:gdpr} mandates.
 %
 On account removal, all applications surveyed delete some user profile
-information (\eg passwords) from underlying databases, but all applications
-also retain some information for legal or necessary business purposes
+information (\eg passwords) from underlying databases, but 
+retain some information for legal or necessary business purposes
 (\eg Spotify fraud detection~\cite{spotify:privacy}, PrestaShop/Amazon
 orders~\cite{amazon:privacy, prestashop:privacy}).
 %
-The treatment of other user contributions varies.
-%
+%The treatment of other user contributions varies.
+
 Some services keep most contributions publicly and indefinitely available (\eg StackOverflow
-answers~\cite{stackoverflow:privacy}, shared Strava routes~\cite{strava:privacy}), sometimes
+answers~\cite{stackoverflow:privacy}, sometimes
 associated with the original user name (\eg Wikipedia edit history~\cite{wikipedia:privacy}), even
 if a user deletes their account.
+%shared Strava routes~\cite{strava:privacy}), 
 %
-Social networking platforms delete some of a user's contributions (\eg
-posts), but keep others unanonymized and visible to their recipients (\eg
-Facebook/Twitter private messages~\cite{facebook:privacy, twitter:privacy},
-LinkedIn updates~\cite{linkedin:privacy}).
+Some social networking platforms delete posts, but keep data like private messages unanonymized and visible to their recipients (Facebook/Twitter~\cite{facebook:privacy, twitter:privacy}).
+%LinkedIn updates~\cite{linkedin:privacy}).
 %
-Other platforms with mostly public content keep user contributions visible to the intended
-audience, but anonymize them by reattributing the contribution to a placeholder user
+Other platforms keep user contributions visible but anonymized, reattributing the contribution to a placeholder user
 (\eg GitHub's ``@ghost''~\cite{github:privacy}, Reddit and Lobsters'
 ``[deleted]''~\cite{reddit:privacy, lobsters:privacy}).
 %
@@ -51,12 +46,12 @@ In the open-source applications surveyed, developers implement privacy transform
 via ad-hoc database operations, and only trigger them on explicit, user-initiated account
 deletion.
 %
-Most developers appear to pay little attention to identifying correlations
-within the remaining data.
+%Most developers appear to pay little attention to identifying correlations
+%within the remaining data.
 %
 
-
 \subsection{Desirable Privacy Transformations Missing Today}
+Privacy transformations can achieve much more than what they do today.
 
 \paragraph{Nuanced policies.}
 %
