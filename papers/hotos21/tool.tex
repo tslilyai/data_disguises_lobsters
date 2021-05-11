@@ -1,57 +1,115 @@
 %-------------------------------------------------------------------------------
-\section{The Need for a Systematic Approach to Privacy Transformations}
+\subsection{Data Disguising Tools}
+\label{sec:composition}
 %-------------------------------------------------------------------------------
-Properly supporting privacy transformations poses several challenges in practice. First, modifying or
-deleting data must not compromise application correctness: for example, privacy transformations must
-maintain referential integrity of an application's relational database.
-%
-Furthermore, one application may apply several privacy transformations. Composing
-transformations---applying multiple transformations in sequence---should achieve a state satisfying
-every transformations' privacy properties, even when these transformations may share dependencies or
-contradict each other.
-%
-Finally, to make privacy transformations feasible in practice, application changes should be kept to
-a minimum.
+\begin{figure}[t!]
+    \centering
+    \includegraphics[width=0.35\textwidth]{img/disguise_tool}
+
+    \caption{A data disguising tool sits alongside the application code and database.}
+    \label{fig:tool}
+\end{figure}
+
+A data disguising tool handles the complexity behind disguise composition, applying disguises in
+sequence and generating the necessary storage operations to achieve the correct end state.
+When applying a disguise, a disguising tool must both correctly apply the specified transformations, and also
+manage the complexity caused by conflicts and shared dependencies between the new disguise and any
+prior disguises.  For example, \texttt{ConfAnon} destroys information linking data records back to a
+user, thus making it impossible for \texttt{GDPR} to properly remove these records.
+
+To handle inter-disguise dependencies, a disguising tool relies on (1) the structured nature of disguises to
+statically determine whether disguises share dependencies, and (2) the key abstraction of \emph{user
+vaults}, namely per-user logs of disguise updates to that user's data.  User vaults solve the issue
+that disguises inherently destroy data necessary to correctly achieve the end-state of future
+disguises by providing a secure way to store the data. A disguising tool queries the user vault to
+temporarily restore destroyed data (\eg decorrelated foreign key relationships) in order to apply
+the disguise correctly.
+
+As shown in Figure~\ref{fig:tool}, a disguising tool sits next to the application, and queries the
+user vaults and the application database. The application performs disguises by invoking a
+disguising tool.
+
+%-------------------------------------------------------------------------------
+\paragraph{Deploying User Vaults.}
+%-------------------------------------------------------------------------------
+User vaults can be flexibly configured and deployed. It remains important, however, that any
+configuration of user vaults should not violate the guarantee that disguises indeed destroy data,
+from the viewpoint of the application and any users.
+We imagine several exciting directions to explore for designing vaults that are both
+performant and secure.
 %
 
 %
-To make these challenges concrete, suppose we were to implement the following two privacy
-transformations in HotCRP as SQL transactions. (1) \texttt{ConfAnon} implements universal conference
-anonymization by reassociating reviews and other metadata (e.g., review preferences) with
-placeholder users; this is a form of data decay, preventing leaking reviewer identities for historic data in
-the case of a data breach. (2) \texttt{GDPR} implements GDPR's ``right-to-be-forgotten'' removal of user data.
+Some possible configurations include a disguising tool storing vaults encrypted with a per-user key; this key
+may be secret-shared using a (2, 3) threshold scheme~\cite{secretsharing} between the user, the
+tool, and a trusted third party (\eg Amazon S3), so that the user can authorize a disguising tool and the
+third party to restore the key if the user forgets their share.
 %
-\texttt{ConfAnon} decorrelates reviewer profiles from their contributions: no review should reference a
-user's account (via a foreign key relationship).
-Furthermore, decorrelation must maintain referential integrity, requiring changes to foreign key
-attributes to reference some fake user profile.
-\texttt{GDPR} must properly remove the leaving user's owned data.
+The vault entries could be configured to expire after a certain time (requiring that a disguising tool either
+prevent future conflicting disguise application, or a-priori prevent disguises that conflict with
+legally required disguises such as GDPR deletion).
+%
+Or perhaps the vault entries are stored entirely by some third party or locally by the user, whose
+server runs a corresponding interface to allow disguise tools to read and write the vault.
 
-While both of these transformations seem relatively straightforward to implement, composing even
-these simple transformations is tricky. \texttt{ConfAnon} destroys links between a user's data and
-their profile, making it impossible for a subsequent \texttt{GDPR} application to correctly remove
-all of the user's data. 
-%
-For instance, \texttt{ConfAnon} removes the link between a user and their bookmarked papers by
-relinking the bookmarks to anonymous, fake users; if the user later invokes \texttt{GDPR}, the
-disguise needs to know which bookmarks to remove, which is impossible without the 
-original links.
-%
-Data dependencies between the two transformations may thus cause the application of multiple
-transformations to fail to achieve the desired privacy properties.
-%
+A disguising tool should, with user permission, be able to read and write the vaults: a user invoking GDPR
+\texttt{GDPR} could provide the key to their vault, and the application invoking the
+\texttt{ConfAnon} might notify each user for approval (and temporary vault access) prior to disguise
+application. An alternative might be a multi-tier security design, in which a disguising tool and application
+are trusted with access to vaults in one tier, allowing them to perform application-instigated
+disguises, and untrusted in a second tier, which stores updates from user-invoked disguises.
 
-To solve these challenges, we propose \emph{data disguising}, a systematic approach to privacy
-transformations. Data disguising reasons about \emph{disguises}, namely privacy transformations that
-follow an organized structure and perform a restricted set of actions (\S\ref{sec:disguises}).
-The structured nature of disguises allows a data disguising tool to automatically determine how to correctly
-compose multiple disguises, and to check that the end-state achieves the desired privacy properties.
-The tool uses the abstraction of \emph{per-user vaults}, which allow the tool to
-reintroduce destroyed data from prior disguises as necessary, while still ensuring that user data
-remains protected (\S\ref{sec:composition}).
+%\lyt{Might want to say more about how often user vaults are
+%queried---what if one disguise needs access to many user vaults, but is being done on behalf of a
+%single user? Perhaps there could be multiple ``levels'' of security in vaults, and any
+%application-imposed disguise would be protected by application-known keys.}
 
-A data disguising tool sits alongside the application database, and exposes an API to the
-application allowing it to invoke disguises when necessary. Developers only need to determine when
-to invoke the tool's API, and to provide the (necessarily application-specific) schema annotations
-that describe each disguise; the tool then performs the necessary physical modifications to the application's
-database to transform data as necessary.
+%-------------------------------------------------------------------------------
+\paragraph{Composing and Applying Disguises.}
+%-------------------------------------------------------------------------------
+Correct composition of multiple disguises achieves an end-state equivalent to combining the
+end-states achieved by each disguise when applied to the original application database in isolation.
+%
+In particular, a disguising tool ensures that prior disguises do not affect \emph{which} objects are updated
+by future disguises: a disguise will update all objects that it would have updated if performed on
+the original, undisguised state of application data.
+
+A disguising tool allows developers to reason about multiple conflicting updates to the same object by ensuring that
+if one disguise removes an object that another disguise modifies, the removal takes
+precedence.
+%
+However, if two disguises modify the same object attribute, a disguising tool
+establishes no precedence between the modifications and applies them in chronological order.
+Alternatively, we can imagine that the developer could specify a partial ordering between
+modifications, or restricting the set of possible modifications and establishing a precedence order
+within this set.
+
+A disguising tool applies disguises in a four-phase procedure:
+\begin{enumerate}[nosep]
+    \item \emph{Prepare}: reconcile any data dependencies between this disguise and prior disguises.
+            A disguising tool detects read-after-write dependencies between the new disguise's predicates and prior disguises'
+            updates, and, using entries in the vault, undoes any writes that may affect the new disguise's predicates. As an
+            optimization, vault entries recording object removals need not be reversed.
+        \item \emph{Read}: get all objects that satisfy (per-type) developer-specified predicates.
+        \item \emph{Update}: modify, decorrelate, or remove objects read in step (2) according to the
+        developer's specification.
+    \item \emph{Record}: store records of all updates in the appropriate per-user vaults. A
+        disguising tool
+        must be able to determine which user vault should record each modification. This can be
+        developer-specified, or rely on a set of heuristics (\eg assigning ownership by traversing,
+        starting from each user, the application's object graph expressed in an object-relational
+        model (ORM)~\cite{orm}, or implicitly via foreign keys).
+        \item \emph{Finalize}: After applying the new disguise updates, the disguising tool reapplies the temporarily reversed modifications from earlier disguises.
+        %\lyt{Should we cite Odlaw?}
+        %or use techniques such as IFC tracking .
+        %\lyt{Should we mention taint tracking/IFC here? We mention in related how
+        %disguising explicitly does not need such heavyweight techniques.}
+\end{enumerate}
+
+%-------------------------------------------------------------------------------
+\paragraph{Reversing Disguises.}
+%-------------------------------------------------------------------------------
+To correctly reverse a disguise and ensure that reintroduced data is not mistakenly revealed because
+it missed a subsequent disguise, A disguising tool keeps a persistent log of all disguises performed by the
+application. Any other disguises performed between this disguise's application and its reversal and
+applied to any reintroduced data.
