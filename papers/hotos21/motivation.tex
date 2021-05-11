@@ -6,7 +6,9 @@ design, and the challenges we face to support these transformations. These chall
 need for a systematic approach to privacy transformations.
 
 \subsection{The Potential of Privacy Transformations}
-Widely-used web applications today mainly support an account deletion privacy transformation,
+Widely-used web applications today~\cite{spotify:privacy, amazon:privacy,
+strava:privacy, hotcrp:privacy, wikipedia:privacy, facebook:privacy, twitter:privacy,
+reddit:privacy, github:privacy, lobsters:privacy} mainly support variants of an account deletion privacy transformation,
 one that \eg the GDPR~\cite[Art.\ 17]{eu:gdpr} mandates.
 However, privacy transformations can achieve much more.
 %
@@ -53,18 +55,6 @@ example, support account reactivation instead of permanent and irrevocable accou
 After all, if services must allow users to remove their data on request, it is in the operator's
 interest as well as the user's to make it easy for a user to change their mind and return, bringing
 their data along.
-
-
-
-%Most developers appear to pay little attention to identifying correlations
-%within the remaining data.
-%
-
-%
-%In particular, we imagine that developers declaratively specify the above and other
-%transformation policies like they specify a storage structure (\eg a relational schema) today.
-%
-%This also allows for new policies and use cases that benefit both end-users and service operators.
 
 \subsection{Challenges}
 %
