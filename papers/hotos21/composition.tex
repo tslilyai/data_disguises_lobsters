@@ -10,24 +10,24 @@
     \label{fig:tool}
 \end{figure}
 
-
 A data disguising tool handles the complexity behind disguise composition, applying disguises in
 sequence and generating the necessary storage operations to achieve the correct end state.
-When applying a disguise, the tool must both correctly apply the specified transformations, and also
+When applying a disguise, a tool must both correctly apply the specified transformations, and also
 manage the complexity caused by conflicts and shared dependencies between the new disguise and any
 prior disguises.  For example, \texttt{ConfAnon} destroys information linking data records back to a
 user, thus making it impossible for \texttt{GDPR} to properly remove these records.
 
-To handle inter-disguise dependencies, the tool relies on (1) the structured nature of disguises to
+To handle inter-disguise dependencies, a tool relies on (1) the structured nature of disguises to
 statically determine whether disguises share dependencies, and (2) the key abstraction of \emph{user
 vaults}, namely per-user logs of disguise updates to that user's data.  User vaults solve the issue
 that disguises inherently destroy data necessary to correctly achieve the end-state of future
-disguises by providing a secure way to store the data. The tool queries the user vault to
+disguises by providing a secure way to store the data. A tool queries the user vault to
 temporarily restore destroyed data (\eg decorrelated foreign key relationships) in order to apply
 the disguise correctly.
 
 As shown in Figure~\ref{fig:tool}, a disguising tool sits next to the application, and queries the
-user vaults and the application database. The application performs disguises by invoking the tool.
+user vaults and the application database. The application performs disguises by invoking a
+disguising tool.
 
 %-------------------------------------------------------------------------------
 \paragraph{Deploying User Vaults.}
@@ -40,22 +40,22 @@ performant and secure.
 %
 
 %
-Some possible configurations include the tool storing vaults encrypted with a per-user key; this key
+Some possible configurations include a disguising tool storing vaults encrypted with a per-user key; this key
 may be secret-shared using a (2, 3) threshold scheme~\cite{secretsharing} between the user, the
-tool, and a trusted third party (\eg Amazon S3), so that the user can authorize the tool and the
+tool, and a trusted third party (\eg Amazon S3), so that the user can authorize a disguising tool and the
 third party to restore the key if the user forgets their share.
 %
-The vault entries could be configured to expire after a certain time (requiring that the tool either
-prevent future conflicting disguise application, or prevent a-priori disguises that conflict with
+The vault entries could be configured to expire after a certain time (requiring that a tool either
+prevent future conflicting disguise application, or a-priori prevent disguises that conflict with
 legally required disguises such as GDPR deletion).
 %
 Or perhaps the vault entries are stored entirely by some third party or locally by the user, whose
 server runs a corresponding interface to allow disguise tools to read and write the vault.
 
-The tool should, with user permission, be able to read and write the vaults: a user invoking GDPR
+A disguising tool should, with user permission, be able to read and write the vaults: a user invoking GDPR
 \texttt{GDPR} could provide the key to their vault, and the application invoking the
 \texttt{ConfAnon} might notify each user for approval (and temporary vault access) prior to disguise
-application. An alternative might be a multi-tier security design, in which the tool and application
+application. An alternative might be a multi-tier security design, in which a disguising tool and application
 are trusted with access to vaults in one tier, allowing them to perform application-instigated
 disguises, and untrusted in a second tier, which stores updates from user-invoked disguises.
 
@@ -70,30 +70,30 @@ disguises, and untrusted in a second tier, which stores updates from user-invoke
 Correct composition of multiple disguises achieves an end-state equivalent to combining the
 end-states achieved by each disguise when applied to the original application database in isolation.
 %
-In particular, the tool ensures that prior disguises do not affect \emph{which} objects are updated
+In particular, a tool ensures that prior disguises do not affect \emph{which} objects are updated
 by future disguises: a disguise will update all objects that it would have updated if performed on
 the original, undisguised state of application data.
 
-The tool allows developers to reason about multiple conflicting updates to the same object by ensuring that
+A tool allows developers to reason about multiple conflicting updates to the same object by ensuring that
 if one disguise removes an object that another disguise modifies, the removal takes
 precedence.
 %
-However, if two disguises modify the same object attribute, the tool
+However, if two disguises modify the same object attribute, a tool
 establishes no precedence between the modifications and applies them in chronological order.
 Alternatively, we can imagine that the developer could specify a partial ordering between
 modifications, or restricting the set of possible modifications and establishing a precedence order
 within this set.
 
-The tool applies disguises in a four-phase procedure:
+A disguising tool applies disguises in a four-phase procedure:
 \begin{enumerate}[nosep]
     \item \emph{Prepare}: reconcile any data dependencies between this disguise and prior disguises.
-            The tool detects read-after-write dependencies between the new disguise's predicates and prior disguises'
+            A tool detects read-after-write dependencies between the new disguise's predicates and prior disguises'
             updates, and, using entries in the vault, undoes any writes that may affect the new disguise's predicates. As an
             optimization, vault entries recording object removals need not be reversed.
         \item \emph{Read}: get all objects that satisfy (per-type) developer-specified predicates.
         \item \emph{Update}: modify, decorrelate, or remove objects read in step (2) according to the
         developer's specification.
-    \item \emph{Record}: store records of all updates in the appropriate per-user vaults. The tool
+    \item \emph{Record}: store records of all updates in the appropriate per-user vaults. A tool
         must be able to determine which user vault should record each modification. This can be
         developer-specified, or rely on a set of heuristics (\eg assigning ownership by traversing,
         starting from each user, the application's object graph expressed in an object-relational
@@ -109,6 +109,6 @@ The tool applies disguises in a four-phase procedure:
 \paragraph{Reversing Disguises.}
 %-------------------------------------------------------------------------------
 To correctly reverse a disguise and ensure that reintroduced data is not mistakenly revealed because
-it missed a subsequent disguise, the tool keeps a persistent log of all disguises performed by the
+it missed a subsequent disguise, A tool keeps a persistent log of all disguises performed by the
 application. Any other disguises performed between this disguise's application and its reversal and
 applied to any reintroduced data.
