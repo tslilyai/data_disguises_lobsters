@@ -29,7 +29,10 @@ pub fn apply(
                     fk_name,
                     ..
                 } => {
+                    let start_decor = time::Instant::now();
+
                     /* PHASE 1: SELECT REFERENCER OBJECTS */
+                    let start = time::Instant::now();
                     let child_objs =
                         get_query_rows_txn(&select_statement(&table.name, &pred), txn, stats)?;
                     if child_objs.is_empty() {
@@ -50,9 +53,13 @@ pub fn apply(
                     );
 
                     let fk_cols = (*disguise.guise_info.col_generation)();
+                    stats.decor_dur_pred += start.elapsed();
+
                     for (n, child) in child_objs.iter().enumerate() {
                         let old_uid = fkids[n];
+                       
                         // skip already decorrelated users
+                        let start = time::Instant::now();
                         if is_guise(&fk_name, &disguise.guise_info.id_col, old_uid, txn, stats)? {
                             warn!(
                                 "decor_obj_txn: skipping decorrelation for {}.{}, already a guise",
@@ -60,6 +67,7 @@ pub fn apply(
                             );
                             continue;
                         }
+                        stats.decor_dur_guise += start.elapsed();
 
                         /*
                          * PHASE 2: OBJECT MODIFICATIONS
@@ -68,9 +76,10 @@ pub fn apply(
                          * */
 
                         // Phase 2A: insert new parent
+                        let start = time::Instant::now();
                         let new_parent = (*disguise.guise_info.val_generation)();
-                        get_query_rows_txn(
-                            &Statement::Insert(InsertStatement {
+                        stats.decor_dur_2A_1 += start.elapsed();
+                        let stmt = Statement::Insert(InsertStatement {
                                 table_name: string_to_objname(&fk_name),
                                 columns: fk_cols
                                     .iter()
@@ -78,16 +87,22 @@ pub fn apply(
                                     .collect(),
                                 source: InsertSource::Query(Box::new(values_query(vec![
                                     new_parent.clone(),
-                                ]))),
-                            }),
+                                ])))}).to_string();
+                        let start = time::Instant::now();
+                        query_drop_txn(&stmt,
                             txn,
                             stats,
                         )?;
+                        stats.decor_dur_2A_2 += start.elapsed();
+                        let start = time::Instant::now();
                         let guise_id = txn.last_insert_id().unwrap();
+                        stats.decor_queries_2A += 1;
+                        stats.decor_dur_2A_3 += start.elapsed();
                         warn!("decor_obj_txn: inserted guise {}.{}", fk_name, guise_id);
 
                         // Phase 2B: update child to point to new parent
-                        get_query_rows_txn(
+                        let start = time::Instant::now();
+                        query_drop_txn(
                             &Statement::Update(UpdateStatement {
                                 table_name: string_to_objname(&table.name),
                                 assignments: vec![Assignment {
@@ -104,10 +119,12 @@ pub fn apply(
                                         old_uid.to_string(),
                                     ))),
                                 }),
-                            }),
+                            }).to_string(),
                             txn,
                             stats,
                         )?;
+                        stats.decor_queries_2B += 1;
+                        stats.decor_dur_2B += start.elapsed();
 
                         /*
                          * PHASE 3: VAULT UPDATES
@@ -115,6 +132,7 @@ pub fn apply(
                          * B) record update to child to point to new guise
                          * */
                         // Phase 3A: update the vault with new guise (calculating the uid from the last_insert_id)
+                        let start = time::Instant::now();
                         let mut i = 0;
                         let new_parent_rowvals: Vec<RowVal> = new_parent
                             .iter()
@@ -171,7 +189,9 @@ pub fn apply(
                             new_value: new_child,
                             reverses: None,
                         });
+                        stats.decor_dur_3 += start.elapsed();
                     }
+                    stats.decor_dur += start.elapsed();
                 }
                 Remove { pred } => {
                     /*
@@ -186,6 +206,7 @@ pub fn apply(
                      */
                     
                     // reverse all possible decorrelations for this table
+                    let start = time::Instant::now();
                     for (ref_table, ref_col) in &disguise.guise_info.referencers {
                         if ref_table == &table.name {
                             vault::reverse_vault_decor_referencer_entries(
@@ -200,10 +221,12 @@ pub fn apply(
                             )?;
                          }
                     }
+                    stats.undo_dur += start.elapsed();
 
                     /*
                      * PHASE 1: OBJECT SELECTION
                      */
+                    let start = time::Instant::now();
                     let predicated_objs = helpers::get_query_rows_txn(
                         &select_statement(&table.name, &pred),
                         txn,
@@ -211,14 +234,15 @@ pub fn apply(
                     )?;
 
                     /* PHASE 2: OBJECT MODIFICATION */
-                    helpers::get_query_rows_txn(
+                    helpers::query_drop_txn(
                         &Statement::Delete(DeleteStatement {
                             table_name: string_to_objname(&table.name),
                             selection: pred.clone(),
-                        }),
+                        }).to_string(),
                         txn,
                         stats,
                     )?;
+                    stats.remove_dur += start.elapsed();
 
                     /* PHASE 3: VAULT UPDATES */
                     // XXX removal entries get stored in *all* vaults????
@@ -268,7 +292,7 @@ pub fn apply(
                         /*
                          * PHASE 2: OBJECT MODIFICATIONS
                          * */
-                        get_query_rows_txn(
+                        query_drop_txn(
                             &Statement::Update(UpdateStatement {
                                 table_name: string_to_objname(&table.name),
                                 assignments: vec![Assignment {
@@ -276,7 +300,7 @@ pub fn apply(
                                     value: Expr::Value(Value::String(new_val.clone())),
                                 }],
                                 selection: Some(selection),
-                            }),
+                            }).to_string(),
                             txn,
                             stats,
                         )?;
@@ -325,8 +349,10 @@ pub fn apply(
             }
         }
     }
+    let start = time::Instant::now();
     vault::insert_vault_entries(&vault_vals, txn, stats)?;
     record_disguise(&de, txn, stats)?;
+    stats.record_dur += start.elapsed();
     Ok(())
 }
 

@@ -1,8 +1,8 @@
+use sql_parser::ast::*;
+use sql_parser::parser::*;
 use std::fs::File;
 use std::io::prelude::*;
 use std::time::Duration;
-use sql_parser::ast::*;
-use sql_parser::parser::*;
 use std::*;
 
 #[derive(Debug, Clone)]
@@ -23,22 +23,59 @@ pub struct QueryStat {
     pub nqueries: usize,
     pub nobjects: usize,
     pub nqueries_vault: usize,
+    pub remove_dur: Duration,
+    pub decor_dur: Duration,
+    pub decor_dur_pred: Duration,
+    pub decor_dur_guise: Duration,
+    pub decor_dur_2A_1: Duration,
+    pub decor_dur_2A_2: Duration,
+    pub decor_dur_2A_3: Duration,
+    pub decor_queries_2A: usize,
+    pub decor_queries_2B: usize,
+    pub decor_dur_2B: Duration,
+    pub decor_dur_3: Duration,
+    pub undo_dur: Duration,
+    pub record_dur: Duration,
     pub qtype: QueryType,
 }
 
 impl QueryStat {
     pub fn new() -> Self {
         QueryStat {
-            duration: Duration::new(0,0),
-            nqueries : 0,
-            nobjects : 0,
-            nqueries_vault : 0,
-            qtype : QueryType::None,
+            duration: Duration::new(0, 0),
+            remove_dur: Duration::new(0, 0),
+            decor_dur: Duration::new(0, 0),
+            decor_dur_pred: Duration::new(0, 0),
+            decor_dur_guise: Duration::new(0, 0),
+            decor_dur_2A_1: Duration::new(0, 0),
+            decor_dur_2A_2: Duration::new(0, 0),
+            decor_dur_2A_3: Duration::new(0, 0),
+            decor_dur_2B: Duration::new(0, 0),
+            decor_queries_2A: 0,
+            decor_queries_2B: 0,
+            decor_dur_3: Duration::new(0, 0),
+            undo_dur: Duration::new(0, 0),
+            record_dur: Duration::new(0, 0),
+            nqueries: 0,
+            nobjects: 0,
+            nqueries_vault: 0,
+            qtype: QueryType::None,
         }
     }
 
     pub fn clear(&mut self) {
-        self.duration = Duration::new(0,0);
+        self.duration = Duration::new(0, 0);
+        self.remove_dur = Duration::new(0, 0);
+        self.decor_dur = Duration::new(0, 0);
+        self.decor_dur_pred = Duration::new(0, 0);
+        self.decor_dur_guise = Duration::new(0, 0);
+        self.decor_dur_2A_1 = Duration::new(0, 0);
+        self.decor_dur_2A_2 = Duration::new(0, 0);
+        self.decor_dur_2A_3 = Duration::new(0, 0);
+        self.decor_dur_2B = Duration::new(0, 0);
+        self.decor_dur_3 = Duration::new(0, 0);
+        self.undo_dur = Duration::new(0, 0);
+        self.record_dur = Duration::new(0, 0);
         self.nqueries = 0;
         self.nqueries_vault = 0;
         self.qtype = QueryType::None;
@@ -49,40 +86,25 @@ pub fn get_qtype(query: &str) -> Result<QueryType, mysql::Error> {
     let asts = parse_statements(query.to_string());
     match asts {
         Err(e) => Err(mysql::Error::IoError(io::Error::new(
-                    io::ErrorKind::InvalidInput, e))),
+            io::ErrorKind::InvalidInput,
+            e,
+        ))),
         Ok(asts) => {
             if asts.len() != 1 {
                 return Err(mysql::Error::IoError(io::Error::new(
-                    io::ErrorKind::InvalidInput, "More than one stmt")));
+                    io::ErrorKind::InvalidInput,
+                    "More than one stmt",
+                )));
             }
             match asts[0] {
-                Statement::Insert(InsertStatement{
-                    ..
-                }) => {
-                    Ok(QueryType::Insert)
-                }
-                Statement::Update(UpdateStatement{
-                    ..
-                }) => {
-                    Ok(QueryType::Update)
-                }
-                Statement::Delete(DeleteStatement{
-                    ..
-                }) => {
-                    Ok(QueryType::Delete)
-                }
-                Statement::CreateView(CreateViewStatement{
-                    ..
-                }) => {
-                    Ok(QueryType::WriteOther)
-                }
-                Statement::CreateTable(CreateTableStatement{..}) 
-                | Statement::CreateIndex(CreateIndexStatement{..})
-                | Statement::AlterObjectRename(AlterObjectRenameStatement{..})
-                | Statement::DropObjects(DropObjectsStatement{..})
-                => {
-                    Ok(QueryType::WriteOther)
-                }
+                Statement::Insert(InsertStatement { .. }) => Ok(QueryType::Insert),
+                Statement::Update(UpdateStatement { .. }) => Ok(QueryType::Update),
+                Statement::Delete(DeleteStatement { .. }) => Ok(QueryType::Delete),
+                Statement::CreateView(CreateViewStatement { .. }) => Ok(QueryType::WriteOther),
+                Statement::CreateTable(CreateTableStatement { .. })
+                | Statement::CreateIndex(CreateIndexStatement { .. })
+                | Statement::AlterObjectRename(AlterObjectRenameStatement { .. })
+                | Statement::DropObjects(DropObjectsStatement { .. }) => Ok(QueryType::WriteOther),
                 /* TODO Handle Statement::Explain(stmt) => f.write_node(stmt)
                  *
                  * TODO Currently don't support alterations that reset autoincrement counters
@@ -90,18 +112,18 @@ pub fn get_qtype(query: &str) -> Result<QueryType, mysql::Error> {
                  *
                  * Don't handle CreateSink, CreateSource, Copy,
                  *  ShowCreateSource, ShowCreateSink, Tail, Explain
-                 * 
-                 * Don't modify queries for CreateSchema, CreateDatabase, 
+                 *
+                 * Don't modify queries for CreateSchema, CreateDatabase,
                  * ShowDatabases, ShowCreateTable, DropDatabase, Transactions,
                  * ShowColumns, SetVariable (mysql exprs in set var not supported yet)
                  *
-                 * ShowVariable, ShowCreateView and ShowCreateIndex will return 
-                 * queries that used the materialized views, rather than the 
-                 * application-issued tables. This is probably not a big issue, 
+                 * ShowVariable, ShowCreateView and ShowCreateIndex will return
+                 * queries that used the materialized views, rather than the
+                 * application-issued tables. This is probably not a big issue,
                  * since these queries are used to create the table again?
                  *
                  * */
-                _ => Ok(QueryType::Read)
+                _ => Ok(QueryType::Read),
             }
         }
     }

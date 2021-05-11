@@ -58,8 +58,8 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
-        //.filter_level(log::LevelFilter::Error)
+        //.filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -87,25 +87,37 @@ fn init_db(prime: bool) -> mysql::Conn {
 }
 
 fn run_test(db: &mut mysql::Conn, disguises: &Vec<decor::types::Disguise>) {
-    let mut stats = QueryStat::new();
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
    
-   file.write("Disguise, NQueries, NQueriesVault, Duration(ms)\n".as_bytes())
+   file.write("Disguise, NQueries, NQueriesVault, UndoDur, RecordDur, RemoveDur, DecorDur, Duration(ms)\n".as_bytes())
         .unwrap();  
    for (i, disguise) in disguises.iter().enumerate() {
+        let mut stats = QueryStat::new();
         let start = time::Instant::now();
         let mut txn = db.start_transaction(TxOpts::default()).unwrap();
         decor::disguise::apply(Some(disguises[i].user_id as u64), &disguise, &mut txn, &mut stats).unwrap();
         txn.commit().unwrap();
-
         let dur = start.elapsed();
    
         file.write(
             format!(
-                "disguise{}, {}, {}, {}\n",
+                "disguise{}, {}, {}, {}, {}, {}, {}, ({}, {}, {}-{}-{}-{}, {}-{}, {}), {}\n",
                 disguise.disguise_id,
                 stats.nqueries,
                 stats.nqueries_vault,
+                stats.undo_dur.as_millis(),
+                stats.record_dur.as_millis(),
+                stats.remove_dur.as_millis(),
+                stats.decor_dur.as_millis(),
+                stats.decor_dur_pred.as_millis(),
+                stats.decor_dur_guise.as_millis(),
+                stats.decor_dur_2A_1.as_millis(),
+                stats.decor_dur_2A_2.as_millis(),
+                stats.decor_dur_2A_3.as_millis(),
+                stats.decor_queries_2A,
+                stats.decor_dur_2B.as_millis(),
+                stats.decor_queries_2B,
+                stats.decor_dur_3.as_millis(),
                 dur.as_millis()
             )
             .as_bytes(),
@@ -127,7 +139,8 @@ fn main() {
     let spec = args.spec;
 
     let mut disguises = vec![
-        conf_anon_disguise::get_disguise(),
+        //conf_anon_disguise::get_disguise(),
+        //gdpr_disguise::get_disguise((1) as u64),
         gdpr_disguise::get_disguise((datagen::NUSERS_NONPC+1) as u64),
     ];
     let uids: Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();

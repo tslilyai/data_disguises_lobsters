@@ -133,12 +133,12 @@ fn insert_reversed_vault_entry(
     evals.push(vec_to_expr(&ve.new_value));
     evals.push(Expr::Value(Value::Number(ve.vault_id.to_string())));
     let vault_vals: Vec<Vec<Expr>> = vec![evals];
-    get_query_rows_txn(
+    query_drop_txn(
         &Statement::Insert(InsertStatement {
             table_name: string_to_objname(VAULT_TABLE),
             columns: get_insert_vault_colnames(),
             source: InsertSource::Query(Box::new(values_query(vault_vals))),
-        }),
+        }).to_string(),
         txn,
         stats,
     )?;
@@ -283,7 +283,7 @@ pub fn reverse_vault_decor_referencer_entries(
 
         // this vault entry logged a modification to the FK. Restore the original value
         if ve.modified_cols.contains(&referencer_col.to_string()) {
-            get_query_rows_txn(
+            query_drop_txn(
                 &Statement::Update(UpdateStatement {
                     table_name: string_to_objname(referencer_table),
                     assignments: vec![Assignment {
@@ -297,7 +297,7 @@ pub fn reverse_vault_decor_referencer_entries(
                         op: BinaryOperator::Eq,
                         right: Box::new(Expr::Value(Value::Number(new_id))),
                     }),
-                }),
+                }).to_string(),
                 txn,
                 stats,
             )?;
@@ -319,7 +319,7 @@ pub fn reverse_vault_decor_referencer_entries(
     );
     for ve in &guise_ves {
         // delete guise
-        get_query_rows_txn(
+        query_drop_txn(
             &Statement::Delete(DeleteStatement {
                 table_name: string_to_objname(fktable),
                 selection: Some(Expr::BinaryOp {
@@ -328,7 +328,7 @@ pub fn reverse_vault_decor_referencer_entries(
                     // XXX assuming guise is a user... only has one id
                     right: Box::new(Expr::Value(Value::Number(ve.guise_ids[0].clone()))),
                 }),
-            }),
+            }).to_string(),
             txn,
             stats,
         )?;
@@ -363,19 +363,19 @@ pub fn insert_vault_entries(
                 Some(v) => evals.push(Expr::Value(Value::Number(v.to_string()))),
             }
             warn!(
-                "InsertVEs: User {} inserting into table {} in vault: {:?}",
-                ve.user_id, ve.guise_name, ve
+                "InsertVEs: User {} inserting ve for table {}",
+                ve.user_id, ve.guise_name 
             );
             evals
         })
         .collect();
     if !vault_vals.is_empty() {
-        get_query_rows_txn(
+        query_drop_txn(
             &Statement::Insert(InsertStatement {
                 table_name: string_to_objname(VAULT_TABLE),
                 columns: get_insert_vault_colnames(),
                 source: InsertSource::Query(Box::new(values_query(vault_vals))),
-            }),
+            }).to_string(),
             txn,
             stats,
         )?;
