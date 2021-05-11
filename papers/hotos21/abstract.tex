@@ -8,9 +8,11 @@ Unfortunately, privacy in complex, data-rich applications is fundamentally
 hard. Consider a user who wants to remove their account from a service. Even
 finding the corresponding data is nontrivial, but once it is found, only some
 of it should be removed; other data should be anonymized or decorrelated (for
-legal reasons, or to maintain application utility for other users), and some
-of these transformations should be reversible (in case a user wants to
-return).
+legal reasons, or to maintain application utility for others),
+and some of these transformations should be reversible (in case a user wants to return). 
+Furthermore, some of this data may have already been transformed by prior privacy requests,
+but this should not prevent the removal of the user's data.
+\lyt{I wanted to put in something about composition here, but I'm not sure if this really fits}
 %
 % Conscientious application developers face increasing legal and user demands to provide better privacy for their users.
 % %    \lyt{Need some defn of privacy-enhancing data transformations?}
@@ -25,12 +27,14 @@ return).
 %
 
 We propose \emph{data disguising}, a systematic approach that helps developers generate
-privacy transformations for database-backed web applications from a high-level specification
-and preexisting data relationships.
+privacy transformations for database-backed web applications from a high-level specification.
+    %and preexisting data relationships.
 %
-Data disguising simplifies privacy transformations that applications use today, supports
-fine-grained and nuanced policies that would be cumbersome to implement manually, and
-enables reversible transformations for users who change their mind.
+Data disguising simplifies privacy transformations that applications use today, 
+    supports fine-grained and nuanced policies that would be cumbersome to implement manually, 
+    enables reversible transformations for users who change their mind, 
+    and automatically handles the complex interactions between transformations to correctly compose
+    them.
 %
 %Furthermore, data reduce developer burden, as developers must no longer manually implement
 %privacy transformations, and enable key new use cases, such as user-specific privacy modes.
