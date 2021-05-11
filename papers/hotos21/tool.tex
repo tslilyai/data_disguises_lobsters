@@ -3,15 +3,15 @@
 %-------------------------------------------------------------------------------
 Properly supporting privacy transformations poses several challenges in practice. First, modifying or
 deleting data must not compromise application correctness: for example, privacy transformations must
-maintain referential integrity of an application's relational database. 
+maintain referential integrity of an application's relational database.
 %
 Furthermore, one application may apply several privacy transformations. Composing
 transformations---applying multiple transformations in sequence---should achieve a state satisfying
 every transformations' privacy properties, even when these transformations may share dependencies or
-contradict each other. 
+contradict each other.
 %
 Finally, to make privacy transformations feasible in practice, application changes should be kept to
-a minimum. 
+a minimum.
 %
 
 %
@@ -19,30 +19,30 @@ To make these challenges concrete, suppose we were to implement the following tw
 transformations in HotCRP as SQL transactions. (1) \texttt{ConfAnon} implements universal conference
 anonymization by reassociating reviews and other metadata (e.g., review preferences) with
 placeholder users; this is a form of data decay, preventing leaking reviewer identities for historic data in
-the case of a data breach. (2) \texttt{RTBF} implements GDPR's ``right-to-be-forgotten'' removal of user data. 
+the case of a data breach. (2) \texttt{GDPR} implements GDPR's ``right-to-be-forgotten'' removal of user data.
 %
 \texttt{ConfAnon} decorrelates reviewer profiles from their contributions: no review should reference a
-user's account (via a foreign key relationship). 
+user's account (via a foreign key relationship).
 Furthermore, decorrelation must maintain referential integrity, requiring changes to foreign key
 attributes to reference some fake user profile.
-\texttt{RTBF} must properly remove the leaving user's owned data.
+\texttt{GDPR} must properly remove the leaving user's owned data.
 
 While both of these transformations seem relatively straightforward to implement, composing even
 these simple transformations is tricky. \texttt{ConfAnon} destroys links between a user's data and
-their profile, making it impossible for a subsequent \texttt{RTBF} application to correctly remove
+their profile, making it impossible for a subsequent \texttt{GDPR} application to correctly remove
 all of the user's data. Due to data dependencies between the two transformations---applying
-\texttt{RTBF} requires knowing data that \texttt{ConfAnon} has destroyed---developers cannot assume
+\texttt{GDPR} requires knowing data that \texttt{ConfAnon} has destroyed---developers cannot assume
 that applying multiple transformations will achieve the desired privacy properties.
 %
 
 To solve these challenges, we propose \emph{data disguising}, a systematic approach to privacy
 transformations. Data disguising reasons about \emph{disguises}, namely privacy transformations that
-follow an organized structure and perform a restricted set of actions (\S\ref{sec:disguises}). 
+follow an organized structure and perform a restricted set of actions (\S\ref{sec:disguises}).
 The structured nature of disguises allows a data disguising tool to automatically determine how to correctly
 compose multiple disguises, and to check that the end-state achieves the desired privacy properties.
 The tool uses the abstraction of \emph{per-user vaults}, which allow the tool to
 reintroduce destroyed data from prior disguises as necessary, while still ensuring that user data
-remains protected (\S\ref{sec:composition}). 
+remains protected (\S\ref{sec:composition}).
 
 A data disguising tool sits alongside the application database, and exposes an API to the
 application allowing it to invoke disguises when necessary. Developers only need to determine when

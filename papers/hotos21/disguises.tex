@@ -34,7 +34,7 @@ contributions back to Bob's identity, and while preserving referential integrity
 
 Disguises transform a guise by modifying it at per-attribute (\ie per-column) granularity, or
 splitting it into multiple guises in order to decorrelating from objects that reference it (via \eg foreign-key relationships).
-Guises can also be removed entirely. 
+Guises can also be removed entirely.
 At any given moment, an application's data object graph comprises a mix of identity-revealing guises
 and privacy-preserving ones. Disguises modify, split, and/or combine individual guises when triggered.
 
@@ -62,7 +62,7 @@ achieve the desired application data state.
 
 Developers specify predicated transformations, which describes the disguised end-state of all
 objects satisfying the predicate. For
-example, Figure~\ref{fig:example} would include a specification that all email addresses be obfuscated in an anonymous manner for the user with name ``Bob Parr''.  
+example, Figure~\ref{fig:example} would include a specification that all email addresses be obfuscated in an anonymous manner for the user with name ``Bob Parr''.
 %
 Transformations can either remove objects, or change objects into one or more guises.
 To create a guise from an object, developers specify how to transform attributes of the
@@ -92,7 +92,7 @@ all guises.
 \paragraph{(2) Generate new content.}
 %
 To create new attributes, developers specify whether the guise's value should be random,
-a default value, or generated from the object's attribute value via a custom function (\eg hashing 
+a default value, or generated from the object's attribute value via a custom function (\eg hashing
 the value).
 %
 Figure~\ref{fig:guises} illustrates an example of random (\texttt{name}) and default

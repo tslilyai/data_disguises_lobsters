@@ -3,7 +3,7 @@
 %-------------------------------------------------------------------------------
 \label{sec:hotcrp_example}
 
-\begin{table}[t!]
+\begin{figure}[t]
     \centering
     %\footnotesize
     \begin{tabular}{@{}cccc@{}}
@@ -20,7 +20,7 @@
     a relational schema.
 }
 \label{tab:loc}
-\end{table}
+\end{figure}
 
 %
 We evaluate the ease of writing single disguises by writing disguises for GDPR deletion in
@@ -45,14 +45,14 @@ Because disguises specify a set number of transformations for each object type,
 disguise complexity is limited by the number of object types and relations in the
 application schema.
 %
-Table~\ref{tab:loc} shows that the disguise specification for our applications is indeed
+Figure~\ref{tab:loc} shows that the disguise specification for our applications is indeed
 comparable in size to the applications' schemas.
 %
 
 \paragraph{Performance.}
 \label{sec:perf}
 
-Data disguising faces several performance challenges. 
+Data disguising faces several performance challenges.
 %
 First, disguise application should not unduly impact the performance of normal application queries.
 \sys currently runs a disguise in one large SQL transaction, and performs transformation queries
@@ -64,13 +64,13 @@ privacy-supporting world where users freely disguise and reveal themselves, or w
 automatically ages out).
 
 %
-\sys must also be careful to do as little work as possible to handle disguise interdependencies. 
-When executing a disguise, \sys not only modifies the relevant objects, but must also 
+\sys must also be careful to do as little work as possible to handle disguise interdependencies.
+When executing a disguise, \sys not only modifies the relevant objects, but must also
 log all updates in the vault, and potentially read and reverse prior vault entries.
 %
 As expected, the number of queries performed by \sys to fetch and update the relevant to-be-disguised objects
 grows linearly with the number of objects. This disguise overhead is unavoidable: these
-modifications are crucial to ensuring proper disguise application. 
+modifications are crucial to ensuring proper disguise application.
 However, \sys could potentially need to read from, reverse, and reapply all entries in the vault
 that correspond to all previous disguises.
 
@@ -78,7 +78,7 @@ We evaluate the estimated cost of vault operations and disguise composition with
 comparison. We first invoke \sys with two independent disguises, namely \hrtbf of different
 users. We then compare the cost of invoking \hrtbf after a conflicting disguise, \hconfanon, has
 already been applied.
-The disguises are applied to a database with 430 users (30 PC members), 450 papers, and 1400 
+The disguises are applied to a database with 430 users (30 PC members), 450 papers, and 1400
 reviews.
 The unoptimized application of \hrtbf of a PC member after an independent \hrtbf application for a different user requires 1.3s;
 the same \hrtbf disguise applied after \hconfanon requires takes 1.5s (\hconfanon itself takes
