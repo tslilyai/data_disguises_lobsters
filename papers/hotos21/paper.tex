@@ -3,8 +3,7 @@
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\documentclass[letterpaper,twocolumn,10pt]{article}
-\usepackage{usenix2019_v3_hotos}
+\documentclass[sigconf,10pt]{acmart}
 
 % to be able to draw some self-contained figs
 \usepackage{tikz}
@@ -19,22 +18,6 @@
 \usepackage{subcaption}
 \usepackage{enumitem}
 \usepackage[compact, small]{titlesec}
-
-% BibLaTeX for bibliography
-\usepackage[
-  backend=biber,
-  style=numeric-comp,
-  minalphanames=3,
-  isbn=false,
-  sortcites=true,
-  sorting=anyt,
-  abbreviate=false,
-  url=false,
-  doi=false,
-  maxnames=99,
-  minbibnames=3,
-  maxbibnames=99]{biblatex}
-\addbibresource{paper.bib}
 
 %\newcommand{\sys}{Couturier\xspace}
 %\newcommand{\sys}{Fashionista\xspace}%Sidekick
@@ -74,6 +57,16 @@
 }
 \lstset{style=rust}
 
+\citestyle{acmnumeric}
+\setcitestyle{numbers,sort&compress}
+
+\acmYear{2021}\copyrightyear{2021}
+\acmConference[HotOS '21]{Workshop on Hot Topics in Operating Systems}{May 31--June 2, 2021}{Ann Arbor, MI, USA}
+\acmBooktitle{Workshop on Hot Topics in Operating Systems (HotOS '21), May 31--June 2, 2021, Ann Arbor, MI, USA}
+\acmPrice{15.00}
+\acmDOI{10.1145/3458336.3465284}
+\acmISBN{978-1-4503-8438-4/21/05}
+
 %-------------------------------------------------------------------------------
 \begin{document}
 %-------------------------------------------------------------------------------
@@ -82,14 +75,31 @@
 \date{}
 
 % make title bold and 14 pt font (Latex default is non-bold, 16 pt)
-\title{\Large \bf %Going Undercover: Data Privacy Disguises\\
-%Become a Privacy Superhero By Putting Your Data in Disguise\\
-Privacy Heroes Need Data Disguises
-%Privacy Theater: Putting Your Data in Disguise\\
-%Dis-data-guise: Data in Disguise\\
-%Project Runaway: Designing Data Disguises for Privacy\\
-%\small{\lyt{(I know these are all silly; open to suggestions!)}}
+\title{Privacy Heroes Need Data Disguises}
+
+
+\author{Lillian Tsai}
+\email{tslilyai@mit.edu}
+\affiliation{%
+  \institution{MIT}
+  \country{United States of America}
 }
+
+\author{Malte Schwarzkopf}
+\email{malte@cs.brown.edu}
+\affiliation{%
+  \institution{Brown University}
+  \country{United States of America}
+}
+
+\author{Eddie Kohler}
+\email{kohler@seas.harvard.edu}
+\affiliation{%
+  \institution{Harvard University}
+  \country{United States of America}
+}
+
+
 %\name-ing Your Data from the Internet }
 %An Invisibility Cloak for the Internet}
 
@@ -106,14 +116,10 @@ Privacy Heroes Need Data Disguises
 %Harvard University
 %} % end author
 
-\author{
-{\rm Anonymous Authors}\\
-} % end author
+\input{abstract}
 
 \maketitle
-\vspace{-2\baselineskip}
 
-\input{abstract}
 \input{intro}
 \input{design}
 \input{impl}
@@ -123,7 +129,8 @@ Privacy Heroes Need Data Disguises
 %\input{conclusion}
 
 %-------------------------------------------------------------------------------
-\printbibliography
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{paper.bib}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \end{document}
