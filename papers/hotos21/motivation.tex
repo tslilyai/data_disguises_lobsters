@@ -1,64 +1,20 @@
 \section{Privacy Transformations}
 \label{sec:survey}
 
-We motivate a systematic treatment of privacy transformations, in which they are a first-class citizen in
-application design, by investigating how privacy transformations are used in applications today,
-their potential to achieve better privacy in the future, and the challenges we face to support these
-transformations.
-
-\subsection{Privacy Transformations In Practice Today}
-%
-%We surveyed widely-used web applications to understand the privacy
-%transformations they apply.
-%
-Widely-used web applications mainly support an account deletion privacy transformation,
-one that \eg the GDPR~\cite[Art.\ 17]{eu:gdpr} mandates.
-%
-On account removal, all applications surveyed delete some user profile
-information (\eg passwords) from underlying databases, but 
-retain some information for legal or necessary business purposes
-(\eg Spotify fraud detection~\cite{spotify:privacy}, PrestaShop/Amazon
-orders~\cite{amazon:privacy, prestashop:privacy}).
-%
-%The treatment of other user contributions varies.
-
-Some services keep most deleted users' contributions publicly and indefinitely available (\eg
-StackOverflow answers~\cite{stackoverflow:privacy}), sometimes associated with the original user
-name (\eg Wikipedia edit history~\cite{wikipedia:privacy}).
-%shared Strava routes~\cite{strava:privacy}), 
-%
-Some platforms delete posts, but keep private messages unanonymized and visible to
-their recipients (Facebook/Twitter~\cite{facebook:privacy, twitter:privacy});
-%LinkedIn updates~\cite{linkedin:privacy}).
-%
-others keep posts visible but anonymized, reattributing the contribution to a placeholder user
-(\eg GitHub's ``@ghost''~\cite{github:privacy}, Reddit/Lobsters'
-``[deleted]''~\cite{reddit:privacy, lobsters:privacy}).
-%
-%    \item Keep certain user contributions unanonymized and visible to its intended audience (\eg
-%        HotCRP, Lobsters, Wikipedia, HackerNews~\cite{hotcrp:privacy, lobsters:privacy,
-%        hackernews:privacy, wikipedia:privacy}).
-%    \item Delete user contributions on user profile or feed (\eg Facebook,
-%        Twitter~\cite{facebook:privacy, twitter:privacy}).
-%\end{itemize}
-%
-
-%In the open-source applications surveyed, developers implement privacy transformations
-%via ad-hoc database operations, and only trigger them on explicit, user-initiated account
-%deletion.
-%
-%Most developers appear to pay little attention to identifying correlations
-%within the remaining data.
-%
+We investigate the potential of privacy transformations as a first-class citizen in application
+design, and the challenges we face to support these transformations. These challenges argue for the
+need for a systematic approach to privacy transformations.
 
 \subsection{The Potential of Privacy Transformations}
-Privacy transformations can achieve much more than they do today.
+Widely-used web applications today mainly support an account deletion privacy transformation,
+one that \eg the GDPR~\cite[Art.\ 17]{eu:gdpr} mandates.
+However, privacy transformations can achieve much more.
 %
 Users and application developers can both benefit from \textbf{more nuanced} privacy policies:
 %
-for example, a confidential paper review system like HotCRP~\cite{hotcrp} keeps a user's
+for example, a confidential paper review system like HotCRP~\cite{hotcrp} keeps users'
 contributions (papers, reviews) after they delete their account to preserve utility for others, but
-could also associate each review with a different placeholder to avoid revealing the deleted
+could additionally associate each review with a different placeholder to avoid revealing the deleted
 reviewer's identity.
 %
 %Likewise, contributions with a shared property (\eg Reddit posts with a common tag)
@@ -97,15 +53,11 @@ example, support account reactivation instead of permanent and irrevocable accou
 After all, if services must allow users to remove their data on request, it is in the operator's
 interest as well as the user's to make it easy for a user to change their mind and return, bringing
 their data along.
-%
-%An advanced reversible transformation might record all data transformed, and push an encrypted
-%archive to third-party cloud storage.
-%
-%If the user wishes to return, they supply the archive to reverse the transformation.
-%
-%To ensure access even if the user loses their key, the transformation might secret-share
-%the encryption key~\cite{secretsharing} among the user, the service, and a trusted third party (\eg
-%the ACLU or EFF).
+
+
+
+%Most developers appear to pay little attention to identifying correlations
+%within the remaining data.
 %
 
 %
@@ -119,7 +71,29 @@ their data along.
 Although privacy transformations offer many potential benefits, practically supporting them is hard.
 First, modifying or deleting data must not compromise application correctness: for example, privacy
 transformations must maintain referential integrity of an application's relational database.
+Developers must be careful to properly transform user data without violating application invariants,
 %
+%Even describing the transformation may not be straightforward: 
+%for example, on account deletion, surveyed applications only selectively delete user data (\eg
+%passwords) from underlying databases, and retain the remainder for legal or necessary business purposes
+%(\eg Spotify fraud detection~\cite{spotify:privacy}, Amazon
+%orders~\cite{amazon:privacy}).
+%%
+%%Some services keep most deleted users' contributions indefinitely available (\eg
+%%StackOverflow answers~\cite{stackoverflow:privacy}), sometimes associated with the original user
+%%%name (\eg Wikipedia edit history~\cite{wikipedia:privacy}).
+%%
+%Platforms like Facebook and Twitter delete posts, but keep private messages unanonymized and visible to
+%their recipients~\cite{facebook:privacy, twitter:privacy};
+%others keep posts visible but anonymized, reattributing the contribution to a placeholder user
+%(\eg GitHub's ``@ghost''~\cite{github:privacy}, Reddit/Lobsters'
+%``[deleted]''~\cite{reddit:privacy, lobsters:privacy}).
+%%In the open-source applications surveyed, developers implement privacy transformations
+%%via ad-hoc database operations in their application code.
+%%, and only trigger them on explicit, user-initiated account
+%%deletion.
+which they do today via ad-hoc database operations in their application code.
+
 Furthermore, one application may apply several privacy transformations, intermixed with
 transformation reversals.  When these transformations may share dependencies or contradict each
 other, correctly composing transformations to achieve the desired privacy properties is a daunting
