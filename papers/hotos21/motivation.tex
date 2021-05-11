@@ -139,42 +139,41 @@ This also allows for new policies and use cases that benefit both end-users and 
 
 \subsection{Challenges}
 %
-Properly supporting privacy transformations poses several challenges in practice. First, modifying or
-deleting data must not compromise application correctness: for example, privacy transformations must
-maintain referential integrity of an application's relational database.
+Supporting practical privacy transformations poses several challenges. First, modifying
+or deleting data must not compromise application correctness: for example, privacy transformations
+must maintain referential integrity of an application's relational database.
 %
-Furthermore, one application may apply several privacy transformations. Composing
-transformations---applying multiple transformations in sequence---should achieve a state satisfying
-every transformations' privacy properties, even when these transformations may share dependencies or
+Furthermore, one application may apply several privacy transformations. Composed
+transformations---multiple transformations applied in sequence---should achieve each individual
+transformation's privacy properties, even when these transformations may share dependencies or
 contradict each other.
 %
-Finally, to make privacy transformations feasible in practice, application changes should be kept to
-a minimum.
+Finally, practical privacy transformations should require minimal application changes.
 %
 
 %
 To make these challenges concrete, suppose we were to implement the following two privacy
-transformations in HotCRP as SQL transactions. (1) \texttt{ConfAnon} implements universal conference
-anonymization by reassociating reviews and other metadata (e.g., review preferences) with
-placeholder users; this is a form of data decay, preventing leaking reviewer identities for historic data in
-the case of a data breach. (2) \texttt{GDPR} implements GDPR's ``right-to-be-forgotten'' removal of user data.
+transformations in HotCRP. 
 %
-\texttt{ConfAnon} decorrelates reviewer profiles from their contributions: no review should reference a
-user's account (via a foreign key relationship).
-Furthermore, decorrelation must maintain referential integrity, requiring changes to foreign key
-attributes to reference some fake user profile.
-\texttt{GDPR} must properly remove the leaving user's owned data.
+(1) \texttt{ConfAnon} implements universal conference anonymization, a form of data decay to
+preventing past-conference reviewer identification in case of a data breach.
+%
+(2) \texttt{GDPR} implements GDPR's ``right-to-be-forgotten'' removal of user data.
+%
+\texttt{ConfAnon} decorrelates reviews and review metadata (\eg review preferences) from reviewers
+by ensuring that no review references a real user's account (via a foreign key relationship).
+To maintain referential integrity, decorrelation requires updating foreign key
+attributes to reference fake user profiles.
+\texttt{GDPR} finds and deletes the leaving user's data.
+%
 
-While both of these transformations seem relatively straightforward to implement, composing even
-these simple transformations is tricky. \texttt{ConfAnon} destroys links between a user's data and
-their profile, making it impossible for a subsequent \texttt{GDPR} application to correctly remove
-all of the user's data.
 %
-For instance, \texttt{ConfAnon} removes the link between a user and their bookmarked papers by
-relinking the bookmarks to anonymous, fake users; if the user later invokes \texttt{GDPR}, the
-disguise needs to know which bookmarks to remove, which is impossible without the
-original links.
+In isolation, each transformation may seem simple; however, composing them is tricky.
+\texttt{ConfAnon} destroys information linking a user's data to their account by relinking this data
+to anonymous, fake users (\eg the foreign key linking review preferences to a user has been rewritten to
+point to a fake user profile).  If the user later invokes \texttt{GDPR}, the
+disguise needs to know which data to remove, which is impossible without the original links.
 %
-Data dependencies between the two transformations may thus cause the application of multiple
-transformations to fail to achieve the desired privacy properties.
+Data dependencies between these transformations causes \texttt{GDPR} to
+fail to achieve its desired privacy properties, namely the complete removal of the user's data.
 %
