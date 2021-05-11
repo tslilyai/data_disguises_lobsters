@@ -1,19 +1,23 @@
 \section{Privacy Transformations}
 \label{sec:survey}
+%
+We investigate the potential of privacy transformations as a first-class
+citizen in application design, and the challenges to support these
+transformations.
+%
+These challenges argue for a systematic approach to privacy transformations.
+%
 
-We investigate the potential of privacy transformations as a first-class citizen in application
-design, and the challenges we face to support these transformations. These challenges argue for the
-need for a systematic approach to privacy transformations.
-
-\subsection{The Potential of Privacy Transformations}
+\subsection{Utility of Privacy Transformations}
+%
 Widely-used web applications today~\cite{spotify:privacy, amazon:privacy,
 strava:privacy, hotcrp:privacy, wikipedia:privacy, facebook:privacy, twitter:privacy,
-reddit:privacy, github:privacy, lobsters:privacy} mainly support variants of an account deletion privacy transformation,
-one that \eg the GDPR~\cite[Art.\ 17]{eu:gdpr} mandates.
-However, privacy transformations can achieve much more.
+reddit:privacy, github:privacy, lobsters:privacy} mainly support variants of an account
+deletion privacy transformation, as requried by, \eg the GDPR~\cite[Art.\ 17]{eu:gdpr}.
+%
+But many applications would benefit from support for other privacy transformations.
 %
 Users and application developers can both benefit from \textbf{more nuanced} privacy policies:
-%
 for example, a confidential paper review system like HotCRP~\cite{hotcrp} keeps users'
 contributions (papers, reviews) after they delete their account to preserve utility for others, but
 could additionally associate each review with a different placeholder to avoid revealing the deleted
@@ -63,7 +67,7 @@ First, modifying or deleting data must not compromise application correctness: f
 transformations must maintain referential integrity of an application's relational database.
 Developers must be careful to properly transform user data without violating application invariants,
 %
-%Even describing the transformation may not be straightforward: 
+%Even describing the transformation may not be straightforward:
 %for example, on account deletion, surveyed applications only selectively delete user data (\eg
 %passwords) from underlying databases, and retain the remainder for legal or necessary business purposes
 %(\eg Spotify fraud detection~\cite{spotify:privacy}, Amazon
@@ -94,7 +98,7 @@ Finally, practical privacy transformations should require minimal application ch
 
 %
 To make these challenges concrete, suppose we were to implement the following two privacy
-transformations in HotCRP. 
+transformations in HotCRP.
 %
 (1) \texttt{ConfAnon} implements universal conference anonymization, a form of data decay to
 prevent reviewer identification in case of a data breach.
