@@ -85,11 +85,10 @@ modifications, or restricting the set of possible modifications and establishing
 within this set.
 
 The tool applies disguises in a four-phase procedure:
-\begin{enumerate}
+\begin{enumerate}[nosep]
     \item \emph{Prepare}: reconcile any data dependencies between this disguise and prior disguises.
             The tool detects read-after-write dependencies between the new disguise's predicates and prior disguises'
-            updates, and, using entries in the vault, undoes any writes that may affect the new disguise's predicates. After
-            applying the new disguise updates, the temporarily reversed modifications are reapplied. As an
+            updates, and, using entries in the vault, undoes any writes that may affect the new disguise's predicates. As an
             optimization, vault entries recording object removals need not be reversed.
         \item \emph{Read}: get all objects that satisfy (per-type) developer-specified predicates.
         \item \emph{Update}: modify, decorrelate, or remove objects read in step (2) according to the
@@ -99,6 +98,7 @@ The tool applies disguises in a four-phase procedure:
         developer-specified, or rely on a set of heuristics (\eg assigning ownership by traversing,
         starting from each user, the application's object graph expressed in an object-relational
         model (ORM)~\cite{orm}, or implicitly via foreign keys).
+        \item \emph{Finalize}: After applying the new disguise updates, the disguising tool reapplies the temporarily reversed modifications from earlier disguises.
         %\lyt{Should we cite Odlaw?}
         %or use techniques such as IFC tracking .
         %\lyt{Should we mention taint tracking/IFC here? We mention in related how
