@@ -9,33 +9,39 @@
 %%
 
 %
-Today, privacy transformations are typically realized in ad-hoc, application-specific ways.
+Implementing privacy transformations combines two key challenges: the broad
+range of possible policy choices for transformations, and the difficulty of
+implementing those policies.
 %
-For example, many applications support account deletion (\eg to comply with the GDPR),
-although the realization differs depending on application semantics: many applications retain
+The first challenge can be appreciated by surveying current applications.
+%
+For example, though many applications support account deletion,
+some retain
 data for legal or necessary business purposes (\eg Spotify fraud detection~\cite{spotify:privacy},
 Amazon orders~\cite{amazon:privacy}); some delete public contributions, but keep private
-messages unanonymized and visible to their recipients~\cite{facebook:privacy, twitter:privacy};
+messages unanonymized and visible to their recipients, reflecting the
+shared nature of such messages~\cite{facebook:privacy, twitter:privacy};
 and yet others keep public contributions visible but anonymize them, reattributing the contribution
 to a placeholder user (\eg GitHub's ``@ghost''~\cite{github:privacy}, Reddit/Lobsters'
 ``[deleted]''~\cite{reddit:privacy, lobsters:privacy}).
 %
-While these policy choices are application-specific, implementing the transformation manually
-against the database is a burden on application developers, who must bear several requirements
-in mind.
+The second challenge arises because privacy transformations are
+inherently difficult, requiring extensive tracing of user identities through
+application data schemas, and also secondary to an application's normal
+functioning.
 %
-
+Modifying or deleting data must not compromise application correctness; for example, privacy
+transformations must maintain referential integrity of an application's relational database
+and preserve other application invariants.
 %
-Modifying or deleting data must not compromise application correctness: for example, privacy
-transformations must maintain referential integrity of an application's relational database.
+Furthermore, one application may apply support several interacting privacy
+transformations.
 %
-Developers must be careful to properly transform user data without violating application invariants,
-which they do today via ad-hoc database operations in their application code.
+We believe the complexity of implementing basic transformations is holding
+developers back from supporting more nuanced transformations that could
+better support users, such as levels of privacy cloaking and transformations
+that could be reversed.
 %
-Furthermore, one application may apply several privacy transformations, intermixed with reversals.
-%
-When these transformations share dependencies or contradict each other, correctly composing
-transformations to achieve the desired privacy properties is a daunting task.
 %
 %Finally, practical privacy transformations should require minimal application changes.
 %
