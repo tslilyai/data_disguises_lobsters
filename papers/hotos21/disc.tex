@@ -41,20 +41,19 @@ updates to the application schema or disguise specification.
 %
 Database schema evolution research~\cite{schema:evo} may offer insights
 into supporting disguises and disguise reversals after such updates.
-
-Note that \sys does not currently reason about the composition of disguise modifications with normal
-application updates. For example, reintroduced data from a disguise reversal is not affected by
-updates that occurred since its removal. In addition, application updates that modify particular
-objects to be outside the scope of the disguise (i.e., so they no longer satisfy the disguise
-predicate) are not tracked nor temporarily reversed. One possible strategy makes crucial updates
-themselves disguises, so \sys can reason about how these updates should compose. However, disguises
-must be carefully chosen: \sys incurs heavy performance costs to perform each disguise, making it
+%
+\sys also does not reason about the composition of disguise modifications with normal application
+updates.  Application updates may alter the scope of a disguise (\ie reducing the set of objects
+satisfying a disguise predicate), potentially making it difficult to reason about eventually
+consistent disguises. Furthermore, reintroduced data from undoing a reversible disguise may have
+missed application updates that occurred since its removal. One possible solution is to make crucial
+updates themselves disguises, so \sys can reason about how these updates should compose with
+disguises; however, \sys incurs heavy performance costs to perform each disguise, making it
 impractical to instrument every update of the application.
-
-\sys also runs each disguise in a transaction to ensure that no concurrent application updates are
-performed; we imagine that an eventually consistent disguised state would be acceptable, so long as
-no two disguises run in parallel.
-%, since \sys cannot restore data removed using the old policy upon resubscription.
+%\sys also runs each disguise in a transaction to ensure that no concurrent application updates are
+%performed; we imagine that an eventually consistent disguised state would be acceptable, so long as
+%no two disguises run in parallel.  , since \sys cannot restore data removed using the old policy
+%upon resubscription.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
