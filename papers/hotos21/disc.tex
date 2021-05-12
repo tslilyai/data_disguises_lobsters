@@ -1,6 +1,12 @@
 %-------------------------------------------------------------------------------
 \section{Discussion}
 %-------------------------------------------------------------------------------
+
+A data disguising tool takes a disguise specification, and 
+As we saw in \S\ref{sec:multi}, the tool needs more than the disguise specification---a set of predicated transformations to
+modify, remove, or decorrelate data---is insufficient to achieve an application's privacy goals.
+Instead, 
+
 %
 Data disguising makes it easier to explore and implement privacy transformations.
 %
@@ -31,9 +37,9 @@ We imagine that data analysis tools and heuristics can help developers improve o
 errors in disguise specifications, similar to techniques used by Facebook to detect incorrect
 deletion~\cite{delf}.
 %
-Users of applications that use data disguises cannot blindly assume that the disguises provide
-complete privacy, although they can perhaps vet application privacy properties via the disguise
-specification.
+%Users of applications that use data disguises cannot blindly assume that the disguises provide
+%complete privacy, although they can perhaps vet application privacy properties via the disguise
+%specification.
 %
 
 \sys currently works only with relational databases, and does not support dynamic

@@ -43,7 +43,7 @@ tool (\S\ref{sec:composition}).
 We assume that:
 \begin{enumerate}[nosep]
   \item developers use their domain knowledge to write correct and complete disguises;
-    %\lyt{a bit worried about ``complete'' here}
+      \lyt{should make clear that correct/complete is just operational? \eg doesn't mess up the DB}
   \item application code handles the different guises appropriately (\eg in
     displaying them); and
   \item different guises of the same object have the same structure (\eg they can be
@@ -53,9 +53,9 @@ We assume that:
 A data disguising tool takes a disguise specification and turns it into storage operations that
 achieve the desired application data state.
 
-Developers specify predicated transformations, which describes a disguised end-state of all
-objects satisfying the predicate. For
-example, Figure~\ref{fig:example} would include a specification that all email addresses be obfuscated in an anonymous manner for the user with name ``Bob Parr''.
+Developers specify predicated transformations, which describes how to update all objects satisfying
+the predicate. For example, Figure~\ref{fig:example} would include a specification that all email
+addresses be obfuscated in an anonymous manner for the user with name ``Bob Parr''.
 %
 Transformations can either remove objects, or change objects into one or more guises.
 To create a guise from an object, developers specify how to transform attributes of the
