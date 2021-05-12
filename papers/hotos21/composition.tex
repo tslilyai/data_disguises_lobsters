@@ -27,16 +27,37 @@ remove the user's reviews.
 %that the developer could specify a partial ordering between modifications, or our framework could
 %restrict the set of possible modifications and establish a precedence order within this set.
 
-However, if the disguising tool \emph{discards} the reveal functions produced
-when executing \ca because \ca is irreversible, then the tool cannot perform \gdpr while guaranteeing that \gdpr removes all the user's originally owned reviews.
-This poses an open challenge; one possible solution would be for 
-the tool to a-priori determine (via, \eg static dependency analysis) the set of irreversible disguises
-such as \ca that could prevent \gdpr from removing the user's reviews. This analysis could be
-presented to the developer, providing a warning that the privacy policy may be violated if \gdpr is
-applied after \ca.
+However, if the disguising tool \emph{discards} the reveal functions produced when executing \ca
+because \ca is irreversible, then the tool cannot perform \gdpr while guaranteeing that \gdpr
+removes all the user's originally owned reviews.  The right solution here is unclear: one
+possibility is for the tool to a-priori determine (via, \eg static dependency analysis) the set of
+irreversible disguises such as \ca that could prevent \gdpr from removing the user's reviews. This
+analysis could be presented to the developer, providing a warning that the privacy policy may be
+violated if \gdpr is applied after \ca.
 
 If HotCRP's policy instead accepts that a user's \gdpr disguise can either remove \emph{or} anonymize the
 invoking user's reviews, then the disguising tool can simply execute \gdpr on top of \ca and achieve
 an acceptable state: any reviews missed by \gdpr would necessarily have been anonymized by \ca.
 Thus, the tool can achieve HotCRP's privacy policy regardless of whether \ca discards or stores
 reveal functions in user vaults.
+
+\subsection{Reasoning about Complete Disguise Reversals}
+Reasoning about multiple disguises is further complicated when disguises are intermixed with
+disguise reversals.
+%
+For example, imagine that \ca and \gdpr both store reveal functions in user vaults. 
+%
+\ca followed by a user's \gdpr followed by the reversal of \ca should ensure that the deleted user's
+reviews are still anonymized or removed (depending on HotCRP's specific policy for \gdpr).
+Similarly, the user's \gdpr followed by \ca followed by the reversal of the user's \gdpr should also
+ensure that the deleted user's reviews are anonymized.
+To handle these scenarios, the disguising tool could keep a persistent log of all disguises performed by the
+application; any disguises performed between a disguise's application and its reversal are 
+applied to any reintroduced data. In the former scenario, \gdpr's removal would apply to any
+recorrelated reviews; in the latter scenario, \ca's decorrelation would apply to any of the user's reintroduced reviews.
+
+\lyt{This doesn't fit in well, but we should discuss it.}
+Furthermore, vault deployment models greatly affect the practicality of complete disguise reversal. \gdpr
+necessarily must store user vaults external to the application in order to be GDPR-compliant;
+however, complete reversal of \ca requires retrieving reveal functions from every user's vault,
+which is infeasible in a setting in which vaults live in external storage, encrypted with per-user keys.
