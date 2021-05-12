@@ -60,50 +60,64 @@ Consider disguising Bob when he deletes his HotCRP account.
 Bob would prefer his papers and reviews to be unlinked from his identity.
 %
 HotCRP, on the other hand, would like to retain paper and review information that other users
-find useful~\cite{hotcrp-privacy}.
+find useful.
 %
-An application developer can easily achieve both with disguises.
+A developer can achieve both with disguises.
 %A careful selection of edge and object transformations achieves both.
 %
 
 %
-The application developer writes a short specification of the disguise.
+The application developer provides a specification of the disguise.
 %
-Bob is unlinked from his
-reviews via a predicated-transformation that decorrelates any reviews that reference Bob.
+On applying the disguise, the tool unlinks Bob from his reviews via a
+predicated transformation that reassign his reviews to individual, anonymous
+placeholder users.
 %
-This transforms Bob into one unique user guise per review.
+%This transforms Bob into one unique user guise per review.
 %
-The disguise generates guise attribute values using suitable defaults;
-%
-in particular, HotCRP users' \texttt{disabled} attribute is set for the guises, ensuring that guises
-have no permissions and never review papers.
+The tool generates placeholder users with suitable default values; for
+example, HotCRP users have a \texttt{disabled} attribute, and the tool sets
+this for placeholder users, ensuring they have no permissions and cannot log
+in.
 %
 
 %
-Bob is linked to papers through conflicts, which can indicate coauthorship or a reviewer conflict.
+Bob is further linked to papers through conflicts, which can
+indicate co-authorship or a conflict of interest.
 %
-These conflicts are not reassigned to the new guises, since preserved conflicts could reidentify Bob
-as the likely author of a review. Thus, conflicts predicated on linking Bob to papers will be
-removed.
+The disguise will not reassign these conflicts to the placeholder users,
+since preserved conflicts could reidentify Bob as the likely author of a
+review.
+%
+(As a trivial example of how this could work, consider that placeholder
+users with identical conflict sets provide little decorrelation benefit.)
+%
+Instead, the disguise will remove Bob's conflicts.
+%
 
 %The disguise leaves all other edge types, ensuring that review and paper artifacts remain correctly
 %linked: active reviewers still see the correct paper for their reviews, and active authors see the
 %correct reviews for their papers, albeit potentially authored by anonymous, unlinkable guises of the
 %original reviewer.
-Unlike the current real-world HotCRP account deletion policy~\cite{hotcrp:privacy}, which deletes
-all objects belonging to Bob, this disguise strikes a balance between decorrelating Bob's identity
-from his reviews and papers, and maintaining useful information for other HotCRP users.
+Unlike the current real-world HotCRP account deletion policy~\cite{hotcrp:privacy},
+which deletes all objects belonging to Bob, this disguise strikes a balance between
+decorrelating Bob's identity from his reviews and papers, and maintaining useful
+information for other HotCRP users.
 %
-Furthermore, it is easy to imagine extending this disguise to automatically disguise Bob after some
-time (\eg 2 years after the conference), protecting his future research career by hiding youthful
-reviewing sins.
+Furthermore, it is easy to imagine extending this disguise to automatically disguise
+Bob after some time (\eg 2 years after the conference), protecting his future
+research career by hiding his youthful reviewing sins.
 %
 
-The tool disguises Bob when he invokes HotCRP account deletion. Bob provides his secret key to
-decrypt and read from his vault, allowing the tool to retrieve and temporarily reverse any conflicting,
-reversible transformations that would make Bob's deletion fail: in particular, it recorrelates any
-of Bob's decorrelated paper conflicts and then properly removes them. (Because the conflicts are
-removed, the decorrelation is not reapplied).  Bob wants his account deletion disguise to be
-reversible, so after performing the specified disguise updates, the tool records each transformation
-in the vault, re-encrypts the vault, and forgets the key.
+%The tool disguises Bob when he invokes HotCRP account deletion.
+%%
+%Bob provides his secret key to decrypt and read from his vault, allowing the tool
+%to retrieve and temporarily reverse any conflicting, reversible transformations
+%that would make Bob's deletion fail: in particular, it recorrelates any
+%of Bob's decorrelated paper conflicts and then properly removes them.
+%%
+%(Because the conflicts are removed, the decorrelation is not reapplied).
+%%
+%Bob wants his account deletion disguise to be reversible, so after performing the
+%specified disguise updates, the tool records each transformation in the vault,
+%re-encrypts the vault, and forgets the key.
