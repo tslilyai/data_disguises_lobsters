@@ -58,9 +58,9 @@ when run on a live application database.
 As expected, we observe that the number of queries performed by \sys to fetch and update the relevant
 to-be-disguised objects grows linearly with the number of objects. This disguise overhead is
 unavoidable: these modifications are crucial to ensuring proper disguise application.
-\sys currently runs these disguise queries sequentially in one large SQL transaction; some batching and parallelization is possible and could improve performance.
-%
-Furthermore, eventually consistent disguises would remove the expensive nature of a single large
+\sys currently runs these disguise queries sequentially in one large SQL transaction; some batching
+and parallelization is possible and could improve performance, and
+making disguises eventually consistent would remove the expensive nature of a single large
 transaction. The importance of reducing the cost of disguise application depends on the rate of
 disguising, which may range from rare (as in today's applications) to quite frequent (in a
 privacy-supporting world where users freely disguise and reveal themselves, or where data
