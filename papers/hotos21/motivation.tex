@@ -25,9 +25,13 @@ and yet others keep public contributions visible but anonymize them, reattributi
 to a placeholder user (\eg GitHub's ``@ghost''~\cite{github:privacy}, Reddit/Lobsters'
 ``[deleted]''~\cite{reddit:privacy, lobsters:privacy}).
 %
+A system aiming to simplify privacy transformations must thus support a range
+of operations, and implement application-defined policy.
+
+
 The second challenge arises because privacy transformations are
 inherently difficult, requiring extensive tracing of user identities through
-application data schemas, and also secondary to an application's normal
+application data schemas, and also secondary to normal application
 functioning.
 %
 Modifying or deleting data must not compromise application correctness; for example, privacy
@@ -36,11 +40,49 @@ and preserve other application invariants.
 %
 Furthermore, one application may apply support several interacting privacy
 transformations.
+
+
+The complexity of implementing basic transformations may have discouraged
+developers from supporting more nuanced transformations.
 %
-We believe the complexity of implementing basic transformations is holding
-developers back from supporting more nuanced transformations that could
-better support users, such as levels of privacy cloaking and transformations
-that could be reversed.
+This is too bad, because where privacy is concerned, nuance could better
+support users.
+%
+For example, here are some useful policies that few applications currently
+support.
+
+\begin{itemize}
+\item GDPR and related laws focus on irrevocable account deletion, where
+a user departing a platform causes permanent deletion of their information.
+However, users may be more likely to proactively protect their privacy if they
+can return: if the deletion transformation is \textbf{reversible}.
+%
+A weak form of reversible transformation might preserve user data in the
+application's normal database; though this hides the data from external view,
+it leaves it at risk to breaches and does not satisfy most legal requirements.
+Stronger forms are possible, however. The records required to reverse a
+transformation might be stored offline, in other data storage layers, or even
+encrypted and passed to the user themselves.
+
+%Furthermore, many applications might wish to employ \textbf{reversible}
+%transformations to, for example, support account reactivation instead of
+%permanent and irrevocable account deletion.
+
+\item \textbf{Expiration} policies could proactively anonymize or sanitize
+user contributions for long-inactive users. Expiration policies should likely
+be reversible to support user reactivation.
+
+\item Gradual \textbf{data decay} policies could apply increasingly strict
+privacy transformations for increasingly sensitive users, or gradually, over
+time.
+\end{itemize}
+%
+These policies, and especially reversible transformations, were central to our
+thinking as we developed the data disguise paradigm.
+
+
+\eddie{END SECTION HERE?}
+
 %
 %
 %Finally, practical privacy transformations should require minimal application changes.
