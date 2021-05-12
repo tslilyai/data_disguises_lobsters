@@ -93,10 +93,6 @@ A disguising tool applies disguises in a five-phase procedure:
         starting from each user, the application's object graph expressed in an object-relational
         model (ORM)~\cite{orm}, or implicitly via foreign keys).
         \item \emph{Finalize}: After applying the new disguise updates, the disguising tool reapplies the temporarily reversed modifications from earlier disguises.
-        %\lyt{Should we cite Odlaw?}
-        %or use techniques such as IFC tracking .
-        %\lyt{Should we mention taint tracking/IFC here? We mention in related how
-        %disguising explicitly does not need such heavyweight techniques.}
 \end{enumerate}
 
 %-------------------------------------------------------------------------------
@@ -104,5 +100,5 @@ A disguising tool applies disguises in a five-phase procedure:
 %-------------------------------------------------------------------------------
 To correctly reverse a disguise and ensure that reintroduced data is not mistakenly revealed because
 it missed a subsequent disguise, A disguising tool keeps a persistent log of all disguises performed by the
-application. Any other disguises performed between this disguise's application and its reversal and
+application. Any other disguises performed between this disguise's application and its reversal are 
 applied to any reintroduced data.
