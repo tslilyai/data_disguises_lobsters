@@ -4,21 +4,22 @@
 Applications benefit from the ability to apply multiple disguises. For example,
 \S\ref{sec:motivation} highlights two desirable disguises in HotCRP, namely \gdpr and \ca. \gdpr
 provides user privacy by removing the user's data; \ca provides user privacy by anonymization.
-As we observed, however, applying \ca destroys information allowing \gdpr to properly remove the
-user's data.
+As we observed, however, disguises may not be independent: applying \ca destroys information allowing \gdpr to properly remove the user's data.
 
 Applications define an acceptable outcome after composing multiple disguises when they define their
 privacy policy.
 For example, HotCRP may require that \gdpr removes the invoking user's reviews completely, even when
 applied after other disguises such as \ca.  Alternatively, HotCRP may accept a post-\gdpr outcome that either
 anonymizes or removes reviews. 
-The choice of policy affects how the disguising tool integrates with the application.
+The ability of the tool to achieve an acceptable outcome depends on both the application's privacy
+policy and the reversibiility of the disguises (\ie do they discard reveal functions, or store
+per-user reveal functions in user vaults?).
 
 For example, assume HotCRP requires that a user's \gdpr disguise must \emph{remove} the invoking
-user's reviews. If the disguising tool stores per-user reveal functions in user vaults when
-executing \ca, then the disguising tool can query the user's vault to temporarily recorrelate the
-user's reviews with their identity before applying \gdpr for the user.  This allows the tool to
-remove the user's reviews.
+user's reviews. If \ca allows per-user reveal functions to be stored in user vaults, then the
+disguising tool can query the user's vault to temporarily recorrelate the user's reviews with their
+identity before applying \gdpr for the user.  This allows the tool to remove the user's reviews when
+\gdpr is applied, even if \ca has been previously applied.
 %This requires the user to grant access to their vault.
 %If one disguise removes an object that the other disguise
 %modified, then the removal takes precedence.
@@ -28,8 +29,7 @@ remove the user's reviews.
 %that the developer could specify a partial ordering between modifications, or our framework could
 %restrict the set of possible modifications and establish a precedence order within this set.
 
-However, if the disguising tool \emph{discards} the reveal functions produced when executing \ca
-because \ca is irreversible, then the tool cannot perform \gdpr while guaranteeing that \gdpr
+However, if \ca is irreversible and the disguising tool \emph{discards} the reveal functions produced when executing \ca, then the tool cannot perform \gdpr while guaranteeing that \gdpr
 removes all the user's originally owned reviews.  The right solution here is unclear: one
 possibility is for the tool to a-priori determine (via, \eg static dependency analysis) the set of
 irreversible disguises such as \ca that could prevent \gdpr from removing the user's reviews. This
