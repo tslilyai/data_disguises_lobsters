@@ -60,29 +60,30 @@ disguises, and untrusted in a second tier, which stores updates from user-invoke
 %-------------------------------------------------------------------------------
 \paragraph{Composing and Applying Disguises.}
 %-------------------------------------------------------------------------------
-Composed disguises should achieve an end-state that combines, in some way, the end-states achieved by each disguise when applied to the original application database in isolation.
+\lyt{Moved a bunch of this to \S\ref{sec:composition}}
+%Composed disguises should achieve an end-state that combines, in some way, the end-states achieved by each disguise when applied to the original application database in isolation.
 %Correct composition of multiple disguises achieves an end-state equivalent to combining the
 %end-states achieved by each disguise when applied to the original application database in isolation.
 %
-If a prior disguise is reversible, then a disguising tool can use user vaults to ensure that this
-prior disguise does not affect \emph{which} objects are updated
-a future disguises. 
-In this case, a disguising tool allows developers to reason about multiple conflicting updates to
-the same object: 
-regardless of when the disguises occurred, if one disguise removes an object that the other disguise
-modified, then the removal takes precedence.
+%If a prior disguise is reversible, then a disguising tool can use user vaults to ensure that this
+%prior disguise does not affect \emph{which} objects are updated
+%a future disguises. 
+%%In this case, a disguising tool allows developers to reason about multiple conflicting updates to
+%the same object: 
+%regardless of when the disguises occurred, if one disguise removes an object that the other disguise
+%modified, then the removal takes precedence.
+%%
 %
-
-However, if they both modify the same object attribute, a disguising tool establishes no precedence
-between the modifications and applies them in chronological order.  Alternatively, we can imagine
-that the developer could specify a partial ordering between modifications, or our framework could
-restrict the set of possible modifications and establish a precedence order within this set.
-
-If the prior disguise is not reversible, however, then the disguising tool could prevent future
-conflicting disguise application, or perhaps a-priori prevent the application of such non-reversible
-disguises that conflict with legally required disguises such as GDPR deletion \lyt{not sure what to
-put here? May also want to include something about developer assertions}
-%: a disguise will update all objects that it would have updated if performed on
+%However, if they both modify the same object attribute, a disguising tool establishes no precedence
+%between the modifications and applies them in chronological order.  Alternatively, we can imagine
+%that the developer could specify a partial ordering between modifications, or our framework could
+%restrict the set of possible modifications and establish a precedence order within this set.
+%
+%If the prior disguise is not reversible, however, then the disguising tool could prevent future
+%conflicting disguise application, or perhaps a-priori prevent the application of such non-reversible
+%disguises that conflict with legally required disguises such as GDPR deletion \lyt{not sure what to
+%put here? May also want to include something about developer assertions}
+%%: a disguise will update all objects that it would have updated if performed on
 %the original, undisguised state of application data.
 
 
@@ -105,9 +106,9 @@ A disguising tool applies disguises in a five-phase procedure:
 \end{enumerate}
 
 %-------------------------------------------------------------------------------
-\paragraph{Reversing Disguises.}
+%\paragraph{Reversing Disguises.}
 %-------------------------------------------------------------------------------
-To correctly reverse a disguise and ensure that reintroduced data is not mistakenly revealed because
-it missed a subsequent disguise, A disguising tool keeps a persistent log of all disguises performed by the
-application. Any other disguises performed between this disguise's application and its reversal are 
-applied to any reintroduced data.
+%To correctly reverse a disguise and ensure that reintroduced data is not mistakenly revealed because
+%it missed a subsequent disguise, A disguising tool keeps a persistent log of all disguises performed by the
+%application. Any other disguises performed between this disguise's application and its reversal are 
+%%applied to any reintroduced data.
