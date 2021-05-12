@@ -5,16 +5,28 @@ Applications' privacy policies specify acceptable outcomes after a disguise has 
 outcomes should be achieved regardless if multiple disguises are applied.  For example, returning to
 the disguises of \gdpr and \ca, HotCRP may require that \gdpr removes the invoking user's reviews
 completely, even when applied after other disguises such as \ca.  Alternatively, HotCRP may accept a
-post-\gdpr outcome that either anonymizes or removes reviews.  The ability of the tool to achieve an
-acceptable outcome depends on both the application's privacy policy and the reversibility of the
-application's disguises (\ie whether they discard reveal functions, or store per-user reveal
-functions in user vaults).
+post-\gdpr outcome that either anonymizes or removes reviews. If provided with the application's
+privacy policy, and the reversibility of the application's disguises, a disguising tool can
+determine either how to reach an acceptable outcome (perhaps using user vaults), or warn that
+application that certain disguise interleavings may not be able to do so.
+%(\ie whether they discard reveal functions, or store per-user reveal
+%functions in user vaults).
+We discuss how a tool might compose two disguises---\gdpr and \ca in HotCRP---
+which may lend insights as to what a general and complete solution to disguise composition for a disguising tool may look like.
 
-For example, assume that HotCRP's policy requires that a user's \gdpr disguise \emph{removes} the
-invoking user's reviews. If \ca's application is reversible and stores per-user reveal functions in
-user vaults, then the disguising tool can query the user's vault to temporarily recorrelate the
-user's reviews with their identity before applying \gdpr for the user. This allows the tool to
-remove the user's reviews when \gdpr is applied, even if \ca has been previously applied.
+The tool can determine (attribute-level) co-dependencies between disguises by using the disguise
+specification. This can be done statically, if application disguises are pre-declared, or
+dynamically, when a disguise is invoked.  As we show, this co-dependency information comes in handy
+when the tool applies disguises.
+
+Suppose HotCRP's policy requires that a user's \gdpr disguise \emph{removes} the invoking user's
+reviews.  The tool has determined that that \gdpr and \ca are co-dependent, and that \ca has already
+been applied.
+%
+If \ca's application is reversible and stores per-user reveal functions in user vaults, then the
+disguising tool knows to query the user's vault to temporarily recorrelate the user's reviews with
+their identity before applying \gdpr (phase 1--\emph{Prepare}---of disguise application). This
+enables the tool to remove the user's reviews when \gdpr is applied.
 %This requires the user to grant access to their vault.  If one disguise removes an object that the
 %other disguise modified, then the removal takes precedence.
 %
@@ -24,14 +36,13 @@ remove the user's reviews when \gdpr is applied, even if \ca has been previously
 %restrict the set of possible modifications and establish a precedence order within this set.
 
 However, if \ca is irreversible and the disguising tool \emph{discards} \ca's reveal functions, then
-the tool cannot remove all the user's originally owned reviews.  The right solution here is unclear:
-one possibility is for the tool to a-priori determine (via, \eg static dependency analysis) the set
-of irreversible disguises such as \ca that could prevent \gdpr from removing the user's reviews.
-This analysis could be presented to the developer, providing a warning that the privacy policy may
-be violated if \gdpr is applied after \ca.
+subsequently applying \gdpr may not remove all the user's originally owned reviews.  The tool could,
+before applying any disguise, provide a warning that the privacy policy may be violated if \gdpr is
+applied after \ca.
+%The right solution here is unclear: %one possibility is for 
 
-If HotCRP's policy instead accepts that a user's \gdpr disguise can either remove \emph{or}
-anonymize the invoking user's reviews, then the disguising tool can simply execute \gdpr on top of
+Suppose instead that HotCRP's policy accepts that a user's \gdpr disguise can either remove \emph{or}
+anonymize the invoking user's reviews. Then the disguising tool can simply execute \gdpr on top of
 \ca and achieve an acceptable state: any reviews missed by \gdpr would necessarily have been
 anonymized by \ca.  The tool can achieve an acceptable outcome regardless of whether \ca is
 reversible because the policy is more flexible.
