@@ -5,32 +5,55 @@
     \centering
     \includegraphics[width=0.47\textwidth]{img/disguises_new}
 
-    \caption{Disguises move the target object (in this example, a user Bob) from an identity-revealing
-    guise to privacy-preserving guises.}
+    \caption{Disguises move data (in this example, user Bob) from
+             beteeen different \emph{guises}. Guises represent the
+             same data, but with different privacy properties (\eg
+             anonymization).}
     \label{fig:example}
 \end{figure}
 
 %
-We propose \emph{data disguising}, a systematic approach to privacy transformations that separates
-them from application code.
+We propose \emph{data disguising}, a systematic approach to privacy
+transformations that separates them from application code.
 %
 Data disguising reasons about \emph{disguises}, privacy transformations that
-follow an organized structure and perform a restricted set of actions. %(\S\ref{sec:disguises}).
+follow an organized structure.
 %
-The structured nature of disguises allows a data disguising tool to automatically determine how to correctly
-compose multiple disguises, and to check that the end-state achieves the desired privacy properties.
+Disguises are based on the observation that application data can take
+different forms---which we call \emph{guises}---some of which are
+identity-revealing, while others are privacy-preserving (to potentially
+varying degrees).
+%
+For example, a web application's database contents may assocate posts with
+an actual user as their author (an identity-revealing guise), or with
+one or more anonymous placeholder users (privacy-preserving guises).
+%
+A disguise transforms the database contents between these guises
+(Figure~\ref{fig:example}).
+%
+%The structured nature of disguises allows a data disguising tool to
+%automatically determine how to correctly compose multiple disguises, and to
+%check that the end-state achieves the desired privacy properties.
 %
 %The tool uses the abstraction of \emph{per-user vaults}, which allow the tool to
 %reintroduce destroyed data from prior disguises as necessary, while still ensuring that user data
 %remains protected (\S\ref{sec:composition}).
+%
+%
 
 %
-A data disguising tool exposes an API for the application to provide a disguise specificaiton and to
-invoke disguises from this specification.
+An external data disguising tool reasons about and applies these disguises
+based on the application's policy (a \emph{disguise specification}).
 %
-Developers only need to invoke the tool's API; the tool then performs the necessary physical modifications
-to the application's database. 
+Application developers only need to invoke the tool's API to provide the
+specification and to trigger individual disguises; the tool then performs the
+necessary physical modifications to the application's database.
 %
+
+
+
+
+\ms{OLD TEXT FOLLOWS}
 
 \subsection{Data Decorrelation}
 %
