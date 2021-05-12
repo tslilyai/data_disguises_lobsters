@@ -1,21 +1,14 @@
 \subsection{Reasoning about Multiple Disguises}
 \label{sec:composition}
 \lyt{New text added!}
-
-Applications benefit from the ability to apply multiple disguises. For example,
-\S\ref{sec:motivation} highlights two desirable disguises in HotCRP, namely \gdpr and \ca. \gdpr
-provides user privacy by removing the user's data; \ca provides user privacy by anonymization.  As
-we observed, however, disguises may not be independent: applying \ca destroys information allowing
-\gdpr to properly remove the user's data.
-
-Applications' privacy policies specify acceptable outcomes after a disguise has been
-applied; these outcomes should be achieved regardless if multiple disguises are applied.
-For example, HotCRP may require that \gdpr removes the invoking user's reviews completely, even when
-applied after other disguises such as \ca.  Alternatively, HotCRP may accept a post-\gdpr outcome that either
-anonymizes or removes reviews. 
-The ability of the tool to achieve an acceptable outcome depends on both the application's privacy
-policy and the reversibility of the application's disguises (\ie whether they discard reveal functions, or store
-per-user reveal functions in user vaults).
+Applications' privacy policies specify acceptable outcomes after a disguise has been applied; these
+outcomes should be achieved regardless if multiple disguises are applied.  For example, returning to
+the disguises of \gdpr and \ca, HotCRP may require that \gdpr removes the invoking user's reviews
+completely, even when applied after other disguises such as \ca.  Alternatively, HotCRP may accept a
+post-\gdpr outcome that either anonymizes or removes reviews.  The ability of the tool to achieve an
+acceptable outcome depends on both the application's privacy policy and the reversibility of the
+application's disguises (\ie whether they discard reveal functions, or store per-user reveal
+functions in user vaults).
 
 For example, assume that HotCRP's policy requires that a user's \gdpr disguise \emph{removes} the
 invoking user's reviews. If \ca's application is reversible and stores per-user reveal functions in
