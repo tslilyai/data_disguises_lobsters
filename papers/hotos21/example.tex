@@ -43,9 +43,10 @@ time (\eg 2 years after the conference), protecting his future research career b
 reviewing sins.
 %
 
-The tool performs the disguise when Bob invokes HotCRP account deletion. To do so correctly, Bob
-provides his secret key to decrypt and read from his vault. The tool retrieves and temporarily reverses any conflicting
-transformations that would make Bob's deletion fail: in particular, it recorrelates any of Bob's decorrelated
-paper conflicts and then properly removes them. (Because the conflicts are removed, the
-decorrelation is not reapplied). After performing the transformations specified in the disguise, the
-tool records each transformation in the vault, and re-encrypts it, forgetting the key.
+The tool disguises Bob when he invokes HotCRP account deletion. Bob provides his secret key to
+decrypt and read from his vault, allowing the tool to retrieve and temporarily reverse any conflicting,
+reversable transformations that would make Bob's deletion fail: in particular, it recorrelates any
+of Bob's decorrelated paper conflicts and then properly removes them. (Because the conflicts are
+removed, the decorrelation is not reapplied).  Bob wants his account deletion disguise to be
+reversible, so after performing the specified disguise updates, the tool records each transformation
+in the vault, re-encrypts the vault, and forgets the key.
