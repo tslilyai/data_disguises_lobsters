@@ -1,5 +1,6 @@
-\section{Reasoning about Multiple Disguises}
+\subsection{Reasoning about Multiple Disguises}
 \label{sec:composition}
+\lyt{New text added!}
 
 Applications benefit from the ability to apply multiple disguises. For example,
 \S\ref{sec:motivation} highlights two desirable disguises in HotCRP, namely \gdpr and \ca. \gdpr
@@ -47,9 +48,10 @@ of each disguise and their reversibility, a disguising tool will be able to achi
 outcome as we describe in the examples above (or provide warnings to the developer about potentially
 problematic disguise composition).
 
-\subsection{Complete Disguise Reversals}
-Because disguises may be explicitly reversed, the tool must also achieve acceptable outcomes when disguises intermix with
-disguise reversals.
+\paragraph{Intermixing Disguise Reversals.}
+In addition to temporary reversal for the purposes of disguise composition, disguises may also be
+explicitly and completely reversed. The tool must also achieve acceptable outcomes when disguises
+intermix with disguise reversals.
 
 For example, imagine that \ca and \gdpr both store reveal functions in user vaults. 
 %
@@ -63,9 +65,3 @@ performed by the application; any disguises performed between a disguise's appli
 reversal could be applied to any reintroduced data. In the former scenario, \gdpr's removal would
 apply to any recorrelated reviews; in the latter scenario, \ca's decorrelation would apply to any of
 the user's reintroduced reviews.
-
-\lyt{This doesn't fit in well, but we should discuss it.}
-Furthermore, the choice of vault deployment affects the practicality of complete disguise reversal.
-For \gdpr to support reversal, reveal functions must necessarily be stored in user vaults external
-to the application in order to be GDPR-compliant.
-However, deploying vault external to the application, and encrypted with per-user keys, would force complete reversal of \ca to retrieve reveal functions from every user's vault, an infeasible task.
