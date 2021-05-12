@@ -1,21 +1,26 @@
 \begin{abstract}
 %\paragraph{Abstract.}
 
-Conscientious application developers want to provide better user privacy,
-and legal mandates and users increasingly demand it.
+
+Providing privacy in complex, data-rich applications is fundamentally hard.
 %
-Better privacy often requires that applications transform the data they store
-(\eg when a user deletes their account).
+Deleting accounts, anonymizing an account's contributions, and other
+privacy-related actions may require the traversal and transformation of
+interwoven state in a relational database. This is hard enough---even finding the affected
+data can be nontrivial---but privacy actions must also balance competing
+requirements, such as preserving data trails for legal reasons or allowing
+users to change their mind.
 %
-Unfortunately, privacy in complex, data-rich applications is fundamentally
-hard: finding the affected data is nontrivial, and even once found, only some
-of it should be removed; other data must be retained in anonymized form,
-%(for legal reasons, or to maintain application utility for others),
-and multiple different privacy-enhancing transformations might apply to the
-same data at different times.
+% Even finding the data  to enforce new
+% privacy policies. Even finding the data affected  data is nontrivial; even
+% once found, only some of it should be removed; other data must be retained in
+% anonymized form, (for legal reasons, or to maintain application utility for others),
 %
-Burdening application developers with the correct implementation of these
-transformations won't work.
+% and multiple different privacy-enhancing transformations might apply to the
+% same data at different times.
+%
+% Burdening application developers with the correct implementation of these
+% transformations won't work.
 %
 %and some of these transformations should be reversible (in case a user wants to return).
 %Furthermore, some of this data may have already been transformed by prior privacy requests,
@@ -33,18 +38,20 @@ transformations won't work.
 % Consequently, today's applications support only simple, coarse-grained, and ad-hoc privacy
 % transformations.
 %
-
-We propose \emph{data disguising}, a systematic approach that helps
-developers apply privacy transformations in database-backed web applications.
 %
-Data disguising simplifies privacy transformations that applications use today,
-    supports fine-grained and nuanced policies that would be cumbersome to implement manually,
-    enables reversible transformations for users who change their mind,
-    and automatically handles the complex interactions between transformations to correctly compose
-    them.
+We believe a systematic shared framework for specifying and implementing
+privacy transformations could simplify and empower applications.
 %
-%Furthermore, data reduce developer burden, as developers must no longer manually implement
-%privacy transformations, and enable key new use cases, such as user-specific privacy modes.
+Our prototype, \emph{data disguising}, supports fine-grained, nuanced, and
+useful policies that would be cumbersome to implement manually, including
 %
-A prototype tool for data disguising demonstrates that our approach is practical.
+% a systematic approach that helps
+%developers apply privacy transformations in database-backed web applications.
+%
+%Data disguising simplifies privacy transformations that applications use today,
+%    supports fine-grained and nuanced policies that would be cumbersome to implement manually,
+reversible transformations
+and transformations that automatically compose.
+%
+%A prototype tool for data disguising demonstrates that our approach is practical.
 \end{abstract}
