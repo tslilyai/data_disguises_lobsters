@@ -1,5 +1,5 @@
 \section{Challenges of Privacy Transformations}
-\label{sec:survey}
+\label{sec:motivation}
 %
 %We investigate the potential of privacy transformations as a first-class
 %citizen in application design, and the challenges to support these
@@ -44,37 +44,37 @@ transformations to achieve the desired privacy properties is a daunting task.
 To make these challenges concrete, consider implementing two privacy
 transformations in HotCRP~\cite{hotcrp}:
 %
-(1) \texttt{GDPR} implements GDPR's ``right-to-be-forgotten'' removal of user
+(1) \gdpr implements GDPR's ``right-to-be-forgotten'' removal of user
 data; and
 %
-(2) \texttt{ConfAnon} anonymizes reviewers in the database some time after the
+(2) \ca anonymizes reviewers in the database some time after the
 reviewing concludes, preventing reviewer identification in case of a data breach.
 %
-\texttt{ConfAnon} needs to decorrelate reviews and review metadata (\eg review preferences)
+\ca needs to decorrelate reviews and review metadata (\eg review preferences)
 from reviewers by ensuring that nothing associated with a review references a real user's
 account by foreign key.
 %
 To maintain referential integrity, the developer must take care to generate fake user profiles
 and update foreign key attributes to reference them.
 %
-The \texttt{GDPR} transformation, by constrast, must identify all data related to a user and
-remove it, though taking care to leave behind shared data such as review text.
+The \gdpr transformation, by constrast, must identify all data related to a user and
+remove it.%, though taking care to leave behind shared data such as review text.
 %
 
 %
 In isolation, each transformation may seem simple; however, composing them is tricky.
 %
-\texttt{ConfAnon} destroys information that links a user's data to their account by changing
+\ca destroys information that links a user's data to their account by changing
 that data to reference anonymous, fake users (\eg rewriting the foreign key for a review's
 author to point to a fake user profile).
 %
-If this reviewer user later invokes \texttt{GDPR}, the transformation needs to know which
+If this reviewer user later invokes \gdpr, the transformation needs to know which
 data to remove, which is impossible without the original foreign keys.
 %
 %Due to data dependencies between these transformations, \texttt{GDPR} fails to achieve its desired
 %privacy properties, namely the complete removal of the user's data.
 %
-When applied the other way around (\texttt{GDPR}, then \texttt{ConfAnon}), the transformations
+When applied the other way around (\gdpr, then \ca) the transformations
 compose more easily, as there is no need to anonymize deleted data.
 %
 But it falls to the application developer to write privacy transformation code that handles
