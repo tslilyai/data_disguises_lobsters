@@ -1,30 +1,26 @@
 %-------------------------------------------------------------------------------
 \section{Introduction}
 %-------------------------------------------------------------------------------
-Web application developers today have more incentives than ever to provide better privacy for their
-users.
-%
-Laws like the EU's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's
-Consumer Privacy Act (CCPA)~\cite{ca:privacy-act} codify users' rights and associate legal
-consequences and reputational damage with data breaches~\cite{breach:amazon,
-breach:twitter, breach:fb, breach:marriott, breach:quora}.
-%
-Beyond legal mandates, it is good practice to minimize retained user data.
-%
 
-%
-Consequently, application developers increasingly face the need to implement
+Application developers increasingly must implement
 \emph{privacy transformations} over their applications' data.
 %
-For example, GDPR compliance requires a transformation that deletes a user's account and
-data, and anonymizes any data retained due to legal requirements or to preserve
-application utility for other users.
+%Web application developers today have more incentives than ever to provide better privacy for their users.
 %
-As another example, a system like HotCRP~\cite{hotcrp} could anonymize old peer review data to avoid having a future data breach expose reviewer identities.
+For example, laws like the EU's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's
+Consumer Privacy Act (CCPA)~\cite{ca:privacy-act}
+codify the transformations corresponding to some user actions; for instance, when a user
+closes their account, the site must generally
 %
-Today, developers must manually implement these transformations as part of their application
-code, which is error-prone, laborious, and begets ad-hoc solutions.
+delete “personally identifiable” user data and anonymize or delete other user
+contributions.
 %
+Prudence and good practice can recommend other transformations; for example, a
+site containing sensitive reviews and comments might want to anonymize
+authorship information for old reviews to reduce the legal consequences and
+reputational damage~\cite{breach:amazon,
+breach:twitter, breach:fb, breach:marriott, breach:quora}  of a later data breach.
+
 
 %
 %To write a privacy transformation, developers must carefully map the high-level privacy policy to
@@ -76,6 +72,10 @@ code, which is error-prone, laborious, and begets ad-hoc solutions.
 %achieved by future transformations, even if they both transform the same data, is a non-trivial task.
 %
 
+
+%Today, developers must manually implement these transformations as part of their application
+%code, which is error-prone, laborious, and begets ad-hoc solutions.
+
 %
 In this paper, we propose \emph{data disguising}, a new systematic framework that helps developers
 of database-backed web applications specify, implement, and reason about privacy transformations.
@@ -91,12 +91,11 @@ deleting users' identifiers, or decorrelating identifying object relationships) 
 application invariants and utility.
 %
 
-%
 Because many disguises edit the physical database contents in (often necessarily)
-information-destroying ways, the disguising framework includes \emph{per-user vaults}, namely
+information-destroying ways, we introduce \emph{per-user vaults}, which are
 individually owned storage shards that log all disguises applied to an individual user's data.
-Vaults allow for selective disguise reversal, which may be triggered explicitly (\eg by a user who
-wants to return to the application), or by necessity, in order to correctly apply a disguise that
+Vaults allow for selective disguise reversal, which may be triggered either explicitly (\eg by a user who
+wants to return to the application) or in order to correctly apply a disguise that
 needs to modify the same data modified by a prior disguise. Partial or full disguise reversal
 requires access to the relevant user vaults to revert back to the original, unmodified data.
 %
