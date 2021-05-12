@@ -6,15 +6,15 @@
 Our prototype disguising tool, \sys, is written in Rust and 
 provides data disguising for applications that use relational databases.
 %
-We believe that the data disguising approach can be extended to other types of stores.
+We believe that data disguising can be extended to other types of stores.
 %
 
 %
-\sys represents user vaults as additional database tables, and stores the old and new states
-of the object being updated. \sys also keeps a disguise history table that logs all disguises
-performed.
-While \sys currently has no per-user encryption of vaults and can read and
-write vaults at any point, we plan to add per-user encryption keys that are not stored by \sys.
+\sys represents user vaults as additional database tables, and stores the original and updated
+states of objects touched by the disguise if the current disguise is reversible. \sys also keeps a
+disguise history table that logs all disguises performed.  While \sys currently has no per-user
+encryption of vaults and can read and write vaults at any point, we plan to add per-user encryption
+keys that are not stored by \sys.
 %Currently, the tool uses the heuristic that if a user invokes the disguise (\eg GDPR deletion),
 %modifications to data records will be stored only to that user's vault; however, if the application
 %invokes a general disguise, then any users connected to modified data records will store the
@@ -22,8 +22,8 @@ write vaults at any point, we plan to add per-user encryption keys that are not 
 
 %
 Disguises written for \sys associate each table in the application schema with a set of
-transformation-predicate pairs. Predicates are arbitrary SQL \texttt{WHERE} clauses, and allow \sys
-to select the relevant table rows to transform. The transformation is either a removal, a
+predicate-transformation pairs. Predicates are arbitrary SQL \texttt{WHERE} clauses, and allow \sys
+to select the relevant table rows to transform. A transformation is either a removal, a
 decorrelation of a particular foreign key, or a modification of a particular column. To modify a
 column value, developers provide arbitrary closures that take as input the original column value,
 and return the updated value.
