@@ -7,19 +7,21 @@ Application developers increasingly must implement
 %
 %Web application developers today have more incentives than ever to provide better privacy for their users.
 %
-For example, laws like the EU's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's
+Laws like the EU's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's
 Consumer Privacy Act (CCPA)~\cite{ca:privacy-act}
-codify the transformations corresponding to some user actions; for instance, when a user
+codify the transformations corresponding to some user actions: when a user
 closes their account, the site must generally
 %
 delete “personally identifiable” user data and anonymize or delete other user
 contributions.
 %
-Prudence and good practice can recommend other transformations; for example, a
-site containing sensitive reviews and comments might want to anonymize
-authorship information for old reviews to reduce the legal consequences and
-reputational damage~\cite{breach:amazon,
-breach:twitter, breach:fb, breach:marriott, breach:quora}  of a later data breach.
+Prudence and good practice can recommend other transformations. For example, a
+site might scrub or anonymize its older contents to reduce the impact of a
+possible later breach, since
+%
+the legal consequences and reputational damage of breaches can be
+substantial~\cite{breach:amazon, breach:twitter, breach:fb, breach:marriott,
+breach:quora}.
 
 
 %
@@ -77,7 +79,7 @@ breach:twitter, breach:fb, breach:marriott, breach:quora}  of a later data breac
 %code, which is error-prone, laborious, and begets ad-hoc solutions.
 
 %
-In this paper, we propose \emph{data disguising}, a new systematic framework that helps developers
+In this paper, we propose \emph{data disguising}, a systematic framework that helps developers
 of database-backed web applications specify, implement, and reason about privacy transformations.
 %
 Data disguising supports a broad range of privacy transformations and separates the application
@@ -91,7 +93,7 @@ deleting users' identifiers, or decorrelating identifying object relationships) 
 application invariants and utility.
 %
 
-\eddie{Lily, do not edit this to make it sound like all disguises have to be reversible.}
+%% \eddie{Lily, do not edit this to make it sound like all disguises have to be reversible.}
 
 Although privacy is often thought of as monotonic---for instance, users can
 leave a system, but not return---we believe a more flexible set of privacy
