@@ -1,31 +1,37 @@
 %-------------------------------------------------------------------------------
 \section{Discussion}
 %-------------------------------------------------------------------------------
+Data disguising makes it easier to explore and implement privacy transformations. This may support
+new privacy paradigms like data decay and account reactivation after deletion.
 
-A data disguising tool takes a disguise specification, and 
-As we saw in \S\ref{sec:multi}, the tool needs more than the disguise specification---a set of predicated transformations to
-modify, remove, or decorrelate data---is insufficient to achieve an application's privacy goals.
-Instead, 
+However, our proposed data disguising solution still leaves many open questions. 
+%
+For instance, \S\ref{sec:multi} describes \emph{how} the tool can detect and/or avoid
+multi-disguise scenarios that fail to adhere to the application's privacy goals (by \eg using user
+vaults, raising warnings for the application, or static dependency analysis). However, we left
+unanswered how the tool knows \emph{when} to utilize these mechanisms. Crucially, the tool must
+somehow learn and interpret the application privacy goals.
 
-%
-Data disguising makes it easier to explore and implement privacy transformations.
-%
-This may support new privacy paradigms like data decay and account reactivation after
-deletion.
-%
-%Data disguising also goes beyond privacy, and can help developers moderate harmful
-%content~\cite{contentmod, sasb}, for which they may soon be held legally
-%liable~\cite{nytimes:230}.
-%
-%Instead of targeting users, disguises would target harmful entities (\eg misinformation posts).
-%
-Data disguising also has some clear limitations.
-%
+If only one disguise is ever applied (\eg \gdpr), then the application's
+privacy goals (\eg de-identify the user) may very well align with the operations described by the
+disguise specification and be redundant.  However, with multiple, potentially co-dependent disguises,
+the tool may achieve an end-state that fails to achieve the application's privacy goals if it
+blindly follows the specified disguise operations.
+
+The best way to convey the application's privacy goals to the disguising tool is unclear. One 
+possibility may be developer assertions over the end-state of application data after a disguise
+has been executed (\eg, ``no user identifiers remain in the system''). If these assertions were restricted to a
+set of tool-interpretable statements, the tool could, before applying any disguises,
+statically determine which mechanisms need to be utilized to appropriately apply each disguise in any scenario. 
+Or perhaps the tool could, post-disguise, check (unrestricted) assertions to ensure that applying
+the disguise adhered to the application's privacy goals; if these checks fail, the tool would revert
+the disguise and try again with a different mechanism until it passes the checks, or gives up with a
+warning.
+
+Data disguising also has some clear \textbf{limitations}.
 It assumes that transformations on application objects capture all data that needs transforming;
 application snapshots, backups, or external data copies are out of scope, and require
 \eg taint tracking techniques~\cite{schengendb}.
-%\name assumes that legal and societal incentives will sufficiently convince applications to adopt
-%\name, and that
 Data disguising also importantly does not provide privacy \emph{guarantees}.
 %
 Disguises are only as good as the specification a developer writes for them, and we assume
@@ -65,7 +71,13 @@ impractical to instrument every update of the application.
 
 \iffalse
 \subsection{Limitations}
-
+%
+%Data disguising also goes beyond privacy, and can help developers moderate harmful
+%content~\cite{contentmod, sasb}, for which they may soon be held legally
+%liable~\cite{nytimes:230}.
+%
+%Instead of targeting users, disguises would target harmful entities (\eg misinformation posts).
+%
 Like all applications that provide some type of post-unsubscription privacy guarantees, \name assumes
 that an adversary who aims to relink decorrelated entities to unsubscribed users, is limited in the
 following ways:
