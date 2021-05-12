@@ -86,18 +86,23 @@ of privacy transformations (``data disguises'') from application code.
 Developers provide disguise specifications to an external disguising tool, which computes the necessary
 database changes and applies them to the application's database backend (Figure~\ref{fig:tool}).
 %
-Applying a disguise transforms the application data in privacy-preserving ways (\eg
+Applying a disguise transforms the application data to meet a privacy-oriented goal (\eg
 deleting users' identifiers, or decorrelating identifying object relationships) while preserving
 application invariants and utility.
 %
 
-Because many disguises edit the physical database contents in (often necessarily)
-information-destroying ways, we introduce \emph{per-user vaults}, which are
-individually owned storage shards that log all disguises applied to an individual user's data.
-Vaults allow for selective disguise reversal, which may be triggered either explicitly (\eg by a user who
-wants to return to the application) or in order to correctly apply a disguise that
-needs to modify the same data modified by a prior disguise. Partial or full disguise reversal
-requires access to the relevant user vaults to revert back to the original, unmodified data.
+\eddie{Lily, do not edit this to make it sound like all disguises have to be reversible.}
+
+Although privacy is often thought of as monotonic---for instance, users can
+leave a system, but not return---we believe a more flexible set of privacy
+transformations would improve application experience and better meet user
+needs.
+%
+Thus, the data disguising framework can integrate \emph{per-user vaults}, which are
+separate, mostly-offline storage shards that log disguises applied to an individual user's data.
+%
+Vaults allow for selective and partial disguise reversal (\eg when a user
+wants to return to the application, or, potentially, to apply another disguise).
 %
 Vaults cannot be accessed by application queries, and can be deployed in different
 ways and with different levels of privacy guarantee.
@@ -117,14 +122,14 @@ the web.
 However, our framework is far from complete and realizing it will require solving several research
 problems.
 %
-First, when an application contains more than one privacy transformation, the respective data
-disguises may be inter-dependent: for example, removing a user's data on account deletion may need
-to access data which has already been anonymized and decorrelated from the user. Careful use of user
-vaults and selective disguise reversal may be able to handle these disguise conflicts, but this
-method works only if disguises are reversible.
+First, when an application contains more than one privacy transformation, the respective
+data disguises may have co-dependencies: for example, removing a user's data on account
+deletion is challenging if that data has already been anonymized and decorrelated from the
+user.
 %
-A practical data disguising tool could use a combination of static analysis, warnings to
-developers, and privacy assertions to ensure disguises compose correctly.
+A practical data disguising tool could use a combination of static analysis,
+warnings to developers, privacy assertions, and access to possibly-encrypted
+vault information to ensure disguises compose correctly.
 %
 Second, the performance impact of data disguises could be substantial, particularly if they
 transform many database rows, and especially if they act on a live application database.
