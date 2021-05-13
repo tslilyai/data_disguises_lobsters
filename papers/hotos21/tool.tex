@@ -40,9 +40,9 @@ reversible disguises.
     \footnotesize
 \begin{lstlisting}[language=Rust]
 disguise_name: "UserScrub",
-user_to_disguise: 19,
-tables {
-   ContactInfo: {
+user_to_disguise: $UID,
+tables:
+   ContactInfo:
       generate_placeholder: [
          ("name", Random),
          ("email", Default(None)),
@@ -50,19 +50,16 @@ tables {
          ..
       ],
       transformations: [Remove(pred: "contactId" = 19)]
-   },
-   ReviewPreference: {
+   ReviewPreference:
       transformations: [Remove(pred: "contactId" = 19)]
-   }
-   Review : {
+   Review:
       transformations: [Decorrelate(
          pred: "contactId" = 19,
-         fk: ("contactId", ContactInfo)
+         foreign_key: ("contactId", ContactInfo)
       )]
-   }
-}
 \end{lstlisting}
-    \caption{Part of the HtoCRP user scrubbing disguise specification.}
+    \caption{Part of a HotCRP user scrubbing disguise specification. \texttt{\$UID} refers
+    to the user invoking the disguise.}
     \label{fig:spec}
 \end{figure}
 
@@ -105,11 +102,11 @@ account deletion disguise for Bea, when given a specification like that in Figur
 When her account is active, Bea's profile is associated with her true identity and her
 reviews.
 %
-When Bea deletes her account, her reviews move to different, privacy-preserving
+When Bea deletes her account, her reviews move to privacy-preserving
 placeholders, making it seem as if a different user entered each of Bea's reviews.
 %
-This prevents an observer from correlating these contributions back to Bea's identity,
-but importantly preserves refential integrity in the database.
+This prevents an observer from correlating these contributions to expose Bea's identity,
+but importantly preserves referential integrity.
 %
 
 %
