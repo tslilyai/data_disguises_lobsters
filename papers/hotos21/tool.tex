@@ -222,8 +222,8 @@ functions of non-GDPR disguises in a global vault accessible to the disguising t
 and application, while the second tier stores revealing functions from user-invoked
 disguises in external, per-user encrypted vaults.
 %
-We imagine several exciting directions to explore for designing vaults that are both
-secure and flexible.
+We imagine that exploring different vaults designs will be an important part of
+data disguising research.
 %
 
 %-------------------------------------------------------------------------------
@@ -233,15 +233,31 @@ secure and flexible.
 %reversal.}
 \textbf{Reverting disguises.}
 %
-When disguises are explicitly reversed, this permanently reveals data to the application database.
-However, in the interval between disguising and revealing the data, other disguises may have been applied that
-should have affected the newly reintroduced data. To ensure that any revealed data is properly disguised,
-the disguising tool keeps a persistent log of all disguises performed by the application, and
-applies to this data any disguises performed in this interval.
+Reveal functions also help with explicit disguise reversal (\eg a returning user): the
+application invokes the disguising tool's API to revert a previously applied disguise.
+%
+This reversal permanently reveals data, restoring it to the application database.
+%
+However, other disguises may have affected the database contents in the interval between
+the original disguising and the explicit reveal.
+%
+To ensure that any revealed data still respects other active disguises, the tool keeps
+a persistent log of all disguises the application applied, and re-applies disguises from
+the relevant log interval to the revealed data.
+%
 
-For example, reversal of \gdpr should not reintroduce ownership of reviews to identities if \ca has
-occurred since \gdpr was applied. The data disguising tool would applying the relevant \ca
-anonymization operations to any revealed data from \gdpr's reversal before making it visible to the application.
+%
+For example, reversal of \gdpr must avoid reintroducing identifiable reviews if \ca has
+occurred since \gdpr was applied.
+%
+The data disguising tool would applying the relevant \ca anonymization operations to any
+revealed data from \gdpr's reversal before making it visible the application.
+%
+
+%
+Explicit application modifications to disguised data (other than deletion) are harder to
+handle; the framework might prohibit them, or log them to the relevant vaults.
+%
 
 %\ms{OLD TEXT FOLLOWS}
 
