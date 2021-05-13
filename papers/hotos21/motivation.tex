@@ -29,10 +29,9 @@ A system aiming to simplify privacy transformations must thus support a range
 of operations, and implement application-defined policy.
 
 
-The second challenge arises because privacy transformations are
-inherently difficult, requiring extensive tracing of user identities through
-application data schemas, and also secondary to normal application
-functioning.
+The second challenge arises because privacy transformations are inherently difficult, requiring
+extensive tracing of user identities through application data schemas, and are also secondary to
+normal application functionality.
 %
 Modifying or deleting data must not compromise application correctness; for example, privacy
 transformations must maintain referential integrity of an application's relational database
@@ -45,8 +44,8 @@ transformations.
 The complexity of implementing basic transformations may have discouraged
 developers from supporting more nuanced transformations.
 %
-This is too bad, because where privacy is concerned, nuance could better
-support users.
+This is too bad, because where privacy is concerned, nuance could benefit 
+users.
 %
 For example, here are some useful policies that few applications currently
 support.
@@ -72,9 +71,9 @@ encrypted and passed to the user themselves.
 user contributions for long-inactive users. Expiration policies should likely
 be reversible to support user reactivation.
 
-\item Gradual \textbf{data decay} policies could apply increasingly strict
-privacy transformations for increasingly sensitive users, or gradually, over
-time.
+\item Gradual \textbf{data decay} policies could apply increasingly strict privacy transformations
+    over time, aging out sensitive but outdated user contributions.
+%for increasingly sensitive users, or gradually, over time.
 \end{itemize}
 %
 These policies, and especially reversible transformations, were central to our
