@@ -95,8 +95,8 @@ The same \hrtbf disguise applied after \hconfanon takes 452ms on average,
 %118ms
 while \hconfanon itself takes about 7,000ms.
 %
-This increased latency comes from \sys's temporarily re-correlation of objects
-using reveal functions, so that these objects are correctly removed.
+With conflicting disguises, \sys incurs overhead from temporarily re-correlating objects
+using reveal functions so it can correctly remove them.
 %
 While this selective reintroduction of data from user vaults is not free, it is cheaper than
 completely undoing the prior \hconfanon disguise.
