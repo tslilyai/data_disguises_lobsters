@@ -1,17 +1,21 @@
 \section{Our Current Data Disguising Framework}
 
-We propose \emph{data disguising}, a systematic approach to privacy transformations that separates
-them from application code. We believe data disguising systems can help support flexible privacy
-transformations and reversibility.
+We propose \emph{data disguising}, a systematic approach to privacy transformations
+that separates them from application code.
 %
-Data disguising represents privacy transformations as structured \emph{disguises} that are specified
-by the developer to capture application-specific policies.
+We believe that data disguising systems will help support flexible privacy
+transformations.
 %
-Applications invoke an external data disguising tool's API to trigger disguise application; the tool
-interprets and applies the necessary physical changes to the application database.
+Data disguising represents privacy transformations as structured \emph{disguises}
+that the application developer specifies to capture an application's privacy policies.
 %
-Data disguising offers mechanisms to handle multiple disguise interactions and reversible disguises
-in the form of automatically-generated \emph{revealing functions} stored in \emph{vaults}.
+Applications invoke an external data disguising tool's API to apply disguises; the tool
+interprets the specification and applies the necessary physical changes to the
+database.
+%
+Data disguising offers mechanisms to handle interactions between disguises and
+reversible disguises.
+%in the form of automatically-generated \emph{revealing functions} stored in \emph{vaults}.
 
 %
 %In the following, we sketch one design for a data disguising framework.
@@ -58,40 +62,52 @@ tables {
     \label{fig:spec}
 \end{figure}
 
+%
 The broad range and application-specific nature of privacy transformations poses a real
-implementation challenge. We believe that data disguising makes
-privacy transformations more manageable by separating them from application code,
-and organizing them as structured, automatically-applicable \emph{data disguises}.
+implementation challenge.
+%
+Most importantly, transformations must maintain the integrity of the application's data
+in storage when applied.
+%
+For example, decorrelating users from their reviews could easily violate referential
+integrity (\ie no dangling foreign keys) unless applied carefully.
+%
+%We believe that data disguising makes privacy transformations more manageable by
+%separating them from application code, and
+%
+Data disguises' structured nature, and automated application, seeks to ensure this
+property.
+%
 
+%
 Data disguises are built on three fundamental operations---data removal, object content
-modification, and decorrelation by modifying references between objects---that can capture and
-structure many desirable privacy transformations across applications.
+modification, and decorrelation by modifying references between objects---that can
+capture and structure many desirable privacy transformations.
 %
-The application developer writes a disguise specification for each of the application's privacy
-transformations; this specification consists of predicated operations on each table, and describes
-the necessary operation(s) to perform on objects satisfying the predicate (Figure~\ref{fig:spec}).
-A data disguising tool takes the disguise specification and turns it into storage operations that
-achieve the desired application data state.
+The application developer writes a disguise specification for each of the application's
+privacy transformations.
+%
+This specification consists of predicated operations on each table, and describes
+the necessary operations to perform on objects that satisfy the predicate
+(\eg as in Figure~\ref{fig:spec}).
+%
+The data disguising tool takes the disguise specification and turns it into storage
+operations that appropriately rewrite affected foreign keys.
+%
 
+%
 Figure~\ref{fig:example} illustrates how the tool performs the example user
-account deletion disguise for Bob, when given the disguise spec in Figure~\ref{fig:spec}.
+account deletion disguise for Bea, when given a specification like Figure~\ref{fig:spec}'s.
 %
-When his account is active, Bob's profile is associated with his true identity and all his
-contributions to the site.
+When her account is active, Bea's profile is associated with her true identity and her
+reviews.
 %
-When Bob deletes his account, his profile and contributions move to different, privacy-preserving
-placeholders:
-%his name has been anonymized, his email address has been redacted, and
-his contributions have been decorrelated and attributed to individual, unidentified user guises,
-making it seem as if a different user provided each of Bob's contributions.
+When Bea deletes her account, her reviews move to different, privacy-preserving
+placeholders, making it seem as if a different user entered each of Bea's reviews.
 %
-This allows these contributions to be retained, but prevents an observer from correlating these
-contributions back to Bob's identity, and
-importantly preserves refential integrity in the database, a precondition to application
-correctness.
-
-\lyt{Should add stuff about FK traversal? (It's not a huge part of the current
-design/implementation)}
+This prevents an observer from correlating these contributions back to Bea's identity,
+but importantly preserves refential integrity in the database.
+%
 
 %
 %Disguises transform a guise by modifying it at per-attribute (\ie per-column) granularity, or
