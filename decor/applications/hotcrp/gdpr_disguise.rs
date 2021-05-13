@@ -31,6 +31,15 @@ pub fn get_disguise(user_id: u64) -> Disguise {
                 ("PaperWatch".to_string(), "contactId".to_string()),
                 ("PaperConflict".to_string(), "contactId".to_string()),
                 ("TopicInterest".to_string(), "contactId".to_string()),
+                ("PaperReview".to_string(), "contactId".to_string()),
+                ("PaperReview".to_string(), "requestedBy".to_string()),
+                ("PaperComment".to_string(), "contactId".to_string()),
+                ("ReviewRating".to_string(), "contactId".to_string()),
+                ("PaperReviewRefused".to_string(), "requestedBy".to_string()),
+                ("PaperReviewRefused".to_string(), "refusedBy".to_string()),
+                ("Paper".to_string(), "leadContactId".to_string()),
+                ("Paper".to_string(), "managerContactId".to_string()),
+                ("Paper".to_string(), "shepherdContactId".to_string()),
             ]
         },
     }
