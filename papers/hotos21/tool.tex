@@ -30,8 +30,8 @@ reversible disguises.
     \centering
     \includegraphics[width=0.47\textwidth]{img/disguises_new}
 
-    \caption{A user deletion disguise decorrelates user Bob from his posts while maintaining
-    referential integrity by replacing his profile with anonymous placeholders.}
+    \caption{HotCRP's user scrubbing disguise decorrelates Bea's reviews from Bea's identity while maintaining
+    referential integrity using anonymous placeholders.}
     \label{fig:example}
 \end{figure}
 
@@ -39,26 +39,30 @@ reversible disguises.
     \centering
     \footnotesize
 \begin{lstlisting}[language=Rust]
-disguise_name: "AccountDeletion",
+disguise_name: "UserScrub",
 user_to_disguise: 19,
 tables {
-   User: {
-      generate_guise_info: [
+   ContactInfo: {
+      generate_placeholder: [
          ("name", Random),
          ("email", Default(None)),
+         ("active", Default(false)),
          ..
       ],
-      transformations: [Remove(pred: "userID" = UID)]
+      transformations: [Remove(pred: "contactId" = 19)]
    },
-   Post: {
+   ReviewPreference: {
+      transformations: [Remove(pred: "contactId" = 19)]
+   }
+   Review : {
       transformations: [Decorrelate(
-         pred: "userID" = 19,
-         foreign_key: ("user", User)
-      )],
+         pred: "contactId" = 19,
+         fk: ("contactId", ContactInfo)
+      )]
    }
 }
 \end{lstlisting}
-    \caption{Specification of an account deletion disguise.}
+    \caption{Part of the HtoCRP user scrubbing disguise specification.}
     \label{fig:spec}
 \end{figure}
 
