@@ -124,14 +124,14 @@ or transform if applied to an unmodified database.
 
 %
 In some cases, the disguises compose naturally---\eg information that an earlier disguise removed
-needs no decorrelation---but in others, the tool may need to restore the original data to meet the
+needs no decorrelation---but in others, the tool may need to reveal the original data to meet the
 application's privacy goals. Even then, the necessary actions depend on the specific application:
 some applications may require that previously anonymized data still be deleted, while other
 applications may not.
 %
 
-Data disguising provides the infrastructure and mechanisms to perform data restoration necessary for
-disguise composition, and to support disguise reversibility; however, appropriate use of these to
+Data disguising provides the infrastructure and mechanisms to reveal data to support 
+disguise composition and disguise reversibility; however, appropriate use of these to
 achieve application privacy goals remains an open challenge, which we discuss in \S\ref{s:disc}.
 %To handle inter-disguise dependencies, a disguising tool relies on (1) the structured nature of
 %disguises to
@@ -151,8 +151,8 @@ achieve application privacy goals remains an open challenge, which we discuss in
 %-------------------------------------------------------------------------------
 
 Vaults provide the necessary infrastructure to reveal previously-disguised data when
-necessary, either for temporary data restoration for disguise composition, or for reversing a disguise
-entirely.
+necessary
+%, either for temporary data for disguise composition, or for reversing a disguise entirely.
 %
 They store \emph{revealing functions} for disguises, which when applied, reveal the underlying
 data transformed by an already-applied disguise (possibly temporarily). These functions are
@@ -191,13 +191,19 @@ second tier stores reveal functions from user-invoked disguises in external, per
 vaults.
 
 %-------------------------------------------------------------------------------
-\paragraph{Disguising Restored Data.}
+\paragraph{Revealing Data.}
 %-------------------------------------------------------------------------------
-When disguises are explicitly reversed, this permanently restores data to the application database.
+\lyt{I feel like this sticks out, but it is a reasonable part of our solution to handling disguise
+reversal.}
+When disguises are explicitly reversed, this permanently reveals data to the application database.
 However, in the interval between disguising and revealing the data, other disguises may have been applied that
 should have affected the newly reintroduced data. To ensure that any revealed data is properly disguised,
 the disguising tool keeps a persistent log of all disguises performed by the application, and
 applies to this data any disguises performed in this interval.
+
+For example, reversal of \gdpr should not reintroduce ownership of reviews to identities if \ca has
+occurred since \gdpr was applied. The data disguising tool would applying the relevant \ca
+anonymization operations to any revealed data from \gdpr's reversal before making it visible to the application.
 
 %\ms{OLD TEXT FOLLOWS}
 
