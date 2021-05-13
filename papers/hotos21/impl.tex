@@ -10,17 +10,17 @@ We believe that data disguising can be extended to other types of stores.
 %
 
 Disguises in \sys associate each table in the application schema with a set of
-predicate-transformation pairs: predicates are arbitrary SQL \texttt{WHERE} clauses, which \sys uses
+predicate-transformation pairs. Predicates are arbitrary SQL \texttt{WHERE} clauses, which \sys uses
 to select table rows to transform; a transformation is either a removal, a decorrelation of a
 particular foreign key, or a modification of a particular column. A modification takes a
 closure over the original column value that returns the updated value.
 %
-For tables that may be decorrelated, developers describe how to create new guises---new table
-rows---by providing per-column closures over the original column value
+For tables that may be decorrelated, developers describe how to find placeholder guises
+by providing per-column closures over the original column value
 that returns the new guise column value.
 
 %
-\sys represents vaults as (currently unencrypted) per-user database tables; revealing functions
+\sys represents vaults as (currently unencrypted) per-user database tables. Revealing functions
 stored in vaults use the original and updated states of objects touched by a reversible disguise to
 generate the necessary operations to restore the original state. \sys also keeps a disguise history
 table that logs all disguises performed. 

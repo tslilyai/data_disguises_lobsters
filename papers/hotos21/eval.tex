@@ -88,7 +88,7 @@ The decrease in latency stems from a (manual) optimization in \sys, which avoids
 redoing decorrelation actions that have already been taken by \hconfanon.  However, \sys incurs
 extra overhead when it temporarily recorrelates objects using vault data so these objects can be
 correctly removed. While this selective reintroduction of data from user vaults is not free, it
-is noticeable cheaper than completely undoing the prior \hconfanon disguise.
+is noticeably cheaper than completely undoing the prior \hconfanon disguise.
 \sys currently relies on manual input to know which operations must be selectively undone and (not)
 reapplied, and we imagine that we will be able to use static analysis to replace the manual
 annotations.

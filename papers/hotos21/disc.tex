@@ -5,10 +5,10 @@
 Data disguising makes it easier to explore and implement privacy transformations. This may support
 new privacy paradigms like data decay and account reactivation after deletion.
 
-However, our proposed data disguising solution still leaves many \textbf{open questions}. 
+However, our proposed data disguising solution still leaves many open questions. 
 %
 For instance, we propose \emph{how} a disguising tool can detect and/or avoid multi-disguise
-scenarios that fail to adhere to the application's privacy goals with mechanisms like user vaults (\S\ref{sec:multi}).
+scenarios that fail to adhere to the application's privacy goals with mechanisms like user vaults.
 However, we skip answering a crucial question, namely how the tool learns of the application
 privacy goals to know \emph{when} to utilize these mechanisms.
 
@@ -52,7 +52,7 @@ Finally, we also do not address dynamic updates to the application schema or dis
 Database schema evolution research~\cite{schema:evo} may offer insights
 into supporting disguises and disguise reversals after such updates.
 
-Data disguising also has some clear \textbf{limitations}.
+Data disguising also has some clear {limitations.
 It assumes that transformations on application objects capture all data that needs transforming;
 application snapshots, backups, or external data copies are out of scope, and require
 \eg taint tracking techniques~\cite{schengendb}.

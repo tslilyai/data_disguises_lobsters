@@ -88,8 +88,7 @@ The application developer writes a disguise specification for each of the applic
 privacy transformations.
 %
 This specification consists of predicated operations on each table, and describes
-the necessary operations to perform on objects that satisfy the predicate
-(\eg as in Figure~\ref{fig:spec}).
+the necessary operations to perform on objects that satisfy the predicate.
 %
 The data disguising tool takes the disguise specification and turns it into storage
 operations that appropriately rewrite affected foreign keys.
@@ -97,7 +96,7 @@ operations that appropriately rewrite affected foreign keys.
 
 %
 Figure~\ref{fig:example} illustrates how the tool performs the example user
-account deletion disguise for Bea, when given a specification like Figure~\ref{fig:spec}'s.
+account deletion disguise for Bea, when given a specification like that in Figure~\ref{fig:spec}.
 %
 When her account is active, Bea's profile is associated with her true identity and her
 reviews.
@@ -211,7 +210,7 @@ corresponding disguises irreversible.
 The vault deployment model has serious consequences for the practicality of disguise
 reversal.
 %
-For example, a reversible \gdpr requires reval functions stored in per-user vaults
+For example, a reversible \gdpr requires reveal functions stored in per-user vaults
 external to the application storage in order to be GDPR-compliant.
 %
 While it is reasonable to imagine accessing a single user's vault to reverse \gdpr in
@@ -219,12 +218,12 @@ this model, complete reversal of \ca would need to retrieve revealing functions 
 all users' vaults, an infeasible task.
 %
 An alternative might be a multi-tier security design: the first tier stores revealing
-functions of non-GDPR disguises in a global vault acccessible to the disguising tool
+functions of non-GDPR disguises in a global vault accessible to the disguising tool
 and application, while the second tier stores revealing functions from user-invoked
 disguises in external, per-user encrypted vaults.
-
+%
 We imagine several exciting directions to explore for designing vaults that are both
-secure.
+secure and flexible.
 %
 
 %-------------------------------------------------------------------------------
