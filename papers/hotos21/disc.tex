@@ -7,65 +7,89 @@ Data disguising simplifies implementing privacy transformations.
 %
 However, our proposed data disguising framework still leaves open questions.
 %
-For instance, we propose \emph{how} a disguising tool can detect and/or avoid multi-disguise
-scenarios that fail to adhere to the application's privacy goals with mechanisms like user vaults.
-However, we skip answering a crucial question, namely how the tool learns of the application
-privacy goals to know \emph{when} to utilize these mechanisms.
-
-If only one disguise is ever applied (\eg \gdpr), then the application's
-privacy goals (\eg de-identify the user) may very well align with the operations described by the
-disguise specification and be redundant.  However, with multiple, potentially co-dependent disguises,
-the tool may achieve an end-state that fails to achieve the application's privacy goals if it
-blindly follows the specified disguise operations.
-
-How to best convey the application's privacy goals to the disguising tool poses a challenging
-research problem. One possibility may be developer assertions over the end-state of application data
-after a disguise has been executed (\eg ``user is de-identified''). If these assertions were
-restricted to a set of tool-interpretable statements, the tool could, before applying any disguises,
-statically determine which mechanisms need to be utilized to appropriately apply each disguise in
-any scenario.  Or perhaps assertions could be arbitrary predicates over the end state, which the
-tool would check post-disguise application to ensure it adheres to the application's privacy goals;
-if these checks fail, the tool would revert the disguise and try again with a different mechanism
-until it passes the checks, or gives up with a warning.
 
 %
-Furthermore, our solution to data disguising does not answer how disguises compose with normal
-application updates.
+For instance, we provide \emph{mechanisms} for a disguising tool
+to handle disguise composition, but do not yet answer how the disguise specification
+communictes an application's privacy goals and how the tool decides \emph{when} to
+utilize vaults and reveal functions.
+%
+%
+If only one disguise is ever applied (\eg \gdpr), the disguise specification's operations
+may completely state the application's privacy goals (\eg de-identify the user).
+%
+However, with multiple, co-dependent disguises, the tool may reach an end-state that
+fails to achieve the application's privacy goals if it merely applies the disguise
+operations.
+%
+How to convey the application's privacy goals to the disguising tool is a challenging
+research problem.
+%
+One possibility might be to ask developers to write assertions over the end-state of
+application data after a disguise has been applied (\eg ``user no longer has any reviews'').
+%
+If these assertions were amenable to static analysis, the tool could, before applying any
+disguises, determine which mechanisms need to be utilized to appropriately apply each
+disguise.
+%
+Or perhaps assertions could be arbitrary predicates over the end-state, which the
+tool would check after disguise application to ensure the state adheres to the
+application's privacy goals; if these checks fail, the tool would revert the disguise
+and try again with a different mechanism until it passes the checks, or notify the developer
+of an error.
+%
+
+%
+Furthermore, our framework does not answer how disguises compose with normal application
+changes to disguised data.
 %
 Application updates may alter the scope of a disguise (\ie reducing the set of
-objects satisfying a disguise predicate); this may especially affect eventually
-consistent disguises.
+objects satisfying a disguise predicate).
+%; this may especially affect eventually %consistent disguises.
 %
-In addition, reintroduced data from undoing a reversible disguise may miss application updates that
-occurred since its removal. One possible solution is to make crucial updates themselves disguises,
-so a disguising tool can provided guarantees about the end-state after these updates.
+In addition, the data a reveal function introduces may lack application updates that
+occurred since the original disguise.
+%
+One possible solution is to make such updates themselves disguises, and store metadata
+about them in vaults, but this would be expensive.
+%
+Another solution would prohibit updates to disguised data (which limits the application).
+%
 %reason about how these updates should compose with disguises
-However, a tool incurs heavy performance costs to perform each disguise, making it
-impractical to instrument every update of the application.
+%However, a tool incurs heavy performance costs to perform each disguise, making it
+%impractical to instrument every update of the application.
 %\sys also runs each disguise in a transaction to ensure that no concurrent application updates are
 %performed; we imagine that an eventually consistent disguised state would be acceptable, so long as
 %no two disguises run in parallel.  , since \sys cannot restore data removed using the old policy
 %upon resubscription.
 
-Finally, we also do not address dynamic updates to the application schema or disguise specification.
+%
+Finally, more research is required to handle updates to the application schema or
+disguise specifications in a system that has already applied disguises.
 %
 Database schema evolution research~\cite{schema:evo} may offer insights
 into supporting disguises and disguise reversals after such updates.
-
-Data disguising also has some clear {limitations.
-It assumes that transformations on application objects capture all data that needs transforming;
-application snapshots, backups, or external data copies are out of scope, and require
-\eg taint tracking techniques~\cite{schengendb}.
-Data disguising also importantly does not provide privacy \emph{guarantees}.
 %
-Privacy goals and disguise specifications are necessarily application-specific, and
-data disguising is only as good as the specification a developer writes. We assume
-that developers capture application-specific needs to retain, remove, and decorrelate data in
-their policies.
+
+%
+Data disguising also has some clear limitations.
+%
+It assumes that transformations on application objects capture all data that needs
+transforming; application snapshots, backups, or external data copies are out of scope,
+and require \eg taint tracking techniques.
+%
+Data disguising also importantly does not provide privacy \emph{guarantees} beyond the
+specification.
+%
+Privacy goals are necessarily application-specific, and data disguising is only as good
+as the specification a developer writes.
+%
+%We assume that developers capture application-specific needs to retain, remove, and
+%decorrelate data in their policies.
 %Without removing all application data, even the best-intentioned developer may write policies that
 %still retain sensitive information or correlations.
 We imagine that data analysis tools and heuristics can help developers improve or catch
-errors in disguise specifications, similar to techniques used by Facebook to detect incorrect
+errors in disguise specifications, similar to \eg techniques for detecting incorrect
 deletion~\cite{delf}.
 %
 %Users of applications that use data disguises cannot blindly assume that the disguises provide

@@ -9,14 +9,14 @@ disguising: Sypse~\cite{sypse}, which pseudonymizes user
 data and partitions personally identifying information (PII) from other data, and
 DELF~\cite{delf}, a framework for data deletion at Facebook.
 %
-While Sypse also relies on an object graph, its design is application-oblivious, and leaves the
-specification of what counts as PII as future work.
+While Sypse also traverses foreign keys, its design is application-oblivious, and leaves
+the specification of what counts as PII as future work.
 %
 Data disguising provides a way to specify sensitive data and correlations, as well as
 application-specific transformations.
 %
-Instead of constantly maintaining data partitions (as Sypse does), data disguising adapts a user's
-data when these transformations are invoked.
+Instead of constantly maintaining data partitions (as Sypse does), data disguising adapts
+the physical database on disguising.
 %
 %developers take care of splitting and moving data between the identity-revealing PII partition and
 %the privacy-preserving normal partition.\lyt{I'm not sure this is accurate? They don't use
@@ -52,8 +52,8 @@ data objects and erase them when requested under the GDPR.
 They either modify the data layout~\cite{usershards} or use fine-grained information flow
 tracking (IFC) to determine PII propagation and restrict access~\cite{schengendb}.
 %
-Data disguising can be employed for GDPR compliance, but supports privacy transformations beyond
-deleting PII, and requires no ownership tracking or fine-grained IFC.
+Data disguising can be employed for GDPR compliance, but supports nuanced privacy
+transformations beyond deleting PII, and requires no ownership tracking or fine-grained IFC.
 %
 
 %
@@ -65,7 +65,7 @@ authorized views~\cite{oracle} or per-user views~\cite{multiverse}, and rewritin
 %, and performing queries over encrypted data, readable only by authenticated
 %users~\cite{cryptdb}.
 %
-Data disguising transforms the actual data stored according to a specification.
+Data disguising transforms the actual data stored.
 %
 %Data disguising can additionally automate complex privacy transformations for authorized or multiverse views.
 
@@ -91,8 +91,9 @@ granting ultimate control over data to end-users.
 %agree upon a standard format for data storage, and
 %hosted by a trusted third-party provider or the user.
 %
-These systems typically lack the capacity for server-side compute, burden users with long-term
-data maintenance, and break the current application revenue model.
+These systems are an extreme realization of per-user vaults: they typically lack the
+capacity for server-side compute, burden users with long-term data maintenance, and break
+the current application revenue model.
 %
 In contrast, data disguising helps developers specify and automate privacy transformations
 without changing the application data model or business model.
