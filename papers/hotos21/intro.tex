@@ -2,14 +2,14 @@
 \section{Introduction}
 %-------------------------------------------------------------------------------
 
-Application developers increasingly must implement
-\emph{privacy transformations} over their applications' data.
+Modern applications include a range of \emph{privacy transformations}:
+operations that modify application data to implement privacy requirements.
 %
 %Web application developers today have more incentives than ever to provide better privacy for their users.
 %
 Laws like the EU's General Data Protection Regulation (GDPR)~\cite{eu:gdpr} and California's
 Consumer Privacy Act (CCPA)~\cite{ca:privacy-act}
-codify the transformations corresponding to some user actions: when a user
+codify transformations corresponding to some user actions. When a user
 closes their account, the site must generally
 %
 delete “personally identifiable” user data and anonymize or delete other user
@@ -22,6 +22,9 @@ possible later breach, since
 the legal consequences and reputational damage of breaches can be
 substantial~\cite{breach:amazon, breach:twitter, breach:fb, breach:marriott,
 breach:quora}.
+%
+But though they are important and legally required, privacy transformations
+remain difficult to implement and are arguably understudied.
 
 
 %
@@ -79,8 +82,8 @@ breach:quora}.
 %code, which is error-prone, laborious, and begets ad-hoc solutions.
 
 %
-In this paper, we propose \emph{data disguising}, a systematic framework that helps developers
-of database-backed web applications specify, implement, and reason about privacy transformations.
+In this paper, we propose \emph{data disguising}, a prototype framework for
+specifying, implementing, and reasoning about privacy transformations.
 %
 Data disguising supports a broad range of privacy transformations and separates the application
 of privacy transformations (``data disguises'') from application code.
@@ -122,30 +125,25 @@ user approval.
 %
 
 %
-We believe that a systematic, yet flexible approach to disguising addresses applications'
-diverse privacy requirements, reduces developer burden, and ultimately achieves better user privacy on
+A systematic, yet flexible privacy transformation framework such as data
+disguises could reduce developer burden and ultimately improve user privacy on
 the web.
 %
-However, our framework is far from complete and realizing it will require solving several research
-problems.
+However, our framework is far from complete and realizing it will require
+solving several research problems.
 %
-First, when an application contains more than one privacy transformation, the respective
-data disguises may have co-dependencies: for example, removing a user's data on account
-deletion is challenging if that data has already been anonymized and decorrelated from the
-user.
-%
-A practical data disguising tool could use a combination of static analysis,
-warnings to developers, privacy assertions, and access to possibly-encrypted
-vault information to ensure disguises compose correctly.
+Real applications support a wide range of privacy policies that can apply to
+the same data. Specifying those policies is challenging, and the challenge can
+grow when disguises interact---for example, should a disguise that deletes
+user data also delete data that was previously anonymized, and is no longer
+associated with the user? Static analysis and other techniques may be required
+to explain the consequences of a disguise.
 %
 Second, the performance impact of data disguises could be substantial, particularly if they
 transform many database rows, and especially if they act on a live application database.
 %
-We argue that these are important challenges for researchers to investigate to make data
-disguising practical.
-%
-Our proof-of-concept data disguising tool, \sys, demonstrates the potential of this
-approach.
+Though these important challenges remain, our proof-of-concept data
+disguising tool, \sys, already demonstrates the potential of this approach.
 %
 %Disguises do not guarantee strict privacy---a disguise's content might still expose user
 %information or correlated data if not redacted by the policy---but flexible disguising,
