@@ -93,6 +93,43 @@ and privacy-preserving ones. Disguises modify, split, and/or combine individual 
 
 \subsection{Writing Disguises}
 \label{sec:disguises}
+
+\begin{figure}[t!]
+    \centering
+    \footnotesize
+\begin{lstlisting}[language=Rust]
+disguise_name: "UserScrub",
+user_to_disguise: UID,
+tables {
+  "ContactInfo": {
+    generate_guise_info: [
+      ("name", Random),
+      ("email", Default(None)),
+      ..
+    ],
+    transformations: [Remove(pred: "id" = UID)],
+  },
+  "Review" : {
+    guise_info: [], 
+    transformations: [
+      Decorrelate(
+        pred: "contactId" = UID,
+        fk_column: "id",
+        fk_table: "User"
+      )
+    ],
+  }
+  "ReviewPreference" : {
+    guise_info: [], 
+    transformations: [Remove(pred: "contactId" = UID)],
+  }
+}
+\end{lstlisting}
+    \caption{Partial of the specification for a user scrubbing disguise in HotCRP}
+    \label{fig:spec}
+\end{figure}
+
+
 The application developer writes a disguise specification for each privacy transformation needed
 in the application.
 %
@@ -171,6 +208,9 @@ values (as described above).
 This enables the application to retain the original object semantics (\eg a count of how many
 users want notifications) without creating duplicates.
 %
+
+
+
 \begin{figure*}[t!]
     \centering
     \footnotesize
@@ -220,7 +260,7 @@ users want notifications) without creating duplicates.
 \fi
 %-------------------------------------------------------------------------------
 \subsection{Disguise Composition}
-%\label{sec:compositin}
+%\label{sec:composition}
 %-------------------------------------------------------------------------------
 
 The data disguising tool handles the complexity behind disguise composition, applying disguises in
