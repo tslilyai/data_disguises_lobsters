@@ -87,7 +87,7 @@ We first invoke \sys with two independent disguises: \hrtbf of different users.
 We then compare the cost of invoking \hrtbf after having applied \hconfanon, a conflicting but reversible
 disguise.
 %
-Applying \hrtbf for a PC member user after an independent \hrtbf application takes 135ms on
+Applying \hrtbf for a PC member after an independent \hrtbf application takes 135ms on
 average.
 %
 The same \hrtbf disguise applied after \hconfanon takes 452ms on average,
@@ -95,7 +95,7 @@ The same \hrtbf disguise applied after \hconfanon takes 452ms on average,
 %118ms
 while \hconfanon itself takes about 7,000ms.
 %
-With the composed disguises, \sys incurs overhead because it temporarily re-correlates objects
+This increased latency comes from \sys's temporarily re-correlation of objects
 using reveal functions, so that these objects are correctly removed.
 %
 While this selective reintroduction of data from user vaults is not free, it is cheaper than
