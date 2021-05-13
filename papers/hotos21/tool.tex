@@ -19,7 +19,7 @@ in the form of automatically-generated \emph{revealing functions} stored in \emp
 %Some of the specific design decisions in this framework have alternatives that are worth
 %investigating, and open research questions remain; we discuss these in \S\ref{s:disc}.
 
-\subsection{Simplifying Privacy Transformations}
+\subsection{Disguises: Structured Privacy Transformations}
 \label{sec:disguises}
 
 \begin{figure}[t]
@@ -101,6 +101,99 @@ design/implementation)}
 %
 %At any given moment, an application's data comprises a mix of identity-revealing guises
 %and privacy-preserving ones. Disguises modify, split, and/or combine individual guises when triggered.
+
+%-------------------------------------------------------------------------------
+\subsection{Handling Disguise Interactions}
+%\label{sec:composition}
+%-------------------------------------------------------------------------------
+
+Applications have specific privacy goals that should be achieved by a disguise,
+but this is complicated by interactions between different disguises and reversible disguises.
+%
+Because disguises inherently destroy data, applying one disguise may change the outcome of future
+disguises applied on top of it.
+
+For example, consider two desirable disguises in HotCRP: \gdpr and \ca.
+%
+\gdpr removing the user's data to comply with the GDPR's ``right to be forgotten''; \ca provides
+user privacy by anonymizing all conference data.
+%
+These disguises touch the same data: applying \ca destroys information that \gdpr would remove
+or transform if applied to an unmodified database.
+%
+
+%
+In some cases, the disguises compose naturally---\eg information that an earlier disguise removed
+needs no decorrelation---but in others, the tool may need to restore the original data to meet the
+application's privacy goals. Even then, the necessary actions depend on the specific application:
+some applications may require that previously anonymized data still be deleted, while other
+applications may not.
+%
+
+Data disguising provides the infrastructure and mechanisms to handle data restoration necessary for
+disguise composition and disguise reversibility; however, appropriately using of these to
+achieve application privacy goals remains an open question, which we discuss in \S\ref{s:disc}.
+%To handle inter-disguise dependencies, a disguising tool relies on (1) the structured nature of
+%disguises to
+%statically determine whether disguises share dependencies, and (2) the key abstraction of \emph{user
+%vaults}, namely per-user logs of disguise updates to that user's data.  User vaults solve the issue
+%that disguises inherently destroy data necessary to correctly achieve the end-state of future
+%disguises by providing a secure way to store the data. A disguising tool queries the user vault to
+%temporarily restore destroyed data (\eg decorrelated foreign key relationships) in order to apply
+%the disguise correctly.
+
+%As shown in Figure~\ref{fig:tool}, a disguising tool sits next to the application, and queries the
+%user vaults and the application database. The application performs disguises by invoking a
+%disguising tool.
+
+%-------------------------------------------------------------------------------
+\paragraph{Per-User Vaults}
+%-------------------------------------------------------------------------------
+
+Per-user vaults provide the necessary infrastructure to reveal previously-disguised data when
+necessary.
+%
+These vaults store revealing functions for disguises, which when applied, reveal the underlying
+data transformed by an already-applied disguise (possibly temporarily).
+%
+
+%
+User vaults can be flexibly configured and deployed. It remains important, however, that any
+configuration of user vaults should not violate the guarantee that disguises indeed destroy data,
+from the viewpoint of the application and any users.
+We imagine several exciting directions to explore for designing vaults that are both
+performant and secure.
+%
+
+%
+Some possible configurations include a disguising tool storing vaults encrypted with a per-user key; this key
+may be secret-shared using a (2, 3) threshold scheme~\cite{secretsharing} between the user, the
+tool, and a trusted third party (\eg Amazon S3), so that the user can authorize a disguising tool and the
+third party to restore the key if the user forgets their share.
+%
+The vault entries could be configured to expire after a certain time; the corresponding disguises
+then become irreversible.
+%
+Or perhaps the vault entries are stored entirely by some third party or locally by the user, whose
+server runs a corresponding interface to allow disguise tools to read and write the vault.
+
+\lyt{Added text:}
+The choice of vault deployment has serious consequences for the practicality of disguise reversal.
+For example, if \gdpr is to be reversable, reveal functions must necessarily be stored in user vaults external
+to the application in order to be GDPR-compliant.
+While it is reasonable to imagine accessing a single user's vault to reverse \gdpr in this
+deployment, complete reversal of \ca would need to retrieve reveal functions from every user's vault, an infeasible task.
+%A disguising tool should, with user permission, be able to read and write the vaults: a user invoking GDPR
+%\texttt{GDPR} could provide the key to their vault, and the application invoking the
+%\texttt{ConfAnon} might notify each user for approval (and temporary vault access) prior to disguise
+%application.
+An alternative might be a multi-tier security design: the first tier stores reveal functions of
+non-GDPR disguises locally and acccessible to the disguising tool and application, while the second
+tier stores reveal functions from user-invoked disguises in external, per-user encrypted storage.
+%\lyt{Might want to say more about how often user vaults are
+%queried---what if one disguise needs access to many user vaults, but is being done on behalf of a
+%single user?}
+
 
 \ms{OLD TEXT FOLLOWS}
 
@@ -225,97 +318,6 @@ users want notifications) without creating duplicates.
     \label{fig:guises}
 \end{figure*}
 
-\fi
-%-------------------------------------------------------------------------------
-\subsection{Disguise Composition}
-%\label{sec:composition}
-%-------------------------------------------------------------------------------
-
-The data disguising tool handles the complexity behind disguise composition, applying disguises in
-sequence and generating the necessary storage operations.
-%
-%When applying a disguise, the disguising tool must both not only apply the specified ptivacy
-%transformations, but also manage codependencies between the new disguise and any prior disguises.
-%
-Because disguises inherently destroy data, applying one disguise may change the outcome of future
-disguises applied on top of it.
-%
-%However, applications would benefit from the ability to apply multiple disguises.
-%
-For example, consider two desirable disguises in HotCRP: \gdpr and \ca.
-%
-\gdpr removing the user's data to comply with the GDPR's ``right to be forgotten''; \ca provides
-user privacy by anonymizing all conference data.
-%
-These disguises touch the same data: applying \ca destroys information that \gdpr would remove
-or transform if applied to an unmodified database.
-%
-
-%
-In some cases, the disguises compose naturally---\eg information that an earlier disguise removed
-needs no decorrelation---but in others, the tool may need to restore the original data to meet the
-application's privacy goals.
-%
-
-%To handle inter-disguise dependencies, a disguising tool relies on (1) the structured nature of disguises to
-%statically determine whether disguises share dependencies, and (2) the key abstraction of \emph{user
-%vaults}, namely per-user logs of disguise updates to that user's data.  User vaults solve the issue
-%that disguises inherently destroy data necessary to correctly achieve the end-state of future
-%disguises by providing a secure way to store the data. A disguising tool queries the user vault to
-%temporarily restore destroyed data (\eg decorrelated foreign key relationships) in order to apply
-%the disguise correctly.
-
-%As shown in Figure~\ref{fig:tool}, a disguising tool sits next to the application, and queries the
-%user vaults and the application database. The application performs disguises by invoking a
-%disguising tool.
-
-%-------------------------------------------------------------------------------
-\paragraph{Per-User Vaults}
-%-------------------------------------------------------------------------------
-
-Per-user vaults provide the necessary infrastructure to reveal previously-disguised data when
-necessary.
-%
-These vaults store revealing functions for disguises, which when applied, reveal the underlying
-data transformed by an already-applied disguise (possibly temporarily).
-%
-
-%
-User vaults can be flexibly configured and deployed. It remains important, however, that any
-configuration of user vaults should not violate the guarantee that disguises indeed destroy data,
-from the viewpoint of the application and any users.
-We imagine several exciting directions to explore for designing vaults that are both
-performant and secure.
-%
-
-%
-Some possible configurations include a disguising tool storing vaults encrypted with a per-user key; this key
-may be secret-shared using a (2, 3) threshold scheme~\cite{secretsharing} between the user, the
-tool, and a trusted third party (\eg Amazon S3), so that the user can authorize a disguising tool and the
-third party to restore the key if the user forgets their share.
-%
-The vault entries could be configured to expire after a certain time; the corresponding disguises
-then become irreversible.
-%
-Or perhaps the vault entries are stored entirely by some third party or locally by the user, whose
-server runs a corresponding interface to allow disguise tools to read and write the vault.
-
-\lyt{Added text:}
-The choice of vault deployment has serious consequences for the practicality of disguise reversal.
-For example, if \gdpr is to be reversable, reveal functions must necessarily be stored in user vaults external
-to the application in order to be GDPR-compliant.
-While it is reasonable to imagine accessing a single user's vault to reverse \gdpr in this
-deployment, complete reversal of \ca would need to retrieve reveal functions from every user's vault, an infeasible task.
-%A disguising tool should, with user permission, be able to read and write the vaults: a user invoking GDPR
-%\texttt{GDPR} could provide the key to their vault, and the application invoking the
-%\texttt{ConfAnon} might notify each user for approval (and temporary vault access) prior to disguise
-%application.
-An alternative might be a multi-tier security design: the first tier stores reveal functions of
-non-GDPR disguises locally and acccessible to the disguising tool and application, while the second
-tier stores reveal functions from user-invoked disguises in external, per-user encrypted storage.
-%\lyt{Might want to say more about how often user vaults are
-%queried---what if one disguise needs access to many user vaults, but is being done on behalf of a
-%single user?}
 
 %-------------------------------------------------------------------------------
 \paragraph{Applying Disguises.}
@@ -366,3 +368,6 @@ A disguising tool applies disguises in a five-phase procedure:
 %put here? May also want to include something about developer assertions}
 %%: a disguise will update all objects that it would have updated if performed on
 %the original, undisguised state of application data.
+
+
+\fi
