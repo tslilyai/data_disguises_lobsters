@@ -1,136 +1,121 @@
 \section{Our Current Data Disguising Framework}
 
-We propose \emph{data disguising}, a systematic approach to privacy
-transformations that separates them from application code.
+We propose \emph{data disguising}, a systematic approach to privacy transformations that separates
+them from application code. We believe data disguising systems can help support flexible privacy
+transformations and reversibility.
 %
-Data disguising reasons about \emph{disguises}, privacy transformations that
-follow an organized structure.
+Data disguising represent privacy transformations as structured \emph{disguises} that are specified
+by the developer to capture application-specific policies.
 %
-Disguises are based on the observation that application data can take
-different forms, which we call \emph{guises}; some guises are identity-revealing while others are
-privacy-preserving (to varying degrees).
+Applications invoke an external data disguising tool's API to trigger disguise application; the tool
+interprets and applies the necessary physical changes to the application database.
 %
-%For example, a web application's database contents may assocate posts with
-%an actual user as their author (an identity-revealing guise), or with
-%one or more anonymous placeholder users (privacy-preserving guises).
-%
-A disguise transforms the database contents between these different forms.
-%
-%The structured nature of disguises allows a data disguising tool to
-%automatically determine how to correctly compose multiple disguises, and to
-%check that the end-state achieves the desired privacy properties.
-%
-%The tool uses the abstraction of \emph{per-user vaults}, which allow the tool to
-%reintroduce destroyed data from prior disguises as necessary, while still ensuring that user data
-%remains protected (\S\ref{sec:composition}).
+Data disguising offers mechanisms to handle multiple disguise interactions and reversible disguises
+in the form of automatically-generated \emph{revealing functions} stored in \emph{vaults}.
 
 %
-An external data disguising tool interprets and applies these disguises
-based on the application's policy (a \emph{disguise specification}).
+%In the following, we sketch one design for a data disguising framework.
 %
-Application developers only need to invoke the tool's API with a disguise specification to trigger
-the disguise; the tool then performs the necessary physical changes to the application's
-database.
-%
-These changes may include data removal, modification of contents, or decorrelation by modifying
-references between objects.
-%
+%Some of the specific design decisions in this framework have alternatives that are worth
+%investigating, and open research questions remain; we discuss these in \S\ref{s:disc}.
 
-%
-In the following, we sketch one design for a data disguising framework.
-%
-Some of the specific design decisions in this framework have alternatives that are worth
-investigating, and open research questions remain; we discuss these in \S\ref{s:disc}.
+\subsection{Simplifying Privacy Transformations}
+\label{sec:disguises}
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.47\textwidth]{img/disguises_new}
 
-    \caption{Disguises move data (in this example, user Bob) 
-             between different \emph{guises}. Guises represent the
-             same data, but with different privacy properties (\eg
-             anonymization).}
+    \caption{A user deletion disguise decorrelates user Bob from his posts while maintaining
+    referential integrity by replacing his profile with anonymous placeholders.}
     \label{fig:example}
 \end{figure}
-
-%
-%The key idea behind data disguising is to associate multiple \emph{guises} with a target data
-%object (\ie a row in a relational database).
-%
-%Guises vary in how they reveal identities or preserve privacy.
-%
-%Objects move between different guises by means of disguises, namely organized privacy transformations.
-%
-Figure~\ref{fig:example} illustrates the key ideas behind data disguising with the example of a user
-account deletion disguise.
-%
-When his account is active, user Bob's profile is associated with his true identity and all his
-contributions to the site (an identity-revealing guise).
-%
-When Bob deletes his account, his profile and contributions move to different, privacy-preserving
-guises: his name has been anonymized, his email address has been redacted, and his contributions
-have been decorrelated and attributed to individual, unidentified user guises.
-%
-Decorrelation makes it seem as if a different user provided each of Bob's contributions.
-%
-This allows these contributions to be retained, but prevents an observer from correlating these
-contributions back to Bob's identity.
-%
-Importantly, this also preserves refential integrity in the database, an importnat precondition
-to application correctness.
-%
-
-%
-Disguises transform a guise by modifying it at per-attribute (\ie per-column) granularity, or
-splitting it into multiple guises in order to decorrelating from objects that reference it (via \eg foreign-key relationships).
-%
-Guises can also be removed entirely.
-%
-At any given moment, an application's data comprises a mix of identity-revealing guises
-and privacy-preserving ones. Disguises modify, split, and/or combine individual guises when triggered.
-
-\ms{OLD TEXT FOLLOWS}
-
-\subsection{Writing Disguises}
-\label{sec:disguises}
 
 \begin{figure}[t!]
     \centering
     \footnotesize
 \begin{lstlisting}[language=Rust]
-disguise_name: "UserScrub",
-user_to_disguise: UID,
+disguise_name: "AccountDeletion",
+user_to_disguise: 19,
 tables {
-   ContactInfo: {
+   User: {
       generate_guise_info: [
          ("name", Random),
          ("email", Default(None)),
          ..
       ],
-      transformations: [Remove(pred: "contactId" = UID)]
+      transformations: [Remove(pred: "userID" = UID)]
    },
-   Review : {
+   Post: {
       transformations: [Decorrelate(
-         pred: "contactId" = UID,
-         foreign_key: ("contactId", ContactInfo)
+         pred: "userID" = 19,
+         foreign_key: ("user", User)
       )],
-   }
-   ReviewPreference : {
-      transformations: [Remove(pred: "contactId" = UID)]
    }
 }
 \end{lstlisting}
-    \caption{Partial specification of a HotCRP user scrubbing disguise for user with UID}
+    \caption{Specification of an account deletion disguise.}
     \label{fig:spec}
 \end{figure}
 
+The broad range and application-specific nature of privacy transformations poses a real
+implementation challenge. We believe that data disguising makes
+privacy transformations more manageable by separating them from application code,
+and organizing them as structured, automatically-applicable \emph{data disguises}.
 
-The application developer writes a disguise specification for each privacy transformation needed
-in the application.
+Data disguises are built on three fundamental operations---data removal, object content
+modification, and decorrelation by modifying references between objects---that can capture and
+structure many desirable privacy transformations across applications.
 %
-When writing a disguise, developers can reason about its
-specification in isolation; interactions between different disguises are handled by a disguising
-tool (\S\ref{sec:composition}).
+The application developer writes a disguise specification for each of the application's privacy
+transformations; this specification consists of predicated operations on each table, and describes
+the necessary operation(s) to perform on objects satisfying the predicate (Figure~\ref{fig:spec}).
+A data disguising tool takes the disguise specification and turns it into storage operations that
+achieve the desired application data state.
+
+Figure~\ref{fig:example} illustrates how the tool performs the example user
+account deletion disguise for Bob, when given the disguise spec in Figure~\ref{fig:spec}.
+%
+When his account is active, Bob's profile is associated with his true identity and all his
+contributions to the site.
+%
+When Bob deletes his account, his profile and contributions move to different, privacy-preserving
+placeholders: 
+%his name has been anonymized, his email address has been redacted, and 
+his contributions have been decorrelated and attributed to individual, unidentified user guises, 
+making it seem as if a different user provided each of Bob's contributions.
+%
+This allows these contributions to be retained, but prevents an observer from correlating these
+contributions back to Bob's identity, and 
+importantly preserves refential integrity in the database, a precondition to application
+correctness.
+
+\lyt{Should add stuff about FK traversal? (It's not a huge part of the current
+design/implementation)}
+
+%
+%Disguises transform a guise by modifying it at per-attribute (\ie per-column) granularity, or
+%splitting it into multiple guises in order to decorrelating from objects that reference it (via \eg foreign-key relationships).
+%
+%Guises can also be removed entirely.
+%
+%At any given moment, an application's data comprises a mix of identity-revealing guises
+%and privacy-preserving ones. Disguises modify, split, and/or combine individual guises when triggered.
+
+\ms{OLD TEXT FOLLOWS}
+
+\iffalse
+%For example, Figure~\ref{fig:example} would include a specification that all email
+%addresses be obfuscated in an anonymous manner for the user with name ``Bob Parr''.
+%
+%Transformations can either remove objects, or change objects into one or more guises.
+%To create a guise from an object, developers specify how to transform attributes of the
+%object (\eg table column values) into guise attributes (\eg changing email addresses).
+
+%
+%When writing a disguise, developers can reason about its
+%specification in isolation; interactions between different disguises are handled by a disguising
+%tool (\S\ref{sec:composition}).
 %
 %We assume that:
 %\begin{enumerate}[nosep]
@@ -142,18 +127,6 @@ tool (\S\ref{sec:composition}).
 %    rows in the same table).
 %\end{enumerate}
 %
-Our data disguising tool takes a disguise specification and turns it into storage operations that
-achieve the desired application data state.
-
-Developers specify predicated transformations, which describes how to update all objects satisfying
-the predicate. For example, Figure~\ref{fig:example} would include a specification that all email
-addresses be obfuscated in an anonymous manner for the user with name ``Bob Parr''.
-%
-Transformations can either remove objects, or change objects into one or more guises.
-To create a guise from an object, developers specify how to transform attributes of the
-object (\eg table column values) into guise attributes (\eg changing email addresses).
-
-\iffalse
 Developers choose how to create other guise attributes, selecting from among the following:
 %
 \paragraph{(1) Copy object content.}
