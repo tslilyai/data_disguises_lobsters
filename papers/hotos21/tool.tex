@@ -180,14 +180,14 @@ Or perhaps the vault entries are stored entirely by some third party or locally 
 server runs a corresponding interface to allow disguise tools to read and write the vault.
 
 The choice of vault deployment has serious consequences for the practicality of disguise reversal.
-For example, if \gdpr is to be reversable, reveal functions must necessarily be stored in per-user
+For example, if \gdpr is to be reversable, revealing functions must necessarily be stored in per-user
 vaults external to the application in order to be GDPR-compliant.  While it is reasonable to imagine
 accessing a single user's vault to reverse \gdpr in this deployment, complete reversal of \ca would
-need to retrieve reveal functions from every user's vault, an infeasible task.
+need to retrieve revealing functions from every user's vault, an infeasible task.
 %
-An alternative might be a multi-tier security design: the first tier stores reveal functions of
+An alternative might be a multi-tier security design: the first tier stores revealing functions of
 non-GDPR disguises in a global vault acccessible to the disguising tool and application, while the
-second tier stores reveal functions from user-invoked disguises in external, per-user encrypted
+second tier stores revealing functions from user-invoked disguises in external, per-user encrypted
 vaults.
 
 %-------------------------------------------------------------------------------
