@@ -1,101 +1,64 @@
 %-------------------------------------------------------------------------------
-\section{Data Disguising}
+\section{A Nuanced Policy}
 %-------------------------------------------------------------------------------
-
-%
-We propose \emph{data disguising}, a systematic approach to privacy
-transformations that separates them from application code.
-%
-Data disguising reasons about \emph{disguises}, privacy transformations that
-follow an organized structure.
-%
-Disguises are based on the observation that application data can take
-different forms, which we call \emph{guises}; some guises are identity-revealing while others are
-privacy-preserving (to varying degrees).
-%
-%For example, a web application's database contents may assocate posts with
-%an actual user as their author (an identity-revealing guise), or with
-%one or more anonymous placeholder users (privacy-preserving guises).
-%
-A disguise transforms the database contents between these different forms.
-%
-%The structured nature of disguises allows a data disguising tool to
-%automatically determine how to correctly compose multiple disguises, and to
-%check that the end-state achieves the desired privacy properties.
-%
-%The tool uses the abstraction of \emph{per-user vaults}, which allow the tool to
-%reintroduce destroyed data from prior disguises as necessary, while still ensuring that user data
-%remains protected (\S\ref{sec:composition}).
-%
-%
-
-%
-An external data disguising tool interprets and applies these disguises
-based on the application's policy (a \emph{disguise specification}).
-%
-Application developers only need to invoke the tool's API with a disguise specification to trigger
-the disguise; the tool then performs the necessary physical changes to the application's
-database.
-%
-These changes may include data removal, modification of contents, or decorrelation by modifying
-references between objects.
-%
-
-\subsection{An Example Disguise}
 \label{design:eg}
+
+
+To further motivate our work, we describe a specific nuanced privacy
+transformation that an application we're familiar with should support, namely
+\emph{user scrubbing} from paper review software such as HotCRP.
 %
-Consider disguising Bob when he deletes his HotCRP account.
+In the current HotCRP system, when a user deletes their account, that
+transitively deletes all of the user's data, including their reviews.
 %
-Bob would prefer his papers and reviews to be unlinked from his identity.
+However, the scientific review process generally requires that the text of
+reviews be retained for some time (for reference by authors and to justify
+decisions).
 %
-HotCRP, on the other hand, would like to retain paper and review information that other users
-find useful.
+Preserving reviews while deleting their owner requires a nuanced policy
+that combines anonymization with deletion.
+
+
+Specifically, user scrubbing for a user Bea should:
 %
-A developer can achieve both with disguises.
-%A careful selection of edge and object transformations achieves both.
+(1)~Delete Bea's user account.
+%
+(2)~Delete information that's only relevant to Bea, such as Bea's review
+preferences.
+%
+(3)~Select or create a set of \emph{placeholder users}.
+%
+(4)~Modify Bea's other retained data, such as reviews, to refer to the
+placeholder users instead of Bea.
+
+
+After the scrubbing completes, Bea's review texts are still in the system, but
+they are linked to different anonymous placeholders, making them difficult to
+reassociate with one another or with Bea.
+%
+Placeholder users have suitable default values; for example, HotCRP users have
+a \texttt{disabled} attribute, and the tool sets this for placeholder users,
+ensuring they have no permissions and cannot log in.
+%
+The policy preserves Bea's reviews but does not preserve Bea's relationship to
+her submissions. (No placeholder replaces Bea as submission “contact author”.)
+%
+This choice is the application's; a policy might go even further and
+automatically delete a submission whose last author is scrubbed.
 %
 
+Already, this policy is better than policies implemented in HotCRP or other systems.
 %
-The application developer provides a specification of the disguise.
+However, we hope to improve user experience further by making such policies
+\emph{reversible}.
 %
-On applying the disguise, the tool unlinks Bob from his reviews via a
-predicated transformation that reassign his reviews to individual, anonymous
-placeholder users.
+For example, a scrubbed user loses the ability to edit their reviews; a
+scrubbed user might decide to temporarily reveal their identity to HotCRP in
+order to fix a typo.
 %
-%This transforms Bob into one unique user guise per review.
-%
-The tool generates placeholder users with suitable default values; for
-example, HotCRP users have a \texttt{disabled} attribute, and the tool sets
-this for placeholder users, ensuring they have no permissions and cannot log
-in.
-%
-
-%
-Bob is further linked to papers through conflicts, which can
-indicate co-authorship or a conflict of interest.
-%
-The disguise will not reassign these conflicts to the placeholder users,
-since preserved conflicts could reidentify Bob as the likely author of a
-review.
-%
-(As a trivial example of how this could work, consider that placeholder
-users with identical conflict sets provide little decorrelation benefit.)
-%
-Instead, the disguise will remove Bob's conflicts.
-%
-
-%The disguise leaves all other edge types, ensuring that review and paper artifacts remain correctly
-%linked: active reviewers still see the correct paper for their reviews, and active authors see the
-%correct reviews for their papers, albeit potentially authored by anonymous, unlinkable guises of the
-%original reviewer.
-Unlike the current real-world HotCRP account deletion policy~\cite{hotcrp:privacy},
-which deletes all objects belonging to Bob, this disguise strikes a balance between
-decorrelating Bob's identity from his reviews and papers, and maintaining useful
-information for other HotCRP users.
-%
-Furthermore, it is easy to imagine extending this disguise to automatically disguise
-Bob after some time (\eg 2 years after the conference), protecting his future
-research career by hiding his youthful reviewing sins.
+Furthermore, it is easy to imagine automatically applying such policies
+after some time (\eg 2 years after the conference), protecting future
+research careers by hiding their youthful reviewing sins.
 %
 
 %The tool disguises Bob when he invokes HotCRP account deletion.
