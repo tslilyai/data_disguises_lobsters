@@ -9,27 +9,27 @@ provides data disguising for applications that use relational databases.
 We believe that data disguising can be extended to other types of stores.
 %
 
+Disguises in \sys associate each table in the application schema with a set of
+predicate-transformation pairs: predicates are arbitrary SQL \texttt{WHERE} clauses, which \sys uses
+to select table rows to transform; a transformation is either a removal, a decorrelation of a
+particular foreign key, or a modification of a particular column. A modification takes a
+closure over the original column value that returns the updated value.
 %
-\sys represents user vaults as additional database tables, and stores the original and updated
-states of objects touched by the disguise if the current disguise is reversible. \sys also keeps a
-disguise history table that logs all disguises performed.  While \sys currently has no per-user
-encryption of vaults and can read and write vaults at any point, we plan to add per-user encryption
-keys that are not stored by \sys.
+For tables that may be decorrelated, developers describe how to create new guises---new table
+rows---by providing per-column closures over the original column value
+that returns the new guise column value.
+
+%
+\sys represents vaults as (currently unencrypted) per-user database tables, and updates them with
+the original and updated states of objects touched by a reversible disguise. \sys also keeps a
+disguise history table that logs all disguises performed. 
+%While \sys
+%currently has no per-user encryption of vaults and can read and write vaults at any point, we plan
+%to add per-user encryption keys that are not stored by \sys.
 %Currently, the tool uses the heuristic that if a user invokes the disguise (\eg GDPR deletion),
 %modifications to data records will be stored only to that user's vault; however, if the application
 %invokes a general disguise, then any users connected to modified data records will store the
 %modification in their vault.
-
-%
-Disguises written for \sys associate each table in the application schema with a set of
-predicate-transformation pairs. Predicates are arbitrary SQL \texttt{WHERE} clauses, and allow \sys
-to select the relevant table rows to transform. A transformation is either a removal, a
-decorrelation of a particular foreign key, or a modification of a particular column. To modify a
-column value, developers provide arbitrary closures that take as input the original column value,
-and return the updated value.
-%
-Developers also describe how to create new guises, \ie new table rows, for all
-tables referenced by foreign keys that may be decorrelated.
 
 \iffalse
 \sys also provides a specification of the end-state after it applies a sequence of
