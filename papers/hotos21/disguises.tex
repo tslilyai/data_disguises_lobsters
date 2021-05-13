@@ -4,7 +4,7 @@
 \label{design:eg}
 
 
-To further motivate our work, we describe a specific nuanced privacy
+To make this more concrete, we describe a specific nuanced privacy
 transformation that an application we're familiar with should support, namely
 \emph{user scrubbing} from paper review software such as HotCRP.
 %
@@ -26,24 +26,24 @@ Specifically, user scrubbing for a user Bea should:
 (2)~Delete information that's only relevant to Bea, such as Bea's review
 preferences.
 %
-(3)~Select or create a set of \emph{placeholder users}.
+(3)~Delete Bea's contact author relationships to any submissions.
 %
-(4)~Modify Bea's other retained data, such as reviews, to refer to the
-placeholder users instead of Bea.
+(4)~Select or create a set of \emph{placeholder users}.
+%
+(5)~Modify Bea's other retained data, such as reviews, to refer to the
+placeholder users instead of Bea, thereby \emph{decorrelating} the reviews from Bea's identity.
 
 
 After the scrubbing completes, Bea's review texts are still in the system, but
 they are linked to different anonymous placeholders, making them difficult to
 reassociate with one another or with Bea.
 %
-Placeholder users have suitable default values; for example, HotCRP users have
-a \texttt{disabled} attribute, and the tool sets this for placeholder users,
+Placeholder users have suitable default values; for example, placeholder
+users should be disabled,
 ensuring they have no permissions and cannot log in.
 %
-The policy preserves Bea's reviews but does not preserve Bea's relationship to
-her submissions. (No placeholder replaces Bea as submission “contact author”.)
-%
-This choice is the application's; a policy might go even further and
+This policy removes Bea's relationship to submissions, but does not remove the
+submissions themselves; a different policy might go even further and
 automatically delete a submission whose last author is scrubbed.
 %
 
