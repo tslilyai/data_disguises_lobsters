@@ -28,6 +28,7 @@ pub fn query_drop_txn(
     txn: &mut mysql::Transaction,
     stats: &mut QueryStat,
 ) -> Result<(), mysql::Error> {
+    warn!("query_drop_txn: {}", q);
     if q.contains(VAULT_TABLE) || q.contains(HISTORY_TABLE) {
         stats.nqueries_vault += 1;
     } else {
