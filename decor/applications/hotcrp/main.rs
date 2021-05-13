@@ -143,7 +143,7 @@ fn main() {
     let spec = args.spec;
 
     let mut disguises = vec![
-        //conf_anon_disguise::get_disguise(),
+        conf_anon_disguise::get_disguise(),
         //gdpr_disguise::get_disguise((1) as u64),
         gdpr_disguise::get_disguise((datagen::NUSERS_NONPC+1) as u64),
     ];

@@ -29,8 +29,24 @@ pub fn apply(
                     fk_name,
                     ..
                 } => {
-                    let start_decor = time::Instant::now();
-
+                    /*
+                     * PHASE 0: REVERSE ANY PRIOR DECORRELATED ENTRIES
+                     * FOR TESTING ONLY: WE KNOW THESE ARE GOING TO BE DECORRELATED AGAIN
+                     */
+                    for (ref_table, ref_col) in &disguise.guise_info.referencers {
+                        if ref_table == &table.name {
+                            vault::reverse_vault_decor_referencer_entries(
+                                disguise.user_id,
+                                &ref_table,
+                                &ref_col, 
+                                // assume just one id col for user
+                                &table.name,
+                                &table.id_cols[0], 
+                                txn,
+                                stats,
+                            )?;
+                         }
+                    }
                     /* PHASE 1: SELECT REFERENCER OBJECTS */
                     let start = time::Instant::now();
                     let child_objs =

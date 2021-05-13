@@ -49,12 +49,12 @@ tables:
          ("active", Default(false)),
          ..
       ],
-      transformations: [Remove(pred: "contactId" = 19)]
+      transformations: [Remove(pred: "contactId" = $UID)]
    ReviewPreference:
-      transformations: [Remove(pred: "contactId" = 19)]
+      transformations: [Remove(pred: "contactId" = $UID)]
    Review:
       transformations: [Decorrelate(
-         pred: "contactId" = 19,
+         pred: "contactId" = $UID,
          foreign_key: ("contactId", ContactInfo)
       )]
 \end{lstlisting}
