@@ -101,31 +101,26 @@ and privacy-preserving ones. Disguises modify, split, and/or combine individual 
 disguise_name: "UserScrub",
 user_to_disguise: UID,
 tables {
-  "ContactInfo": {
-    generate_guise_info: [
-      ("name", Random),
-      ("email", Default(None)),
-      ..
-    ],
-    transformations: [Remove(pred: "id" = UID)],
-  },
-  "Review" : {
-    guise_info: [], 
-    transformations: [
-      Decorrelate(
-        pred: "contactId" = UID,
-        fk_column: "id",
-        fk_table: "User"
-      )
-    ],
-  }
-  "ReviewPreference" : {
-    guise_info: [], 
-    transformations: [Remove(pred: "contactId" = UID)],
-  }
+   ContactInfo: {
+      generate_guise_info: [
+         ("name", Random),
+         ("email", Default(None)),
+         ..
+      ],
+      transformations: [Remove(pred: "contactId" = UID)]
+   },
+   Review : {
+      transformations: [Decorrelate(
+         pred: "contactId" = UID,
+         foreign_key: ("contactId", ContactInfo)
+      )],
+   }
+   ReviewPreference : {
+      transformations: [Remove(pred: "contactId" = UID)]
+   }
 }
 \end{lstlisting}
-    \caption{Partial specification for a user scrubbing disguise in HotCRP}
+    \caption{Partial specification of a HotCRP user scrubbing disguise for user with UID}
     \label{fig:spec}
 \end{figure}
 
