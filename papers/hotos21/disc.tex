@@ -2,10 +2,10 @@
 \section{Discussion}
 \label{s:disc}
 %-------------------------------------------------------------------------------
-Data disguising makes it easier to explore and implement privacy transformations. This may support
-new privacy paradigms like data decay and account reactivation after deletion.
-
-However, our proposed data disguising solution still leaves many open questions. 
+%
+Data disguising simplifies implementing privacy transformations.
+%
+However, our proposed data disguising framework still leaves open questions.
 %
 For instance, we propose \emph{how} a disguising tool can detect and/or avoid multi-disguise
 scenarios that fail to adhere to the application's privacy goals with mechanisms like user vaults.
@@ -30,11 +30,11 @@ until it passes the checks, or gives up with a warning.
 
 %
 Furthermore, our solution to data disguising does not answer how disguises compose with normal
-application updates. 
+application updates.
 %
 Application updates may alter the scope of a disguise (\ie reducing the set of
 objects satisfying a disguise predicate); this may especially affect eventually
-consistent disguises. 
+consistent disguises.
 %
 In addition, reintroduced data from undoing a reversible disguise may miss application updates that
 occurred since its removal. One possible solution is to make crucial updates themselves disguises,
@@ -58,7 +58,7 @@ application snapshots, backups, or external data copies are out of scope, and re
 \eg taint tracking techniques~\cite{schengendb}.
 Data disguising also importantly does not provide privacy \emph{guarantees}.
 %
-Privacy goals and disguise specifications are necessarily application-specific, and 
+Privacy goals and disguise specifications are necessarily application-specific, and
 data disguising is only as good as the specification a developer writes. We assume
 that developers capture application-specific needs to retain, remove, and decorrelate data in
 their policies.

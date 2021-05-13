@@ -23,14 +23,14 @@
 \end{figure}
 
 %
-We evaluate the ease of writing single disguises by writing disguises for GDPR deletion in
-Lobsters~\cite{lobsters}, an open-source news feed application, and HotCRP~\cite{hotcrp}.
+To evaluate the ease of writing disguises, we implement disguises for GDPR deletion
+in Lobsters~\cite{lobsters}, an open-source news feed application, and HotCRP~\cite{hotcrp}.
 %
 We consider four disguises: \lrtbf and \hrtbf implement the current account
 deletion policies in the two applications~\cite{lobsters:privacy, hotcrp:privacy}.
 %
 \hrtbfplus specifies a HotCRP account deletion policy that balances useful data retention with
-data deletion for privacy (\S\ref{design:eg}), and 
+data deletion for privacy (\S\ref{design:eg}), and
 \hconfanon specifies the conference anonymization disguise for HotCRP.
 
 \paragraph{Complexity.}
@@ -38,7 +38,7 @@ data deletion for privacy (\S\ref{design:eg}), and
 We would hope that writing disguises involves similar labor and difficulty as writing
 relational schemas.
 %
-In particular, a developer should write a disguise only once, and 
+In particular, a developer should write a disguise only once, and
 %
 specify some reasonable number of predicated transformations for each object type.
 %disguise complexity is limited by the number of object types in the
@@ -53,42 +53,60 @@ comparable in size to the applications' schemas.
 
 Data disguising faces several performance challenges.
 %
-First, disguise application should not unduly impact the performance of application queries
-when run on a live application database.
-As expected, we observe that the number of queries performed by \sys to fetch and update the relevant
-to-be-disguised objects grows linearly with the number of objects. This disguise overhead is
-unavoidable: these modifications are crucial to ensuring proper disguise application.
-\sys currently runs these disguise queries sequentially in one large SQL transaction; some batching
-and parallelization is possible and could improve performance, and
-making disguises eventually consistent would remove the expensive nature of a single large
-transaction. The importance of reducing the cost of disguise application depends on the rate of
+%First, disguise application should not unduly impact the performance of application queries
+%when run on a live application database.
+%
+As expected, we observe that the number of queries performed by \sys to fetch and update
+the relevant to-be-disguised objects grows linearly with the number of objects.
+%
+This disguise overhead is unavoidable: these modifications are crucial to applying the
+disguise.
+%
+\sys currently applies these changes in one large SQL transaction; batching, parallelization,
+and asynchronous application could improve performance.
+%
+The importance of reducing the cost of disguise application depends on the rate of
 disguising, which may range from rare (as in today's applications) to quite frequent (in a
-privacy-supporting world where users freely disguise and reveal themselves, or where data
-automatically ages out).
+privacy-supporting world where users freely disguise and reveal themselves, or data expires).
+%
 
 %
-\sys must also be careful to do as little work as possible to handle disguise interdependencies.
-When executing a disguise, \sys not only modifies objects, but may also read and reverse prior
-vault entries and log all updates in the vault.
+Disguise interdependencies can further increase the cost of disguising: when applying a
+disguise, \sys not only modifies objects, but may also read and apply reveal functions from
+vaults.
 %
-\sys could potentially need to read from, reverse, and reapply all entries in the vault that correspond
-to all previous reversible disguises.
+In the worst case, \sys might need to read, reverse, and reapply all previous reversible
+disguises in their entirety.
+%
 
-We evaluate the estimated cost of vault operations and disguise composition with a simple
-comparison. We first invoke \sys with two independent disguises, namely \hrtbf of different
-users. We then compare the cost of invoking \hrtbf after \hconfanon--a conflicting, but reversible
-disguise---has already been applied.
-The disguises are applied to a database with 430 users (30 PC members), 450 papers, and 1400
-reviews.
-Applying \hrtbf for a PC member user after an independent \hrtbf application takes 135ms on average;
-the same \hrtbf disguise applied after \hconfanon takes 118ms (\hconfanon itself takes
-   ~7000ms). 
+We evaluate the estimated cost of vault operations and disguise composition in an experiment
+with a HotCRP database with 430 users (30 PC members), 450 papers, and 1400 reviews.
+%
+We first invoke \sys with two independent disguises: \hrtbf of different users.
+%
+We then compare the cost of invoking \hrtbf after \hconfanon---a conflicting, but reversible
+disguise---has been applied.
+%
+Applying \hrtbf for a PC member user after an independent \hrtbf application takes 135ms on
+average.
+%
+The same \hrtbf disguise applied after \hconfanon takes
+\ms{new results w/o manual optimization},
+%118ms
+while \hconfanon itself takes about 7,000ms.
+%
+With the composed disguises, \sys incurs overhead because it temporarily re-correlates objects
+using reveal functions, so that these objects are correctly removed.
+%
+While this selective reintroduction of data from user vaults is not free, it is cheaper than
+completely undoing the prior \hconfanon disguise.
+%
 
-The decrease in latency stems from a (manual) optimization in \sys, which avoids unnecessarily
-redoing decorrelation actions that have already been taken by \hconfanon.  However, \sys incurs
-extra overhead when it temporarily recorrelates objects using vault data so these objects can be
-correctly removed. While this selective reintroduction of data from user vaults is not free, it
-is noticeably cheaper than completely undoing the prior \hconfanon disguise.
-\sys currently relies on manual input to know which operations must be selectively undone and (not)
-reapplied, and we imagine that we will be able to use static analysis to replace the manual
-annotations.
+%
+When we apply a (manual) optimization that avoids unnecessarily redoing decorrelation
+actions that have already been taken by \hconfanon, the latency for \hrtbf after \hconfanon
+drops to 118ms.
+%
+We imagine that we will be able to use static analysis of the disguise and schema to automate
+this optimization in the future.
+%
