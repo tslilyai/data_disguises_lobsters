@@ -43,11 +43,11 @@ of an error.
 Furthermore, our framework does not answer how disguises compose with normal application
 changes to disguised data.
 %
-Application updates may alter the scope of a disguise (\ie reducing the set of
+Application updates may alter the scope of a disguise (\ie changing the set of
 objects satisfying a disguise predicate).
 %; this may especially affect eventually %consistent disguises.
 %
-In addition, the data a reveal function introduces may lack application updates that
+In addition, data introduced by a reveal function may lack application updates that
 occurred since the original disguise.
 %
 One possible solution is to make such updates themselves disguises, and store metadata
@@ -74,7 +74,7 @@ into supporting disguises and disguise reversals after such updates.
 %
 Data disguising also has some clear limitations.
 %
-It assumes that transformations on application objects capture all data that needs
+It assumes that application objects capture all data that needs
 transforming; application snapshots, backups, or external data copies are out of scope,
 and require \eg taint tracking techniques.
 %
@@ -82,7 +82,7 @@ Data disguising also importantly does not provide privacy \emph{guarantees} beyo
 specification.
 %
 Privacy goals are necessarily application-specific, and data disguising is only as good
-as the specification a developer writes.
+as the developer-written specification.
 %
 %We assume that developers capture application-specific needs to retain, remove, and
 %decorrelate data in their policies.
