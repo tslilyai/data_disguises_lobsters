@@ -46,9 +46,10 @@ remain difficult to implement and are arguably understudied.
     \centering
     \includegraphics[width=0.35\textwidth]{img/disguise_tool}
     \caption{A data disguising tool takes a developer's disguise specification and transforms
-	     a web application's database contents. Per-user vaults
-	     (which can be encrypted and stored on third-party storage) support reversible
-	     privacy transformations by logging the changes to each user's data.}
+	     a web application's database contents. Vaults
+	     (potentially encrypted and stored on third-party storage) support reversible 
+         privacy transformations.} 
+         %reversible transformations by logging the changes to each user's data.}
     \label{fig:tool}
 \end{figure}
 
@@ -95,7 +96,7 @@ Applying a disguise transforms the application data to meet a privacy-oriented g
 deleting users' identifiers, or decorrelating identifying object relationships) while preserving
 application invariants and utility.
 %
-It also can integrate new components, such as \emph{user vaults} (secure storage locations
+It also can integrate new components, such as \emph{vaults} (secure storage locations
 for disguised data), to support more nuanced policies than most current applications.
 
 
