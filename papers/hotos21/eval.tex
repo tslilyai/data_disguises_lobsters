@@ -33,7 +33,7 @@ deletion policies in the two applications~\cite{lobsters:privacy, hotcrp:privacy
 data deletion for privacy (\S\ref{design:eg}), and
 \hconfanon specifies the conference anonymization disguise for HotCRP.
 
-\paragraph{Complexity.}
+\paragraph{Developer Effort.}
 %
 We would hope that writing disguises involves similar labor and difficulty as writing
 relational schemas.
@@ -82,20 +82,18 @@ disguises in their entirety.
 We evaluate the estimated cost of vault operations and disguise composition in an experiment
 with a HotCRP database with 430 users (30 PC members), 450 papers, and 1400 reviews.
 %
-We first invoke \sys with two independent disguises: \hrtbf of different users.
+We first invoke \sys with two independent disguises: two \hrtbf disguises for different users.
 %
 We then compare the cost of invoking \hrtbf after having applied \hconfanon, a conflicting but reversible
 disguise.
 %
-Applying \hrtbf for a PC member after an independent \hrtbf application takes 135ms on
+Applying a PC member's \hrtbf after having applied an independent \hrtbf takes 135ms on
 average.
 %
-The same \hrtbf disguise applied after \hconfanon takes 452ms on average,
-%\ms{new results w/o manual optimization},
-%118ms
-while \hconfanon itself takes about 7,000ms.
+The same \hrtbf disguise applied after \hconfanon takes 452ms on average;
+\hconfanon itself takes about 7,000ms.
 %
-With conflicting disguises, \sys incurs overhead from temporarily re-correlating objects
+The added overhead stems from \sys's temporarily recorrelation of objects
 using reveal functions so it can correctly remove them.
 %
 While this selective reintroduction of data from user vaults is not free, it is cheaper than

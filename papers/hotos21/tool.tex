@@ -199,9 +199,10 @@ some third party or locally by the user, with an API for disguise tool access.
 Further, the vault contents might be encrypted, and access might require explicit approval
 by the user, who holds the private key.
 %
-To protect against lost keys, the private key could be secret-shared~\cite{secretsharing}
-between the user, the web application, and a trusted third party (\eg the EFF), so that
-the user can authorize the application and the third party to restore the key.
+To protect against lost keys, the vault could be threshold encrypted with a private key
+secret-shared~\cite{secretsharing} between the user, the web application, and a trusted third party
+(\eg the EFF), so that the user can authorize the application and the third party to restore the
+key.
 %
 Entries in a vault could also be configured to expire after some time; making the
 corresponding disguises irreversible.
