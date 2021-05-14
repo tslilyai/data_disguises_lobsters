@@ -46,7 +46,7 @@ tables:
       generate_placeholder: [
          ("name", Random),
          ("email", Default(None)),
-         ("active", Default(false)),
+         ("disabled", Default(true)),
          ..
       ],
       transformations: [Remove(pred: "contactId" = $UID)]
@@ -76,20 +76,20 @@ integrity (\ie no dangling foreign keys) unless applied carefully.
 %We believe that data disguising makes privacy transformations more manageable by
 %separating them from application code, and
 %
-Data disguises' structured nature, and automated application, seeks to ensure this
+Data disguises' structured nature and automated application seeks to ensure this
 property.
 %
 
 %
-Data disguises are built on three fundamental operations---data removal, object content
+Data disguises are built on three fundamental transformation operations---data removal, object content
 modification, and decorrelation by modifying references between objects---that can
 capture and structure many desirable privacy transformations.
 %
 The application developer writes a disguise specification for each of the application's
 privacy transformations.
 %
-This specification consists of predicated operations on each table, and describes
-the necessary operations to perform on objects that satisfy the predicate.
+This specification consists of predicated transformation operations on each table, which describe
+how to transform objects that satisfy the predicate.
 %
 The data disguising tool takes the disguise specification and turns it into storage
 operations that appropriately rewrite affected foreign keys.
@@ -149,8 +149,8 @@ original data to meet the application's privacy goals.
 %some applications may require that previously anonymized data still be deleted, while other
 %applications may not.
 %
-Data disguising provides the infrastructure and mechanisms to reveal data in support
-of disguise composition; however, detecting automatically when this is needed to
+Data disguising provides the infrastructure and mechanisms to reveal data to support
+of disguise composition; however, automatically detecting when this is needed to
 achieve application privacy goals remains an open challenge (\S\ref{s:disc}).
 %To handle inter-disguise dependencies, a disguising tool relies on (1) the structured nature of
 %disguises to
@@ -196,7 +196,7 @@ These include storing vaults in offline storage, which provides a modicum of sec
 but makes access by the data disguising tool easy; or having vaults stored entirely by
 some third party or locally by the user, with an API for disguise tool access.
 %
-Further, the vault contents might be encrypted, and access might require explicit approval
+The vault contents might be encrypted, and access might require explicit approval
 by the user, who holds the private key.
 %
 \footnote{To protect against lost keys, the vault could be threshold encrypted with a private key
