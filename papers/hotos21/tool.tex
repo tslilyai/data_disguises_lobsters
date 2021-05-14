@@ -199,31 +199,31 @@ some third party or locally by the user, with an API for disguise tool access.
 Further, the vault contents might be encrypted, and access might require explicit approval
 by the user, who holds the private key.
 %
-To protect against lost keys, the vault could be threshold encrypted with a private key
+\footnote{To protect against lost keys, the vault could be threshold encrypted with a private key
 secret-shared~\cite{secretsharing} between the user, the web application, and a trusted third party
-(\eg the EFF), so that the user can authorize the application and the third party to decrypt.
+(\eg the EFF), so that the user can authorize the application and the third party to decrypt.}
 %
 Entries in a vault could also be configured to expire after some time; making the
 corresponding disguises irreversible.
 %
 
 %
-The vault deployment model has serious consequences for the practicality of disguise
+The vault deployment model can greatly affect the practicality of disguise
 reversal.
 %
-For example, a reversible \gdpr requires reveal functions stored in per-user vaults
-external to the application storage in order to be GDPR-compliant.
+For example, a reversible \gdpr must store reveal functions in per-user vaults
+external to the application storage to be GDPR-compliant.
 %
 While it is reasonable to imagine accessing a single user's vault to reverse \gdpr in
-this model, complete reversal of \ca would need to retrieve revealing functions from
+this model, complete reversal of \ca would need to retrieve reveal functions from
 all users' vaults, an infeasible task.
 %
-An alternative might be a multi-tier security design: the first tier stores revealing
+An alternative might be provide multi-tier security: the first tier stores reveal
 functions of non-GDPR disguises in a global vault accessible to the disguising tool
-and application, while the second tier stores revealing functions from user-invoked
+and application, while the second tier stores reveal functions from user-invoked
 disguises in external, per-user encrypted vaults.
 %
-We imagine that exploring different vaults designs will be an important part of
+We imagine that exploring different vault designs will be an important part of
 data disguising research.
 %
 
