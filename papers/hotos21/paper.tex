@@ -1,4 +1,6 @@
 \documentclass[sigconf,natbib=false,10pt]{acmart}
+%\documentclass[sigconf,natbib=true,10pt]{acmart}
+%\bibliographystyle{unsrtnat}
 
 %% Rights management information.  This information is sent to you
 %% when you complete the rights form.  These commands have SAMPLE
@@ -55,7 +57,7 @@
 
 % BibLaTeX for bibliography
 \usepackage[
-  backend=bibtex,
+  backend=biber,
   style=numeric-comp,
   minalphanames=3,
   isbn=false,
@@ -175,8 +177,6 @@
 \input{motivation}
 \input{disguises}
 \input{tool}
-%\input{composition}
-%\input{example}
 \input{impl}
 \input{eval}
 \input{disc}
@@ -184,6 +184,7 @@
 \input{acks}
 
 %-------------------------------------------------------------------------------
+%\bibliography{paper.bib}
 \printbibliography
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
