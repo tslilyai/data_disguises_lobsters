@@ -30,7 +30,7 @@ We consider four disguises: \lrtbf and \hrtbf implement the current account
 deletion policies in the two applications~\cite{lobsters:privacy, hotcrp:privacy}.
 %
 \hrtbfplus specifies a HotCRP account deletion policy that balances useful data retention with
-data deletion for privacy (\S\ref{design:eg}), and
+data deletion for privacy (user scrubbing, \S\ref{design:eg}), and
 \hconfanon specifies the conference anonymization disguise for HotCRP.
 
 \paragraph{Developer Effort.}
@@ -82,15 +82,15 @@ disguises in their entirety.
 We evaluate the estimated cost of vault operations and disguise composition in an experiment
 with a HotCRP database with 430 users (30 PC members), 450 papers, and 1400 reviews.
 %
-We first invoke \sys with two independent disguises: two \hrtbf disguises for different users.
+We first invoke \sys with two independent disguises: two \hrtbfplus disguises for different users.
 %
-We then compare the cost of invoking \hrtbf after having applied \hconfanon, a conflicting but reversible
+We then compare the cost of invoking \hrtbfplus after having applied \hconfanon, a conflicting but reversible
 disguise.
 %
-Applying a PC member's \hrtbf after having applied an independent \hrtbf takes 135ms on
+Applying a PC member's \hrtbfplus after having applied an independent \hrtbfplus takes 135ms on
 average.
 %
-The same \hrtbf disguise applied after \hconfanon takes 452ms on average;
+The same \hrtbfplus disguise applied after \hconfanon takes 452ms on average;
 \hconfanon itself takes about 7,000ms.
 %
 The added overhead stems from \sys's temporarily recorrelation of objects
@@ -102,7 +102,7 @@ completely undoing the prior \hconfanon disguise.
 
 %
 When we apply a (manual) optimization that avoids unnecessarily redoing decorrelation
-actions that have already been taken by \hconfanon, the latency for \hrtbf after \hconfanon
+actions that have already been taken by \hconfanon, the latency for \hrtbfplus after \hconfanon
 drops to 118ms.
 %
 We imagine that we will be able to use static analysis of the disguise and schema to automate
