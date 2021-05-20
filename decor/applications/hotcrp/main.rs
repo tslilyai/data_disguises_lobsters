@@ -17,7 +17,7 @@ mod datagen;
 mod gdpr_disguise;
 
 use decor::stats::QueryStat;
-use decor::{vault, spec};
+use decor::{vault, spec, types};
 use rand::seq::SliceRandom;
 
 const DBNAME: &'static str = &"test_hotcrp";
@@ -86,7 +86,7 @@ fn init_db(prime: bool) -> mysql::Conn {
     db
 }
 
-fn run_test(db: &mut mysql::Conn, disguises: &Vec<decor::types::Disguise>) {
+fn run_test(db: &mut mysql::Conn, disguises: &Vec<types::Disguise>) {
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
    file.write("Disguise, NQueries, NQueriesVault, UndoDur, RecordDur, RemoveDur, DecorDur, Duration(ms)\n".as_bytes())
         .unwrap();  
@@ -159,45 +159,6 @@ fn main() {
 
     if spec {
         let table_cols = datagen::get_schema_tables();
-        let ca_stmts = spec::get_disguise_filters(&table_cols, &disguises[0]);
-        let gdpr_stmts = spec::get_disguise_filters(&table_cols, &disguises[datagen::NUSERS_NONPC]);
-
-        // test correctly ordered filters
-        /*let mut correct = decor::helpers::merge_vector_hashmaps(&gdpr_stmts, &ca_stmts);
-        let create_spec_stmts_correct = spec::create_mv_from_filters_stmts(&mut correct);
-        let mut db = init_db(prime);
-        let mut spec_file = File::create("spec_correct.sql".to_string()).unwrap();
-        for stmt in &create_spec_stmts_correct {
-            spec_file.write(format!("{}\n\n", stmt).as_bytes()).unwrap();
-        }
-        spec_file.flush().unwrap();
-        for stmt in &create_spec_stmts_correct {
-            warn!("Spec stmt dropping {}", stmt);
-            db.query_drop(stmt).unwrap();
-        }
-        assert!(spec::check_disguise_properties(&disguises[0], &mut db).unwrap());
-        assert!(spec::check_disguise_properties(&disguises[datagen::NUSERS_NONPC], &mut db).unwrap());
-        drop(db);
-
-        // test incorrectly ordered filters
-        let mut incorrect = decor::helpers::merge_vector_hashmaps(&ca_stmts, &gdpr_stmts);
-        let create_spec_stmts_incorrect = spec::create_mv_from_filters_stmts(&mut incorrect);
-
-        let mut db = init_db(prime);
-        let mut spec_file = File::create("spec_incorrect.sql".to_string()).unwrap();
-        for stmt in &create_spec_stmts_incorrect {
-            spec_file.write(format!("{}\n\n", stmt).as_bytes()).unwrap();
-        }
-        spec_file.flush().unwrap();
-        for stmt in &create_spec_stmts_incorrect {
-            warn!("Spec stmt dropping {}", stmt);
-            db.query_drop(stmt).unwrap();
-        }
-        // confanon passes
-        assert!(spec::check_disguise_properties(&disguises[0], &mut db).unwrap());
-        // gdpr fails (checking only those users who have paperwatches)
-        assert!(!spec::check_disguise_properties(&disguises[datagen::NUSERS_NONPC], &mut db).unwrap());
-        */
     } else {
         let mut db = init_db(prime);
         run_test(&mut db, &disguises);
