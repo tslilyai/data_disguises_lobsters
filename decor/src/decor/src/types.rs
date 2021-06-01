@@ -7,7 +7,7 @@ pub enum ColFormat {
     NonQuoted,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct RowVal {
     pub column: String,
     pub value: String,
@@ -27,12 +27,11 @@ pub enum TransformType {
     Decor,
 }
 
+pub type Predicate = Option<Expr>;
+
 pub enum Transform {
-    Remove {
-        pred: Option<Expr>,
-    },
+    Remove,
     Modify {
-        pred: Option<Expr>,
         // name of column
         col: String,
         // how to generate a modified value
@@ -41,7 +40,6 @@ pub enum Transform {
         satisfies_modification: Box<dyn Fn(&str) -> bool>,
     },
     Decor {
-        pred: Option<Expr>,
         referencer_col: String,
         fk_name: String,
         fk_col: String,
@@ -52,7 +50,7 @@ pub struct TableDisguise {
     pub name: String,
     pub id_cols: Vec<String>,
     pub owner_cols: Vec<String>,
-    pub transforms: Vec<Transform>,
+    pub transforms: Vec<(Predicate, Transform)>,
 }
 
 pub struct GuiseInfo {
@@ -65,11 +63,10 @@ pub struct GuiseInfo {
 
 pub struct Disguise {
     pub disguise_id: u64,
-    // XXX temp for now
-    pub user_id: u64,
     pub table_disguises: Vec<TableDisguise>,
     // used to determine if a particular UID belongs to the "owner" of the disguise
     pub is_owner: Box<dyn Fn(&str) -> bool>,
     // used to generate new guises
     pub guise_info: GuiseInfo,
+    pub is_reversible: bool,
 }

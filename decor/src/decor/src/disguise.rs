@@ -6,6 +6,7 @@ use crate::vault;
 use crate::*;
 use crate::history;
 use std::str::FromStr;
+use std::collections::{HashMap, HashSet};
 
 pub fn apply(
     user_id: Option<u64>,
@@ -21,19 +22,22 @@ pub fn apply(
 
     let mut vault_vals = vec![];
     for table in &disguise.table_disguises {
-        for transform in &table.transforms {
+        let mut items : HashMap<Vec<RowVal>, Vec<&Transform>> = HashMap::new();
+        let mut removed_items : HashSet<Vec<RowVal>> = HashSet::new();
+
+        /*
+         * PHASE 1: OBJECT SELECTION
+         * Assign each object its assigned transformations
+         */
+        for (pred, transform) in &table.transforms {
+            let pred_items = get_query_rows_txn(&select_statement(&table.name, &pred), txn, stats)?;
+
+            // just remove item if it's supposed to be removed
             match transform {
-                Decor {
-                    pred,
-                    referencer_col,
-                    fk_name,
-                    ..
-                } => {
-                    /*
-                     * PHASE 0: REVERSE ANY PRIOR DECORRELATED ENTRIES
-                     * FOR TESTING ONLY: WE KNOW THESE ARE GOING TO BE DECORRELATED AGAIN
-                     */
-                    for (ref_table, ref_col) in &disguise.guise_info.referencers {
+                Remove => {
+                    // reverse all possible decorrelations for this table
+                    let start = time::Instant::now();
+                    /*for (ref_table, ref_col) in &disguise.guise_info.referencers {
                         if ref_table == &table.name {
                             vault::reverse_vault_decor_referencer_entries(
                                 disguise.user_id,
@@ -46,34 +50,118 @@ pub fn apply(
                                 stats,
                             )?;
                          }
-                    }
-                    /* PHASE 1: SELECT REFERENCER OBJECTS */
+                    }*/
+                    stats.undo_dur += start.elapsed();
+
                     let start = time::Instant::now();
-                    let child_objs =
-                        get_query_rows_txn(&select_statement(&table.name, &pred), txn, stats)?;
-                    if child_objs.is_empty() {
-                        continue;
-                    }
 
-                    // get all the IDs of parents (all are of the same type for the same fk)
-                    let mut fkids = vec![];
-                    for child in &child_objs {
-                        fkids.push(
-                            u64::from_str(&get_value_of_col(child, &referencer_col).unwrap())
-                                .unwrap(),
+                    /* PHASE 2: OBJECT MODIFICATION */
+                    helpers::query_drop_txn(
+                        &Statement::Delete(DeleteStatement {
+                            table_name: string_to_objname(&table.name),
+                            selection: pred.clone(),
+                        }).to_string(),
+                        txn,
+                        stats,
+                    )?;
+                    stats.remove_dur += start.elapsed();
+
+                    /* PHASE 3: VAULT UPDATES */
+                    // XXX removal entries get stored in *all* vaults????
+                    let mut vault_vals = vec![];
+                    for i in &pred_items {
+                        let ids = get_ids(&table.id_cols, i);
+                        for owner_col in &table.owner_cols {
+                            let uid = get_value_of_col(&i, &owner_col).unwrap();
+                            if (*disguise.is_owner)(&uid) {
+                                vault_vals.push(vault::VaultEntry {
+                                    vault_id: 0,
+                                    disguise_id: disguise.disguise_id,
+                                    user_id: u64::from_str(&uid).unwrap(),
+                                    guise_name: table.name.clone(),
+                                    guise_id_cols: table.id_cols.clone(),
+                                    guise_ids: ids.clone(),
+                                    referencer_name: "".to_string(),
+                                    update_type: vault::DELETE_GUISE,
+                                    modified_cols: vec![],
+                                    old_value: i.clone(),
+                                    new_value: vec![],
+                                    reverses: None,
+                                });
+                            }
+                        }
+                    
+                        // some extra stuff: save in remvoed so we don't 
+                        // transform this item further
+                        items.remove(i);
+                        removed_items.insert(i.to_vec());
+                    }
+                }
+                _ => {
+                    for i in pred_items {
+                        if removed_items.contains(&i) {
+                            continue;
+                        }
+                        if let Some(ts) = items.get_mut(&i) {
+                            ts.push(transform);
+                        } else {
+                            items.insert(i, vec![transform]);
+                        }
+                    }
+                }
+            }
+        }
+        for (i, ts) in items {
+            for t in ts {
+                match t {
+                    Remove => {
+                        /*
+                         * PHASE 0: What vault operations must come "after" removal?
+                         * ==> Those that have made the object to remove inaccessible, namely those that would have
+                         * satisfied the predicate, but no longer do.
+                         *
+                         * TODO also undo any operations that happened in that disguise after these decorrelation
+                         * modifications? This only is correct if all decorrelated FKs are to the contactInfo table
+                         * Note: we don't need to redo these because deletion is final!
+                         * TODO need a way to figure out how to get fks to recorrelate...
+                         */
+                                    }
+                    Decor {
+                        referencer_col,
+                        fk_name,
+                        ..
+                    } => {
+                        /*
+                         * PHASE 0: REVERSE ANY PRIOR DECORRELATED ENTRIES
+                         * FOR TESTING ONLY: WE KNOW THESE ARE GOING TO BE DECORRELATED AGAIN
+                        for (ref_table, ref_col) in &disguise.guise_info.referencers {
+                            if ref_table == &table.name {
+                                vault::reverse_vault_decor_referencer_entries(
+                                    disguise.user_id,
+                                    &ref_table,
+                                    &ref_col, 
+                                    // assume just one id col for user
+                                    &table.name,
+                                    &table.id_cols[0], 
+                                    txn,
+                                    stats,
+                                )?;
+                             }
+                        }
+                        */
+                        /* PHASE 1: SELECT REFERENCER OBJECTS */
+                        let start = time::Instant::now();
+
+                        // get all the IDs of parents (all are of the same type for the same fk)
+                        let old_uid = u64::from_str(&get_value_of_col(&i, &referencer_col).unwrap()).unwrap();
+                        warn!(
+                            "decor_obj_txn {}: Creating guises for fkids {:?} {:?}",
+                            table.name, fk_name, old_uid,
                         );
-                    }
-                    warn!(
-                        "decor_obj_txn {}: Creating guises for fkids {:?} {:?}",
-                        table.name, fk_name, fkids
-                    );
 
-                    let fk_cols = (*disguise.guise_info.col_generation)();
-                    stats.decor_dur_pred += start.elapsed();
+                        let fk_cols = (*disguise.guise_info.col_generation)();
+                        stats.decor_dur_pred += start.elapsed();
 
-                    for (n, child) in child_objs.iter().enumerate() {
-                        let old_uid = fkids[n];
-                       
                         // skip already decorrelated users
                         let start = time::Instant::now();
                         if is_guise(&fk_name, &disguise.guise_info.id_col, old_uid, txn, stats)? {
@@ -149,12 +237,12 @@ pub fn apply(
                          * */
                         // Phase 3A: update the vault with new guise (calculating the uid from the last_insert_id)
                         let start = time::Instant::now();
-                        let mut i = 0;
+                        let mut ix = 0;
                         let new_parent_rowvals: Vec<RowVal> = new_parent
                             .iter()
                             .map(|v| {
-                                let index = i;
-                                i += 1;
+                                let index = ix;
+                                ix += 1;
                                 RowVal {
                                     column: fk_cols[index].to_string(),
                                     value: v.to_string(),
@@ -177,7 +265,7 @@ pub fn apply(
                         });
 
                         // Phase 3B: update the vault with the modification to children
-                        let new_child: Vec<RowVal> = child
+                        let new_child: Vec<RowVal> = i 
                             .iter()
                             .map(|v| {
                                 if &v.column == referencer_col {
@@ -190,7 +278,7 @@ pub fn apply(
                                 }
                             })
                             .collect();
-                        let child_ids = get_ids(&table.id_cols, child);
+                        let child_ids = get_ids(&table.id_cols, &i);
                         vault_vals.push(vault::VaultEntry {
                             vault_id: 0,
                             disguise_id: disguise.disguise_id,
@@ -201,109 +289,24 @@ pub fn apply(
                             referencer_name: "".to_string(),
                             update_type: vault::UPDATE_GUISE,
                             modified_cols: vec![referencer_col.clone()],
-                            old_value: child.clone(),
+                            old_value: i.clone(),
                             new_value: new_child,
                             reverses: None,
                         });
                         stats.decor_dur_3 += start.elapsed();
+                        stats.decor_dur += start.elapsed();
                     }
-                    stats.decor_dur += start.elapsed();
-                }
-                Remove { pred } => {
-                    /*
-                     * PHASE 0: What vault operations must come "after" removal?
-                     * ==> Those that have made the object to remove inaccessible, namely those that would have
-                     * satisfied the predicate, but no longer do.
-                     *
-                     * TODO also undo any operations that happened in that disguise after these decorrelation
-                     * modifications? This only is correct if all decorrelated FKs are to the contactInfo table
-                     * Note: we don't need to redo these because deletion is final!
-                     * TODO need a way to figure out how to get fks to recorrelate...
-                     */
                     
-                    // reverse all possible decorrelations for this table
-                    let start = time::Instant::now();
-                    for (ref_table, ref_col) in &disguise.guise_info.referencers {
-                        if ref_table == &table.name {
-                            vault::reverse_vault_decor_referencer_entries(
-                                disguise.user_id,
-                                &ref_table,
-                                &ref_col, 
-                                // assume just one id col for user
-                                &table.name,
-                                &table.id_cols[0], 
-                                txn,
-                                stats,
-                            )?;
-                         }
-                    }
-                    stats.undo_dur += start.elapsed();
-
-                    /*
-                     * PHASE 1: OBJECT SELECTION
-                     */
-                    let start = time::Instant::now();
-                    let predicated_objs = helpers::get_query_rows_txn(
-                        &select_statement(&table.name, &pred),
-                        txn,
-                        stats,
-                    )?;
-
-                    /* PHASE 2: OBJECT MODIFICATION */
-                    helpers::query_drop_txn(
-                        &Statement::Delete(DeleteStatement {
-                            table_name: string_to_objname(&table.name),
-                            selection: pred.clone(),
-                        }).to_string(),
-                        txn,
-                        stats,
-                    )?;
-                    stats.remove_dur += start.elapsed();
-
-                    /* PHASE 3: VAULT UPDATES */
-                    // XXX removal entries get stored in *all* vaults????
-                    let mut vault_vals = vec![];
-                    for objrow in &predicated_objs {
-                        let ids = get_ids(&table.id_cols, objrow);
-                        for owner_col in &table.owner_cols {
-                            let uid = get_value_of_col(&objrow, &owner_col).unwrap();
-                            if (*disguise.is_owner)(&uid) {
-                                vault_vals.push(vault::VaultEntry {
-                                    vault_id: 0,
-                                    disguise_id: disguise.disguise_id,
-                                    user_id: u64::from_str(&uid).unwrap(),
-                                    guise_name: table.name.clone(),
-                                    guise_id_cols: table.id_cols.clone(),
-                                    guise_ids: ids.clone(),
-                                    referencer_name: "".to_string(),
-                                    update_type: vault::DELETE_GUISE,
-                                    modified_cols: vec![],
-                                    old_value: objrow.clone(),
-                                    new_value: vec![],
-                                    reverses: None,
-                                });
-                            }
-                        }
-                    }
-                }
-                Modify {
-                    pred,
-                    col,
-                    generate_modified_value,
-                    ..
-                } => {
-                    /* PHASE 1: SELECT REFERENCER OBJECTS */
-                    let objs =
-                        get_query_rows_txn(&select_statement(&table.name, &pred), txn, stats)?;
-                    if objs.is_empty() {
-                        continue;
-                    }
-
-                    for obj in &objs {
-                        let old_val = get_value_of_col(&obj, &col).unwrap();
+                    Modify {
+                        col,
+                        generate_modified_value,
+                        ..
+                    } => {
+                        /* PHASE 1: SELECT REFERENCER OBJECTS */
+                        let old_val = get_value_of_col(&i, &col).unwrap();
                         let new_val = (*(generate_modified_value))(&old_val);
 
-                        let selection = get_select_of_row(&table.id_cols, obj);
+                        let selection = get_select_of_row(&table.id_cols, &i);
 
                         /*
                          * PHASE 2: OBJECT MODIFICATIONS
@@ -324,7 +327,7 @@ pub fn apply(
                         /*
                          * PHASE 3: VAULT UPDATES
                          * */
-                        let new_obj: Vec<RowVal> = obj
+                        let new_obj: Vec<RowVal> = i 
                             .iter()
                             .map(|v| {
                                 if &v.column == col {
@@ -340,9 +343,9 @@ pub fn apply(
 
                         // XXX insert a vault entry for every owning user (every fk)
                         // should just update for the calling user, if there is one?
-                        let ids = get_ids(&table.id_cols, obj);
+                        let ids = get_ids(&table.id_cols, &i);
                         for owner_col in &table.owner_cols {
-                            let uid = get_value_of_col(&obj, &owner_col).unwrap();
+                            let uid = get_value_of_col(&i, &owner_col).unwrap();
                             if (*disguise.is_owner)(&uid) {
                                 vault_vals.push(vault::VaultEntry {
                                     vault_id: 0,
@@ -354,7 +357,7 @@ pub fn apply(
                                     referencer_name: "".to_string(),
                                     update_type: vault::UPDATE_GUISE,
                                     modified_cols: vec![col.clone()],
-                                    old_value: obj.clone(),
+                                    old_value: i.clone(),
                                     new_value: new_obj.clone(),
                                     reverses: None,
                                 });
