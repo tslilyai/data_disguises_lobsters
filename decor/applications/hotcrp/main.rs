@@ -86,7 +86,7 @@ fn init_db(prime: bool) -> mysql::Conn {
     db
 }
 
-fn run_test(db: &mut mysql::Conn, disguises: &Vec<types::Disguise>) {
+fn run_test(db: &mut mysql::Conn, disguises: &Vec<types::Disguise>, users: &Vec<u64>) {
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
    file.write("Disguise, NQueries, NQueriesVault, UndoDur, RecordDur, RemoveDur, DecorDur, Duration(ms)\n".as_bytes())
         .unwrap();  
@@ -94,34 +94,21 @@ fn run_test(db: &mut mysql::Conn, disguises: &Vec<types::Disguise>) {
         let mut stats = QueryStat::new();
         let start = time::Instant::now();
         let mut txn = db.start_transaction(TxOpts::default()).unwrap();
-        decor::disguise::apply(Some(disguises[i].user_id as u64), &disguise, &mut txn, &mut stats).unwrap();
+        decor::disguise::apply(Some(users[i]), &disguise, &mut txn, &mut stats).unwrap();
         txn.commit().unwrap();
         let dur = start.elapsed();
    
         file.write(
             format!(
-                "disguise{}, {}, {}, {}, {}, {}\n
-                Decor: Total Duration {}, Pred {}, Guise {}\n
-                Decor: 2A(Gen Parent {}, Insert {}, Update {}, #Queries {})\n
-                Decor: 2B(Duration {}, #Queries {})\n
-                Decor: Vault Entries {}\n
+                "disguise{}, {}, {}, {}, {}, {}, {}\n
                 Total disguise duration: {}\n",
                 disguise.disguise_id,
                 stats.nqueries,
                 stats.nqueries_vault,
-                stats.undo_dur.as_millis(),
                 stats.record_dur.as_millis(),
                 stats.remove_dur.as_millis(),
                 stats.decor_dur.as_millis(),
-                stats.decor_dur_pred.as_millis(),
-                stats.decor_dur_guise.as_millis(),
-                stats.decor_dur_2A_1.as_millis(),
-                stats.decor_dur_2A_2.as_millis(),
-                stats.decor_dur_2A_3.as_millis(),
-                stats.decor_queries_2A,
-                stats.decor_dur_2B.as_millis(),
-                stats.decor_queries_2B,
-                stats.decor_dur_3.as_millis(),
+                stats.mod_dur.as_millis(),
                 dur.as_millis()
             )
             .as_bytes(),
@@ -161,7 +148,8 @@ fn main() {
         let table_cols = datagen::get_schema_tables();
     } else {
         let mut db = init_db(prime);
-        run_test(&mut db, &disguises);
+        let users = vec![0 as u64, (datagen::NUSERS_NONPC+1) as u64];
+        run_test(&mut db, &disguises, &users);
         drop(db);
     }
 }

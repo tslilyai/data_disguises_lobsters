@@ -25,16 +25,7 @@ pub struct QueryStat {
     pub nqueries_vault: usize,
     pub remove_dur: Duration,
     pub decor_dur: Duration,
-    pub decor_dur_pred: Duration,
-    pub decor_dur_guise: Duration,
-    pub decor_dur_2A_1: Duration,
-    pub decor_dur_2A_2: Duration,
-    pub decor_dur_2A_3: Duration,
-    pub decor_queries_2A: usize,
-    pub decor_queries_2B: usize,
-    pub decor_dur_2B: Duration,
-    pub decor_dur_3: Duration,
-    pub undo_dur: Duration,
+    pub mod_dur: Duration,
     pub record_dur: Duration,
     pub qtype: QueryType,
 }
@@ -45,16 +36,7 @@ impl QueryStat {
             duration: Duration::new(0, 0),
             remove_dur: Duration::new(0, 0),
             decor_dur: Duration::new(0, 0),
-            decor_dur_pred: Duration::new(0, 0),
-            decor_dur_guise: Duration::new(0, 0),
-            decor_dur_2A_1: Duration::new(0, 0),
-            decor_dur_2A_2: Duration::new(0, 0),
-            decor_dur_2A_3: Duration::new(0, 0),
-            decor_dur_2B: Duration::new(0, 0),
-            decor_queries_2A: 0,
-            decor_queries_2B: 0,
-            decor_dur_3: Duration::new(0, 0),
-            undo_dur: Duration::new(0, 0),
+            mod_dur: Duration::new(0, 0),
             record_dur: Duration::new(0, 0),
             nqueries: 0,
             nobjects: 0,
@@ -67,14 +49,7 @@ impl QueryStat {
         self.duration = Duration::new(0, 0);
         self.remove_dur = Duration::new(0, 0);
         self.decor_dur = Duration::new(0, 0);
-        self.decor_dur_pred = Duration::new(0, 0);
-        self.decor_dur_guise = Duration::new(0, 0);
-        self.decor_dur_2A_1 = Duration::new(0, 0);
-        self.decor_dur_2A_2 = Duration::new(0, 0);
-        self.decor_dur_2A_3 = Duration::new(0, 0);
-        self.decor_dur_2B = Duration::new(0, 0);
-        self.decor_dur_3 = Duration::new(0, 0);
-        self.undo_dur = Duration::new(0, 0);
+        self.mod_dur = Duration::new(0, 0);
         self.record_dur = Duration::new(0, 0);
         self.nqueries = 0;
         self.nqueries_vault = 0;
