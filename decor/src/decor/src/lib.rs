@@ -7,9 +7,7 @@ use log::warn;
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::*;
-use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
-use std::rc::Rc;
 
 pub mod disguise;
 pub mod helpers;
@@ -65,7 +63,7 @@ pub fn create_schema(
 pub fn record_disguise(
     de: &history::DisguiseEntry,
     pool: &mysql::Pool,
-    threads: Rc<RefCell<Vec<thread::JoinHandle<()>>>>,
+    threads: &mut Vec<thread::JoinHandle<()>>,
     stats: Arc<Mutex<stats::QueryStat>>,
 ) -> Result<(), mysql::Error> {
     history::insert_disguise_history_entry(de, pool, threads, stats);

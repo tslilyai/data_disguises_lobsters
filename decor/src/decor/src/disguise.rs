@@ -7,7 +7,6 @@ use crate::vault;
 use crate::*;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
-use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
 pub fn apply(
@@ -22,7 +21,7 @@ pub fn apply(
         reverse: false,
     };
 
-    let threads = Rc::new(RefCell::new(vec![]));
+    let mut threads = vec![];
 
     let mut vault_vals = vec![];
     for table in &disguise.table_disguises {
@@ -69,7 +68,7 @@ pub fn apply(
                         })
                         .to_string(),
                         pool,
-                        threads.clone(),
+                        &mut threads,
                         stats.clone(),
                     );
                     stats.lock().unwrap().remove_dur += start.elapsed();
@@ -163,7 +162,7 @@ pub fn apply(
                             ]))),
                         })
                         .to_string();
-                        query_drop(stmt, pool, threads.clone(), stats.clone());
+                        query_drop(stmt, pool, &mut threads, stats.clone());
 
                         // TODO 
                         let guise_id = 0;//pool.last_insert_id().unwrap();
@@ -191,7 +190,7 @@ pub fn apply(
                             })
                             .to_string(),
                             pool,
-                            threads.clone(),
+                            &mut threads,
                             stats.clone(),
                         );
 
@@ -287,7 +286,7 @@ pub fn apply(
                             })
                             .to_string(),
                             pool,
-                            threads.clone(),
+                            &mut threads,
                             stats.clone(),
                         );
 
@@ -340,10 +339,13 @@ pub fn apply(
         }
     }
     let start = time::Instant::now();
-    vault::insert_vault_entries(&vault_vals, pool, threads.clone(), stats.clone());
-    record_disguise(&de, pool, threads.clone(), stats.clone())?;
+    vault::insert_vault_entries(&vault_vals, pool, &mut threads, stats.clone());
+    record_disguise(&de, pool, &mut threads, stats.clone())?;
     
-    // TODO wait
+    // wait until all mysql queries are done
+    for jh in threads.into_iter() {
+        assert!(jh.join().is_ok());
+    }
     stats.lock().unwrap().record_dur += start.elapsed();
     Ok(())
 }
@@ -367,7 +369,7 @@ pub fn undo(
     if !history::is_disguise_reversed(&de, pool, stats.clone())? {
         // TODO undo disguise
 
-        record_disguise(&de, pool, Rc::new(RefCell::new(vec![])), stats.clone())?;
+        record_disguise(&de, pool, &mut vec![], stats.clone())?;
     }
     Ok(())
 }

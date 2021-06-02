@@ -3,9 +3,7 @@ use crate::helpers::*;
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::thread;
-use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
-use std::rc::Rc;
 
 pub const HISTORY_TABLE: &'static str = "DisguiseHistory";
 
@@ -55,7 +53,7 @@ pub fn is_disguise_reversed (
 pub fn insert_disguise_history_entry(
     de: &DisguiseEntry,
     pool: &mysql::Pool,
-    threads: Rc<RefCell<Vec<thread::JoinHandle<()>>>>,
+    threads: &mut Vec<thread::JoinHandle<()>>,
     stats: Arc<Mutex<QueryStat>>,
 ) {
     let mut evals = vec![];

@@ -9,9 +9,7 @@ use sql_parser::ast::*;
 use std::str::FromStr;
 use std::*;
 use std::thread;
-use std::cell::RefCell;
 use std::sync::{Mutex, Arc};
-use std::rc::Rc;
 
 pub const NULLSTR: &'static str = "NULL";
 
@@ -30,12 +28,12 @@ pub fn get_value_of_col(row: &Vec<RowVal>, col: &str) -> Option<String> {
 pub fn query_drop(
     q: String,
     pool: &mysql::Pool,
-    threads: Rc<RefCell<Vec<thread::JoinHandle<()>>>>,
+    threads: &mut Vec<thread::JoinHandle<()>>,
     stats: Arc<Mutex<QueryStat>>,
 ) {
     let pool = pool.clone();
     let stats = stats.clone();
-    threads.borrow_mut().push(thread::spawn(move || {
+    threads.push(thread::spawn(move || {
         let mut conn = pool.get_conn().unwrap();
         warn!("query_drop: {}", q);
         if q.contains(VAULT_TABLE) || q.contains(HISTORY_TABLE) {

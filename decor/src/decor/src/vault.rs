@@ -5,12 +5,10 @@ use log::{debug, warn};
 use mysql::prelude::*;
 use serde::Serialize;
 use sql_parser::ast::*;
-use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
-use std::rc::Rc;
 use std::str::FromStr;
 use std::thread;
 
@@ -119,7 +117,7 @@ fn get_vault_entries_with_constraint(
 fn insert_reversed_vault_entry(
     ve: &VaultEntry,
     pool: &mysql::Pool,
-    threads: Rc<RefCell<Vec<thread::JoinHandle<()>>>>,
+    threads: &mut Vec<thread::JoinHandle<()>>,
     stats: Arc<Mutex<QueryStat>>,
 ) {
     warn!("Reversing {:?}", ve);
@@ -248,7 +246,7 @@ pub fn reverse_vault_decor_referencer_entries(
     fktable: &str,
     fkcol: &str,
     pool: &mysql::Pool,
-    threads: Rc<RefCell<Vec<thread::JoinHandle<()>>>>,
+    threads: &mut Vec<thread::JoinHandle<()>>,
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
     // TODO assuming that all FKs point to users
@@ -312,10 +310,10 @@ pub fn reverse_vault_decor_referencer_entries(
                 })
                 .to_string(),
                 pool,
-                threads.clone(),
+                threads,
                 stats.clone(),
             );
-            insert_reversed_vault_entry(&ve, pool, threads.clone(), stats.clone());
+            insert_reversed_vault_entry(&ve, pool, threads, stats.clone());
         }
     }
 
@@ -345,11 +343,11 @@ pub fn reverse_vault_decor_referencer_entries(
             })
             .to_string(),
             pool,
-            threads.clone(),
+            threads,
             stats.clone(),
         );
         // mark vault entries as reversed
-        insert_reversed_vault_entry(&ve, pool, threads.clone(), stats.clone());
+        insert_reversed_vault_entry(&ve, pool, threads, stats.clone());
     }
     vault_entries.append(&mut guise_ves);
     Ok(vault_entries)
@@ -358,7 +356,7 @@ pub fn reverse_vault_decor_referencer_entries(
 pub fn insert_vault_entries(
     entries: &Vec<VaultEntry>,
     pool: &mysql::Pool,
-    threads: Rc<RefCell<Vec<thread::JoinHandle<()>>>>,
+    threads: &mut Vec<thread::JoinHandle<()>>,
     stats: Arc<Mutex<QueryStat>>,
 ) {
     let vault_vals: Vec<Vec<Expr>> = entries
