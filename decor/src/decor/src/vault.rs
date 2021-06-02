@@ -3,13 +3,16 @@ use crate::stats::QueryStat;
 use crate::types::*;
 use log::{debug, warn};
 use mysql::prelude::*;
-use mysql::TxOpts;
 use serde::Serialize;
 use sql_parser::ast::*;
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
+use std::sync::{Arc, Mutex};
+use std::rc::Rc;
 use std::str::FromStr;
+use std::thread;
 
 pub const VAULT_TABLE: &'static str = "VaultTable";
 pub const INSERT_GUISE: u64 = 0;
@@ -43,13 +46,13 @@ fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
 
 fn get_vault_entries_with_constraint(
     constraint: Expr,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
+    pool: &mysql::Pool,
+    stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
-    let rows = get_query_rows_txn(
+    let rows = get_query_rows(
         &select_ordered_statement(VAULT_TABLE, Some(constraint), "vaultId"),
-        txn,
-        stats,
+        pool,
+        stats.clone(),
     )?;
     let mut ves = vec![];
     for row in rows {
@@ -115,9 +118,10 @@ fn get_vault_entries_with_constraint(
 
 fn insert_reversed_vault_entry(
     ve: &VaultEntry,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
-) -> Result<(), mysql::Error> {
+    pool: &mysql::Pool,
+    threads: Rc<RefCell<Vec<thread::JoinHandle<()>>>>,
+    stats: Arc<Mutex<QueryStat>>,
+) {
     warn!("Reversing {:?}", ve);
     let mut evals = vec![];
     // store vault entry metadata
@@ -133,16 +137,17 @@ fn insert_reversed_vault_entry(
     evals.push(vec_to_expr(&ve.new_value));
     evals.push(Expr::Value(Value::Number(ve.vault_id.to_string())));
     let vault_vals: Vec<Vec<Expr>> = vec![evals];
-    query_drop_txn(
-        &Statement::Insert(InsertStatement {
+    query_drop(
+        Statement::Insert(InsertStatement {
             table_name: string_to_objname(VAULT_TABLE),
             columns: get_insert_vault_colnames(),
             source: InsertSource::Query(Box::new(values_query(vault_vals))),
-        }).to_string(),
-        txn,
-        stats,
-    )?;
-    Ok(())
+        })
+        .to_string(),
+        pool,
+        threads,
+        stats.clone(),
+    );
 }
 
 /*
@@ -151,8 +156,8 @@ fn insert_reversed_vault_entry(
 fn get_user_entries_with_referencer_in_vault(
     uid: u64,
     referencer_table: &str,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
+    pool: &mysql::Pool,
+    stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
     let equal_uid_constraint = Expr::BinaryOp {
         left: Box::new(Expr::Identifier(vec![Ident::new("userId")])),
@@ -169,7 +174,7 @@ fn get_user_entries_with_referencer_in_vault(
         op: BinaryOperator::And,
         right: Box::new(ref_constraint),
     };
-    let mut ves = get_vault_entries_with_constraint(final_constraint, txn, stats)?;
+    let mut ves = get_vault_entries_with_constraint(final_constraint, pool, stats)?;
     let mut reversed = HashSet::new();
     let mut applied = vec![];
     while let Some(ve) = ves.pop() {
@@ -188,8 +193,8 @@ fn get_user_entries_with_referencer_in_vault(
 pub fn get_user_entries_of_table_in_vault(
     uid: u64,
     guise_table: &str,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
+    pool: &mysql::Pool,
+    stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
     let equal_uid_constraint = Expr::BinaryOp {
         left: Box::new(Expr::Identifier(vec![Ident::new("userId")])),
@@ -206,7 +211,7 @@ pub fn get_user_entries_of_table_in_vault(
         op: BinaryOperator::And,
         right: Box::new(g_constraint),
     };
-    let mut ves = get_vault_entries_with_constraint(final_constraint, txn, stats)?;
+    let mut ves = get_vault_entries_with_constraint(final_constraint, pool, stats)?;
     let mut reversed = HashSet::new();
     let mut applied = vec![];
     while let Some(ve) = ves.pop() {
@@ -242,8 +247,9 @@ pub fn reverse_vault_decor_referencer_entries(
     referencer_col: &str,
     fktable: &str,
     fkcol: &str,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
+    pool: &mysql::Pool,
+    threads: Rc<RefCell<Vec<thread::JoinHandle<()>>>>,
+    stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
     // TODO assuming that all FKs point to users
 
@@ -253,7 +259,7 @@ pub fn reverse_vault_decor_referencer_entries(
      * join with this "filter" (any updates that happened after this?)
      */
     let mut vault_entries =
-        get_user_entries_of_table_in_vault(user_id, referencer_table, txn, stats)?;
+        get_user_entries_of_table_in_vault(user_id, referencer_table, pool, stats.clone())?;
     warn!(
         "ReverseDecor: User {} reversing {} entries of table {} in vault",
         user_id,
@@ -289,8 +295,8 @@ pub fn reverse_vault_decor_referencer_entries(
 
         // this vault entry logged a modification to the FK. Restore the original value
         if ve.modified_cols.contains(&referencer_col.to_string()) {
-            query_drop_txn(
-                &Statement::Update(UpdateStatement {
+            query_drop(
+                Statement::Update(UpdateStatement {
                     table_name: string_to_objname(referencer_table),
                     assignments: vec![Assignment {
                         id: Ident::new(referencer_col.to_string()),
@@ -303,11 +309,13 @@ pub fn reverse_vault_decor_referencer_entries(
                         op: BinaryOperator::Eq,
                         right: Box::new(Expr::Value(Value::Number(new_id))),
                     }),
-                }).to_string(),
-                txn,
-                stats,
-            )?;
-            insert_reversed_vault_entry(&ve, txn, stats)?;
+                })
+                .to_string(),
+                pool,
+                threads.clone(),
+                stats.clone(),
+            );
+            insert_reversed_vault_entry(&ve, pool, threads.clone(), stats.clone());
         }
     }
 
@@ -316,7 +324,7 @@ pub fn reverse_vault_decor_referencer_entries(
      * TODO can make per-guise-table, rather than assume that only users are guises
      */
     let mut guise_ves =
-        get_user_entries_with_referencer_in_vault(user_id, referencer_table, txn, stats)?;
+        get_user_entries_with_referencer_in_vault(user_id, referencer_table, pool, stats.clone())?;
     warn!(
         "ReverseDecor: User {} reversing {} entries with referencer {} in vault",
         user_id,
@@ -325,8 +333,8 @@ pub fn reverse_vault_decor_referencer_entries(
     );
     for ve in &guise_ves {
         // delete guise
-        query_drop_txn(
-            &Statement::Delete(DeleteStatement {
+        query_drop(
+            Statement::Delete(DeleteStatement {
                 table_name: string_to_objname(fktable),
                 selection: Some(Expr::BinaryOp {
                     left: Box::new(Expr::Identifier(vec![Ident::new(fkcol.to_string())])),
@@ -334,12 +342,14 @@ pub fn reverse_vault_decor_referencer_entries(
                     // XXX assuming guise is a user... only has one id
                     right: Box::new(Expr::Value(Value::Number(ve.guise_ids[0].clone()))),
                 }),
-            }).to_string(),
-            txn,
-            stats,
-        )?;
+            })
+            .to_string(),
+            pool,
+            threads.clone(),
+            stats.clone(),
+        );
         // mark vault entries as reversed
-        insert_reversed_vault_entry(&ve, txn, stats)?;
+        insert_reversed_vault_entry(&ve, pool, threads.clone(), stats.clone());
     }
     vault_entries.append(&mut guise_ves);
     Ok(vault_entries)
@@ -347,9 +357,10 @@ pub fn reverse_vault_decor_referencer_entries(
 
 pub fn insert_vault_entries(
     entries: &Vec<VaultEntry>,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
-) -> Result<(), mysql::Error> {
+    pool: &mysql::Pool,
+    threads: Rc<RefCell<Vec<thread::JoinHandle<()>>>>,
+    stats: Arc<Mutex<QueryStat>>,
+) {
     let vault_vals: Vec<Vec<Expr>> = entries
         .iter()
         .map(|ve| {
@@ -370,32 +381,30 @@ pub fn insert_vault_entries(
             }
             warn!(
                 "InsertVEs: User {} inserting ve for table {}",
-                ve.user_id, ve.guise_name 
+                ve.user_id, ve.guise_name
             );
             evals
         })
         .collect();
     if !vault_vals.is_empty() {
-        query_drop_txn(
-            &Statement::Insert(InsertStatement {
+        query_drop(
+            Statement::Insert(InsertStatement {
                 table_name: string_to_objname(VAULT_TABLE),
                 columns: get_insert_vault_colnames(),
                 source: InsertSource::Query(Box::new(values_query(vault_vals))),
-            }).to_string(),
-            txn,
-            stats,
-        )?;
+            })
+            .to_string(),
+            pool,
+            threads,
+            stats.clone(),
+        );
     }
-    Ok(())
 }
 
-pub fn print_as_filters(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+pub fn print_as_filters(pool: &mysql::Pool) -> Result<(), mysql::Error> {
     let mut file = File::create("vault_filters.out".to_string())?;
-    let mut stats: QueryStat = QueryStat::new();
-    let mut txn = db.start_transaction(TxOpts::default()).unwrap();
-    let ves =
-        get_vault_entries_with_constraint(Expr::Value(Value::Boolean(true)), &mut txn, &mut stats)?;
-    txn.commit()?;
+    let stats = Arc::new(Mutex::new(QueryStat::new()));
+    let ves = get_vault_entries_with_constraint(Expr::Value(Value::Boolean(true)), pool, stats)?;
 
     for ve in ves {
         let filter = match ve.reverses {

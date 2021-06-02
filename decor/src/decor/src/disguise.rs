@@ -7,18 +7,22 @@ use crate::vault;
 use crate::*;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
+use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
 
 pub fn apply(
     user_id: Option<u64>,
     disguise: &Disguise,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
+    pool: &mysql::Pool,
+    stats: Arc<Mutex<QueryStat>>,
 ) -> Result<(), mysql::Error> {
     let de = history::DisguiseEntry {
         user_id: user_id.unwrap_or(0),
         disguise_id: disguise.disguise_id,
         reverse: false,
     };
+
+    let threads = Rc::new(RefCell::new(vec![]));
 
     let mut vault_vals = vec![];
     for table in &disguise.table_disguises {
@@ -49,7 +53,7 @@ pub fn apply(
          * Assign each object its assigned transformations
          */
         for (pred, transform) in &table.transforms {
-            let pred_items = get_query_rows_txn(&select_statement(&table.name, &pred), txn, stats)?;
+            let pred_items = get_query_rows(&select_statement(&table.name, &pred), &pool, stats.clone())?;
 
             // just remove item if it's supposed to be removed
             match transform {
@@ -58,16 +62,17 @@ pub fn apply(
                     let start = time::Instant::now();
 
                     /* PHASE 2: OBJECT MODIFICATION */
-                    helpers::query_drop_txn(
-                        &Statement::Delete(DeleteStatement {
+                    helpers::query_drop(
+                        Statement::Delete(DeleteStatement {
                             table_name: string_to_objname(&table.name),
                             selection: pred.clone(),
                         })
                         .to_string(),
-                        txn,
-                        stats,
-                    )?;
-                    stats.remove_dur += start.elapsed();
+                        pool,
+                        threads.clone(),
+                        stats.clone(),
+                    );
+                    stats.lock().unwrap().remove_dur += start.elapsed();
 
                     /* PHASE 3: VAULT UPDATES */
                     // XXX removal entries get stored in *all* vaults????
@@ -135,15 +140,15 @@ pub fn apply(
                         let old_uid =
                             u64::from_str(&get_value_of_col(&i, &referencer_col).unwrap()).unwrap();
                         warn!(
-                            "decor_obj_txn {}: Creating guises for fkids {:?} {:?}",
+                            "decor_obj {}: Creating guises for fkids {:?} {:?}",
                             table.name, fk_name, old_uid,
                         );
                         let fk_cols = (*disguise.guise_info.col_generation)();
 
                         // skip already decorrelated users
-                        if is_guise(&fk_name, &disguise.guise_info.id_col, old_uid, txn, stats)? {
+                        if is_guise(&fk_name, &disguise.guise_info.id_col, old_uid, pool, stats.clone())? {
                             warn!(
-                                "decor_obj_txn: skipping decorrelation for {}.{}, already a guise",
+                                "decor_obj: skipping decorrelation for {}.{}, already a guise",
                                 fk_name, old_uid
                             );
                             continue;
@@ -158,13 +163,16 @@ pub fn apply(
                             ]))),
                         })
                         .to_string();
-                        query_drop_txn(&stmt, txn, stats)?;
-                        let guise_id = txn.last_insert_id().unwrap();
-                        warn!("decor_obj_txn: inserted guise {}.{}", fk_name, guise_id);
+                        query_drop(stmt, pool, threads.clone(), stats.clone());
+
+                        // TODO 
+                        let guise_id = 0;//pool.last_insert_id().unwrap();
+
+                        warn!("decor_obj: inserted guise {}.{}", fk_name, guise_id);
 
                         // Phase 2B: update child to point to new parent
-                        query_drop_txn(
-                            &Statement::Update(UpdateStatement {
+                        query_drop(
+                            Statement::Update(UpdateStatement {
                                 table_name: string_to_objname(&table.name),
                                 assignments: vec![Assignment {
                                     id: Ident::new(referencer_col.clone()),
@@ -182,9 +190,10 @@ pub fn apply(
                                 }),
                             })
                             .to_string(),
-                            txn,
-                            stats,
-                        )?;
+                            pool,
+                            threads.clone(),
+                            stats.clone(),
+                        );
 
                         /*
                          * PHASE 3: VAULT UPDATES
@@ -250,7 +259,7 @@ pub fn apply(
                                 reverses: None,
                             });
                         }
-                        stats.decor_dur += start.elapsed();
+                        stats.lock().unwrap().decor_dur += start.elapsed();
                     }
 
                     Modify {
@@ -267,8 +276,8 @@ pub fn apply(
                         /*
                          * PHASE 2: OBJECT MODIFICATIONS
                          * */
-                        query_drop_txn(
-                            &Statement::Update(UpdateStatement {
+                        query_drop(
+                            Statement::Update(UpdateStatement {
                                 table_name: string_to_objname(&table.name),
                                 assignments: vec![Assignment {
                                     id: Ident::new(col.clone()),
@@ -277,9 +286,10 @@ pub fn apply(
                                 selection: Some(selection),
                             })
                             .to_string(),
-                            txn,
-                            stats,
-                        )?;
+                            pool,
+                            threads.clone(),
+                            stats.clone(),
+                        );
 
                         /*
                          * PHASE 3: VAULT UPDATES
@@ -322,7 +332,7 @@ pub fn apply(
                                 }
                             }
                         }
-                        stats.mod_dur += start.elapsed();
+                        stats.lock().unwrap().mod_dur += start.elapsed();
                     }
                     _ => unimplemented!("Removes should already have been performed!"),
                 }
@@ -330,17 +340,19 @@ pub fn apply(
         }
     }
     let start = time::Instant::now();
-    vault::insert_vault_entries(&vault_vals, txn, stats)?;
-    record_disguise(&de, txn, stats)?;
-    stats.record_dur += start.elapsed();
+    vault::insert_vault_entries(&vault_vals, pool, threads.clone(), stats.clone());
+    record_disguise(&de, pool, threads.clone(), stats.clone())?;
+    
+    // TODO wait
+    stats.lock().unwrap().record_dur += start.elapsed();
     Ok(())
 }
 
 pub fn undo(
     user_id: Option<u64>,
     disguise_id: u64,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
+    pool: &mysql::Pool,
+    stats: Arc<Mutex<QueryStat>>,
 ) -> Result<(), mysql::Error> {
     let de = history::DisguiseEntry {
         disguise_id: disguise_id,
@@ -352,10 +364,10 @@ pub fn undo(
     };
 
     // only reverse if disguise has been applied
-    if !history::is_disguise_reversed(&de, txn, stats)? {
+    if !history::is_disguise_reversed(&de, pool, stats.clone())? {
         // TODO undo disguise
 
-        record_disguise(&de, txn, stats)?;
+        record_disguise(&de, pool, Rc::new(RefCell::new(vec![])), stats.clone())?;
     }
     Ok(())
 }

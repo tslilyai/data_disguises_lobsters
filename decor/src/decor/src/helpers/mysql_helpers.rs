@@ -8,6 +8,10 @@ use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::str::FromStr;
 use std::*;
+use std::thread;
+use std::cell::RefCell;
+use std::sync::{Mutex, Arc};
+use std::rc::Rc;
 
 pub const NULLSTR: &'static str = "NULL";
 
@@ -23,37 +27,43 @@ pub fn get_value_of_col(row: &Vec<RowVal>, col: &str) -> Option<String> {
     None
 }
 
-pub fn query_drop_txn(
-    q: &str,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
-) -> Result<(), mysql::Error> {
-    warn!("query_drop_txn: {}", q);
-    if q.contains(VAULT_TABLE) || q.contains(HISTORY_TABLE) {
-        stats.nqueries_vault += 1;
-    } else {
-        stats.nqueries += 1;
-    }
-    txn.query_drop(q)?;
-    Ok(())
+pub fn query_drop(
+    q: String,
+    pool: &mysql::Pool,
+    threads: Rc<RefCell<Vec<thread::JoinHandle<()>>>>,
+    stats: Arc<Mutex<QueryStat>>,
+) {
+    let pool = pool.clone();
+    let stats = stats.clone();
+    threads.borrow_mut().push(thread::spawn(move || {
+        let mut conn = pool.get_conn().unwrap();
+        warn!("query_drop: {}", q);
+        if q.contains(VAULT_TABLE) || q.contains(HISTORY_TABLE) {
+            stats.lock().unwrap().nqueries_vault += 1;
+        } else {
+            stats.lock().unwrap().nqueries += 1;
+        }
+        assert!(conn.query_drop(q).is_ok());
+    }));
 }
 
 
-pub fn get_query_rows_txn(
+pub fn get_query_rows(
     q: &Statement,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
+    pool: &mysql::Pool,
+    stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     let mut rows = vec![];
-
+    
+    let mut conn = pool.get_conn()?;
     let qstr = q.to_string();
-    warn!("get_query_rows_txn: {}", qstr);
+    warn!("get_query_rows: {}", qstr);
     if qstr.contains(VAULT_TABLE) || qstr.contains(HISTORY_TABLE) {
-        stats.nqueries_vault += 1;
+        stats.lock().unwrap().nqueries_vault += 1;
     } else {
-        stats.nqueries += 1;
+        stats.lock().unwrap().nqueries += 1;
     }
-    let res = txn.query_iter(qstr)?;
+    let res = conn.query_iter(qstr)?;
     let cols: Vec<String> = res
         .columns()
         .as_ref()

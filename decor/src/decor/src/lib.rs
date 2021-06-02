@@ -7,6 +7,9 @@ use log::warn;
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::*;
+use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
+use std::rc::Rc;
 
 pub mod disguise;
 pub mod helpers;
@@ -61,10 +64,11 @@ pub fn create_schema(
 
 pub fn record_disguise(
     de: &history::DisguiseEntry,
-    txn: &mut mysql::Transaction,
-    stats: &mut stats::QueryStat,
+    pool: &mysql::Pool,
+    threads: Rc<RefCell<Vec<thread::JoinHandle<()>>>>,
+    stats: Arc<Mutex<stats::QueryStat>>,
 ) -> Result<(), mysql::Error> {
-    history::insert_disguise_history_entry(de, txn, stats)?;
+    history::insert_disguise_history_entry(de, pool, threads, stats);
     Ok(())
 }
 
@@ -72,8 +76,8 @@ pub fn is_guise(
     table_name: &str,
     guise_id_col: &str,
     id: u64,
-    txn: &mut mysql::Transaction,
-    stats: &mut stats::QueryStat,
+    pool: &mysql::Pool,
+    stats: Arc<Mutex<stats::QueryStat>>,
 ) -> Result<bool, mysql::Error> {
     let equal_uid_constraint = Expr::BinaryOp {
         // TODO 
@@ -91,9 +95,9 @@ pub fn is_guise(
         op: BinaryOperator::And,
         right: Box::new(guise_constraint),
     };
-    let is_guise = helpers::get_query_rows_txn(
+    let is_guise = helpers::get_query_rows(
         &helpers::select_1_statement(&table_name, Some(final_constraint)),
-        txn,
+        pool,
         stats,
     )?;
 

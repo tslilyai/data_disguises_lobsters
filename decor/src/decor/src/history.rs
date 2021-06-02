@@ -2,6 +2,10 @@ use crate::stats::QueryStat;
 use crate::helpers::*;
 use mysql::prelude::*;
 use sql_parser::ast::*;
+use std::thread;
+use std::cell::RefCell;
+use std::sync::{Arc, Mutex};
+use std::rc::Rc;
 
 pub const HISTORY_TABLE: &'static str = "DisguiseHistory";
 
@@ -17,8 +21,8 @@ pub struct DisguiseEntry {
  */
 pub fn is_disguise_reversed (
     de: &DisguiseEntry,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
+    pool: &mysql::Pool,
+    stats: Arc<Mutex<QueryStat>>,
 ) -> Result<bool, mysql::Error> {
     let equal_uid_constraint = Expr::BinaryOp {
          left: Box::new(Expr::Identifier(vec![Ident::new("userId")])),
@@ -36,7 +40,7 @@ pub fn is_disguise_reversed (
          right: Box::new(disguise_constraint),
      };
 
-    let rows = get_query_rows_txn(&select_ordered_statement(HISTORY_TABLE, Some(constraint), "historyId"), txn, stats)?;
+    let rows = get_query_rows(&select_ordered_statement(HISTORY_TABLE, Some(constraint), "historyId"), pool, stats)?;
     let mut is_reversed = true;
     for r in rows {
         if &get_value_of_col(&r, "reverse").unwrap() == "0" {
@@ -50,23 +54,24 @@ pub fn is_disguise_reversed (
 
 pub fn insert_disguise_history_entry(
     de: &DisguiseEntry,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
-) -> Result<(), mysql::Error> {
+    pool: &mysql::Pool,
+    threads: Rc<RefCell<Vec<thread::JoinHandle<()>>>>,
+    stats: Arc<Mutex<QueryStat>>,
+) {
     let mut evals = vec![];
     evals.push(Expr::Value(Value::Number(de.disguise_id.to_string())));
     evals.push(Expr::Value(Value::Number(de.user_id.to_string())));
     evals.push(Expr::Value(Value::Boolean(de.reverse)));
-    get_query_rows_txn(
-        &Statement::Insert(InsertStatement {
+    query_drop(
+        Statement::Insert(InsertStatement {
             table_name: string_to_objname(HISTORY_TABLE),
             columns: get_insert_disguise_colnames(),
             source: InsertSource::Query(Box::new(values_query(vec![evals]))),
-        }),
-        txn,
+        }).to_string(),
+        pool,
+        threads,
         stats,
-    )?;
-    Ok(())
+    );
 }
 
 fn get_insert_disguise_colnames() -> Vec<Ident> {
