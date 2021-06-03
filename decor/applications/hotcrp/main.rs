@@ -6,11 +6,12 @@ extern crate rand;
 
 use log::warn;
 use mysql::prelude::*;
-use mysql::TxOpts;
+use mysql::{Pool, Opts, Conn};
 use std::fs::File;
 use std::io::Write;
 use std::*;
 use structopt::StructOpt;
+use std::sync::{Mutex, Arc};
 
 mod conf_anon_disguise;
 mod datagen;
@@ -66,10 +67,10 @@ fn init_logger() {
         .try_init();
 }
 
-fn init_db(prime: bool) -> mysql::Conn {
+fn init_db(prime: bool) -> Pool {
     let test_dbname = format!("{}", DBNAME);
-    let url = String::from("mysql://tslilyai:pass@127.0.0.1");
-    let mut db = mysql::Conn::new(&url).unwrap();
+    let url = format!("mysql://tslilyai:pass@127.0.0.1");
+    let mut db = Conn::new(&url).unwrap();
     if prime {
         warn!("Priming database");
         db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname))
@@ -79,25 +80,28 @@ fn init_db(prime: bool) -> mysql::Conn {
         assert_eq!(db.ping(), true);
         assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
         datagen::populate_database(&mut db).unwrap();
-    } else {
+    }
+    else {
         assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
         datagen::populate_database(&mut db).unwrap();
     }
-    db
+
+    let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", test_dbname);
+    let opts = Opts::from_url(&url).unwrap();
+    Pool::new(opts).unwrap()
 }
 
-fn run_test(db: &mut mysql::Conn, disguises: &Vec<types::Disguise>, users: &Vec<u64>) {
+fn run_test(pool: &mysql::Pool, disguises: &Vec<types::Disguise>, users: &Vec<u64>) {
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
    file.write("Disguise, NQueries, NQueriesVault, UndoDur, RecordDur, RemoveDur, DecorDur, Duration(ms)\n".as_bytes())
         .unwrap();  
    for (i, disguise) in disguises.iter().enumerate() {
-        let mut stats = QueryStat::new();
+        let stats = Arc::new(Mutex::new(QueryStat::new()));
         let start = time::Instant::now();
-        let mut txn = db.start_transaction(TxOpts::default()).unwrap();
-        decor::disguise::apply(Some(users[i]), &disguise, &mut txn, &mut stats).unwrap();
-        txn.commit().unwrap();
+        decor::disguise::apply(Some(users[i]), &disguise, pool, stats.clone()).unwrap();
         let dur = start.elapsed();
-   
+  
+        let stats = stats.lock().unwrap();
         file.write(
             format!(
                 "disguise{}, {}, {}, {}, {}, {}, {}\n
@@ -115,11 +119,10 @@ fn run_test(db: &mut mysql::Conn, disguises: &Vec<types::Disguise>, users: &Vec<
         )
         .unwrap();
     }
-
     
     file.flush().unwrap();
 
-    vault::print_as_filters(db).unwrap();
+    vault::print_as_filters(pool).unwrap();
 }
 
 fn main() {
