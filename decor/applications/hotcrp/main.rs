@@ -59,8 +59,8 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
-        //.filter_level(log::LevelFilter::Error)
+        //.filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -132,7 +132,7 @@ fn main() {
     let prime = args.prime;
     let spec = args.spec;
 
-    let mut disguises = vec![
+    let disguises = vec![
         conf_anon_disguise::get_disguise(),
         //gdpr_disguise::get_disguise((1) as u64),
         gdpr_disguise::get_disguise((datagen::NUSERS_NONPC+1) as u64),
@@ -148,11 +148,10 @@ fn main() {
     }*/
 
     if spec {
-        let table_cols = datagen::get_schema_tables();
     } else {
-        let mut db = init_db(prime);
+        let pool = init_db(prime);
         let users = vec![0 as u64, (datagen::NUSERS_NONPC+1) as u64];
-        run_test(&mut db, &disguises, &users);
-        drop(db);
+        run_test(&pool, &disguises, &users);
+        drop(pool);
     }
 }
