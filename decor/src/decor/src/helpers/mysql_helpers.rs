@@ -8,7 +8,6 @@ use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::str::FromStr;
 use std::*;
-use std::thread;
 use std::sync::{Mutex, Arc};
 
 pub const NULLSTR: &'static str = "NULL";
@@ -27,7 +26,7 @@ pub fn get_value_of_col(row: &Vec<RowVal>, col: &str) -> Option<String> {
 
 pub fn query_drop(
     q: String,
-    conn: &mysql::PooledConn,
+    conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) {
     let stats = stats.clone();
@@ -43,7 +42,7 @@ pub fn query_drop(
 
 pub fn get_query_rows(
     q: &Statement,
-    conn: &mysql::PooledConn,
+    conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     let mut rows = vec![];

@@ -2,7 +2,6 @@ use crate::stats::QueryStat;
 use crate::helpers::*;
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use std::thread;
 use std::sync::{Arc, Mutex};
 
 pub const HISTORY_TABLE: &'static str = "DisguiseHistory";
@@ -19,7 +18,7 @@ pub struct DisguiseEntry {
  */
 pub fn is_disguise_reversed (
     de: &DisguiseEntry,
-    conn: &mysql::PooledConn,
+    conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<bool, mysql::Error> {
     let equal_uid_constraint = Expr::BinaryOp {
@@ -52,7 +51,7 @@ pub fn is_disguise_reversed (
 
 pub fn insert_disguise_history_entry(
     de: &DisguiseEntry,
-    conn: &mysql::PooledConn,
+    conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) {
     let mut evals = vec![];

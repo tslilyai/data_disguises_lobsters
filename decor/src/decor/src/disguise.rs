@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 
 pub fn apply(
     user_id: Option<u64>,
-    disguise: &Disguise,
+    disguise: &'static Disguise,
     pool: &mysql::Pool,
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<(), mysql::Error> {
@@ -21,14 +21,17 @@ pub fn apply(
         reverse: false,
     };
 
-    let conn = pool.get_conn()?;
+    let mut conn = pool.get_conn()?;
     let mut threads = vec![];
 
     for table in &disguise.table_disguises {
         let pool = pool.clone();
-        let mut vault_vals = vec![];
+        let vault_vals = Arc::new(Mutex::new(vec![]));
+        let mystats = stats.clone();
+        let myvv = vault_vals.clone();
         threads.push(thread::spawn(move || {
-            let conn = pool.get_conn().unwrap();
+            let table = table.read().unwrap();
+            let mut conn = pool.get_conn().unwrap();
             let mut items: HashMap<Vec<RowVal>, Vec<&Transform>> = HashMap::new();
             let mut removed_items: HashSet<Vec<RowVal>> = HashSet::new();
 
@@ -38,7 +41,7 @@ pub fn apply(
             for (ref_table, ref_col) in &disguise.guise_info.referencers {
                 if ref_table == &table.name {
                     vault::reverse_vault_decor_referencer_entries(
-                        disguise.user_id,
+                        user_id,
                         &ref_table,
                         &ref_col,
                         // assume just one id col for user
@@ -57,7 +60,8 @@ pub fn apply(
              */
             for (pred, transform) in &table.transforms {
                 let pred_items =
-                    get_query_rows(&select_statement(&table.name, &pred), &conn, stats.clone()).unwrap();
+                    get_query_rows(&select_statement(&table.name, &pred), &mut conn, mystats.clone())
+                        .unwrap();
 
                 // just remove item if it's supposed to be removed
                 match transform {
@@ -72,10 +76,10 @@ pub fn apply(
                                 selection: pred.clone(),
                             })
                             .to_string(),
-                            &conn,
-                            stats.clone(),
+                            &mut conn,
+                            mystats.clone(),
                         );
-                        stats.lock().unwrap().remove_dur += start.elapsed();
+                        mystats.lock().unwrap().remove_dur += start.elapsed();
 
                         /* PHASE 3: VAULT UPDATES */
                         // XXX removal entries get stored in *all* vaults????
@@ -84,8 +88,8 @@ pub fn apply(
                                 let ids = get_ids(&table.id_cols, i);
                                 for owner_col in &table.owner_cols {
                                     let uid = get_value_of_col(&i, &owner_col).unwrap();
-                                    if (*disguise.is_owner)(&uid) {
-                                        vault_vals.push(vault::VaultEntry {
+                                    if (*disguise.is_owner.read().unwrap())(&uid) {
+                                        myvv.lock().unwrap().push(vault::VaultEntry {
                                             vault_id: 0,
                                             disguise_id: disguise.disguise_id,
                                             user_id: u64::from_str(&uid).unwrap(),
@@ -125,7 +129,7 @@ pub fn apply(
             }
 
             // get and apply the transformations for each object
-            let fk_cols = (*disguise.guise_info.col_generation)();
+            let fk_cols = (*disguise.guise_info.read().unwrap().col_generation)();
             for (i, ts) in items {
                 let mut to_insert = vec![];
                 let mut cols_to_update = vec![];
@@ -147,7 +151,8 @@ pub fn apply(
 
                             // get ID of parent
                             let old_uid =
-                                u64::from_str(&get_value_of_col(&i, &referencer_col).unwrap()).unwrap();
+                                u64::from_str(&get_value_of_col(&i, &referencer_col).unwrap())
+                                    .unwrap();
                             warn!(
                                 "decor_obj {}: Creating guises for fkids {:?} {:?}",
                                 table.name, fk_name, old_uid,
@@ -156,11 +161,13 @@ pub fn apply(
                             // skip already decorrelated users
                             if is_guise(
                                 &fk_name,
-                                &disguise.guise_info.id_col,
+                                &disguise.guise_info.read().unwrap().id_col,
                                 old_uid,
-                                &conn,
-                                stats.clone(),
-                            ).unwrap() {
+                                &mut conn,
+                                mystats.clone(),
+                            )
+                            .unwrap()
+                            {
                                 warn!(
                                     "decor_obj: skipping decorrelation for {}.{}, already a guise",
                                     fk_name, old_uid
@@ -169,10 +176,10 @@ pub fn apply(
                             }
 
                             // Phase 2A: create new parent
-                            let new_parent = (*disguise.guise_info.val_generation)();
-                            let guise_id = new_parent[0];
+                            let new_parent = (*disguise.guise_info.read().unwrap().val_generation)();
+                            let guise_id = new_parent[0].to_string();
                             warn!("decor_obj: inserted guise {}.{}", fk_name, guise_id);
-                            to_insert.push(new_parent);
+                            to_insert.push(new_parent.clone());
 
                             // Phase 2B: update child guise
                             cols_to_update.push(Assignment {
@@ -199,12 +206,12 @@ pub fn apply(
                                         }
                                     })
                                     .collect();
-                                vault_vals.push(vault::VaultEntry {
+                                myvv.lock().unwrap().push(vault::VaultEntry {
                                     vault_id: 0,
                                     disguise_id: disguise.disguise_id,
                                     user_id: old_uid,
                                     guise_name: fk_name.clone(),
-                                    guise_id_cols: vec![disguise.guise_info.id_col.clone()],
+                                    guise_id_cols: vec![disguise.guise_info.read().unwrap().id_col.clone()],
                                     guise_ids: vec![guise_id.to_string()],
                                     referencer_name: table.name.clone(),
                                     update_type: vault::INSERT_GUISE,
@@ -228,7 +235,7 @@ pub fn apply(
                                         }
                                     })
                                     .collect();
-                                vault_vals.push(vault::VaultEntry {
+                                myvv.lock().unwrap().push(vault::VaultEntry {
                                     vault_id: 0,
                                     disguise_id: disguise.disguise_id,
                                     user_id: old_uid,
@@ -243,7 +250,7 @@ pub fn apply(
                                     reverses: None,
                                 });
                             }
-                            stats.lock().unwrap().decor_dur += start.elapsed();
+                            mystats.lock().unwrap().decor_dur += start.elapsed();
                         }
 
                         Modify {
@@ -287,8 +294,8 @@ pub fn apply(
                                 let ids = get_ids(&table.id_cols, &i);
                                 for owner_col in &table.owner_cols {
                                     let uid = get_value_of_col(&i, &owner_col).unwrap();
-                                    if (*disguise.is_owner)(&uid) {
-                                        vault_vals.push(vault::VaultEntry {
+                                    if (*disguise.is_owner.read().unwrap())(&uid) {
+                                        myvv.lock().unwrap().push(vault::VaultEntry {
                                             vault_id: 0,
                                             disguise_id: disguise.disguise_id,
                                             user_id: u64::from_str(&uid).unwrap(),
@@ -305,21 +312,23 @@ pub fn apply(
                                     }
                                 }
                             }
-                            stats.lock().unwrap().mod_dur += start.elapsed();
+                            mystats.lock().unwrap().mod_dur += start.elapsed();
                         }
                         _ => unimplemented!("Removes should already have been performed!"),
                     }
                 }
+
+                // TODO assuming that there is only one guise
                 // inserts
                 query_drop(
                     Statement::Insert(InsertStatement {
-                        table_name: string_to_objname(&disguise.guise_info.name),
+                        table_name: string_to_objname(&disguise.guise_info.read().unwrap().name),
                         columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
                         source: InsertSource::Query(Box::new(values_query(to_insert))),
                     })
                     .to_string(),
-                    &conn,
-                    stats.clone(),
+                    &mut conn,
+                    mystats.clone(),
                 );
 
                 // updates
@@ -330,15 +339,15 @@ pub fn apply(
                         selection: Some(i_select),
                     })
                     .to_string(),
-                    &conn,
-                    stats.clone(),
+                    &mut conn,
+                    mystats.clone(),
                 );
             }
-        vault::insert_vault_entries(&vault_vals, &conn, stats.clone());
         }));
+        vault::insert_vault_entries(&vault_vals.lock().unwrap(), &mut conn, stats.clone());
     }
     let start = time::Instant::now();
-    record_disguise(&de, &conn, stats.clone())?;
+    record_disguise(&de, &mut conn, stats.clone())?;
 
     // wait until all mysql queries are done
     for jh in threads.into_iter() {
@@ -362,14 +371,14 @@ pub fn undo(
         },
         reverse: true,
     };
-    
-    let conn = pool.get_conn()?;
+
+    let mut conn = pool.get_conn()?;
 
     // only reverse if disguise has been applied
-    if !history::is_disguise_reversed(&de, &conn, stats.clone())? {
+    if !history::is_disguise_reversed(&de, &mut conn, stats.clone())? {
         // TODO undo disguise
 
-        record_disguise(&de, &conn, stats.clone())?;
+        record_disguise(&de, &mut conn, stats.clone())?;
     }
     Ok(())
 }

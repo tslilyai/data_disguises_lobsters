@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
+use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ColFormat {
@@ -35,9 +36,9 @@ pub enum Transform {
         // name of column
         col: String,
         // how to generate a modified value
-        generate_modified_value: Box<dyn Fn(&str) -> String>,
+        generate_modified_value: Box<dyn Fn(&str) -> String + Send + Sync>,
         // post-application check that value satisfies modification
-        satisfies_modification: Box<dyn Fn(&str) -> bool>,
+        satisfies_modification: Box<dyn Fn(&str) -> bool + Send + Sync>,
     },
     Decor {
         referencer_col: String,
@@ -56,17 +57,17 @@ pub struct TableDisguise {
 pub struct GuiseInfo {
     pub name: String,
     pub id_col: String, // XXX assume there's only one id col for a guise
-    pub col_generation: Box<dyn Fn() -> Vec<&'static str>>,
-    pub val_generation: Box<dyn Fn() -> Vec<Expr>>,
+    pub col_generation: Box<dyn Fn() -> Vec<String> + Send + Sync>,
+    pub val_generation: Box<dyn Fn() -> Vec<Expr> + Send + Sync>,
     pub referencers: Vec<(String, String)>,
 }
 
 pub struct Disguise {
     pub disguise_id: u64,
-    pub table_disguises: Vec<TableDisguise>,
+    pub table_disguises: Vec<Arc<RwLock<TableDisguise>>>,
     // used to determine if a particular UID belongs to the "owner" of the disguise
-    pub is_owner: Box<dyn Fn(&str) -> bool>,
+    pub is_owner: Arc<RwLock<Box<dyn Fn(&str) -> bool + Send + Sync>>>,
     // used to generate new guises
-    pub guise_info: GuiseInfo,
+    pub guise_info: Arc<RwLock<GuiseInfo>>,
     pub is_reversible: bool,
 }

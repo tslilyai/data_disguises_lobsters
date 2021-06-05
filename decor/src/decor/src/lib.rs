@@ -64,7 +64,7 @@ pub fn create_schema(
 
 pub fn record_disguise(
     de: &history::DisguiseEntry,
-    conn: &mysql::PooledConn,
+    conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<stats::QueryStat>>,
 ) -> Result<(), mysql::Error> {
     history::insert_disguise_history_entry(de, conn, stats);
