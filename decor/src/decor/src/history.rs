@@ -19,7 +19,7 @@ pub struct DisguiseEntry {
  */
 pub fn is_disguise_reversed (
     de: &DisguiseEntry,
-    pool: &mysql::Pool,
+    conn: &mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<bool, mysql::Error> {
     let equal_uid_constraint = Expr::BinaryOp {
@@ -38,7 +38,7 @@ pub fn is_disguise_reversed (
          right: Box::new(disguise_constraint),
      };
 
-    let rows = get_query_rows(&select_ordered_statement(HISTORY_TABLE, Some(constraint), "historyId"), pool, stats)?;
+    let rows = get_query_rows(&select_ordered_statement(HISTORY_TABLE, Some(constraint), "historyId"), conn, stats)?;
     let mut is_reversed = true;
     for r in rows {
         if &get_value_of_col(&r, "reverse").unwrap() == "0" {
@@ -52,8 +52,7 @@ pub fn is_disguise_reversed (
 
 pub fn insert_disguise_history_entry(
     de: &DisguiseEntry,
-    pool: &mysql::Pool,
-    threads: &mut Vec<thread::JoinHandle<()>>,
+    conn: &mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) {
     let mut evals = vec![];
@@ -66,8 +65,7 @@ pub fn insert_disguise_history_entry(
             columns: get_insert_disguise_colnames(),
             source: InsertSource::Query(Box::new(values_query(vec![evals]))),
         }).to_string(),
-        pool,
-        threads,
+        conn,
         stats,
     );
 }

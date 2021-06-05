@@ -1,6 +1,9 @@
 use crate::datagen::*;
 use decor::helpers::*;
 use sql_parser::ast::*;
+use std::sync::atomic::{AtomicU64, Ordering};
+   
+static GUISE_ID : AtomicU64 = AtomicU64::new(1<<5);
 
 pub const ANON_PW: &'static str = "password123";
 
@@ -10,6 +13,7 @@ pub fn get_random_email() -> String {
 
 pub fn get_insert_guise_contact_info_cols() -> Vec<&'static str> {
     vec![
+        "contactId",,
         "firstName",
         "lastName",
         "unaccentedName",
@@ -34,7 +38,9 @@ pub fn get_insert_guise_contact_info_cols() -> Vec<&'static str> {
 }
 
 pub fn get_insert_guise_contact_info_vals() -> Vec<Expr> {
+    GUISE_ID.fetch_add(1, Ordering::SeqCst);
     vec![
+        Expr::Value(Value::Number(GUISE_ID.to_string())),
         Expr::Value(Value::String(String::new())),
         Expr::Value(Value::String(String::new())),
         Expr::Value(Value::String(String::new())),
@@ -85,6 +91,7 @@ pub fn get_contact_info_cols() -> Vec<&'static str> {
 }
 
 pub fn get_contact_info_vals(uid: usize) -> Vec<Expr> {
+    assert!(uid < GUISE_ID.load(Ordering::SeqCst));
     vec![
         Expr::Value(Value::Number(uid.to_string())),
         Expr::Value(Value::String(get_random_string())),

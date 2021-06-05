@@ -27,33 +27,27 @@ pub fn get_value_of_col(row: &Vec<RowVal>, col: &str) -> Option<String> {
 
 pub fn query_drop(
     q: String,
-    pool: &mysql::Pool,
-    threads: &mut Vec<thread::JoinHandle<()>>,
+    conn: &mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) {
-    let pool = pool.clone();
     let stats = stats.clone();
-    threads.push(thread::spawn(move || {
-        let mut conn = pool.get_conn().unwrap();
-        warn!("query_drop: {}", q);
-        if q.contains(VAULT_TABLE) || q.contains(HISTORY_TABLE) {
-            stats.lock().unwrap().nqueries_vault += 1;
-        } else {
-            stats.lock().unwrap().nqueries += 1;
-        }
-        assert!(conn.query_drop(q).is_ok());
-    }));
+    warn!("query_drop: {}", q);
+    if q.contains(VAULT_TABLE) || q.contains(HISTORY_TABLE) {
+        stats.lock().unwrap().nqueries_vault += 1;
+    } else {
+        stats.lock().unwrap().nqueries += 1;
+    }
+    assert!(conn.query_drop(q).is_ok());
 }
 
 
 pub fn get_query_rows(
     q: &Statement,
-    pool: &mysql::Pool,
+    conn: &mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     let mut rows = vec![];
     
-    let mut conn = pool.get_conn()?;
     let qstr = q.to_string();
     warn!("get_query_rows: {}", qstr);
     if qstr.contains(VAULT_TABLE) || qstr.contains(HISTORY_TABLE) {

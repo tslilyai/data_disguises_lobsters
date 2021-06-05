@@ -17,6 +17,8 @@ pub mod stats;
 pub mod types;
 pub mod vault;
 
+const GUISE_ID_LB : u64 = 1<<5;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
     pub testname: String,
@@ -62,11 +64,10 @@ pub fn create_schema(
 
 pub fn record_disguise(
     de: &history::DisguiseEntry,
-    pool: &mysql::Pool,
-    threads: &mut Vec<thread::JoinHandle<()>>,
+    conn: &mysql::PooledConn,
     stats: Arc<Mutex<stats::QueryStat>>,
 ) -> Result<(), mysql::Error> {
-    history::insert_disguise_history_entry(de, pool, threads, stats);
+    history::insert_disguise_history_entry(de, conn, stats);
     Ok(())
 }
 
@@ -74,10 +75,11 @@ pub fn is_guise(
     table_name: &str,
     guise_id_col: &str,
     id: u64,
-    pool: &mysql::Pool,
+    conn: &mysql::PooledConn,
     stats: Arc<Mutex<stats::QueryStat>>,
 ) -> Result<bool, mysql::Error> {
-    let equal_uid_constraint = Expr::BinaryOp {
+    let is_guise : bool = id > GUISE_ID_LB;
+    /*let equal_uid_constraint = Expr::BinaryOp {
         // TODO 
         left: Box::new(Expr::Identifier(vec![Ident::new(guise_id_col.to_string())])),
         op: BinaryOperator::Eq,
@@ -95,10 +97,11 @@ pub fn is_guise(
     };
     let is_guise = helpers::get_query_rows(
         &helpers::select_1_statement(&table_name, Some(final_constraint)),
-        pool,
+        conn,
         stats,
     )?;
 
     // if it is a guise, continue
-    Ok(!is_guise.is_empty())
+    Ok(!is_guise.is_empty())*/
+    Ok(is_guise)
 }

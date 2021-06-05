@@ -93,7 +93,7 @@ fn init_db(prime: bool) -> Pool {
 
 fn run_test(pool: &mysql::Pool, disguises: &Vec<types::Disguise>, users: &Vec<u64>) {
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
-   file.write("Disguise, NQueries, NQueriesVault, UndoDur, RecordDur, RemoveDur, DecorDur, Duration(ms)\n".as_bytes())
+   file.write("Disguise, NQueries, NQueriesVault, RecordDur, RemoveDur, DecorDur, ModDur, Duration(ms)\n".as_bytes())
         .unwrap();  
    for (i, disguise) in disguises.iter().enumerate() {
         let stats = Arc::new(Mutex::new(QueryStat::new()));
