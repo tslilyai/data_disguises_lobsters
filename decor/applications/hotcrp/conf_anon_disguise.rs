@@ -2,6 +2,7 @@ use crate::datagen::*;
 use crate::*;
 use decor::types::*;
 use sql_parser::ast::*;
+use std::sync::{Arc, RwLock};
 
 const ROLE_PC: u64 = 1;
 
@@ -9,21 +10,21 @@ pub fn get_disguise() -> Disguise {
     Disguise {
         disguise_id: CONF_ANON_DISGUISE_ID,
         table_disguises: get_table_disguises(),
-        is_owner: Box::new(|_| true),
-        guise_info: GuiseInfo {
+        is_owner: Arc::new(RwLock::new(Box::new(|_| true))),
+        guise_info: Arc::new(RwLock::new(GuiseInfo {
             name: SCHEMA_UID_TABLE.to_string(),
             id_col: SCHEMA_UID_COL.to_string(),
             col_generation: Box::new(get_insert_guise_contact_info_cols),
             val_generation: Box::new(get_insert_guise_contact_info_vals),
             referencers: vec![],
-        },
+        })),
         is_reversible: true,
     }
 }
 
-fn get_table_disguises() -> Vec<TableDisguise> {
+fn get_table_disguises() -> Vec<Arc<RwLock<TableDisguise>>> {
     vec![
-        TableDisguise {
+        Arc::new(RwLock::new(TableDisguise {
             name: "ContactInfo".to_string(),
             id_cols: vec!["contactId".to_string()],
             owner_cols: vec!["contactId".to_string()],
@@ -48,8 +49,8 @@ fn get_table_disguises() -> Vec<TableDisguise> {
                     },
                 ),
             ],
-        },
-        TableDisguise {
+        })),
+        Arc::new(RwLock::new(TableDisguise {
             name: "PaperWatch".to_string(),
             id_cols: vec!["paperWatchId".to_string()],
             owner_cols: vec!["contactId".to_string()],
@@ -61,8 +62,8 @@ fn get_table_disguises() -> Vec<TableDisguise> {
                     fk_col: "contactId".to_string(),
                 },
             )],
-        },
-        TableDisguise {
+        })),
+        Arc::new(RwLock::new(TableDisguise {
             name: "PaperReviewPreference".to_string(),
             id_cols: vec!["paperRevPrefId".to_string()],
             owner_cols: vec!["contactId".to_string()],
@@ -74,8 +75,8 @@ fn get_table_disguises() -> Vec<TableDisguise> {
                     fk_col: "contactId".to_string(),
                 },
             )],
-        },
-        TableDisguise {
+        })),
+        Arc::new(RwLock::new(TableDisguise {
             name: "PaperReviewRefused".to_string(),
             id_cols: vec!["paperId".to_string(), "email".to_string()],
             owner_cols: vec!["requestedBy".to_string(), "refusedBy".to_string()],
@@ -97,8 +98,8 @@ fn get_table_disguises() -> Vec<TableDisguise> {
                     },
                 ),
             ],
-        },
-        TableDisguise {
+        })),
+        Arc::new(RwLock::new(TableDisguise {
             name: "ActionLog".to_string(),
             id_cols: vec!["logId".to_string()],
             owner_cols: vec![
@@ -132,8 +133,8 @@ fn get_table_disguises() -> Vec<TableDisguise> {
                     },
                 ),
             ],
-        },
-        TableDisguise {
+        })),
+        Arc::new(RwLock::new(TableDisguise {
             name: "ReviewRating".to_string(),
             id_cols: vec!["ratingId".to_string()],
             owner_cols: vec!["contactId".to_string()],
@@ -145,8 +146,8 @@ fn get_table_disguises() -> Vec<TableDisguise> {
                     fk_col: "contactId".to_string(),
                 },
             )],
-        },
-        TableDisguise {
+        })),
+        Arc::new(RwLock::new(TableDisguise {
             name: "PaperComment".to_string(),
             id_cols: vec!["commentId".to_string()],
             owner_cols: vec!["contactId".to_string()],
@@ -158,8 +159,8 @@ fn get_table_disguises() -> Vec<TableDisguise> {
                     fk_col: "contactId".to_string(),
                 },
             )],
-        },
-        TableDisguise {
+        })),
+        Arc::new(RwLock::new(TableDisguise {
             name: "PaperReview".to_string(),
             id_cols: vec!["reviewId".to_string()],
             owner_cols: vec!["contactId".to_string(), "requestedBy".to_string()],
@@ -181,8 +182,8 @@ fn get_table_disguises() -> Vec<TableDisguise> {
                     },
                 ),
             ],
-        },
-        TableDisguise {
+        })),
+        Arc::new(RwLock::new(TableDisguise {
             name: "Paper".to_string(),
             id_cols: vec!["paperId".to_string()],
             owner_cols: vec![
@@ -216,6 +217,6 @@ fn get_table_disguises() -> Vec<TableDisguise> {
                     },
                 ),
             ],
-        },
+        })),
     ]
 }

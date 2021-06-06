@@ -11,36 +11,35 @@ pub fn get_random_email() -> String {
     format!("anonymous{}@secret.mail", get_random_string())
 }
 
-pub fn get_insert_guise_contact_info_cols() -> Vec<&'static str> {
+pub fn get_insert_guise_contact_info_cols() -> Vec<String> {
     vec![
-        "contactId",,
-        "firstName",
-        "lastName",
-        "unaccentedName",
-        "email",
-        "preferredEmail",
-        "affiliation",
-        "phone",
-        "country",
-        "password",
-        "passwordTime",
-        "passwordUseTime",
-        "collaborators",
-        "updateTime",
-        "lastLogin",
-        "defaultWatch",
-        "roles",
-        "disabled",
-        "contactTags",
-        "data",
-        "isGuise",
+        "contactId".to_string(),
+        "firstName".to_string(),
+        "lastName".to_string(),
+        "unaccentedName".to_string(),
+        "email".to_string(),
+        "preferredEmail".to_string(),
+        "affiliation".to_string(),
+        "phone".to_string(),
+        "country".to_string(),
+        "password".to_string(),
+        "passwordTime".to_string(),
+        "passwordUseTime".to_string(),
+        "collaborators".to_string(),
+        "updateTime".to_string(),
+        "lastLogin".to_string(),
+        "defaultWatch".to_string(),
+        "roles".to_string(),
+        "disabled".to_string(),
+        "contactTags".to_string(),
+        "data".to_string(),
     ]
 }
 
 pub fn get_insert_guise_contact_info_vals() -> Vec<Expr> {
     GUISE_ID.fetch_add(1, Ordering::SeqCst);
     vec![
-        Expr::Value(Value::Number(GUISE_ID.to_string())),
+        Expr::Value(Value::Number(GUISE_ID.load(Ordering::SeqCst).to_string())),
         Expr::Value(Value::String(String::new())),
         Expr::Value(Value::String(String::new())),
         Expr::Value(Value::String(String::new())),
@@ -60,7 +59,6 @@ pub fn get_insert_guise_contact_info_vals() -> Vec<Expr> {
         Expr::Value(Value::Number(0.to_string())),
         Expr::Value(Value::Null),
         Expr::Value(Value::Null),
-        Expr::Value(Value::Boolean(true)),
     ]
 }
 
@@ -86,12 +84,11 @@ pub fn get_contact_info_cols() -> Vec<&'static str> {
         "disabled",
         "contactTags",
         "data",
-        "isGuise",
     ]
 }
 
 pub fn get_contact_info_vals(uid: usize) -> Vec<Expr> {
-    assert!(uid < GUISE_ID.load(Ordering::SeqCst));
+    assert!((uid as u64) < GUISE_ID.load(Ordering::SeqCst));
     vec![
         Expr::Value(Value::Number(uid.to_string())),
         Expr::Value(Value::String(get_random_string())),
@@ -113,7 +110,6 @@ pub fn get_contact_info_vals(uid: usize) -> Vec<Expr> {
         Expr::Value(Value::Number(0.to_string())),
         Expr::Value(Value::Null),
         Expr::Value(Value::Null),
-        Expr::Value(Value::Boolean(false)),
     ]
 }
 

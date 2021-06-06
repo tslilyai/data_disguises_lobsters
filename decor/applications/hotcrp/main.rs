@@ -91,14 +91,14 @@ fn init_db(prime: bool) -> Pool {
     Pool::new(opts).unwrap()
 }
 
-fn run_test(pool: &mysql::Pool, disguises: &Vec<types::Disguise>, users: &Vec<u64>) {
+fn run_test(pool: &mysql::Pool, disguises: &'static Vec<types::Disguise>, users: &Vec<u64>) {
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
    file.write("Disguise, NQueries, NQueriesVault, RecordDur, RemoveDur, DecorDur, ModDur, Duration(ms)\n".as_bytes())
         .unwrap();  
    for (i, disguise) in disguises.iter().enumerate() {
         let stats = Arc::new(Mutex::new(QueryStat::new()));
         let start = time::Instant::now();
-        decor::disguise::apply(Some(users[i]), &disguise, pool, stats.clone()).unwrap();
+        decor::disguise::apply(Some(users[i]), &disguise, pool.clone(), stats.clone()).unwrap();
         let dur = start.elapsed();
   
         let stats = stats.lock().unwrap();
@@ -122,7 +122,7 @@ fn run_test(pool: &mysql::Pool, disguises: &Vec<types::Disguise>, users: &Vec<u6
     
     file.flush().unwrap();
 
-    vault::print_as_filters(pool).unwrap();
+    vault::print_as_filters(&mut pool.get_conn().unwrap()).unwrap();
 }
 
 fn main() {
