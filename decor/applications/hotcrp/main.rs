@@ -18,7 +18,7 @@ mod datagen;
 mod gdpr_disguise;
 
 use decor::stats::QueryStat;
-use decor::{vault, spec, types};
+use decor::{vault, types};
 use rand::seq::SliceRandom;
 
 const DBNAME: &'static str = &"test_hotcrp";

@@ -65,9 +65,12 @@ pub fn apply(
              * Assign each object its assigned transformations
              */
             for (pred, transform) in &table.transforms {
-                let pred_items =
-                    get_query_rows(&select_statement(&table.name, &pred), &mut conn, mystats.clone())
-                        .unwrap();
+                let pred_items = get_query_rows(
+                    &select_statement(&table.name, &pred),
+                    &mut conn,
+                    mystats.clone(),
+                )
+                .unwrap();
 
                 // just remove item if it's supposed to be removed
                 match transform {
@@ -84,7 +87,8 @@ pub fn apply(
                             .to_string(),
                             &mut conn,
                             mystats.clone(),
-                        )?;
+                        )
+                        .unwrap();
                         mystats.lock().unwrap().remove_dur += start.elapsed();
 
                         /* PHASE 3: VAULT UPDATES */
@@ -135,7 +139,7 @@ pub fn apply(
             }
 
             // get and apply the transformations for each object
-            let fk_cols = (*guise_info..col_generation)();
+            let fk_cols = (*guise_info.col_generation)();
             for (i, ts) in items {
                 let mut to_insert = vec![];
                 let mut cols_to_update = vec![];
@@ -326,29 +330,36 @@ pub fn apply(
 
                 // TODO assuming that there is only one guise
                 // inserts
-                query_drop(
-                    Statement::Insert(InsertStatement {
-                        table_name: string_to_objname(&guise_info.name),
-                        columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
-                        source: InsertSource::Query(Box::new(values_query(to_insert))),
-                    })
-                    .to_string(),
-                    &mut conn,
-                    mystats.clone(),
-                )?;
+                if !to_insert.is_empty() {
+                    query_drop(
+                        Statement::Insert(InsertStatement {
+                            table_name: string_to_objname(&guise_info.name),
+                            columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
+                            source: InsertSource::Query(Box::new(values_query(to_insert))),
+                        })
+                        .to_string(),
+                        &mut conn,
+                        mystats.clone(),
+                    )
+                    .unwrap();
+                }
 
                 // updates
-                query_drop(
-                    Statement::Update(UpdateStatement {
-                        table_name: string_to_objname(&table.name),
-                        assignments: cols_to_update,
-                        selection: Some(i_select),
-                    })
-                    .to_string(),
-                    &mut conn,
-                    mystats.clone(),
-                )?;
+                if !cols_to_update.is_empty() {
+                    query_drop(
+                        Statement::Update(UpdateStatement {
+                            table_name: string_to_objname(&table.name),
+                            assignments: cols_to_update,
+                            selection: Some(i_select),
+                        })
+                        .to_string(),
+                        &mut conn,
+                        mystats.clone(),
+                    )
+                    .unwrap();
+                }
             }
+            warn!("Thread {:?} exiting", thread::current().id());
         }));
         vault::insert_vault_entries(&vault_vals.lock().unwrap(), &mut conn, stats.clone());
     }
@@ -357,7 +368,10 @@ pub fn apply(
 
     // wait until all mysql queries are done
     for jh in threads.into_iter() {
-        assert!(jh.join().is_ok());
+        match jh.join() {
+            Ok(_) => (),
+            Err(_) => warn!("Join failed?"),
+        }
     }
     stats.lock().unwrap().record_dur += start.elapsed();
     Ok(())

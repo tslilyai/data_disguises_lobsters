@@ -2,6 +2,7 @@ use crate::datagen::*;
 use decor::helpers::*;
 use sql_parser::ast::*;
 use std::sync::atomic::{AtomicU64, Ordering};
+use log::warn;
    
 static GUISE_ID : AtomicU64 = AtomicU64::new(1<<10);
 
@@ -37,9 +38,10 @@ pub fn get_insert_guise_contact_info_cols() -> Vec<String> {
 }
 
 pub fn get_insert_guise_contact_info_vals() -> Vec<Expr> {
-    GUISE_ID.fetch_add(1, Ordering::SeqCst);
+    let gid = GUISE_ID.fetch_add(1, Ordering::SeqCst);
+    warn!("Guise id is now {}", GUISE_ID.load(Ordering::SeqCst));
     vec![
-        Expr::Value(Value::Number(GUISE_ID.load(Ordering::SeqCst).to_string())),
+        Expr::Value(Value::Number(gid.to_string())),
         Expr::Value(Value::String(String::new())),
         Expr::Value(Value::String(String::new())),
         Expr::Value(Value::String(String::new())),

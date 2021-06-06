@@ -143,7 +143,7 @@ fn insert_reversed_vault_entry(
         .to_string(),
         conn,
         stats.clone(),
-    );
+    ).unwrap();
 }
 
 /*
@@ -388,7 +388,7 @@ pub fn insert_vault_entries(
             .to_string(),
             conn,
             stats.clone(),
-        );
+        ).unwrap();
     }
 }
 
