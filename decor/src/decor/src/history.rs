@@ -66,7 +66,7 @@ pub fn insert_disguise_history_entry(
         }).to_string(),
         conn,
         stats,
-    );
+    )?;
 }
 
 fn get_insert_disguise_colnames() -> Vec<Ident> {

@@ -84,7 +84,7 @@ pub fn apply(
                             .to_string(),
                             &mut conn,
                             mystats.clone(),
-                        );
+                        )?;
                         mystats.lock().unwrap().remove_dur += start.elapsed();
 
                         /* PHASE 3: VAULT UPDATES */
@@ -135,7 +135,7 @@ pub fn apply(
             }
 
             // get and apply the transformations for each object
-            let fk_cols = (*guise_info.col_generation)();
+            let fk_cols = (*guise_info..col_generation)();
             for (i, ts) in items {
                 let mut to_insert = vec![];
                 let mut cols_to_update = vec![];
@@ -335,7 +335,7 @@ pub fn apply(
                     .to_string(),
                     &mut conn,
                     mystats.clone(),
-                );
+                )?;
 
                 // updates
                 query_drop(
@@ -347,7 +347,7 @@ pub fn apply(
                     .to_string(),
                     &mut conn,
                     mystats.clone(),
-                );
+                )?;
             }
         }));
         vault::insert_vault_entries(&vault_vals.lock().unwrap(), &mut conn, stats.clone());

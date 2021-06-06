@@ -3,7 +3,7 @@ use decor::helpers::*;
 use sql_parser::ast::*;
 use std::sync::atomic::{AtomicU64, Ordering};
    
-static GUISE_ID : AtomicU64 = AtomicU64::new(1<<5);
+static GUISE_ID : AtomicU64 = AtomicU64::new(1<<10);
 
 pub const ANON_PW: &'static str = "password123";
 

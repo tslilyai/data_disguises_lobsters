@@ -91,14 +91,16 @@ fn init_db(prime: bool) -> Pool {
     Pool::new(opts).unwrap()
 }
 
-fn run_test(pool: &mysql::Pool, disguises: &'static Vec<types::Disguise>, users: &Vec<u64>) {
+fn run_test(pool: &mysql::Pool, disguises: Vec<types::Disguise>, users: &Vec<u64>) {
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
    file.write("Disguise, NQueries, NQueriesVault, RecordDur, RemoveDur, DecorDur, ModDur, Duration(ms)\n".as_bytes())
         .unwrap();  
-   for (i, disguise) in disguises.iter().enumerate() {
+   for (i, disguise) in disguises.into_iter().enumerate() {
         let stats = Arc::new(Mutex::new(QueryStat::new()));
         let start = time::Instant::now();
-        decor::disguise::apply(Some(users[i]), &disguise, pool.clone(), stats.clone()).unwrap();
+
+        let id = disguise.disguise_id;
+        decor::disguise::apply(Some(users[i]), disguise, pool.clone(), stats.clone()).unwrap();
         let dur = start.elapsed();
   
         let stats = stats.lock().unwrap();
@@ -106,7 +108,7 @@ fn run_test(pool: &mysql::Pool, disguises: &'static Vec<types::Disguise>, users:
             format!(
                 "disguise{}, {}, {}, {}, {}, {}, {}\n
                 Total disguise duration: {}\n",
-                disguise.disguise_id,
+                id,
                 stats.nqueries,
                 stats.nqueries_vault,
                 stats.record_dur.as_millis(),
@@ -151,7 +153,7 @@ fn main() {
     } else {
         let pool = init_db(prime);
         let users = vec![0 as u64, (datagen::NUSERS_NONPC+1) as u64];
-        run_test(&pool, &disguises, &users);
+        run_test(&pool, disguises, &users);
         drop(pool);
     }
 }

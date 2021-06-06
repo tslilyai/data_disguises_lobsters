@@ -308,7 +308,7 @@ pub fn reverse_vault_decor_referencer_entries(
                 .to_string(),
                 conn,
                 stats.clone(),
-            );
+            )?;
             insert_reversed_vault_entry(&ve, conn, stats.clone());
         }
     }
@@ -340,7 +340,7 @@ pub fn reverse_vault_decor_referencer_entries(
             .to_string(),
             conn,
             stats.clone(),
-        );
+        )?;
         // mark vault entries as reversed
         insert_reversed_vault_entry(&ve, conn, stats.clone());
     }

@@ -28,7 +28,7 @@ pub fn query_drop(
     q: String,
     conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
-) {
+) -> Result<(), mysql::Error> {
     let stats = stats.clone();
     warn!("query_drop: {}", q);
     if q.contains(VAULT_TABLE) || q.contains(HISTORY_TABLE) {
@@ -36,7 +36,7 @@ pub fn query_drop(
     } else {
         stats.lock().unwrap().nqueries += 1;
     }
-    assert!(conn.query_drop(q).is_ok());
+    conn.query_drop(q)
 }
 
 
