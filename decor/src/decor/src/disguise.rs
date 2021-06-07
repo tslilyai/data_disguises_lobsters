@@ -140,8 +140,8 @@ pub fn apply(
 
             // get and apply the transformations for each object
             let fk_cols = (*guise_info.col_generation)();
+            let mut to_insert = vec![];
             for (i, ts) in items {
-                let mut to_insert = vec![];
                 let mut cols_to_update = vec![];
                 let i_select = get_select_of_row(&table.id_cols, &i);
                 for t in ts {
@@ -328,23 +328,7 @@ pub fn apply(
                     }
                 }
 
-                // TODO assuming that there is only one guise
-                // inserts
-                if !to_insert.is_empty() {
-                    query_drop(
-                        Statement::Insert(InsertStatement {
-                            table_name: string_to_objname(&guise_info.name),
-                            columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
-                            source: InsertSource::Query(Box::new(values_query(to_insert))),
-                        })
-                        .to_string(),
-                        &mut conn,
-                        mystats.clone(),
-                    )
-                    .unwrap();
-                }
-
-                // updates
+                // updates are per-item
                 if !cols_to_update.is_empty() {
                     query_drop(
                         Statement::Update(UpdateStatement {
@@ -358,6 +342,21 @@ pub fn apply(
                     )
                     .unwrap();
                 }
+            }
+            // TODO assuming that there is only one guise type
+            // guise inserts are per-table not per item
+            if !to_insert.is_empty() {
+                query_drop(
+                    Statement::Insert(InsertStatement {
+                        table_name: string_to_objname(&guise_info.name),
+                        columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
+                        source: InsertSource::Query(Box::new(values_query(to_insert))),
+                    })
+                    .to_string(),
+                    &mut conn,
+                    mystats.clone(),
+                )
+                .unwrap();
             }
             warn!("Thread {:?} exiting", thread::current().id());
         }));
