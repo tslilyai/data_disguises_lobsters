@@ -141,6 +141,7 @@ pub fn apply(
             // get and apply the transformations for each object
             let fk_cols = (*guise_info.col_generation)();
             let mut to_insert = vec![];
+            let mut update_stmts = vec![];
             for (i, ts) in items {
                 let mut cols_to_update = vec![];
                 let i_select = get_select_of_row(&table.id_cols, &i);
@@ -330,17 +331,14 @@ pub fn apply(
 
                 // updates are per-item
                 if !cols_to_update.is_empty() {
-                    query_drop(
+                    update_stmts.push(
                         Statement::Update(UpdateStatement {
                             table_name: string_to_objname(&table.name),
                             assignments: cols_to_update,
                             selection: Some(i_select),
                         })
                         .to_string(),
-                        &mut conn,
-                        mystats.clone(),
-                    )
-                    .unwrap();
+                    );
                 }
             }
             // TODO assuming that there is only one guise type
@@ -357,6 +355,9 @@ pub fn apply(
                     mystats.clone(),
                 )
                 .unwrap();
+            }
+            for stmt in update_stmts {
+                query_drop(stmt, &mut conn, mystats.clone()).unwrap();
             }
             warn!("Thread {:?} exiting", thread::current().id());
         }));
