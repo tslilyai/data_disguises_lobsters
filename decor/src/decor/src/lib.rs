@@ -3,7 +3,7 @@ extern crate hex;
 extern crate mysql;
 extern crate ordered_float;
 
-use log::{warn, error};
+use log::{warn, debug, error};
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::*;
