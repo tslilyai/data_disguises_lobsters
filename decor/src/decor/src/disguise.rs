@@ -115,11 +115,14 @@ pub fn select_predicate_objs(
                     }
                 }
             }
-            assert!(!my_items
-                .write()
-                .unwrap()
-                .insert(table.name.clone(), items_of_table)
-                .is_none());
+            let mut locked_items = my_items.write().unwrap();
+            match locked_items.get_mut(&table.name) {
+                Some(hm) => hm.extend(items_of_table),
+                None => {
+                    locked_items.insert(table.name.clone(), items_of_table);
+
+            }} 
+            drop(locked_items);
         }));
     }
 
