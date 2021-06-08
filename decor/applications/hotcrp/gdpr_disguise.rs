@@ -56,7 +56,7 @@ fn get_table_disguises(user_id: u64) -> Vec<Arc<RwLock<TableDisguise>>> {
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![(
                 Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
-                Remove,
+                Arc::new(RwLock::new(Remove)),
             )],
         })),
         Arc::new(RwLock::new(TableDisguise {
@@ -65,7 +65,7 @@ fn get_table_disguises(user_id: u64) -> Vec<Arc<RwLock<TableDisguise>>> {
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![(
                 Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
-                Remove,
+                Arc::new(RwLock::new(Remove)),
             )],
         })),
         Arc::new(RwLock::new(TableDisguise {
@@ -74,7 +74,7 @@ fn get_table_disguises(user_id: u64) -> Vec<Arc<RwLock<TableDisguise>>> {
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![(
                 Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
-                Remove,
+                Arc::new(RwLock::new(Remove)),
             )],
         })),
         Arc::new(RwLock::new(TableDisguise {
@@ -83,7 +83,7 @@ fn get_table_disguises(user_id: u64) -> Vec<Arc<RwLock<TableDisguise>>> {
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![(
                 Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
-                Remove,
+                Arc::new(RwLock::new(Remove)),
             )],
         })),
         Arc::new(RwLock::new(TableDisguise {
@@ -92,7 +92,7 @@ fn get_table_disguises(user_id: u64) -> Vec<Arc<RwLock<TableDisguise>>> {
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![(
                 Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
-                Remove,
+                Arc::new(RwLock::new(Remove)),
             )],
         })),
         Arc::new(RwLock::new(TableDisguise {
@@ -101,7 +101,7 @@ fn get_table_disguises(user_id: u64) -> Vec<Arc<RwLock<TableDisguise>>> {
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![(
                 Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
-                Remove,
+                Arc::new(RwLock::new(Remove)),
             )],
         })),
         // DECORRELATED
@@ -115,19 +115,19 @@ fn get_table_disguises(user_id: u64) -> Vec<Arc<RwLock<TableDisguise>>> {
                         "requestedBy",
                         Value::Number(user_id.to_string()),
                     )),
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "requestedBy".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
                 (
                     Some(get_eq_expr("refusedBy", Value::Number(user_id.to_string()))),
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "refusedBy".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
             ],
         })),
@@ -138,33 +138,33 @@ fn get_table_disguises(user_id: u64) -> Vec<Arc<RwLock<TableDisguise>>> {
             transforms: vec![
                 (
                     Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "contactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
                 (
                     Some(get_eq_expr(
                         "destContactId",
                         Value::Number(user_id.to_string()),
                     )),
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "destContactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
                 (
                     Some(get_eq_expr(
                         "trueContactId",
                         Value::Number(user_id.to_string()),
                     )),
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "trueContactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
             ],
         })),
@@ -174,11 +174,11 @@ fn get_table_disguises(user_id: u64) -> Vec<Arc<RwLock<TableDisguise>>> {
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![(
                 Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
-                Transform::Decor {
+                Arc::new(RwLock::new(Transform::Decor {
                     referencer_col: "contactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                },
+                })),
             )],
         })),
         Arc::new(RwLock::new(TableDisguise {
@@ -187,11 +187,11 @@ fn get_table_disguises(user_id: u64) -> Vec<Arc<RwLock<TableDisguise>>> {
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![(
                 Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
-                Transform::Decor {
+                Arc::new(RwLock::new(Transform::Decor {
                     referencer_col: "contactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                },
+                })),
             )],
         })),
         Arc::new(RwLock::new(TableDisguise {
@@ -201,22 +201,22 @@ fn get_table_disguises(user_id: u64) -> Vec<Arc<RwLock<TableDisguise>>> {
             transforms: vec![
                 (
                     Some(get_eq_expr("contactId", Value::Number(user_id.to_string()))),
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "contactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
                 (
                     Some(get_eq_expr(
                         "requestedBy",
                         Value::Number(user_id.to_string()),
                     )),
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "requestedBy".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
             ],
         })),
@@ -234,33 +234,33 @@ fn get_table_disguises(user_id: u64) -> Vec<Arc<RwLock<TableDisguise>>> {
                         "leadContactId",
                         Value::Number(user_id.to_string()),
                     )),
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "leadContactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
                 (
                     Some(get_eq_expr(
                         "managerContactId",
                         Value::Number(user_id.to_string()),
                     )),
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "managerContactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
                 (
                     Some(get_eq_expr(
                         "shepherdContactId",
                         Value::Number(user_id.to_string()),
                     )),
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "shepherdContactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
             ],
         })),

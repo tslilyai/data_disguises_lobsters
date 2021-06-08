@@ -1,7 +1,17 @@
 use std::collections::HashMap;
 use crate::types::*;
 use crate::*;
-use crate::helpers::*;
+use log::debug;
+
+pub fn get_value_of_col(row: &Vec<RowVal>, col: &str) -> Option<String> {
+    for rv in row {
+        if &rv.column == col {
+            return Some(rv.value.clone());
+        }
+    }
+    debug!("No value for col {} in row {:?}", col, row);
+    None
+}
 
 pub fn get_ids(id_cols: &Vec<String>, row: &Vec<RowVal>) -> Vec<String> {
     id_cols

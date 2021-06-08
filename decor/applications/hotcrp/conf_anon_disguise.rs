@@ -40,13 +40,13 @@ fn get_table_disguises() -> Vec<Arc<RwLock<TableDisguise>>> {
                         op: BinaryOperator::Eq,
                         right: Box::new(Expr::Value(Value::Number(1.to_string()))),
                     }),
-                    Transform::Modify {
+                    Arc::new(RwLock::new(Transform::Modify {
                         col: "email".to_string(),
                         generate_modified_value: Box::new(|_| users::get_random_email()),
                         satisfies_modification: Box::new(|v| {
                             v.contains("anonymous") && v.contains("secret")
                         }),
-                    },
+                    })),
                 ),
             ],
         })),
@@ -56,11 +56,11 @@ fn get_table_disguises() -> Vec<Arc<RwLock<TableDisguise>>> {
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![(
                 None,
-                Transform::Decor {
+                Arc::new(RwLock::new(Transform::Decor {
                     referencer_col: "contactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                },
+                })),
             )],
         })),
         Arc::new(RwLock::new(TableDisguise {
@@ -69,11 +69,11 @@ fn get_table_disguises() -> Vec<Arc<RwLock<TableDisguise>>> {
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![(
                 None,
-                Transform::Decor {
+                Arc::new(RwLock::new(Transform::Decor {
                     referencer_col: "contactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                },
+                })),
             )],
         })),
         Arc::new(RwLock::new(TableDisguise {
@@ -83,19 +83,19 @@ fn get_table_disguises() -> Vec<Arc<RwLock<TableDisguise>>> {
             transforms: vec![
                 (
                     None,
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "requestedBy".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
                 (
                     None,
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "refusedBy".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
             ],
         })),
@@ -110,27 +110,27 @@ fn get_table_disguises() -> Vec<Arc<RwLock<TableDisguise>>> {
             transforms: vec![
                 (
                     None,
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "contactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
                 (
                     None,
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "destContactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
                 (
                     None,
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "trueContactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
             ],
         })),
@@ -140,11 +140,11 @@ fn get_table_disguises() -> Vec<Arc<RwLock<TableDisguise>>> {
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![(
                 None,
-                Transform::Decor {
+                Arc::new(RwLock::new(Transform::Decor {
                     referencer_col: "contactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                },
+                })),
             )],
         })),
         Arc::new(RwLock::new(TableDisguise {
@@ -153,11 +153,11 @@ fn get_table_disguises() -> Vec<Arc<RwLock<TableDisguise>>> {
             owner_cols: vec!["contactId".to_string()],
             transforms: vec![(
                 None,
-                Transform::Decor {
+                Arc::new(RwLock::new(Transform::Decor {
                     referencer_col: "contactId".to_string(),
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
-                },
+                })),
             )],
         })),
         Arc::new(RwLock::new(TableDisguise {
@@ -167,19 +167,19 @@ fn get_table_disguises() -> Vec<Arc<RwLock<TableDisguise>>> {
             transforms: vec![
                 (
                     None,
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "contactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
                 (
                     None,
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "requestedBy".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
             ],
         })),
@@ -194,27 +194,27 @@ fn get_table_disguises() -> Vec<Arc<RwLock<TableDisguise>>> {
             transforms: vec![
                 (
                     None,
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "leadContactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
                 (
                     None,
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "managerContactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
                 (
                     None,
-                    Transform::Decor {
+                    Arc::new(RwLock::new(Transform::Decor {
                         referencer_col: "shepherdContactId".to_string(),
                         fk_name: "ContactInfo".to_string(),
                         fk_col: "contactId".to_string(),
-                    },
+                    })),
                 ),
             ],
         })),

@@ -10,7 +10,6 @@ use std::fs::File;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::str::FromStr;
-use std::thread;
 
 pub const VAULT_TABLE: &'static str = "VaultTable";
 pub const INSERT_GUISE: u64 = 0;

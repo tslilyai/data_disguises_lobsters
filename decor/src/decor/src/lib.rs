@@ -72,36 +72,7 @@ pub fn record_disguise(
 }
 
 pub fn is_guise(
-    table_name: &str,
-    guise_id_col: &str,
     id: u64,
-    conn: &mysql::PooledConn,
-    stats: Arc<Mutex<stats::QueryStat>>,
-) -> Result<bool, mysql::Error> {
-    let is_guise : bool = id > GUISE_ID_LB;
-    /*let equal_uid_constraint = Expr::BinaryOp {
-        // TODO 
-        left: Box::new(Expr::Identifier(vec![Ident::new(guise_id_col.to_string())])),
-        op: BinaryOperator::Eq,
-        right: Box::new(Expr::Value(Value::Number(id.to_string()))),
-    };
-    let guise_constraint = Expr::BinaryOp {
-        left: Box::new(Expr::Identifier(vec![Ident::new("isGuise")])),
-        op: BinaryOperator::Eq,
-        right: Box::new(Expr::Value(Value::Number(1.to_string()))),
-    };
-    let final_constraint = Expr::BinaryOp {
-        left: Box::new(equal_uid_constraint),
-        op: BinaryOperator::And,
-        right: Box::new(guise_constraint),
-    };
-    let is_guise = helpers::get_query_rows(
-        &helpers::select_1_statement(&table_name, Some(final_constraint)),
-        conn,
-        stats,
-    )?;
-
-    // if it is a guise, continue
-    Ok(!is_guise.is_empty())*/
-    Ok(is_guise)
+) -> bool {
+    id > GUISE_ID_LB
 }

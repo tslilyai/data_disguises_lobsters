@@ -51,7 +51,7 @@ pub struct TableDisguise {
     pub name: String,
     pub id_cols: Vec<String>,
     pub owner_cols: Vec<String>,
-    pub transforms: Vec<(Predicate, Transform)>,
+    pub transforms: Vec<(Predicate, Arc<RwLock<Transform>>)>,
 }
 
 pub struct GuiseInfo {

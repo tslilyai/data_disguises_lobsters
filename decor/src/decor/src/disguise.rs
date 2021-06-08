@@ -7,58 +7,46 @@ use crate::vault;
 use crate::*;
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
-pub fn apply(
-    user_id: Option<u64>,
-    disguise: Disguise,
-    pool: mysql::Pool,
+pub fn execute_removes(
+    conn: &mut mysql::PooledConn,
+    to_delete: Arc<Mutex<Vec<String>>>,
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<(), mysql::Error> {
-    let de = history::DisguiseEntry {
-        user_id: user_id.unwrap_or(0),
-        disguise_id: disguise.disguise_id,
-        reverse: false,
-    };
+    let start = time::Instant::now();
+    for stmt in &*to_delete.lock().unwrap() {
+        helpers::query_drop(stmt.to_string(), conn, stats.clone())?;
+    }
+    stats.lock().unwrap().remove_dur += start.elapsed();
+    Ok(())
+}
 
-    let mut conn = pool.get_conn()?;
+pub fn select_predicate_objs(
+    disguise: &Disguise,
+    pool: mysql::Pool,
+    vault_vals: Arc<Mutex<Vec<vault::VaultEntry>>>,
+    items: Arc<RwLock<HashMap<String, HashMap<Vec<RowVal>, Vec<Arc<RwLock<Transform>>>>>>>,
+    to_delete: Arc<Mutex<Vec<String>>>,
+    stats: Arc<Mutex<QueryStat>>,
+) {
     let mut threads = vec![];
-
-    for table in disguise.table_disguises {
+    for table in disguise.table_disguises.clone() {
         let pool = pool.clone();
-        let vault_vals = Arc::new(Mutex::new(vec![]));
         let mystats = stats.clone();
         let myvv = vault_vals.clone();
+        let my_delete = to_delete.clone();
         let is_reversible = disguise.is_reversible;
         let disguise_id = disguise.disguise_id;
         let is_owner = disguise.is_owner.clone();
-        let guise_info = disguise.guise_info.clone();
+        let my_items = items.clone();
+        let mut items_of_table: HashMap<Vec<RowVal>, Vec<Arc<RwLock<Transform>>>> = HashMap::new();
+
         threads.push(thread::spawn(move || {
             let is_owner = is_owner.read().unwrap();
-            let guise_info = guise_info.read().unwrap();
             let table = table.read().unwrap();
             let mut conn = pool.get_conn().unwrap();
-            let mut items: HashMap<Vec<RowVal>, Vec<&Transform>> = HashMap::new();
             let mut removed_items: HashSet<Vec<RowVal>> = HashSet::new();
-
-            /*
-             * PHASE 0: REVERSE ANY PRIOR DECORRELATED ENTRIES
-             * FOR TESTING ONLY: WE KNOW THESE ARE GOING TO BE DECORRELATED AGAIN
-            for (ref_table, ref_col) in &disguise.guise_info.referencers {
-                if ref_table == &table.name {
-                    vault::reverse_vault_decor_referencer_entries(
-                        user_id,
-                        &ref_table,
-                        &ref_col,
-                        // assume just one id col for user
-                        &table.name,
-                        &table.id_cols[0],
-                        txn,
-                        stats,
-                    )?;
-                 }
-            }
-            */
 
             /*
              * PHASE 1: OBJECT SELECTION
@@ -73,28 +61,12 @@ pub fn apply(
                 .unwrap();
 
                 // just remove item if it's supposed to be removed
-                match transform {
+                match *transform.read().unwrap() {
                     Remove => {
-                        // reverse all possible decorrelations for this table
-                        let start = time::Instant::now();
-
-                        /* PHASE 2: OBJECT MODIFICATION */
-                        helpers::query_drop(
-                            Statement::Delete(DeleteStatement {
-                                table_name: string_to_objname(&table.name),
-                                selection: pred.clone(),
-                            })
-                            .to_string(),
-                            &mut conn,
-                            mystats.clone(),
-                        )
-                        .unwrap();
-                        mystats.lock().unwrap().remove_dur += start.elapsed();
-
-                        /* PHASE 3: VAULT UPDATES */
-                        // XXX removal entries get stored in *all* vaults????
+                        // we're going to remove these, remember in vault
                         for i in &pred_items {
                             if is_reversible {
+                                debug!("Remove: Getting ids of table {} for {:?}", table.name, i);
                                 let ids = get_ids(&table.id_cols, i);
                                 for owner_col in &table.owner_cols {
                                     let uid = get_value_of_col(&i, &owner_col).unwrap();
@@ -116,42 +88,142 @@ pub fn apply(
                                     }
                                 }
                             }
-
-                            // EXTRA: save in removed so we don't
-                            // transform this item further
-                            items.remove(i);
+                            // EXTRA: save in removed so we don't transform this item further
+                            items_of_table.remove(i);
                             removed_items.insert(i.to_vec());
                         }
+                        // remember to delete this
+                        my_delete.lock().unwrap().push(
+                            Statement::Delete(DeleteStatement {
+                                table_name: string_to_objname(&table.name),
+                                selection: pred.clone(),
+                            })
+                            .to_string(),
+                        );
                     }
                     _ => {
                         for i in pred_items {
                             if removed_items.contains(&i) {
                                 continue;
                             }
-                            if let Some(ts) = items.get_mut(&i) {
-                                ts.push(transform);
+                            if let Some(ts) = items_of_table.get_mut(&i) {
+                                ts.push(transform.clone());
                             } else {
-                                items.insert(i, vec![transform]);
+                                items_of_table.insert(i, vec![transform.clone()]);
                             }
                         }
                     }
                 }
             }
+            assert!(!my_items
+                .write()
+                .unwrap()
+                .insert(table.name.clone(), items_of_table)
+                .is_none());
+        }));
+    }
+
+    // wait until all mysql queries are done
+    for jh in threads.into_iter() {
+        match jh.join() {
+            Ok(_) => (),
+            Err(_) => warn!("Join failed?"),
+        }
+    }
+}
+
+pub fn apply(
+    user_id: Option<u64>,
+    disguise: Disguise,
+    pool: mysql::Pool,
+    stats: Arc<Mutex<QueryStat>>,
+) -> Result<(), mysql::Error> {
+    let de = history::DisguiseEntry {
+        user_id: user_id.unwrap_or(0),
+        disguise_id: disguise.disguise_id,
+        reverse: false,
+    };
+
+    let mut conn = pool.get_conn()?;
+    let mut threads = vec![];
+    let vault_vals = Arc::new(Mutex::new(vec![]));
+    let to_insert = Arc::new(Mutex::new(vec![]));
+    let to_delete = Arc::new(Mutex::new(vec![]));
+    let fk_cols = Arc::new((disguise.guise_info.read().unwrap().col_generation)());
+    let items: Arc<RwLock<HashMap<String, HashMap<Vec<RowVal>, Vec<Arc<RwLock<Transform>>>>>>> =
+        Arc::new(RwLock::new(HashMap::new()));
+
+    /*//PHASE 0: REVERSE ANY PRIOR DECORRELATED ENTRIES
+    for (ref_table, ref_col) in &disguise.guise_info.referencers {
+        if ref_table == &table.name {
+            vault::reverse_vault_decor_referencer_entries(
+                user_id,
+                &ref_table,
+                &ref_col,
+                // assume just one id col for user
+                &table.name,
+                &table.id_cols[0],
+                txn,
+                stats,
+            )?;
+         }
+    }
+    */
+
+    // get all the objects, set all the objects to remove
+    select_predicate_objs(
+        &disguise,
+        pool.clone(),
+        vault_vals.clone(),
+        items.clone(),
+        to_delete.clone(),
+        stats.clone(),
+    );
+    // remove all the objects
+    execute_removes(&mut conn, to_delete.clone(), stats.clone())?;
+
+    // actually go and perform modifications now
+    for table in disguise.table_disguises {
+        let pool = pool.clone();
+        let mystats = stats.clone();
+        let myvv = vault_vals.clone();
+        let my_insert = to_insert.clone();
+        let is_reversible = disguise.is_reversible;
+        let disguise_id = disguise.disguise_id;
+        let is_owner = disguise.is_owner.clone();
+        let guise_info = disguise.guise_info.clone();
+        let my_items = items.clone();
+        let my_fkcols = fk_cols.clone();
+
+        threads.push(thread::spawn(move || {
+            let is_owner = is_owner.read().unwrap();
+            let guise_info = guise_info.read().unwrap();
+            let table = table.read().unwrap();
+            let mut conn = pool.get_conn().unwrap();
+            let my_items = my_items.read().unwrap();
+            let my_items = my_items.get(&table.name).unwrap();
 
             // get and apply the transformations for each object
-            let fk_cols = (*guise_info.col_generation)();
-            let mut to_insert = vec![];
             let mut update_stmts = vec![];
-            for (i, ts) in items {
+            for (i, ts) in (*my_items).iter() {
                 let mut cols_to_update = vec![];
+                debug!(
+                    "Get_Select_Of_Row: Getting ids of table {} for {:?}",
+                    table.name, i
+                );
                 let i_select = get_select_of_row(&table.id_cols, &i);
                 for t in ts {
-                    match t {
+                    match &*t.read().unwrap() {
                         Decor {
                             referencer_col,
                             fk_name,
                             ..
                         } => {
+                            warn!(
+                                "Thread {:?} starting decor {}",
+                                thread::current().id(),
+                                table.name
+                            );
                             let start = time::Instant::now();
 
                             /*
@@ -170,15 +242,7 @@ pub fn apply(
                             );
 
                             // skip already decorrelated users
-                            if is_guise(
-                                &fk_name,
-                                &guise_info.id_col,
-                                old_uid,
-                                &mut conn,
-                                mystats.clone(),
-                            )
-                            .unwrap()
-                            {
+                            if is_guise(old_uid) {
                                 warn!(
                                     "decor_obj: skipping decorrelation for {}.{}, already a guise",
                                     fk_name, old_uid
@@ -190,7 +254,9 @@ pub fn apply(
                             let new_parent = (*guise_info.val_generation)();
                             let guise_id = new_parent[0].to_string();
                             warn!("decor_obj: inserted guise {}.{}", fk_name, guise_id);
-                            to_insert.push(new_parent.clone());
+                            let mut locked_insert = my_insert.lock().unwrap();
+                            locked_insert.push(new_parent.clone());
+                            drop(locked_insert);
 
                             // Phase 2B: update child guise
                             cols_to_update.push(Assignment {
@@ -212,12 +278,13 @@ pub fn apply(
                                         let index = ix;
                                         ix += 1;
                                         RowVal {
-                                            column: fk_cols[index].to_string(),
+                                            column: my_fkcols[index].to_string(),
                                             value: v.to_string(),
                                         }
                                     })
                                     .collect();
-                                myvv.lock().unwrap().push(vault::VaultEntry {
+                                let mut locked_vv = myvv.lock().unwrap();
+                                locked_vv.push(vault::VaultEntry {
                                     vault_id: 0,
                                     disguise_id: disguise_id,
                                     user_id: old_uid,
@@ -246,7 +313,8 @@ pub fn apply(
                                         }
                                     })
                                     .collect();
-                                myvv.lock().unwrap().push(vault::VaultEntry {
+                                warn!("Decor: Getting ids of table {} for {:?}", table.name, i);
+                                locked_vv.push(vault::VaultEntry {
                                     vault_id: 0,
                                     disguise_id: disguise_id,
                                     user_id: old_uid,
@@ -260,8 +328,13 @@ pub fn apply(
                                     new_value: new_child,
                                     reverses: None,
                                 });
+                                drop(locked_vv);
                             }
-                            mystats.lock().unwrap().decor_dur += start.elapsed();
+
+                            let mut locked_stats = mystats.lock().unwrap();
+                            locked_stats.decor_dur += start.elapsed();
+                            drop(locked_stats);
+                            warn!("Thread {:?} decor {}", thread::current().id(), table.name);
                         }
 
                         Modify {
@@ -269,6 +342,11 @@ pub fn apply(
                             generate_modified_value,
                             ..
                         } => {
+                            warn!(
+                                "Thread {:?} starting mod {}",
+                                thread::current().id(),
+                                table.name
+                            );
                             let start = time::Instant::now();
 
                             let old_val = get_value_of_col(&i, &col).unwrap();
@@ -302,11 +380,13 @@ pub fn apply(
                             // XXX insert a vault entry for every owning user (every fk)
                             // should just update for the calling user, if there is one?
                             if is_reversible {
+                                warn!("Modify: Getting ids of table {} for {:?}", table.name, i);
                                 let ids = get_ids(&table.id_cols, &i);
+                                let mut locked_vv = myvv.lock().unwrap();
                                 for owner_col in &table.owner_cols {
                                     let uid = get_value_of_col(&i, &owner_col).unwrap();
                                     if (*is_owner)(&uid) {
-                                        myvv.lock().unwrap().push(vault::VaultEntry {
+                                        locked_vv.push(vault::VaultEntry {
                                             vault_id: 0,
                                             disguise_id: disguise_id,
                                             user_id: u64::from_str(&uid).unwrap(),
@@ -322,8 +402,13 @@ pub fn apply(
                                         });
                                     }
                                 }
+                                drop(locked_vv);
                             }
-                            mystats.lock().unwrap().mod_dur += start.elapsed();
+
+                            let mut locked_stats = mystats.lock().unwrap();
+                            locked_stats.mod_dur += start.elapsed();
+                            drop(locked_stats);
+                            warn!("Thread {:?} modify {}", thread::current().id(), table.name);
                         }
                         _ => unimplemented!("Removes should already have been performed!"),
                     }
@@ -341,31 +426,13 @@ pub fn apply(
                     );
                 }
             }
-            // TODO assuming that there is only one guise type
-            // guise inserts are per-table not per item
-            if !to_insert.is_empty() {
-                query_drop(
-                    Statement::Insert(InsertStatement {
-                        table_name: string_to_objname(&guise_info.name),
-                        columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
-                        source: InsertSource::Query(Box::new(values_query(to_insert))),
-                    })
-                    .to_string(),
-                    &mut conn,
-                    mystats.clone(),
-                )
-                .unwrap();
-            }
+            warn!("Thread {:?} updating", thread::current().id());
             for stmt in update_stmts {
                 query_drop(stmt, &mut conn, mystats.clone()).unwrap();
             }
             warn!("Thread {:?} exiting", thread::current().id());
         }));
-        vault::insert_vault_entries(&vault_vals.lock().unwrap(), &mut conn, stats.clone());
     }
-    let start = time::Instant::now();
-    record_disguise(&de, &mut conn, stats.clone())?;
-
     // wait until all mysql queries are done
     for jh in threads.into_iter() {
         match jh.join() {
@@ -373,7 +440,25 @@ pub fn apply(
             Err(_) => warn!("Join failed?"),
         }
     }
-    stats.lock().unwrap().record_dur += start.elapsed();
+    let locked_insert = to_insert.lock().unwrap();
+    if !locked_insert.is_empty() {
+        query_drop(
+            Statement::Insert(InsertStatement {
+                table_name: string_to_objname(&disguise.guise_info.read().unwrap().name),
+                columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
+                source: InsertSource::Query(Box::new(values_query(locked_insert.clone()))),
+            })
+            .to_string(),
+            &mut conn,
+            stats.clone(),
+        )
+        .unwrap();
+    }
+    drop(locked_insert);
+    let locked_vv = vault_vals.lock().unwrap();
+    vault::insert_vault_entries(&locked_vv, &mut conn, stats.clone());
+    drop(locked_vv);
+    record_disguise(&de, &mut conn, stats.clone())?;
     Ok(())
 }
 
