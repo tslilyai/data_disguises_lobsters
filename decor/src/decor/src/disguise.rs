@@ -208,6 +208,8 @@ impl Disguiser {
                 let mut conn = pool.get_conn().unwrap();
                 let my_items = my_items.read().unwrap();
                 let my_items = my_items.get(&table.name).unwrap();
+                
+                warn!("Thread {:?} starting for table {}", thread::current().id(), table.name);
 
                 // get and apply the transformations for each object
                 let mut update_stmts = vec![];
