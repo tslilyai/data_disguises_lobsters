@@ -6,7 +6,7 @@ extern crate rand;
 
 use log::warn;
 use mysql::prelude::*;
-use mysql::{Pool, Opts, Conn};
+use mysql::{Conn};
 use std::fs::File;
 use std::io::Write;
 use std::*;
@@ -86,9 +86,6 @@ fn init_db(prime: bool) -> Pool {
         datagen::populate_database(&mut db).unwrap();
     }
 
-    let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", test_dbname);
-    let opts = Opts::from_url(&url).unwrap();
-    Pool::new(opts).unwrap()
 }
 
 fn run_test(pool: &mysql::Pool, disguises: Vec<types::Disguise>, users: &Vec<u64>) {
@@ -98,6 +95,10 @@ fn run_test(pool: &mysql::Pool, disguises: Vec<types::Disguise>, users: &Vec<u64
    for (i, disguise) in disguises.into_iter().enumerate() {
         let stats = Arc::new(Mutex::new(QueryStat::new()));
         let start = time::Instant::now();
+
+        let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", test_dbname);
+        let opts = Opts::from_url(&url).unwrap();
+        Pool::new(opts).unwrap()
 
         let id = disguise.disguise_id;
         decor::disguise::apply(Some(users[i]), disguise, pool.clone(), stats.clone()).unwrap();

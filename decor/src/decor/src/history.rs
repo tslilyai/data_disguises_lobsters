@@ -126,7 +126,7 @@ pub fn get_history_cols() -> Vec<ColumnDef> {
     ]
 }
 
-pub fn create_history(in_memory: bool, txn: &mut mysql::Transaction) -> Result<(), mysql::Error> {
+pub fn create_history(in_memory: bool, conn: &mut mysql::PooledConn) -> Result<(), mysql::Error> {
     let engine = Some(if in_memory {
         Engine::Memory
     } else {
@@ -138,7 +138,7 @@ pub fn create_history(in_memory: bool, txn: &mut mysql::Transaction) -> Result<(
         key_parts: vec![Ident::new("disguiseId"), Ident::new("userId")],
     }];
 
-    txn.query_drop(
+    conn.query_drop(
         &Statement::CreateTable(CreateTableStatement {
             name: string_to_objname(HISTORY_TABLE),
             columns: get_history_cols(),

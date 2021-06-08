@@ -473,7 +473,7 @@ pub fn print_as_filters(conn: &mut mysql::PooledConn) -> Result<(), mysql::Error
     Ok(())
 }
 
-pub fn create_vault(in_memory: bool, txn: &mut mysql::Transaction) -> Result<(), mysql::Error> {
+pub fn create_vault(in_memory: bool, conn: &mut mysql::PooledConn) -> Result<(), mysql::Error> {
     let engine = Some(if in_memory {
         Engine::Memory
     } else {
@@ -492,7 +492,7 @@ pub fn create_vault(in_memory: bool, txn: &mut mysql::Transaction) -> Result<(),
         },
     ];
 
-    txn.query_drop(
+    conn.query_drop(
         &Statement::CreateTable(CreateTableStatement {
             name: string_to_objname(VAULT_TABLE),
             columns: get_vault_cols(),
