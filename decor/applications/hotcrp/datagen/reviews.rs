@@ -21,7 +21,7 @@ pub fn insert_reviews(
     nreviews: usize,
     ncomments: usize,
     nconflicts: usize,
-    db: &mut mysql::Conn,
+    db: &mut mysql::PooledConn,
 ) -> Result<(), mysql::Error> {
     let mut new_reviews = vec![];
     let paper_ids: Vec<usize> = (1..npapers).collect();
@@ -50,7 +50,7 @@ pub fn insert_reviews(
         }
     }
     let review_cols = get_review_cols();
-    get_query_rows_db(
+    get_query_rows_prime(
         &Statement::Insert(InsertStatement {
             table_name: string_to_objname("PaperReview"),
             columns: review_cols

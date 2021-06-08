@@ -42,7 +42,7 @@ pub fn insert_papers(
     papers_acc: &Vec<usize>,
     ncomments: usize,
     nconflicts: usize,
-    db: &mut mysql::Conn,
+    db: &mut mysql::PooledConn,
 ) -> Result<(), mysql::Error> {
     let mut new_papers = vec![];
     for pid in papers_rej {
@@ -94,7 +94,7 @@ pub fn insert_papers(
     }
 
     let paper_cols = get_paper_cols();
-    get_query_rows_db(
+    get_query_rows_prime(
         &Statement::Insert(InsertStatement {
             table_name: string_to_objname("Paper"),
             columns: paper_cols

@@ -71,13 +71,13 @@ pub fn get_query_rows(
     Ok(rows)
 }
 
-pub fn get_query_rows_db(
+pub fn get_query_rows_prime(
     q: &Statement,
-    db: &mut mysql::Conn,
+    db: &mut mysql::PooledConn,
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     let mut rows = vec![];
 
-    debug!("get_query_rows_db: {}", q);
+    debug!("get_query_rows_prime: {}", q);
     let res = db.query_iter(q.to_string())?;
     let cols: Vec<String> = res
         .columns()

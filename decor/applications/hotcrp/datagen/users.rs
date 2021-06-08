@@ -115,14 +115,14 @@ pub fn get_contact_info_vals(uid: usize) -> Vec<Expr> {
     ]
 }
 
-pub fn insert_users(nusers: usize, db: &mut mysql::Conn) -> Result<(), mysql::Error> {
+pub fn insert_users(nusers: usize, db: &mut mysql::PooledConn) -> Result<(), mysql::Error> {
     // insert users
     let mut new_ci = vec![];
     for uid in 1..nusers + 1 {
         new_ci.push(get_contact_info_vals(uid));
     }
     let fk_cols = get_contact_info_cols();
-    get_query_rows_db(
+    get_query_rows_prime(
         &Statement::Insert(InsertStatement {
             table_name: string_to_objname("ContactInfo"),
             columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),

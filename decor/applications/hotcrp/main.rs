@@ -6,21 +6,21 @@ extern crate rand;
 
 use log::warn;
 use mysql::prelude::*;
-use mysql::{Conn};
+use mysql::Conn;
 use std::fs::File;
 use std::io::Write;
+use std::sync::Arc;
 use std::*;
 use structopt::StructOpt;
-use std::sync::{Mutex, Arc};
 
 mod conf_anon_disguise;
 mod datagen;
 mod gdpr_disguise;
 
-use decor::stats::QueryStat;
-use decor::{vault, types};
+use decor::{helpers, types};
 use rand::seq::SliceRandom;
 
+const SCHEMA: &'static str = include_str!("schema.sql");
 const DBNAME: &'static str = &"test_hotcrp";
 const SCHEMA_UID_COL: &'static str = "contactId";
 const SCHEMA_UID_TABLE: &'static str = "ContactInfo";
@@ -67,43 +67,43 @@ fn init_logger() {
         .try_init();
 }
 
-fn init_db(prime: bool) -> Pool {
-    let test_dbname = format!("{}", DBNAME);
+fn init_db(prime: bool, edna: &decor::EdnaClient) {
     let url = format!("mysql://tslilyai:pass@127.0.0.1");
     let mut db = Conn::new(&url).unwrap();
     if prime {
         warn!("Priming database");
-        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", &test_dbname))
+        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", DBNAME))
             .unwrap();
-        db.query_drop(&format!("CREATE DATABASE {};", &test_dbname))
+        db.query_drop(&format!("CREATE DATABASE {};", DBNAME))
             .unwrap();
         assert_eq!(db.ping(), true);
-        assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
-        datagen::populate_database(&mut db).unwrap();
+        assert_eq!(db.select_db(&format!("{}", DBNAME)), true);
+    } else {
+        assert_eq!(db.select_db(&format!("{}", DBNAME)), true);
     }
-    else {
-        assert_eq!(db.select_db(&format!("{}", test_dbname)), true);
-        datagen::populate_database(&mut db).unwrap();
-    }
-
 }
 
-fn run_test(pool: &mysql::Pool, disguises: Vec<types::Disguise>, users: &Vec<u64>) {
+fn run_test(disguises: Vec<Arc<types::Disguise>>, users: &Vec<u64>, prime: bool) {
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
-   file.write("Disguise, NQueries, NQueriesVault, RecordDur, RemoveDur, DecorDur, ModDur, Duration(ms)\n".as_bytes())
-        .unwrap();  
-   for (i, disguise) in disguises.into_iter().enumerate() {
-        let stats = Arc::new(Mutex::new(QueryStat::new()));
+    file.write(
+        "Disguise, NQueries, NQueriesVault, RecordDur, RemoveDur, DecorDur, ModDur, Duration(ms)\n"
+            .as_bytes(),
+    )
+    .unwrap();
+
+    let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME);
+    let mut edna = decor::EdnaClient::new(&url, SCHEMA, true);
+    if prime {
+        datagen::populate_database(&mut edna).unwrap();
+    }
+    for (i, disguise) in disguises.into_iter().enumerate() {
         let start = time::Instant::now();
 
-        let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", test_dbname);
-        let opts = Opts::from_url(&url).unwrap();
-        Pool::new(opts).unwrap()
-
         let id = disguise.disguise_id;
-        decor::disguise::apply(Some(users[i]), disguise, pool.clone(), stats.clone()).unwrap();
+        edna.apply_disguise(Some(users[i]), disguise).unwrap();
         let dur = start.elapsed();
-  
+
+        let stats = edna.get_stats();
         let stats = stats.lock().unwrap();
         file.write(
             format!(
@@ -121,11 +121,10 @@ fn run_test(pool: &mysql::Pool, disguises: Vec<types::Disguise>, users: &Vec<u64
             .as_bytes(),
         )
         .unwrap();
+        edna.clear_stats();
     }
-    
-    file.flush().unwrap();
 
-    vault::print_as_filters(&mut pool.get_conn().unwrap()).unwrap();
+    file.flush().unwrap();
 }
 
 fn main() {
@@ -136,9 +135,11 @@ fn main() {
     let spec = args.spec;
 
     let disguises = vec![
-        conf_anon_disguise::get_disguise(),
+        Arc::new(conf_anon_disguise::get_disguise()),
         //gdpr_disguise::get_disguise((1) as u64),
-        gdpr_disguise::get_disguise((datagen::NUSERS_NONPC+1) as u64),
+        Arc::new(gdpr_disguise::get_disguise(
+            (datagen::NUSERS_NONPC + 1) as u64,
+        )),
     ];
     let uids: Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();
     /*let mut rng = &mut rand::thread_rng();
@@ -147,14 +148,12 @@ fn main() {
         .cloned()
         .collect();
     for user in &rand_users {
-        disguises.push(gdpr_disguise::get_disguise(*user as u64));
+        disguises.push(Arc::new(gdpr_disguise::get_disguise(*user as u64)));
     }*/
 
     if spec {
     } else {
-        let pool = init_db(prime);
-        let users = vec![0 as u64, (datagen::NUSERS_NONPC+1) as u64];
-        run_test(&pool, disguises, &users);
-        drop(pool);
+        let users = vec![0 as u64, (datagen::NUSERS_NONPC + 1) as u64];
+        run_test(disguises, &users, prime);
     }
 }

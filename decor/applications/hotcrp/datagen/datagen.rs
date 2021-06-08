@@ -1,11 +1,9 @@
 use crate::datagen::*;
+use crate::*;
 use decor::types;
-use decor::*;
-use log::*;
 use rand::{distributions::Alphanumeric, Rng};
 use sql_parser::ast::*;
 
-const SCHEMA: &'static str = include_str!("../schema.sql");
 
 // Generates NUSERS_NONPC+NUSERS_PC users
 pub const NUSERS_NONPC: usize = 400;
@@ -52,8 +50,8 @@ pub fn get_schema_tables() -> Vec<types::TableColumns> {
     table_cols
 }
 
-pub fn populate_database(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
-    create_schema(SCHEMA, true, db).unwrap();
+pub fn populate_database(edna: &mut decor::EdnaClient) -> Result<(), mysql::Error> {
+    edna.create_schema().unwrap();
 
     let total_users = NUSERS_NONPC + NUSERS_PC;
     let other_uids: Vec<usize> = (1..NUSERS_NONPC + 1).collect();
@@ -63,7 +61,8 @@ pub fn populate_database(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
 
     // insert users
     warn!("INSERTING USERS");
-    users::insert_users(NUSERS_NONPC + NUSERS_PC, db)?;
+    let mut db = edna.get_conn()?;
+    users::insert_users(NUSERS_NONPC + NUSERS_PC, &mut db)?;
 
     // insert papers, author comments on papers, coauthorship conflicts
     warn!("INSERTING PAPERS");
@@ -74,7 +73,7 @@ pub fn populate_database(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         &papers_acc,
         NPAPER_COMMENTS,
         NCONFLICT_AUTHOR,
-        db,
+        &mut db,
     )?;
 
     // insert reviews, reviewer comments on papers, reviewer conflicts
@@ -85,7 +84,7 @@ pub fn populate_database(db: &mut mysql::Conn) -> Result<(), mysql::Error> {
         NREVIEWS,
         NPAPER_COMMENTS,
         NCONFLICT_REVIEWER,
-        db,
+        &mut db,
     )?;
 
     Ok(())

@@ -6,6 +6,7 @@ extern crate rusoto_core;
 extern crate rusoto_s3;
 
 use std::collections::{HashMap};
+use std::sync::{Arc, Mutex};
 use log::{debug, warn};
 use mysql::prelude::*;
 use sql_parser::ast::*;
@@ -15,12 +16,11 @@ use rusoto_s3::{
 };
 
 mod disguise;
-mod helpers;
+pub mod helpers;
 mod history;
 mod s3client;
-mod spec;
-mod stats;
-mod types;
+pub mod stats;
+pub mod types;
 mod vault;
 
 const GUISE_ID_LB: u64 = 1 << 5;
@@ -36,19 +36,17 @@ pub struct TestParams {
 
 pub struct EdnaClient {
     //pub s3: S3Client,
-    pub disguises: HashMap<u64, types::Disguise>,
     pub schema: String,
     pub in_memory: bool,
     pub disguiser: disguise::Disguiser,
 }
 
 impl EdnaClient {
-    pub fn new(url: &str, disguises: HashMap<u64, types::Disguise>, schema: &str, in_memory: bool) -> EdnaClient {
+    pub fn new(url: &str, schema: &str, in_memory: bool) -> EdnaClient {
         EdnaClient {
             //s3: S3Client::new(),//new_s3client_with_credentials(region, access_key, secret_key),
             schema: schema.to_string(),
             in_memory: in_memory,
-            disguises: disguises,
             disguiser: disguise::Disguiser::new(url),
         }
     }
@@ -88,8 +86,15 @@ impl EdnaClient {
         Ok(())
     }
 
-    pub fn apply_disguise(&mut self, user_id: Option<u64>, did: u64) -> Result<(), mysql::Error> {
-        let disguise = self.disguises.get(&did).unwrap();
-        self.disguiser.apply(&disguise, user_id)
+    pub fn apply_disguise(&mut self, user_id: Option<u64>, disguise: Arc<types::Disguise>) -> Result<(), mysql::Error> {
+        self.disguiser.apply(disguise.clone(), user_id)
+    }
+
+    pub fn get_conn(&mut self) -> Result<mysql::PooledConn, mysql::Error> {
+        self.disguiser.pool.get_conn()
+    }
+
+    pub fn get_stats(&mut self) -> Arc<Mutex<stats::QueryStat>> {
+        self.disguiser.stats.clone()
     }
 }

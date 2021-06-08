@@ -43,7 +43,7 @@ impl Disguiser {
         Ok(())
     }
 
-    pub fn select_predicate_objs(&self, disguise: &Disguise) {
+    pub fn select_predicate_objs(&self, disguise: Arc<Disguise>) {
         let mut threads = vec![];
         for table in disguise.table_disguises.clone() {
             let pool = self.pool.clone();
@@ -153,7 +153,7 @@ impl Disguiser {
         }
     }
 
-    pub fn apply(&mut self, disguise: &Disguise, user_id: Option<u64>) -> Result<(), mysql::Error> {
+    pub fn apply(&mut self, disguise: Arc<Disguise>, user_id: Option<u64>) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {
             user_id: user_id.unwrap_or(0),
             disguise_id: disguise.disguise_id,
@@ -181,14 +181,14 @@ impl Disguiser {
         */
 
         // get all the objects, set all the objects to remove
-        self.select_predicate_objs(disguise);
+        self.select_predicate_objs(disguise.clone());
 
         // remove all the objects
-        self.execute_removes(&mut conn);
+        self.execute_removes(&mut conn)?;
 
         // actually go and perform modifications now
         let fk_cols = Arc::new((disguise.guise_info.read().unwrap().col_generation)());
-        for table in disguise.table_disguises {
+        for table in disguise.table_disguises.clone() {
             let pool = self.pool.clone();
             let mystats = self.stats.clone();
             let myvv = self.vault_vals.clone();
