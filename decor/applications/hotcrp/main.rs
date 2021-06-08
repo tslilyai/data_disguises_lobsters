@@ -106,6 +106,7 @@ fn run_test(disguises: Vec<Arc<types::Disguise>>, users: &Vec<u64>, prime: bool)
             .as_bytes(),
         )
         .unwrap();
+        drop(stats);
         edna.clear_stats();
     }
 

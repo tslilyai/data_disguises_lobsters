@@ -68,7 +68,9 @@ impl EdnaClient {
     }
 
     pub fn clear_stats(&mut self) {
-        self.disguiser.stats.lock().unwrap().clear();
+        let mut stats = self.disguiser.stats.lock().unwrap();
+        stats.clear();
+        drop(stats);
     }
 
     pub fn create_schema(
