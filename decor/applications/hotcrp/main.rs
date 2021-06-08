@@ -59,28 +59,12 @@ struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        //.filter_level(log::LevelFilter::Warn)
-        .filter_level(log::LevelFilter::Error)
+        .filter_level(log::LevelFilter::Warn)
+        //.filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
         .try_init();
-}
-
-fn init_db(prime: bool, edna: &decor::EdnaClient) {
-    let url = format!("mysql://tslilyai:pass@127.0.0.1");
-    let mut db = Conn::new(&url).unwrap();
-    if prime {
-        warn!("Priming database");
-        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", DBNAME))
-            .unwrap();
-        db.query_drop(&format!("CREATE DATABASE {};", DBNAME))
-            .unwrap();
-        assert_eq!(db.ping(), true);
-        assert_eq!(db.select_db(&format!("{}", DBNAME)), true);
-    } else {
-        assert_eq!(db.select_db(&format!("{}", DBNAME)), true);
-    }
 }
 
 fn run_test(disguises: Vec<Arc<types::Disguise>>, users: &Vec<u64>, prime: bool) {
@@ -93,6 +77,7 @@ fn run_test(disguises: Vec<Arc<types::Disguise>>, users: &Vec<u64>, prime: bool)
 
     let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME);
     let mut edna = decor::EdnaClient::new(&url, SCHEMA, true);
+    edna.init_db(prime, DBNAME);
     if prime {
         datagen::populate_database(&mut edna).unwrap();
     }

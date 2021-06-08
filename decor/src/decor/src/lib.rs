@@ -51,6 +51,22 @@ impl EdnaClient {
         }
     }
 
+    pub fn init_db(&mut self, prime: bool, dbname: &str) {
+        let url = format!("mysql://tslilyai:pass@127.0.0.1");
+        let mut db = mysql::Conn::new(&url).unwrap();
+        if prime {
+            warn!("Priming database");
+            db.query_drop(&format!("DROP DATABASE IF EXISTS {};", dbname))
+                .unwrap();
+            db.query_drop(&format!("CREATE DATABASE {};", dbname))
+                .unwrap();
+            assert_eq!(db.ping(), true);
+            assert_eq!(db.select_db(&format!("{}", dbname)), true);
+        } else {
+            assert_eq!(db.select_db(&format!("{}", dbname)), true);
+        }
+    }
+
     pub fn clear_stats(&mut self) {
         self.disguiser.stats.lock().unwrap().clear();
     }
