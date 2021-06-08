@@ -11,7 +11,6 @@ env_logger = "0.7.1"
 rust-crypto = "^0.2"
 hex = "0.4.2"
 log = "0.4"
-msql-srv = { path = "../msql-srv" }
 mysql = "*"
 mysql_common = "0.22"
 serde_json = "1.0"
@@ -20,6 +19,9 @@ sql-parser = { path = "../sql-parser" }
 regex = "1"
 rand = "0.6.5"
 ordered-float = "2.0"
+rusoto_s3 = "0.46.0"
+rusoto_core = "0.46.0"
+time = "0.2.7"
 
 [dev-dependencies]
 datadriven = "0.1.0"

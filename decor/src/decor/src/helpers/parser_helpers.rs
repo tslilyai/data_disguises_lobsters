@@ -395,7 +395,7 @@ pub fn get_parser_colformat(t: &DataType) -> ColFormat {
         _ => unimplemented!("not a valid data type {:?}", t),
     }
 }
-
+/*
 /// Convert a parser type to MySQL_svr type
 pub fn get_parser_coltype(t: &DataType) -> msql_srv::ColumnType {
     use msql_srv::ColumnType;
@@ -420,7 +420,7 @@ pub fn get_parser_coltype(t: &DataType) -> msql_srv::ColumnType {
         _ => unimplemented!("not a valid data type {:?}", t),
     }
 }
-
+*?*?*?*?*?*?*?*/
 pub fn parser_val_to_common_val(val: &sql_parser::ast::Value) -> mysql_common::value::Value {
     match val {
         Value::Null => mysql_common::value::Value::NULL,

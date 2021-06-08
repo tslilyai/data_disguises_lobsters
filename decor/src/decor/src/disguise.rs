@@ -120,8 +120,8 @@ pub fn select_predicate_objs(
                 Some(hm) => hm.extend(items_of_table),
                 None => {
                     locked_items.insert(table.name.clone(), items_of_table);
-
-            }} 
+                }
+            }
             drop(locked_items);
         }));
     }

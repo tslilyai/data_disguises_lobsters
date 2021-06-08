@@ -2,6 +2,8 @@ extern crate crypto;
 extern crate hex;
 extern crate mysql;
 extern crate ordered_float;
+extern crate rusoto_core;
+extern crate rusoto_s3;
 
 use log::{warn, debug, error};
 use mysql::prelude::*;

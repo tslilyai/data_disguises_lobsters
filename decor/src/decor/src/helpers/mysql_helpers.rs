@@ -3,7 +3,6 @@ use crate::stats::QueryStat;
 use crate::types::*;
 use crate::vault::VAULT_TABLE;
 use log::debug;
-use msql_srv::{Column, ColumnFlags, QueryResultWriter};
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::str::FromStr;
@@ -121,7 +120,7 @@ pub fn remove_escaped_chars(s: &str) -> String {
     s = s.replace("\"\'\"", "\"\'\'\"");
     s
 }
-
+/*
 pub fn answer_rows<W: io::Write>(
     results: QueryResultWriter<W>,
     rows: mysql::Result<mysql::QueryResult<mysql::Text>>,
@@ -157,8 +156,9 @@ pub fn answer_rows<W: io::Write>(
         }
     }
     Ok(())
-}
+}*/
 
+/*
 /// Convert a MySQL type to ColFormat 
 pub fn get_colformat(t: &mysql::consts::ColumnType) -> ColFormat {
     match t {
@@ -232,7 +232,7 @@ pub fn get_msql_srv_coltype(t: &mysql::consts::ColumnType) -> msql_srv::ColumnTy
         mysql::consts::ColumnType::MYSQL_TYPE_STRING => ColumnType::MYSQL_TYPE_STRING,
         mysql::consts::ColumnType::MYSQL_TYPE_GEOMETRY => ColumnType::MYSQL_TYPE_GEOMETRY,
     }
-}
+}*/
 
 pub fn mysql_val_to_common_val(val: &mysql::Value) -> mysql_common::value::Value {
     match val {
