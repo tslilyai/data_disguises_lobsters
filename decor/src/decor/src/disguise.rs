@@ -11,7 +11,6 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex, RwLock};
 
 pub struct Disguiser {
-    pub disguises: HashMap<u64, Disguise>,
     pub pool: mysql::Pool,
     pub stats: Arc<Mutex<QueryStat>>,
     vault_vals: Arc<Mutex<Vec<vault::VaultEntry>>>,
@@ -21,12 +20,11 @@ pub struct Disguiser {
 }
 
 impl Disguiser {
-    pub fn new(url: &str, disguises: HashMap<u64, Disguise>) -> Disguiser {
+    pub fn new(url: &str) -> Disguiser {
         let opts = Opts::from_url(&url).unwrap();
         let pool = Pool::new(opts).unwrap();
 
         Disguiser {
-            disguises: disguises,
             pool: pool,
             stats: Arc::new(Mutex::new(stats::QueryStat::new())),
             vault_vals: Arc::new(Mutex::new(vec![])),
@@ -36,7 +34,7 @@ impl Disguiser {
         }
     }
 
-    fn execute_removes(&mut self, conn: &mut mysql::PooledConn) -> Result<(), mysql::Error> {
+    fn execute_removes(&self, conn: &mut mysql::PooledConn) -> Result<(), mysql::Error> {
         let start = time::Instant::now();
         for stmt in &*self.to_delete.lock().unwrap() {
             helpers::query_drop(stmt.to_string(), conn, self.stats.clone())?;
@@ -45,8 +43,7 @@ impl Disguiser {
         Ok(())
     }
 
-    pub fn select_predicate_objs(&mut self, did: u64) {
-        let disguise = self.disguises.get(&did).unwrap();
+    pub fn select_predicate_objs(&self, disguise: &Disguise) {
         let mut threads = vec![];
         for table in disguise.table_disguises.clone() {
             let pool = self.pool.clone();
@@ -156,9 +153,7 @@ impl Disguiser {
         }
     }
 
-    pub fn apply(&mut self, user_id: Option<u64>, did: u64) -> Result<(), mysql::Error> {
-        let disguise = self.disguises.get(&did).unwrap();
-
+    pub fn apply(&mut self, disguise: &Disguise, user_id: Option<u64>) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {
             user_id: user_id.unwrap_or(0),
             disguise_id: disguise.disguise_id,
@@ -167,8 +162,6 @@ impl Disguiser {
 
         let mut conn = self.pool.get_conn()?;
         let mut threads = vec![];
-
-        let fk_cols = Arc::new((disguise.guise_info.read().unwrap().col_generation)());
 
         /*//PHASE 0: REVERSE ANY PRIOR DECORRELATED ENTRIES
         for (ref_table, ref_col) in &disguise.guise_info.referencers {
@@ -188,12 +181,13 @@ impl Disguiser {
         */
 
         // get all the objects, set all the objects to remove
-        self.select_predicate_objs(did);
+        self.select_predicate_objs(disguise);
 
         // remove all the objects
         self.execute_removes(&mut conn);
 
         // actually go and perform modifications now
+        let fk_cols = Arc::new((disguise.guise_info.read().unwrap().col_generation)());
         for table in disguise.table_disguises {
             let pool = self.pool.clone();
             let mystats = self.stats.clone();

@@ -14,14 +14,14 @@ use rusoto_s3::{
     S3Client
 };
 
-pub mod disguise;
-pub mod helpers;
-pub mod history;
-pub mod s3client;
-pub mod spec;
-pub mod stats;
-pub mod types;
-pub mod vault;
+mod disguise;
+mod helpers;
+mod history;
+mod s3client;
+mod spec;
+mod stats;
+mod types;
+mod vault;
 
 const GUISE_ID_LB: u64 = 1 << 5;
 
@@ -35,7 +35,8 @@ pub struct TestParams {
 }
 
 pub struct EdnaClient {
-    pub s3: S3Client,
+    //pub s3: S3Client,
+    pub disguises: HashMap<u64, types::Disguise>,
     pub schema: String,
     pub in_memory: bool,
     pub disguiser: disguise::Disguiser,
@@ -44,10 +45,11 @@ pub struct EdnaClient {
 impl EdnaClient {
     pub fn new(url: &str, disguises: HashMap<u64, types::Disguise>, schema: &str, in_memory: bool) -> EdnaClient {
         EdnaClient {
-            s3: new_s3client_with_credentials(region, access_key, secret_key),
+            //s3: S3Client::new(),//new_s3client_with_credentials(region, access_key, secret_key),
             schema: schema.to_string(),
             in_memory: in_memory,
-            disguiser: disguise::Disguiser::new(url, disguises),
+            disguises: disguises,
+            disguiser: disguise::Disguiser::new(url),
         }
     }
 
@@ -86,6 +88,8 @@ impl EdnaClient {
         Ok(())
     }
 
+    pub fn apply_disguise(&mut self, user_id: Option<u64>, did: u64) -> Result<(), mysql::Error> {
+        let disguise = self.disguises.get(&did).unwrap();
+        self.disguiser.apply(&disguise, user_id)
+    }
 }
-
-

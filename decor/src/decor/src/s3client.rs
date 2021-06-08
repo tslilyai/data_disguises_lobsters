@@ -7,7 +7,7 @@ use rusoto_s3::{
 };
 
 
-pub fn new_s3client_with_credentials(
+/*pub fn new_s3client_with_credentials(
     region: Region,
     access_key: String,
     secret_key: String,
@@ -17,4 +17,4 @@ pub fn new_s3client_with_credentials(
         StaticProvider::new_minimal(access_key, secret_key),
         region,
     ))
-}
+}*/
