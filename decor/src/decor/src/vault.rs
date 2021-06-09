@@ -549,10 +549,6 @@ fn get_vault_cols() -> Vec<ColumnDef> {
                 },
                 ColumnOptionDef {
                     name: None,
-                    option: ColumnOption::AutoIncrement,
-                },
-                ColumnOptionDef {
-                    name: None,
                     option: ColumnOption::Unique { is_primary: true },
                 },
             ],
