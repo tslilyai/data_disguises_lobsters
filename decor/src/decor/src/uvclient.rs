@@ -33,6 +33,9 @@ impl UVClient {
         }
     }
 
+    /* 
+     * Going to assume that ukey and nonce are constant for a disguise
+     */
     pub fn insert_ve_for_user(&mut self, uid: u64, ukey: &[u8], nonce: &[u8], ve: &vault::VaultEntry) {
         // encrypt input with given user key and nonce
         let mut chacha =  ChaCha20Poly1305::new(ukey, nonce, &vec![]);
@@ -48,7 +51,7 @@ impl UVClient {
         let serialized = serde_json::to_string(&uvobj);
 
         // insert into user's s3 bucket
-
+        // key will look like UID/VEID
     }
 
     pub fn get_ves_of_user(&mut self, uid: u64, ukey: &[u8], nonce: &[u8]) -> Vec<vault::VaultEntry> {

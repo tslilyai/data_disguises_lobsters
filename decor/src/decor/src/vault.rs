@@ -10,11 +10,14 @@ use std::fs::File;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::str::FromStr;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 pub const VAULT_TABLE: &'static str = "VaultTable";
 pub const INSERT_GUISE: u64 = 0;
 pub const DELETE_GUISE: u64 = 1;
 pub const UPDATE_GUISE: u64 = 2;
+
+static VAULT_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize)]
 pub struct VaultEntry {
@@ -360,6 +363,7 @@ pub fn insert_vault_entries(
         .iter()
         .map(|ve| {
             let mut evals = vec![];
+            evals.push(Expr::Value(Value::Number(VAULT_ID.fetch_add(1, Ordering::SeqCst).to_string())));
             evals.push(Expr::Value(Value::Number(ve.disguise_id.to_string())));
             evals.push(Expr::Value(Value::Number(ve.user_id.to_string())));
             evals.push(Expr::Value(Value::String(ve.guise_name.clone())));
@@ -516,6 +520,7 @@ pub fn create_vault(in_memory: bool, conn: &mut mysql::PooledConn) -> Result<(),
 
 fn get_insert_vault_colnames() -> Vec<Ident> {
     vec![
+        Ident::new("vaultId"),
         Ident::new("disguiseId"),
         Ident::new("userId"),
         Ident::new("guiseName"),
