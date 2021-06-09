@@ -31,8 +31,9 @@ pub struct VaultEntry {
     pub new_value: Vec<RowVal>,
     pub reverses: Option<u64>,
 }
-pub fn ve_to_bytes(ve: &VaultEntry) -> &[u8] {
-    serde_json::to_string(ve).unwrap().as_bytes()
+pub fn ve_to_bytes(ve: &VaultEntry) -> Vec<u8> {
+    let s = serde_json::to_string(ve).unwrap();
+    s.as_bytes().to_vec()
 }
 
 fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {

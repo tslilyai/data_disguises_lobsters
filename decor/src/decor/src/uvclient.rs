@@ -1,7 +1,7 @@
 use crate::vault;
 use rusoto_core::request::HttpClient;
 use rusoto_core::Region;
-use rusoto_credential::StaticProvider;
+use rusoto_credential::ProfileProvider;
 use rusoto_s3::{
     //CompleteMultipartUploadOutput, GetObjectRequest, PutObjectOutput,
     //PutObjectRequest,  S3,
@@ -23,23 +23,23 @@ pub struct UVObject {
 }
 
 impl UVClient {
-    pub fn new(region: Region, access_key: String, secret_key: String) -> UVClient {
+    pub fn new() -> UVClient {
         UVClient {
             s3client: S3Client::new_with(
                 HttpClient::new().unwrap(),
-                StaticProvider::new_minimal(access_key, secret_key),
-                region,
+                ProfileProvider::with_default_configuration("./rootkey.csv"),
+                Region::UsEast1,
             ),
         }
     }
 
     pub fn insert_ve_for_user(&mut self, uid: u64, ukey: &[u8], nonce: &[u8], ve: &vault::VaultEntry) {
         // encrypt input with given user key and nonce
-        let chacha =  ChaCha20Poly1305::new(ukey, nonce, &vec![]);
+        let mut chacha =  ChaCha20Poly1305::new(ukey, nonce, &vec![]);
         let plaintxt =  vault::ve_to_bytes(ve);
         let mut encrypted = vec![];
         let mut tag = vec![];
-        chacha.encrypt(plaintxt, &mut encrypted, &mut tag);
+        chacha.encrypt(&plaintxt, &mut encrypted, &mut tag);
 
         let uvobj = UVObject {
             body: encrypted,
@@ -56,7 +56,7 @@ impl UVClient {
         let objs : Vec<GetObjectOutput> = vec![];
        
         let mut ves = vec![];
-        let chacha =  ChaCha20Poly1305::new(ukey, nonce, &vec![]);
+        let mut chacha =  ChaCha20Poly1305::new(ukey, nonce, &vec![]);
         for obj in objs {
             let mut serialized = vec![];
             let mut body = obj.body.unwrap().into_blocking_read();

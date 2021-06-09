@@ -41,7 +41,7 @@ pub struct EdnaClient {
 impl EdnaClient {
     pub fn new(url: &str, schema: &str, in_memory: bool) -> EdnaClient {
         EdnaClient {
-            uvclient: uvclient::UVClient::new("", "", ""),
+            uvclient: uvclient::UVClient::new(),
             schema: schema.to_string(),
             in_memory: in_memory,
             disguiser: disguise::Disguiser::new(url),
