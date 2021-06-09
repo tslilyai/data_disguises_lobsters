@@ -8,7 +8,6 @@ extern crate rusoto_s3;
 use log::{debug, warn};
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::*;
 
