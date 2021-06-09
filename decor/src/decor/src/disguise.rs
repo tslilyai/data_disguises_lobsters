@@ -508,14 +508,10 @@ impl Disguiser {
     }
 
     fn clear_disguise_records(&self) {
-        let mut locked_insert = self.to_insert.lock().unwrap();
-        let mut locked_del = self.to_delete.lock().unwrap();
-        let mut locked_vv = self.vault_vals.lock().unwrap();
-        let mut locked_items = self.items.write().unwrap();
-        locked_insert.clear();
-        locked_del.clear();
-        locked_vv.clear();
-        locked_items.clear();
+        self.to_insert.lock().unwrap().clear();
+        self.to_delete.lock().unwrap().clear();
+        self.vault_vals.lock().unwrap().clear();
+        self.items.write().unwrap().clear();
         warn!("Disguiser: clear disguise records");
     }
 }
