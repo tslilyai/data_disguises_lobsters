@@ -52,6 +52,7 @@ impl EdnaClient {
     }
 
     pub fn init_db(&mut self, prime: bool, dbname: &str) {
+        warn!("EDNA: Init db!");
         let url = format!("mysql://tslilyai:pass@127.0.0.1");
         let mut db = mysql::Conn::new(&url).unwrap();
         if prime {
@@ -68,6 +69,7 @@ impl EdnaClient {
     }
 
     pub fn clear_stats(&mut self) {
+        warn!("EDNA: Clearing stats!");
         let mut stats = self.disguiser.stats.lock().unwrap();
         stats.clear();
         drop(stats);
@@ -105,7 +107,9 @@ impl EdnaClient {
     }
 
     pub fn apply_disguise(&mut self, user_id: Option<u64>, disguise: Arc<types::Disguise>) -> Result<(), mysql::Error> {
-        self.disguiser.apply(disguise.clone(), user_id)
+        self.disguiser.apply(disguise.clone(), user_id)?;
+        warn!("EDNA: Applied Disguise {}", disguise.clone().disguise_id);
+        Ok(())
     }
 
     pub fn get_conn(&mut self) -> Result<mysql::PooledConn, mysql::Error> {

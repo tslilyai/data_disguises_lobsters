@@ -19,13 +19,14 @@ pub fn query_drop(
     conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<(), mysql::Error> {
-    let stats = stats.clone();
+    let mut locked_stats = stats.lock().unwrap();
     debug!("query_drop: {}", q);
     if q.contains(VAULT_TABLE) || q.contains(HISTORY_TABLE) {
-        stats.lock().unwrap().nqueries_vault += 1;
+        locked_stats.nqueries_vault += 1;
     } else {
-        stats.lock().unwrap().nqueries += 1;
+        locked_stats.nqueries += 1;
     }
+    drop(locked_stats);
     conn.query_drop(q)
 }
 
@@ -39,11 +40,15 @@ pub fn get_query_rows(
     
     let qstr = q.to_string();
     debug!("get_query_rows: {}", qstr);
+    let mut locked_stats = stats.lock().unwrap();
+    debug!("query_drop: {}", q);
     if qstr.contains(VAULT_TABLE) || qstr.contains(HISTORY_TABLE) {
-        stats.lock().unwrap().nqueries_vault += 1;
+        locked_stats.nqueries_vault += 1;
     } else {
-        stats.lock().unwrap().nqueries += 1;
+        locked_stats.nqueries += 1;
     }
+    drop(locked_stats);
+
     let res = conn.query_iter(qstr)?;
     let cols: Vec<String> = res
         .columns()

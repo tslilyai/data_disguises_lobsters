@@ -463,9 +463,13 @@ impl Disguiser {
             .unwrap();
         }
         drop(locked_insert);
+        warn!("Disguiser: Performed Inserts");
+        
         let locked_vv = self.vault_vals.lock().unwrap();
         vault::insert_vault_entries(&locked_vv, &mut conn, self.stats.clone());
         drop(locked_vv);
+        warn!("Disguiser: Inserted Vault Entries");
+
         self.record_disguise(&de, &mut conn)?;
 
         self.clear_disguise_records();
@@ -499,6 +503,7 @@ impl Disguiser {
         conn: &mut mysql::PooledConn,
     ) -> Result<(), mysql::Error> {
         history::insert_disguise_history_entry(de, conn, self.stats.clone());
+        warn!("Disguiser: recorded disguise");
         Ok(())
     }
 
@@ -511,6 +516,7 @@ impl Disguiser {
         locked_del.clear();
         locked_vv.clear();
         locked_items.clear();
+        warn!("Disguiser: clear disguise records");
     }
 }
 
