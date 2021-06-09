@@ -5,20 +5,17 @@ extern crate ordered_float;
 extern crate rusoto_core;
 extern crate rusoto_s3;
 
-use std::collections::{HashMap};
-use std::sync::{Arc, Mutex};
 use log::{debug, warn};
 use mysql::prelude::*;
 use sql_parser::ast::*;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use std::*;
-use rusoto_s3::{
-    S3Client
-};
 
 mod disguise;
 pub mod helpers;
 mod history;
-mod s3client;
+mod uvclient;
 pub mod stats;
 pub mod types;
 mod vault;
@@ -35,7 +32,7 @@ pub struct TestParams {
 }
 
 pub struct EdnaClient {
-    //pub s3: S3Client,
+    pub uvclient : uvclient::UVClient,
     pub schema: String,
     pub in_memory: bool,
     pub disguiser: disguise::Disguiser,
@@ -44,7 +41,7 @@ pub struct EdnaClient {
 impl EdnaClient {
     pub fn new(url: &str, schema: &str, in_memory: bool) -> EdnaClient {
         EdnaClient {
-            //s3: S3Client::new(),//new_s3client_with_credentials(region, access_key, secret_key),
+            uvclient: uvclient::UVClient::new("", "", ""),
             schema: schema.to_string(),
             in_memory: in_memory,
             disguiser: disguise::Disguiser::new(url),
@@ -75,9 +72,7 @@ impl EdnaClient {
         drop(stats);
     }
 
-    pub fn create_schema(
-        &self,
-    ) -> Result<(), mysql::Error> {
+    pub fn create_schema(&self) -> Result<(), mysql::Error> {
         let mut conn = self.disguiser.pool.get_conn()?;
         conn.query_drop("SET max_heap_table_size = 4294967295;")?;
 
@@ -106,7 +101,11 @@ impl EdnaClient {
         Ok(())
     }
 
-    pub fn apply_disguise(&mut self, user_id: Option<u64>, disguise: Arc<types::Disguise>) -> Result<(), mysql::Error> {
+    pub fn apply_disguise(
+        &mut self,
+        user_id: Option<u64>,
+        disguise: Arc<types::Disguise>,
+    ) -> Result<(), mysql::Error> {
         self.disguiser.apply(disguise.clone(), user_id)?;
         warn!("EDNA: Applied Disguise {}", disguise.clone().disguise_id);
         Ok(())

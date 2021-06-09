@@ -3,7 +3,7 @@ use crate::stats::QueryStat;
 use crate::types::*;
 use log::{debug, warn};
 use mysql::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::collections::HashSet;
 use std::fs::File;
@@ -16,7 +16,7 @@ pub const INSERT_GUISE: u64 = 0;
 pub const DELETE_GUISE: u64 = 1;
 pub const UPDATE_GUISE: u64 = 2;
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, Deserialize, Serialize)]
 pub struct VaultEntry {
     pub vault_id: u64,
     pub disguise_id: u64,
@@ -30,6 +30,9 @@ pub struct VaultEntry {
     pub old_value: Vec<RowVal>,
     pub new_value: Vec<RowVal>,
     pub reverses: Option<u64>,
+}
+pub fn ve_to_bytes(ve: &VaultEntry) -> &[u8] {
+    serde_json::to_string(ve).unwrap().as_bytes()
 }
 
 fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
