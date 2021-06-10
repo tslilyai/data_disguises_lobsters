@@ -1,7 +1,7 @@
 use crate::history::HISTORY_TABLE;
 use crate::stats::QueryStat;
 use crate::types::*;
-use crate::vault::VAULT_TABLE;
+use crate::vaults::VAULT_TABLE;
 use log::debug;
 use mysql::prelude::*;
 use sql_parser::ast::*;

@@ -14,10 +14,9 @@ use std::*;
 mod disguise;
 pub mod helpers;
 mod history;
-mod uvclient;
 pub mod stats;
 pub mod types;
-mod vault;
+mod vaults;
 
 const GUISE_ID_LB: u64 = 1 << 5;
  
@@ -31,7 +30,7 @@ pub struct TestParams {
 }
 
 pub struct EdnaClient {
-    pub uvclient : uvclient::UVClient,
+    pub uvclient : vaults::UVClient,
     pub schema: String,
     pub in_memory: bool,
     pub disguiser: disguise::Disguiser,
@@ -40,7 +39,7 @@ pub struct EdnaClient {
 impl EdnaClient {
     pub fn new(url: &str, schema: &str, in_memory: bool) -> EdnaClient {
         EdnaClient {
-            uvclient: uvclient::UVClient::new(),
+            uvclient: vaults::UVClient::new(),
             schema: schema.to_string(),
             in_memory: in_memory,
             disguiser: disguise::Disguiser::new(url),
@@ -95,7 +94,7 @@ impl EdnaClient {
             }
         }
 
-        vault::create_vault(self.in_memory, &mut conn)?;
+        vaults::create_vault(self.in_memory, &mut conn)?;
         history::create_history(self.in_memory, &mut conn)?;
         Ok(())
     }

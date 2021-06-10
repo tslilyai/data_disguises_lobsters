@@ -3,7 +3,7 @@ use crate::history;
 use crate::stats::*;
 use crate::types::Transform::*;
 use crate::types::*;
-use crate::vault;
+use crate::vaults;
 use crate::*;
 use mysql::{Opts, Pool};
 use std::collections::{HashMap, HashSet};
@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex, RwLock};
 pub struct Disguiser {
     pub pool: mysql::Pool,
     pub stats: Arc<Mutex<QueryStat>>,
-    vault_vals: Arc<Mutex<Vec<vault::VaultEntry>>>,
+    vault_vals: Arc<Mutex<Vec<vaults::VaultEntry>>>,
     items: Arc<RwLock<HashMap<String, HashMap<Vec<RowVal>, Vec<Arc<RwLock<Transform>>>>>>>,
     to_delete: Arc<Mutex<Vec<String>>>,
     to_insert: Arc<Mutex<Vec<Vec<Expr>>>>,
@@ -89,7 +89,7 @@ impl Disguiser {
                                     for owner_col in &table.owner_cols {
                                         let uid = get_value_of_col(&i, &owner_col).unwrap();
                                         if (*is_owner)(&uid) {
-                                            myvv.lock().unwrap().push(vault::VaultEntry {
+                                            myvv.lock().unwrap().push(vaults::VaultEntry {
                                                 vault_id: 0,
                                                 disguise_id: disguise_id,
                                                 user_id: u64::from_str(&uid).unwrap(),
@@ -97,7 +97,7 @@ impl Disguiser {
                                                 guise_id_cols: table.id_cols.clone(),
                                                 guise_ids: ids.clone(),
                                                 referencer_name: "".to_string(),
-                                                update_type: vault::DELETE_GUISE,
+                                                update_type: vaults::DELETE_GUISE,
                                                 modified_cols: vec![],
                                                 old_value: i.clone(),
                                                 new_value: vec![],
@@ -166,7 +166,7 @@ impl Disguiser {
         /*//PHASE 0: REVERSE ANY PRIOR DECORRELATED ENTRIES
         for (ref_table, ref_col) in &disguise.guise_info.referencers {
             if ref_table == &table.name {
-                vault::reverse_vault_decor_referencer_entries(
+                vaults::reverse_vault_decor_referencer_entries(
                     user_id,
                     &ref_table,
                     &ref_col,
@@ -292,7 +292,7 @@ impl Disguiser {
                                         })
                                         .collect();
                                     let mut locked_vv = myvv.lock().unwrap();
-                                    locked_vv.push(vault::VaultEntry {
+                                    locked_vv.push(vaults::VaultEntry {
                                         vault_id: 0,
                                         disguise_id: disguise_id,
                                         user_id: old_uid,
@@ -300,7 +300,7 @@ impl Disguiser {
                                         guise_id_cols: vec![guise_info.id_col.clone()],
                                         guise_ids: vec![guise_id.to_string()],
                                         referencer_name: table.name.clone(),
-                                        update_type: vault::INSERT_GUISE,
+                                        update_type: vaults::INSERT_GUISE,
                                         modified_cols: vec![],
                                         old_value: vec![],
                                         new_value: new_parent_rowvals,
@@ -322,7 +322,7 @@ impl Disguiser {
                                         })
                                         .collect();
                                     warn!("Decor: Getting ids of table {} for {:?}", table.name, i);
-                                    locked_vv.push(vault::VaultEntry {
+                                    locked_vv.push(vaults::VaultEntry {
                                         vault_id: 0,
                                         disguise_id: disguise_id,
                                         user_id: old_uid,
@@ -330,7 +330,7 @@ impl Disguiser {
                                         guise_id_cols: table.id_cols.clone(),
                                         guise_ids: get_ids(&table.id_cols, &i),
                                         referencer_name: "".to_string(),
-                                        update_type: vault::UPDATE_GUISE,
+                                        update_type: vaults::UPDATE_GUISE,
                                         modified_cols: vec![referencer_col.clone()],
                                         old_value: i.clone(),
                                         new_value: new_child,
@@ -394,7 +394,7 @@ impl Disguiser {
                                     for owner_col in &table.owner_cols {
                                         let uid = get_value_of_col(&i, &owner_col).unwrap();
                                         if (*is_owner)(&uid) {
-                                            locked_vv.push(vault::VaultEntry {
+                                            locked_vv.push(vaults::VaultEntry {
                                                 vault_id: 0,
                                                 disguise_id: disguise_id,
                                                 user_id: u64::from_str(&uid).unwrap(),
@@ -402,7 +402,7 @@ impl Disguiser {
                                                 guise_id_cols: table.id_cols.clone(),
                                                 guise_ids: ids.clone(),
                                                 referencer_name: "".to_string(),
-                                                update_type: vault::UPDATE_GUISE,
+                                                update_type: vaults::UPDATE_GUISE,
                                                 modified_cols: vec![col.clone()],
                                                 old_value: i.clone(),
                                                 new_value: new_obj.clone(),
@@ -466,7 +466,7 @@ impl Disguiser {
         warn!("Disguiser: Performed Inserts");
         
         let locked_vv = self.vault_vals.lock().unwrap();
-        vault::insert_vault_entries(&locked_vv, &mut conn, self.stats.clone());
+        vaults::insert_vault_entries(&locked_vv, &mut conn, self.stats.clone());
         drop(locked_vv);
         warn!("Disguiser: Inserted Vault Entries");
 

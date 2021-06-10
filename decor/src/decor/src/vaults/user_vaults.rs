@@ -1,4 +1,4 @@
-use crate::vault;
+use crate::vaults::*;
 use crypto::{aead::*, chacha20poly1305::*};
 use futures::executor;
 use rusoto_core::request::HttpClient;
@@ -38,25 +38,23 @@ impl UVClient {
     /*
      * Going to assume that ukey and nonce are constant for a disguise
      */
-    pub fn insert_ve_for_user(
-        &mut self,
-        uid: u64,
-        ukey: &[u8],
-        nonce: &[u8],
-        ve: &vault::VaultEntry,
-    ) {
+    pub fn insert_ve_for_user(&mut self, uid: u64, ukey: &[u8], nonce: &[u8], ve: &VaultEntry) {
         // encrypt input with given user key and nonce
         let mut chacha = ChaCha20Poly1305::new(ukey, nonce, &vec![]);
-        let plaintxt = vault::ve_to_bytes(ve);
+        let plaintxt = ve_to_bytes(ve);
         let mut encrypted = vec![];
         let mut tag = vec![];
         chacha.encrypt(&plaintxt, &mut encrypted, &mut tag);
 
         // Key will look like UID/table/update_type, VEID
+        let reverses = match ve.reverses {
+            Some(_) => 1,
+            None => 0,
+        };
         let uvobj = UVObject {
             key: format!(
-                "{}/{}/{}/{}",
-                ve.user_id, ve.guise_name, ve.update_type, ve.vault_id
+                "{}/{}/{}/{}/{}",
+                ve.user_id, ve.guise_name, ve.update_type, reverses, ve.vault_id
             ),
             body: encrypted,
             tag: tag,
@@ -109,13 +107,17 @@ impl UVClient {
         uid: u64,
         table: Option<String>,
         update_type: Option<u64>,
+        reverses: Option<u64>,
         ukey: &[u8],
         nonce: &[u8],
-    ) -> Vec<vault::VaultEntry> {
+    ) -> Vec<VaultEntry> {
         // read objects of user's s3 bucket
         let key_prefix = match table {
             Some(tab) => match update_type {
-                Some(ut) => format!("{}/{}/{}/", uid, tab, ut),
+                Some(ut) => match reverses {
+                    Some(r) => format!("{}/{}/{}/{}/", uid, tab, ut, r),
+                    None => format!("{}/{}/{}/", uid, tab, ut),
+                },
                 None => format!("{}/{}/", uid, tab),
             },
             None => format!("{}/", uid),
@@ -191,8 +193,7 @@ impl UVClient {
             let mut plaintxt = vec![];
             chacha.decrypt(&uvobj.body, &mut plaintxt, &uvobj.tag);
 
-            let ve: vault::VaultEntry =
-                serde_json::from_str(&str::from_utf8(&plaintxt).unwrap()).unwrap();
+            let ve: VaultEntry = serde_json::from_str(&str::from_utf8(&plaintxt).unwrap()).unwrap();
             ves.push(ve);
         }
         ves
