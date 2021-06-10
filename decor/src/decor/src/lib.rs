@@ -15,7 +15,6 @@ mod disguise;
 pub mod helpers;
 mod history;
 pub mod stats;
-pub mod types;
 mod vaults;
 
 const GUISE_ID_LB: u64 = 1 << 5;

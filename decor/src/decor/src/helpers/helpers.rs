@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use crate::types::*;
+use crate::helpers::*;
 use crate::*;
 use log::debug;
+use std::collections::HashMap;
 
 pub fn get_value_of_col(row: &Vec<RowVal>, col: &str) -> Option<String> {
     for rv in row {
@@ -57,4 +57,3 @@ pub fn merge_vector_hashmaps<T: Clone>(
     }
     hm
 }
-

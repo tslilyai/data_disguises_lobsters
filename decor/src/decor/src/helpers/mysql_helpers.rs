@@ -1,13 +1,13 @@
+use crate::helpers::*;
 use crate::history::HISTORY_TABLE;
 use crate::stats::QueryStat;
-use crate::types::*;
 use crate::vaults::VAULT_TABLE;
 use log::debug;
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 use std::*;
-use std::sync::{Mutex, Arc};
 
 pub const NULLSTR: &'static str = "NULL";
 
@@ -30,14 +30,13 @@ pub fn query_drop(
     conn.query_drop(q)
 }
 
-
 pub fn get_query_rows(
     q: &Statement,
     conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     let mut rows = vec![];
-    
+
     let qstr = q.to_string();
     debug!("get_query_rows: {}", qstr);
     let mut locked_stats = stats.lock().unwrap();
@@ -164,7 +163,7 @@ pub fn answer_rows<W: io::Write>(
 }*/
 
 /*
-/// Convert a MySQL type to ColFormat 
+/// Convert a MySQL type to ColFormat
 pub fn get_colformat(t: &mysql::consts::ColumnType) -> ColFormat {
     match t {
         mysql::consts::ColumnType::MYSQL_TYPE_DECIMAL

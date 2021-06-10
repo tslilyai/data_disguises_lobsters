@@ -1,19 +1,19 @@
-use crate::types::*;
+use crate::helpers::*;
 use log::{debug, warn};
 use rand;
 use regex::*;
 use sql_parser::ast::*;
 use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::str::FromStr;
 use std::*;
-use std::collections::HashSet;
 
 /*****************************************
  * Parser helpers
  ****************************************/
 // get which columns have updated values set
 pub fn get_updated_cols(setexpr: &SetExpr) -> HashSet<String> {
-    let mut updated = HashSet::new(); 
+    let mut updated = HashSet::new();
     match setexpr {
         SetExpr::Select(s) => {
             for si in &s.projection {
@@ -34,10 +34,7 @@ pub fn get_updated_cols(setexpr: &SetExpr) -> HashSet<String> {
             }
         }
         SetExpr::SetOperation {
-            op,
-            left,
-            right,
-            ..
+            op, left, right, ..
         } => {
             if op == &SetOperator::Union {
                 updated.extend(get_updated_cols(left));
@@ -53,18 +50,19 @@ pub fn get_updated_cols(setexpr: &SetExpr) -> HashSet<String> {
 pub fn get_conditional_cols(setexpr: &SetExpr) -> HashSet<String> {
     let mut ids = HashSet::new();
     match setexpr {
-        SetExpr::Select(s) => if let Some(select) = &s.selection {
-            ids = get_expr_idents(&select).into_iter().collect();
-        },
+        SetExpr::Select(s) => {
+            if let Some(select) = &s.selection {
+                ids = get_expr_idents(&select).into_iter().collect();
+            }
+        }
         SetExpr::SetOperation {
-            op,
-            left,
-            right,
-            ..
-        } => if op == &SetOperator::Union {
-            ids.extend(get_conditional_cols(left));
-            ids.extend(get_conditional_cols(right));
-        },
+            op, left, right, ..
+        } => {
+            if op == &SetOperator::Union {
+                ids.extend(get_conditional_cols(left));
+                ids.extend(get_conditional_cols(right));
+            }
+        }
         _ => unimplemented!("{:?} Not a select query!", setexpr),
     }
     ids
@@ -484,22 +482,15 @@ pub fn get_expr_idents(e: &Expr) -> Vec<String> {
     match e {
         Expr::Identifier(_) => ids.push(e.to_string()),
         Expr::Value(_) => (),
-        Expr::IsNull { expr, ..} => ids.append(&mut get_expr_idents(&expr)),
-        Expr::InList {
-            expr,
-            list,
-            ..
-        } => {
+        Expr::IsNull { expr, .. } => ids.append(&mut get_expr_idents(&expr)),
+        Expr::InList { expr, list, .. } => {
             ids.append(&mut get_expr_idents(&expr));
             for e in list {
                 ids.append(&mut get_expr_idents(&e));
             }
         }
         Expr::Between {
-            expr,
-            low,
-            high,
-            ..
+            expr, low, high, ..
         } => {
             ids.append(&mut get_expr_idents(&expr));
             ids.append(&mut get_expr_idents(&low));
@@ -512,10 +503,10 @@ pub fn get_expr_idents(e: &Expr) -> Vec<String> {
         Expr::UnaryOp { expr, .. } => {
             ids.append(&mut get_expr_idents(&expr));
         }
-        Expr::Cast { expr, ..} => {
+        Expr::Cast { expr, .. } => {
             ids.append(&mut get_expr_idents(&expr));
         }
-        Expr::Collate { expr, ..} => {
+        Expr::Collate { expr, .. } => {
             ids.append(&mut get_expr_idents(&expr));
         }
         Expr::Nested(expr) => {

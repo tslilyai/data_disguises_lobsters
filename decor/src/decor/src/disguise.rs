@@ -1,8 +1,6 @@
 use crate::helpers::*;
-use crate::history;
 use crate::stats::*;
-use crate::types::*;
-use crate::vaults;
+use crate::{vaults, history};
 use crate::*;
 use mysql::{Opts, Pool};
 use std::collections::{HashMap, HashSet};

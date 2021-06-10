@@ -1,6 +1,5 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
-use crate::types::*;
 use log::{debug, warn};
 use mysql::prelude::*;
 use serde::{Deserialize, Serialize};
