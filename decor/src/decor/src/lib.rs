@@ -102,7 +102,7 @@ impl EdnaClient {
     pub fn apply_disguise(
         &mut self,
         user_id: Option<u64>,
-        disguise: Arc<types::Disguise>,
+        disguise: Arc<disguise::Disguise>,
     ) -> Result<(), mysql::Error> {
         self.disguiser.apply(disguise.clone(), user_id)?;
         warn!("EDNA: Applied Disguise {}", disguise.clone().disguise_id);

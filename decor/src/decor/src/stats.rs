@@ -80,24 +80,6 @@ pub fn get_qtype(query: &str) -> Result<QueryType, mysql::Error> {
                 | Statement::CreateIndex(CreateIndexStatement { .. })
                 | Statement::AlterObjectRename(AlterObjectRenameStatement { .. })
                 | Statement::DropObjects(DropObjectsStatement { .. }) => Ok(QueryType::WriteOther),
-                /* TODO Handle Statement::Explain(stmt) => f.write_node(stmt)
-                 *
-                 * TODO Currently don't support alterations that reset autoincrement counters
-                 * Assume that deletions leave autoincrement counters as monotonically increasing
-                 *
-                 * Don't handle CreateSink, CreateSource, Copy,
-                 *  ShowCreateSource, ShowCreateSink, Tail, Explain
-                 *
-                 * Don't modify queries for CreateSchema, CreateDatabase,
-                 * ShowDatabases, ShowCreateTable, DropDatabase, Transactions,
-                 * ShowColumns, SetVariable (mysql exprs in set var not supported yet)
-                 *
-                 * ShowVariable, ShowCreateView and ShowCreateIndex will return
-                 * queries that used the materialized views, rather than the
-                 * application-issued tables. This is probably not a big issue,
-                 * since these queries are used to create the table again?
-                 *
-                 * */
                 _ => Ok(QueryType::Read),
             }
         }
