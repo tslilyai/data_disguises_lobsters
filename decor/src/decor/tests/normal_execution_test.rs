@@ -4,7 +4,6 @@ extern crate log;
 use mysql::prelude::*;
 use std::*;
 use decor::{helpers};
-mod policies;
 
 const SCHEMA : &'static str = include_str!("./schema.sql");
 const DBNAME : &'static str = "test_normal";

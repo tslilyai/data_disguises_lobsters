@@ -201,7 +201,7 @@ impl UVClient {
 }
  #[test]
  fn test_insert_ve() {
-     let vault_entries = vec![
+     let vault_entries :Vec<VaultEntry> = vec![
          /*VaultEntry {
              vault_id: u64,
              disguise_id: u64,
