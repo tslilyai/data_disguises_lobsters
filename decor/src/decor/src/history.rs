@@ -126,7 +126,7 @@ pub fn get_history_cols() -> Vec<ColumnDef> {
     ]
 }
 
-pub fn create_history(in_memory: bool, conn: &mut mysql::PooledConn) -> Result<(), mysql::Error> {
+pub fn create_history(in_memory: bool, conn: &mut mysql::Conn) -> Result<(), mysql::Error> {
     let engine = Some(if in_memory {
         Engine::Memory
     } else {

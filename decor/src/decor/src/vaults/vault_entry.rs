@@ -1,14 +1,6 @@
 use crate::helpers::*;
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
-use std::sync::atomic::{AtomicU64};
-
-pub const VAULT_TABLE: &'static str = "VaultTable";
-pub const INSERT_GUISE: u64 = 0;
-pub const DELETE_GUISE: u64 = 1;
-pub const UPDATE_GUISE: u64 = 2;
-
-pub static VAULT_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize)]
 pub struct VaultEntry {

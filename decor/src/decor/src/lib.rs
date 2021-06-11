@@ -18,7 +18,7 @@ pub mod stats;
 mod vaults;
 
 const GUISE_ID_LB: u64 = 1 << 5;
- 
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
     pub testname: String,
@@ -29,36 +29,21 @@ pub struct TestParams {
 }
 
 pub struct EdnaClient {
-    pub uvclient : vaults::UVClient,
+    pub uvclient: vaults::UVClient,
     pub schema: String,
     pub in_memory: bool,
     pub disguiser: disguise::Disguiser,
 }
 
 impl EdnaClient {
-    pub fn new(url: &str, schema: &str, in_memory: bool) -> EdnaClient {
+    pub fn new(prime: bool, dbname: &str, schema: &str, in_memory: bool) -> EdnaClient {
+        init_db(prime, in_memory, dbname, schema);
+        let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname);
         EdnaClient {
             uvclient: vaults::UVClient::new(),
             schema: schema.to_string(),
             in_memory: in_memory,
-            disguiser: disguise::Disguiser::new(url),
-        }
-    }
-
-    pub fn init_db(&mut self, prime: bool, dbname: &str) {
-        warn!("EDNA: Init db!");
-        let url = format!("mysql://tslilyai:pass@127.0.0.1");
-        let mut db = mysql::Conn::new(&url).unwrap();
-        if prime {
-            warn!("Priming database");
-            db.query_drop(&format!("DROP DATABASE IF EXISTS {};", dbname))
-                .unwrap();
-            db.query_drop(&format!("CREATE DATABASE {};", dbname))
-                .unwrap();
-            assert_eq!(db.ping(), true);
-            assert_eq!(db.select_db(&format!("{}", dbname)), true);
-        } else {
-            assert_eq!(db.select_db(&format!("{}", dbname)), true);
+            disguiser: disguise::Disguiser::new(&url),
         }
     }
 
@@ -67,35 +52,6 @@ impl EdnaClient {
         let mut stats = self.disguiser.stats.lock().unwrap();
         stats.clear();
         drop(stats);
-    }
-
-    pub fn create_schema(&self) -> Result<(), mysql::Error> {
-        let mut conn = self.disguiser.pool.get_conn()?;
-        conn.query_drop("SET max_heap_table_size = 4294967295;")?;
-
-        /* issue schema statements */
-        let mut sql = String::new();
-        let mut stmt = String::new();
-        for line in self.schema.lines() {
-            if line.starts_with("--") || line.is_empty() {
-                continue;
-            }
-            if !sql.is_empty() {
-                sql.push_str(" ");
-                stmt.push_str(" ");
-            }
-            stmt.push_str(line);
-            if stmt.ends_with(';') {
-                let new_stmt = helpers::process_schema_stmt(&stmt, self.in_memory);
-                warn!("create_schema issuing new_stmt {}", new_stmt);
-                conn.query_drop(new_stmt.to_string())?;
-                stmt = String::new();
-            }
-        }
-
-        vaults::create_vault(self.in_memory, &mut conn)?;
-        history::create_history(self.in_memory, &mut conn)?;
-        Ok(())
     }
 
     pub fn apply_disguise(
@@ -116,3 +72,50 @@ impl EdnaClient {
         self.disguiser.stats.clone()
     }
 }
+
+fn create_schema(db: &mut mysql::Conn, in_memory: bool, schema: &str) -> Result<(), mysql::Error> {
+    db.query_drop("SET max_heap_table_size = 4294967295;")?;
+
+    /* issue schema statements */
+    let mut sql = String::new();
+    let mut stmt = String::new();
+    for line in schema.lines() {
+        if line.starts_with("--") || line.is_empty() {
+            continue;
+        }
+        if !sql.is_empty() {
+            sql.push_str(" ");
+            stmt.push_str(" ");
+        }
+        stmt.push_str(line);
+        if stmt.ends_with(';') {
+            let new_stmt = helpers::process_schema_stmt(&stmt, in_memory);
+            warn!("create_schema issuing new_stmt {}", new_stmt);
+            db.query_drop(new_stmt.to_string())?;
+            stmt = String::new();
+        }
+    }
+
+    vaults::create_vault(in_memory, db)?;
+    history::create_history(in_memory, db)?;
+    Ok(())
+}
+
+fn init_db(prime: bool, in_memory: bool, dbname: &str, schema: &str) {
+    warn!("EDNA: Init db!");
+    let url = format!("mysql://tslilyai:pass@127.0.0.1");
+    let mut db = mysql::Conn::new(&url).unwrap();
+    if prime {
+        warn!("Priming database");
+        db.query_drop(&format!("DROP DATABASE IF EXISTS {};", dbname))
+            .unwrap();
+        db.query_drop(&format!("CREATE DATABASE {};", dbname))
+            .unwrap();
+        assert_eq!(db.ping(), true);
+        assert_eq!(db.select_db(&format!("{}", dbname)), true);
+        create_schema(&mut db, in_memory, schema).unwrap();
+    } else {
+        assert_eq!(db.select_db(&format!("{}", dbname)), true);
+    }
+}
+

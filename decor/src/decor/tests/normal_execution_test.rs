@@ -22,10 +22,7 @@ fn init_logger() {
 fn test_normal_execution() {
     init_logger();
 
-    let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME);
-    let mut edna = decor::EdnaClient::new(&url, SCHEMA, true);
-    edna.init_db(true, DBNAME);
-
+    let edna = decor::EdnaClient::new(true, DBNAME, SCHEMA, true);
     let mut db= mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME)).unwrap();
     assert_eq!(db.ping(), true);
 
@@ -48,7 +45,8 @@ fn test_normal_execution() {
         "stories", 
         "users", 
         "moderations", 
-        "unsubscribed", 
+        "GlobalVault", 
+        "DisguiseHistory", 
     ];
     assert_eq!(results.len(), tables.len());
     for tab in results {

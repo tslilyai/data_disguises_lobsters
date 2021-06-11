@@ -1,15 +1,22 @@
 use crate::helpers::*;
-use crate::vaults::*;
 use crate::stats::QueryStat;
+use crate::vaults::*;
 use log::{debug, warn};
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
-use std::sync::{Arc, Mutex};
 use std::str::FromStr;
-use std::sync::atomic::{Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+
+pub const VAULT_TABLE: &'static str = "GlobalVault";
+pub const INSERT_GUISE: u64 = 0;
+pub const DELETE_GUISE: u64 = 1;
+pub const UPDATE_GUISE: u64 = 2;
+
+pub static VAULT_ID: AtomicU64 = AtomicU64::new(1);
 
 fn get_vault_entries_with_constraint(
     constraint: Expr,
@@ -112,7 +119,8 @@ fn insert_reversed_vault_entry(
         .to_string(),
         conn,
         stats.clone(),
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 /*
@@ -326,7 +334,9 @@ pub fn insert_vault_entries(
         .iter()
         .map(|ve| {
             let mut evals = vec![];
-            evals.push(Expr::Value(Value::Number(VAULT_ID.fetch_add(1, Ordering::SeqCst).to_string())));
+            evals.push(Expr::Value(Value::Number(
+                VAULT_ID.fetch_add(1, Ordering::SeqCst).to_string(),
+            )));
             evals.push(Expr::Value(Value::Number(ve.disguise_id.to_string())));
             evals.push(Expr::Value(Value::Number(ve.user_id.to_string())));
             evals.push(Expr::Value(Value::String(ve.guise_name.clone())));
@@ -358,7 +368,8 @@ pub fn insert_vault_entries(
             .to_string(),
             conn,
             stats.clone(),
-        ).unwrap();
+        )
+        .unwrap();
     }
 }
 
@@ -444,7 +455,7 @@ pub fn print_as_filters(conn: &mut mysql::PooledConn) -> Result<(), mysql::Error
     Ok(())
 }
 
-pub fn create_vault(in_memory: bool, conn: &mut mysql::PooledConn) -> Result<(), mysql::Error> {
+pub fn create_vault(in_memory: bool, conn: &mut mysql::Conn) -> Result<(), mysql::Error> {
     let engine = Some(if in_memory {
         Engine::Memory
     } else {
