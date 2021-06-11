@@ -199,3 +199,22 @@ impl UVClient {
         ves
     }
 }
+ #[test]
+ fn test_insert_ve() {
+     let vault_entries = vec![
+         /*VaultEntry {
+             vault_id: u64,
+             disguise_id: u64,
+             user_id: u64,
+             guise_name: String,
+             guise_id_cols: Vec<String>,
+             guise_ids: Vec<String>,
+             referencer_name: String,
+             update_type: u64,
+             modified_cols: Vec<String>,
+             old_value: Vec<RowVal>,
+             new_value: Vec<RowVal>,
+             reverses: Option<u64>,
+         },*/
+     ];
+ }

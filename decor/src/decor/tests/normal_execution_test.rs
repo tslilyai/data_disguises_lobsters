@@ -7,6 +7,7 @@ use decor::{helpers};
 mod policies;
 
 const SCHEMA : &'static str = include_str!("./schema.sql");
+const DBNAME : &'static str = "test_normal";
 
 fn init_logger() {
     let _ = env_logger::builder()
@@ -21,27 +22,13 @@ fn init_logger() {
 #[test]
 fn test_normal_execution() {
     init_logger();
-    let listener = net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
 
-    let jh = thread::spawn(move || {
-        if let Ok((s, _)) = listener.accept() {
-            decor::Shim::run_on_tcp(
-                    "gdpr_normal", SCHEMA, policies::combined_policy(),
-                    decor::TestParams{
-                        testname: "test_normal".to_string(), 
-                        use_mv:true, use_decor:true, parse:true, in_memory: true,
-                        prime: true}, s).unwrap();
-        }
-    });
+    let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME);
+    let mut edna = decor::EdnaClient::new(&url, SCHEMA, true);
+    edna.init_db(true, DBNAME);
 
-    let mut db = mysql::Conn::new(&format!("mysql://127.0.0.1:{}", port)).unwrap();
+    let mut db= mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME)).unwrap();
     assert_eq!(db.ping(), true);
-    assert_eq!(db.select_db("gdpr_normal"), true);
-
-    let mut db_actual = mysql::Conn::new("mysql://tslilyai:pass@127.0.0.1").unwrap();
-    assert_eq!(db_actual.ping(), true);
-    assert_eq!(db_actual.select_db("gdpr_normal"), true);
 
     /*
      * NOTE: the column types are all right, but the mysql value returned is always Bytes,
@@ -52,7 +39,7 @@ fn test_normal_execution() {
      * TEST 1: all tables successfully created 
      */
     let mut results = vec![];
-    let res = db_actual.query_iter("SHOW tables;").unwrap();
+    let res = db.query_iter("SHOW tables;").unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         let name = helpers::mysql_val_to_string(&vals[0]);
@@ -192,6 +179,4 @@ fn test_normal_execution() {
     assert_eq!(results[0], ("2".to_string(), "3".to_string(), "1".to_string(), "NULL".to_string(), "worst story!".to_string()));
 
     drop(db);
-    drop(db_actual);
-    jh.join().unwrap();
 }
