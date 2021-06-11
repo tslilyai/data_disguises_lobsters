@@ -2,7 +2,7 @@ use crate::helpers::*;
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 
-#[derive(Default, Clone, Debug, Deserialize, Serialize)]
+#[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct VaultEntry {
     pub vault_id: u64,
     pub disguise_id: u64,
@@ -18,8 +18,13 @@ pub struct VaultEntry {
     pub reverses: Option<u64>,
 }
 
-pub fn ve_to_bytes(ve: &VaultEntry) -> Vec<u8> {
+fn ve_to_bytes(ve: &VaultEntry) -> Vec<u8> {
     let s = serde_json::to_string(ve).unwrap();
+    s.as_bytes().to_vec()
+}
+
+pub fn ves_to_bytes(ves: &Vec<VaultEntry>) -> Vec<u8> {
+    let s = serde_json::to_string(ves).unwrap();
     s.as_bytes().to_vec()
 }
 

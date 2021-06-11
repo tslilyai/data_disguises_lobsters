@@ -28,6 +28,10 @@ fn get_vault_entries_with_constraint(
         conn,
         stats.clone(),
     )?;
+    Ok(rows_to_ves(&rows))
+}
+
+fn rows_to_ves(rows: &Vec<Vec<RowVal>>) -> Vec<VaultEntry> {
     let mut ves = vec![];
     for row in rows {
         let mut ve: VaultEntry = Default::default();
@@ -87,7 +91,7 @@ fn get_vault_entries_with_constraint(
         }
         ves.push(ve);
     }
-    Ok(ves)
+    ves
 }
 
 fn insert_reversed_vault_entry(

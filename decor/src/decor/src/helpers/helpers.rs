@@ -57,3 +57,11 @@ pub fn merge_vector_hashmaps<T: Clone>(
     }
     hm
 }
+
+pub fn max(a: u64, b: u64) -> u64 {
+    if a >= b {
+        a
+    } else {
+        b
+    }
+}

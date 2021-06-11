@@ -10,6 +10,7 @@ use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::sync::{Arc, Mutex};
 use std::*;
+use rusoto_core::{Region};
 
 mod disguise;
 pub mod helpers;
@@ -18,6 +19,8 @@ pub mod stats;
 mod vaults;
 
 const GUISE_ID_LB: u64 = 1 << 5;
+const BUCKET: &'static str = "edna-uservaults";
+const REGION: Region = Region::UsEast2;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
@@ -40,7 +43,7 @@ impl EdnaClient {
         init_db(prime, in_memory, dbname, schema);
         let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname);
         EdnaClient {
-            uvclient: vaults::UVClient::new(),
+            uvclient: vaults::UVClient::new(BUCKET, REGION),
             schema: schema.to_string(),
             in_memory: in_memory,
             disguiser: disguise::Disguiser::new(&url),
