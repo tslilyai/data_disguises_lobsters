@@ -1,6 +1,7 @@
 use crate::{helpers::*, vaults::*};
-use crypto::{aead::*, chacha20poly1305::*};
 use core::iter::repeat;
+use crypto::{aead::*, chacha20poly1305::*};
+use log::warn;
 use rusoto_core::request::HttpClient;
 use rusoto_core::{ByteStream, Region};
 use rusoto_credential::ProfileProvider;
@@ -70,6 +71,7 @@ impl UVClient {
             tag: tag,
         };
         let serialized = serde_json::to_string(&uvobj).unwrap();
+        warn!("Put serialized data {:?}", serialized);
 
         // insert into user's s3 bucket
         let put_req = PutObjectRequest {
@@ -131,7 +133,8 @@ impl UVClient {
             None => format!("{}/", uid),
         };
 
-        let mut objs: Vec<GetObjectOutput> = vec![];
+        let mut ves = vec![];
+        let mut chacha = ChaCha20Poly1305::new(ukey, nonce, &vec![]);
         let mut ct = None;
         let mut started = false;
         while !ct.is_none() || !started {
@@ -153,44 +156,66 @@ impl UVClient {
             {
                 Ok(output) => {
                     ct = output.next_continuation_token;
-                    if ct != None {
-                        let metaobjs = output.contents.unwrap();
-                        let mut get_req = GetObjectRequest {
-                            bucket: self.bucket.clone(),
-                            expected_bucket_owner: None,
-                            if_match: None,
-                            if_modified_since: None,
-                            if_none_match: None,
-                            if_unmodified_since: None,
-                            key: String::new(),
-                            part_number: None,
-                            range: None,
-                            request_payer: None,
-                            response_cache_control: None,
-                            response_content_disposition: None,
-                            response_content_encoding: None,
-                            response_content_language: None,
-                            response_content_type: None,
-                            response_expires: None,
-                            sse_customer_algorithm: None,
-                            sse_customer_key: None,
-                            sse_customer_key_md5: None,
-                            version_id: None,
-                        };
-                        for o in metaobjs {
-                            get_req.key = o.key.unwrap();
-                            match self
-                                .runtime
-                                .block_on(self.s3client.get_object(get_req.clone()))
-                            {
-                                Ok(obj) => objs.push(obj),
-                                Err(e) => unimplemented!(
-                                    "Failed to get obj for {} to S3 bucket: {}",
-                                    uid,
-                                    e
-                                ),
+                    match output.contents {
+                        Some(metaobjs) => {
+                            let mut get_req = GetObjectRequest {
+                                bucket: self.bucket.clone(),
+                                expected_bucket_owner: None,
+                                if_match: None,
+                                if_modified_since: None,
+                                if_none_match: None,
+                                if_unmodified_since: None,
+                                key: String::new(),
+                                part_number: None,
+                                range: None,
+                                request_payer: None,
+                                response_cache_control: None,
+                                response_content_disposition: None,
+                                response_content_encoding: None,
+                                response_content_language: None,
+                                response_content_type: None,
+                                response_expires: None,
+                                sse_customer_algorithm: None,
+                                sse_customer_key: None,
+                                sse_customer_key_md5: None,
+                                version_id: None,
+                            };
+                            for o in metaobjs {
+                                get_req.key = o.key.unwrap();
+                                warn!("Got object key {}", get_req.key);
+                                match self
+                                    .runtime
+                                    .block_on(self.s3client.get_object(get_req.clone()))
+                                {
+                                    Ok(obj) => {
+                                        let mut serialized = vec![];
+                                        match obj.content_length {
+                                            Some(n) => {
+                                                warn!("Got data of len {:?}", n);
+                                                let mut body = obj.body.unwrap().into_blocking_read();
+                                                body.read_to_end(&mut serialized).unwrap();
+                                                warn!("Got serialized data {:?}", serialized);
+                                                let uvobj: UVObject =
+                                                    serde_json::from_str(&str::from_utf8(&serialized).unwrap()).unwrap();
+                                                let mut plaintxt: Vec<u8> = repeat(0u8).take(uvobj.body.len()).collect();
+                                                chacha.decrypt(&uvobj.body, &mut plaintxt, &uvobj.tag);
+
+                                                let mut tmpves: Vec<VaultEntry> =
+                                                    serde_json::from_str(&str::from_utf8(&plaintxt).unwrap()).unwrap();
+                                                ves.append(&mut tmpves);
+                                            }
+                                            None => warn!("No data in object?"),
+                                        }
+                                    }
+                                    Err(e) => unimplemented!(
+                                        "Failed to get obj for {} to S3 bucket: {}",
+                                        uid,
+                                        e
+                                    ),
+                                }
                             }
                         }
+                        None => (),
                     }
                 }
                 Err(e) => unimplemented!("Failed to add ve for {} to S3 bucket: {}", uid, e),
@@ -198,22 +223,6 @@ impl UVClient {
             if !started {
                 started = true;
             }
-        }
-
-        let mut ves = vec![];
-        let mut chacha = ChaCha20Poly1305::new(ukey, nonce, &vec![]);
-        for obj in objs {
-            let mut serialized = vec![];
-            let mut body = obj.body.unwrap().into_blocking_read();
-            body.read(&mut serialized).unwrap();
-            let uvobj: UVObject =
-                serde_json::from_str(&str::from_utf8(&serialized).unwrap()).unwrap();
-            let mut plaintxt = vec![];
-            chacha.decrypt(&uvobj.body, &mut plaintxt, &uvobj.tag);
-
-            let mut tmpves: Vec<VaultEntry> =
-                serde_json::from_str(&str::from_utf8(&plaintxt).unwrap()).unwrap();
-            ves.append(&mut tmpves);
         }
         ves
     }
@@ -241,14 +250,16 @@ impl UVClient {
             {
                 Ok(output) => {
                     ct = output.next_continuation_token;
-                    if ct != None {
-                        let metaobjs = output.contents.unwrap();
-                        for o in metaobjs {
-                            objs.push(ObjectIdentifier {
-                                key: o.key.unwrap(),
-                                version_id: None,
-                            });
+                    match output.contents {
+                        Some(metaobjs) => {
+                            for o in metaobjs {
+                                objs.push(ObjectIdentifier {
+                                    key: o.key.unwrap(),
+                                    version_id: None,
+                                });
+                            }
                         }
+                        None => (),
                     }
                 }
                 Err(e) => {
@@ -313,29 +324,37 @@ fn test_insert_ve() {
     let test_bucket: &'static str = "edna-uservaults-test";
     let test_region: Region = Region::UsEast1;
 
+    let _ = env_logger::builder()
+        .filter_level(log::LevelFilter::Warn)
+        .is_test(true)
+        .try_init();
+
+    // create client and reset for test
+    let mut uvclient = UVClient::new(test_bucket, test_region);
+    uvclient.clear_all_user_vaults();
+
+    // insert vault entries for n users
     let n = 2;
     let mut gen = OsRng::new().expect("Failed to get OS random generator");
     let mut key: Vec<u8> = repeat(0u8).take(32).collect();
     gen.fill_bytes(&mut key[..]);
     let mut nonce: Vec<u8> = repeat(0u8).take(8).collect();
     gen.fill_bytes(&mut nonce[..]);
-
-    let mut vault_entries: Vec<VaultEntry> = vec![];
     for i in 0..n {
-        vault_entries.push(create_dummy_ve(i, None));
+        let vault_entries = vec![create_dummy_ve(i, None)];
+        uvclient.insert_user_ves(&key, &nonce, &vault_entries);
     }
 
-    let mut uvclient = UVClient::new(test_bucket, test_region);
-    uvclient.clear_all_user_vaults();
-    uvclient.insert_user_ves(&key, &nonce, &vault_entries);
-
+    // get vault entries for n users
     for i in 0..n {
         let ves_user = uvclient.get_ves(i, None, &key, &nonce);
         let ves_user_disg = uvclient.get_ves(i, Some(i), &key, &nonce);
+        warn!("Got user ves {:?}", ves_user);
+        warn!("Got user disg ves {:?}", ves_user_disg);
         assert_eq!(ves_user.len(), 1);
         assert_eq!(ves_user_disg.len(), 1);
 
-        let correct = create_dummy_ve(n, None);
+        let correct = create_dummy_ve(i, None);
         assert_eq!(ves_user[0], correct);
         assert_eq!(ves_user_disg[0], correct);
     }
