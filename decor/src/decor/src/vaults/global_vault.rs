@@ -4,7 +4,7 @@ use crate::vaults::*;
 use log::{debug, warn};
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use std::collections::HashSet;
+use std::collections::{HashSet, HashMap};
 use std::fs::File;
 use std::io::Write;
 use std::str::FromStr;
@@ -329,14 +329,14 @@ pub fn reverse_vault_decor_referencer_entries(
     Ok(vault_entries)
 }
 
-pub fn insert_vault_entries(
-    entries: &Vec<VaultEntry>,
+pub fn insert_global_ves(
+    entries: &HashMap<String, Vec<VaultEntry>>,
     conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) {
-    let vault_vals: Vec<Vec<Expr>> = entries
-        .iter()
-        .map(|ve| {
+    let mut vault_vals: Vec<Vec<Expr>> = vec![];
+    for (_, user_ves) in entries.iter() {
+        vault_vals.append(&mut user_ves.iter().map(|ve| {
             let mut evals = vec![];
             evals.push(Expr::Value(Value::Number(
                 VAULT_ID.fetch_add(1, Ordering::SeqCst).to_string(),
@@ -361,7 +361,9 @@ pub fn insert_vault_entries(
             );
             evals
         })
-        .collect();
+        .collect());
+    }
+
     if !vault_vals.is_empty() {
         query_drop(
             Statement::Insert(InsertStatement {

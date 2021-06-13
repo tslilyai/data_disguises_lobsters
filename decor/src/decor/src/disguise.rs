@@ -61,10 +61,11 @@ pub struct Disguise {
 pub struct Disguiser {
     pub pool: mysql::Pool,
     pub stats: Arc<Mutex<QueryStat>>,
-    vault_vals: Arc<Mutex<Vec<vaults::VaultEntry>>>,
+    vault_vals: Arc<Mutex<HashMap<String, Vec<vaults::VaultEntry>>>>,
     items: Arc<RwLock<HashMap<String, HashMap<Vec<RowVal>, Vec<Arc<RwLock<Transform>>>>>>>,
     to_delete: Arc<Mutex<Vec<String>>>,
     to_insert: Arc<Mutex<Vec<Vec<Expr>>>>,
+    uvclient: vaults::UVClient,
 }
 
 impl Disguiser {
@@ -75,10 +76,11 @@ impl Disguiser {
         Disguiser {
             pool: pool,
             stats: Arc::new(Mutex::new(stats::QueryStat::new())),
-            vault_vals: Arc::new(Mutex::new(vec![])),
+            vault_vals: Arc::new(Mutex::new(HashMap::new())),
             to_insert: Arc::new(Mutex::new(vec![])),
             to_delete: Arc::new(Mutex::new(vec![])),
             items: Arc::new(RwLock::new(HashMap::new())),
+            uvclient: vaults::UVClient::new(crate::BUCKET, crate::REGION),
         }
     }
 
@@ -137,20 +139,25 @@ impl Disguiser {
                                     for owner_col in &table.owner_cols {
                                         let uid = get_value_of_col(&i, &owner_col).unwrap();
                                         if (*is_owner)(&uid) {
-                                            myvv.lock().unwrap().push(vaults::VaultEntry {
-                                                vault_id: 0,
-                                                disguise_id: disguise_id,
-                                                user_id: u64::from_str(&uid).unwrap(),
-                                                guise_name: table.name.clone(),
-                                                guise_id_cols: table.id_cols.clone(),
-                                                guise_ids: ids.clone(),
-                                                referencer_name: "".to_string(),
-                                                update_type: vaults::DELETE_GUISE,
-                                                modified_cols: vec![],
-                                                old_value: i.clone(),
-                                                new_value: vec![],
-                                                reverses: None,
-                                            });
+                                            let mut myvv_locked = myvv.lock().unwrap();
+                                            let ve = vaults::VaultEntry {
+                                                    vault_id: 0,
+                                                    disguise_id: disguise_id,
+                                                    user_id: u64::from_str(&uid).unwrap(),
+                                                    guise_name: table.name.clone(),
+                                                    guise_id_cols: table.id_cols.clone(),
+                                                    guise_ids: ids.clone(),
+                                                    referencer_name: "".to_string(),
+                                                    update_type: vaults::DELETE_GUISE,
+                                                    modified_cols: vec![],
+                                                    old_value: i.clone(),
+                                                    new_value: vec![],
+                                                    reverses: None,
+                                            };
+                                            match myvv_locked.get_mut(&uid) {
+                                                Some(vs) => vs.push(ve),
+                                                None => {myvv_locked.insert(uid, vec![ve]);
+                                                }                                           }
                                         }
                                     }
                                 }
@@ -339,8 +346,8 @@ impl Disguiser {
                                             }
                                         })
                                         .collect();
-                                    let mut locked_vv = myvv.lock().unwrap();
-                                    locked_vv.push(vaults::VaultEntry {
+                                    let mut myvv_locked = myvv.lock().unwrap();
+                                    let ve = vaults::VaultEntry {
                                         vault_id: 0,
                                         disguise_id: disguise_id,
                                         user_id: old_uid,
@@ -353,7 +360,13 @@ impl Disguiser {
                                         old_value: vec![],
                                         new_value: new_parent_rowvals,
                                         reverses: None,
-                                    });
+                                    };
+                                    match myvv_locked.get_mut(&old_uid.to_string()) {
+                                        Some(vs) => vs.push(ve),
+                                        None => {
+                                            myvv_locked.insert(old_uid.to_string(), vec![ve]);
+                                        }
+                                    }
 
                                     // Phase 3B: update the vault with the modification to children
                                     let new_child: Vec<RowVal> = i
@@ -370,7 +383,7 @@ impl Disguiser {
                                         })
                                         .collect();
                                     warn!("Decor: Getting ids of table {} for {:?}", table.name, i);
-                                    locked_vv.push(vaults::VaultEntry {
+                                    let ve = vaults::VaultEntry {
                                         vault_id: 0,
                                         disguise_id: disguise_id,
                                         user_id: old_uid,
@@ -383,8 +396,12 @@ impl Disguiser {
                                         old_value: i.clone(),
                                         new_value: new_child,
                                         reverses: None,
-                                    });
-                                    drop(locked_vv);
+                                    };
+                                    match myvv_locked.get_mut(&old_uid.to_string()) {
+                                        Some(vs) => vs.push(ve),
+                                        None => {myvv_locked.insert(old_uid.to_string(), vec![ve]);}
+                                    }
+                                    drop(myvv_locked);
                                 }
 
                                 let mut locked_stats = mystats.lock().unwrap();
@@ -419,30 +436,30 @@ impl Disguiser {
                                 /*
                                  * PHASE 3: VAULT UPDATES
                                  * */
-                                let new_obj: Vec<RowVal> = i
-                                    .iter()
-                                    .map(|v| {
-                                        if &v.column == col {
-                                            RowVal {
-                                                column: v.column.clone(),
-                                                value: new_val.clone(),
-                                            }
-                                        } else {
-                                            v.clone()
-                                        }
-                                    })
-                                    .collect();
-
                                 // XXX insert a vault entry for every owning user (every fk)
                                 // should just update for the calling user, if there is one?
                                 if is_reversible {
                                     warn!("Modify: Getting ids of table {} for {:?}", table.name, i);
+                                    let new_obj: Vec<RowVal> = i
+                                        .iter()
+                                        .map(|v| {
+                                            if &v.column == col {
+                                                RowVal {
+                                                    column: v.column.clone(),
+                                                    value: new_val.clone(),
+                                                }
+                                            } else {
+                                                v.clone()
+                                            }
+                                        })
+                                        .collect();
+
                                     let ids = get_ids(&table.id_cols, &i);
-                                    let mut locked_vv = myvv.lock().unwrap();
+                                    let mut myvv_locked = myvv.lock().unwrap();
                                     for owner_col in &table.owner_cols {
                                         let uid = get_value_of_col(&i, &owner_col).unwrap();
                                         if (*is_owner)(&uid) {
-                                            locked_vv.push(vaults::VaultEntry {
+                                            let ve = vaults::VaultEntry {
                                                 vault_id: 0,
                                                 disguise_id: disguise_id,
                                                 user_id: u64::from_str(&uid).unwrap(),
@@ -455,10 +472,14 @@ impl Disguiser {
                                                 old_value: i.clone(),
                                                 new_value: new_obj.clone(),
                                                 reverses: None,
-                                            });
+                                            };
+                                            match myvv_locked.get_mut(&uid) {
+                                                Some(vs) => vs.push(ve),
+                                                None => {myvv_locked.insert(uid, vec![ve]);}
+                                            }
                                         }
                                     }
-                                    drop(locked_vv);
+                                    drop(myvv_locked);
                                 }
 
                                 let mut locked_stats = mystats.lock().unwrap();
@@ -514,7 +535,12 @@ impl Disguiser {
         warn!("Disguiser: Performed Inserts");
         
         let locked_vv = self.vault_vals.lock().unwrap();
-        vaults::insert_vault_entries(&locked_vv, &mut conn, self.stats.clone());
+        // TODO when to insert into global, and when to insert into local?
+        if locked_vv.len() == 1 {
+            //self.uvclient.insert_user_ves(de.ukey, de.nonce, &locked_vv.values()[0]);
+        } else {
+            vaults::insert_global_ves(&locked_vv, &mut conn, self.stats.clone());
+        }
         drop(locked_vv);
         warn!("Disguiser: Inserted Vault Entries");
 
