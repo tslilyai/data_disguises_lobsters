@@ -49,11 +49,17 @@ pub struct GuiseInfo {
     pub referencers: Vec<(String, String)>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct User {
+    pub id: u64,
+    pub nonce: Vec<u8>,
+    pub key: Vec<u8>,
+}
+
 pub struct Disguise {
     pub disguise_id: u64,
     pub table_disguises: Vec<Arc<RwLock<TableDisguise>>>,
-    // used to determine if a particular UID belongs to the "owner" of the disguise
-    pub is_owner: Arc<RwLock<Box<dyn Fn(&str) -> bool + Send + Sync>>>,
+    pub user: Option<User>, 
     // used to generate new guises
     pub guise_info: Arc<RwLock<GuiseInfo>>,
     pub is_reversible: bool,
@@ -102,13 +108,15 @@ impl Disguiser {
             let my_delete = self.to_delete.clone();
             let is_reversible = disguise.is_reversible;
             let disguise_id = disguise.disguise_id;
-            let is_owner = disguise.is_owner.clone();
+            let user_id = match &disguise.user {
+                Some(u) => u.id,
+                None => 0,
+            };
             let my_items = self.items.clone();
             let mut items_of_table: HashMap<Vec<RowVal>, Vec<Arc<RwLock<Transform>>>> =
                 HashMap::new();
 
             threads.push(thread::spawn(move || {
-                let is_owner = is_owner.read().unwrap();
                 let table = table.read().unwrap();
                 let mut conn = pool.get_conn().unwrap();
                 let mut removed_items: HashSet<Vec<RowVal>> = HashSet::new();
@@ -138,26 +146,29 @@ impl Disguiser {
                                     let ids = get_ids(&table.id_cols, i);
                                     for owner_col in &table.owner_cols {
                                         let uid = get_value_of_col(&i, &owner_col).unwrap();
-                                        if (*is_owner)(&uid) {
-                                            let mut myvv_locked = myvv.lock().unwrap();
+                                        let uid64 = u64::from_str(&uid).unwrap();
+                                        let should_insert = user_id == uid64 || user_id == 0;
+                                        if should_insert {     
                                             let ve = vaults::VaultEntry {
-                                                    vault_id: 0,
-                                                    disguise_id: disguise_id,
-                                                    user_id: u64::from_str(&uid).unwrap(),
-                                                    guise_name: table.name.clone(),
-                                                    guise_id_cols: table.id_cols.clone(),
-                                                    guise_ids: ids.clone(),
-                                                    referencer_name: "".to_string(),
-                                                    update_type: vaults::DELETE_GUISE,
-                                                    modified_cols: vec![],
-                                                    old_value: i.clone(),
-                                                    new_value: vec![],
-                                                    reverses: None,
+                                                vault_id: 0,
+                                                disguise_id: disguise_id,
+                                                user_id: uid64, 
+                                                guise_name: table.name.clone(),
+                                                guise_id_cols: table.id_cols.clone(),
+                                                guise_ids: ids.clone(),
+                                                referencer_name: "".to_string(),
+                                                update_type: vaults::DELETE_GUISE,
+                                                modified_cols: vec![],
+                                                old_value: i.clone(),
+                                                new_value: vec![],
+                                                reverses: None,
                                             };
+                                            let mut myvv_locked = myvv.lock().unwrap();
                                             match myvv_locked.get_mut(&uid) {
                                                 Some(vs) => vs.push(ve),
                                                 None => {myvv_locked.insert(uid, vec![ve]);
-                                                }                                           }
+                                                }                                           
+                                            }
                                         }
                                     }
                                 }
@@ -252,12 +263,14 @@ impl Disguiser {
             let my_fkcols = fk_cols.clone();
 
             let is_reversible = disguise.is_reversible;
+            let user_id = match &disguise.user {
+                Some(u) => u.id,
+                None => 0,
+            };
             let disguise_id = disguise.disguise_id;
-            let is_owner = disguise.is_owner.clone();
             let guise_info = disguise.guise_info.clone();
 
             threads.push(thread::spawn(move || {
-                let is_owner = is_owner.read().unwrap();
                 let guise_info = guise_info.read().unwrap();
                 let table = table.read().unwrap();
                 let mut conn = pool.get_conn().unwrap();
@@ -458,7 +471,9 @@ impl Disguiser {
                                     let mut myvv_locked = myvv.lock().unwrap();
                                     for owner_col in &table.owner_cols {
                                         let uid = get_value_of_col(&i, &owner_col).unwrap();
-                                        if (*is_owner)(&uid) {
+                                        let uid64 = u64::from_str(&uid).unwrap();
+                                        let should_insert = user_id == 0 || user_id == uid64;
+                                        if should_insert {     
                                             let ve = vaults::VaultEntry {
                                                 vault_id: 0,
                                                 disguise_id: disguise_id,

@@ -6,7 +6,7 @@ use rusoto_core::request::HttpClient;
 use rusoto_core::{ByteStream, Region};
 use rusoto_credential::ProfileProvider;
 use rusoto_s3::{
-    Delete, DeleteObjectsRequest, GetObjectOutput, GetObjectRequest, ListObjectsV2Request,
+    Delete, DeleteObjectsRequest, GetObjectRequest, ListObjectsV2Request,
     ObjectIdentifier, PutObjectRequest, S3Client, S3,
 };
 use serde::{Deserialize, Serialize};
