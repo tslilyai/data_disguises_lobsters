@@ -330,7 +330,7 @@ pub fn reverse_vault_decor_referencer_entries(
 }
 
 pub fn insert_global_ves(
-    entries: &HashMap<String, Vec<VaultEntry>>,
+    entries: &HashMap<u64, Vec<VaultEntry>>,
     conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) {

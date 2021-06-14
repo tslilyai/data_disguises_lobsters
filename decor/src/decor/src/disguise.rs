@@ -67,7 +67,7 @@ pub struct Disguise {
 pub struct Disguiser {
     pub pool: mysql::Pool,
     pub stats: Arc<Mutex<QueryStat>>,
-    vault_vals: Arc<Mutex<HashMap<String, Vec<vaults::VaultEntry>>>>,
+    vault_vals: Arc<Mutex<HashMap<u64, Vec<vaults::VaultEntry>>>>,
     items: Arc<RwLock<HashMap<String, HashMap<Vec<RowVal>, Vec<Arc<RwLock<Transform>>>>>>>,
     to_delete: Arc<Mutex<Vec<String>>>,
     to_insert: Arc<Mutex<Vec<Vec<Expr>>>>,
@@ -164,9 +164,9 @@ impl Disguiser {
                                                 reverses: None,
                                             };
                                             let mut myvv_locked = myvv.lock().unwrap();
-                                            match myvv_locked.get_mut(&uid) {
+                                            match myvv_locked.get_mut(&uid64) {
                                                 Some(vs) => vs.push(ve),
-                                                None => {myvv_locked.insert(uid, vec![ve]);
+                                                None => {myvv_locked.insert(uid64, vec![ve]);
                                                 }                                           
                                             }
                                         }
@@ -219,9 +219,12 @@ impl Disguiser {
         }
     }
 
-    pub fn apply(&mut self, disguise: Arc<Disguise>, user_id: Option<u64>) -> Result<(), mysql::Error> {
+    pub fn apply(&mut self, disguise: Arc<Disguise>) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {
-            user_id: user_id.unwrap_or(0),
+            user_id: match &disguise.user {
+                Some(u) => u.id, 
+                None => 0,
+            },
             disguise_id: disguise.disguise_id,
             reverse: false,
         };
@@ -374,10 +377,10 @@ impl Disguiser {
                                         new_value: new_parent_rowvals,
                                         reverses: None,
                                     };
-                                    match myvv_locked.get_mut(&old_uid.to_string()) {
+                                    match myvv_locked.get_mut(&old_uid) {
                                         Some(vs) => vs.push(ve),
                                         None => {
-                                            myvv_locked.insert(old_uid.to_string(), vec![ve]);
+                                            myvv_locked.insert(old_uid, vec![ve]);
                                         }
                                     }
 
@@ -410,9 +413,9 @@ impl Disguiser {
                                         new_value: new_child,
                                         reverses: None,
                                     };
-                                    match myvv_locked.get_mut(&old_uid.to_string()) {
+                                    match myvv_locked.get_mut(&old_uid) {
                                         Some(vs) => vs.push(ve),
-                                        None => {myvv_locked.insert(old_uid.to_string(), vec![ve]);}
+                                        None => {myvv_locked.insert(old_uid, vec![ve]);}
                                     }
                                     drop(myvv_locked);
                                 }
@@ -488,9 +491,9 @@ impl Disguiser {
                                                 new_value: new_obj.clone(),
                                                 reverses: None,
                                             };
-                                            match myvv_locked.get_mut(&uid) {
+                                            match myvv_locked.get_mut(&uid64) {
                                                 Some(vs) => vs.push(ve),
-                                                None => {myvv_locked.insert(uid, vec![ve]);}
+                                                None => {myvv_locked.insert(uid64, vec![ve]);}
                                             }
                                         }
                                     }
@@ -548,11 +551,12 @@ impl Disguiser {
         }
         drop(locked_insert);
         warn!("Disguiser: Performed Inserts");
-        
+       
         let locked_vv = self.vault_vals.lock().unwrap();
-        // TODO when to insert into global, and when to insert into local?
-        if locked_vv.len() == 1 {
-            //self.uvclient.insert_user_ves(de.ukey, de.nonce, &locked_vv.values()[0]);
+        if let Some(u) = &disguise.user {
+            // TODO when to insert into global, and when to insert into local?
+            let vs = locked_vv.get(&u.id).unwrap();
+            self.uvclient.insert_user_ves(&u.key, &u.nonce, &vs);
         } else {
             vaults::insert_global_ves(&locked_vv, &mut conn, self.stats.clone());
         }
