@@ -325,6 +325,7 @@ fn create_dummy_ve(n: u64, reverses: Option<u64>) -> VaultEntry {
             value: val,
         }],
         reverses: reverses,
+        priority: 0,
     }
 }
 

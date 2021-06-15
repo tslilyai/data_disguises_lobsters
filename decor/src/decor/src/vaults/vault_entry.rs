@@ -1,11 +1,17 @@
 use crate::helpers::*;
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
+use crate::stats::QueryStat;
+use crate::vaults::*;
+use log::{warn};
+use std::sync::{Arc, Mutex};
+
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct VaultEntry {
     pub vault_id: u64,
     pub disguise_id: u64,
+    pub priority: u64,
     pub user_id: u64,
     pub guise_name: String,
     pub guise_id_cols: Vec<String>,
@@ -37,7 +43,7 @@ pub fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
     }
 }
 
-pub fn reverse_decor_ve(
+/*pub fn reverse_decor_ve(
     referencer_table: &str,
     referencer_col: &str,
     fktable: &str,
@@ -145,4 +151,4 @@ pub fn reverse_decor_ve(
     }
     vault_entries.append(&mut guise_ves);
     Ok(vault_entries)
-}
+}*/

@@ -39,6 +39,7 @@ pub struct Transform {
     pub pred: Predicate,
     pub trans: Arc<RwLock<TransformArgs>>,
     pub restorable: bool,
+    pub priority: u64,
 }
 
 pub struct TableDisguise {
@@ -160,6 +161,7 @@ impl Disguiser {
                                                 old_value: i.clone(),
                                                 new_value: vec![],
                                                 reverses: None,
+                                                priority: t.priority,
                                             };
                                             let mut myvv_locked = myvv.lock().unwrap();
                                             match myvv_locked.get_mut(&uid64) {
@@ -367,6 +369,7 @@ impl Disguiser {
                                         old_value: vec![],
                                         new_value: new_parent_rowvals,
                                         reverses: None,
+                                        priority: t.priority,
                                     };
                                     match myvv_locked.get_mut(&old_uid) {
                                         Some(vs) => vs.push(ve),
@@ -403,6 +406,7 @@ impl Disguiser {
                                         old_value: i.clone(),
                                         new_value: new_child,
                                         reverses: None,
+                                        priority: t.priority,
                                     };
                                     match myvv_locked.get_mut(&old_uid) {
                                         Some(vs) => vs.push(ve),
@@ -481,6 +485,7 @@ impl Disguiser {
                                                 old_value: i.clone(),
                                                 new_value: new_obj.clone(),
                                                 reverses: None,
+                                                priority: t.priority,
                                             };
                                             match myvv_locked.get_mut(&uid64) {
                                                 Some(vs) => vs.push(ve),
