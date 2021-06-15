@@ -1,5 +1,5 @@
-use crate::stats::QueryStat;
 use crate::helpers::*;
+use crate::stats::QueryStat;
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::sync::{Arc, Mutex};
@@ -13,31 +13,35 @@ pub struct DisguiseEntry {
     pub reverse: bool,
 }
 
-/* 
+/*
  * Assumes that a disguise cannot be reversed or applied twice in sequence
  */
-pub fn is_disguise_reversed (
+pub fn is_disguise_reversed(
     de: &DisguiseEntry,
     conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<bool, mysql::Error> {
     let equal_uid_constraint = Expr::BinaryOp {
-         left: Box::new(Expr::Identifier(vec![Ident::new("userId")])),
-         op: BinaryOperator::Eq,
-         right: Box::new(Expr::Value(Value::Number(de.user_id.to_string()))),
-     };
-     let disguise_constraint = Expr::BinaryOp {
-         left: Box::new(Expr::Identifier(vec![Ident::new("disguiseId")])),
-         op: BinaryOperator::Eq,
-         right: Box::new(Expr::Value(Value::Number(de.disguise_id.to_string()))),
-     };
-     let constraint = Expr::BinaryOp {
-         left: Box::new(equal_uid_constraint),
-         op: BinaryOperator::And,
-         right: Box::new(disguise_constraint),
-     };
+        left: Box::new(Expr::Identifier(vec![Ident::new("userId")])),
+        op: BinaryOperator::Eq,
+        right: Box::new(Expr::Value(Value::Number(de.user_id.to_string()))),
+    };
+    let disguise_constraint = Expr::BinaryOp {
+        left: Box::new(Expr::Identifier(vec![Ident::new("disguiseId")])),
+        op: BinaryOperator::Eq,
+        right: Box::new(Expr::Value(Value::Number(de.disguise_id.to_string()))),
+    };
+    let constraint = Expr::BinaryOp {
+        left: Box::new(equal_uid_constraint),
+        op: BinaryOperator::And,
+        right: Box::new(disguise_constraint),
+    };
 
-    let rows = get_query_rows(&select_ordered_statement(HISTORY_TABLE, Some(constraint), "historyId"), conn, stats)?;
+    let rows = get_query_rows(
+        &select_ordered_statement(HISTORY_TABLE, Some(constraint), "historyId"),
+        conn,
+        stats,
+    )?;
     let mut is_reversed = true;
     for r in rows {
         if &get_value_of_col(&r, "reverse").unwrap() == "0" {
@@ -63,10 +67,12 @@ pub fn insert_disguise_history_entry(
             table_name: string_to_objname(HISTORY_TABLE),
             columns: get_insert_disguise_colnames(),
             source: InsertSource::Query(Box::new(values_query(vec![evals]))),
-        }).to_string(),
+        })
+        .to_string(),
         conn,
         stats,
-    ).unwrap();
+    )
+    .unwrap();
 }
 
 fn get_insert_disguise_colnames() -> Vec<Ident> {

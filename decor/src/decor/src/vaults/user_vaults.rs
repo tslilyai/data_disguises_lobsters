@@ -6,8 +6,8 @@ use rusoto_core::request::HttpClient;
 use rusoto_core::{ByteStream, Region};
 use rusoto_credential::ProfileProvider;
 use rusoto_s3::{
-    Delete, DeleteObjectsRequest, GetObjectRequest, ListObjectsV2Request,
-    ObjectIdentifier, PutObjectRequest, S3Client, S3,
+    Delete, DeleteObjectsRequest, GetObjectRequest, ListObjectsV2Request, ObjectIdentifier,
+    PutObjectRequest, S3Client, S3,
 };
 use serde::{Deserialize, Serialize};
 use std::io::Read;
@@ -192,16 +192,27 @@ impl UVClient {
                                         match obj.content_length {
                                             Some(n) => {
                                                 warn!("Got data of len {:?}", n);
-                                                let mut body = obj.body.unwrap().into_blocking_read();
+                                                let mut body =
+                                                    obj.body.unwrap().into_blocking_read();
                                                 body.read_to_end(&mut serialized).unwrap();
                                                 warn!("Got serialized data {:?}", serialized);
-                                                let uvobj: UVObject =
-                                                    serde_json::from_str(&str::from_utf8(&serialized).unwrap()).unwrap();
-                                                let mut plaintxt: Vec<u8> = repeat(0u8).take(uvobj.body.len()).collect();
-                                                chacha.decrypt(&uvobj.body, &mut plaintxt, &uvobj.tag);
+                                                let uvobj: UVObject = serde_json::from_str(
+                                                    &str::from_utf8(&serialized).unwrap(),
+                                                )
+                                                .unwrap();
+                                                let mut plaintxt: Vec<u8> =
+                                                    repeat(0u8).take(uvobj.body.len()).collect();
+                                                chacha.decrypt(
+                                                    &uvobj.body,
+                                                    &mut plaintxt,
+                                                    &uvobj.tag,
+                                                );
 
                                                 let mut tmpves: Vec<VaultEntry> =
-                                                    serde_json::from_str(&str::from_utf8(&plaintxt).unwrap()).unwrap();
+                                                    serde_json::from_str(
+                                                        &str::from_utf8(&plaintxt).unwrap(),
+                                                    )
+                                                    .unwrap();
                                                 ves.append(&mut tmpves);
                                             }
                                             None => warn!("No data in object?"),

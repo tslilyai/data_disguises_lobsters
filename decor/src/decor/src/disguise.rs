@@ -1,23 +1,23 @@
 use crate::helpers::*;
 use crate::stats::*;
-use crate::{vaults, history};
 use crate::*;
+use crate::{history, vaults};
 use mysql::{Opts, Pool};
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, RwLock};
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransformType {
-    Remove, 
+    Remove,
     Modify,
     Decor,
 }
 
 pub type Predicate = Option<Expr>;
 
-pub enum Transform {
+pub enum TransformArgs {
     Remove,
     Modify {
         // name of column
@@ -34,11 +34,18 @@ pub enum Transform {
     },
 }
 
+#[derive(Clone)]
+pub struct Transform {
+    pub pred: Predicate,
+    pub trans: Arc<RwLock<TransformArgs>>,
+    pub restorable: bool,
+}
+
 pub struct TableDisguise {
     pub name: String,
     pub id_cols: Vec<String>,
     pub owner_cols: Vec<String>,
-    pub transforms: Vec<(Predicate, Arc<RwLock<Transform>>)>,
+    pub transforms: Vec<Transform>,
 }
 
 pub struct GuiseInfo {
@@ -59,16 +66,16 @@ pub struct User {
 pub struct Disguise {
     pub disguise_id: u64,
     pub table_disguises: Vec<Arc<RwLock<TableDisguise>>>,
-    pub user: Option<User>, 
+    pub user: Option<User>,
     // used to generate new guises
     pub guise_info: Arc<RwLock<GuiseInfo>>,
-    pub is_reversible: bool,
 }
+
 pub struct Disguiser {
     pub pool: mysql::Pool,
     pub stats: Arc<Mutex<QueryStat>>,
     vault_vals: Arc<Mutex<HashMap<u64, Vec<vaults::VaultEntry>>>>,
-    items: Arc<RwLock<HashMap<String, HashMap<Vec<RowVal>, Vec<Arc<RwLock<Transform>>>>>>>,
+    items: Arc<RwLock<HashMap<String, HashMap<Vec<RowVal>, Vec<Transform>>>>>,
     to_delete: Arc<Mutex<Vec<String>>>,
     to_insert: Arc<Mutex<Vec<Vec<Expr>>>>,
     uvclient: vaults::UVClient,
@@ -106,53 +113,44 @@ impl Disguiser {
             let mystats = self.stats.clone();
             let myvv = self.vault_vals.clone();
             let my_delete = self.to_delete.clone();
-            let is_reversible = disguise.is_reversible;
             let disguise_id = disguise.disguise_id;
             let user_id = match &disguise.user {
                 Some(u) => u.id,
                 None => 0,
             };
             let my_items = self.items.clone();
-            let mut items_of_table: HashMap<Vec<RowVal>, Vec<Arc<RwLock<Transform>>>> =
-                HashMap::new();
+            let mut items_of_table: HashMap<Vec<RowVal>, Vec<Transform>> = HashMap::new();
 
             threads.push(thread::spawn(move || {
                 let table = table.read().unwrap();
                 let mut conn = pool.get_conn().unwrap();
                 let mut removed_items: HashSet<Vec<RowVal>> = HashSet::new();
 
-                /*
-                 * PHASE 1: OBJECT SELECTION
-                 * Assign each object its assigned transformations
-                 */
-                for (pred, transform) in &table.transforms {
+                for t in &table.transforms {
                     let pred_items = get_query_rows(
-                        &select_statement(&table.name, &pred),
+                        &select_statement(&table.name, &t.pred),
                         &mut conn,
                         mystats.clone(),
                     )
                     .unwrap();
 
                     // just remove item if it's supposed to be removed
-                    match *transform.read().unwrap() {
-                        Transform::Remove => {
-                            // we're going to remove these, remember in vault
+                    match *t.trans.read().unwrap() {
+                        TransformArgs::Remove => {
+                            // we're going to remove these, but may later restore them, remember in vault
                             for i in &pred_items {
-                                if is_reversible {
-                                    debug!(
-                                        "Remove: Getting ids of table {} for {:?}",
-                                        table.name, i
-                                    );
+                                debug!("Remove: Getting ids of table {} for {:?}", table.name, i);
+                                if t.restorable {
                                     let ids = get_ids(&table.id_cols, i);
                                     for owner_col in &table.owner_cols {
                                         let uid = get_value_of_col(&i, &owner_col).unwrap();
                                         let uid64 = u64::from_str(&uid).unwrap();
                                         let should_insert = user_id == uid64 || user_id == 0;
-                                        if should_insert {     
+                                        if should_insert {
                                             let ve = vaults::VaultEntry {
                                                 vault_id: 0,
                                                 disguise_id: disguise_id,
-                                                user_id: uid64, 
+                                                user_id: uid64,
                                                 guise_name: table.name.clone(),
                                                 guise_id_cols: table.id_cols.clone(),
                                                 guise_ids: ids.clone(),
@@ -166,8 +164,9 @@ impl Disguiser {
                                             let mut myvv_locked = myvv.lock().unwrap();
                                             match myvv_locked.get_mut(&uid64) {
                                                 Some(vs) => vs.push(ve),
-                                                None => {myvv_locked.insert(uid64, vec![ve]);
-                                                }                                           
+                                                None => {
+                                                    myvv_locked.insert(uid64, vec![ve]);
+                                                }
                                             }
                                         }
                                     }
@@ -180,7 +179,7 @@ impl Disguiser {
                             my_delete.lock().unwrap().push(
                                 Statement::Delete(DeleteStatement {
                                     table_name: string_to_objname(&table.name),
-                                    selection: pred.clone(),
+                                    selection: t.pred.clone(),
                                 })
                                 .to_string(),
                             );
@@ -191,9 +190,9 @@ impl Disguiser {
                                     continue;
                                 }
                                 if let Some(ts) = items_of_table.get_mut(&i) {
-                                    ts.push(transform.clone());
+                                    ts.push(t.clone());
                                 } else {
-                                    items_of_table.insert(i, vec![transform.clone()]);
+                                    items_of_table.insert(i, vec![t.clone()]);
                                 }
                             }
                         }
@@ -222,7 +221,7 @@ impl Disguiser {
     pub fn apply(&mut self, disguise: Arc<Disguise>) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {
             user_id: match &disguise.user {
-                Some(u) => u.id, 
+                Some(u) => u.id,
                 None => 0,
             },
             disguise_id: disguise.disguise_id,
@@ -232,22 +231,17 @@ impl Disguiser {
         let mut conn = self.pool.get_conn()?;
         let mut threads = vec![];
 
-        /*//PHASE 0: REVERSE ANY PRIOR DECORRELATED ENTRIES
-        for (ref_table, ref_col) in &disguise.guise_info.referencers {
-            if ref_table == &table.name {
-                vaults::reverse_vault_decor_referencer_entries(
-                    user_id,
-                    &ref_table,
-                    &ref_col,
-                    // assume just one id col for user
-                    &table.name,
-                    &table.id_cols[0],
-                    txn,
-                    stats,
-                )?;
-             }
+        /*
+         * PHASE 0: Get relevant vault entries from prior disguises
+         */
+        if let Some(u) = &disguise.user {
+            let ves = self.uvclient.get_ves(u.id, None, &u.key, &u.nonce);
+        // get vault entries of user that modified this table + column
+        } else {
+            for (ref_table, ref_col) in &disguise.guise_info.read().unwrap().referencers {
+                // get vault entries that modified this table + column
+            }
         }
-        */
 
         // get all the objects, set all the objects to remove
         self.select_predicate_objs(disguise.clone());
@@ -265,7 +259,6 @@ impl Disguiser {
             let my_items = self.items.clone();
             let my_fkcols = fk_cols.clone();
 
-            let is_reversible = disguise.is_reversible;
             let user_id = match &disguise.user {
                 Some(u) => u.id,
                 None => 0,
@@ -279,9 +272,7 @@ impl Disguiser {
                 let mut conn = pool.get_conn().unwrap();
                 let my_items = my_items.read().unwrap();
                 let my_items = my_items.get(&table.name).unwrap();
-                
                 warn!("Thread {:?} starting for table {}", thread::current().id(), table.name);
-
                 // get and apply the transformations for each object
                 let mut update_stmts = vec![];
                 for (i, ts) in (*my_items).iter() {
@@ -292,8 +283,8 @@ impl Disguiser {
                     );
                     let i_select = get_select_of_row(&table.id_cols, &i);
                     for t in ts {
-                        match &*t.read().unwrap() {
-                            Transform::Decor {
+                        match &*t.trans.read().unwrap() {
+                            TransformArgs::Decor {
                                 referencer_col,
                                 fk_name,
                                 ..
@@ -349,7 +340,7 @@ impl Disguiser {
                                  * B) record update to child to point to new guise
                                  * */
                                 // Phase 3A: update the vault with new guise (calculating the uid from the last_insert_id)
-                                if is_reversible {
+                                if t.restorable {
                                     let mut ix = 0;
                                     let new_parent_rowvals: Vec<RowVal> = new_parent
                                         .iter()
@@ -426,7 +417,7 @@ impl Disguiser {
                                 warn!("Thread {:?} decor {}", thread::current().id(), table.name);
                             }
 
-                            Transform::Modify {
+                            TransformArgs::Modify {
                                 col,
                                 generate_modified_value,
                                 ..
@@ -454,7 +445,7 @@ impl Disguiser {
                                  * */
                                 // XXX insert a vault entry for every owning user (every fk)
                                 // should just update for the calling user, if there is one?
-                                if is_reversible {
+                                if t.restorable {
                                     warn!("Modify: Getting ids of table {} for {:?}", table.name, i);
                                     let new_obj: Vec<RowVal> = i
                                         .iter()
@@ -476,7 +467,7 @@ impl Disguiser {
                                         let uid = get_value_of_col(&i, &owner_col).unwrap();
                                         let uid64 = u64::from_str(&uid).unwrap();
                                         let should_insert = user_id == 0 || user_id == uid64;
-                                        if should_insert {     
+                                        if should_insert {
                                             let ve = vaults::VaultEntry {
                                                 vault_id: 0,
                                                 disguise_id: disguise_id,
@@ -551,10 +542,9 @@ impl Disguiser {
         }
         drop(locked_insert);
         warn!("Disguiser: Performed Inserts");
-       
+
         let locked_vv = self.vault_vals.lock().unwrap();
         if let Some(u) = &disguise.user {
-            // TODO when to insert into global, and when to insert into local?
             let vs = locked_vv.get(&u.id).unwrap();
             self.uvclient.insert_user_ves(&u.key, &u.nonce, &vs);
         } else {

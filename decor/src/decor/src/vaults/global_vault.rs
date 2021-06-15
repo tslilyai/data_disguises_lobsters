@@ -4,7 +4,7 @@ use crate::vaults::*;
 use log::{debug, warn};
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
 use std::str::FromStr;
@@ -201,134 +201,6 @@ pub fn get_user_entries_of_table_in_vault(
     Ok(applied)
 }
 
-/*pub fn reapply_vault_decor_referencer_entries(
-    ves: &Vec<VaultEntry>,
-    table_name: &str,
-    fkcol: &str,
-    fktable: &str,
-    txn: &mut mysql::Transaction,
-    stats: &mut QueryStat,
-) -> Result<(), mysql::Error> {
-    /*
-     * Redo modifications to objects of this table
-     */
-    for ve in ves {
-    }
-
-    Ok(())
-}*/
-
-pub fn reverse_vault_decor_referencer_entries(
-    user_id: u64,
-    referencer_table: &str,
-    referencer_col: &str,
-    fktable: &str,
-    fkcol: &str,
-    conn: &mut mysql::PooledConn,
-    stats: Arc<Mutex<QueryStat>>,
-) -> Result<Vec<VaultEntry>, mysql::Error> {
-    // TODO assuming that all FKs point to users
-
-    /*
-     * Undo modifications to objects of this table
-     * TODO undo any vault modifications that were dependent on this one, namely "filters" that
-     * join with this "filter" (any updates that happened after this?)
-     */
-    let mut vault_entries =
-        get_user_entries_of_table_in_vault(user_id, referencer_table, conn, stats.clone())?;
-    warn!(
-        "ReverseDecor: User {} reversing {} entries of table {} in vault",
-        user_id,
-        vault_entries.len(),
-        referencer_table
-    );
-
-    // we need some way to be able to identify these objects...
-    // assume that there is exactly one object for any user?
-    for ve in &vault_entries {
-        if ve.update_type == DELETE_GUISE {
-            continue;
-        }
-
-        // this may be none if this vault entry is an insert, and not a modification
-        let new_id: String;
-        let old_id: String;
-        match get_value_of_col(&ve.new_value, referencer_col) {
-            Some(n) => new_id = n,
-            None => continue,
-        }
-        match get_value_of_col(&ve.old_value, referencer_col) {
-            Some(n) => old_id = n,
-            None => continue,
-        }
-
-        // XXX just to run tests for now
-        if old_id != user_id.to_string() {
-            warn!("old id {} != user id {}", old_id, user_id);
-            continue;
-        }
-        //assert!(old_id == user_id.to_string());
-
-        // this vault entry logged a modification to the FK. Restore the original value
-        if ve.modified_cols.contains(&referencer_col.to_string()) {
-            query_drop(
-                Statement::Update(UpdateStatement {
-                    table_name: string_to_objname(referencer_table),
-                    assignments: vec![Assignment {
-                        id: Ident::new(referencer_col.to_string()),
-                        value: Expr::Value(Value::Number(user_id.to_string())),
-                    }],
-                    selection: Some(Expr::BinaryOp {
-                        left: Box::new(Expr::Identifier(vec![Ident::new(
-                            referencer_col.to_string(),
-                        )])),
-                        op: BinaryOperator::Eq,
-                        right: Box::new(Expr::Value(Value::Number(new_id))),
-                    }),
-                })
-                .to_string(),
-                conn,
-                stats.clone(),
-            )?;
-            insert_reversed_vault_entry(&ve, conn, stats.clone());
-        }
-    }
-
-    /*
-     * Delete created guises if objects in this table had been decorrelated
-     * TODO can make per-guise-table, rather than assume that only users are guises
-     */
-    let mut guise_ves =
-        get_user_entries_with_referencer_in_vault(user_id, referencer_table, conn, stats.clone())?;
-    warn!(
-        "ReverseDecor: User {} reversing {} entries with referencer {} in vault",
-        user_id,
-        vault_entries.len(),
-        referencer_table
-    );
-    for ve in &guise_ves {
-        // delete guise
-        query_drop(
-            Statement::Delete(DeleteStatement {
-                table_name: string_to_objname(fktable),
-                selection: Some(Expr::BinaryOp {
-                    left: Box::new(Expr::Identifier(vec![Ident::new(fkcol.to_string())])),
-                    op: BinaryOperator::Eq,
-                    // XXX assuming guise is a user... only has one id
-                    right: Box::new(Expr::Value(Value::Number(ve.guise_ids[0].clone()))),
-                }),
-            })
-            .to_string(),
-            conn,
-            stats.clone(),
-        )?;
-        // mark vault entries as reversed
-        insert_reversed_vault_entry(&ve, conn, stats.clone());
-    }
-    vault_entries.append(&mut guise_ves);
-    Ok(vault_entries)
-}
-
 pub fn insert_global_ves(
     entries: &HashMap<u64, Vec<VaultEntry>>,
     conn: &mut mysql::PooledConn,
@@ -336,32 +208,36 @@ pub fn insert_global_ves(
 ) {
     let mut vault_vals: Vec<Vec<Expr>> = vec![];
     for (_, user_ves) in entries.iter() {
-        vault_vals.append(&mut user_ves.iter().map(|ve| {
-            let mut evals = vec![];
-            evals.push(Expr::Value(Value::Number(
-                VAULT_ID.fetch_add(1, Ordering::SeqCst).to_string(),
-            )));
-            evals.push(Expr::Value(Value::Number(ve.disguise_id.to_string())));
-            evals.push(Expr::Value(Value::Number(ve.user_id.to_string())));
-            evals.push(Expr::Value(Value::String(ve.guise_name.clone())));
-            evals.push(vec_to_expr(&ve.guise_id_cols));
-            evals.push(vec_to_expr(&ve.guise_ids));
-            evals.push(Expr::Value(Value::String(ve.referencer_name.clone())));
-            evals.push(Expr::Value(Value::Number(ve.update_type.to_string())));
-            evals.push(vec_to_expr(&ve.modified_cols));
-            evals.push(vec_to_expr(&ve.old_value));
-            evals.push(vec_to_expr(&ve.new_value));
-            match ve.reverses {
-                None => evals.push(Expr::Value(Value::Null)),
-                Some(v) => evals.push(Expr::Value(Value::Number(v.to_string()))),
-            }
-            warn!(
-                "InsertVEs: User {} inserting ve for table {}",
-                ve.user_id, ve.guise_name
-            );
-            evals
-        })
-        .collect());
+        vault_vals.append(
+            &mut user_ves
+                .iter()
+                .map(|ve| {
+                    let mut evals = vec![];
+                    evals.push(Expr::Value(Value::Number(
+                        VAULT_ID.fetch_add(1, Ordering::SeqCst).to_string(),
+                    )));
+                    evals.push(Expr::Value(Value::Number(ve.disguise_id.to_string())));
+                    evals.push(Expr::Value(Value::Number(ve.user_id.to_string())));
+                    evals.push(Expr::Value(Value::String(ve.guise_name.clone())));
+                    evals.push(vec_to_expr(&ve.guise_id_cols));
+                    evals.push(vec_to_expr(&ve.guise_ids));
+                    evals.push(Expr::Value(Value::String(ve.referencer_name.clone())));
+                    evals.push(Expr::Value(Value::Number(ve.update_type.to_string())));
+                    evals.push(vec_to_expr(&ve.modified_cols));
+                    evals.push(vec_to_expr(&ve.old_value));
+                    evals.push(vec_to_expr(&ve.new_value));
+                    match ve.reverses {
+                        None => evals.push(Expr::Value(Value::Null)),
+                        Some(v) => evals.push(Expr::Value(Value::Number(v.to_string()))),
+                    }
+                    warn!(
+                        "InsertVEs: User {} inserting ve for table {}",
+                        ve.user_id, ve.guise_name
+                    );
+                    evals
+                })
+                .collect(),
+        );
     }
 
     if !vault_vals.is_empty() {

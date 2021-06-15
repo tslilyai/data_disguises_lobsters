@@ -7,10 +7,10 @@ extern crate rusoto_s3;
 
 use log::{debug, warn};
 use mysql::prelude::*;
+use rusoto_core::Region;
 use sql_parser::ast::*;
 use std::sync::{Arc, Mutex};
 use std::*;
-use rusoto_core::{Region};
 
 mod disguise;
 pub mod helpers;
@@ -118,4 +118,3 @@ fn init_db(prime: bool, in_memory: bool, dbname: &str, schema: &str) {
         assert_eq!(db.select_db(&format!("{}", dbname)), true);
     }
 }
-
