@@ -12,9 +12,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 pub const VAULT_TABLE: &'static str = "GlobalVault";
-pub const INSERT_GUISE: u64 = 0;
-pub const DELETE_GUISE: u64 = 1;
-pub const UPDATE_GUISE: u64 = 2;
 
 pub static VAULT_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -165,29 +162,49 @@ fn get_user_entries_with_referencer_in_vault(
 }
 
 /*
- * Returns unreversed vault entries belonging to the user that modified this table
+ * Returns unreversed vault entries belonging to the user
  */
-pub fn get_user_entries_of_table_in_vault(
-    uid: u64,
-    guise_table: &str,
+pub fn get_global_vault_ves(
+    uid: Option<u64>,
+    table: Option<String>,
     conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<VaultEntry>, mysql::Error> {
-    let equal_uid_constraint = Expr::BinaryOp {
-        left: Box::new(Expr::Identifier(vec![Ident::new("userId")])),
-        op: BinaryOperator::Eq,
-        right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
-    };
-    let g_constraint = Expr::BinaryOp {
-        left: Box::new(Expr::Identifier(vec![Ident::new("guiseName")])),
-        op: BinaryOperator::Eq,
-        right: Box::new(Expr::Value(Value::String(guise_table.to_string()))),
-    };
-    let final_constraint = Expr::BinaryOp {
-        left: Box::new(equal_uid_constraint),
-        op: BinaryOperator::And,
-        right: Box::new(g_constraint),
-    };
+    let final_constraint: Expr;
+    match (uid, table) {
+        (Some(uid), Some(tab)) => {
+            let equal_uid_constraint = Expr::BinaryOp {
+                left: Box::new(Expr::Identifier(vec![Ident::new("userId")])),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
+            };
+            let g_constraint = Expr::BinaryOp {
+                left: Box::new(Expr::Identifier(vec![Ident::new("guiseName")])),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(Value::String(tab.to_string()))),
+            };
+            final_constraint = Expr::BinaryOp {
+                left: Box::new(equal_uid_constraint),
+                op: BinaryOperator::And,
+                right: Box::new(g_constraint),
+            };
+        }
+        (Some(uid), None) => {
+            final_constraint = Expr::BinaryOp {
+                left: Box::new(Expr::Identifier(vec![Ident::new("userId")])),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(Value::Number(uid.to_string()))),
+            };
+        }
+        (None, Some(tab)) => {
+            final_constraint = Expr::BinaryOp {
+                left: Box::new(Expr::Identifier(vec![Ident::new("guiseName")])),
+                op: BinaryOperator::Eq,
+                right: Box::new(Expr::Value(Value::Number(tab.to_string()))),
+            };
+        }
+        _ => final_constraint = Expr::Value(Value::Boolean(true)),
+    }
     let mut ves = get_vault_entries_with_constraint(final_constraint, conn, stats)?;
     let mut reversed = HashSet::new();
     let mut applied = vec![];

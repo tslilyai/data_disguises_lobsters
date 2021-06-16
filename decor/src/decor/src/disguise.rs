@@ -8,13 +8,6 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, RwLock};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TransformType {
-    Remove,
-    Modify,
-    Decor,
-}
-
 pub type Predicate = Option<Expr>;
 
 pub enum TransformArgs {
@@ -39,7 +32,6 @@ pub struct Transform {
     pub pred: Predicate,
     pub trans: Arc<RwLock<TransformArgs>>,
     pub restorable: bool,
-    pub priority: u64,
 }
 
 pub struct TableDisguise {
@@ -70,6 +62,7 @@ pub struct Disguise {
     pub user: Option<User>,
     // used to generate new guises
     pub guise_info: Arc<RwLock<GuiseInfo>>,
+    pub priority: u64,
 }
 
 pub struct Disguiser {
@@ -115,6 +108,7 @@ impl Disguiser {
             let myvv = self.vault_vals.clone();
             let my_delete = self.to_delete.clone();
             let disguise_id = disguise.disguise_id;
+            let priority = disguise.priority;
             let user_id = match &disguise.user {
                 Some(u) => u.id,
                 None => 0,
@@ -161,7 +155,7 @@ impl Disguiser {
                                                 old_value: i.clone(),
                                                 new_value: vec![],
                                                 reverses: None,
-                                                priority: t.priority,
+                                                priority: priority,
                                             };
                                             let mut myvv_locked = myvv.lock().unwrap();
                                             match myvv_locked.get_mut(&uid64) {
@@ -234,14 +228,35 @@ impl Disguiser {
         let mut threads = vec![];
 
         /*
-         * PHASE 0: Get relevant vault entries from prior disguises
+         * PHASE 0: Relink/restore lower priority transformations from prior disguises
          */
+        let mut ves: Vec<vaults::VaultEntry>;
         if let Some(u) = &disguise.user {
-            let ves = self.uvclient.get_ves(u.id, None, &u.key, &u.nonce);
-        // get vault entries of user that modified this table + column
+            ves = self.uvclient.get_ves(u.id, None, &u.key, &u.nonce);
+            ves.append(&mut vaults::get_global_vault_ves(
+                Some(u.id),
+                None,
+                &mut conn,
+                self.stats.clone(),
+            )?);
         } else {
-            for (ref_table, ref_col) in &disguise.guise_info.read().unwrap().referencers {
-                // get vault entries that modified this table + column
+            ves = vaults::get_global_vault_ves(
+                None,
+                None,
+                &mut conn,
+                self.stats.clone(),
+            )?;
+        }
+        let ves: Vec<&vaults::VaultEntry> = ves
+            .iter()
+            .filter(|ve| ve.priority < disguise.priority)
+            .collect();
+        // temporarily relink/restore values for future disguise
+        for ve in ves {
+            // don't revert disguise of greater or equal priorities
+            assert!(ve.priority < disguise.priority);
+            if ve.conflicts_with(&disguise) {
+                ve.apply_token(&mut conn, self.stats.clone())?;
             }
         }
 
@@ -260,6 +275,7 @@ impl Disguiser {
             let my_insert = self.to_insert.clone();
             let my_items = self.items.clone();
             let my_fkcols = fk_cols.clone();
+            let priority = disguise.priority;
 
             let user_id = match &disguise.user {
                 Some(u) => u.id,
@@ -369,7 +385,7 @@ impl Disguiser {
                                         old_value: vec![],
                                         new_value: new_parent_rowvals,
                                         reverses: None,
-                                        priority: t.priority,
+                                        priority: priority,
                                     };
                                     match myvv_locked.get_mut(&old_uid) {
                                         Some(vs) => vs.push(ve),
@@ -406,7 +422,7 @@ impl Disguiser {
                                         old_value: i.clone(),
                                         new_value: new_child,
                                         reverses: None,
-                                        priority: t.priority,
+                                        priority: priority,
                                     };
                                     match myvv_locked.get_mut(&old_uid) {
                                         Some(vs) => vs.push(ve),
@@ -485,7 +501,7 @@ impl Disguiser {
                                                 old_value: i.clone(),
                                                 new_value: new_obj.clone(),
                                                 reverses: None,
-                                                priority: t.priority,
+                                                priority: priority,
                                             };
                                             match myvv_locked.get_mut(&uid64) {
                                                 Some(vs) => vs.push(ve),
