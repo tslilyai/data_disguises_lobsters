@@ -313,6 +313,7 @@ fn create_dummy_ve(n: u64, reversed: bool) -> VaultEntry {
         user_id: n,
         guise_name: format!("guise{}", n),
         guise_id_cols: vec![name.clone()],
+        guise_owner_cols: vec![name.clone()],
         guise_ids: vec![name.clone()],
         referencer_name: String::new(),
         fk_name: String::new(),

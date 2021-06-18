@@ -11,6 +11,13 @@ use std::*;
 /*****************************************
  * Parser helpers
  ****************************************/
+pub fn pred_expr_to_string(pred: &Option<Expr>) -> String {
+    match pred {
+        Some(p) => p.to_string(),
+        None => "true".to_string(),
+    }
+}
+
 // get which columns have updated values set
 pub fn get_updated_cols(setexpr: &SetExpr) -> HashSet<String> {
     let mut updated = HashSet::new();
@@ -138,6 +145,10 @@ pub fn select_1_statement(table: &str, selection: Option<Expr>) -> Statement {
     })
 }
 
+pub fn str_select_statement(table: &str, selection: &str) -> String {
+    format!("SELECT * FROM {} WHERE {}", table, selection)
+}
+
 pub fn select_statement(table: &str, selection: &Option<Expr>) -> Statement {
     Statement::Select(SelectStatement {
         query: Box::new(Query::select(Select {
@@ -258,15 +269,11 @@ pub fn get_single_parsed_stmt(stmt: &String) -> Result<Statement, mysql::Error> 
 
 // returns if the first value is larger than the second
 pub fn string_vals_cmp(v1: &str, v2: &str) -> cmp::Ordering {
-    let res: cmp::Ordering;
     debug!("comparing {:?} =? {:?}", v1, v2);
     let res = match (f64::from_str(v1), f64::from_str(v2)) {
-        (Ok(v1), Ok(v2)) => 
-            v1.partial_cmp(&v2).unwrap(),
-        (Ok(v1), Err(_)) => 
-            v1.partial_cmp(&f64::from_str(v2).unwrap()).unwrap(),
-        (Err(_), Ok(v2)) => 
-            f64::from_str(v1).unwrap().partial_cmp(&v2).unwrap(),
+        (Ok(v1), Ok(v2)) => v1.partial_cmp(&v2).unwrap(),
+        (Ok(v1), Err(_)) => v1.partial_cmp(&f64::from_str(v2).unwrap()).unwrap(),
+        (Err(_), Ok(v2)) => f64::from_str(v1).unwrap().partial_cmp(&v2).unwrap(),
         (Err(_), Err(_)) => v1.cmp(v2),
     };
     /*(Value::Null, Value::Null) => res = Ordering::Equal,

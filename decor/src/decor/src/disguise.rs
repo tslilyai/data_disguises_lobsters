@@ -7,8 +7,6 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, RwLock};
 
-pub type Predicate = Option<Expr>;
-
 pub enum TransformArgs {
     Remove,
     Modify {
@@ -28,7 +26,7 @@ pub enum TransformArgs {
 
 #[derive(Clone)]
 pub struct Transform {
-    pub pred: Predicate,
+    pub pred: String,
     pub trans: Arc<RwLock<TransformArgs>>,
     pub permanent: bool,
 }
@@ -57,7 +55,7 @@ pub struct User {
 
 pub struct Disguise {
     pub disguise_id: u64,
-    pub table_disguises: Vec<Arc<RwLock<TableDisguise>>>,
+    pub table_disguises: HashMap<String, Arc<RwLock<TableDisguise>>>,
     pub user: Option<User>,
     // used to generate new guises
     pub guise_info: Arc<RwLock<GuiseInfo>>,
@@ -127,6 +125,7 @@ impl Disguiser {
         }
         // we cannot reclaim ownership of objects disowned by higher priority disguises
         // and we only want to restore objects that may be conflicting
+        let mut vault_transforms : HashMap<String, Arc<RwLock<TableDisguise>>> = HashMap::new();
         let ves: Vec<&vaults::VaultEntry> = ves
             .iter()
             .filter(|ve| ve.priority < disguise.priority && ve.conflicts_with(&disguise))
@@ -134,7 +133,38 @@ impl Disguiser {
         // temporarily relink/restore values for future disguise
         for ve in ves {
             ve.restore_ownership(&mut conn, self.stats.clone())?;
-        }
+            let transform = match ve.update_type {
+                vaults::DELETE_GUISE => {
+                    Transform {
+                        pred: ve.pred.clone(),
+                        trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+                        permanent: false,
+                    }
+                }
+                vaults::DECOR_GUISE => {
+                    Transform {
+                        pred: ve.pred.clone(),
+                        trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                          // todo might have more than one?
+                          referencer_col: ve.modified_cols[0].clone(),
+                          fk_name: ve.fk_name.clone(),
+                          fk_col: "".to_string(),
+                        })),
+                        permanent: false,
+                    }
+                }
+                _ => unimplemented!("Bad update type?"),
+            };
+            match vault_transforms.get_mut(&ve.guise_name) {
+                Some(ts) => ts.write().unwrap().transforms.push(transform),
+                None => {vault_transforms.insert(ve.guise_name.clone(), Arc::new(RwLock::new(TableDisguise{
+                    name: ve.guise_name.clone(),
+                    id_cols: ve.guise_id_cols.clone(),
+                    owner_cols: ve.guise_owner_cols.clone(),
+                    transforms: vec![transform]
+                })));
+            }  
+        }}
 
         // get all the objects, set all the objects to remove
         self.select_predicate_objs(disguise.clone());
@@ -144,7 +174,7 @@ impl Disguiser {
 
         // actually go and perform modifications now
         let fk_cols = Arc::new((disguise.guise_info.read().unwrap().col_generation)());
-        for table in disguise.table_disguises.clone() {
+        for (_, table_disguise) in disguise.table_disguises.clone() {
             let pool = self.pool.clone();
             let mystats = self.stats.clone();
             let myvv = self.vault_vals.clone();
@@ -162,7 +192,7 @@ impl Disguiser {
 
             threads.push(thread::spawn(move || {
                 let guise_info = guise_info.read().unwrap();
-                let table = table.read().unwrap();
+                let table = table_disguise.read().unwrap();
                 let mut conn = pool.get_conn().unwrap();
                 let my_items = my_items.read().unwrap();
                 let my_items = my_items.get(&table.name).unwrap();
@@ -235,7 +265,6 @@ impl Disguiser {
                                  * */
                                 // Phase 3A: update the vault with new guise (calculating the uid from the last_insert_id)
                                 if !t.permanent {
-                                    let pred = match &t.pred { Some(p) => p.to_string(), None => "true".to_string() };
                                     let mut ix = 0;
                                     let new_parent_rowvals: Vec<RowVal> = new_parent
                                         .iter()
@@ -250,11 +279,12 @@ impl Disguiser {
                                         .collect();
                                     let mut myvv_locked = myvv.lock().unwrap();
                                     let ve = vaults::VaultEntry {
-                                        pred: pred.clone(),
+                                        pred: t.pred.clone(),
                                         vault_id: 0,
                                         disguise_id: disguise_id,
                                         user_id: old_uid,
                                         guise_name: fk_name.clone(),
+                                        guise_owner_cols: vec![],
                                         guise_id_cols: vec![guise_info.id_col.clone()],
                                         guise_ids: vec![guise_id.to_string()],
                                         referencer_name: table.name.clone(),
@@ -289,11 +319,12 @@ impl Disguiser {
                                         .collect();
                                     warn!("Decor: Getting ids of table {} for {:?}", table.name, i);
                                     let ve = vaults::VaultEntry {
-                                        pred: pred,
+                                        pred: t.pred.clone(),
                                         vault_id: 0,
                                         disguise_id: disguise_id,
                                         user_id: old_uid,
                                         guise_name: table.name.clone(),
+                                        guise_owner_cols: table.owner_cols.clone(),
                                         guise_id_cols: table.id_cols.clone(),
                                         guise_ids: get_ids(&table.id_cols, &i),
                                         referencer_name: "".to_string(),
@@ -370,11 +401,12 @@ impl Disguiser {
                                         let should_insert = user_id == 0 || user_id == uid64;
                                         if should_insert {
                                             let ve = vaults::VaultEntry {
-                                                pred: match &t.pred { Some(p) => p.to_string(), None => "true".to_string() },
+                                                pred: t.pred.clone(),
                                                 vault_id: 0,
                                                 disguise_id: disguise_id,
                                                 user_id: u64::from_str(&uid).unwrap(),
                                                 guise_name: table.name.clone(),
+                                                guise_owner_cols: table.owner_cols.clone(),
                                                 guise_id_cols: table.id_cols.clone(),
                                                 guise_ids: ids.clone(),
                                                 reversed: false,
@@ -475,7 +507,7 @@ impl Disguiser {
 
     fn select_predicate_objs(&self, disguise: Arc<Disguise>) {
         let mut threads = vec![];
-        for table in disguise.table_disguises.clone() {
+        for (_, table_disguise) in disguise.table_disguises.clone() {
             let pool = self.pool.clone();
             let mystats = self.stats.clone();
             let myvv = self.vault_vals.clone();
@@ -490,13 +522,13 @@ impl Disguiser {
             let mut items_of_table: HashMap<Vec<RowVal>, Vec<Transform>> = HashMap::new();
 
             threads.push(thread::spawn(move || {
-                let table = table.read().unwrap();
+                let table = table_disguise.read().unwrap();
                 let mut conn = pool.get_conn().unwrap();
                 let mut removed_items: HashSet<Vec<RowVal>> = HashSet::new();
 
                 for t in &table.transforms {
-                    let pred_items = get_query_rows(
-                        &select_statement(&table.name, &t.pred),
+                    let pred_items = get_query_rows_str(
+                        &str_select_statement(&table.name, &t.pred),
                         &mut conn,
                         mystats.clone(),
                     )
@@ -516,15 +548,13 @@ impl Disguiser {
                                         let should_insert = user_id == uid64 || user_id == 0;
                                         if should_insert {
                                             let ve = vaults::VaultEntry {
-                                                pred: match &t.pred {
-                                                    Some(p) => p.to_string(),
-                                                    None => "true".to_string(),
-                                                },
+                                                pred: t.pred.clone(),
                                                 vault_id: 0,
                                                 disguise_id: disguise_id,
                                                 user_id: uid64,
                                                 guise_name: table.name.clone(),
                                                 guise_id_cols: table.id_cols.clone(),
+                                                guise_owner_cols: table.owner_cols.clone(),
                                                 guise_ids: ids.clone(),
                                                 reversed: false,
                                                 priority: priority,
@@ -552,11 +582,7 @@ impl Disguiser {
                             }
                             // remember to delete this
                             my_delete.lock().unwrap().push(
-                                Statement::Delete(DeleteStatement {
-                                    table_name: string_to_objname(&table.name),
-                                    selection: t.pred.clone(),
-                                })
-                                .to_string(),
+                                format!("DELETE FROM {} WHERE {}", table.name, t.pred)
                             );
                         }
                         _ => {

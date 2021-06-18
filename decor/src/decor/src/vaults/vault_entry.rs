@@ -1,5 +1,5 @@
-use crate::helpers::*;
 use crate::disguise::*;
+use crate::helpers::*;
 use crate::stats::QueryStat;
 use log::warn;
 use serde::{Deserialize, Serialize};
@@ -24,6 +24,7 @@ pub struct VaultEntry {
 
     // guise information
     pub guise_name: String,
+    pub guise_owner_cols: Vec<String>,
     pub guise_id_cols: Vec<String>,
     pub guise_ids: Vec<String>,
 
@@ -42,7 +43,6 @@ pub struct VaultEntry {
 }
 
 impl VaultEntry {
-    pub fn revert_token(&self, conn: &mut mysql::PooledConn, stats: Arc<Mutex<QueryStat>>) -> Result<(), mysql::Error> {
         /*warn!(
             "ReverseDecor: User {} reversing {} entries of table {}",
             self.user_id,
@@ -51,7 +51,7 @@ impl VaultEntry {
 
         // this may be none if this vault entry is an insert, and not a modification
         let mut updates = vec![];
-        let mut selects = Expr::Value(Value::Bool(true)); 
+        let mut selects = Expr::Value(Value::Bool(true));
         for col in self.modified_cols {
             let new_val: String;
             let old_val: String;
@@ -121,10 +121,12 @@ impl VaultEntry {
             insert_reversed_vault_entry(&ve, conn, stats.clone());
         }
         vault_entries.append(&mut guise_ves);*/
-        Ok(())    
-    }
 
-    pub fn restore_ownership(&self, conn: &mut mysql::PooledConn, stats: Arc<Mutex<QueryStat>>) -> Result<(), mysql::Error> {
+    pub fn restore_ownership(
+        &self,
+        conn: &mut mysql::PooledConn,
+        stats: Arc<Mutex<QueryStat>>,
+    ) -> Result<(), mysql::Error> {
         Ok(())
     }
 
@@ -135,23 +137,21 @@ impl VaultEntry {
         if self.priority >= disguise.priority {
             return false;
         }
+        if self.modified_cols.is_empty() {
+            return false;
+        }
         if self.update_type == DELETE_GUISE || self.update_type == DECOR_GUISE {
-            for td in &disguise.table_disguises {
+            for (_, td) in disguise.table_disguises.clone() {
                 let td_locked = td.read().unwrap();
                 // if this table disguise isn't of the conflicting table, ignore
                 if self.guise_name != td_locked.name {
                     continue;
                 }
                 for t in &td_locked.transforms {
-                    match &t.pred {
-                        Some(p) => {
-                            for c in &get_expr_idents(&p) {
-                                if self.modified_cols.iter().find(|col| &c == col).is_some() || self.modified_cols.is_empty() {
-                                    return true;
-                                }
-                            }
-                        },
-                        None => (),
+                    for col in &self.modified_cols {
+                        if t.pred.contains(col) {
+                            return true;
+                        }
                     }
                 }
             }
@@ -179,7 +179,6 @@ pub fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
     }
 }
 
-
 /*pub fn reverse_decor_ve(
     referencer_table: &str,
     referencer_col: &str,
@@ -195,5 +194,5 @@ pub fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
      * TODO undo any vault modifications that were dependent on this one, namely "filters" that
      * join with this "filter" (any updates that happened after this?)
      */
-    
+
 }*/
