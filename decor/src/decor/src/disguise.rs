@@ -614,7 +614,10 @@ impl Disguiser {
                         }
                         TransformArgs::Decor { referencer_col, .. } => {
                             for i in pred_items {
-                                if decorrelated_items.contains(&(referencer_col.clone(), i.clone()))
+                                // don't decorrelate twice, or decorrelate if removed
+                                if removed_items.contains(&i)
+                                    || decorrelated_items
+                                        .contains(&(referencer_col.clone(), i.clone()))
                                 {
                                     continue;
                                 }
@@ -628,6 +631,7 @@ impl Disguiser {
                         }
                         _ => {
                             for i in pred_items {
+                                // don't modify if removed
                                 if removed_items.contains(&i) {
                                     continue;
                                 }
