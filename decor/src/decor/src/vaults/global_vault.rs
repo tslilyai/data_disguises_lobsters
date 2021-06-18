@@ -4,7 +4,7 @@ use crate::vaults::*;
 use log::{debug, warn};
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
 use std::str::FromStr;

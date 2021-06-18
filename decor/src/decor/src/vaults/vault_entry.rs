@@ -67,13 +67,16 @@ impl VaultEntry {
             stats,
         )
     }
- 
+
     fn recorrelate_guise(
         &self,
         conn: &mut mysql::PooledConn,
         stats: Arc<Mutex<QueryStat>>,
     ) -> Result<(), mysql::Error> {
-        warn!("Recorrelating guise of table {} to {}, user {}", self.guise_name, self.fk_name, self.user_id);
+        warn!(
+            "Recorrelating guise of table {} to {}, user {}",
+            self.guise_name, self.fk_name, self.user_id
+        );
 
         // this may be none if this vault entry is an insert, and not a modification
         let owner_col = &self.modified_cols[0];
@@ -91,18 +94,18 @@ impl VaultEntry {
             id: Ident::new(owner_col),
             value: Expr::Value(Value::Number(old_val)),
         }];
-        let selection = 
-            Expr::BinaryOp {
-                left: Box::new(Expr::Identifier(vec![Ident::new(owner_col)])),
-                op: BinaryOperator::Eq,
-                right: Box::new(Expr::Value(Value::Number(new_val.clone()))),
-            };
+        let selection = Expr::BinaryOp {
+            left: Box::new(Expr::Identifier(vec![Ident::new(owner_col)])),
+            op: BinaryOperator::Eq,
+            right: Box::new(Expr::Value(Value::Number(new_val.clone()))),
+        };
         query_drop(
             Statement::Update(UpdateStatement {
                 table_name: string_to_objname(&self.guise_name),
                 assignments: updates,
                 selection: Some(selection),
-            }).to_string(),
+            })
+            .to_string(),
             conn,
             stats.clone(),
         )?;
@@ -138,13 +141,9 @@ impl VaultEntry {
         stats: Arc<Mutex<QueryStat>>,
     ) -> Result<(), mysql::Error> {
         match self.update_type {
-            DECOR_GUISE => {
-                self.recorrelate_guise(conn, stats.clone())?
-            },
-            DELETE_GUISE => {
-                self.reinsert_guise(conn, stats.clone())?
-            },
-            _ => unimplemented!("Bad update type")
+            DECOR_GUISE => self.recorrelate_guise(conn, stats.clone())?,
+            DELETE_GUISE => self.reinsert_guise(conn, stats.clone())?,
+            _ => unimplemented!("Bad update type"),
         }
         Ok(())
     }

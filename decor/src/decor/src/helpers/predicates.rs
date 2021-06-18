@@ -1,5 +1,5 @@
 use crate::helpers::*;
-use log::{warn};
+use log::warn;
 use sql_parser::ast::*;
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -61,8 +61,8 @@ pub fn predicate_applies_to_row(p: Predicate, row: &Vec<RowVal>) -> bool {
             val,
             op,
         } => {
-            let rv1 : String;
-            let rv2: String; 
+            let rv1: String;
+            let rv2: String;
             match row.iter().find(|rv| &rv.column == name1) {
                 Some(rv) => rv1 = rv.value.clone(),
                 None => unimplemented!("bad predicate, no name1 {:?}", p),
@@ -71,7 +71,7 @@ pub fn predicate_applies_to_row(p: Predicate, row: &Vec<RowVal>) -> bool {
                 match row.iter().find(|rv| &rv.column == name2) {
                     Some(rv) => rv2 = rv.value.clone(),
                     None => unimplemented!("bad predicate, no name2 {:?}", p),
-                }   
+                }
             } else if let Some(v) = val {
                 rv2 = v.to_string();
             } else {
@@ -87,8 +87,8 @@ pub fn predicate_applies_to_row(p: Predicate, row: &Vec<RowVal>) -> bool {
             val,
             op,
         } => {
-            let rv1 : String;
-            let rv2: String; 
+            let rv1: String;
+            let rv2: String;
             match row.iter().find(|rv| &rv.column == name1) {
                 Some(rv) => rv1 = rv.value.clone(),
                 None => unimplemented!("bad predicate, no name1 {:?}", p),
@@ -97,7 +97,7 @@ pub fn predicate_applies_to_row(p: Predicate, row: &Vec<RowVal>) -> bool {
                 match row.iter().find(|rv| &rv.column == name2) {
                     Some(rv) => rv2 = rv.value.clone(),
                     None => unimplemented!("bad predicate, no name2 {:?}", p),
-                }   
+                }
             } else if let Some(v) = innerval {
                 rv2 = v.to_string();
             } else {
@@ -113,15 +113,11 @@ pub fn predicate_applies_to_row(p: Predicate, row: &Vec<RowVal>) -> bool {
 }
 
 pub fn compute_op(lval: &str, rval: &str, op: &BinaryOperator) -> String {
-    let v1 = f64::from_str(lval).unwrap(); 
+    let v1 = f64::from_str(lval).unwrap();
     let v2 = f64::from_str(rval).unwrap();
     match op {
-        BinaryOperator::Plus => {
-            (v1 + v2).to_string()
-        }
-        BinaryOperator::Minus => {
-            (v1 - v2).to_string()
-        }
+        BinaryOperator::Plus => (v1 + v2).to_string(),
+        BinaryOperator::Minus => (v1 - v2).to_string(),
         _ => unimplemented!("bad compute binop"),
     }
 }
@@ -129,24 +125,12 @@ pub fn compute_op(lval: &str, rval: &str, op: &BinaryOperator) -> String {
 pub fn vals_satisfy_cmp(lval: &str, rval: &str, op: &BinaryOperator) -> bool {
     let cmp = string_vals_cmp(&lval, &rval);
     match op {
-        BinaryOperator::Eq => {
-            cmp == Ordering::Equal
-        }
-        BinaryOperator::NotEq => {
-            cmp != Ordering::Equal
-        }
-        BinaryOperator::Lt => {
-            cmp == Ordering::Less
-        }
-        BinaryOperator::Gt => {
-            cmp == Ordering::Greater
-        }
-        BinaryOperator::LtEq => {
-            cmp != Ordering::Greater
-        }
-        BinaryOperator::GtEq => {
-            cmp != Ordering::Less
-        }
+        BinaryOperator::Eq => cmp == Ordering::Equal,
+        BinaryOperator::NotEq => cmp != Ordering::Equal,
+        BinaryOperator::Lt => cmp == Ordering::Less,
+        BinaryOperator::Gt => cmp == Ordering::Greater,
+        BinaryOperator::LtEq => cmp != Ordering::Greater,
+        BinaryOperator::GtEq => cmp != Ordering::Less,
         _ => unimplemented!("bad binop"),
     }
 }

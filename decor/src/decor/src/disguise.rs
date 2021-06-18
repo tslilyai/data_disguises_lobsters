@@ -125,7 +125,7 @@ impl Disguiser {
         }
         // we cannot reclaim ownership of objects disowned by higher priority disguises
         // and we only want to restore objects that may be conflicting
-        let mut vault_transforms : HashMap<String, Arc<RwLock<TableDisguise>>> = HashMap::new();
+        let mut vault_transforms: HashMap<String, Arc<RwLock<Vec<Transform>>>> = HashMap::new();
         let ves: Vec<&vaults::VaultEntry> = ves
             .iter()
             .filter(|ve| ve.priority < disguise.priority && ve.conflicts_with(&disguise))
@@ -134,21 +134,19 @@ impl Disguiser {
         for ve in ves {
             ve.restore_ownership(&mut conn, self.stats.clone())?;
             let transform = match ve.update_type {
-                vaults::DELETE_GUISE => {
-                    Transform {
-                        pred: ve.pred.clone(),
-                        trans: Arc::new(RwLock::new(TransformArgs::Remove)),
-                        permanent: false,
-                    }
-                }
+                vaults::DELETE_GUISE => Transform {
+                    pred: ve.pred.clone(),
+                    trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+                    permanent: false,
+                },
                 vaults::DECOR_GUISE => {
                     Transform {
                         pred: ve.pred.clone(),
                         trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                          // todo might have more than one?
-                          referencer_col: ve.modified_cols[0].clone(),
-                          fk_name: ve.fk_name.clone(),
-                          fk_col: "".to_string(),
+                            // todo might have more than one?
+                            referencer_col: ve.modified_cols[0].clone(),
+                            fk_name: ve.fk_name.clone(),
+                            fk_col: "".to_string(),
                         })),
                         permanent: false,
                     }
@@ -156,18 +154,19 @@ impl Disguiser {
                 _ => unimplemented!("Bad update type?"),
             };
             match vault_transforms.get_mut(&ve.guise_name) {
-                Some(ts) => ts.write().unwrap().transforms.push(transform),
-                None => {vault_transforms.insert(ve.guise_name.clone(), Arc::new(RwLock::new(TableDisguise{
-                    name: ve.guise_name.clone(),
-                    id_cols: ve.guise_id_cols.clone(),
-                    owner_cols: ve.guise_owner_cols.clone(),
-                    transforms: vec![transform]
-                })));
-            }  
-        }}
+                Some(ts) => ts.write().unwrap().push(transform),
+                None => {
+                    vault_transforms.insert(
+                        ve.guise_name.clone(),
+                        Arc::new(RwLock::new(vec![transform])),
+                    );
+                }
+            }
+        }
 
         // get all the objects, set all the objects to remove
-        self.select_predicate_objs(disguise.clone());
+        // integrate vault_transforms into disguise read + write phases
+        self.select_predicate_objs(disguise.clone(), &vault_transforms);
 
         // remove all the objects
         self.execute_removes(&mut conn)?;
@@ -211,7 +210,7 @@ impl Disguiser {
                             TransformArgs::Decor {
                                 referencer_col,
                                 fk_name,
-                                fk_col 
+                                fk_col,
                             } => {
                                 warn!(
                                     "Thread {:?} starting decor {}",
@@ -221,11 +220,10 @@ impl Disguiser {
                                 let start = time::Instant::now();
 
                                 /*
-                                 * PHASE 2: OBJECT MODIFICATIONS
+                                 * DECOR OBJECT MODIFICATIONS
                                  * A) insert guises for parents
                                  * B) update child to point to new guise
                                  * */
-
                                 // get ID of parent
                                 let old_uid =
                                     u64::from_str(&get_value_of_col(&i, &referencer_col).unwrap())
@@ -412,7 +410,6 @@ impl Disguiser {
                                                 guise_id_cols: table.id_cols.clone(),
                                                 guise_ids: ids.clone(),
                                                 reversed: false,
-                                                
                                                 referencer_name: "".to_string(),
                                                 fk_name: "".to_string(),
                                                 fk_col: "".to_string(),
@@ -508,9 +505,13 @@ impl Disguiser {
         Ok(())
     }
 
-    fn select_predicate_objs(&self, disguise: Arc<Disguise>) {
+    fn select_predicate_objs(
+        &self,
+        disguise: Arc<Disguise>,
+        vault_transforms: &HashMap<String, Arc<RwLock<Vec<Transform>>>>,
+    ) {
         let mut threads = vec![];
-        for (_, table_disguise) in disguise.table_disguises.clone() {
+        for (table, table_disguise) in disguise.table_disguises.clone() {
             let pool = self.pool.clone();
             let mystats = self.stats.clone();
             let myvv = self.vault_vals.clone();
@@ -523,13 +524,26 @@ impl Disguiser {
             };
             let my_items = self.items.clone();
             let mut items_of_table: HashMap<Vec<RowVal>, Vec<Transform>> = HashMap::new();
+            let table_vts = match vault_transforms.get(&table) {
+                Some(vts) => vts.clone(),
+                None => Arc::new(RwLock::new(vec![])),
+            };
 
             threads.push(thread::spawn(move || {
                 let table = table_disguise.read().unwrap();
                 let mut conn = pool.get_conn().unwrap();
                 let mut removed_items: HashSet<Vec<RowVal>> = HashSet::new();
+                let mut transforms = vec![];
 
+                let vts_locked = table_vts.read().unwrap();
+                for vt in vts_locked.iter() {
+                    transforms.push(vt);
+                }
                 for t in &table.transforms {
+                    transforms.push(t);
+                }
+
+                for t in transforms {
                     let pred_items = get_query_rows_str(
                         &str_select_statement(&table.name, &t.pred),
                         &mut conn,
@@ -562,7 +576,7 @@ impl Disguiser {
                                                 reversed: false,
                                                 priority: priority,
                                                 update_type: vaults::DELETE_GUISE,
-                                                
+
                                                 referencer_name: "".to_string(),
                                                 fk_name: "".to_string(),
                                                 fk_col: "".to_string(),
@@ -585,9 +599,10 @@ impl Disguiser {
                                 removed_items.insert(i.to_vec());
                             }
                             // remember to delete this
-                            my_delete.lock().unwrap().push(
-                                format!("DELETE FROM {} WHERE {}", table.name, t.pred)
-                            );
+                            my_delete
+                                .lock()
+                                .unwrap()
+                                .push(format!("DELETE FROM {} WHERE {}", table.name, t.pred));
                         }
                         _ => {
                             for i in pred_items {
@@ -622,7 +637,6 @@ impl Disguiser {
             }
         }
     }
-
 
     pub fn undo(&self, user_id: Option<u64>, disguise_id: u64) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {

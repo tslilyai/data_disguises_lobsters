@@ -72,7 +72,7 @@ pub fn get_query_rows_str(
     }
     Ok(rows)
 }
- 
+
 pub fn get_query_rows(
     q: &Statement,
     conn: &mut mysql::PooledConn,
