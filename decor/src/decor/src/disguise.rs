@@ -234,6 +234,7 @@ impl Disguiser {
                                 );
 
                                 // skip already decorrelated users
+                                // TODO skip if we've already decorrelated!!!!
                                 if is_guise(old_uid) {
                                     warn!(
                                         "decor_obj: skipping decorrelation for {}.{}, already a guise",
@@ -524,6 +525,7 @@ impl Disguiser {
             };
             let my_items = self.items.clone();
             let mut items_of_table: HashMap<Vec<RowVal>, Vec<Transform>> = HashMap::new();
+
             let table_vts = match vault_transforms.get(&table) {
                 Some(vts) => vts.clone(),
                 None => Arc::new(RwLock::new(vec![])),
@@ -533,8 +535,11 @@ impl Disguiser {
                 let table = table_disguise.read().unwrap();
                 let mut conn = pool.get_conn().unwrap();
                 let mut removed_items: HashSet<Vec<RowVal>> = HashSet::new();
-                let mut transforms = vec![];
+                let mut decorrelated_items: HashSet<(String, Vec<RowVal>)> = HashSet::new();
 
+                // get transformations in order of disguise application
+                // (so vault transforms are always first)
+                let mut transforms = vec![];
                 let vts_locked = table_vts.read().unwrap();
                 for vt in vts_locked.iter() {
                     transforms.push(vt);
@@ -552,7 +557,7 @@ impl Disguiser {
                     .unwrap();
 
                     // just remove item if it's supposed to be removed
-                    match *t.trans.read().unwrap() {
+                    match &*t.trans.read().unwrap() {
                         TransformArgs::Remove => {
                             // we're going to remove these, but may later restore them, remember in vault
                             for i in &pred_items {
@@ -603,6 +608,20 @@ impl Disguiser {
                                 .lock()
                                 .unwrap()
                                 .push(format!("DELETE FROM {} WHERE {}", table.name, t.pred));
+                        }
+                        TransformArgs::Decor { referencer_col, .. } => {
+                            for i in pred_items {
+                                if decorrelated_items.contains(&(referencer_col.clone(), i.clone()))
+                                {
+                                    continue;
+                                }
+                                if let Some(ts) = items_of_table.get_mut(&i) {
+                                    ts.push(t.clone());
+                                } else {
+                                    items_of_table.insert(i.clone(), vec![t.clone()]);
+                                }
+                                decorrelated_items.insert((referencer_col.clone(), i.clone()));
+                            }
                         }
                         _ => {
                             for i in pred_items {
