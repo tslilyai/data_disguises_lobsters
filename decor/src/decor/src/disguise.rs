@@ -211,7 +211,7 @@ impl Disguiser {
                             TransformArgs::Decor {
                                 referencer_col,
                                 fk_name,
-                                ..
+                                fk_col 
                             } => {
                                 warn!(
                                     "Thread {:?} starting decor {}",
@@ -289,6 +289,7 @@ impl Disguiser {
                                         guise_ids: vec![guise_id.to_string()],
                                         referencer_name: table.name.clone(),
                                         fk_name: "".to_string(),
+                                        fk_col: "".to_string(),
                                         update_type: vaults::INSERT_GUISE,
                                         modified_cols: vec![],
                                         old_value: vec![],
@@ -329,6 +330,7 @@ impl Disguiser {
                                         guise_ids: get_ids(&table.id_cols, &i),
                                         referencer_name: "".to_string(),
                                         fk_name: fk_name.clone(),
+                                        fk_col: fk_col.clone(),
                                         update_type: vaults::DECOR_GUISE,
                                         modified_cols: vec![referencer_col.clone()],
                                         old_value: i.clone(),
@@ -413,6 +415,7 @@ impl Disguiser {
                                                 
                                                 referencer_name: "".to_string(),
                                                 fk_name: "".to_string(),
+                                                fk_col: "".to_string(),
                                                 update_type: vaults::UPDATE_GUISE,
                                                 modified_cols: vec![col.clone()],
                                                 old_value: i.clone(),
@@ -562,6 +565,7 @@ impl Disguiser {
                                                 
                                                 referencer_name: "".to_string(),
                                                 fk_name: "".to_string(),
+                                                fk_col: "".to_string(),
                                                 modified_cols: vec![],
                                                 old_value: i.clone(),
                                                 new_value: vec![],
