@@ -1,7 +1,6 @@
 use crate::helpers::*;
 use crate::disguise::*;
 use crate::stats::QueryStat;
-use crate::vaults::*;
 use log::warn;
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
@@ -9,23 +8,37 @@ use std::sync::{Arc, Mutex};
 
 pub const INSERT_GUISE: u64 = 0;
 pub const DELETE_GUISE: u64 = 1;
-pub const UPDATE_GUISE: u64 = 2;
+pub const DECOR_GUISE: u64 = 3;
+pub const UPDATE_GUISE: u64 = 4;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct VaultEntry {
+    pub pred: String,
     pub vault_id: u64,
     pub disguise_id: u64,
     pub priority: u64,
     pub user_id: u64,
+    pub update_type: u64,
+    // whether this disguise has been reversed at some point
+    pub reversed: bool,
+
+    // guise information
     pub guise_name: String,
     pub guise_id_cols: Vec<String>,
     pub guise_ids: Vec<String>,
+
+    // for inserted guises
     pub referencer_name: String,
-    pub update_type: u64,
+
+    // for decorrelations
+    pub fk_name: String,
+
+    // for decorrelations and updates
     pub modified_cols: Vec<String>,
+
+    // blobs
     pub old_value: Vec<RowVal>,
     pub new_value: Vec<RowVal>,
-    pub reverses: Option<u64>,
 }
 
 impl VaultEntry {
@@ -111,7 +124,7 @@ impl VaultEntry {
         Ok(())    
     }
 
-    pub fn apply_token(&self, conn: &mut mysql::PooledConn, stats: Arc<Mutex<QueryStat>>) -> Result<(), mysql::Error> {
+    pub fn restore_ownership(&self, conn: &mut mysql::PooledConn, stats: Arc<Mutex<QueryStat>>) -> Result<(), mysql::Error> {
         Ok(())
     }
 
@@ -122,22 +135,24 @@ impl VaultEntry {
         if self.priority >= disguise.priority {
             return false;
         }
-        for td in &disguise.table_disguises {
-            let td_locked = td.read().unwrap();
-            // if this table disguise isn't of the conflicting table, ignore
-            if self.guise_name != td_locked.name {
-                continue;
-            }
-            for t in &td_locked.transforms {
-                match &t.pred {
-                    Some(p) => {
-                        for c in &get_expr_idents(&p) {
-                            if self.modified_cols.iter().find(|col| &c == col).is_some() {
-                                return true;
+        if self.update_type == DELETE_GUISE || self.update_type == DECOR_GUISE {
+            for td in &disguise.table_disguises {
+                let td_locked = td.read().unwrap();
+                // if this table disguise isn't of the conflicting table, ignore
+                if self.guise_name != td_locked.name {
+                    continue;
+                }
+                for t in &td_locked.transforms {
+                    match &t.pred {
+                        Some(p) => {
+                            for c in &get_expr_idents(&p) {
+                                if self.modified_cols.iter().find(|col| &c == col).is_some() || self.modified_cols.is_empty() {
+                                    return true;
+                                }
                             }
-                        }
-                    },
-                    None => (),
+                        },
+                        None => (),
+                    }
                 }
             }
         }

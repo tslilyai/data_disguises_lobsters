@@ -3,7 +3,6 @@ use crate::stats::*;
 use crate::*;
 use crate::{history, vaults};
 use mysql::{Opts, Pool};
-use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, RwLock};
@@ -31,7 +30,7 @@ pub enum TransformArgs {
 pub struct Transform {
     pub pred: Predicate,
     pub trans: Arc<RwLock<TransformArgs>>,
-    pub restorable: bool,
+    pub permanent: bool,
 }
 
 pub struct TableDisguise {
@@ -91,129 +90,6 @@ impl Disguiser {
         }
     }
 
-    fn execute_removes(&self, conn: &mut mysql::PooledConn) -> Result<(), mysql::Error> {
-        let start = time::Instant::now();
-        for stmt in &*self.to_delete.lock().unwrap() {
-            helpers::query_drop(stmt.to_string(), conn, self.stats.clone())?;
-        }
-        self.stats.lock().unwrap().remove_dur += start.elapsed();
-        Ok(())
-    }
-
-    pub fn select_predicate_objs(&self, disguise: Arc<Disguise>) {
-        let mut threads = vec![];
-        for table in disguise.table_disguises.clone() {
-            let pool = self.pool.clone();
-            let mystats = self.stats.clone();
-            let myvv = self.vault_vals.clone();
-            let my_delete = self.to_delete.clone();
-            let disguise_id = disguise.disguise_id;
-            let priority = disguise.priority;
-            let user_id = match &disguise.user {
-                Some(u) => u.id,
-                None => 0,
-            };
-            let my_items = self.items.clone();
-            let mut items_of_table: HashMap<Vec<RowVal>, Vec<Transform>> = HashMap::new();
-
-            threads.push(thread::spawn(move || {
-                let table = table.read().unwrap();
-                let mut conn = pool.get_conn().unwrap();
-                let mut removed_items: HashSet<Vec<RowVal>> = HashSet::new();
-
-                for t in &table.transforms {
-                    let pred_items = get_query_rows(
-                        &select_statement(&table.name, &t.pred),
-                        &mut conn,
-                        mystats.clone(),
-                    )
-                    .unwrap();
-
-                    // just remove item if it's supposed to be removed
-                    match *t.trans.read().unwrap() {
-                        TransformArgs::Remove => {
-                            // we're going to remove these, but may later restore them, remember in vault
-                            for i in &pred_items {
-                                debug!("Remove: Getting ids of table {} for {:?}", table.name, i);
-                                if t.restorable {
-                                    let ids = get_ids(&table.id_cols, i);
-                                    for owner_col in &table.owner_cols {
-                                        let uid = get_value_of_col(&i, &owner_col).unwrap();
-                                        let uid64 = u64::from_str(&uid).unwrap();
-                                        let should_insert = user_id == uid64 || user_id == 0;
-                                        if should_insert {
-                                            let ve = vaults::VaultEntry {
-                                                vault_id: 0,
-                                                disguise_id: disguise_id,
-                                                user_id: uid64,
-                                                guise_name: table.name.clone(),
-                                                guise_id_cols: table.id_cols.clone(),
-                                                guise_ids: ids.clone(),
-                                                referencer_name: "".to_string(),
-                                                update_type: vaults::DELETE_GUISE,
-                                                modified_cols: vec![],
-                                                old_value: i.clone(),
-                                                new_value: vec![],
-                                                reverses: None,
-                                                priority: priority,
-                                            };
-                                            let mut myvv_locked = myvv.lock().unwrap();
-                                            match myvv_locked.get_mut(&uid64) {
-                                                Some(vs) => vs.push(ve),
-                                                None => {
-                                                    myvv_locked.insert(uid64, vec![ve]);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                // EXTRA: save in removed so we don't transform this item further
-                                items_of_table.remove(i);
-                                removed_items.insert(i.to_vec());
-                            }
-                            // remember to delete this
-                            my_delete.lock().unwrap().push(
-                                Statement::Delete(DeleteStatement {
-                                    table_name: string_to_objname(&table.name),
-                                    selection: t.pred.clone(),
-                                })
-                                .to_string(),
-                            );
-                        }
-                        _ => {
-                            for i in pred_items {
-                                if removed_items.contains(&i) {
-                                    continue;
-                                }
-                                if let Some(ts) = items_of_table.get_mut(&i) {
-                                    ts.push(t.clone());
-                                } else {
-                                    items_of_table.insert(i, vec![t.clone()]);
-                                }
-                            }
-                        }
-                    }
-                }
-                let mut locked_items = my_items.write().unwrap();
-                match locked_items.get_mut(&table.name) {
-                    Some(hm) => hm.extend(items_of_table),
-                    None => {
-                        locked_items.insert(table.name.clone(), items_of_table);
-                    }
-                }
-                drop(locked_items);
-            }));
-        }
-
-        // wait until all mysql queries are done
-        for jh in threads.into_iter() {
-            match jh.join() {
-                Ok(_) => (),
-                Err(_) => warn!("Join failed?"),
-            }
-        }
-    }
-
     pub fn apply(&mut self, disguise: Arc<Disguise>) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {
             user_id: match &disguise.user {
@@ -228,7 +104,14 @@ impl Disguiser {
         let mut threads = vec![];
 
         /*
-         * PHASE 0: Relink/restore lower priority transformations from prior disguises
+         * PHASE 0: Temporarily reclaim ownership of objects from previous disguises with lower
+         * priority
+         *
+         * TODO Optimizations:
+         *  - only reclaim ownership from disguises that may conflict
+         *  - separate out tokens for ownership from tokens for updates/deletes
+         *  - don't reclaim ownership for objects that will again be disowned
+         *  - lazily apply modifications to removed objects
          */
         let mut ves: Vec<vaults::VaultEntry>;
         if let Some(u) = &disguise.user {
@@ -240,24 +123,17 @@ impl Disguiser {
                 self.stats.clone(),
             )?);
         } else {
-            ves = vaults::get_global_vault_ves(
-                None,
-                None,
-                &mut conn,
-                self.stats.clone(),
-            )?;
+            ves = vaults::get_global_vault_ves(None, None, &mut conn, self.stats.clone())?;
         }
+        // we cannot reclaim ownership of objects disowned by higher priority disguises
+        // and we only want to restore objects that may be conflicting
         let ves: Vec<&vaults::VaultEntry> = ves
             .iter()
-            .filter(|ve| ve.priority < disguise.priority)
+            .filter(|ve| ve.priority < disguise.priority && ve.conflicts_with(&disguise))
             .collect();
         // temporarily relink/restore values for future disguise
         for ve in ves {
-            // don't revert disguise of greater or equal priorities
-            assert!(ve.priority < disguise.priority);
-            if ve.conflicts_with(&disguise) {
-                ve.apply_token(&mut conn, self.stats.clone())?;
-            }
+            ve.restore_ownership(&mut conn, self.stats.clone())?;
         }
 
         // get all the objects, set all the objects to remove
@@ -358,7 +234,8 @@ impl Disguiser {
                                  * B) record update to child to point to new guise
                                  * */
                                 // Phase 3A: update the vault with new guise (calculating the uid from the last_insert_id)
-                                if t.restorable {
+                                if !t.permanent {
+                                    let pred = match &t.pred { Some(p) => p.to_string(), None => "true".to_string() };
                                     let mut ix = 0;
                                     let new_parent_rowvals: Vec<RowVal> = new_parent
                                         .iter()
@@ -373,6 +250,7 @@ impl Disguiser {
                                         .collect();
                                     let mut myvv_locked = myvv.lock().unwrap();
                                     let ve = vaults::VaultEntry {
+                                        pred: pred.clone(),
                                         vault_id: 0,
                                         disguise_id: disguise_id,
                                         user_id: old_uid,
@@ -380,11 +258,12 @@ impl Disguiser {
                                         guise_id_cols: vec![guise_info.id_col.clone()],
                                         guise_ids: vec![guise_id.to_string()],
                                         referencer_name: table.name.clone(),
+                                        fk_name: "".to_string(),
                                         update_type: vaults::INSERT_GUISE,
                                         modified_cols: vec![],
                                         old_value: vec![],
                                         new_value: new_parent_rowvals,
-                                        reverses: None,
+                                        reversed: false,
                                         priority: priority,
                                     };
                                     match myvv_locked.get_mut(&old_uid) {
@@ -410,6 +289,7 @@ impl Disguiser {
                                         .collect();
                                     warn!("Decor: Getting ids of table {} for {:?}", table.name, i);
                                     let ve = vaults::VaultEntry {
+                                        pred: pred,
                                         vault_id: 0,
                                         disguise_id: disguise_id,
                                         user_id: old_uid,
@@ -417,11 +297,12 @@ impl Disguiser {
                                         guise_id_cols: table.id_cols.clone(),
                                         guise_ids: get_ids(&table.id_cols, &i),
                                         referencer_name: "".to_string(),
-                                        update_type: vaults::UPDATE_GUISE,
+                                        fk_name: fk_name.clone(),
+                                        update_type: vaults::DECOR_GUISE,
                                         modified_cols: vec![referencer_col.clone()],
                                         old_value: i.clone(),
                                         new_value: new_child,
-                                        reverses: None,
+                                        reversed: false,
                                         priority: priority,
                                     };
                                     match myvv_locked.get_mut(&old_uid) {
@@ -465,7 +346,7 @@ impl Disguiser {
                                  * */
                                 // XXX insert a vault entry for every owning user (every fk)
                                 // should just update for the calling user, if there is one?
-                                if t.restorable {
+                                if !t.permanent {
                                     warn!("Modify: Getting ids of table {} for {:?}", table.name, i);
                                     let new_obj: Vec<RowVal> = i
                                         .iter()
@@ -489,18 +370,21 @@ impl Disguiser {
                                         let should_insert = user_id == 0 || user_id == uid64;
                                         if should_insert {
                                             let ve = vaults::VaultEntry {
+                                                pred: match &t.pred { Some(p) => p.to_string(), None => "true".to_string() },
                                                 vault_id: 0,
                                                 disguise_id: disguise_id,
                                                 user_id: u64::from_str(&uid).unwrap(),
                                                 guise_name: table.name.clone(),
                                                 guise_id_cols: table.id_cols.clone(),
                                                 guise_ids: ids.clone(),
+                                                reversed: false,
+                                                
                                                 referencer_name: "".to_string(),
+                                                fk_name: "".to_string(),
                                                 update_type: vaults::UPDATE_GUISE,
                                                 modified_cols: vec![col.clone()],
                                                 old_value: i.clone(),
                                                 new_value: new_obj.clone(),
-                                                reverses: None,
                                                 priority: priority,
                                             };
                                             match myvv_locked.get_mut(&uid64) {
@@ -579,6 +463,136 @@ impl Disguiser {
         self.clear_disguise_records();
         Ok(())
     }
+
+    fn execute_removes(&self, conn: &mut mysql::PooledConn) -> Result<(), mysql::Error> {
+        let start = time::Instant::now();
+        for stmt in &*self.to_delete.lock().unwrap() {
+            helpers::query_drop(stmt.to_string(), conn, self.stats.clone())?;
+        }
+        self.stats.lock().unwrap().remove_dur += start.elapsed();
+        Ok(())
+    }
+
+    fn select_predicate_objs(&self, disguise: Arc<Disguise>) {
+        let mut threads = vec![];
+        for table in disguise.table_disguises.clone() {
+            let pool = self.pool.clone();
+            let mystats = self.stats.clone();
+            let myvv = self.vault_vals.clone();
+            let my_delete = self.to_delete.clone();
+            let disguise_id = disguise.disguise_id;
+            let priority = disguise.priority;
+            let user_id = match &disguise.user {
+                Some(u) => u.id,
+                None => 0,
+            };
+            let my_items = self.items.clone();
+            let mut items_of_table: HashMap<Vec<RowVal>, Vec<Transform>> = HashMap::new();
+
+            threads.push(thread::spawn(move || {
+                let table = table.read().unwrap();
+                let mut conn = pool.get_conn().unwrap();
+                let mut removed_items: HashSet<Vec<RowVal>> = HashSet::new();
+
+                for t in &table.transforms {
+                    let pred_items = get_query_rows(
+                        &select_statement(&table.name, &t.pred),
+                        &mut conn,
+                        mystats.clone(),
+                    )
+                    .unwrap();
+
+                    // just remove item if it's supposed to be removed
+                    match *t.trans.read().unwrap() {
+                        TransformArgs::Remove => {
+                            // we're going to remove these, but may later restore them, remember in vault
+                            for i in &pred_items {
+                                debug!("Remove: Getting ids of table {} for {:?}", table.name, i);
+                                if !t.permanent {
+                                    let ids = get_ids(&table.id_cols, i);
+                                    for owner_col in &table.owner_cols {
+                                        let uid = get_value_of_col(&i, &owner_col).unwrap();
+                                        let uid64 = u64::from_str(&uid).unwrap();
+                                        let should_insert = user_id == uid64 || user_id == 0;
+                                        if should_insert {
+                                            let ve = vaults::VaultEntry {
+                                                pred: match &t.pred {
+                                                    Some(p) => p.to_string(),
+                                                    None => "true".to_string(),
+                                                },
+                                                vault_id: 0,
+                                                disguise_id: disguise_id,
+                                                user_id: uid64,
+                                                guise_name: table.name.clone(),
+                                                guise_id_cols: table.id_cols.clone(),
+                                                guise_ids: ids.clone(),
+                                                reversed: false,
+                                                priority: priority,
+                                                update_type: vaults::DELETE_GUISE,
+                                                
+                                                referencer_name: "".to_string(),
+                                                fk_name: "".to_string(),
+                                                modified_cols: vec![],
+                                                old_value: i.clone(),
+                                                new_value: vec![],
+                                            };
+                                            let mut myvv_locked = myvv.lock().unwrap();
+                                            match myvv_locked.get_mut(&uid64) {
+                                                Some(vs) => vs.push(ve),
+                                                None => {
+                                                    myvv_locked.insert(uid64, vec![ve]);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                // EXTRA: save in removed so we don't transform this item further
+                                items_of_table.remove(i);
+                                removed_items.insert(i.to_vec());
+                            }
+                            // remember to delete this
+                            my_delete.lock().unwrap().push(
+                                Statement::Delete(DeleteStatement {
+                                    table_name: string_to_objname(&table.name),
+                                    selection: t.pred.clone(),
+                                })
+                                .to_string(),
+                            );
+                        }
+                        _ => {
+                            for i in pred_items {
+                                if removed_items.contains(&i) {
+                                    continue;
+                                }
+                                if let Some(ts) = items_of_table.get_mut(&i) {
+                                    ts.push(t.clone());
+                                } else {
+                                    items_of_table.insert(i, vec![t.clone()]);
+                                }
+                            }
+                        }
+                    }
+                }
+                let mut locked_items = my_items.write().unwrap();
+                match locked_items.get_mut(&table.name) {
+                    Some(hm) => hm.extend(items_of_table),
+                    None => {
+                        locked_items.insert(table.name.clone(), items_of_table);
+                    }
+                }
+                drop(locked_items);
+            }));
+        }
+
+        // wait until all mysql queries are done
+        for jh in threads.into_iter() {
+            match jh.join() {
+                Ok(_) => (),
+                Err(_) => warn!("Join failed?"),
+            }
+        }
+    }
+
 
     pub fn undo(&self, user_id: Option<u64>, disguise_id: u64) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {

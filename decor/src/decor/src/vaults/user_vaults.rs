@@ -303,10 +303,11 @@ impl UVClient {
     }
 }
 
-fn create_dummy_ve(n: u64, reverses: Option<u64>) -> VaultEntry {
+fn create_dummy_ve(n: u64, reversed: bool) -> VaultEntry {
     let name = format!("guise{}", n);
     let val = format!("newval{}", n);
     VaultEntry {
+        pred: String::new(),
         vault_id: n,
         disguise_id: n,
         user_id: n,
@@ -314,6 +315,7 @@ fn create_dummy_ve(n: u64, reverses: Option<u64>) -> VaultEntry {
         guise_id_cols: vec![name.clone()],
         guise_ids: vec![name.clone()],
         referencer_name: String::new(),
+        fk_name: String::new(),
         update_type: n,
         modified_cols: vec![name.clone()],
         old_value: vec![RowVal {
@@ -324,7 +326,7 @@ fn create_dummy_ve(n: u64, reverses: Option<u64>) -> VaultEntry {
             column: name.clone(),
             value: val,
         }],
-        reverses: reverses,
+        reversed: reversed,
         priority: 0,
     }
 }
