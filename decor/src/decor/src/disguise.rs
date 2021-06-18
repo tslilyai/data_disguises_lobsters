@@ -561,6 +561,9 @@ impl Disguiser {
                         TransformArgs::Remove => {
                             // we're going to remove these, but may later restore them, remember in vault
                             for i in &pred_items {
+                                if removed_items.contains(i) {
+                                    continue;
+                                }
                                 debug!("Remove: Getting ids of table {} for {:?}", table.name, i);
                                 if !t.permanent {
                                     let ids = get_ids(&table.id_cols, i);
