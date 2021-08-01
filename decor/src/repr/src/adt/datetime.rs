@@ -1364,7 +1364,7 @@ pub(crate) fn tokenize_time_str(value: &str) -> Result<VecDeque<TimeStrToken>, S
         Ok(TimeStrToken::Num(n.parse().map_err(|e| {
             format!("Unable to parse value as a number at index {}: {}", idx, e)
         })?))
-    };
+    }
     fn maybe_tokenize_num_buf(
         n: &mut String,
         i: usize,
@@ -1505,7 +1505,7 @@ fn tokenize_timezone(value: &str) -> Result<Vec<TimeStrToken>, String> {
         }
 
         Ok(())
-    };
+    }
     for (i, chr) in value.chars().enumerate() {
         match chr {
             '-' => {

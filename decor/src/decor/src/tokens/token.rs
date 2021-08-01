@@ -1,5 +1,5 @@
-use crate::disguise::*;
 use crate::helpers::*;
+use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -7,6 +7,7 @@ pub const INSERT_GUISE: u64 = 0;
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
 pub const UPDATE_GUISE: u64 = 3;
+pub const PRIV_KEY: u64 = 4;
 
 pub static TOKEN_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -17,6 +18,7 @@ pub struct Token {
     pub disguise_id: u64,
     pub user_id: u64,
     pub update_type: u64,
+    pub last_tail: u64,
     pub revealed: bool,
 
     // guise information
@@ -38,11 +40,25 @@ pub struct Token {
     // update/insert: store new blobs
     pub new_value: Vec<RowVal>,
 
+    // if a private key of a guise
+    pub priv_key: Vec<u8>,
+
     // for encryption
     pub nonce: Vec<u8>,
 }
 
 impl Token {
+    pub fn new_privkey_token(did: u64, uid: u64, priv_key: RsaPrivateKey) -> Token {
+        let mut token: Token = Default::default();
+        token.token_id = TOKEN_ID.fetch_add(1, Ordering::SeqCst);
+        token.user_id = uid;
+        token.disguise_id = did;
+        token.update_type = PRIV_KEY;
+        token.revealed = false;
+        token.priv_key = priv_key.to_pkcs1_der().unwrap().as_der().to_vec();
+        token
+    }
+
     pub fn new_decor_token(
         did: u64,
         uid: u64,
@@ -53,7 +69,7 @@ impl Token {
         new_fk_value: u64,
         fk_col: String,
     ) -> Token {
-        let token: Token = Default::default();
+        let mut token: Token = Default::default();
         token.token_id = TOKEN_ID.fetch_add(1, Ordering::SeqCst);
         token.user_id = uid;
         token.disguise_id = did;
@@ -75,7 +91,7 @@ impl Token {
         guise_ids: Vec<RowVal>,
         old_value: Vec<RowVal>,
     ) -> Token {
-        let token: Token = Default::default();
+        let mut token: Token = Default::default();
         token.token_id = TOKEN_ID.fetch_add(1, Ordering::SeqCst);
         token.user_id = uid;
         token.disguise_id = did;
@@ -95,7 +111,7 @@ impl Token {
         old_value: Vec<RowVal>,
         new_value: Vec<RowVal>,
     ) -> Token {
-        let token: Token = Default::default();
+        let mut token: Token = Default::default();
         token.token_id = TOKEN_ID.fetch_add(1, Ordering::SeqCst);
         token.user_id = uid;
         token.disguise_id = did;
@@ -111,17 +127,17 @@ impl Token {
     pub fn new_insert_token(
         did: u64,
         uid: u64,
-        ti: TableInfo,
-        guise_ids: Vec<String>,
+        guise_ids: Vec<RowVal>,
         referencer_name: String,
         new_value: Vec<RowVal>,
     ) -> Token {
-        let token: Token = Default::default();
+        let mut token: Token = Default::default();
         token.token_id = TOKEN_ID.fetch_add(1, Ordering::SeqCst);
         token.user_id = uid;
         token.disguise_id = did;
         token.update_type = INSERT_GUISE;
         token.revealed = false;
+        token.guise_ids = guise_ids;
         token.referencer_name = referencer_name;
         token.new_value = new_value;
         token

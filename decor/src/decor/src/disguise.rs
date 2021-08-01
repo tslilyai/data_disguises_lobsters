@@ -1,7 +1,7 @@
 use crate::helpers::*;
 use crate::stats::*;
 use crate::*;
-use crate::{history, pdk::*};
+use crate::{history};
 use mysql::{Opts, Pool};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -32,15 +32,11 @@ pub struct Transform {
     pub permanent: bool,
 }
 
-#[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct TableInfo {
+#[derive(Clone)]
+pub struct TableDisguise {
     pub name: String,
     pub id_cols: Vec<String>,
     pub owner_cols: Vec<String>,
-}
-
-pub struct TableDisguise {
-    pub info: TableInfo,
     pub transforms: Vec<Transform>,
 }
 
@@ -98,7 +94,7 @@ impl Disguiser {
         };
 
         let mut conn = self.pool.get_conn()?;
-        let mut threads = vec![];
+        //let mut threads = vec![];
 
         /*
          * PHASE 0: Get PDK that can be utilized to expand the scope of this disguise
@@ -127,7 +123,7 @@ impl Disguiser {
         /*
          * PHASE 3: UPDATE/DECOR
          */
-        let fk_cols = Arc::new((disguise.guise_info.read().unwrap().col_generation)());
+        /*let fk_cols = Arc::new((disguise.guise_info.read().unwrap().col_generation)());
         for (_, table_disguise) in disguise.table_disguises.clone() {
             let pool = self.pool.clone();
             let mystats = self.stats.clone();
@@ -367,7 +363,7 @@ impl Disguiser {
 
         self.record_disguise(&de, &mut conn)?;
 
-        self.clear_disguise_records();
+        self.clear_disguise_records();*/
         Ok(())
     }
 
@@ -383,9 +379,8 @@ impl Disguiser {
     fn select_predicate_objs(
         &self,
         disguise: Arc<Disguise>,
-        //pdk:
     ) {
-        let mut threads = vec![];
+        /*let mut threads = vec![];
         for (table, table_disguise) in disguise.table_disguises.clone() {
             let pool = self.pool.clone();
             let mystats = self.stats.clone();
@@ -500,7 +495,7 @@ impl Disguiser {
                 Ok(_) => (),
                 Err(_) => warn!("Join failed?"),
             }
-        }
+        }*/
     }
 
     pub fn undo(&self, user_id: Option<u64>, disguise_id: u64) -> Result<(), mysql::Error> {

@@ -4,6 +4,11 @@ use log::debug;
 use std::collections::HashMap;
 use serde::{Serialize};
 
+pub fn serialize_to_bytes<T: Serialize>(item: &T) -> Vec<u8> {
+    let s = serde_json::to_string(item).unwrap();
+    s.as_bytes().to_vec()
+}
+
 pub fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
     if vs.is_empty() {
         Expr::Value(Value::Null)

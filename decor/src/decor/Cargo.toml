@@ -19,11 +19,12 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 sql-parser = { path = "../sql-parser" }
 regex = "1"
-rand = "0.6.5"
+rand = "0.8.4"
 rsa = "0.5.0"
 ordered-float = "2.0"
 time = "0.2.7"
 tokio = { version = "1.6.1", features = ["full"] }
+hex-literal = "0.3.3"
 
 [dev-dependencies]
 datadriven = "0.1.0"
