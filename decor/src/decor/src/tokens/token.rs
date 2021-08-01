@@ -1,50 +1,142 @@
 use crate::disguise::*;
 use crate::helpers::*;
-use crate::stats::QueryStat;
-use log::warn;
 use serde::{Deserialize, Serialize};
-use sql_parser::ast::*;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 pub const INSERT_GUISE: u64 = 0;
-pub const DELETE_GUISE: u64 = 1;
-pub const DECOR_GUISE: u64 = 3;
-pub const UPDATE_GUISE: u64 = 4;
+pub const REMOVE_GUISE: u64 = 1;
+pub const DECOR_GUISE: u64 = 2;
+pub const UPDATE_GUISE: u64 = 3;
+
+pub static TOKEN_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct VaultEntry {
-    pub pred: String,
-    pub vault_id: u64,
+pub struct Token {
+    // metadata set by Edna
+    pub token_id: u64,
     pub disguise_id: u64,
-    pub priority: u64,
     pub user_id: u64,
     pub update_type: u64,
-    // whether this disguise has been reversed at some point
-    pub reversed: bool,
+    pub revealed: bool,
 
     // guise information
     pub guise_name: String,
-    pub guise_owner_cols: Vec<String>,
-    pub guise_id_cols: Vec<String>,
-    pub guise_ids: Vec<String>,
+    pub guise_ids: Vec<RowVal>,
+
+    // decorrelation of object from referenced
+    pub referenced_name: String,
+    pub old_fk_value: u64,
+    pub new_fk_value: u64,
+    pub fk_col: String,
 
     // for inserted guises
     pub referencer_name: String,
 
-    // for decorrelations
-    pub fk_name: String,
-    pub fk_col: String,
-
-    // for decorrelations and updates
-    pub modified_cols: Vec<String>,
-
-    // blobs
+    // update/deletion: store old blobs
     pub old_value: Vec<RowVal>,
+
+    // update/insert: store new blobs
     pub new_value: Vec<RowVal>,
+
+    // for encryption
+    pub nonce: Vec<u8>,
 }
 
-impl VaultEntry {
-    fn reinsert_guise(
+impl Token {
+    pub fn new_decor_token(
+        did: u64,
+        uid: u64,
+        guise_name: String,
+        guise_ids: Vec<RowVal>,
+        referenced_name: String,
+        old_fk_value: u64,
+        new_fk_value: u64,
+        fk_col: String,
+    ) -> Token {
+        let token: Token = Default::default();
+        token.token_id = TOKEN_ID.fetch_add(1, Ordering::SeqCst);
+        token.user_id = uid;
+        token.disguise_id = did;
+        token.update_type = DECOR_GUISE;
+        token.revealed = false;
+        token.guise_name = guise_name;
+        token.guise_ids = guise_ids;
+        token.referenced_name = referenced_name;
+        token.old_fk_value = old_fk_value;
+        token.new_fk_value = new_fk_value;
+        token.fk_col = fk_col;
+        token
+    }
+
+    pub fn new_delete_token(
+        did: u64,
+        uid: u64,
+        guise_name: String,
+        guise_ids: Vec<RowVal>,
+        old_value: Vec<RowVal>,
+    ) -> Token {
+        let token: Token = Default::default();
+        token.token_id = TOKEN_ID.fetch_add(1, Ordering::SeqCst);
+        token.user_id = uid;
+        token.disguise_id = did;
+        token.update_type = REMOVE_GUISE;
+        token.revealed = false;
+        token.guise_name = guise_name;
+        token.guise_ids = guise_ids;
+        token.old_value = old_value;
+        token
+    }
+
+    pub fn new_update_token(
+        did: u64,
+        uid: u64,
+        guise_name: String,
+        guise_ids: Vec<RowVal>,
+        old_value: Vec<RowVal>,
+        new_value: Vec<RowVal>,
+    ) -> Token {
+        let token: Token = Default::default();
+        token.token_id = TOKEN_ID.fetch_add(1, Ordering::SeqCst);
+        token.user_id = uid;
+        token.disguise_id = did;
+        token.update_type = UPDATE_GUISE;
+        token.revealed = false;
+        token.guise_name = guise_name;
+        token.guise_ids = guise_ids;
+        token.old_value = old_value;
+        token.new_value = new_value;
+        token
+    }
+
+    pub fn new_insert_token(
+        did: u64,
+        uid: u64,
+        ti: TableInfo,
+        guise_ids: Vec<String>,
+        referencer_name: String,
+        new_value: Vec<RowVal>,
+    ) -> Token {
+        let token: Token = Default::default();
+        token.token_id = TOKEN_ID.fetch_add(1, Ordering::SeqCst);
+        token.user_id = uid;
+        token.disguise_id = did;
+        token.update_type = INSERT_GUISE;
+        token.revealed = false;
+        token.referencer_name = referencer_name;
+        token.new_value = new_value;
+        token
+    }
+
+    pub fn token_to_bytes(token: &Token) -> Vec<u8> {
+        let s = serde_json::to_string(token).unwrap();
+        s.as_bytes().to_vec()
+    }
+
+    pub fn token_from_bytes(bytes: Vec<u8>) -> Token {
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    /*fn reinsert_guise(
         &self,
         conn: &mut mysql::PooledConn,
         stats: Arc<Mutex<QueryStat>>,
@@ -78,7 +170,7 @@ impl VaultEntry {
             self.guise_name, self.fk_name, self.user_id
         );
 
-        // this may be none if this vault entry is an insert, and not a modification
+        // this may be none if this token entry is an insert, and not a modification
         let owner_col = &self.modified_cols[0];
         let new_val: String;
         let old_val: String;
@@ -109,7 +201,7 @@ impl VaultEntry {
             conn,
             stats.clone(),
         )?;
-        //insert_reversed_vault_entry(&ve, conn, stats.clone());
+        //insert_reversed_token_entry(&ve, conn, stats.clone());
 
         /*
          * Delete created guises if objects in this table had been decorrelated
@@ -130,8 +222,8 @@ impl VaultEntry {
             conn,
             stats.clone(),
         )?;
-        // mark vault entries as reversed
-        //insert_reversed_vault_entry(&ve, conn, stats.clone());
+        // mark token entries as reversed
+        //insert_reversed_token_entry(&ve, conn, stats.clone());
         Ok(())
     }
 
@@ -148,7 +240,7 @@ impl VaultEntry {
         Ok(())
     }
 
-    // if this vault entry modifies or removes something that this disguise predicate
+    // if this token entry modifies or removes something that this disguise predicate
     // depends on, then we have a RAW conflict
     pub fn conflicts_with(&self, disguise: &Disguise) -> bool {
         // a disguise can only conflict with prior disguises of lower priority
@@ -175,21 +267,7 @@ impl VaultEntry {
             }
         }
         false
-    }
-}
-
-pub fn ves_to_bytes(ves: &Vec<VaultEntry>) -> Vec<u8> {
-    let s = serde_json::to_string(ves).unwrap();
-    s.as_bytes().to_vec()
-}
-
-pub fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
-    if vs.is_empty() {
-        Expr::Value(Value::Null)
-    } else {
-        let serialized = serde_json::to_string(&vs).unwrap();
-        Expr::Value(Value::String(serialized))
-    }
+    }*/
 }
 
 /*pub fn reverse_decor_ve(
@@ -199,13 +277,12 @@ pub fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
     fkcol: &str,
     conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
-) -> Result<Vec<VaultEntry>, mysql::Error> {
+) -> Result<Vec<Token>, mysql::Error> {
     // TODO assuming that all FKs point to users
 
     /*
      * Undo modifications to objects of this table
-     * TODO undo any vault modifications that were dependent on this one, namely "filters" that
+     * TODO undo any token modifications that were dependent on this one, namely "filters" that
      * join with this "filter" (any updates that happened after this?)
      */
-
 }*/

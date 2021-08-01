@@ -2,6 +2,16 @@ use crate::helpers::*;
 use crate::*;
 use log::debug;
 use std::collections::HashMap;
+use serde::{Serialize};
+
+pub fn vec_to_expr<T: Serialize>(vs: &Vec<T>) -> Expr {
+    if vs.is_empty() {
+        Expr::Value(Value::Null)
+    } else {
+        let serialized = serde_json::to_string(&vs).unwrap();
+        Expr::Value(Value::String(serialized))
+    }
+}
 
 pub fn get_value_of_col(row: &Vec<RowVal>, col: &str) -> Option<String> {
     for rv in row {

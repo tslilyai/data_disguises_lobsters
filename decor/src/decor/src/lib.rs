@@ -1,13 +1,9 @@
-extern crate crypto;
 extern crate hex;
 extern crate mysql;
 extern crate ordered_float;
-extern crate rusoto_core;
-extern crate rusoto_s3;
 
 use log::{debug, warn};
 use mysql::prelude::*;
-use rusoto_core::Region;
 use sql_parser::ast::*;
 use std::sync::{Arc, Mutex};
 use std::*;
@@ -16,11 +12,9 @@ mod disguise;
 pub mod helpers;
 mod history;
 pub mod stats;
-mod vaults;
+pub mod tokens;
 
 const GUISE_ID_LB: u64 = 1 << 5;
-pub const BUCKET: &'static str = "edna-uservaults";
-pub const REGION: Region = Region::UsEast2;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
