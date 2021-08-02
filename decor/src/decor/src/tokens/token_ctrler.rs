@@ -1,5 +1,5 @@
 use crate::tokens::*;
-//use log::warn;
+use log::warn;
 use crate::helpers::*;
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
@@ -93,6 +93,8 @@ impl TokenCtrler {
                 key
             }
         };
+        warn!("symkey insert user {} disguise {} token is {:?}", uid, did, symkey);
+
         // give the token a random nonce
         token.nonce = self.rng.next_u64();
 
@@ -214,14 +216,14 @@ impl TokenCtrler {
             .get(&uid)
             .expect("no user with uid found?");
         
-        // check that client didn't forge symkey
-        let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        assert_eq!(
+        // XXX should we check that client didn't forge symkey?
+        // we would need to remember padding scheme
+        /*assert_eq!(
             p.pubkey
                 .encrypt(&mut self.rng, padding, &symkey[..])
                 .expect("failed to encrypt"),
             symkey
-        );
+        );*/
 
         let mut cd_tokens = vec![];
         let mut privkey_tokens = vec![];
@@ -277,12 +279,23 @@ impl TokenCtrler {
     }
 }
 
+fn init_logger() {
+    let _ = env_logger::builder()
+        // Include all events in tests
+        .filter_level(log::LevelFilter::Warn)
+        // Ensure events are captured by `cargo test`
+        .is_test(true)
+        // Ignore errors initializing the logger if tests race to configure it
+        .try_init();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_insert_global_token_single () {
+        init_logger();
         let mut ctrler = TokenCtrler::new();
 
         let did = 1;
@@ -319,6 +332,7 @@ mod tests {
 
     #[test]
     fn test_insert_user_token_single() {
+        init_logger();
         let mut ctrler = TokenCtrler::new();
 
         let did = 1;
@@ -367,23 +381,13 @@ mod tests {
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
         let symkey1 = private_key.decrypt(padding, &cd_ls.encrypted_symkey).expect("failed to decrypt");
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        assert_eq!(
-            p.pubkey
-                .encrypt(&mut rng, padding, &symkey1[..])
-                .expect("failed to encrypt"),
-            cd_ls.encrypted_symkey
-        );
+        warn!("symkey1 is {:?}", symkey1);
 
         let privkey_ls = p.privkey_lists.get(&did).expect("failed to get disguise?");
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
         let symkey2 = private_key.decrypt(padding, &privkey_ls.encrypted_symkey).expect("failed to decrypt");
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        assert_eq!(
-            p.pubkey
-                .encrypt(&mut rng, padding, &symkey2[..])
-                .expect("failed to encrypt"),
-            privkey_ls.encrypted_symkey
-        );
+        warn!("symkey2 is {:?}", symkey1);
 
         assert_eq!(symkey1, symkey2);
 
