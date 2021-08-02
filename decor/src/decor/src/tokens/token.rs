@@ -25,22 +25,22 @@ pub struct Token {
     pub guise_name: String,
     pub guise_ids: Vec<RowVal>,
 
-    // decorrelation of object from referenced
+    // DECOR 
     pub referenced_name: String,
     pub old_fk_value: u64,
     pub new_fk_value: u64,
     pub fk_col: String,
 
-    // for inserted guises
+    // INSERT 
     pub referencer_name: String,
 
-    // update/deletion: store old blobs
-    pub old_value: Vec<RowVal>,
-
-    // update/insert: store new blobs
+    // UPDATE/INSERT: store new blobs
     pub new_value: Vec<RowVal>,
 
-    // if a private key of a guise
+    // UPDATE/DELETE: store old blobs
+    pub old_value: Vec<RowVal>,
+
+    // PRIV_KEY
     pub priv_key: Vec<u8>,
 
     // for encryption

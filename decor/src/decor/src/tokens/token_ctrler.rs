@@ -92,7 +92,7 @@ impl TokenCtrler {
         // insert new private key into private key list for original principal
         let p = self
             .principal_tokens
-            .get(&uid)
+            .get_mut(&uid)
             .expect("no user with uid found?");
 
         let symkey = match p.tmp_symkeys.get(&did) {
@@ -108,10 +108,10 @@ impl TokenCtrler {
         };
 
         // encrypt the private key with the symmetric key
-        let token: Token = Token::new_privkey_token(did, uid, private_key);
-        let nonce: Vec<u8> = repeat(0u8).take(128).collect();
+        let mut token: Token = Token::new_privkey_token(did, uid, private_key);
+        let mut nonce: Vec<u8> = repeat(0u8).take(128).collect();
         self.rng.fill_bytes(&mut nonce[..]);
-        token.nonce = nonce;
+        token.nonce = nonce.to_vec();
 
         let cipher = Aes128Cbc::new_from_slices(&symkey, &nonce).unwrap();
         let plaintext = serialize_to_bytes(&token);
@@ -119,7 +119,7 @@ impl TokenCtrler {
     }
 
     pub fn end_disguise(&mut self) {
-        for (pid, p) in self.principal_tokens {
+        for (_pid, p) in &mut self.principal_tokens {
             p.tmp_symkeys.clear();
         }
     }
@@ -128,7 +128,7 @@ impl TokenCtrler {
         let uid = token.user_id;
         let p = self
             .principal_tokens
-            .get(&uid)
+            .get_mut(&uid)
             .expect("no user with uid found?");
 
         let symkey = match p.tmp_symkeys.get(&token.disguise_id) {

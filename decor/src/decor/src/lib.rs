@@ -1,11 +1,6 @@
-#![feature(alloc)]
-
-extern crate alloc;
-
 extern crate mysql;
 extern crate ordered_float;
 
-use alloc::vec::Vec;
 use log::{debug, warn};
 use mysql::prelude::*;
 use sql_parser::ast::*;
