@@ -1,0 +1,86 @@
+%-------------------------------------------------------------------------------
+\section{System Components}
+%-------------------------------------------------------------------------------
+\begin{itemize}
+\item Disguising Tool (``Edna''): adds support for disguise API calls to applications.
+\item Principal: an application user account that owns DB objects that are correlated via e.g., foreign key relationships to the account.
+\item Client: external devices that contact the application via the application API, and can be authenticated to speak for one or more principals via the application authentication protocol (e.g., logging in with a password, or using access tokens to establish a session).
+\item Tokens: 
+\begin{itemize}
+    \item Correlation tokens (linking an old principal to a created principal from disguise decorrelation operations). These tokens give Edna the ability to disguise the data of these principals when disguising the data of P, or to permanently recorrelate data back with P.
+    \item Data tokens save the pre-modified or removed data. These tokens give Edna the ability to compose a future disguise on top of the original data, or permanently restore the original data.
+    \item Private key tokens save the private key of a created anonymous principal
+\end{itemize}
+\item Disguise Capability: authorizes access to tokens.
+\end{itemize}
+
+%-------------------------------------------------------------------------------
+\section{Threat Model}
+%-------------------------------------------------------------------------------
+An adversary can access any data stored as plaintext by the application or Edna, including data not exposed via its
+client-facing API. We assume that an adversary cannot access prior snapshots of the application database, or observe modifications or memory accesses performed during disguise application. Furthermore, undisguised content and implicit correlations based on this content (e.g., a comment that mentions the author’s name) are out of scope.
+
+We assume Edna is honest but curious: when applying or reversing a disguise, Edna may temporarily
+hold (in memory) plaintext token data, as well as private or symmetric keys, but is trusted to
+forget them once the disguise action is complete.  
+
+Finally, we assume standard security of public key and
+symmetric key primitives~\note{under a random oracle model?}.
+
+%-------------------------------------------------------------------------------
+\section{Disguise API}
+%-------------------------------------------------------------------------------
+\createpseudocodeblock{pcb}{center, boxed}{}{}{}
+\begin{figure*}
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Client c} \< \< \textbf{Edna} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+(\pk_c, \sk_c) \sample \kgen() \<\< \\
+\< \sendmessageright*{\texttt{RegisterClient(c, $\pk_c$)}} \< \\
+\<\< \texttt{store($\pk_c$)}
+}
+\caption{Client protocol for account registration}
+\end{figure*}
+
+\begin{figure*}
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Client c} \< \< \textbf{Edna} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+\< \sendmessageright*{\texttt{ApplyDisguise(c,d)}} \< \\
+\<\< \key_{cd} \sample \kgen() \\
+\<\< \texttt{enckey$_{cd}$} \gets \enc(\pk_c, \key_{cd}) \\
+\<\< \texttt{store(enckey$_{cd}$)} \pclb
+\pcintertext [dotted]{FOR ALL PAST DISGUISES $d'$:} \\
+\<\< \\[-3\baselineskip]\\
+\<\< \texttt{enckey}_{cd'} \gets \texttt{RetrieveEncKey}(c,d')\\
+\< \sendmessageleft*{\texttt{AuthorizeTokenAccessRequest(enckey}_{cd'})} \< \\
+\key_{cd'} \gets \dec(\sk_c, \texttt{enckey}_{cd'}) \<\< \\
+\< \sendmessageright*{\texttt{AuthorizeTokenAccessReply}(\key_{cd'})} \< \\
+\<\< \texttt{tokens.append}(\texttt{ReadTokens}(c,d',\key_{cd'})) \pclb
+\pcintertext[dotted]{END FOR} \\
+\<\< \\[-3\baselineskip]\\
+\<\< \texttt{ApplyDisguise($o_c$, tokens, $\key_{cd}$)}
+}
+\caption{Client protocol for disguise application}
+\end{figure*}
+
+\begin{figure*}
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Client c} \< \< \textbf{Edna} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+\< \sendmessageright*{\texttt{ReverseDisguise(c,d)}} \< \\
+\<\< \texttt{enckey}_{cd} \gets \texttt{RetrieveEncKey}(c,d)\\
+\< \sendmessageleft*{\texttt{AuthorizeTokenAccessRequest(enckey}_{cd})} \< \\
+\key_{cd} \gets \dec(\sk_c, \texttt{enckey}_{cd}) \<\< \\
+\< \sendmessageright*{\texttt{AuthorizeTokenAccessReply($\key_{cd}$)}} \< \\
+\<\< \texttt{tokens}\gets(\texttt{ReadTokens}(c,d,\key_{cd'}))\\
+\<\< \texttt{ReverseDisguise}(c,d,k_{cd})
+}
+\caption{Client protocol for disguise reversal}
+\end{figure*}
