@@ -13,8 +13,6 @@ mod history;
 pub mod stats;
 pub mod tokens;
 
-const GUISE_ID_LB: u64 = 1 << 5;
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
     pub testname: String,

@@ -11,6 +11,11 @@ pub const PRIV_KEY: u64 = 4;
 
 pub static TOKEN_ID: AtomicU64 = AtomicU64::new(1);
 
+pub enum TokenType {
+    PrivKey,
+    Data,
+}
+
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Token {
     // metadata set by Edna
@@ -18,7 +23,6 @@ pub struct Token {
     pub disguise_id: u64,
     pub user_id: u64,
     pub update_type: u64,
-    pub last_tail: u64,
     pub revealed: bool,
 
     // guise information
@@ -45,6 +49,9 @@ pub struct Token {
 
     // for encryption
     pub nonce: Vec<u8>,
+   
+    // for linked-list
+    pub last_tail: u64,
 }
 
 impl Token {

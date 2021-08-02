@@ -536,7 +536,3 @@ impl Disguiser {
         warn!("Disguiser: clear disguise records");
     }
 }
-
-fn is_guise(id: u64) -> bool {
-    id > GUISE_ID_LB
-}
