@@ -31,6 +31,8 @@ symmetric key primitives~\note{under a random oracle model?}.
 \section{Disguise API}
 %-------------------------------------------------------------------------------
 \createpseudocodeblock{pcb}{center, boxed}{}{}{}
+\createprocedureblock{procb}{center,boxed}{}{}{}
+
 \begin{figure*}
 \pcb{
 \<\< \\[-0.9\baselineskip]\\
@@ -52,18 +54,18 @@ symmetric key primitives~\note{under a random oracle model?}.
 \<\< \\[-0.9\baselineskip]\\
 \< \sendmessageright*{\texttt{ApplyDisguise(c,d)}} \< \\
 \<\< \key_{cd} \sample \kgen() \\
-\<\< \texttt{enckey$_{cd}$} \gets \enc(\pk_c, \key_{cd}) \\
-\<\< \texttt{store(enckey$_{cd}$)} \pclb
+\<\< \texttt{enck$_{cd}$} \gets \enc(\pk_c, \key_{cd}) \\
+\<\< \texttt{store(enck$_{cd}$)} \pclb
 \pcintertext [dotted]{FOR ALL PAST DISGUISES $d'$:} \\
 \<\< \\[-3\baselineskip]\\
-\<\< \texttt{enckey}_{cd'} \gets \texttt{RetrieveEncKey}(c,d')\\
-\< \sendmessageleft*{\texttt{AuthorizeTokenAccessRequest(enckey}_{cd'})} \< \\
-\key_{cd'} \gets \dec(\sk_c, \texttt{enckey}_{cd'}) \<\< \\
+\<\< \texttt{enck}_{cd'} \gets \texttt{RetrieveEncKey}(c,d')\\
+\< \sendmessageleft*{\texttt{AuthorizeTokenAccessRequest(enck}_{cd'})} \< \\
+\key_{cd'} \gets \dec(\sk_c, \texttt{enck}_{cd'}) \<\< \\
 \< \sendmessageright*{\texttt{AuthorizeTokenAccessReply}(\key_{cd'})} \< \\
 \<\< \texttt{tokens.append}(\texttt{ReadTokens}(c,d',\key_{cd'})) \pclb
 \pcintertext[dotted]{END FOR} \\
 \<\< \\[-3\baselineskip]\\
-\<\< \texttt{ApplyDisguise($o_c$, tokens, $\key_{cd}$)}
+\<\< \texttt{ApplyDisguise($c,d$,tokens,$\key_{cd}$)}
 }
 \caption{Client protocol for disguise application}
 \end{figure*}
@@ -75,12 +77,28 @@ symmetric key primitives~\note{under a random oracle model?}.
 [0.1\baselineskip][\hline]
 \<\< \\[-0.9\baselineskip]\\
 \< \sendmessageright*{\texttt{ReverseDisguise(c,d)}} \< \\
-\<\< \texttt{enckey}_{cd} \gets \texttt{RetrieveEncKey}(c,d)\\
-\< \sendmessageleft*{\texttt{AuthorizeTokenAccessRequest(enckey}_{cd})} \< \\
-\key_{cd} \gets \dec(\sk_c, \texttt{enckey}_{cd}) \<\< \\
+\<\< \texttt{enck}_{cd} \gets \texttt{RetrieveEncKey}(c,d)\\
+\< \sendmessageleft*{\texttt{AuthorizeTokenAccessRequest(enck}_{cd})} \< \\
+\key_{cd} \gets \dec(\sk_c, \texttt{enck}_{cd}) \<\< \\
 \< \sendmessageright*{\texttt{AuthorizeTokenAccessReply($\key_{cd}$)}} \< \\
-\<\< \texttt{tokens}\gets(\texttt{ReadTokens}(c,d,\key_{cd'}))\\
-\<\< \texttt{ReverseDisguise}(c,d,k_{cd})
+\<\< \texttt{tokens}\gets\texttt{ReadTokens}(c,d,\key_{cd'})\\
+\<\< \texttt{ReverseDisguise($c,d$,tokens)}
 }
 \caption{Client protocol for disguise reversal}
+\end{figure*}
+
+\begin{figure*}
+\procb{\texttt{ReadTokens}$(c,d,k_{cd})$}{
+hello
+}{}
+
+\procb{\texttt{ApplyDisguise}$(c,d,tokens,k_{cd})$}{
+hello
+}{}
+
+\procb{\texttt{ReverseDisguise}$(c,d,tokens)$}{
+hello
+}{}
+
+\caption{Edna Algorithms}
 \end{figure*}
