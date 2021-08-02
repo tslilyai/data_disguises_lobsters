@@ -55,7 +55,7 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new_privkey_token(did: u64, uid: u64, priv_key: RsaPrivateKey) -> Token {
+    pub fn new_privkey_token(did: u64, uid: u64, priv_key: &RsaPrivateKey) -> Token {
         let mut token: Token = Default::default();
         token.token_id = TOKEN_ID.fetch_add(1, Ordering::SeqCst);
         token.user_id = uid;
