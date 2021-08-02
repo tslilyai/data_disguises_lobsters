@@ -6,6 +6,7 @@ use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
 use rand::{rngs::OsRng, RngCore};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
+use rsa::{pkcs1::ToRsaPrivateKey};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::iter::repeat;
@@ -397,5 +398,92 @@ mod tests {
         assert_eq!(privkeytokens.len(), 1);
         assert_eq!(cdtokens[0], decor_token);
         assert_eq!(privkeytokens[0], privkey_token);
+    }
+
+    #[test]
+    fn test_insert_user_token_multi() {
+        init_logger();
+        let mut ctrler = TokenCtrler::new();
+
+        let did = 1;
+        let uid = 11;
+        let guise_name = "guise".to_string();
+        let guise_ids = vec![];
+        let referenced_name = "referenced".to_string();
+        let old_fk_value = 5;
+        let new_fk_value = 55;
+        let fk_col = "fk_col".to_string()       ;
+
+        let mut rng = OsRng;
+        let mut priv_keys = vec![];
+        let mut pub_keys = vec![];
+        
+        for u in 0..5 {
+            let private_key =
+                RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+            let pub_key = RsaPublicKey::from(&private_key);
+            ctrler.new_real_principal(uid+u, &pub_key);
+            pub_keys.push(pub_key.clone());
+            priv_keys.push(private_key.clone());
+
+            for d in 0..5 {
+                for i in 0..5 {
+                    let mut decor_token = Token::new_decor_token(
+                        did+d,
+                        uid+u,
+                        guise_name.clone(),
+                        guise_ids.clone(),
+                        referenced_name.clone(),
+                        old_fk_value+i,
+                        new_fk_value+i,
+                        fk_col.clone(),
+                    );
+                    ctrler.insert_user_token(TokenType::Data, &mut decor_token);
+                }
+                let mut privkey_token = Token::new_privkey_token(
+                    did+d,
+                    uid+u,
+                    &private_key,
+                );
+                ctrler.insert_user_token(TokenType::PrivKey, &mut privkey_token);
+                ctrler.end_disguise();
+            }
+        }
+
+        for u in 0..5 {
+            // check principal data
+            let p = ctrler.principal_tokens.get(&(uid+u)).expect("failed to get user?").clone();
+            assert_eq!(pub_keys[u as usize], p.pubkey);
+            assert_eq!(p.cd_lists.len(), 5);
+            assert_eq!(p.privkey_lists.len(), 5);
+            assert!(p.tmp_symkeys.is_empty());
+
+            for d in 0..5 {
+                // check symkey stored for principal lists
+                let cd_ls = p.cd_lists.get(&(did+d)).expect("failed to get disguise?");
+                let padding = PaddingScheme::new_pkcs1v15_encrypt();
+                let symkey1 = priv_keys[u as usize].decrypt(padding, &cd_ls.encrypted_symkey).expect("failed to decrypt");
+                let padding = PaddingScheme::new_pkcs1v15_encrypt();
+                warn!("symkey1 is {:?}", symkey1);
+
+                let privkey_ls = p.privkey_lists.get(&(did+d)).expect("failed to get disguise?");
+                let padding = PaddingScheme::new_pkcs1v15_encrypt();
+                let symkey2 = priv_keys[u as usize].decrypt(padding, &privkey_ls.encrypted_symkey).expect("failed to decrypt");
+                let padding = PaddingScheme::new_pkcs1v15_encrypt();
+                warn!("symkey2 is {:?}", symkey1);
+
+                assert_eq!(symkey1, symkey2);
+
+                // get tokens
+                let (cdtokens, privkeytokens) = ctrler.get_tokens(uid, did, symkey1);
+                assert_eq!(cdtokens.len(), 5);
+                assert_eq!(privkeytokens.len(), 1);
+                assert_eq!(privkeytokens[d as usize].priv_key, priv_keys[u as usize].to_pkcs1_der().unwrap().as_der().to_vec());
+                for i in 0..5 {
+                    assert_eq!(cdtokens[i as usize].old_fk_value, old_fk_value+i);
+                    assert_eq!(cdtokens[i as usize].new_fk_value, new_fk_value+i);
+                }
+            }
+        }
     }
 }
