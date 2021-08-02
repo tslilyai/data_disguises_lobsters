@@ -47,8 +47,8 @@ pub struct Token {
     // PRIV_KEY
     pub priv_key: Vec<u8>,
 
-    // for encryption
-    pub nonce: Vec<u8>,
+    // for randomness 
+    pub nonce: u64,
    
     // for linked-list
     pub last_tail: u64,

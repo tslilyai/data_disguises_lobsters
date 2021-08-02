@@ -34,13 +34,19 @@ pub struct PrincipalData {
     tmp_symkeys: HashMap<DID, Vec<u8>>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EncryptedToken {
+    token_data: Vec<u8>,
+    iv: Vec<u8>,
+}
+
 #[derive(Clone)]
 pub struct TokenCtrler {
     // principal tokens are stored indexed by some large random num
     pub principal_tokens: HashMap<UID, PrincipalData>,
 
     // a large array of encrypted tokens indexed by random number
-    pub encrypted_tokens: HashMap<u64, Vec<u8>>,
+    pub encrypted_tokens: HashMap<u64, EncryptedToken>,
 
     pub global_tokens: HashMap<DID, Vec<Token>>,
 
@@ -79,12 +85,9 @@ impl TokenCtrler {
                 key
             }
         };
-
-        // encrypt the token with the symmetric key
-        let mut nonce: Vec<u8> = repeat(0u8).take(128).collect();
-        self.rng.fill_bytes(&mut nonce[..]);
-        token.nonce = nonce.to_vec();
-        let cipher = Aes128Cbc::new_from_slices(&symkey, &nonce).unwrap();
+        // give the token a random nonce
+        token.nonce = self.rng.next_u64();
+       
         
         // insert encrypted token into list for principal
         let next_token_ptr = self.rng.next_u64();
@@ -113,10 +116,16 @@ impl TokenCtrler {
         }
 
         // encrypt and add the token to the encrypted tokens array
-        // ensure that no token existed at this pointer before
+        let mut iv: Vec<u8> = repeat(0u8).take(128).collect();
+        self.rng.fill_bytes(&mut iv[..]);
+        let cipher = Aes128Cbc::new_from_slices(&symkey, &iv).unwrap();
         let plaintext = serialize_to_bytes(&token);
         let encrypted = cipher.encrypt_vec(&plaintext);
-        assert_eq!(self.encrypted_tokens.insert(next_token_ptr, encrypted), None);
+        // ensure that no token existed at this pointer before
+        assert_eq!(self.encrypted_tokens.insert(next_token_ptr, EncryptedToken {
+            token_data: encrypted,
+            iv: iv,
+        }), None);
     }
 
     pub fn end_disguise(&mut self) {
@@ -160,54 +169,75 @@ impl TokenCtrler {
         anon_uid
     }
 
-    pub fn get_encrypted_capability(&self, uid: u64, did: u64) -> Option<Vec<u8>> {
+    pub fn get_encrypted_symkey(&self, uid: u64, did: u64) -> Option<Vec<u8>> {
         let p = self
             .principal_tokens
             .get(&uid)
             .expect("no user with uid found?");
         if let Some(tokenls) = p.cd_lists.get(&did) {
-            match self.encrypted_tokens.get(&tokenls.tail) {
-                Some(enc_token) => return Some(enc_token.clone()),
-                None => return None,
-            } 
+            return Some(tokenls.encrypted_symkey.clone());
         }
         if let Some(tokenls) = p.privkey_lists.get(&did) {
-            match self.encrypted_tokens.get(&tokenls.tail) {
-                Some(enc_token) => return Some(enc_token.clone()),
-                None => return None,
-            } 
+            return Some(tokenls.encrypted_symkey.clone());
         }
         None
     }
 
-    pub fn get_tokens(&mut self, uid: u64, did: u64, symkey: Vec<u8>, nonce: Vec<u8>) -> Vec<Token> {
-        let mut tokens = vec![];
+    pub fn get_tokens(&mut self, uid: u64, did: u64, symkey: Vec<u8>) -> (Vec<Token>, Vec<Token>) {
+        // check that client didn't forge symkey
         let p = self
             .principal_tokens
             .get(&uid)
             .expect("no user with uid found?");
+        let padding = PaddingScheme::new_pkcs1v15_encrypt();
+        assert_eq!(p.pubkey.encrypt(&mut self.rng, padding, &symkey[..]).expect("failed to encrypt"), symkey);
+
+        let mut cd_tokens = vec![];
+        let mut privkey_tokens = vec![];
+        
         if let Some(tokenls) = p.cd_lists.get(&did) {
-            // TODO check that client didn't forge symkey
             let mut tail_ptr = tokenls.tail;
             loop {
                 match self.encrypted_tokens.get_mut(&tail_ptr) {
-                    Some(mut enc_token) => {
+                    Some(enc_token) => {
                         // decrypt token with symkey provided by client
-                        let cipher = Aes128Cbc::new_from_slices(&symkey, &nonce).unwrap();
-                        let plaintext = cipher.decrypt_vec(&mut enc_token).unwrap();
+                        let cipher = Aes128Cbc::new_from_slices(&symkey, &enc_token.iv).unwrap();
+                        let plaintext = cipher.decrypt_vec(&mut enc_token.token_data).unwrap();
                         let token = Token::token_from_bytes(plaintext);
-                        
+                       
                         // add token to list
+                        cd_tokens.push(token.clone());
                         
-                        // loop
+                        // go to next encrypted token in list 
                         tail_ptr = token.last_tail;
-                        tokens.push(token.clone());
                     }
                     None => break,
                 }
             }
         }
-        tokens
+ 
+        if let Some(tokenls) = p.privkey_lists.get(&did) {
+            let mut tail_ptr = tokenls.tail;
+            loop {
+                match self.encrypted_tokens.get_mut(&tail_ptr) {
+                    Some(enc_token) => {
+                        // decrypt token with symkey provided by client
+                        let cipher = Aes128Cbc::new_from_slices(&symkey, &enc_token.iv).unwrap();
+                        let plaintext = cipher.decrypt_vec(&mut enc_token.token_data).unwrap();
+                        let token = Token::token_from_bytes(plaintext);
+                       
+                        // add token to list
+                        privkey_tokens.push(token.clone());
+                        
+                        // go to next encrypted token in list 
+                        tail_ptr = token.last_tail;
+                    }
+                    None => break,
+                }
+            }
+        }
+
+        (cd_tokens, privkey_tokens)
     }
 }
 
