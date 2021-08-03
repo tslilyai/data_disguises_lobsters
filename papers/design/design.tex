@@ -90,21 +90,25 @@ symmetric key primitives~\note{under a random oracle model?}.
 \procb{\texttt{ReadTokens(keys)}}{
     \< \\
 \texttt{tokens} \gets []\\
-\texttt{for $\key_{cd}$ in keys:} \\
+\pcfor \texttt{$\key_{cd}$ in keys:} \\
 \t[1]\texttt{encToken} \gets \texttt{LoadEncTokenListTail}(c,d)\\
-\t[1]\texttt{while encToken != NULL:}\\
+\t[1]\pcwhile \texttt{encToken != NULL:}\\
 \t[2]\texttt{token} \gets \dec(\key_{cd}, \texttt{encToken})\\
 \t[2]\texttt{encToken} \gets \texttt{token.nextEncToken}\\
-\t[2]\texttt{if token.type = AnonPrivateKey:}\\
+\t[2]\pcif \texttt{token.type = AnonPrivateKey:}\\
 \t[3]c' \gets \texttt{token.anon\_uid}\\
 \t[3]\sk_{c'} \gets \texttt{token.priv\_key}\\
 \t[3]\texttt{keys}' \gets []\\
-\t[3]\forall d':\\
+\t[3]\pcforeach d':\\
 \t[4]\texttt{enck} \gets \texttt{LoadEncKey}(c',d')\\
 \t[4]\texttt{keys}'\texttt{.append}(\dec(\sk_{c'}, \texttt{enck}))\\
 \t[4]\texttt{tokens.extend(ReadTokens(keys}'))\\
-\t[2]\texttt{else:}\\
+\t[3]\pcendforeach\\
+\t[2]\pcelse:\\
 \t[3]\texttt{tokens.append(token)}\\
+\t[2]\pcfi\\
+\t[1]\pcendwhile\\
+\pcendfor\\
 \pcreturn \texttt{tokens}\\
 }{}
 
