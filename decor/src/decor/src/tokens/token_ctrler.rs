@@ -80,7 +80,7 @@ impl TokenCtrler {
         }
     }
 
-    pub fn insert_global_token(&mut self, token_type: TokenType, token: &mut Token) {
+    pub fn insert_global_token(&mut self, token: &mut Token) {
         if let Some(user_disguise_tokens) = self
             .global_vault
             .get_mut(&(token.disguise_id, token.user_id))
@@ -214,7 +214,7 @@ impl TokenCtrler {
 
         let mut token: Token = Token::new_privkey_token(did, uid, anon_uid, &private_key);
         self.insert_user_token(TokenType::PrivKey, &mut token);
-        self.insert_global_token(TokenType::Data, &mut token);
+        self.insert_global_token(&mut token);
         anon_uid
     }
 
@@ -321,7 +321,7 @@ impl TokenCtrler {
 
             // get all privkey tokens, even from other disguises
             let mut privkey_tokens = vec![];
-            if let Some(tokenls) = p.cd_lists.get(&symkey.did) {
+            if let Some(tokenls) = p.privkey_lists.get(&symkey.did) {
                 let mut tail_ptr = tokenls.tail;
                 loop {
                     match self.user_vaults_map.get_mut(&tail_ptr) {
@@ -404,7 +404,7 @@ mod tests {
             new_fk_value,
             fk_col,
         );
-        ctrler.insert_global_token(TokenType::Data, &mut decor_token);
+        ctrler.insert_global_token(&mut decor_token);
         assert_eq!(ctrler.global_vault.len(), 1);
         let tokens = ctrler.get_global_tokens(uid, did);
         assert_eq!(tokens.len(), 1);
@@ -440,9 +440,7 @@ mod tests {
             new_fk_value,
             fk_col,
         );
-        let mut privkey_token = Token::new_privkey_token(did, uid, rng.next_u64(), &private_key);
         ctrler.insert_user_token(TokenType::Data, &mut decor_token);
-        ctrler.insert_user_token(TokenType::PrivKey, &mut privkey_token);
         ctrler.end_disguise();
 
         // check principal data
@@ -452,27 +450,20 @@ mod tests {
             .expect("failed to get user?");
         assert_eq!(pub_key, p.pubkey);
         assert_eq!(p.cd_lists.len(), 1);
-        assert_eq!(p.privkey_lists.len(), 1);
+        assert_eq!(p.privkey_lists.len(), 0);
         assert!(p.tmp_symkeys.is_empty());
 
         // check symkey stored for principal lists
         let cd_ls = p.cd_lists.get(&did).expect("failed to get disguise?");
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        let symkey1 = private_key
+        let symkey = private_key
             .decrypt(padding, &cd_ls.list_enc_symkey.enc_symkey)
             .expect("failed to decrypt");
-
-        let privkey_ls = p.privkey_lists.get(&did).expect("failed to get disguise?");
-        let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        let symkey2 = private_key
-            .decrypt(padding, &privkey_ls.list_enc_symkey.enc_symkey)
-            .expect("failed to decrypt");
-        assert_eq!(symkey1, symkey2);
         let mut hs = HashSet::new();
         hs.insert(ListSymKey {
-            uid: privkey_ls.list_enc_symkey.uid,
-            did: privkey_ls.list_enc_symkey.did,
-            symkey: symkey1,
+            uid: cd_ls.list_enc_symkey.uid,
+            did: cd_ls.list_enc_symkey.did,
+            symkey: symkey,
         });
 
         // get tokens
@@ -520,8 +511,6 @@ mod tests {
                     );
                     ctrler.insert_user_token(TokenType::Data, &mut decor_token);
                 }
-                let mut privkey_token = Token::new_privkey_token(d, u, rng.next_u64(), &private_key);
-                ctrler.insert_user_token(TokenType::PrivKey, &mut privkey_token);
                 ctrler.end_disguise();
             }
         }
@@ -535,28 +524,21 @@ mod tests {
                 .clone();
             assert_eq!(pub_keys[u as usize - 1], p.pubkey);
             assert_eq!(p.cd_lists.len(), iters as usize - 1);
-            assert_eq!(p.privkey_lists.len(), iters as usize - 1);
+            assert_eq!(p.privkey_lists.len(), 0);
             assert!(p.tmp_symkeys.is_empty());
 
             for d in 1..iters {
                 // check symkey stored for principal lists
                 let cd_ls = p.cd_lists.get(&d).expect("failed to get disguise?");
                 let padding = PaddingScheme::new_pkcs1v15_encrypt();
-                let symkey1 = priv_keys[u as usize - 1]
+                let symkey = priv_keys[u as usize - 1]
                     .decrypt(padding, &cd_ls.list_enc_symkey.enc_symkey)
                     .expect("failed to decrypt");
-
-                let privkey_ls = p.privkey_lists.get(&d).expect("failed to get disguise?");
-                let padding = PaddingScheme::new_pkcs1v15_encrypt();
-                let symkey2 = priv_keys[u as usize - 1]
-                    .decrypt(padding, &privkey_ls.list_enc_symkey.enc_symkey)
-                    .expect("failed to decrypt");
-                assert_eq!(symkey1, symkey2);
                 let mut hs = HashSet::new();
                 hs.insert(ListSymKey {
-                    uid: privkey_ls.list_enc_symkey.uid,
-                    did: privkey_ls.list_enc_symkey.did,
-                    symkey: symkey1,
+                    uid: cd_ls.list_enc_symkey.uid,
+                    did: cd_ls.list_enc_symkey.did,
+                    symkey: symkey,
                 });
 
                 // get tokens
