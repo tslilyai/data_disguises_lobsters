@@ -81,6 +81,7 @@ impl TokenCtrler {
     }
 
     pub fn insert_global_token(&mut self, token: &mut Token) {
+        warn!("Inserting global token disguise {} user {}", token.disguise_id, token.user_id);
         if let Some(user_disguise_tokens) = self
             .global_vault
             .get_mut(&(token.disguise_id, token.user_id))
@@ -214,7 +215,6 @@ impl TokenCtrler {
 
         let mut token: Token = Token::new_privkey_token(did, uid, anon_uid, &private_key);
         self.insert_user_token(TokenType::PrivKey, &mut token);
-        self.insert_global_token(&mut token);
         anon_uid
     }
 
@@ -240,6 +240,7 @@ impl TokenCtrler {
 
     pub fn get_global_tokens(&self, uid: u64, did: u64) -> Vec<Token> {
         if let Some(global_tokens) = self.global_vault.get(&(did, uid)) {
+            warn!("Found global tokens len {} disguise {} user {}: {:?}", global_tokens.len(), did, uid, global_tokens);
             return global_tokens.to_vec();
         }
         vec![]
@@ -445,6 +446,7 @@ mod tests {
         );
         ctrler.insert_user_token(TokenType::Data, &mut decor_token);
         ctrler.end_disguise();
+        assert_eq!(ctrler.global_vault.len(), 0);
 
         // check principal data
         let p = ctrler
@@ -491,7 +493,7 @@ mod tests {
         let mut priv_keys = vec![];
         let mut pub_keys = vec![];
 
-        let iters = 2;
+        let iters = 5;
         for u in 1..iters {
             let private_key =
                 RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
@@ -501,7 +503,7 @@ mod tests {
             priv_keys.push(private_key.clone());
 
             for d in 1..iters {
-                for i in 1..iters {
+                for i in 0..iters {
                     let mut decor_token = Token::new_decor_token(
                         d,
                         u,
@@ -517,6 +519,7 @@ mod tests {
                 ctrler.end_disguise();
             }
         }
+        assert_eq!(ctrler.global_vault.len(), 0);
 
         for u in 1..iters {
             // check principal data
@@ -546,17 +549,17 @@ mod tests {
 
                 // get tokens
                 let cdtokens = ctrler.get_tokens(&hs);
-                assert_eq!(cdtokens.len(), 1);
-                for i in 1..iters {
-                    assert_eq!(cdtokens[i as usize - 1].old_fk_value, old_fk_value + i);
-                    assert_eq!(cdtokens[i as usize - 1].new_fk_value, new_fk_value + i);
+                assert_eq!(cdtokens.len(), (iters as usize));
+                for i in 0..iters {
+                    assert_eq!(cdtokens[i as usize].old_fk_value, old_fk_value + (iters - i - 1) as u64);
+                    assert_eq!(cdtokens[i as usize].new_fk_value, new_fk_value + (iters - i - 1) as u64);
                 }
             }
         }
     }
 
     #[test]
-    fn test_insert_user_token_multi_privkey() {
+    fn test_insert_user_token_privkey() {
         init_logger();
         let mut ctrler = TokenCtrler::new();
 
@@ -609,6 +612,7 @@ mod tests {
                 ctrler.end_disguise();
             }
         }
+        assert_eq!(ctrler.global_vault.len(), 0);
 
         for u in 1..iters {
             // check principal data
