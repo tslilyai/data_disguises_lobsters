@@ -194,7 +194,7 @@ impl TokenCtrler {
         );
     }
 
-    pub fn create_anon_principal(&mut self, uid: u64, real_principal: u64, did: u64) -> u64 {
+    pub fn create_anon_principal(&mut self, uid: u64, did: u64) -> u64 {
         let private_key =
             RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
@@ -289,6 +289,7 @@ impl TokenCtrler {
 
             // get all of this user's globally accessible tokens
             cd_tokens.append(&mut self.get_global_tokens(symkey.uid, symkey.did));
+            warn!("cd tokens global pushed to len {}", cd_tokens.len());
 
             // get all of this user's encrypted correlation/datatokens
             if let Some(tokenls) = p.cd_lists.get(&symkey.did) {
@@ -310,6 +311,7 @@ impl TokenCtrler {
 
                             // add token to list
                             cd_tokens.push(token.clone());
+                            warn!("cd tokens uid {} disguise {} pushed to len {}", token.user_id, token.disguise_id, cd_tokens.len());
 
                             // go to next encrypted token in list
                             tail_ptr = token.last_tail;
@@ -354,8 +356,9 @@ impl TokenCtrler {
             for pk_token in &privkey_tokens {
                 let priv_key = RsaPrivateKey::from_pkcs1_der(&pk_token.priv_key).unwrap();
                 new_symkeys.extend(self.get_all_principal_symkeys(pk_token.new_user_id, priv_key));
-                cd_tokens.extend(self.get_tokens(&new_symkeys));
             }
+            cd_tokens.extend(self.get_tokens(&new_symkeys));
+            warn!("cd tokens extended to len {}", cd_tokens.len());
         }
         cd_tokens
     }
@@ -488,7 +491,7 @@ mod tests {
         let mut priv_keys = vec![];
         let mut pub_keys = vec![];
 
-        let iters = 3;
+        let iters = 2;
         for u in 1..iters {
             let private_key =
                 RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
@@ -548,6 +551,98 @@ mod tests {
                     assert_eq!(cdtokens[i as usize - 1].old_fk_value, old_fk_value + i);
                     assert_eq!(cdtokens[i as usize - 1].new_fk_value, new_fk_value + i);
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn test_insert_user_token_multi_privkey() {
+        init_logger();
+        let mut ctrler = TokenCtrler::new();
+
+        let guise_name = "guise".to_string();
+        let guise_ids = vec![];
+        let referenced_name = "referenced".to_string();
+        let old_fk_value = 5;
+        let new_fk_value = 55;
+        let fk_col = "fk_col".to_string();
+
+        let mut rng = OsRng;
+        let mut priv_keys = vec![];
+        let mut pub_keys = vec![];
+
+        let iters = 5;
+        for u in 1..iters {
+            let private_key =
+                RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+            let pub_key = RsaPublicKey::from(&private_key);
+            ctrler.register_principal(u, &pub_key);
+            pub_keys.push(pub_key.clone());
+            priv_keys.push(private_key.clone());
+
+            for d in 1..iters {
+                let mut decor_token = Token::new_decor_token(
+                    d,
+                    u,
+                    guise_name.clone(),
+                    guise_ids.clone(),
+                    referenced_name.clone(),
+                    old_fk_value + d,
+                    new_fk_value + d,
+                    fk_col.clone(),
+                );
+                ctrler.insert_user_token(TokenType::Data, &mut decor_token);
+                
+                // create an anonymous user
+                // and insert some token for the anon user
+                //pub fn new_insert_token(
+                let anon_uid = ctrler.create_anon_principal(u, d);
+                let mut insert_token = Token::new_insert_token(
+                    d,
+                    anon_uid,
+                    guise_name.clone(),
+                    guise_ids.clone(),
+                    format!("{}", d),
+                    vec![]
+                );
+                ctrler.insert_user_token(TokenType::Data, &mut insert_token);
+                ctrler.end_disguise();
+            }
+        }
+
+        for u in 1..iters {
+            // check principal data
+            let p = ctrler
+                .principal_tokens
+                .get(&(u))
+                .expect("failed to get user?")
+                .clone();
+            assert_eq!(pub_keys[u as usize - 1], p.pubkey);
+            assert_eq!(p.cd_lists.len(), iters as usize - 1);
+            assert_eq!(p.privkey_lists.len(), iters as usize - 1);
+            assert!(p.tmp_symkeys.is_empty());
+
+            for d in 1..iters {
+                // check symkey stored for principal lists
+                let cd_ls = p.cd_lists.get(&d).expect("failed to get disguise?");
+                let padding = PaddingScheme::new_pkcs1v15_encrypt();
+                let symkey = priv_keys[u as usize - 1]
+                    .decrypt(padding, &cd_ls.list_enc_symkey.enc_symkey)
+                    .expect("failed to decrypt");
+                let mut hs = HashSet::new();
+                hs.insert(ListSymKey {
+                    uid: cd_ls.list_enc_symkey.uid,
+                    did: cd_ls.list_enc_symkey.did,
+                    symkey: symkey,
+                });
+
+                // get tokens
+                let cdtokens = ctrler.get_tokens(&hs);
+                assert_eq!(cdtokens.len(), 2);
+                assert_eq!(cdtokens[0].old_fk_value, old_fk_value + d);
+                assert_eq!(cdtokens[0].new_fk_value, new_fk_value + d);
+                assert!(cdtokens[1].user_id != u);
+                assert_eq!(cdtokens[1].referencer_name, format!("{}", d));
             }
         }
     }

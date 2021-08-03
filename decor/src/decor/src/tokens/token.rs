@@ -137,6 +137,7 @@ impl Token {
     pub fn new_insert_token(
         did: u64,
         uid: u64,
+        guise_name: String,
         guise_ids: Vec<RowVal>,
         referencer_name: String,
         new_value: Vec<RowVal>,
@@ -147,6 +148,7 @@ impl Token {
         token.disguise_id = did;
         token.update_type = INSERT_GUISE;
         token.revealed = false;
+        token.guise_name = guise_name;
         token.guise_ids = guise_ids;
         token.referencer_name = referencer_name;
         token.new_value = new_value;

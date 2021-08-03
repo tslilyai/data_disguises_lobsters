@@ -62,7 +62,7 @@ symmetric key primitives~\note{under a random oracle model?}.
 \forall d'~\text{that the client authorizes token access}: \\
 \texttt{keys}[d'] \gets \dec(\sk_c, \texttt{encks}[d']) \<\< \\
 \< \sendmessageright*{\texttt{AuthorizeTokenAccessReply(keys)}} \< \\
-\<\< \forall d' \in \texttt{keys. tokens.append(ReadTokens}(c,d',\texttt{keys})) \\
+\<\< \texttt{tokens.append(ReadTokens(keys))} \\
 \<\< \texttt{ApplyDisguise($c,d$,tokens,$\key_{cd}$)}
 }
 \caption{Client protocol for disguise application}
@@ -80,22 +80,39 @@ symmetric key primitives~\note{under a random oracle model?}.
 \forall d'~\text{that the client authorizes token access}: \\
 \texttt{keys}[d'] \gets \dec(\sk_c, \texttt{encks}[d']) \<\< \\
 \< \sendmessageright*{\texttt{AuthorizeTokenAccessReply(keys)}} \< \\
-\<\< \forall d' \in \texttt{keys. tokens.append(ReadTokens}(c,d',\texttt{keys})) \\
+\<\< \texttt{tokens.append(ReadTokens}(\texttt{keys})) \\
 \<\< \texttt{ReverseDisguise($c,d$,tokens)}
 }
 \caption{Client protocol for disguise reversal}
 \end{figure*}
 
 \begin{figure*}
-\procb{\texttt{ReadTokens}$(c,d,k_{cd})$}{
+\procb{\texttt{ReadTokens(keys)}}{
+    \< \\
+\texttt{tokens} \gets []\\
+\texttt{for $\key_{cd}$ in keys:} \\
+\t[1]\texttt{encToken} \gets \texttt{LoadEncTokenListTail}(c,d)\\
+\t[1]\texttt{while encToken != NULL:}\\
+\t[2]\texttt{token} \gets \dec(\key_{cd}, \texttt{encToken})\\
+\t[2]\texttt{encToken} \gets \texttt{token.nextEncToken}\\
+\t[2]\texttt{if token.type = AnonPrivateKey:}\\
+\t[3]c' \gets \texttt{token.anon\_uid}\\
+\t[3]\sk_{c'} \gets \texttt{token.priv\_key}\\
+\t[3]\texttt{keys}' \gets []\\
+\t[3]\forall d':\\
+\t[4]\texttt{enck} \gets \texttt{LoadEncKey}(c',d')\\
+\t[4]\texttt{keys}'\texttt{.append}(\dec(\sk_{c'}, \texttt{enck}))\\
+\t[4]\texttt{tokens.extend(ReadTokens(keys}'))\\
+\t[2]\texttt{else:}\\
+\t[3]\texttt{tokens.append(token)}\\
+\pcreturn \texttt{tokens}\\
+}{}
+
+\procb{\texttt{ApplyDisguise}$(c,d$,\texttt{tokens},$\key_{cd})$}{
 hello
 }{}
 
-\procb{\texttt{ApplyDisguise}$(c,d,tokens,k_{cd})$}{
-hello
-}{}
-
-\procb{\texttt{ReverseDisguise}$(c,d,tokens)$}{
+\procb{\texttt{ReverseDisguise}$(c,d$,\texttt{tokens})}{
 hello
 }{}
 
