@@ -47,6 +47,7 @@ pub struct Token {
 
     // PRIV_KEY
     pub priv_key: Vec<u8>,
+    pub new_user_id: u64,
 
     // for randomness 
     pub nonce: u64,
@@ -56,7 +57,7 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new_privkey_token(did: u64, uid: u64, priv_key: &RsaPrivateKey) -> Token {
+    pub fn new_privkey_token(did: u64, uid: u64, new_uid: u64, priv_key: &RsaPrivateKey) -> Token {
         let mut token: Token = Default::default();
         token.token_id = TOKEN_ID.fetch_add(1, Ordering::SeqCst);
         token.user_id = uid;
@@ -64,6 +65,7 @@ impl Token {
         token.update_type = PRIV_KEY;
         token.revealed = false;
         token.priv_key = priv_key.to_pkcs1_der().unwrap().as_der().to_vec();
+        token.new_user_id = new_uid;
         token
     }
 
