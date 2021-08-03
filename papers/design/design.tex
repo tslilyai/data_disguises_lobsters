@@ -41,7 +41,7 @@ symmetric key primitives~\note{under a random oracle model?}.
 \<\< \\[-0.9\baselineskip]\\
 (\pk_c, \sk_c) \sample \kgen() \<\< \\
 \< \sendmessageright*{\texttt{RegisterClient(c, $\pk_c$)}} \< \\
-\<\< \texttt{store($\pk_c$)}
+\<\< \texttt{StorePubKey($\pk_c$)}
 }
 \caption{Client protocol for account registration}
 \end{figure*}
@@ -54,17 +54,15 @@ symmetric key primitives~\note{under a random oracle model?}.
 \<\< \\[-0.9\baselineskip]\\
 \< \sendmessageright*{\texttt{ApplyDisguise(c,d)}} \< \\
 \<\< \key_{cd} \sample \kgen() \\
+\<\< \pk_{c} \gets \texttt{LoadPubKey}(c) \\
 \<\< \texttt{enck$_{cd}$} \gets \enc(\pk_c, \key_{cd}) \\
-\<\< \texttt{store(enck$_{cd}$)} \pclb
-\pcintertext [dotted]{FOR ALL PAST DISGUISES $d'$:} \\
-\<\< \\[-3\baselineskip]\\
-\<\< \texttt{enck}_{cd'} \gets \texttt{RetrieveEncKey}(c,d')\\
-\< \sendmessageleft*{\texttt{AuthorizeTokenAccessRequest(enck}_{cd'})} \< \\
-\key_{cd'} \gets \dec(\sk_c, \texttt{enck}_{cd'}) \<\< \\
-\< \sendmessageright*{\texttt{AuthorizeTokenAccessReply}(\key_{cd'})} \< \\
-\<\< \texttt{tokens.append}(\texttt{ReadTokens}(c,d',\key_{cd'})) \pclb
-\pcintertext[dotted]{END FOR} \\
-\<\< \\[-3\baselineskip]\\
+\<\< \texttt{StoreEncKey(enck$_{cd}$)} \\
+\<\< \forall d', \texttt{encks}[d']\gets \texttt{LoadEncKey}(c,d')\\
+\< \sendmessageleft*{\texttt{AuthorizeTokenAccessRequest(encks)}} \< \\
+\forall d'~\text{that the client authorizes token access}: \\
+\texttt{keys}[d'] \gets \dec(\sk_c, \texttt{encks}[d']) \<\< \\
+\< \sendmessageright*{\texttt{AuthorizeTokenAccessReply(keys)}} \< \\
+\<\< \forall d' \in \texttt{keys. tokens.append(ReadTokens}(c,d',\texttt{keys})) \\
 \<\< \texttt{ApplyDisguise($c,d$,tokens,$\key_{cd}$)}
 }
 \caption{Client protocol for disguise application}
@@ -77,11 +75,12 @@ symmetric key primitives~\note{under a random oracle model?}.
 [0.1\baselineskip][\hline]
 \<\< \\[-0.9\baselineskip]\\
 \< \sendmessageright*{\texttt{ReverseDisguise(c,d)}} \< \\
-\<\< \texttt{enck}_{cd} \gets \texttt{RetrieveEncKey}(c,d)\\
-\< \sendmessageleft*{\texttt{AuthorizeTokenAccessRequest(enck}_{cd})} \< \\
-\key_{cd} \gets \dec(\sk_c, \texttt{enck}_{cd}) \<\< \\
-\< \sendmessageright*{\texttt{AuthorizeTokenAccessReply($\key_{cd}$)}} \< \\
-\<\< \texttt{tokens}\gets\texttt{ReadTokens}(c,d,\key_{cd'})\\
+\<\< \forall d', \texttt{encks}[d']\gets \texttt{LoadEncKey}(c,d')\\
+\< \sendmessageleft*{\texttt{AuthorizeTokenAccessRequest(encks)}} \< \\
+\forall d'~\text{that the client authorizes token access}: \\
+\texttt{keys}[d'] \gets \dec(\sk_c, \texttt{encks}[d']) \<\< \\
+\< \sendmessageright*{\texttt{AuthorizeTokenAccessReply(keys)}} \< \\
+\<\< \forall d' \in \texttt{keys. tokens.append(ReadTokens}(c,d',\texttt{keys})) \\
 \<\< \texttt{ReverseDisguise($c,d$,tokens)}
 }
 \caption{Client protocol for disguise reversal}
