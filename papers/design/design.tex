@@ -62,8 +62,8 @@ symmetric key primitives~\note{under a random oracle model?}.
 \forall d'~\text{that the client authorizes token access}: \\
 \texttt{keys}[d'] \gets \dec(\sk_c, \texttt{encks}[d']) \<\< \\
 \< \sendmessageright*{\texttt{AuthorizeTokenAccessReply(keys)}} \< \\
-\<\< \texttt{tokens.append(ReadTokens(keys))} \\
-\<\< \texttt{ApplyDisguise($c,d$,tokens,$\key_{cd}$)}
+\<\< \texttt{composition\_tokens} \gets \texttt{ReadTokens(keys))} \\
+\<\< \texttt{ApplyDisguise($c,d,\key_{cd}$,composition\_tokens)}
 }
 \caption{Client protocol for disguise application}
 \end{figure*}
@@ -80,7 +80,7 @@ symmetric key primitives~\note{under a random oracle model?}.
 \forall d'~\text{that the client authorizes token access}: \\
 \texttt{keys}[d'] \gets \dec(\sk_c, \texttt{encks}[d']) \<\< \\
 \< \sendmessageright*{\texttt{AuthorizeTokenAccessReply(keys)}} \< \\
-\<\< \texttt{tokens.append(ReadTokens}(\texttt{keys})) \\
+\<\< \texttt{tokens} \gets \texttt{ReadTokens(keys))} \\
 \<\< \texttt{ReverseDisguise($c,d$,tokens)}
 }
 \caption{Client protocol for disguise reversal}
@@ -112,13 +112,23 @@ symmetric key primitives~\note{under a random oracle model?}.
 \pcreturn \texttt{tokens}\\
 }{}
 
-\procb{\texttt{ApplyDisguise}$(c,d$,\texttt{tokens},$\key_{cd})$}{
-hello
+\procb{\texttt{ApplyDisguise}$(c,d,\key_{cd}$,\texttt{composition\_tokens})}{
+    \< \\
+\pcfor \texttt{op} \in \texttt{GetDisguise($d$)}\\
+\t[1]\texttt{token} \gets \texttt{op.execute($c$,composition\_tokens)}\\
+\t[1]\texttt{token.nextEncToken} \gets \texttt{LoadEncTokenlistTail}(c,d)\\
+\t[1]\texttt{token.nonce} \gets \texttt{RandomU64}()\\
+\t[1]\texttt{encToken} \gets \enc(\key_{cd}, \texttt{token})\\
+\t[1]\texttt{StoreEncTokenListTail}(c,d,\texttt{encToken})\\
+\pcendfor
 }{}
 
 \procb{\texttt{ReverseDisguise}$(c,d$,\texttt{tokens})}{
-hello
+    \< \\
+    \texttt{Apply missed updates from disguise log to tokens of disguise $d$}\\
+    \texttt{Reveal data in tokens of disguise $d$}\\
+    \texttt{Undo modifications to any prior disguise's tokens by disguise $d$}
 }{}
 
-\caption{Edna Algorithms}
+\caption{Edna Algorithms (assuming all tokens are user-vault encrypted tokens, and ignoring global vault tokens for now)}
 \end{figure*}
