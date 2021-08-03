@@ -392,7 +392,7 @@ mod tests {
         let mut rng = OsRng;
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
-        ctrler.new_real_principal(uid, &pub_key);
+        ctrler.register_principal(uid, &pub_key);
 
         let mut decor_token = Token::new_decor_token(
             did,
@@ -428,7 +428,7 @@ mod tests {
         let mut rng = OsRng;
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
-        ctrler.new_real_principal(uid, &pub_key);
+        ctrler.register_principal(uid, &pub_key);
 
         let mut decor_token = Token::new_decor_token(
             did,
@@ -459,23 +459,26 @@ mod tests {
         let cd_ls = p.cd_lists.get(&did).expect("failed to get disguise?");
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
         let symkey1 = private_key
-            .decrypt(padding, &cd_ls.encrypted_symkey)
+            .decrypt(padding, &cd_ls.list_enc_symkey.enc_symkey)
             .expect("failed to decrypt");
 
         let privkey_ls = p.privkey_lists.get(&did).expect("failed to get disguise?");
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
         let symkey2 = private_key
-            .decrypt(padding, &privkey_ls.encrypted_symkey)
+            .decrypt(padding, &privkey_ls.list_enc_symkey.enc_symkey)
             .expect("failed to decrypt");
-
         assert_eq!(symkey1, symkey2);
+        let mut hs = HashSet::new();
+        hs.insert(ListSymKey {
+            uid: privkey_ls.list_enc_symkey.uid,
+            did: privkey_ls.list_enc_symkey.did,
+            symkey: symkey1,
+        });
 
         // get tokens
-        let (cdtokens, privkeytokens) = ctrler.get_tokens(uid, did, symkey1);
+        let cdtokens = ctrler.get_tokens(&hs);
         assert_eq!(cdtokens.len(), 1);
-        assert_eq!(privkeytokens.len(), 1);
         assert_eq!(cdtokens[0], decor_token);
-        assert_eq!(privkeytokens[0], privkey_token);
     }
 
     #[test]
@@ -499,7 +502,7 @@ mod tests {
             let private_key =
                 RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
             let pub_key = RsaPublicKey::from(&private_key);
-            ctrler.new_real_principal(u, &pub_key);
+            ctrler.register_principal(u, &pub_key);
             pub_keys.push(pub_key.clone());
             priv_keys.push(private_key.clone());
 
@@ -540,31 +543,25 @@ mod tests {
                 let cd_ls = p.cd_lists.get(&d).expect("failed to get disguise?");
                 let padding = PaddingScheme::new_pkcs1v15_encrypt();
                 let symkey1 = priv_keys[u as usize - 1]
-                    .decrypt(padding, &cd_ls.encrypted_symkey)
+                    .decrypt(padding, &cd_ls.list_enc_symkey.enc_symkey)
                     .expect("failed to decrypt");
-                warn!("symkey1 is {:?}", symkey1);
 
                 let privkey_ls = p.privkey_lists.get(&d).expect("failed to get disguise?");
                 let padding = PaddingScheme::new_pkcs1v15_encrypt();
                 let symkey2 = priv_keys[u as usize - 1]
-                    .decrypt(padding, &privkey_ls.encrypted_symkey)
+                    .decrypt(padding, &privkey_ls.list_enc_symkey.enc_symkey)
                     .expect("failed to decrypt");
-                warn!("symkey2 is {:?}", symkey1);
-
                 assert_eq!(symkey1, symkey2);
+                let mut hs = HashSet::new();
+                hs.insert(ListSymKey {
+                    uid: privkey_ls.list_enc_symkey.uid,
+                    did: privkey_ls.list_enc_symkey.did,
+                    symkey: symkey1,
+                });
 
                 // get tokens
-                let (cdtokens, privkeytokens) = ctrler.get_tokens(u, d, symkey1);
-                assert_eq!(cdtokens.len(), iters as usize - 1);
-                assert_eq!(privkeytokens.len(), 1);
-                assert_eq!(
-                    privkeytokens[d as usize - 1].priv_key,
-                    priv_keys[u as usize - 1]
-                        .to_pkcs1_der()
-                        .unwrap()
-                        .as_der()
-                        .to_vec()
-                );
+                let cdtokens = ctrler.get_tokens(&hs);
+                assert_eq!(cdtokens.len(), 1);
                 for i in 1..iters {
                     assert_eq!(cdtokens[i as usize - 1].old_fk_value, old_fk_value + i);
                     assert_eq!(cdtokens[i as usize - 1].new_fk_value, new_fk_value + i);
