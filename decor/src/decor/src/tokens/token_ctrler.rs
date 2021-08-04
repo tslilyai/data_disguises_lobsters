@@ -12,12 +12,7 @@ use std::collections::{HashMap, HashSet};
 use std::iter::repeat;
 
 const RSA_BITS: usize = 2048;
-
-// create an alias for convenience
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
-
-type DID = u64;
-type UID = u64;
 
 #[derive(Clone)]
 pub struct EncListTail {
@@ -28,15 +23,15 @@ pub struct EncListTail {
 #[derive(Clone)]
 pub struct EncListSymKey {
     pub enc_symkey: Vec<u8>,
-    pub uid: u64,
-    pub did: u64,
+    pub uid: UID,
+    pub did: DID,
 }
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub struct ListSymKey {
     pub symkey: Vec<u8>,
-    pub uid: u64,
-    pub did: u64,
+    pub uid: UID,
+    pub did: DID,
 }
 
 #[derive(Clone)]
@@ -81,7 +76,10 @@ impl TokenCtrler {
     }
 
     pub fn insert_global_token(&mut self, token: &mut Token) {
-        warn!("Inserting global token disguise {} user {}", token.disguise_id, token.user_id);
+        warn!(
+            "Inserting global token disguise {} user {}",
+            token.disguise_id, token.user_id
+        );
         if let Some(user_disguise_tokens) = self
             .global_vault
             .get_mut(&(token.disguise_id, token.user_id))
@@ -195,7 +193,7 @@ impl TokenCtrler {
         );
     }
 
-    pub fn create_anon_principal(&mut self, uid: u64, did: u64) -> u64 {
+    pub fn create_anon_principal(&mut self, uid: UID, did: DID) -> u64 {
         let private_key =
             RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
@@ -218,63 +216,18 @@ impl TokenCtrler {
         anon_uid
     }
 
-    pub fn get_encrypted_symkey(
-        &self,
-        uid: u64,
-        did: u64,
-        token_type: TokenType,
-    ) -> Option<EncListSymKey> {
-        let p = self
-            .principal_tokens
-            .get(&uid)
-            .expect("no user with uid found?");
-        let disguise_lists = match token_type {
-            TokenType::Data => &p.cd_lists,
-            TokenType::PrivKey => &p.privkey_lists,
-        };
-        if let Some(tokenls) = disguise_lists.get(&did) {
-            return Some(tokenls.list_enc_symkey.clone());
-        }
-        None
-    }
-
-    pub fn get_global_tokens(&self, uid: u64, did: u64) -> Vec<Token> {
+    pub fn get_global_tokens(&self, uid: UID, did: DID) -> Vec<Token> {
         if let Some(global_tokens) = self.global_vault.get(&(did, uid)) {
-            warn!("Found global tokens len {} disguise {} user {}: {:?}", global_tokens.len(), did, uid, global_tokens);
+            warn!(
+                "Found global tokens len {} disguise {} user {}: {:?}",
+                global_tokens.len(),
+                did,
+                uid,
+                global_tokens
+            );
             return global_tokens.to_vec();
         }
         vec![]
-    }
-
-    fn get_all_principal_symkeys(&self, uid: u64, priv_key: RsaPrivateKey) -> HashSet<ListSymKey> {
-        let mut symkeys = HashSet::new();
-        let p = self
-            .principal_tokens
-            .get(&uid)
-            .expect("no user with uid found?");
-        for (_, tokenls) in &p.cd_lists {
-            let padding = PaddingScheme::new_pkcs1v15_encrypt();
-            let symkey = priv_key
-                .decrypt(padding, &tokenls.list_enc_symkey.enc_symkey)
-                .expect("failed to decrypt");
-            symkeys.insert(ListSymKey {
-                uid: uid,
-                did: tokenls.list_enc_symkey.did,
-                symkey: symkey,
-            });
-        }
-        for (_, tokenls) in &p.privkey_lists {
-            let padding = PaddingScheme::new_pkcs1v15_encrypt();
-            let symkey = priv_key
-                .decrypt(padding, &tokenls.list_enc_symkey.enc_symkey)
-                .expect("failed to decrypt");
-            symkeys.insert(ListSymKey {
-                uid: uid,
-                did: tokenls.list_enc_symkey.did,
-                symkey: symkey,
-            });
-        }
-        symkeys
     }
 
     pub fn get_tokens(&mut self, symkeys: &HashSet<ListSymKey>) -> Vec<Token> {
@@ -312,7 +265,12 @@ impl TokenCtrler {
 
                             // add token to list
                             cd_tokens.push(token.clone());
-                            warn!("cd tokens uid {} disguise {} pushed to len {}", token.user_id, token.disguise_id, cd_tokens.len());
+                            warn!(
+                                "cd tokens uid {} disguise {} pushed to len {}",
+                                token.user_id,
+                                token.disguise_id,
+                                cd_tokens.len()
+                            );
 
                             // go to next encrypted token in list
                             tail_ptr = token.last_tail;
@@ -362,6 +320,57 @@ impl TokenCtrler {
             warn!("cd tokens extended to len {}", cd_tokens.len());
         }
         cd_tokens
+    }
+
+    pub fn get_encrypted_symkey(
+        &self,
+        uid: UID,
+        did: DID,
+        token_type: TokenType,
+    ) -> Option<EncListSymKey> {
+        let p = self
+            .principal_tokens
+            .get(&uid)
+            .expect("no user with uid found?");
+        let disguise_lists = match token_type {
+            TokenType::Data => &p.cd_lists,
+            TokenType::PrivKey => &p.privkey_lists,
+        };
+        if let Some(tokenls) = disguise_lists.get(&did) {
+            return Some(tokenls.list_enc_symkey.clone());
+        }
+        None
+    }
+
+    fn get_all_principal_symkeys(&self, uid: UID, priv_key: RsaPrivateKey) -> HashSet<ListSymKey> {
+        let mut symkeys = HashSet::new();
+        let p = self
+            .principal_tokens
+            .get(&uid)
+            .expect("no user with uid found?");
+        for (_, tokenls) in &p.cd_lists {
+            let padding = PaddingScheme::new_pkcs1v15_encrypt();
+            let symkey = priv_key
+                .decrypt(padding, &tokenls.list_enc_symkey.enc_symkey)
+                .expect("failed to decrypt");
+            symkeys.insert(ListSymKey {
+                uid: uid,
+                did: tokenls.list_enc_symkey.did,
+                symkey: symkey,
+            });
+        }
+        for (_, tokenls) in &p.privkey_lists {
+            let padding = PaddingScheme::new_pkcs1v15_encrypt();
+            let symkey = priv_key
+                .decrypt(padding, &tokenls.list_enc_symkey.enc_symkey)
+                .expect("failed to decrypt");
+            symkeys.insert(ListSymKey {
+                uid: uid,
+                did: tokenls.list_enc_symkey.did,
+                symkey: symkey,
+            });
+        }
+        symkeys
     }
 }
 
@@ -551,8 +560,14 @@ mod tests {
                 let cdtokens = ctrler.get_tokens(&hs);
                 assert_eq!(cdtokens.len(), (iters as usize));
                 for i in 0..iters {
-                    assert_eq!(cdtokens[i as usize].old_fk_value, old_fk_value + (iters - i - 1) as u64);
-                    assert_eq!(cdtokens[i as usize].new_fk_value, new_fk_value + (iters - i - 1) as u64);
+                    assert_eq!(
+                        cdtokens[i as usize].old_fk_value,
+                        old_fk_value + (iters - i - 1) as u64
+                    );
+                    assert_eq!(
+                        cdtokens[i as usize].new_fk_value,
+                        new_fk_value + (iters - i - 1) as u64
+                    );
                 }
             }
         }
@@ -595,7 +610,7 @@ mod tests {
                     fk_col.clone(),
                 );
                 ctrler.insert_user_token(TokenType::Data, &mut decor_token);
-                
+
                 // create an anonymous user
                 // and insert some token for the anon user
                 //pub fn new_insert_token(
@@ -606,7 +621,7 @@ mod tests {
                     guise_name.clone(),
                     guise_ids.clone(),
                     format!("{}", d),
-                    vec![]
+                    vec![],
                 );
                 ctrler.insert_user_token(TokenType::Data, &mut insert_token);
                 ctrler.end_disguise();

@@ -10,6 +10,8 @@ pub const UPDATE_GUISE: u64 = 3;
 pub const PRIV_KEY: u64 = 4;
 
 pub static TOKEN_ID: AtomicU64 = AtomicU64::new(1);
+pub type DID = u64;
+pub type UID = u64;
 
 #[derive(Clone)]
 pub enum TokenType {
@@ -21,8 +23,8 @@ pub enum TokenType {
 pub struct Token {
     // metadata set by Edna
     pub token_id: u64,
-    pub disguise_id: u64,
-    pub user_id: u64,
+    pub disguise_id: DID,
+    pub user_id: UID,
     pub update_type: u64,
     pub revealed: bool,
 
@@ -32,8 +34,8 @@ pub struct Token {
 
     // DECOR 
     pub referenced_name: String,
-    pub old_fk_value: u64,
-    pub new_fk_value: u64,
+    pub old_fk_value: UID,
+    pub new_fk_value: UID,
     pub fk_col: String,
 
     // INSERT 
@@ -47,7 +49,7 @@ pub struct Token {
 
     // PRIV_KEY
     pub priv_key: Vec<u8>,
-    pub new_user_id: u64,
+    pub new_user_id: UID,
 
     // for randomness 
     pub nonce: u64,
@@ -57,7 +59,7 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new_privkey_token(did: u64, uid: u64, new_uid: u64, priv_key: &RsaPrivateKey) -> Token {
+    pub fn new_privkey_token(did: DID, uid: UID, new_uid: UID, priv_key: &RsaPrivateKey) -> Token {
         let mut token: Token = Default::default();
         token.token_id = TOKEN_ID.fetch_add(1, Ordering::SeqCst);
         token.user_id = uid;
@@ -70,8 +72,8 @@ impl Token {
     }
 
     pub fn new_decor_token(
-        did: u64,
-        uid: u64,
+        did: DID,
+        uid: UID,
         guise_name: String,
         guise_ids: Vec<RowVal>,
         referenced_name: String,
@@ -95,8 +97,8 @@ impl Token {
     }
 
     pub fn new_delete_token(
-        did: u64,
-        uid: u64,
+        did: DID,
+        uid: UID,
         guise_name: String,
         guise_ids: Vec<RowVal>,
         old_value: Vec<RowVal>,
@@ -114,8 +116,8 @@ impl Token {
     }
 
     pub fn new_update_token(
-        did: u64,
-        uid: u64,
+        did: DID,
+        uid: UID,
         guise_name: String,
         guise_ids: Vec<RowVal>,
         old_value: Vec<RowVal>,
@@ -135,8 +137,8 @@ impl Token {
     }
 
     pub fn new_insert_token(
-        did: u64,
-        uid: u64,
+        did: DID,
+        uid: UID,
         guise_name: String,
         guise_ids: Vec<RowVal>,
         referencer_name: String,
