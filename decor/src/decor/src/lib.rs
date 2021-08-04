@@ -13,6 +13,9 @@ mod history;
 pub mod stats;
 pub mod tokens;
 
+pub type DID = u64;
+pub type UID = u64;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
     pub testname: String,

@@ -1,3 +1,4 @@
+use crate::{DID, UID};
 use crate::helpers::*;
 use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
 use serde::{Deserialize, Serialize};
@@ -10,8 +11,6 @@ pub const UPDATE_GUISE: u64 = 3;
 pub const PRIV_KEY: u64 = 4;
 
 pub static TOKEN_ID: AtomicU64 = AtomicU64::new(1);
-pub type DID = u64;
-pub type UID = u64;
 
 #[derive(Clone)]
 pub enum TokenType {
@@ -32,13 +31,13 @@ pub struct Token {
     pub guise_name: String,
     pub guise_ids: Vec<RowVal>,
 
-    // DECOR 
+    // DECOR
     pub referenced_name: String,
     pub old_fk_value: UID,
     pub new_fk_value: UID,
     pub fk_col: String,
 
-    // INSERT 
+    // INSERT
     pub referencer_name: String,
 
     // UPDATE/INSERT: store new blobs
@@ -51,9 +50,9 @@ pub struct Token {
     pub priv_key: Vec<u8>,
     pub new_user_id: UID,
 
-    // for randomness 
+    // for randomness
     pub nonce: u64,
-   
+
     // for linked-list
     pub last_tail: u64,
 }

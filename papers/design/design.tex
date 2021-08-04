@@ -11,7 +11,16 @@
     \item Data tokens save the pre-modified or removed data. These tokens give Edna the ability to compose a future disguise on top of the original data, or permanently restore the original data.
     \item Private key tokens save the private key of a created anonymous principal
 \end{itemize}
-\item Disguise Capability: authorizes access to tokens.
+\item Disguise Capabilities have two forms, and can be held by a 1st-party (a client acting on
+behalf of a principal) or 3rd-party (e.g., the application).
+\begin{itemize}
+\item Application Capability: authorizes the holder to apply a disguise.
+\item Revealing Capability: authorizes the holder to reveal disguised data.
+\end{itemize}
+If a disguise is 1st-party-revealable, no 3rd-party actor can reveal data disguised when applying the
+disguise.
+If a disguise is 3rd-party-revealable, both 1st- and 3rd-party actors can reveal data disguised when applying the
+disguise.
 \end{itemize}
 
 %-------------------------------------------------------------------------------
@@ -28,12 +37,12 @@ Finally, we assume standard security of public key and
 symmetric key primitives~\note{under a random oracle model?}.
 
 %-------------------------------------------------------------------------------
-\section{Disguise API}
+\section{Edna-Client Protocols}
 %-------------------------------------------------------------------------------
-\createpseudocodeblock{pcb}{center, boxed}{}{}{}
+\createpseudocodeblock{pcb}{center,boxed}{}{}{}
 \createprocedureblock{procb}{center,boxed}{}{}{}
 
-\begin{figure*}
+\begin{figure}[h!]
 \pcb{
 \<\< \\[-0.9\baselineskip]\\
 \textbf{Client c} \< \< \textbf{Edna} \\
@@ -43,8 +52,19 @@ symmetric key primitives~\note{under a random oracle model?}.
 \< \sendmessageright*{\texttt{RegisterClient(c, $\pk_c$)}} \< \\
 \<\< \texttt{StorePubKey($\pk_c$)}
 }
-\caption{Client protocol for account registration}
-\end{figure*}
+\caption{Client protocol for public key registration}
+\label{fig:acctreg}
+\end{figure}
+
+\paragraph{Client Public Key Registration.}
+Every principal in the system must register a public key with Edna in order to later reveal (for disguise reversal or
+composition) any of its data disguised by 1p-revealable disguises (Fig~\ref{fig:acctreg}).
+
+\paragraph{Client Disguise Application.}
+(Fig~\ref{fig:disgapp} shows the protocol when a disguise is 1p-revealable).
+
+\paragraph{Client Disguise Reversal.}
+(Fig~\ref{fig:revdisg} shows the protocol to reverse a disguise when a disguise is 1p-revealable).
 
 \begin{figure*}
 \pcb{
@@ -66,6 +86,7 @@ symmetric key primitives~\note{under a random oracle model?}.
 \<\< \texttt{ApplyDisguise($c,d,\key_{cd}$,composition\_tokens)}
 }
 \caption{Client protocol for disguise application}
+\label{fig:disgapp}
 \end{figure*}
 
 \begin{figure*}
@@ -84,7 +105,15 @@ symmetric key primitives~\note{under a random oracle model?}.
 \<\< \texttt{ReverseDisguise($c,d$,tokens)}
 }
 \caption{Client protocol for disguise reversal}
+\label{fig:revdisg}
 \end{figure*}
+
+
+%-------------------------------------------------------------------------------
+\subsection{Algorithms}
+%-------------------------------------------------------------------------------
+Fig~\ref{fig:algos} shows pseudocode for Edna's algorithms to retrieve and store tokens during
+disguise application and reversal.
 
 \begin{figure*}
 \procb{\texttt{ReadTokens(keys)}}{
@@ -131,4 +160,5 @@ symmetric key primitives~\note{under a random oracle model?}.
 }{}
 
 \caption{Edna Algorithms (assuming all tokens are user-vault encrypted tokens, and ignoring global vault tokens for now)}
+\label{fig:algos}
 \end{figure*}

@@ -1,8 +1,8 @@
 use crate::helpers::*;
 use crate::*;
 use log::debug;
+use serde::Serialize;
 use std::collections::HashMap;
-use serde::{Serialize};
 
 pub fn serialize_to_bytes<T: Serialize>(item: &T) -> Vec<u8> {
     let s = serde_json::to_string(item).unwrap();
