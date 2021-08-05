@@ -1,26 +1,26 @@
 %-------------------------------------------------------------------------------
-\section{System Components}
+\section{Definitions}
 %-------------------------------------------------------------------------------
 \begin{itemize}
-\item Disguising Tool (``Edna''): adds support for disguise API calls to applications.
+%\item Disguising Tool ``Edna'' adds support for disguise API calls to applications.
 \item Principal: an application user account that owns DB objects that are correlated via e.g., foreign key relationships to the account.
-\item Client: external devices that contact the application via the application API, and can be authenticated to speak for one or more principals via the application authentication protocol (e.g., logging in with a password, or using access tokens to establish a session).
-\item Tokens: 
+\item 1stParty/Client: an external device that contacts the application via the application API, and
+authenticates as a principal via the application authentication protocol (e.g., logging in with a password, or using access tokens to establish a session).
+\item Tokens store records of how data has been disguised: 
 \begin{itemize}
     \item Correlation tokens (linking an old principal to a created principal from disguise decorrelation operations). These tokens give Edna the ability to disguise the data of these principals when disguising the data of P, or to permanently recorrelate data back with P.
     \item Data tokens save the pre-modified or removed data. These tokens give Edna the ability to compose a future disguise on top of the original data, or permanently restore the original data.
     \item Private key tokens save the private key of a created anonymous principal
 \end{itemize}
-\item Disguise Capabilities have two forms, and can be held by a 1st-party (a client acting on
-behalf of a principal) or 3rd-party (e.g., the application).
-\begin{itemize}
-\item Application Capability: authorizes the holder to apply a disguise.
-\item Revealing Capability: authorizes the holder to reveal disguised data.
-\end{itemize}
-If a disguise is 1st-party-revealable, no 3rd-party actor can reveal data disguised when applying the
-disguise.
-If a disguise is 3rd-party-revealable, both 1st- and 3rd-party actors can reveal data disguised when applying the
-disguise.
+%\item Disguise Capabilities have two forms, and can be held by a 1st-party (a client acting on
+%behalf of a principal) or 3rd-party (e.g., the application).
+%\begin{itemize}
+%\item Application Capability: authorizes the holder to apply a disguise.
+%item Revealing Capability: authorizes the holder to reveal disguised data.
+%end{itemize}
+\item Disguises can be 1p-revealable or 3p-revealable. If a disguise is 1p-revealable, no 3rd-party
+actor can access data stored in tokens produced by the disguise. If a disguise is 3p-revealable,
+both 1st- and 3rd-party actors can access this data.
 \end{itemize}
 
 %-------------------------------------------------------------------------------
