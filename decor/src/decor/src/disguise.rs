@@ -28,7 +28,7 @@ pub enum TransformArgs {
 
 #[derive(Clone)]
 pub struct Transform {
-    pub pred: String,
+    pub pred: Expr,
     pub trans: Arc<RwLock<TransformArgs>>,
     pub permanent: bool,
 }
@@ -123,15 +123,7 @@ impl Disguiser {
         //let mut threads = vec![];
 
         /*
-         * PHASE 0: Get PDK that can be utilized to expand the scope of this disguise
-         *
-         * TODO Optimizations:
-         *  - only reclaim ownership from disguises that may conflict
-         *  - don't reclaim ownership for objects that will again be disowned
-         *  - separate out tokens for ownership from tokens for updates/deletes
-         *  - lazily apply modifications to removed objects
-         *
-         *  TODO expand the predicate of the disguise to apply based on PDK
+         * PHASE 0: Update disguise predicates with relevant token content
          */
 
         /*
