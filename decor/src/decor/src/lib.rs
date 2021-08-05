@@ -4,9 +4,9 @@ extern crate ordered_float;
 use log::{debug, warn};
 use mysql::prelude::*;
 use sql_parser::ast::*;
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex, RwLock};
 use std::*;
-use std::collections::HashSet;
 
 mod disguise;
 pub mod helpers;
@@ -78,8 +78,9 @@ impl EdnaClient {
     pub fn reverse_disguise(
         &mut self,
         disguise: Arc<disguise::Disguise>,
+        tokens: Vec<Arc<RwLock<tokens::Token>>>,
     ) -> Result<(), mysql::Error> {
-        self.disguiser.reverse(disguise.clone())?;
+        self.disguiser.reverse(disguise.clone(), tokens)?;
         warn!("EDNA: Applied Disguise {}", disguise.clone().disguise_id);
         Ok(())
     }

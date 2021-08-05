@@ -1,8 +1,8 @@
 use crate::helpers::*;
+use crate::history;
 use crate::stats::*;
 use crate::tokens::*;
 use crate::*;
-use crate::{history};
 use mysql::{Opts, Pool};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -90,7 +90,7 @@ impl Disguiser {
         dids: Vec<DID>,
     ) -> Vec<EncListSymKey> {
         let mut encsymkeys = vec![];
-        for d in dids{
+        for d in dids {
             if let Some(esk) = self.token_ctrler.get_encrypted_symkey(uid, d) {
                 encsymkeys.push(esk);
             }
@@ -105,7 +105,11 @@ impl Disguiser {
         self.token_ctrler.get_tokens(&keys)
     }
 
-    pub fn apply(&mut self, disguise: Arc<Disguise>, tokens: Vec<Arc<RwLock<Token>>>) -> Result<(), mysql::Error> {
+    pub fn apply(
+        &mut self,
+        disguise: Arc<Disguise>,
+        tokens: Vec<Arc<RwLock<Token>>>,
+    ) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {
             user_id: match &disguise.user {
                 Some(u) => u.id,
@@ -135,7 +139,7 @@ impl Disguiser {
          */
         // get all the objects, set all the objects to remove
         // integrate vault_transforms into disguise read + write phases
-        self.select_predicate_objs(disguise.clone());//pdk);
+        self.select_predicate_objs(disguise.clone()); //pdk);
 
         /*
          * PHASE 2: REMOVAL
@@ -228,7 +232,7 @@ impl Disguiser {
                                 });
 
                                 /*
-                                 * Save PDK: 
+                                 * Save PDK:
                                  * A) inserted guises, associate with old parent uid
                                  * B) update to child to point to new guise
                                  * */
@@ -245,7 +249,7 @@ impl Disguiser {
                                         }
                                     })
                                     .collect();
-                                /*let pdk = PDKEntry::new_insert_guise(did, uid, table, 
+                                /*let pdk = PDKEntry::new_insert_guise(did, uid, table,
                                     get_ids(&fk_name.id_cols, &new_parent), table.name);*/
                                 //self.pdkstore.insert_pdk(pdk);
 
@@ -263,7 +267,7 @@ impl Disguiser {
                                         }
                                     })
                                     .collect();
-                                // TODO 
+                                // TODO
                                 // warn(Decor: Getting ids of table {} for {:?}", table.name, i);
 
                                 let mut locked_stats = mystats.lock().unwrap();
@@ -295,11 +299,11 @@ impl Disguiser {
                                     value: Expr::Value(Value::String(new_val.clone())),
                                 });
 
-                                /*
-                                 * PHASE 3: VAULT UPDATES
-                                 * */
-                                // XXX insert a vault entry for every owning user (every fk)
-                                // should just update for the calling user, if there is one?
+        /*
+         * PHASE 3: VAULT UPDATES
+         * */
+        // XXX insert a vault entry for every owning user (every fk)
+        // should just update for the calling user, if there is one?
                                 if !t.permanent {
                                     warn!("Modify: Getting ids of table {} for {:?}", table.name, i);
                                     let new_obj: Vec<RowVal> = i
@@ -317,15 +321,15 @@ impl Disguiser {
                                         .collect();
 
                                     let ids = get_ids(&table.id_cols, &i);
-                                    // TODO 
-                                    /*let mut myvv_locked = myvv.lock().unwrap();
-                                    for owner_col in &table.owner_cols {
-                                        let uid = get_value_of_col(&i, &owner_col).unwrap();
-                                        let uid64 = u64::from_str(&uid).unwrap();
-                                        let should_insert = user_id == 0 || user_id == uid64;
-                                        if should_insert {
-                                        };
-                                    }*/
+        // TODO
+        /*let mut myvv_locked = myvv.lock().unwrap();
+        for owner_col in &table.owner_cols {
+            let uid = get_value_of_col(&i, &owner_col).unwrap();
+            let uid64 = u64::from_str(&uid).unwrap();
+            let should_insert = user_id == 0 || user_id == uid64;
+            if should_insert {
+            };
+        }*/
                                 }
 
                                 let mut locked_stats = mystats.lock().unwrap();
@@ -337,7 +341,7 @@ impl Disguiser {
                         }
                     }
 
-                    // updates are per-item
+        // updates are per-item
                     if !cols_to_update.is_empty() {
                         update_stmts.push(
                             Statement::Update(UpdateStatement {
@@ -398,10 +402,7 @@ impl Disguiser {
         Ok(())
     }
 
-    fn select_predicate_objs(
-        &self,
-        disguise: Arc<Disguise>,
-    ) {
+    fn select_predicate_objs(&self, disguise: Arc<Disguise>) {
         /*let mut threads = vec![];
         for (table, table_disguise) in disguise.table_disguises.clone() {
             let pool = self.pool.clone();
@@ -520,7 +521,7 @@ impl Disguiser {
         }*/
     }
 
-    pub fn reverse(&self, disguise: Arc<Disguise>) -> Result<(), mysql::Error> {
+    pub fn reverse(&self, disguise: Arc<Disguise>, tokens: Vec<Arc<RwLock<Token>>>) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {
             user_id: match &disguise.user {
                 Some(u) => u.id,

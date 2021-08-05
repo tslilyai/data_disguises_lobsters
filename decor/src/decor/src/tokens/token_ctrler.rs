@@ -88,8 +88,10 @@ impl TokenCtrler {
         {
             user_disguise_tokens.push(Arc::new(RwLock::new(token.clone())));
         } else {
-            self.global_vault
-                .insert((token.disguise_id, token.user_id), vec![Arc::new(RwLock::new(token.clone()))]);
+            self.global_vault.insert(
+                (token.disguise_id, token.user_id),
+                vec![Arc::new(RwLock::new(token.clone()))],
+            );
         }
     }
 
@@ -273,7 +275,7 @@ impl TokenCtrler {
                                 token.disguise_id,
                                 cd_tokens.len()
                             );
- 
+
                             // update which encrypted token is to be next in list
                             tail_ptr = token.last_tail;
                         }
@@ -324,11 +326,7 @@ impl TokenCtrler {
         cd_tokens
     }
 
-    pub fn get_encrypted_symkey(
-        &self,
-        uid: UID,
-        did: DID
-    ) -> Option<EncListSymKey> {
+    pub fn get_encrypted_symkey(&self, uid: UID, did: DID) -> Option<EncListSymKey> {
         let p = self
             .principal_tokens
             .get(&uid)

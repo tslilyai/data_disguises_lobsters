@@ -1,5 +1,5 @@
-use crate::{DID, UID};
 use crate::helpers::*;
+use crate::{DID, UID};
 use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
