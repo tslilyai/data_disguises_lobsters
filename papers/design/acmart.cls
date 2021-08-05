@@ -2957,7 +2957,7 @@
 \AtEndDocument{%
   \if@ACM@balance
   \if@twocolumn
-  \balance
+  %\balance
   \fi\fi}
 \newcommand\acksname{Acknowledgments}
 \specialcomment{acks}{%

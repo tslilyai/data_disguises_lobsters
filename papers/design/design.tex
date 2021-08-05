@@ -66,7 +66,7 @@ principal ID $c$.
 When a 1st party (authenticated as some principal $c$) wishes to apply a disguise $d$, the
 client invokes the \texttt{ApplyDisguise} API call. 
 
-Prior to applying the disguise, Edna requests access to tokens owned by the client. It does so by
+Prior to applying the disguise, Edna requests to access tokens owned by the client. It does so by
 sending a \texttt{AuthorizeToken}-\texttt{AccessRequest} to the invoking client $c$ with the all ciphertexts of 
 encrypted symmetric keys \texttt{enck}$_{cd'}$ from all prior disguises $d'$. If the client
 authorizes Edna to access its tokens from disguise $d'$, the client decrypts \texttt{enck}$_{cd'}$
@@ -79,7 +79,7 @@ token retrieval and disguise application algorithms).
 Fig~\ref{fig:disgapp1p} illustrates this protocol.
 
 \paragraph{3p Disguise Application.}
-When a 3rd party wishes to apply a disguise $d$, a third party cannot authorize access to any encrypted user data tokens, so Edna does not
+When a 3rd party wishes to apply a disguise $d$, a 3rd party cannot authorize access to any encrypted user data tokens, so Edna does not
 send a \texttt{AuthorizeToken}\texttt{AccessRequest}. Instead, Edna simply applies the disguise  
 without any keys to decrypt tokens (See Fig~\ref{fig:algos} for a description of Edna's
 token retrieval and disguise application algorithms).
