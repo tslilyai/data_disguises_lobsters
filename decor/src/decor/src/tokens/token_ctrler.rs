@@ -1,5 +1,6 @@
 use crate::helpers::*;
 use crate::tokens::*;
+use crate::{DID, UID};
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
@@ -10,6 +11,7 @@ use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::iter::repeat;
+use std::sync::{Arc, RwLock};
 
 const RSA_BITS: usize = 2048;
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
@@ -58,7 +60,7 @@ pub struct TokenCtrler {
     // a large array of encrypted tokens indexed by random number
     pub user_vaults_map: HashMap<u64, EncryptedToken>,
 
-    pub global_vault: HashMap<(DID, UID), Vec<Token>>,
+    pub global_vault: HashMap<(DID, UID), Vec<Arc<RwLock<Token>>>>,
 
     pub rng: OsRng,
     pub hasher: Sha256,
@@ -84,10 +86,10 @@ impl TokenCtrler {
             .global_vault
             .get_mut(&(token.disguise_id, token.user_id))
         {
-            user_disguise_tokens.push(token.clone());
+            user_disguise_tokens.push(Arc::new(RwLock::new(token.clone())));
         } else {
             self.global_vault
-                .insert((token.disguise_id, token.user_id), vec![token.clone()]);
+                .insert((token.disguise_id, token.user_id), vec![Arc::new(RwLock::new(token.clone()))]);
         }
     }
 
@@ -216,7 +218,7 @@ impl TokenCtrler {
         anon_uid
     }
 
-    pub fn get_global_tokens(&self, uid: UID, did: DID) -> Vec<Token> {
+    pub fn get_global_tokens(&self, uid: UID, did: DID) -> Vec<Arc<RwLock<Token>>> {
         if let Some(global_tokens) = self.global_vault.get(&(did, uid)) {
             warn!(
                 "Found global tokens len {} disguise {} user {}: {:?}",
@@ -230,7 +232,7 @@ impl TokenCtrler {
         vec![]
     }
 
-    pub fn get_tokens(&mut self, symkeys: &HashSet<ListSymKey>) -> Vec<Token> {
+    pub fn get_tokens(&mut self, symkeys: &HashSet<ListSymKey>) -> Vec<Arc<RwLock<Token>>> {
         let mut cd_tokens = vec![];
         for symkey in symkeys {
             let p = self
@@ -264,15 +266,15 @@ impl TokenCtrler {
                             let token = Token::token_from_bytes(plaintext);
 
                             // add token to list
-                            cd_tokens.push(token.clone());
+                            cd_tokens.push(Arc::new(RwLock::new(token.clone())));
                             warn!(
                                 "cd tokens uid {} disguise {} pushed to len {}",
                                 token.user_id,
                                 token.disguise_id,
                                 cd_tokens.len()
                             );
-
-                            // go to next encrypted token in list
+ 
+                            // update which encrypted token is to be next in list
                             tail_ptr = token.last_tail;
                         }
                         None => break,
@@ -325,18 +327,13 @@ impl TokenCtrler {
     pub fn get_encrypted_symkey(
         &self,
         uid: UID,
-        did: DID,
-        token_type: TokenType,
+        did: DID
     ) -> Option<EncListSymKey> {
         let p = self
             .principal_tokens
             .get(&uid)
             .expect("no user with uid found?");
-        let disguise_lists = match token_type {
-            TokenType::Data => &p.cd_lists,
-            TokenType::PrivKey => &p.privkey_lists,
-        };
-        if let Some(tokenls) = disguise_lists.get(&did) {
+        if let Some(tokenls) = p.cd_lists.get(&did) {
             return Some(tokenls.list_enc_symkey.clone());
         }
         None
@@ -613,7 +610,6 @@ mod tests {
 
                 // create an anonymous user
                 // and insert some token for the anon user
-                //pub fn new_insert_token(
                 let anon_uid = ctrler.create_anon_principal(u, d);
                 let mut insert_token = Token::new_insert_token(
                     d,

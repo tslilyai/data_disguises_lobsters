@@ -1,5 +1,6 @@
 use crate::helpers::*;
 use crate::stats::*;
+use crate::tokens::*;
 use crate::*;
 use crate::{history};
 use mysql::{Opts, Pool};
@@ -62,7 +63,7 @@ pub struct Disguise {
 pub struct Disguiser {
     pub pool: mysql::Pool,
     pub stats: Arc<Mutex<QueryStat>>,
-    //pdkstore: PDKStore,
+    pub token_ctrler: TokenCtrler,
     items: Arc<RwLock<HashMap<String, HashMap<Vec<RowVal>, Vec<Transform>>>>>,
     to_delete: Arc<Mutex<Vec<String>>>,
     to_insert: Arc<Mutex<Vec<Vec<Expr>>>>,
@@ -76,14 +77,35 @@ impl Disguiser {
         Disguiser {
             pool: pool,
             stats: Arc::new(Mutex::new(stats::QueryStat::new())),
-            //pdkstore: PDKStore::new(),
+            token_ctrler: TokenCtrler::new(),
             to_insert: Arc::new(Mutex::new(vec![])),
             to_delete: Arc::new(Mutex::new(vec![])),
             items: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    pub fn apply(&mut self, disguise: Arc<Disguise>) -> Result<(), mysql::Error> {
+    pub fn get_encrypted_symkeys_of_disguises(
+        &mut self,
+        uid: UID,
+        dids: Vec<DID>,
+    ) -> Vec<EncListSymKey> {
+        let mut encsymkeys = vec![];
+        for d in dids{
+            if let Some(esk) = self.token_ctrler.get_encrypted_symkey(uid, d) {
+                encsymkeys.push(esk);
+            }
+        }
+        encsymkeys
+    }
+
+    pub fn get_tokens_of_disguise_keys(
+        &mut self,
+        keys: HashSet<ListSymKey>,
+    ) -> Vec<Arc<RwLock<tokens::Token>>> {
+        self.token_ctrler.get_tokens(&keys)
+    }
+
+    pub fn apply(&mut self, disguise: Arc<Disguise>, tokens: Vec<Arc<RwLock<Token>>>) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {
             user_id: match &disguise.user {
                 Some(u) => u.id,
@@ -498,13 +520,13 @@ impl Disguiser {
         }*/
     }
 
-    pub fn undo(&self, user_id: Option<u64>, disguise_id: u64) -> Result<(), mysql::Error> {
+    pub fn reverse(&self, disguise: Arc<Disguise>) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {
-            disguise_id: disguise_id,
-            user_id: match user_id {
-                Some(u) => u,
+            user_id: match &disguise.user {
+                Some(u) => u.id,
                 None => 0,
             },
+            disguise_id: disguise.disguise_id,
             reverse: true,
         };
 

@@ -4,8 +4,9 @@ extern crate ordered_float;
 use log::{debug, warn};
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::*;
+use std::collections::HashSet;
 
 mod disguise;
 pub mod helpers;
@@ -49,11 +50,36 @@ impl EdnaClient {
         drop(stats);
     }
 
+    pub fn get_encrypted_symkeys_of_disguises(
+        &mut self,
+        uid: UID,
+        dids: Vec<DID>,
+    ) -> Vec<tokens::EncListSymKey> {
+        self.disguiser.get_encrypted_symkeys_of_disguises(uid, dids)
+    }
+
+    pub fn get_tokens_of_disguise_keys(
+        &mut self,
+        keys: HashSet<tokens::ListSymKey>,
+    ) -> Vec<Arc<RwLock<tokens::Token>>> {
+        self.disguiser.get_tokens_of_disguise_keys(keys)
+    }
+
     pub fn apply_disguise(
         &mut self,
         disguise: Arc<disguise::Disguise>,
+        tokens: Vec<Arc<RwLock<tokens::Token>>>,
     ) -> Result<(), mysql::Error> {
-        self.disguiser.apply(disguise.clone())?;
+        self.disguiser.apply(disguise.clone(), tokens)?;
+        warn!("EDNA: Applied Disguise {}", disguise.clone().disguise_id);
+        Ok(())
+    }
+
+    pub fn reverse_disguise(
+        &mut self,
+        disguise: Arc<disguise::Disguise>,
+    ) -> Result<(), mysql::Error> {
+        self.disguiser.reverse(disguise.clone())?;
         warn!("EDNA: Applied Disguise {}", disguise.clone().disguise_id);
         Ok(())
     }
