@@ -56,7 +56,7 @@ symmetric key primitives~\note{under a random oracle model?}.
 \label{fig:acctreg}
 \end{figure}
 
-\paragraph{1stParty Public Key Registration.}
+\paragraph{1p Public Key Registration.}
 Every principal in the system must register a public key with Edna in order to later reveal (for
 disguise reversal or composition) any of its data disguised by 1p-revealable disguises
 (Fig~\ref{fig:acctreg}). Edna remembers each public key \texttt{pk}$_c$, indexed by the 
@@ -181,15 +181,18 @@ Fig~\ref{fig:revdisg3p} shows the protocol to reverse a disguise when a disguise
 ID. For each key \texttt{key}$_{cd}$, Edna decrypts all tokens produced by the application of disguise
 $d$ to principal $c$'s data with \texttt{key}$_{cd}$. 
 
-If the token records \texttt{sk}$_{c'}$, the private key of a
+If the token stores \texttt{sk}$_{c'}$, the private key of a
 anonymous principal $c'$ generated during $d$'s application, Edna decrypts with \texttt{sk}$_{c'}$
 all the symmetric keys produced when disguising $c'$'s data. Edna then recursively uses these
 symmetric keys to read all of $c'$'s tokens, appending the result to the set of tokesn to
 return.
-\lyt{I should maybe add another function that shows how exactly
-disguise operations produce various types of tokens, such as these private key tokens.}
 
 Otherwise, Edna simply adds the token to the set of tokens to return. 
+
+This is shown in Fig~\ref{fig:algos}.
+
+\lyt{I should maybe add another subfunction of ApplyDisguise that shows how exactly
+disguise operations produce various types of tokens, such as these private key tokens.}
 
 \paragraph{ApplyDisguise.} Edna applies a disguise given the disguise specification and available tokens
 for composition by interating through all disguise operations in the specification.
@@ -234,13 +237,14 @@ If the disguise is 3p-revealable, Edna simply stores the token plaintexts.
 
 \procb{\texttt{ApplyDisguise}$(d$,\texttt{composition\_tokens})}{
     \< \\
-\pcfor \texttt{op}_{c} \in \texttt{GetDisguise($d$)}\\
-\pcif \texttt{LoadEncKey($c,d$) = NULL}:
-\t[1] \key_{cd} \sample \kgen() \\
-\t[1] \pk_{c} \gets \texttt{LoadPubKey}(c) \\
-\t[1] \texttt{enck$_{cd}$} \gets \enc(\pk_c, \key_{cd}) \\
-\t[1] \texttt{StoreEncKey(enck$_{cd}$)} \\
-\pcfi\\
+\t[0]\pcfor \texttt{op}_{c} \in \texttt{GetDisguise($d$)}:\\
+\t[1]\pcif \texttt{LoadEncKey($c,d$) = NULL}:\\
+\t[2] \key_{cd} \sample \kgen() \\
+\t[2] \pk_{c} \gets \texttt{LoadPubKey}(c) \\
+\t[2] \texttt{enck$_{cd}$} \gets \enc(\pk_c, \key_{cd}) \\
+\t[2] \texttt{StoreEncKey(enck$_{cd}$)} \\
+\t[1]\pcfi\\
+\t[1]\key_{ck} \gets \texttt{LoadEncKey($c,d$)}\\
 \t[1]\texttt{token} \gets \texttt{op$_{c}$.execute(composition\_tokens)}\\
 \t[1]\texttt{token.nextEncToken} \gets \texttt{LoadEncTokenlistTail}(c,d)\\
 \t[1]\texttt{token.nonce} \gets \texttt{RandomU64}()\\
