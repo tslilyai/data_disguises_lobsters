@@ -60,7 +60,7 @@ pub struct TokenCtrler {
     // a large array of encrypted tokens indexed by random number
     pub user_vaults_map: HashMap<u64, EncryptedToken>,
 
-    pub global_vault: HashMap<(DID, UID), Vec<Arc<RwLock<Token>>>>,
+    pub global_vault: HashMap<(DID, UID), Arc<RwLock<HashSet<Token>>>>,
 
     pub rng: OsRng,
     pub hasher: Sha256,
@@ -78,6 +78,7 @@ impl TokenCtrler {
     }
 
     pub fn insert_global_token(&mut self, token: &mut Token) {
+        token.is_global = true;
         warn!(
             "Inserting global token disguise {} user {}",
             token.disguise_id, token.user_id
@@ -86,16 +87,20 @@ impl TokenCtrler {
             .global_vault
             .get_mut(&(token.disguise_id, token.user_id))
         {
-            user_disguise_tokens.push(Arc::new(RwLock::new(token.clone())));
+            let tokens = user_disguise_tokens.write().unwrap();
+            tokens.insert(token.clone());
         } else {
+            let mut hs = HashSet::new();
+            hs.insert(token.clone());
             self.global_vault.insert(
                 (token.disguise_id, token.user_id),
-                vec![Arc::new(RwLock::new(token.clone()))],
-            );
+                Arc::new(RwLock::new(hs
+            )));
         }
     }
 
     pub fn insert_user_token(&mut self, token_type: TokenType, token: &mut Token) {
+        token.is_global = false;
         let did = token.disguise_id;
         let uid = token.user_id;
         let p = self
@@ -121,6 +126,8 @@ impl TokenCtrler {
 
         // insert encrypted token into list for principal
         let next_token_ptr = self.rng.next_u64();
+        token.token_id = next_token_ptr;
+
         let disguise_lists = match token_type {
             TokenType::Data => &mut p.cd_lists,
             TokenType::PrivKey => &mut p.privkey_lists,
@@ -220,21 +227,26 @@ impl TokenCtrler {
         anon_uid
     }
 
-    pub fn get_global_tokens(&self, uid: UID, did: DID) -> Vec<Arc<RwLock<Token>>> {
+    pub fn move_global_tokens_to_user_vault(&mut self, tokens: HashSet<Token>) {
+        for token in tokens.iter() {
+            if let Some(global_tokens) = self.global_vault.get(&(token.disguise_id, token.user_id)) {
+                let gts = global_tokens.write().unwrap();
+                gts.remove(token);
+                drop(gts);
+                self.insert_user_token(TokenType::Data, &mut token);
+            }
+        }
+    }
+
+    pub fn get_global_tokens(&self, uid: UID, did: DID) -> Vec<Token> {
         if let Some(global_tokens) = self.global_vault.get(&(did, uid)) {
-            warn!(
-                "Found global tokens len {} disguise {} user {}: {:?}",
-                global_tokens.len(),
-                did,
-                uid,
-                global_tokens
-            );
-            return global_tokens.to_vec();
+            let tokens = global_tokens.read().unwrap();
+            return (*tokens).into_iter().collect();
         }
         vec![]
     }
 
-    pub fn get_tokens(&mut self, symkeys: &HashSet<ListSymKey>) -> Vec<Arc<RwLock<Token>>> {
+    pub fn get_tokens(&mut self, symkeys: &HashSet<ListSymKey>) -> Vec<Token> {
         let mut cd_tokens = vec![];
         for symkey in symkeys {
             let p = self
@@ -267,8 +279,10 @@ impl TokenCtrler {
                             let plaintext = cipher.decrypt_vec(&mut enc_token.token_data).unwrap();
                             let token = Token::token_from_bytes(plaintext);
 
-                            // add token to list
-                            cd_tokens.push(Arc::new(RwLock::new(token.clone())));
+                            // add token to list only if it hasn't be revealed before
+                            if !token.revealed {
+                                cd_tokens.push(token.clone());
+                            }
                             warn!(
                                 "cd tokens uid {} disguise {} pushed to len {}",
                                 token.user_id,

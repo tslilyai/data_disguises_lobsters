@@ -11,6 +11,7 @@ use std::*;
 mod disguise;
 pub mod helpers;
 mod history;
+pub mod predicate;
 pub mod stats;
 pub mod tokens;
 
@@ -61,14 +62,14 @@ impl EdnaClient {
     pub fn get_tokens_of_disguise_keys(
         &mut self,
         keys: HashSet<tokens::ListSymKey>,
-    ) -> Vec<Arc<RwLock<tokens::Token>>> {
+    ) -> Vec<tokens::Token> {
         self.disguiser.get_tokens_of_disguise_keys(keys)
     }
 
     pub fn apply_disguise(
         &mut self,
         disguise: Arc<disguise::Disguise>,
-        tokens: Vec<Arc<RwLock<tokens::Token>>>,
+        tokens: Vec<tokens::Token>,
     ) -> Result<(), mysql::Error> {
         self.disguiser.apply(disguise.clone(), tokens)?;
         warn!("EDNA: Applied Disguise {}", disguise.clone().disguise_id);

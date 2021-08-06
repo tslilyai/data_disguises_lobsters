@@ -2,6 +2,7 @@ use crate::helpers::*;
 use crate::history;
 use crate::stats::*;
 use crate::tokens::*;
+use crate::predicate::*;
 use crate::*;
 use mysql::{Opts, Pool};
 use serde::{Deserialize, Serialize};
@@ -28,9 +29,9 @@ pub enum TransformArgs {
 
 #[derive(Clone)]
 pub struct Transform {
-    pub pred: Expr,
+    pub pred: Vec<Vec<PredClause>>, 
     pub trans: Arc<RwLock<TransformArgs>>,
-    pub permanent: bool,
+    pub thirdparty_revealable: bool,
 }
 
 #[derive(Clone)]
@@ -101,14 +102,14 @@ impl Disguiser {
     pub fn get_tokens_of_disguise_keys(
         &mut self,
         keys: HashSet<ListSymKey>,
-    ) -> Vec<Arc<RwLock<tokens::Token>>> {
+    ) -> Vec<tokens::Token> {
         self.token_ctrler.get_tokens(&keys)
     }
 
     pub fn apply(
         &mut self,
         disguise: Arc<Disguise>,
-        tokens: Vec<Arc<RwLock<Token>>>,
+        tokens: Vec<Token>,
     ) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {
             user_id: match &disguise.user {
@@ -123,15 +124,11 @@ impl Disguiser {
         //let mut threads = vec![];
 
         /*
-         * PHASE 0: Update disguise predicates with relevant token content
-         */
-
-        /*
-         * PHASE 1: Predicate
+         * PHASE 1: PREDICATE 
          */
         // get all the objects, set all the objects to remove
         // integrate vault_transforms into disguise read + write phases
-        self.select_predicate_objs(disguise.clone()); //pdk);
+        self.select_predicate_objs(disguise.clone(), tokens);
 
         /*
          * PHASE 2: REMOVAL
@@ -394,8 +391,8 @@ impl Disguiser {
         Ok(())
     }
 
-    fn select_predicate_objs(&self, disguise: Arc<Disguise>) {
-        /*let mut threads = vec![];
+    fn select_predicate_objs(&self, disguise: Arc<Disguise>, tokens: Vec<Token>) {
+        let mut threads = vec![];
         for (table, table_disguise) in disguise.table_disguises.clone() {
             let pool = self.pool.clone();
             let mystats = self.stats.clone();
@@ -407,11 +404,6 @@ impl Disguiser {
             };
             let my_items = self.items.clone();
             let mut items_of_table: HashMap<Vec<RowVal>, Vec<Transform>> = HashMap::new();
-
-            /*let table_vts = match vault_transforms.get(&table) {
-                Some(vts) => vts.clone(),
-                None => Arc::new(RwLock::new(vec![])),
-            };*/
 
             threads.push(thread::spawn(move || {
                 let table = table_disguise.read().unwrap();
@@ -510,10 +502,10 @@ impl Disguiser {
                 Ok(_) => (),
                 Err(_) => warn!("Join failed?"),
             }
-        }*/
+        }
     }
 
-    pub fn reverse(&self, disguise: Arc<Disguise>, tokens: Vec<Arc<RwLock<Token>>>) -> Result<(), mysql::Error> {
+    pub fn reverse(&self, disguise: Arc<Disguise>, tokens: Vec<Token>) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {
             user_id: match &disguise.user {
                 Some(u) => u.id,

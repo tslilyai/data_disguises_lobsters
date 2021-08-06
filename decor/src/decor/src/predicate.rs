@@ -1,4 +1,5 @@
 use crate::helpers::*;
+use crate::tokens::*;
 use log::warn;
 use sql_parser::ast::*;
 use std::cmp::Ordering;
@@ -6,109 +7,156 @@ use std::str::FromStr;
 use std::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Predicate {
+pub enum PredClause {
     ColValEq {
-        name: String,
-        val: Value,
+        col: String,
+        val: String,
         neg: bool,
     },
 
     ColInList {
-        name: String,
-        vals: Vec<Value>,
+        col: String,
+        vals: Vec<String>,
         neg: bool,
     },
 
-    ColCmp {
-        name1: String,
-        name2: Option<String>,
-        val: Option<Value>,
+    ColColCmp {
+        col1: String,
+        col2: String,
         op: BinaryOperator,
     },
 
-    ComputeValCmp {
-        name1: String,
-        name2: Option<String>,
-        innerval: Option<Value>,
-        innerop: BinaryOperator,
-        val: Value,
+    ColValCmp {
+        col: String,
+        val: String,
         op: BinaryOperator,
     },
 
     Bool(bool),
 }
 
-pub fn predicate_applies_to_row(p: Predicate, row: &Vec<RowVal>) -> bool {
-    use Predicate::*;
-    let matches = match &p {
-        ColValEq { name, val, neg } => {
-            let found = match row.iter().find(|rv| &rv.column == name) {
-                Some(rv) => rv.value == val.to_string(),
-                None => false,
-            };
-            found != *neg
+impl ToString for PredClause {
+    fn to_string(&self) -> String {
+        use PredClause::*;
+        match self {
+            ColInList { col, vals, neg } => match neg {
+                true => format!("{} IN ({})", col, vals.join(",")),
+                false => format!("{} NOT IN ({})", col, vals.join(",")),
+            },
+
+            ColColCmp { col1, col2, op } => {
+                use BinaryOperator::*;
+                match op {
+                    Gt => format!("{} > {}", col1, col2),
+                    Lt => format!("{} < {}", col1, col2),
+                    GtEq => format!("{} >= {}", col1, col2),
+                    LtEq => format!("{} <= {}", col1, col2),
+                    Eq => format!("{} = {}", col1, col2),
+                    NotEq => format!("{} != {}", col1, col2),
+                    And => format!("{} AND {}", col1, col2),
+                    Or => format!("{} OR {}", col1, col2),
+                    _ => unimplemented!("No support for op {}", op),
+                }
+            }
+            ColValCmp { col, val, op } => {
+                use BinaryOperator::*;
+                match op {
+                    Gt => format!("{} > {}", col, val),
+                    Lt => format!("{} < {}", col, val),
+                    GtEq => format!("{} >= {}", col, val),
+                    LtEq => format!("{} <= {}", col, val),
+                    Eq => format!("{} = {}", col, val),
+                    NotEq => format!("{} != {}", col, val),
+                    And => format!("{} AND {}", col, val),
+                    Or => format!("{} OR {}", col, val),
+                    _ => unimplemented!("No support for op {}", op),
+                }
+            }
+            Bool(b) => b.to_string(),
         }
-        ColInList { name, vals, neg } => {
-            let found = match row.iter().find(|rv| &rv.column == name) {
+    }
+}
+
+pub fn pred_to_sql_where(pred: Vec<Vec<PredClause>>) -> String {
+    let mut ors = vec![];
+    for and_clauses in pred {
+        let mut ands = vec![];
+        for clause in and_clauses {
+            ands.push(clause.to_string());
+        }
+        ors.push(format!("({})", ands.join(" AND")));
+    }
+    ors.join(" OR ")
+}
+
+pub fn get_tokens_matching_pred(pred: Vec<Vec<PredClause>>, tokens: Vec<Token>) -> Vec<Token> {
+    let mut matching = vec![];
+    for t in tokens {
+        if match t.update_type {
+            REMOVE_GUISE => predicate_applies_to_row(pred, &t.old_value),
+            DECOR_GUISE => predicate_applies_to_row(pred, &t.old_value),
+            MODIFY_GUISE => predicate_applies_to_row(pred, &t.old_value),
+            _ => false,
+        } {
+            matching.push(t);
+        }
+    }
+    matching
+}
+
+pub fn predicate_applies_to_row(p: Vec<Vec<PredClause>>, row: &Vec<RowVal>) -> bool {
+    let mut found_true = false;
+    for and_clauses in p {
+        let mut all_true = true;
+        for clause in and_clauses {
+            if !clause_applies_to_row(clause, row) {
+                all_true = false;
+                break;
+            }
+        }
+        if all_true {
+            found_true = true;
+            break;
+        }
+    }
+    found_true
+}
+
+pub fn clause_applies_to_row(p: PredClause, row: &Vec<RowVal>) -> bool {
+    use PredClause::*;
+    let matches = match &p {
+        ColInList { col, vals, neg } => {
+            let found = match row.iter().find(|rv| &rv.column == col) {
                 Some(rv) => vals.iter().find(|v| v.to_string() == rv.value).is_some(),
                 None => false,
             };
             found != *neg
         }
-        ColCmp {
-            name1,
-            name2,
-            val,
-            op,
-        } => {
+        ColColCmp { col1, col2, op } => {
             let rv1: String;
             let rv2: String;
-            match row.iter().find(|rv| &rv.column == name1) {
+            match row.iter().find(|rv| &rv.column == col1) {
                 Some(rv) => rv1 = rv.value.clone(),
-                None => unimplemented!("bad predicate, no name1 {:?}", p),
+                None => unimplemented!("bad predicate, no col1 {:?}", p),
             }
-            if let Some(name2) = name2 {
-                match row.iter().find(|rv| &rv.column == name2) {
-                    Some(rv) => rv2 = rv.value.clone(),
-                    None => unimplemented!("bad predicate, no name2 {:?}", p),
-                }
-            } else if let Some(v) = val {
-                rv2 = v.to_string();
-            } else {
-                unimplemented!("bad predicate, no rhs val {:?}", p);
+            match row.iter().find(|rv| &rv.column == col2) {
+                Some(rv) => rv2 = rv.value.clone(),
+                None => unimplemented!("bad predicate, no col2 {:?}", p),
             }
             vals_satisfy_cmp(&rv1, &rv2, &op)
         }
-        ComputeValCmp {
-            name1,
-            name2,
-            innerval,
-            innerop,
-            val,
-            op,
-        } => {
+        ColValCmp { col, val, op } => {
             let rv1: String;
-            let rv2: String;
-            match row.iter().find(|rv| &rv.column == name1) {
+            match row.iter().find(|rv| &rv.column == col) {
                 Some(rv) => rv1 = rv.value.clone(),
-                None => unimplemented!("bad predicate, no name1 {:?}", p),
+                None => unimplemented!("bad predicate, no col {:?}", p),
             }
-            if let Some(name2) = name2 {
-                match row.iter().find(|rv| &rv.column == name2) {
-                    Some(rv) => rv2 = rv.value.clone(),
-                    None => unimplemented!("bad predicate, no name2 {:?}", p),
-                }
-            } else if let Some(v) = innerval {
-                rv2 = v.to_string();
-            } else {
-                unimplemented!("bad predicate, no rhs val {:?}", p);
-            }
-            let left_val = compute_op(&rv1, &rv2, &innerop);
-            vals_satisfy_cmp(&left_val, &val.to_string(), &op)
+            let rv2 = val;
+            vals_satisfy_cmp(&rv1, &rv2, &op)
         }
         Bool(b) => *b,
     };
-    warn!("Predicate {:?} matches {:?}: {}", p, row, matches);
+    warn!("PredClause {:?} matches {:?}: {}", p, row, matches);
     matches
 }
 
@@ -133,115 +181,4 @@ pub fn vals_satisfy_cmp(lval: &str, rval: &str, op: &BinaryOperator) -> bool {
         BinaryOperator::GtEq => cmp != Ordering::Less,
         _ => unimplemented!("bad binop"),
     }
-}
-
-pub fn get_predicates_of_constraint(e: &Expr, preds: &mut Vec<Predicate>) {
-    let start = time::Instant::now();
-    warn!("getting predicates of constraint {}", e);
-    match e {
-        Expr::Value(Value::Boolean(b)) => {
-            preds.push(Predicate::Bool(*b));
-        }
-        Expr::InList {
-            expr,
-            list,
-            negated,
-        } => {
-            let list_vals: Vec<Value> = list
-                .iter()
-                .map(|e| match e {
-                    Expr::Value(v) => v.clone(),
-                    _ => unimplemented!("list can only contain values: {:?}", list),
-                })
-                .collect();
-            let (tab, mut col) = expr_to_col(&expr);
-            if !tab.is_empty() {
-                col = format!("{}.{}", tab, col);
-            }
-            preds.push(Predicate::ColInList {
-                name: col,
-                vals: list_vals,
-                neg: *negated,
-            });
-        }
-        Expr::IsNull { expr, negated } => {
-            let (tab, mut col) = expr_to_col(&expr);
-            if !tab.is_empty() {
-                col = format!("{}.{}", tab, col);
-            }
-            preds.push(Predicate::ColValEq {
-                name: col,
-                val: Value::Null,
-                neg: *negated,
-            });
-        }
-        Expr::BinaryOp { left, op, right } => {
-            match op {
-                BinaryOperator::And => {
-                    get_predicates_of_constraint(left, preds);
-                    get_predicates_of_constraint(right, preds);
-                }
-                BinaryOperator::Or => {
-                    unimplemented!("No nested ORs yet");
-                }
-                _ => {
-                    // special case: perform eq comparisons against fixed value
-                    let mut fastpath = false;
-                    if let Expr::Identifier(_) = **left {
-                        if let Expr::Value(ref val) = **right {
-                            if *op == BinaryOperator::Eq || *op == BinaryOperator::NotEq {
-                                warn!("getting rptrs of constraint: Fast path {}", e);
-                                fastpath = true;
-                                let (tab, mut col) = expr_to_col(&left);
-                                if !tab.is_empty() {
-                                    col = format!("{}.{}", tab, col);
-                                }
-                                preds.push(Predicate::ColValEq {
-                                    name: col,
-                                    val: val.clone(),
-                                    neg: *op != BinaryOperator::Eq,
-                                });
-                            }
-                        }
-                    }
-                    if !fastpath {
-                        let cmp_op = op.clone();
-                        let (rname, rval) = rhs_expr_to_name_or_value(&right);
-                        match &**left {
-                            Expr::Identifier(_) => {
-                                let lname = lhs_expr_to_name(&left);
-                                preds.push(Predicate::ColCmp {
-                                    name1: lname,
-                                    name2: rname,
-                                    val: rval,
-                                    op: cmp_op,
-                                });
-                            }
-                            Expr::BinaryOp { left, op, right } => {
-                                let innerlname = lhs_expr_to_name(&left);
-                                let (innerrname, innerrval) = rhs_expr_to_name_or_value(&right);
-                                preds.push(Predicate::ComputeValCmp {
-                                    name1: innerlname,
-                                    name2: innerrname,
-                                    innerval: innerrval,
-                                    innerop: op.clone(),
-                                    val: rval.unwrap().clone(),
-                                    op: cmp_op,
-                                });
-                            }
-                            _ => unimplemented!("Bad lhs? {}", left),
-                        }
-                    }
-                }
-            }
-        }
-        _ => unimplemented!("Constraint not supported {:?}", e),
-    }
-    let dur = start.elapsed();
-    warn!(
-        "get predicates of constraint {} duration {}us: {:?}",
-        e,
-        dur.as_micros(),
-        preds
-    );
 }
