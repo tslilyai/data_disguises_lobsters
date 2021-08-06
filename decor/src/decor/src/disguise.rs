@@ -1,8 +1,8 @@
 use crate::helpers::*;
 use crate::history;
+use crate::predicate::*;
 use crate::stats::*;
 use crate::tokens::*;
-use crate::predicate::*;
 use crate::*;
 use mysql::{Opts, Pool};
 use serde::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ pub enum TransformArgs {
 
 #[derive(Clone)]
 pub struct Transform {
-    pub pred: Vec<Vec<PredClause>>, 
+    pub pred: Vec<Vec<PredClause>>,
     pub trans: Arc<RwLock<TransformArgs>>,
     pub thirdparty_revealable: bool,
 }
@@ -65,7 +65,9 @@ pub struct Disguiser {
     pub pool: mysql::Pool,
     pub stats: Arc<Mutex<QueryStat>>,
     pub token_ctrler: TokenCtrler,
+    // table name to [(rows) -> transformations] map
     items: Arc<RwLock<HashMap<String, HashMap<Vec<RowVal>, Vec<Transform>>>>>,
+    remove_tokens_to_modify: Arc<RwLock<HashMap<Token, Vec<Transform>>>>,
     to_delete: Arc<Mutex<Vec<String>>>,
     to_insert: Arc<Mutex<Vec<Vec<Expr>>>>,
 }
@@ -79,6 +81,7 @@ impl Disguiser {
             pool: pool,
             stats: Arc::new(Mutex::new(stats::QueryStat::new())),
             token_ctrler: TokenCtrler::new(),
+            remove_tokens_to_modify: Arc::new(RwLock::new(HashMap::new())),
             to_insert: Arc::new(Mutex::new(vec![])),
             to_delete: Arc::new(Mutex::new(vec![])),
             items: Arc::new(RwLock::new(HashMap::new())),
@@ -99,10 +102,7 @@ impl Disguiser {
         encsymkeys
     }
 
-    pub fn get_tokens_of_disguise_keys(
-        &mut self,
-        keys: HashSet<ListSymKey>,
-    ) -> Vec<tokens::Token> {
+    pub fn get_tokens_of_disguise_keys(&mut self, keys: HashSet<ListSymKey>) -> Vec<tokens::Token> {
         self.token_ctrler.get_tokens(&keys)
     }
 
@@ -124,7 +124,7 @@ impl Disguiser {
         //let mut threads = vec![];
 
         /*
-         * PHASE 1: PREDICATE 
+         * PHASE 1: PREDICATE
          */
         // get all the objects, set all the objects to remove
         // integrate vault_transforms into disguise read + write phases
@@ -403,7 +403,11 @@ impl Disguiser {
                 None => 0,
             };
             let my_items = self.items.clone();
+            let my_remove_tokens = self.remove_tokens_to_modify.clone();
+
+            // hashmap from item value --> transform
             let mut items_of_table: HashMap<Vec<RowVal>, Vec<Transform>> = HashMap::new();
+            let mut matching_remove_tokens: HashMap<Token, Vec<Transform>>;
 
             threads.push(thread::spawn(move || {
                 let td = table_disguise.read().unwrap();
@@ -423,20 +427,31 @@ impl Disguiser {
                     .unwrap();
 
                     // TOKENS:
-                    // get tokens that match the predicate 
+                    // get tokens that match the predicate
                     let pred_tokens = predicate::get_tokens_matching_pred(t.pred, tokens);
 
                     // move any tokens in global vault to user vault if this
                     // transformation is only 1p-revealable
                     if !t.thirdparty_revealable {
-                        self.token_ctrler.move_global_tokens_to_user_vault(pred_tokens);
+                        self.token_ctrler
+                            .move_global_tokens_to_user_vault(pred_tokens);
                     }
 
-                    // add the new values that should be transformed into the set of predicated items
+                    // for tokens that decorrelated or updated a guise, we want to add the new
+                    // value that should be transformed into the set of predicated items
+                    //
+                    // if the token records a removed item, we want to update the stored value of
+                    // this token so that we only even restore the most up-to-date disguised data
+                    // XXX note: during reversal, we'll have to reverse this token update
                     for pt in pred_tokens {
                         match pt.update_type {
-                            DECOR_GUISE | UPDATE_GUISE => pred_items.push(pt.new_value),
-                            _ => ()
+                            DECOR_GUISE | UPDATE_GUISE => {
+                                pred_items.push(pt.new_value);
+                            }
+                            REMOVE_GUISE => {
+                                matching_remove_tokens.insert(pt, vec![]);
+                            }
+                            _ => (),
                         }
                     }
 
@@ -444,13 +459,14 @@ impl Disguiser {
                     match &*t.trans.read().unwrap() {
                         TransformArgs::Remove => {
                             for i in &pred_items {
+                                // don't remove an item that's already removed
                                 if removed_items.contains(i) {
                                     continue;
                                 }
                                 debug!("Remove: Getting ids of table {} for {:?}", td.name, i);
                                 let ids = get_ids(&td.id_cols, i);
-                                
-                                // TOKENS: create remove token and insert into either global or user vault 
+
+                                // TOKENS: create remove token and insert into either global or user vault
                                 let mut token = Token::new_delete_token(
                                     did,
                                     0,
@@ -464,7 +480,8 @@ impl Disguiser {
                                     if t.thirdparty_revealable {
                                         self.token_ctrler.insert_global_token(&mut token);
                                     } else {
-                                        self.token_ctrler.insert_user_token(TokenType::Data, &mut token);
+                                        self.token_ctrler
+                                            .insert_user_token(TokenType::Data, &mut token);
                                     }
                                 }
 
@@ -480,9 +497,14 @@ impl Disguiser {
                         }
                         TransformArgs::Decor { referencer_col, .. } => {
                             for i in pred_items {
-                                // don't decorrelate twice, or decorrelate if removed
-                                if removed_items.contains(&i)
-                                    || decorrelated_items
+                                // don't decorrelate if removed
+                                if removed_items.contains(&i) {
+                                    // remove if we'd accidentally added it before
+                                    items_of_table.remove(&i);
+                                    continue;
+                                }
+                                // don't decorrelate twice
+                                if decorrelated_items
                                         .contains(&(referencer_col.clone(), i.clone()))
                                 {
                                     continue;
@@ -499,6 +521,7 @@ impl Disguiser {
                             for i in pred_items {
                                 // don't modify if removed
                                 if removed_items.contains(&i) {
+                                    items_of_table.remove(&i);
                                     continue;
                                 }
                                 if let Some(ts) = items_of_table.get_mut(&i) {
@@ -518,6 +541,9 @@ impl Disguiser {
                     }
                 }
                 drop(locked_items);
+                let mut locked_tokens = my_remove_tokens.write().unwrap();
+                locked_tokens.extend(matching_remove_tokens);
+                drop(locked_tokens);
             }));
         }
 
