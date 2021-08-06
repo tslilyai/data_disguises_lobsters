@@ -81,11 +81,11 @@ impl TokenCtrler {
         token.is_global = true;
         warn!(
             "Inserting global token disguise {} user {}",
-            token.disguise_id, token.user_id
+            token.did, token.uid
         );
         if let Some(user_disguise_tokens) = self
             .global_vault
-            .get_mut(&(token.disguise_id, token.user_id))
+            .get_mut(&(token.did, token.uid))
         {
             let tokens = user_disguise_tokens.write().unwrap();
             tokens.insert(token.clone());
@@ -93,7 +93,7 @@ impl TokenCtrler {
             let mut hs = HashSet::new();
             hs.insert(token.clone());
             self.global_vault.insert(
-                (token.disguise_id, token.user_id),
+                (token.did, token.uid),
                 Arc::new(RwLock::new(hs
             )));
         }
@@ -101,8 +101,8 @@ impl TokenCtrler {
 
     pub fn insert_user_token(&mut self, token_type: TokenType, token: &mut Token) {
         token.is_global = false;
-        let did = token.disguise_id;
-        let uid = token.user_id;
+        let did = token.did;
+        let uid = token.uid;
         let p = self
             .principal_tokens
             .get_mut(&uid)
@@ -227,9 +227,9 @@ impl TokenCtrler {
         anon_uid
     }
 
-    pub fn move_global_tokens_to_user_vault(&mut self, tokens: HashSet<Token>) {
-        for token in tokens.iter() {
-            if let Some(global_tokens) = self.global_vault.get(&(token.disguise_id, token.user_id)) {
+    pub fn move_global_tokens_to_user_vault(&mut self, tokens: Vec<Token>) {
+        for token in &tokens {
+            if let Some(global_tokens) = self.global_vault.get(&(token.did, token.uid)) {
                 let gts = global_tokens.write().unwrap();
                 gts.remove(token);
                 drop(gts);
@@ -241,7 +241,7 @@ impl TokenCtrler {
     pub fn get_global_tokens(&self, uid: UID, did: DID) -> Vec<Token> {
         if let Some(global_tokens) = self.global_vault.get(&(did, uid)) {
             let tokens = global_tokens.read().unwrap();
-            return (*tokens).into_iter().collect();
+            return (*tokens).into_iter().filter(|t| !t.revealed).collect();
         }
         vec![]
     }
@@ -285,8 +285,8 @@ impl TokenCtrler {
                             }
                             warn!(
                                 "cd tokens uid {} disguise {} pushed to len {}",
-                                token.user_id,
-                                token.disguise_id,
+                                token.uid,
+                                token.did,
                                 cd_tokens.len()
                             );
 
@@ -332,7 +332,7 @@ impl TokenCtrler {
             let mut new_symkeys = HashSet::new();
             for pk_token in &privkey_tokens {
                 let priv_key = RsaPrivateKey::from_pkcs1_der(&pk_token.priv_key).unwrap();
-                new_symkeys.extend(self.get_all_principal_symkeys(pk_token.new_user_id, priv_key));
+                new_symkeys.extend(self.get_all_principal_symkeys(pk_token.new_uid, priv_key));
             }
             cd_tokens.extend(self.get_tokens(&new_symkeys));
             warn!("cd tokens extended to len {}", cd_tokens.len());
@@ -668,7 +668,7 @@ mod tests {
                 assert_eq!(cdtokens.len(), 2);
                 assert_eq!(cdtokens[0].old_fk_value, old_fk_value + d);
                 assert_eq!(cdtokens[0].new_fk_value, new_fk_value + d);
-                assert!(cdtokens[1].user_id != u);
+                assert!(cdtokens[1].uid != u);
                 assert_eq!(cdtokens[1].referencer_name, format!("{}", d));
             }
         }

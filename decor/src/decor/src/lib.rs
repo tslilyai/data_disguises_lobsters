@@ -72,17 +72,17 @@ impl EdnaClient {
         tokens: Vec<tokens::Token>,
     ) -> Result<(), mysql::Error> {
         self.disguiser.apply(disguise.clone(), tokens)?;
-        warn!("EDNA: Applied Disguise {}", disguise.clone().disguise_id);
+        warn!("EDNA: Applied Disguise {}", disguise.clone().did);
         Ok(())
     }
 
     pub fn reverse_disguise(
         &mut self,
         disguise: Arc<disguise::Disguise>,
-        tokens: Vec<Arc<RwLock<tokens::Token>>>,
+        tokens: Vec<tokens::Token>,
     ) -> Result<(), mysql::Error> {
         self.disguiser.reverse(disguise.clone(), tokens)?;
-        warn!("EDNA: Applied Disguise {}", disguise.clone().disguise_id);
+        warn!("EDNA: Applied Disguise {}", disguise.clone().did);
         Ok(())
     }
 

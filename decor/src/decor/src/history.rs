@@ -8,8 +8,8 @@ pub const HISTORY_TABLE: &'static str = "DisguiseHistory";
 
 #[derive(Default)]
 pub struct DisguiseEntry {
-    pub disguise_id: u64,
-    pub user_id: u64,
+    pub did: u64,
+    pub uid: u64,
     pub reverse: bool,
 }
 
@@ -24,12 +24,12 @@ pub fn is_disguise_reversed(
     let equal_uid_constraint = Expr::BinaryOp {
         left: Box::new(Expr::Identifier(vec![Ident::new("userId")])),
         op: BinaryOperator::Eq,
-        right: Box::new(Expr::Value(Value::Number(de.user_id.to_string()))),
+        right: Box::new(Expr::Value(Value::Number(de.uid.to_string()))),
     };
     let disguise_constraint = Expr::BinaryOp {
         left: Box::new(Expr::Identifier(vec![Ident::new("disguiseId")])),
         op: BinaryOperator::Eq,
-        right: Box::new(Expr::Value(Value::Number(de.disguise_id.to_string()))),
+        right: Box::new(Expr::Value(Value::Number(de.did.to_string()))),
     };
     let constraint = Expr::BinaryOp {
         left: Box::new(equal_uid_constraint),
@@ -59,8 +59,8 @@ pub fn insert_disguise_history_entry(
     stats: Arc<Mutex<QueryStat>>,
 ) {
     let mut evals = vec![];
-    evals.push(Expr::Value(Value::Number(de.disguise_id.to_string())));
-    evals.push(Expr::Value(Value::Number(de.user_id.to_string())));
+    evals.push(Expr::Value(Value::Number(de.did.to_string())));
+    evals.push(Expr::Value(Value::Number(de.uid.to_string())));
     evals.push(Expr::Value(Value::Boolean(de.reverse)));
     query_drop(
         Statement::Insert(InsertStatement {

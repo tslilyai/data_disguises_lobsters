@@ -2,7 +2,6 @@ use crate::helpers::*;
 use crate::{DID, UID};
 use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::hash::{Hash, Hasher};
 
 pub const INSERT_GUISE: u64 = 0;
@@ -10,8 +9,6 @@ pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
 pub const UPDATE_GUISE: u64 = 3;
 pub const PRIV_KEY: u64 = 4;
-
-pub static TOKEN_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone)]
 pub enum TokenType {
@@ -23,8 +20,8 @@ pub enum TokenType {
 pub struct Token {
     // metadata set by Edna
     pub token_id: u64,
-    pub disguise_id: DID,
-    pub user_id: UID,
+    pub did: DID,
+    pub uid: UID,
     pub update_type: u64,
     pub revealed: bool,
     pub is_global: bool,
@@ -47,7 +44,7 @@ pub struct Token {
 
     // PRIV_KEY
     pub priv_key: Vec<u8>,
-    pub new_user_id: UID,
+    pub new_uid: UID,
 
     // for randomness
     pub nonce: u64,
@@ -65,12 +62,12 @@ impl Hash for Token {
 impl Token {
     pub fn new_privkey_token(did: DID, uid: UID, new_uid: UID, priv_key: &RsaPrivateKey) -> Token {
         let mut token: Token = Default::default();
-        token.user_id = uid;
-        token.disguise_id = did;
+        token.uid = uid;
+        token.did = did;
         token.update_type = PRIV_KEY;
         token.revealed = false;
         token.priv_key = priv_key.to_pkcs1_der().unwrap().as_der().to_vec();
-        token.new_user_id = new_uid;
+        token.new_uid = new_uid;
         token
     }
 
@@ -84,8 +81,8 @@ impl Token {
         new_value: Vec<RowVal>,
     ) -> Token {
         let mut token: Token = Default::default();
-        token.user_id = uid;
-        token.disguise_id = did;
+        token.uid = uid;
+        token.did = did;
         token.update_type = DECOR_GUISE;
         token.revealed = false;
         token.guise_name = guise_name;
@@ -104,8 +101,8 @@ impl Token {
         old_value: Vec<RowVal>,
     ) -> Token {
         let mut token: Token = Default::default();
-        token.user_id = uid;
-        token.disguise_id = did;
+        token.uid = uid;
+        token.did = did;
         token.update_type = REMOVE_GUISE;
         token.revealed = false;
         token.guise_name = guise_name;
@@ -123,8 +120,8 @@ impl Token {
         new_value: Vec<RowVal>,
     ) -> Token {
         let mut token: Token = Default::default();
-        token.user_id = uid;
-        token.disguise_id = did;
+        token.uid = uid;
+        token.did = did;
         token.update_type = UPDATE_GUISE;
         token.revealed = false;
         token.guise_name = guise_name;
@@ -143,8 +140,8 @@ impl Token {
         new_value: Vec<RowVal>,
     ) -> Token {
         let mut token: Token = Default::default();
-        token.user_id = uid;
-        token.disguise_id = did;
+        token.uid = uid;
+        token.did = did;
         token.update_type = INSERT_GUISE;
         token.revealed = false;
         token.guise_name = guise_name;
@@ -194,7 +191,7 @@ impl Token {
     ) -> Result<(), mysql::Error> {
         warn!(
             "Recorrelating guise of table {} to {}, user {}",
-            self.guise_name, self.fk_name, self.user_id
+            self.guise_name, self.fk_name, self.uid
         );
 
         // this may be none if this token entry is an insert, and not a modification

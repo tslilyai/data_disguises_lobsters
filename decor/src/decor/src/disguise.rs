@@ -55,7 +55,7 @@ pub struct User {
 }
 
 pub struct Disguise {
-    pub disguise_id: u64,
+    pub did: u64,
     pub user: Option<User>,
     pub table_disguises: HashMap<String, Arc<RwLock<TableDisguise>>>,
     pub guise_gen: HashMap<String, Arc<RwLock<GuiseGen>>>,
@@ -112,11 +112,11 @@ impl Disguiser {
         tokens: Vec<Token>,
     ) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {
-            user_id: match &disguise.user {
+            uid: match &disguise.user {
                 Some(u) => u.id,
                 None => 0,
             },
-            disguise_id: disguise.disguise_id,
+            did: disguise.did,
             reverse: false,
         };
 
@@ -146,11 +146,11 @@ impl Disguiser {
             let my_items = self.items.clone();
             let my_fkcols = fk_cols.clone();
 
-            let user_id = match &disguise.user {
+            let uid = match &disguise.user {
                 Some(u) => u.id,
                 None => 0,
             };
-            let disguise_id = disguise.disguise_id;
+            let did = disguise.did;
             let guise_info = disguise.guise_info.clone();
 
             threads.push(thread::spawn(move || {
@@ -293,7 +293,7 @@ impl Disguiser {
          * */
         // XXX insert a vault entry for every owning user (every fk)
         // should just update for the calling user, if there is one?
-                                if !t.permanent {
+                                if !t.thirdparty_revealable {
                                     warn!("Modify: Getting ids of table {} for {:?}", table.name, i);
                                     let new_obj: Vec<RowVal> = i
                                         .iter()
@@ -315,7 +315,7 @@ impl Disguiser {
         for owner_col in &table.owner_cols {
             let uid = get_value_of_col(&i, &owner_col).unwrap();
             let uid64 = u64::from_str(&uid).unwrap();
-            let should_insert = user_id == 0 || user_id == uid64;
+            let should_insert = uid == 0 || uid == uid64;
             if should_insert {
             };
         }*/
@@ -397,8 +397,8 @@ impl Disguiser {
             let pool = self.pool.clone();
             let mystats = self.stats.clone();
             let my_delete = self.to_delete.clone();
-            let disguise_id = disguise.disguise_id;
-            let user_id = match &disguise.user {
+            let did = disguise.did;
+            let uid = match &disguise.user {
                 Some(u) => u.id,
                 None => 0,
             };
@@ -406,52 +406,77 @@ impl Disguiser {
             let mut items_of_table: HashMap<Vec<RowVal>, Vec<Transform>> = HashMap::new();
 
             threads.push(thread::spawn(move || {
-                let table = table_disguise.read().unwrap();
+                let td = table_disguise.read().unwrap();
                 let mut conn = pool.get_conn().unwrap();
                 let mut removed_items: HashSet<Vec<RowVal>> = HashSet::new();
                 let mut decorrelated_items: HashSet<(String, Vec<RowVal>)> = HashSet::new();
 
                 // get transformations in order of disguise application
                 // (so vault transforms are always first)
-                let mut transforms = vec![];
-
-                for t in transforms {
+                for t in td.transforms {
+                    let selection = predicate::pred_to_sql_where(t.pred);
                     let pred_items = get_query_rows_str(
-                        &str_select_statement(&table.name, &t.pred),
+                        &str_select_statement(&td.name, &selection),
                         &mut conn,
                         mystats.clone(),
                     )
                     .unwrap();
 
+                    // TOKENS:
+                    // get tokens that match the predicate 
+                    let pred_tokens = predicate::get_tokens_matching_pred(t.pred, tokens);
+
+                    // move any tokens in global vault to user vault if this
+                    // transformation is only 1p-revealable
+                    if !t.thirdparty_revealable {
+                        self.token_ctrler.move_global_tokens_to_user_vault(pred_tokens);
+                    }
+
+                    // add the new values that should be transformed into the set of predicated items
+                    for pt in pred_tokens {
+                        match pt.update_type {
+                            DECOR_GUISE | UPDATE_GUISE => pred_items.push(pt.new_value),
+                            _ => ()
+                        }
+                    }
+
                     // just remove item if it's supposed to be removed
                     match &*t.trans.read().unwrap() {
                         TransformArgs::Remove => {
-                            // we're going to remove these, but may later restore them, remember in vault
                             for i in &pred_items {
                                 if removed_items.contains(i) {
                                     continue;
                                 }
-                                debug!("Remove: Getting ids of table {} for {:?}", table.name, i);
-                                if !t.permanent {
-                                    let ids = get_ids(&table.id_cols, i);
-                                    for owner_col in &table.owner_cols {
-                                        let uid = get_value_of_col(&i, &owner_col).unwrap();
-                                        let uid64 = u64::from_str(&uid).unwrap();
-                                        let should_insert = user_id == uid64 || user_id == 0;
-                                        if should_insert {
-                                            // TODO
-                                        }
+                                debug!("Remove: Getting ids of table {} for {:?}", td.name, i);
+                                let ids = get_ids(&td.id_cols, i);
+                                
+                                // TOKENS: create remove token and insert into either global or user vault 
+                                let mut token = Token::new_delete_token(
+                                    did,
+                                    0,
+                                    td.name.clone(),
+                                    ids.clone(),
+                                    i.clone(),
+                                );
+                                for owner_col in &td.owner_cols {
+                                    let uid = get_value_of_col(&i, &owner_col).unwrap();
+                                    token.uid = u64::from_str(&uid).unwrap();
+                                    if t.thirdparty_revealable {
+                                        self.token_ctrler.insert_global_token(&mut token);
+                                    } else {
+                                        self.token_ctrler.insert_user_token(TokenType::Data, &mut token);
                                     }
                                 }
+
                                 // EXTRA: save in removed so we don't transform this item further
                                 items_of_table.remove(i);
                                 removed_items.insert(i.to_vec());
                             }
-                            // remember to delete this
+                            // remember to delete the item
                             my_delete
                                 .lock()
                                 .unwrap()
-                                .push(format!("DELETE FROM {} WHERE {}", table.name, t.pred));
+                                .push(format!("DELETE FROM {} WHERE {}", td.name, selection));
                         }
                         TransformArgs::Decor { referencer_col, .. } => {
                             for i in pred_items {
@@ -486,10 +511,10 @@ impl Disguiser {
                     }
                 }
                 let mut locked_items = my_items.write().unwrap();
-                match locked_items.get_mut(&table.name) {
+                match locked_items.get_mut(&td.name) {
                     Some(hm) => hm.extend(items_of_table),
                     None => {
-                        locked_items.insert(table.name.clone(), items_of_table);
+                        locked_items.insert(td.name.clone(), items_of_table);
                     }
                 }
                 drop(locked_items);
@@ -507,11 +532,11 @@ impl Disguiser {
 
     pub fn reverse(&self, disguise: Arc<Disguise>, tokens: Vec<Token>) -> Result<(), mysql::Error> {
         let de = history::DisguiseEntry {
-            user_id: match &disguise.user {
+            uid: match &disguise.user {
                 Some(u) => u.id,
                 None => 0,
             },
-            disguise_id: disguise.disguise_id,
+            did: disguise.did,
             reverse: true,
         };
 

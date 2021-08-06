@@ -28,10 +28,12 @@ pub fn get_value_of_col(row: &Vec<RowVal>, col: &str) -> Option<String> {
     None
 }
 
-pub fn get_ids(id_cols: &Vec<String>, row: &Vec<RowVal>) -> Vec<String> {
+pub fn get_ids(id_cols: &Vec<String>, row: &Vec<RowVal>) -> Vec<RowVal> {
     id_cols
         .iter()
-        .map(|id_col| get_value_of_col(row, &id_col).unwrap())
+        .map(|id_col| RowVal {
+            column: id_col.clone(),
+            value: get_value_of_col(row, &id_col).unwrap()})
         .collect()
 }
 
@@ -42,7 +44,7 @@ pub fn get_select_of_row(id_cols: &Vec<String>, row: &Vec<RowVal>) -> Expr {
         let eq_selection = Expr::BinaryOp {
             left: Box::new(Expr::Identifier(vec![Ident::new(id_cols[i].clone())])),
             op: BinaryOperator::Eq,
-            right: Box::new(Expr::Value(Value::String(id.to_string()))),
+            right: Box::new(Expr::Value(Value::String(id.value))),
         };
         selection = Expr::BinaryOp {
             left: Box::new(selection),
