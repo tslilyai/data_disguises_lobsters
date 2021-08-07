@@ -516,6 +516,23 @@ impl Disguiser {
                                 }
                                 decorrelated_items.insert((referencer_col.clone(), i.clone()));
                             }
+
+                            for (token, ts) in matching_remove_tokens.iter() {
+                                // don't decorrelate token if removed
+                                if removed_items.contains(&token.old_value) {
+                                    matching_remove_tokens.remove(token);
+                                    continue;
+                                }
+                                // don't decorrelate twice
+                                if decorrelated_items
+                                        .contains(&(referencer_col.clone(), token.old_value))
+                                {
+                                    continue;
+                                }
+                                // save the transformation to perform on this token
+                                ts.push(t.clone());
+                                decorrelated_items.insert((referencer_col.clone(), token.old_value.clone()));
+                            }
                         }
                         _ => {
                             for i in pred_items {
@@ -529,6 +546,15 @@ impl Disguiser {
                                 } else {
                                     items_of_table.insert(i, vec![t.clone()]);
                                 }
+                            }
+                            for (token, ts) in matching_remove_tokens.iter() {
+                                // don'modify decorrelate token if removed
+                                if removed_items.contains(&token.old_value) {
+                                    matching_remove_tokens.remove(token);
+                                    continue;
+                                }
+                                // save the transformation to perform on this token
+                                ts.push(t.clone());
                             }
                         }
                     }
