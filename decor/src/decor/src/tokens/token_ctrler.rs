@@ -83,19 +83,14 @@ impl TokenCtrler {
             "Inserting global token disguise {} user {}",
             token.did, token.uid
         );
-        if let Some(user_disguise_tokens) = self
-            .global_vault
-            .get_mut(&(token.did, token.uid))
-        {
-            let tokens = user_disguise_tokens.write().unwrap();
+        if let Some(user_disguise_tokens) = self.global_vault.get_mut(&(token.did, token.uid)) {
+            let mut tokens = user_disguise_tokens.write().unwrap();
             tokens.insert(token.clone());
         } else {
             let mut hs = HashSet::new();
             hs.insert(token.clone());
-            self.global_vault.insert(
-                (token.did, token.uid),
-                Arc::new(RwLock::new(hs
-            )));
+            self.global_vault
+                .insert((token.did, token.uid), Arc::new(RwLock::new(hs)));
         }
     }
 
@@ -227,13 +222,13 @@ impl TokenCtrler {
         anon_uid
     }
 
-    pub fn move_global_tokens_to_user_vault(&mut self, tokens: Vec<Token>) {
-        for token in &tokens {
+    pub fn move_global_tokens_to_user_vault(&mut self, tokens: &Vec<Token>) {
+        for token in tokens {
             if let Some(global_tokens) = self.global_vault.get(&(token.did, token.uid)) {
-                let gts = global_tokens.write().unwrap();
+                let mut gts = global_tokens.write().unwrap();
                 gts.remove(token);
                 drop(gts);
-                self.insert_user_token(TokenType::Data, &mut token);
+                self.insert_user_token(TokenType::Data, &mut token.clone());
             }
         }
     }
@@ -241,7 +236,7 @@ impl TokenCtrler {
     pub fn get_global_tokens(&self, uid: UID, did: DID) -> Vec<Token> {
         if let Some(global_tokens) = self.global_vault.get(&(did, uid)) {
             let tokens = global_tokens.read().unwrap();
-            return (*tokens).into_iter().filter(|t| !t.revealed).collect();
+            return tokens.clone().into_iter().filter(|t| !t.revealed).collect();
         }
         vec![]
     }
@@ -422,9 +417,14 @@ mod tests {
             guise_name,
             guise_ids,
             referenced_name,
-            old_fk_value,
-            new_fk_value,
-            fk_col,
+            vec![RowVal {
+                column: fk_col.clone(),
+                value: old_fk_value.to_string(),
+            }],
+            vec![RowVal {
+                column: fk_col.clone(),
+                value: new_fk_value.to_string(),
+            }],
         );
         ctrler.insert_global_token(&mut decor_token);
         assert_eq!(ctrler.global_vault.len(), 1);
@@ -458,9 +458,14 @@ mod tests {
             guise_name,
             guise_ids,
             referenced_name,
-            old_fk_value,
-            new_fk_value,
-            fk_col,
+            vec![RowVal {
+                column: fk_col.clone(),
+                value: old_fk_value.to_string(),
+            }],
+            vec![RowVal {
+                column: fk_col.clone(),
+                value: new_fk_value.to_string(),
+            }],
         );
         ctrler.insert_user_token(TokenType::Data, &mut decor_token);
         ctrler.end_disguise();
@@ -528,9 +533,14 @@ mod tests {
                         guise_name.clone(),
                         guise_ids.clone(),
                         referenced_name.clone(),
-                        old_fk_value + i,
-                        new_fk_value + i,
-                        fk_col.clone(),
+                        vec![RowVal {
+                            column: fk_col.clone(),
+                            value: (old_fk_value + i).to_string(),
+                        }],
+                        vec![RowVal {
+                            column: fk_col.clone(),
+                            value: (new_fk_value + i).to_string(),
+                        }],
                     );
                     ctrler.insert_user_token(TokenType::Data, &mut decor_token);
                 }
@@ -570,13 +580,13 @@ mod tests {
                 assert_eq!(cdtokens.len(), (iters as usize));
                 for i in 0..iters {
                     assert_eq!(
-                        cdtokens[i as usize].old_fk_value,
-                        old_fk_value + (iters - i - 1) as u64
-                    );
+                        cdtokens[i as usize].old_value[0].value,
+                        (old_fk_value + (iters - i - 1) as u64
+                    ).to_string());
                     assert_eq!(
-                        cdtokens[i as usize].new_fk_value,
-                        new_fk_value + (iters - i - 1) as u64
-                    );
+                        cdtokens[i as usize].new_value[0].value,
+                        (new_fk_value + (iters - i - 1) as u64
+                    ).to_string());
                 }
             }
         }
@@ -614,9 +624,14 @@ mod tests {
                     guise_name.clone(),
                     guise_ids.clone(),
                     referenced_name.clone(),
-                    old_fk_value + d,
-                    new_fk_value + d,
-                    fk_col.clone(),
+                    vec![RowVal {
+                        column: fk_col.clone(),
+                        value: (old_fk_value + d).to_string(),
+                    }],
+                    vec![RowVal {
+                        column: fk_col.clone(),
+                        value: (new_fk_value + d).to_string(),
+                    }],
                 );
                 ctrler.insert_user_token(TokenType::Data, &mut decor_token);
 
@@ -666,8 +681,8 @@ mod tests {
                 // get tokens
                 let cdtokens = ctrler.get_tokens(&hs);
                 assert_eq!(cdtokens.len(), 2);
-                assert_eq!(cdtokens[0].old_fk_value, old_fk_value + d);
-                assert_eq!(cdtokens[0].new_fk_value, new_fk_value + d);
+                assert_eq!(cdtokens[0].old_value[0].value, (old_fk_value + d).to_string());
+                assert_eq!(cdtokens[0].new_value[0].value, (new_fk_value + d).to_string());
                 assert!(cdtokens[1].uid != u);
                 assert_eq!(cdtokens[1].referencer_name, format!("{}", d));
             }

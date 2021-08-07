@@ -5,7 +5,7 @@ use log::{debug, warn};
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::*;
 
 mod disguise;

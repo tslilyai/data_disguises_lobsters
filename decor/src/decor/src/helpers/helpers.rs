@@ -44,7 +44,7 @@ pub fn get_select_of_row(id_cols: &Vec<String>, row: &Vec<RowVal>) -> Expr {
         let eq_selection = Expr::BinaryOp {
             left: Box::new(Expr::Identifier(vec![Ident::new(id_cols[i].clone())])),
             op: BinaryOperator::Eq,
-            right: Box::new(Expr::Value(Value::String(id.value))),
+            right: Box::new(Expr::Value(Value::String(id.value.clone()))),
         };
         selection = Expr::BinaryOp {
             left: Box::new(selection),

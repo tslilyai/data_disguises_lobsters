@@ -8,12 +8,6 @@ use std::*;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PredClause {
-    ColValEq {
-        col: String,
-        val: String,
-        neg: bool,
-    },
-
     ColInList {
         col: String,
         vals: Vec<String>,
@@ -77,7 +71,7 @@ impl ToString for PredClause {
     }
 }
 
-pub fn pred_to_sql_where(pred: Vec<Vec<PredClause>>) -> String {
+pub fn pred_to_sql_where(pred: &Vec<Vec<PredClause>>) -> String {
     let mut ors = vec![];
     for and_clauses in pred {
         let mut ands = vec![];
@@ -89,22 +83,20 @@ pub fn pred_to_sql_where(pred: Vec<Vec<PredClause>>) -> String {
     ors.join(" OR ")
 }
 
-pub fn get_tokens_matching_pred(pred: Vec<Vec<PredClause>>, tokens: Vec<Token>) -> Vec<Token> {
+pub fn get_tokens_matching_pred(pred: &Vec<Vec<PredClause>>, tokens: &Vec<Token>) -> Vec<Token> {
     let mut matching = vec![];
     for t in tokens {
         if match t.update_type {
-            REMOVE_GUISE => predicate_applies_to_row(pred, &t.old_value),
-            DECOR_GUISE => predicate_applies_to_row(pred, &t.old_value),
-            MODIFY_GUISE => predicate_applies_to_row(pred, &t.old_value),
+            REMOVE_GUISE | DECOR_GUISE | UPDATE_GUISE => predicate_applies_to_row(pred, &t.old_value),
             _ => false,
         } {
-            matching.push(t);
+            matching.push(t.clone());
         }
     }
     matching
 }
 
-pub fn predicate_applies_to_row(p: Vec<Vec<PredClause>>, row: &Vec<RowVal>) -> bool {
+pub fn predicate_applies_to_row(p: &Vec<Vec<PredClause>>, row: &Vec<RowVal>) -> bool {
     let mut found_true = false;
     for and_clauses in p {
         let mut all_true = true;
@@ -122,9 +114,9 @@ pub fn predicate_applies_to_row(p: Vec<Vec<PredClause>>, row: &Vec<RowVal>) -> b
     found_true
 }
 
-pub fn clause_applies_to_row(p: PredClause, row: &Vec<RowVal>) -> bool {
+pub fn clause_applies_to_row(p: &PredClause, row: &Vec<RowVal>) -> bool {
     use PredClause::*;
-    let matches = match &p {
+    let matches = match p {
         ColInList { col, vals, neg } => {
             let found = match row.iter().find(|rv| &rv.column == col) {
                 Some(rv) => vals.iter().find(|v| v.to_string() == rv.value).is_some(),
