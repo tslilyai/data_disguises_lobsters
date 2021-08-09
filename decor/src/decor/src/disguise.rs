@@ -100,8 +100,15 @@ impl Disguiser {
         encsymkeys
     }
 
-    pub fn get_tokens_of_disguise_keys(&mut self, keys: HashSet<ListSymKey>) -> Vec<tokens::Token> {
-        self.token_ctrler.lock().unwrap().get_tokens(&keys)
+    pub fn get_tokens_of_disguise_keys(
+        &mut self,
+        keys: HashSet<ListSymKey>,
+        for_disguise_action: bool,
+    ) -> Vec<tokens::Token> {
+        self.token_ctrler
+            .lock()
+            .unwrap()
+            .get_tokens(&keys, for_disguise_action)
     }
 
     pub fn apply(
@@ -121,9 +128,9 @@ impl Disguiser {
         let mut conn = self.pool.get_conn()?;
         let mut threads = vec![];
         let uid = match &disguise.user {
-                Some(u) => u.id,
-                None => 0,
-            };
+            Some(u) => u.id,
+            None => 0,
+        };
         let did = disguise.did;
 
         /*
@@ -147,7 +154,6 @@ impl Disguiser {
             // clone disguise fields
             let my_table_info = disguise.table_info.clone();
             let my_guise_gen = disguise.guise_gen.clone();
-            
 
             threads.push(thread::spawn(move || {
                 let mut conn = pool.get_conn().unwrap();
@@ -298,12 +304,15 @@ impl Disguiser {
                             (*(generate_modified_value))(&old_val),
                             &token.old_value,
                         );
-
                     }
                     _ => unimplemented!("Removes of remove tokens should not be performed!"),
                 }
+                // TODO apply cols_to_update
+                for a in &cols_to_update {
+                    let col = a.id.to_string();
+                    let val = a.value.to_string();
+                }
             }
-            // TODO apply cols_to_update
         }
 
         // wait until all mysql queries are done
@@ -541,7 +550,7 @@ impl Disguiser {
                 let mut removed_items: HashSet<Vec<RowVal>> = HashSet::new();
                 let mut decorrelated_items: HashSet<(String, Vec<RowVal>)> = HashSet::new();
                 let my_transforms = transforms.read().unwrap();
-                let locked_table_info= my_table_info.read().unwrap();
+                let locked_table_info = my_table_info.read().unwrap();
                 let curtable_info = locked_table_info.get(&table).unwrap().clone();
                 drop(locked_table_info);
 
@@ -562,7 +571,7 @@ impl Disguiser {
                     // TOKEN MOVE: move any tokens in global vault to user vault if this
                     // transformation is only 1p-revealable
                     if !t.thirdparty_revealable {
-                        let mut locked_token_ctrler= my_token_ctrler.lock().unwrap();
+                        let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
                         locked_token_ctrler.move_global_tokens_to_user_vault(&pred_tokens);
                         drop(locked_token_ctrler);
                     }

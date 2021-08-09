@@ -10,6 +10,7 @@ use rsa::pkcs1::FromRsaPrivateKey;
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::iter::repeat;
 use std::sync::{Arc, RwLock};
 
@@ -29,11 +30,18 @@ pub struct EncListSymKey {
     pub did: DID,
 }
 
-#[derive(Clone, Hash, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct ListSymKey {
-    pub symkey: Vec<u8>,
     pub uid: UID,
     pub did: DID,
+    pub symkey: Vec<u8>,
+}
+
+impl Hash for ListSymKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.uid.hash(state);
+        self.did.hash(state);
+    }
 }
 
 #[derive(Clone)]
@@ -43,7 +51,6 @@ pub struct PrincipalData {
     cd_lists: HashMap<DID, EncListTail>,
     privkey_lists: HashMap<DID, EncListTail>,
     pubkey: RsaPublicKey,
-    tmp_symkeys: HashMap<DID, Vec<u8>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -64,6 +71,8 @@ pub struct TokenCtrler {
 
     pub rng: OsRng,
     pub hasher: Sha256,
+    
+    pub tmp_symkeys: HashMap<(UID, DID), ListSymKey>,
 }
 
 impl TokenCtrler {
@@ -74,6 +83,7 @@ impl TokenCtrler {
             global_vault: HashMap::new(),
             rng: OsRng,
             hasher: Sha256::new(),
+            tmp_symkeys: HashMap::new(),
         }
     }
 
@@ -104,14 +114,18 @@ impl TokenCtrler {
             .expect("no user with uid found?");
 
         // get the symmetric key being used for this disguise
-        let symkey = match p.tmp_symkeys.get(&did) {
+        let symkey = match self.tmp_symkeys.get(&(uid, did)) {
             // if there's a symkey already, use it
-            Some(sk) => sk.clone(),
+            Some(sk) => sk.symkey.clone(),
             // otherwise generate it (and save it temporarily)
             None => {
                 let mut key: Vec<u8> = repeat(0u8).take(16).collect();
                 self.rng.fill_bytes(&mut key[..]);
-                p.tmp_symkeys.insert(did, key.clone());
+                self.tmp_symkeys.insert((uid, did), ListSymKey {
+                    symkey: key.clone(),
+                    uid: uid,
+                    did: did,
+                });
                 key
             }
         };
@@ -181,10 +195,8 @@ impl TokenCtrler {
     }
 
     // XXX note this doesn't allow for concurrent disguising right now
-    pub fn end_disguise(&mut self) {
-        for (_pid, p) in &mut self.principal_tokens {
-            p.tmp_symkeys.clear();
-        }
+    pub fn clear_symkeys(&mut self) {
+        self.tmp_symkeys.clear();
     }
 
     pub fn register_principal(&mut self, uid: u64, pubkey: &RsaPublicKey) {
@@ -194,7 +206,6 @@ impl TokenCtrler {
                 cd_lists: HashMap::new(),
                 privkey_lists: HashMap::new(),
                 pubkey: pubkey.clone(),
-                tmp_symkeys: HashMap::new(),
             },
         );
     }
@@ -213,7 +224,6 @@ impl TokenCtrler {
                 cd_lists: HashMap::new(),
                 privkey_lists: HashMap::new(),
                 pubkey: pub_key,
-                tmp_symkeys: HashMap::new(),
             },
         );
 
@@ -233,6 +243,13 @@ impl TokenCtrler {
         }
     }
 
+    pub fn update_token_to(&mut self, token: &Token) {
+        let symkey = match self.tmp_symkeys.get(&(token.uid, token.did)) {
+            Some(sk) => sk,
+            None => unimplemented!("Token to update should have been decrypted first!"),
+        };
+    }
+
     pub fn get_global_tokens(&self, uid: UID, did: DID) -> Vec<Token> {
         if let Some(global_tokens) = self.global_vault.get(&(did, uid)) {
             let tokens = global_tokens.read().unwrap();
@@ -241,9 +258,15 @@ impl TokenCtrler {
         vec![]
     }
 
-    pub fn get_tokens(&mut self, symkeys: &HashSet<ListSymKey>) -> Vec<Token> {
+    pub fn get_tokens(&mut self, symkeys: &HashSet<ListSymKey>, save_keys: bool) -> Vec<Token> {
         let mut cd_tokens = vec![];
+
         for symkey in symkeys {
+            if save_keys {
+                // save symkeys for later in the disguise
+                self.tmp_symkeys.insert((symkey.uid, symkey.did), symkey.clone());
+            }
+
             let p = self
                 .principal_tokens
                 .get(&symkey.uid)
@@ -329,7 +352,7 @@ impl TokenCtrler {
                 let priv_key = RsaPrivateKey::from_pkcs1_der(&pk_token.priv_key).unwrap();
                 new_symkeys.extend(self.get_all_principal_symkeys(pk_token.new_uid, priv_key));
             }
-            cd_tokens.extend(self.get_tokens(&new_symkeys));
+            cd_tokens.extend(self.get_tokens(&new_symkeys, save_keys));
             warn!("cd tokens extended to len {}", cd_tokens.len());
         }
         cd_tokens
@@ -576,17 +599,17 @@ mod tests {
                 });
 
                 // get tokens
-                let cdtokens = ctrler.get_tokens(&hs);
+                let cdtokens = ctrler.get_tokens(&hs, true);
                 assert_eq!(cdtokens.len(), (iters as usize));
                 for i in 0..iters {
                     assert_eq!(
                         cdtokens[i as usize].old_value[0].value,
-                        (old_fk_value + (iters - i - 1) as u64
-                    ).to_string());
+                        (old_fk_value + (iters - i - 1) as u64).to_string()
+                    );
                     assert_eq!(
                         cdtokens[i as usize].new_value[0].value,
-                        (new_fk_value + (iters - i - 1) as u64
-                    ).to_string());
+                        (new_fk_value + (iters - i - 1) as u64).to_string()
+                    );
                 }
             }
         }
@@ -679,10 +702,16 @@ mod tests {
                 });
 
                 // get tokens
-                let cdtokens = ctrler.get_tokens(&hs);
+                let cdtokens = ctrler.get_tokens(&hs, true);
                 assert_eq!(cdtokens.len(), 2);
-                assert_eq!(cdtokens[0].old_value[0].value, (old_fk_value + d).to_string());
-                assert_eq!(cdtokens[0].new_value[0].value, (new_fk_value + d).to_string());
+                assert_eq!(
+                    cdtokens[0].old_value[0].value,
+                    (old_fk_value + d).to_string()
+                );
+                assert_eq!(
+                    cdtokens[0].new_value[0].value,
+                    (new_fk_value + d).to_string()
+                );
                 assert!(cdtokens[1].uid != u);
                 assert_eq!(cdtokens[1].referencer_name, format!("{}", d));
             }

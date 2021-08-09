@@ -62,8 +62,9 @@ impl EdnaClient {
     pub fn get_tokens_of_disguise_keys(
         &mut self,
         keys: HashSet<tokens::ListSymKey>,
+        for_disguise_action: bool,
     ) -> Vec<tokens::Token> {
-        self.disguiser.get_tokens_of_disguise_keys(keys)
+        self.disguiser.get_tokens_of_disguise_keys(keys, for_disguise_action)
     }
 
     pub fn apply_disguise(
