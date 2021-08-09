@@ -20,9 +20,8 @@ pub enum TransformArgs {
         satisfies_modification: Box<dyn Fn(&str) -> bool + Send + Sync>,
     },
     Decor {
-        referencer_col: String,
-        fk_name: String,
         fk_col: String,
+        fk_name: String,
     },
 }
 
@@ -123,14 +122,14 @@ impl Disguiser {
         let mut threads = vec![];
 
         /*
-         * PHASE 1: PREDICATE AND REMOVE
+         * PREDICATE AND REMOVE
          */
         // get all the objects, remove the objects to remove
         // integrate vault_transforms into disguise read + write phases
         self.select_predicate_objs_and_execute_removes(disguise.clone(), tokens);
 
         /*
-         * PHASE 3: UPDATE/DECOR
+         * UPDATE/DECOR
          */
         for (table, transforms) in disguise.table_disguises.clone() {
             // clone disguiser fields
@@ -174,136 +173,29 @@ impl Disguiser {
                     let i_select = get_select_of_row(&curtable_info.id_cols, &i);
                     for t in ts {
                         match &*t.trans.read().unwrap() {
-                            TransformArgs::Decor {
-                                referencer_col,
-                                fk_name,
-                                fk_col,
-                            } => {
-                                warn!(
-                                    "Thread {:?} starting decor {}",
-                                    thread::current().id(),
-                                    table
-                                );
-                                let start = time::Instant::now();
-
-                                /*
-                                 * DECOR OBJECT MODIFICATIONS
-                                 * A) insert guises for parents
-                                 * B) update child to point to new guise
-                                 * */
-
-                                // get ID of old parent
-                                let old_uid =
-                                    u64::from_str(&get_value_of_col(&i, &referencer_col).unwrap())
-                                        .unwrap();
-                                warn!(
-                                    "decor_obj {}: Creating guises for fkids {:?} {:?}",
-                                    table, fk_name, old_uid,
-                                );
-
-                                // A. CREATE NEW PARENT
+                            TransformArgs::Decor { fk_col, fk_name } => {
                                 let fk_table_info = my_table_info_locked.get(fk_name).unwrap();
                                 let fk_gen = guise_gen_locked.get(fk_name).unwrap();
-                                let new_parent_vals = (fk_gen.val_generation)();
-                                let new_parent_cols = (fk_gen.col_generation)();
-                                let mut ix = 0;
-                                let new_parent_rowvals: Vec<RowVal> = new_parent_vals
-                                    .iter()
-                                    .map(|v| {
-                                        let index = ix;
-                                        ix += 1;
-                                        RowVal {
-                                            column: new_parent_cols[index].to_string(),
-                                            value: v.to_string(),
-                                        }
-                                    })
-                                    .collect();
-                                let new_parent_ids =
-                                    get_ids(&fk_table_info.id_cols, &new_parent_rowvals);
-                                let guise_id = new_parent_ids[0].value.to_string();
-                                warn!("decor_obj: inserted guise {}.{}", fk_name, guise_id);
-
-                                // save guise to insert
                                 let mut locked_insert = my_insert.lock().unwrap();
-                                if let Some(vals) = locked_insert
-                                    .get_mut(&(fk_name.to_string(), new_parent_cols.clone()))
-                                {
-                                    vals.push(new_parent_vals.clone());
-                                } else {
-                                    locked_insert.insert(
-                                        (fk_name.clone(), new_parent_cols),
-                                        vec![new_parent_vals.clone()],
-                                    );
-                                }
-                                drop(locked_insert);
-
-                                // save insert token
-                                let mut insert_token = Token::new_insert_token(
-                                    did,
-                                    uid,
-                                    fk_name.clone(),
-                                    new_parent_ids.clone(),
-                                    table.clone(),
-                                    new_parent_rowvals.clone(),
-                                );
                                 let mut token_ctrler_lked = my_token_ctrler.lock().unwrap();
-                                for owner_col in &curtable_info.owner_cols {
-                                    let uid = get_value_of_col(&i, &owner_col).unwrap();
-                                    insert_token.uid = u64::from_str(&uid).unwrap();
-                                    if !t.thirdparty_revealable {
-                                        token_ctrler_lked
-                                            .insert_user_token(TokenType::Data, &mut insert_token);
-                                    } else {
-                                        token_ctrler_lked.insert_global_token(&mut insert_token);
-                                    }
-                                }
-
-                                // B. UPDATE CHILD FOREIGN KEY
-                                cols_to_update.push(Assignment {
-                                    id: Ident::new(referencer_col.clone()),
-                                    value: Expr::Value(Value::Number(guise_id.to_string())),
-                                });
-
-                                let new_child: Vec<RowVal> = i
-                                    .iter()
-                                    .map(|v| {
-                                        if &v.column == referencer_col {
-                                            RowVal {
-                                                column: v.column.clone(),
-                                                value: guise_id.to_string(),
-                                            }
-                                        } else {
-                                            v.clone()
-                                        }
-                                    })
-                                    .collect();
-                                let child_ids = get_ids(&curtable_info.id_cols, &new_child);
-                                let mut decor_token = Token::new_decor_token(
-                                    did,
-                                    uid,
-                                    table.clone(),
-                                    child_ids,
-                                    fk_name.clone(),
-                                    i.clone(),
-                                    new_child,
-                                );
-                                let mut token_ctrler_lked = my_token_ctrler.lock().unwrap();
-                                for owner_col in &curtable_info.owner_cols {
-                                    let uid = get_value_of_col(&i, &owner_col).unwrap();
-                                    decor_token.uid = u64::from_str(&uid).unwrap();
-                                    if !t.thirdparty_revealable {
-                                        token_ctrler_lked
-                                            .insert_user_token(TokenType::Data, &mut decor_token);
-                                    } else {
-                                        token_ctrler_lked.insert_global_token(&mut decor_token);
-                                    }
-                                }
-                                drop(token_ctrler_lked);
-
                                 let mut locked_stats = mystats.lock().unwrap();
-                                locked_stats.decor_dur += start.elapsed();
-                                drop(locked_stats);
-                                warn!("Thread {:?} decor {}", thread::current().id(), table);
+
+                                Disguiser::decor_item(
+                                    did,
+                                    uid,
+                                    t.thirdparty_revealable,
+                                    &mut locked_insert,
+                                    &mut token_ctrler_lked,
+                                    &mut cols_to_update,
+                                    &mut locked_stats,
+                                    &table,
+                                    curtable_info,
+                                    fk_name,
+                                    fk_col,
+                                    fk_table_info,
+                                    fk_gen,
+                                    i.to_vec(),
+                                );
                             }
 
                             TransformArgs::Modify {
@@ -323,8 +215,7 @@ impl Disguiser {
                                     value: Expr::Value(Value::String(new_val.clone())),
                                 });
 
-                                // insert a token for every owning user (every fk)
-                                // XXX should just update for the calling user, if there is one?
+                                // TOKEN INSERT
                                 let new_obj: Vec<RowVal> = i
                                     .iter()
                                     .map(|v| {
@@ -389,6 +280,28 @@ impl Disguiser {
                 warn!("Thread {:?} exiting", thread::current().id());
             }));
         }
+
+        for (token, ts) in self.remove_tokens_to_modify.read().unwrap().iter() {
+            for t in ts {
+                match &*t.trans.read().unwrap() {
+                    TransformArgs::Decor { fk_col, .. } => {
+                        let new_token = token.clone();
+                        /*new_token.new_value = token
+                            .new_value
+                            .iter()
+                            .map(|rv| if rv.column == fk_col {})
+                            .collect();*/
+                    }
+                    TransformArgs::Modify {
+                        col,
+                        generate_modified_value,
+                        ..
+                    } => {}
+                    _ => unimplemented!("Removes of remove tokens should not be performed!"),
+                }
+            }
+        }
+
         // wait until all mysql queries are done
         for jh in threads.into_iter() {
             match jh.join() {
@@ -417,6 +330,133 @@ impl Disguiser {
 
         self.clear_disguise_records();
         Ok(())
+    }
+
+    fn decor_item(
+        did: DID,
+        uid: UID,
+        thirdparty_revealable: bool,
+        to_insert: &mut HashMap<(String, Vec<String>), Vec<Vec<Expr>>>,
+        token_ctrler: &mut TokenCtrler,
+        cols_to_update: &mut Vec<Assignment>,
+        stats: &mut QueryStat,
+        child_table: &str,
+        child_table_info: &TableInfo,
+        fk_name: &str,
+        fk_col: &str,
+        fk_table_info: &TableInfo,
+        fk_gen: &GuiseGen,
+        i: Vec<RowVal>,
+    ) {
+        warn!(
+            "Thread {:?} starting decor {}",
+            thread::current().id(),
+            child_table
+        );
+        let start = time::Instant::now();
+
+        /*
+         * DECOR OBJECT MODIFICATIONS
+         * A) insert guises for parents
+         * B) update child to point to new guise
+         * */
+
+        // get ID of old parent
+        let old_uid = u64::from_str(&get_value_of_col(&i, &fk_col).unwrap()).unwrap();
+        warn!(
+            "decor_obj {}: Creating guises for fkids {:?} {:?}",
+            child_table, fk_name, old_uid,
+        );
+
+        // A. CREATE NEW PARENT
+        let new_parent_vals = (fk_gen.val_generation)();
+        let new_parent_cols = (fk_gen.col_generation)();
+        let mut ix = 0;
+        let new_parent_rowvals: Vec<RowVal> = new_parent_vals
+            .iter()
+            .map(|v| {
+                let index = ix;
+                ix += 1;
+                RowVal {
+                    column: new_parent_cols[index].to_string(),
+                    value: v.to_string(),
+                }
+            })
+            .collect();
+        let new_parent_ids = get_ids(&fk_table_info.id_cols, &new_parent_rowvals);
+        let guise_id = new_parent_ids[0].value.to_string();
+        warn!("decor_obj: inserted guise {}.{}", fk_name, guise_id);
+
+        // save guise to insert
+        if let Some(vals) = to_insert.get_mut(&(fk_name.to_string(), new_parent_cols.clone())) {
+            vals.push(new_parent_vals.clone());
+        } else {
+            to_insert.insert(
+                (fk_name.to_string(), new_parent_cols),
+                vec![new_parent_vals.clone()],
+            );
+        }
+
+        // TOKEN INSERT
+        let mut insert_token = Token::new_insert_token(
+            did,
+            uid,
+            fk_name.to_string(),
+            new_parent_ids.clone(),
+            child_table.to_string(),
+            new_parent_rowvals.clone(),
+        );
+        for owner_col in &child_table_info.owner_cols {
+            let uid = get_value_of_col(&i, &owner_col).unwrap();
+            insert_token.uid = u64::from_str(&uid).unwrap();
+            if !thirdparty_revealable {
+                token_ctrler.insert_user_token(TokenType::Data, &mut insert_token);
+            } else {
+                token_ctrler.insert_global_token(&mut insert_token);
+            }
+        }
+
+        // B. UPDATE CHILD FOREIGN KEY
+        cols_to_update.push(Assignment {
+            id: Ident::new(fk_col.clone()),
+            value: Expr::Value(Value::Number(guise_id.to_string())),
+        });
+
+        // TOKEN INSERT
+        let new_child: Vec<RowVal> = i
+            .iter()
+            .map(|v| {
+                if &v.column == fk_col {
+                    RowVal {
+                        column: v.column.clone(),
+                        value: guise_id.to_string(),
+                    }
+                } else {
+                    v.clone()
+                }
+            })
+            .collect();
+        let child_ids = get_ids(&child_table_info.id_cols, &new_child);
+        let mut decor_token = Token::new_decor_token(
+            did,
+            uid,
+            child_table.to_string(),
+            child_ids,
+            fk_name.to_string(),
+            i.clone(),
+            new_child,
+        );
+        for owner_col in &child_table_info.owner_cols {
+            let uid = get_value_of_col(&i, &owner_col).unwrap();
+            decor_token.uid = u64::from_str(&uid).unwrap();
+            if !thirdparty_revealable {
+                token_ctrler.insert_user_token(TokenType::Data, &mut decor_token);
+            } else {
+                token_ctrler.insert_global_token(&mut decor_token);
+            }
+        }
+        stats.decor_dur += start.elapsed();
+        warn!("Thread {:?} decor {}", thread::current().id(), child_table);
     }
 
     fn select_predicate_objs_and_execute_removes(
@@ -459,11 +499,10 @@ impl Disguiser {
                     )
                     .unwrap();
 
-                    // TOKENS:
-                    // get tokens that match the predicate
+                    // TOKENS RETRIEVAL: get tokens that match the predicate
                     let pred_tokens = predicate::get_tokens_matching_pred(&t.pred, &my_tokens);
 
-                    // move any tokens in global vault to user vault if this
+                    // TOKEN MOVE: move any tokens in global vault to user vault if this
                     // transformation is only 1p-revealable
                     if !t.thirdparty_revealable {
                         let mut token_ctrler_locked = my_token_ctrler.lock().unwrap();
@@ -500,7 +539,7 @@ impl Disguiser {
                                 debug!("Remove: Getting ids of table {} for {:?}", table, i);
                                 let ids = get_ids(&curtable_info.id_cols, i);
 
-                                // TOKENS: create remove token and insert into either global or user vault
+                                // TOKEN INSERT
                                 let mut token = Token::new_delete_token(
                                     did,
                                     0,
@@ -529,7 +568,7 @@ impl Disguiser {
                             let delstmt = format!("DELETE FROM {} WHERE {}", table, selection);
                             helpers::query_drop(delstmt, &mut conn, mystats.clone()).unwrap();
                         }
-                        TransformArgs::Decor { referencer_col, .. } => {
+                        TransformArgs::Decor { fk_col, .. } => {
                             for i in pred_items {
                                 // don't decorrelate if removed
                                 if removed_items.contains(&i) {
@@ -538,8 +577,7 @@ impl Disguiser {
                                     continue;
                                 }
                                 // don't decorrelate twice
-                                if decorrelated_items.contains(&(referencer_col.clone(), i.clone()))
-                                {
+                                if decorrelated_items.contains(&(fk_col.clone(), i.clone())) {
                                     continue;
                                 }
                                 if let Some(ts) = items_of_table.get_mut(&i) {
@@ -547,7 +585,7 @@ impl Disguiser {
                                 } else {
                                     items_of_table.insert(i.clone(), vec![t.clone()]);
                                 }
-                                decorrelated_items.insert((referencer_col.clone(), i.clone()));
+                                decorrelated_items.insert((fk_col.clone(), i.clone()));
                             }
 
                             // TOKENS we need to modify any matching removed data tokens from prior
@@ -562,7 +600,7 @@ impl Disguiser {
                                 }
                                 // don't decorrelate twice
                                 if decorrelated_items
-                                    .contains(&(referencer_col.clone(), token.old_value.clone()))
+                                    .contains(&(fk_col.clone(), token.old_value.clone()))
                                 {
                                     continue;
                                 }
@@ -570,7 +608,7 @@ impl Disguiser {
                                 let ts = matching_remove_tokens.get_mut(&token).unwrap();
                                 ts.push(t.clone());
                                 decorrelated_items
-                                    .insert((referencer_col.clone(), token.old_value.clone()));
+                                    .insert((fk_col.clone(), token.old_value.clone()));
                             }
                         }
                         _ => {
