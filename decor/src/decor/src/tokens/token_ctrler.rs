@@ -243,11 +243,74 @@ impl TokenCtrler {
         }
     }
 
-    pub fn update_token_to(&mut self, token: &Token) {
-        let symkey = match self.tmp_symkeys.get(&(token.uid, token.did)) {
+    pub fn update_token_to(&mut self, new_token: &Token) {
+        if new_token.is_global {
+            if let Some(global_tokens) = self.global_vault.get(&(new_token.did, new_token.uid)) {
+                let mut tokens = global_tokens.write().unwrap();
+                // just insert the token to replace the old one
+                tokens.insert(new_token.clone());
+            }
+            return;
+        }
+
+        // we need to update the user token
+        let symkey = match self.tmp_symkeys.get(&(new_token.uid, new_token.did)) {
             Some(sk) => sk,
             None => unimplemented!("Token to update should have been decrypted first!"),
         };
+
+        let p = self
+            .principal_tokens
+            .get(&symkey.uid)
+            .expect("no user with uid found?");
+
+        // iterate through user's encrypted correlation/datatokens
+        if let Some(tokenls) = p.cd_lists.get(&symkey.did) {
+            let mut tail_ptr = tokenls.tail;
+            loop {
+                match self.user_vaults_map.get_mut(&tail_ptr) {
+                    Some(enc_token) => {
+                        // decrypt token with symkey provided by client
+                        warn!(
+                            "Got cd data of len {} with symkey {:?}-{:?}",
+                            enc_token.token_data.len(),
+                            symkey.symkey,
+                            enc_token.iv
+                        );
+                        let cipher =
+                            Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
+                        let plaintext = cipher.decrypt_vec(&mut enc_token.token_data).unwrap();
+                        let token = Token::token_from_bytes(plaintext);
+                        if token.token_id == new_token.token_id {
+                            // XXX do we need a new IV?
+                            let cipher = Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
+                            let plaintext = serialize_to_bytes(&new_token);
+                            let encrypted = cipher.encrypt_vec(&plaintext);
+                            let iv =  enc_token.iv.clone();
+                            assert_eq!(encrypted.len() % 16, 0);
+                            self.user_vaults_map.insert(
+                                tail_ptr,
+                                EncryptedToken {
+                                    token_data: encrypted,
+                                    iv: iv,
+                                }
+                            );
+                            warn!(
+                                "token uid {} disguise {} updated token {}",
+                                token.uid,
+                                token.did,
+                                token.token_id,
+                            );
+                            break;
+                        }
+
+                        // update which encrypted token is to be next in list
+                        tail_ptr = token.last_tail;
+                    }
+                    None => break,
+                }
+            }
+        }
     }
 
     pub fn get_global_tokens(&self, uid: UID, did: DID) -> Vec<Token> {
