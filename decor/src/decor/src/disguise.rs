@@ -256,7 +256,8 @@ impl Disguiser {
         }
 
         // apply modifications to each token (for now do sequentially)
-        for (token, ts) in self.remove_tokens_to_modify.read().unwrap().iter() {
+        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
+        for (token, ts) in self.remove_tokens_to_modify.write().unwrap().iter() {
             for t in ts {
                 let mut cols_to_update = vec![];
                 match &*t.trans.read().unwrap() {
@@ -270,7 +271,7 @@ impl Disguiser {
                             uid,
                             t.thirdparty_revealable,
                             &mut self.to_insert.lock().unwrap(),
-                            &mut self.token_ctrler.lock().unwrap(),
+                            &mut locked_token_ctrler,
                             &mut cols_to_update,
                             &mut self.stats.lock().unwrap(),
                             // info needed for decorrelation
@@ -295,7 +296,7 @@ impl Disguiser {
                             did,
                             uid,
                             t.thirdparty_revealable,
-                            &mut self.token_ctrler.lock().unwrap(),
+                            &mut locked_token_ctrler,
                             &mut cols_to_update,
                             &mut self.stats.lock().unwrap(),
                             &token.guise_name,
@@ -307,13 +308,24 @@ impl Disguiser {
                     }
                     _ => unimplemented!("Removes of remove tokens should not be performed!"),
                 }
-                // TODO apply cols_to_update
-                for a in &cols_to_update {
-                    let col = a.id.to_string();
-                    let val = a.value.to_string();
-                }
+                // apply cols_to_update
+                let mut new_token = token.clone();
+                new_token.old_value = token.old_value.iter().map(|rv| {
+                    let mut new_rv = rv.clone();
+                    for a in &cols_to_update {
+                        if rv.column == a.id.to_string() {
+                            new_rv = RowVal {
+                                column: rv.column.clone(),
+                                value: a.value.to_string(),
+                            };
+                        } 
+                    } 
+                    new_rv
+                }).collect();
+                locked_token_ctrler.update_token_to(&new_token);
             }
         }
+        drop(locked_token_ctrler);
 
         // wait until all mysql queries are done
         for jh in threads.into_iter() {
