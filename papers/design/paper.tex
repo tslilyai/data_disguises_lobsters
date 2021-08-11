@@ -72,6 +72,17 @@ keys
 \definecolor{codepurple}{rgb}{0.58,0,0.82}
 \definecolor{backcolour}{rgb}{0.95,0.95,0.92}
 
+
+% token stuff
+\newcommand\tpriv[1]{\texttt{pk\_tok}$_{#1}$}
+\newcommand\tdata[1]{\texttt{data\_tok}$_{#1}$}
+\newcommand\fn[1]{\texttt{{#1}}}
+\newcommand\globalop[1]{\texttt{global\_op$_{#1}$}}
+\newcommand\privop[1]{\texttt{priv\_op$_{#1}$}}
+\newcommand\ek{\texttt{enck}}
+\newcommand\privk{\texttt{privk}}
+\newcommand\pubk{\texttt{pubk}}
+
 \lstdefinestyle{rust}{
     %backgroundcolor=\color{backcolour},
     commentstyle=\color{codegreen},

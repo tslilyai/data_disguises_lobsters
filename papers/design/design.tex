@@ -1,66 +1,120 @@
-%-------------------------------------------------------------------------------
-\section{Definitions}
-%-------------------------------------------------------------------------------
-\begin{itemize}
-%\item Disguising Tool ``Edna'' adds support for disguise API calls to applications.
-\item Principal: an application user account that owns DB objects that are correlated via e.g., foreign key relationships to the account.
-\item 1stParty/Client: an external device that contacts the application via the application API, and
-authenticates as a principal via the application authentication protocol (e.g., logging in with a password, or using access tokens to establish a session).
-\item Tokens store records of how data has been disguised: 
-\begin{itemize}
-    \item Correlation tokens (linking an old principal to a created principal from disguise decorrelation operations). These tokens give Edna the ability to disguise the data of these principals when disguising the data of P, or to permanently recorrelate data back with P.
-    \item Data tokens save the pre-modified or removed data. These tokens give Edna the ability to compose a future disguise on top of the original data, or permanently restore the original data.
-    \item Private key tokens save the private key of a created anonymous principal
-\end{itemize}
-%\item Disguise Capabilities have two forms, and can be held by a 1st-party (a client acting on
-%behalf of a principal) or 3rd-party (e.g., the application).
-%\begin{itemize}
-%\item Application Capability: authorizes the holder to apply a disguise.
-%item Revealing Capability: authorizes the holder to reveal disguised data.
-%end{itemize}
-\item Disguises can be 1p-revealable or 3p-revealable. If a disguise is 1p-revealable, no 3rd-party
-actor can access data stored in tokens produced by the disguise. If a disguise is 3p-revealable,
-both 1st- and 3rd-party actors can access this data.
-\end{itemize}
 
 %-------------------------------------------------------------------------------
 \section{Threat Model}
 %-------------------------------------------------------------------------------
-An adversary can access any data stored as plaintext by the application or Edna, including data not exposed via its
-client-facing API. We assume that an adversary cannot access prior snapshots of the application database, or observe modifications or memory accesses performed during disguise application. Furthermore, undisguised content and implicit correlations based on this content (e.g., a comment that mentions the author’s name) are out of scope.
+An adversary can access any data stored as plaintext by the application or Edna, including data not
+exposed via its client-facing API. We assume that an adversary cannot access prior snapshots of the
+application database, or observe modifications or memory accesses performed during disguise
+application. Furthermore, undisguised content and implicit correlations based on this content (e.g.,
+a comment that mentions the author’s name) are out of scope.
 
 We assume Edna is honest but curious: when applying or reversing a disguise, Edna may temporarily
 hold (in memory) plaintext token data, as well as private or symmetric keys, but is trusted to
 forget them once the disguise action is complete.  
 
-Finally, we assume standard security of public key and
-symmetric key primitives~\note{under a random oracle model?}.
+Finally, we assume standard security of public key and symmetric key primitives~\note{under a random
+oracle model?}.
+
+\begin{table*}[t!]
+\centering
+\begin{tabular}{ c p{.75\linewidth} }
+\textbf{Symbol} & \textbf{Description} \\
+\hline
+$p$ & a principal, namely an application user who owns DB objects of the application \\
+$\pubk_p$ & public key of $p$ \\
+$\privk_p$ & private key of $p$ \\
+$d$ & a disguise \\
+\globalop{d} & an operation of disguise $d$ (either a removal, modification, or decorrelation
+    operation) that is globally-revealable: all parties can learn what data updates \globalop{d}
+    performed.\\
+\privop{d} & an operation of disguise $d$ (either a removal, modification, or decorrelation
+    operation) that is private: only principals whose data \privop{d} updates can learn
+    what updates \privop{d} performed.\\
+\tdata{pd} & token storing undisguised data belonging to $p$.
+    Every disguise operation generates a \tdata{pd} for every principal $p$ whose data the operation
+    updates.\\
+    & If a \globalop{d} produces \tdata{pd}, Edna stores \tdata{pd} in plaintext\\
+    & If a \privop{d}
+    produces \tdata{pd}, Edna stores \tdata{pd} such that only $p$ can access \tdata{pd}.\\
+    \tpriv{pdp'} & token storing private key $\pubk_{p'}$. Produced when a \globalop{d} or \privop{d} 
+    decorrelates data from $p$ and creates a new anonymous principal $p'$ with corresponding private key $\pubk_{p'}$.
+Enda always stores \tpriv{pdp'} such that only $p$ can access \tpriv{pdp'}.\\
+$\key_{pd}$ & symmetric key used to encrypt private \tdata{pd} and \tpriv{pdp'} tokens \\
+$\ek_{pd}$ & $\key_{pd}$ encrypted with $\pubk_p$\\
+\end{tabular}
+    \vspace{12px}
+\caption{Notation used in disguise protocols}
+\label{tab:notation}
+\end{table*}
+
+\begin{table*}[t!]
+\centering
+\begin{tabular}{ c p{.7\linewidth} }
+\textbf{API Call} & \textbf{Description} \\
+\hline
+    \fn{RegisterPrincipal($\pubk_p$)} & Registers $p$ as a principal whose data can be privately disguised. \\
+    \fn{StartDisguise($d$, Option<$p$>)} & Begins the process of applying disguise $d$, optionally 
+    on behalf of principal $p$.\\
+    \fn{StartDisguiseReversal(\{$d$, Option<$p$>\})} & Begins the process of reversing disguise $d$,
+    optionally on behalf of principal $p$.\\
+    \fn{RequestTokenAccess(\{$\ek_{pd}$\})} & Sent from Edna to a client authenticated as
+    $p$, requesting the client decrypt the $\ek_{pd}$ with $\privk_p$ and uncover the
+    corresponding $\key_{pd}$s. \\
+    \fn{GrantTokenAccess(\{$\key_{pd}$\})} & Grants Edna permission, for all $\key_{pd}$, to decrypt any
+    privately-stored \tdata{pd} and \tpriv{pdp'} with $\key_{pd}$.\\
+\end{tabular}
+    \vspace{12px}
+\caption{API Calls for Client Authenticated as Principal $p$}
+\label{tab:api}
+\end{table*}
+
+\begin{table*}[t!]
+\centering
+\begin{tabular}{ c p{.75\linewidth} }
+\textbf{Function} & \textbf{Description} \\
+\hline
+    \fn{StorePubKey($\pubk_p$)} & Persistently saves the public key $\pubk_p$ along with the principal
+    ID $p$.\\
+    \fn{LoadEncKeys($p$)} & Retrieves all encrypted keys $\ek_{pd}$ persisted in Edna's storage for
+    all disguises $d$ applied to $p$'s data.\\
+    \fn{ReadPrivateTokens($\key_{pd}$)} & Decrypts all of $p$'s private tokens produced by disguise
+    $d$. \\
+    \fn{ReadGlobalTokens($p, d$)} & Retrieves $p$'s global tokens produced by disguise $d$. \\
+    \fn{ApplyDisguise($d$, \{\tdata{}\})} & Applies disguise $d$, selectively composing $d$'s
+    updates with prior disguises using data recorded in the set of \tdata{} tokens. 
+    \\
+    \fn{ReverseDisguise($d$, \{\tdata{}\})} & Reverses disguise $d$ using data
+    recorded in the set of \tdata{} tokens.
+\end{tabular}
+    \vspace{12px}
+\caption{Internal Edna Functions}
+\label{tab:funcs}
+\end{table*}
 
 %-------------------------------------------------------------------------------
-\section{Client-Edna Protocols}
+\section{Disguise Protocols}
 %-------------------------------------------------------------------------------
 \createpseudocodeblock{pcb}{center,boxed}{}{}{}
 \createprocedureblock{procb}{center,boxed}{}{}{}
 
-\begin{figure}[h!]
+\begin{figure*}[h!]
 \pcb{
 \<\< \\[-0.9\baselineskip]\\
-\textbf{1stParty c} \< \< \textbf{Edna} \\
+\textbf{Principal p} \< \< \textbf{Edna} \\
 [0.1\baselineskip][\hline]
 \<\< \\[-0.9\baselineskip]\\
-(\pk_c, \sk_c) \sample \kgen() \<\< \\
-\< \sendmessageright*{\texttt{RegisterClient(c, $\pk_c$)}} \< \\
-\<\< \texttt{StorePubKey($\pk_c$)}
+(\pubk_p, \privk_p) \sample \kgen() \<\< \\
+\< \sendmessageright*{\texttt{RegisterPrincipal(p, $\pubk_p$)}} \< \\
+\<\< \texttt{StorePubKey($\pubk_p$)}
 }
-\caption{1p protocol for public key registration}
-\label{fig:acctreg}
-\end{figure}
-
-\paragraph{1p Public Key Registration.}
+\caption{
+    \textbf{Principal Public Key Registration.}
 Every principal in the system must register a public key with Edna in order to later reveal (for
-disguise reversal or composition) any of its data disguised by 1p-revealable disguises
-(Fig~\ref{fig:acctreg}). Edna remembers each public key \texttt{pk}$_c$, indexed by the 
-principal ID $c$.
+disguise reversal or composition) any of its non-globally disguised data. Edna remembers each public key \texttt{pk}$_p$, indexed by the 
+principal ID $p$.
+}
+\label{fig:acctreg}
+\end{figure*}
 
 \paragraph{1p Disguise Application.}
 When a 1st party (authenticated as some principal $c$) wishes to apply a disguise $d$, the
@@ -118,7 +172,7 @@ Fig~\ref{fig:revdisg3p} shows the protocol to reverse a disguise when a disguise
 \<\< \forall d', \texttt{encks}[d']\gets \texttt{LoadEncKey}(c,d')\\
 \< \sendmessageleft*{\texttt{AuthorizeTokenAccessRequest(encks)}} \< \\
 \forall d'~\text{that the client authorizes token access}: \\
-\texttt{keys}[d'] \gets \dec(\sk_c, \texttt{encks}[d']) \<\< \\
+\texttt{keys}[d'] \gets \dec(\privk_c, \texttt{encks}[d']) \<\< \\
 \< \sendmessageright*{\texttt{AuthorizeTokenAccessReply(keys)}} \< \\
 \<\< \texttt{composition\_tokens} \gets \texttt{ReadTokens(keys))} \\
 \<\< \texttt{ApplyDisguise($d$,composition\_tokens)}
@@ -151,7 +205,7 @@ Fig~\ref{fig:revdisg3p} shows the protocol to reverse a disguise when a disguise
 \<\< \forall d', \texttt{encks}[d']\gets \texttt{LoadEncKey}(c,d')\\
 \< \sendmessageleft*{\texttt{AuthorizeTokenAccessRequest(encks)}} \< \\
 \forall d'~\text{that the client authorizes token access}: \\
-\texttt{keys}[d'] \gets \dec(\sk_c, \texttt{encks}[d']) \<\< \\
+\texttt{keys}[d'] \gets \dec(\privk_c, \texttt{encks}[d']) \<\< \\
 \< \sendmessageright*{\texttt{AuthorizeTokenAccessReply(keys)}} \< \\
 \<\< \texttt{tokens} \gets \texttt{ReadTokens(keys))} \\
 \<\< \texttt{ReverseDisguise($d$,tokens)}
@@ -219,11 +273,11 @@ If the disguise is 3p-revealable, Edna simply stores the token plaintexts.
 \t[2]\texttt{encToken} \gets \texttt{token.nextEncToken}\\
 \t[2]\pcif \texttt{token.type = AnonPrivateKey:}\\
 \t[3]c' \gets \texttt{token.anon\_uid}\\
-\t[3]\sk_{c'} \gets \texttt{token.priv\_key}\\
+\t[3]\privk_{c'} \gets \texttt{token.priv\_key}\\
 \t[3]\texttt{keys}' \gets []\\
 \t[3]\pcforeach d':\\
 \t[4]\texttt{enck} \gets \texttt{LoadEncKey}(c',d')\\
-\t[4]\texttt{keys}'\texttt{.append}(\dec(\sk_{c'}, \texttt{enck}))\\
+\t[4]\texttt{keys}'\texttt{.append}(\dec(\privk_{c'}, \texttt{enck}))\\
 \t[4]\texttt{tokens.extend(ReadTokens(keys}'))\\
 \t[3]\pcendforeach\\
 \t[2]\pcelse:\\
@@ -240,8 +294,8 @@ If the disguise is 3p-revealable, Edna simply stores the token plaintexts.
 \t[0]\pcfor \texttt{op}_{c} \in \texttt{GetDisguise($d$)}:\\
 \t[1]\pcif \texttt{LoadEncKey($c,d$) = NULL}:\\
 \t[2] \key_{cd} \sample \kgen() \\
-\t[2] \pk_{c} \gets \texttt{LoadPubKey}(c) \\
-\t[2] \texttt{enck$_{cd}$} \gets \enc(\pk_c, \key_{cd}) \\
+\t[2] \pubk_{c} \gets \texttt{LoadPubKey}(c) \\
+\t[2] \texttt{enck$_{cd}$} \gets \enc(\pubk_c, \key_{cd}) \\
 \t[2] \texttt{StoreEncKey(enck$_{cd}$)} \\
 \t[1]\pcfi\\
 \t[1]\key_{ck} \gets \texttt{LoadEncKey($c,d$)}\\
