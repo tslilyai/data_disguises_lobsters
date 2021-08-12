@@ -74,17 +74,18 @@ keys
 
 
 % token stuff
-\newcommand\tpriv[1]{\texttt{pk\_tok}$_{#1}$}
-\newcommand\tdata[1]{\texttt{data\_tok}$_{#1}$}
+\newcommand\tpriv[1]{\texttt{pk\_tok}\ensuremath{_{#1}}}
+\newcommand\tdata[1]{\texttt{data\_tok}\ensuremath{_{#1}}}
 \newcommand\fn[1]{\texttt{{#1}}}
-\newcommand\globalop[1]{\texttt{global\_op$_{#1}$}}
-\newcommand\privop[1]{\texttt{priv\_op$_{#1}$}}
-\newcommand\op[1]{\texttt{op$_{#1}$}}
-\newcommand\ek{\texttt{enck}}
-\newcommand\eks{\texttt{enck\_set}}
+\newcommand\globalop[1]{\texttt{global\_op}\ensuremath{_{#1}}}
+\newcommand\privop[1]{\texttt{priv\_op}\ensuremath{_{#1}}}
+\newcommand\op[1]{\texttt{op}\ensuremath{_{#1}}}
+\newcommand\ek[1]{\texttt{enck}\ensuremath{_{#1}}}
+\newcommand\eks[1]{\texttt{enck\_set}\ensuremath{_{#1}}}
 \newcommand\ks{\texttt{k\_set}}
-\newcommand\privk[1]{\texttt{privk$_{#1}$}}
-\newcommand\pubk[1]{\texttt{pubk$_{#1}$}}
+\newcommand\privk[1]{\texttt{privk\ensuremath{_{#1}}}}
+\newcommand\pubk[1]{\texttt{pubk\ensuremath{_{#1}}}}
+\newcommand\symk[1]{\ensuremath{\key_{#1}}}
 \createpseudocodeblock{pcb}{center,boxed}{}{}{}
 \createprocedureblock{procb}{center,boxed}{}{}{}
 

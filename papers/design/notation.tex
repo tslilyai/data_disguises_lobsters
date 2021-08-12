@@ -4,7 +4,7 @@
 \textbf{Symbol} & \textbf{Description} \\
 \hline
 $p$ & a principal, \ie an application user who owns DB objects of the application \\
-$\pubk{p}$ & public key of $p$ \\
+\pubk{p} & public key of $p$ \\
     \privk{p} & private key of $p$ \\
 $d$ & a disguise \\
 \globalop{d} & an operation of disguise $d$ (either a removal, modification, or decorrelation
@@ -16,15 +16,12 @@ $d$ & a disguise \\
 \tdata{pd} & token storing undisguised data belonging to $p$.
     Every disguise operation generates a \tdata{pd} for every principal $p$ whose data the operation
     updates.\\
-    & If a \globalop{d} produces \tdata{pd}, \sys stores \tdata{pd} in plaintext\\
-    & If a \privop{d}
-    produces \tdata{pd}, \sys stores \tdata{pd} such that only $p$ can access \tdata{pd}.\\
-    \tpriv{pdp'} & token storing private key $\pubk{p'}$. Produced when a \globalop{d} or \privop{d} 
+\tpriv{pdp'} & token storing private key $\pubk{p'}$. Produced when a \globalop{d} or \privop{d} 
     decorrelates data from $p$ and creates a new anonymous principal $p'$ with corresponding private key $\pubk{p'}$.
-\sys always stores \tpriv{pdp'} such that only $p$ can access \tpriv{pdp'}.\\
-$\key_{pd}$ & symmetric key used to encrypt private \tdata{pd} and \tpriv{pdp'} tokens \\
-$\ek_{pd}$ & $\key_{pd}$ encrypted with $\pubk{p}$\\
-$\eks_{p}$ & the set of all the $\ek_{pd}$ persisted in \sys's storage for all disguises $d$
+\\
+\symk{pd} & symmetric key used to encrypt private \tdata{pd} and \tpriv{pdp'} tokens \\
+\ek{pd} & \symk{pd} encrypted with \pubk{p}\\
+\eks{p} & the set of \ek{pd} persisted in \sys's storage for all disguises $d$
     applied to $p$'s data\\
 \end{tabular}
 \vspace{12px}
@@ -42,12 +39,12 @@ $\eks_{p}$ & the set of all the $\ek_{pd}$ persisted in \sys's storage for all d
     on behalf of $p$.\\
     \fn{StartDisguiseReversal($d$, Option<$p$>)} & Begins the process of reversing disguise $d$,
     optionally on behalf of $p$.\\
-    \fn{RequestTokenAccess($\eks_p$)} & Sent from \sys to a client authenticated as
-    $p$, requesting the client decrypt all the $\ek_{pd} \in \eks_{p}$ with \privk{p} and uncover the
-    corresponding $\key_{pd}$s. \\
-    \fn{GrantTokenAccess(\{$\key_{pd}$\})} & Grants \sys permission, for all $\key_{pd}$ in the
+    \fn{RequestTokenAccess(\eks{p})} & Sent from \sys to a client authenticated as
+    $p$, requesting the client decrypt all the \ek{pd} $\in$ \eks{p} with \privk{p} and uncover the
+    corresponding \symk{pd}s. \\
+    \fn{GrantTokenAccess(\{\symk{pd}\})} & Grants \sys permission, for all \symk{pd} in the
     argument, to decrypt any
-    privately-stored \tdata{pd} and \tpriv{pdp'} with $\key_{pd}$.\\
+    privately-stored \tdata{pd} and \tpriv{pdp'} with \symk{pd}.\\
 \end{tabular}
     \vspace{12px}
 \caption{API Calls for Client Authenticated as Principal $p$}
@@ -61,12 +58,12 @@ $\eks_{p}$ & the set of all the $\ek_{pd}$ persisted in \sys's storage for all d
 \hline
     \fn{StorePubKey($\pubk{p}$)} & Persistently saves the public key $\pubk{p}$ along with $p$'s 
     ID.\\
-    \fn{LoadPubKey($p$)} & Retrieves public key $\pubk{p}$ for $p$.\\
-    \fn{LoadEncKey($p, d$)} & Retrieves ${\ek_{pd}}$.\\
-    \fn{LoadEncKeys($p$)} & Retrieves ${\eks_p}$.\\
+    \fn{LoadPubKey($p$)} & Retrieves public key \pubk{p} for $p$.\\
+    \fn{LoadEncKey($p, d$)} & Retrieves \ek{pd}.\\
+    \fn{LoadEncKeys($p$)} & Retrieves \eks{p}.\\
     \fn{LoadEncTokenListTail}$(p,d)$ & Gets the first encrypted private token in the list of
     tokens associated with $p$ produced by $d$\\
-    \fn{ReadPrivateTokens($\key_{pd}$)} & Decrypts all of $p$'s private tokens produced by disguise
+    \fn{ReadPrivateTokens(\symk{pd})} & Decrypts all of $p$'s private tokens produced by disguise
     $d$. \\
     \fn{ReadGlobalTokens($d$)} & Retrieves all global tokens produced by disguise $d$. \\
     \fn{ApplyDisguise($d$, \{\tdata{}\})} & Applies disguise $d$, selectively composing $d$'s

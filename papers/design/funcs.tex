@@ -1,34 +1,33 @@
 \begin{figure*}
-\procb{\texttt{ReadPrivateTokens($\key_{pd}$)}}{
+\procb{\texttt{ReadPrivateTokens(\symk{pd})}}{
     \< \\
 \texttt{tokens} \gets []\\
 \t[0]\texttt{encToken} \gets \texttt{LoadEncTokenListTail}(p,d)\\
 \t[0]\pcwhile \texttt{encToken != NULL:}\\
-\t[1]\texttt{token} \gets \dec(\key_{pd}, \texttt{encToken})\\
+\t[1]\texttt{token} \gets \dec(\symk{pd}, \texttt{encToken})\\
 \t[1]\texttt{encToken} \gets \texttt{token.nextEncToken}\\
 \t[1]\pcif \texttt{token.type = AnonPrivateKey:}\\
 \t[2]p' \gets \texttt{token.anon\_uid}\\
 \t[2]\privk{p'} \gets \texttt{token.priv\_key}\\
-\t[2]\eks_{p'} \gets \texttt{LoadEncKeys}(p')\\
-\t[2]\pcforeach \ek_{p'd'} \in \eks_{p'}:\\
-\t[3]\key_{p'd'} \gets \dec(\privk{p'}, \texttt{enck})\\
-\t[3]\texttt{tokens.extend(ReadPrivateTokens($\key_{p'd'}$}))\\
+\t[2]\eks{p'} \gets \texttt{LoadEncKeys}(p')\\
+\t[2]\pcforeach \ek{p'd'} \in \eks{p'}:\\
+\t[3]\symk{p'd'} \gets \dec(\privk{p'}, \ek{p'd'})\\
+\t[3]\texttt{tokens.extend(ReadPrivateTokens(\symk{p'd'}}))\\
 \t[2]\pcendforeach\\
 \t[1]\pcelse:\\
 \t[2]\texttt{tokens.append(token)}\\
 \t[1]\pcfi\\
 \t[0]\pcendwhile\\
-\texttt{tokens.append(GetGlobalTokens())}\\
 \pcreturn \texttt{tokens}\\
 }{}
-\caption{\textbf{ReadPrivateTokens Pseudocode.} Using $\key_{pd}$, \sys decrypts all tokens produced by the application of $d$ to $p$'s data by iterating through a linked list encoded in the token contents.\\
+\caption{\textbf{ReadPrivateTokens Pseudocode.} Using \symk{pd}, \sys decrypts all tokens produced by the application of $d$ to $p$'s data by iterating through a linked list encoded in the token contents.\\
 If the decrypted token is a \tdata{pd}, \sys simply adds the token to the set of tokens to return. 
 Otherwise, if the token is a \tpriv{pdp'}, then \sys learns the
 private key \privk{p'} of anonymous principal $p'$ generated during $d$'s application. \sys uses
-\privk{p'} to decrypt all $\key_{p'd'}$,  namely any symmetric keys used to encrypt
+\privk{p'} to decrypt all \symk{p'd'},  namely any symmetric keys used to encrypt
 $p'$'s private tokens during application of any prior disguise $d'$.\\
     \sys then recursively reads all of $p'$'s private tokens by invoking \fn{ReadPrivateTokens}
-    with $\key_{p'd'}$, and appends the result to the set of data tokens to return.\\
+    with \symk{p'd'}, and appends the result to the set of data tokens to return.\\
 }
 \end{figure*}
 
@@ -37,25 +36,25 @@ $p'$'s private tokens during application of any prior disguise $d'$.\\
 \< \\
 \t[0]\pcfor \texttt{op}_{p} \in \texttt{GetDisguise($d$)}:\\
 \t[1]\pcif \texttt{LoadEncKey($p,d$) = NULL}:\\
-\t[2] \key_{pd} \sample \kgen() \\
+\t[2] \symk{pd} \sample \kgen() \\
 \t[2] \pubk{p} \gets \texttt{LoadPubKey}(c) \\
-    \t[2] \texttt{enck$_{pd}$} \gets \enc(\pubk{p}, \key_{pd}) \\
-\t[2] \texttt{StoreEncKey(enck$_{pd}$)} \\
+    \t[2] \texttt{\ek{pd}} \gets \enc(\pubk{p}, \symk{pd}) \\
+\t[2] \texttt{StoreEncKey(\ek{pd})} \\
 \t[1]\pcfi\\
-\t[1]\key_{pk} \gets \texttt{LoadEncKey($c,d$)}\\
+\t[1]\symk{pk} \gets \texttt{LoadEncKey($p,d$)}\\
 \t[1]\texttt{token} \gets \texttt{op$_{p}$.execute(composition\_tokens)}\\
 \t[1]\texttt{token.nextEncToken} \gets \texttt{LoadEncTokenlistTail}(c,d)\\
 \t[1]\texttt{token.nonce} \gets \texttt{RandomU64}()\\
-\t[1]\texttt{encToken} \gets \enc(\key_{pd}, \texttt{token})\\
+\t[1]\texttt{encToken} \gets \enc(\symk{pd}, \texttt{token})\\
 \t[1]\texttt{StoreEncTokenListTail}(p,d,\texttt{encToken})\\
 \pcendfor
 }{}
 \caption{\textbf{ApplyDisguise Pseudocode.} \sys applies a disguise given the disguise
 specification and available \tdata{} tokens for composition.
 For each principal $p$ whose data is touched by the disguise, \sys generates symmetric key
- $\key_{pd}$, encrypts it with \pubk{p}, and stores the resulting $\ek_{pd}$ ciphertext. This ensures that only a client with the correct private key can decrypt and access $\key_{cd}$. 
+ \symk{pd}, encrypts it with \pubk{p}, and stores the resulting \ek{pd} ciphertext. This ensures that only a client with the correct private key can decrypt and access \symk{pd}. 
 \sys then applies each disguise operation, producing tokens for each operation. If the disguise is
-1p-revealable, \sys encrypts tokens with the corresponding principals' $\key_{pd}$s and stores
+1p-revealable, \sys encrypts tokens with the corresponding principals' \symk{pd}s and stores
 these tokens as the tails of the principals' linked list of
 encrypted tokens. This is shown in Fig~\ref{fig:algos}.
 If the disguise operation, \sys simply stores the token plaintexts.

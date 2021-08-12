@@ -1,31 +1,51 @@
-\begin{table}[t!]
+\section{Token Storage}
+
+If a \globalop{d} produces \tdata{pd}, \sys stores \tdata{pd} in plaintext.
+However, if a \privop{d} produces \tdata{pd}, \sys stores \tdata{pd} privately. 
+Furthermore, any \tpriv{pdp'} is also stored privately. 
+
+Privately storing a token requires guarantees that (1) only $p$ can authorize access to these
+tokens, and (2) that no adversary can learn how many private tokens correspond to $p$. \sys must
+meet these guarantees while still supporting the \fn{LoadEncKey}$(p, d)$ and \fn{LoadEncKeys}$(p)$
+calls, and to associate encrypted tokens with a particular $p$ and $d$ (after $p$ authorizes access.)
+
+To achieve (1), \sys encrypts each private token with the appropriate \symk{pd} during disguise
+application, and encrypts \symk{pd} with \pubk{p}. \sys stores a mapping from $p$ and $d$ to the
+resulting \ek{pd}, which allows \sys to support \fn{LoadEncKey/LoadEncKeys}.
+
+Naively, \sys could also map $p$ and $d$ to all associated \fn{Enc(\tdata{pd}) and Enc(\tpriv{pdp'})} 
+However, this violates guarantee (2): an adversary can learn how many private tokens correspond to $p$.
+A impractical strawman solution might require \sys to attempt to decrypt \emph{all} tokens with
+\symk{pd}.
+
+Instead, \sys stores the encrypted tokens in an encrypted linked list, and only remembers the tail
+of the list. 
+
+\begin{table}[h!]
 \centering
 \begin{tabular}{ c p{.8\linewidth} }
     \fn{tokenID} & unique identifier for this token\\
     \fn{objID} & unique identifier for the data object modified by the \op{d} producing the token\\
-    \fn{updateType} & whether this token encodes a decorrelate, modify, or remove \op{d}\\
+    \fn{updateType} & decorrelate, modify, or remove\\
     \fn{oldValue} & unmodified value of object \fn{objID}\\
     \fn{newValue} & modified value of object \fn{objID}\\
     \fn{nextEncToken} & pointer to the next token in the list of private tokens produced by disguise $d$ for
     principal $p$, \texttt{NULL} if none exists or if token is global\\
 \end{tabular}
 \vspace{12px}
-    \caption{\tdata{pd} Attributes}
+\caption{\tdata{pd} Attributes}
 \label{tab:datatokens}
 \end{table}
 
-\begin{table}[t!]
+\begin{table}[h!]
 \centering
 \begin{tabular}{ c p{.8\linewidth} }
-    \fn{tokenID} & unique identifier for this token\\
-    \fn{anonPrivKey} & \privk{p'} of generated anonymous principal $p'$\\
-    \fn{nextEncToken} & pointer to the next token in the list of private tokens produced by disguise $d$ for
-    principal $p$, \texttt{NULL} if none exists or if token is global\\
+\fn{tokenID} & unique identifier for this token\\
+\fn{anonPrivKey} & \privk{p'} of generated anonymous principal $p'$\\
+\fn{nextEncToken} & pointer to the next token in the list of private tokens produced by disguise $d$ for
+principal $p$, \texttt{NULL} if none exists or if token is global\\
 \end{tabular}
 \vspace{12px}
-    \caption{\tpriv{pdp'} Attributes}
+\caption{\tpriv{pdp'} Attributes}
 \label{tab:privtokens}
 \end{table}
-
-\section{Token Storage}
-
