@@ -79,11 +79,14 @@ keys
 \newcommand\fn[1]{\texttt{{#1}}}
 \newcommand\globalop[1]{\texttt{global\_op$_{#1}$}}
 \newcommand\privop[1]{\texttt{priv\_op$_{#1}$}}
+\newcommand\op[1]{\texttt{op$_{#1}$}}
 \newcommand\ek{\texttt{enck}}
 \newcommand\eks{\texttt{enck\_set}}
 \newcommand\ks{\texttt{k\_set}}
 \newcommand\privk[1]{\texttt{privk$_{#1}$}}
 \newcommand\pubk[1]{\texttt{pubk$_{#1}$}}
+\createpseudocodeblock{pcb}{center,boxed}{}{}{}
+\createprocedureblock{procb}{center,boxed}{}{}{}
 
 \lstdefinestyle{rust}{
     %backgroundcolor=\color{backcolour},
@@ -141,8 +144,11 @@ Edna: Data Disguises for Web Applications
 \maketitle
 \vspace{-2\baselineskip}
 
-\input{notation}
 \input{design}
+\input{notation}
+\input{protocols}
+\input{tokens}
+\input{funcs}
 
 %-------------------------------------------------------------------------------
 \printbibliography

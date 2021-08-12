@@ -1,0 +1,31 @@
+\begin{table}[t!]
+\centering
+\begin{tabular}{ c p{.8\linewidth} }
+    \fn{tokenID} & unique identifier for this token\\
+    \fn{objID} & unique identifier for the data object modified by the \op{d} producing the token\\
+    \fn{updateType} & whether this token encodes a decorrelate, modify, or remove \op{d}\\
+    \fn{oldValue} & unmodified value of object \fn{objID}\\
+    \fn{newValue} & modified value of object \fn{objID}\\
+    \fn{nextEncToken} & pointer to the next token in the list of private tokens produced by disguise $d$ for
+    principal $p$, \texttt{NULL} if none exists or if token is global\\
+\end{tabular}
+\vspace{12px}
+    \caption{\tdata{pd} Attributes}
+\label{tab:datatokens}
+\end{table}
+
+\begin{table}[t!]
+\centering
+\begin{tabular}{ c p{.8\linewidth} }
+    \fn{tokenID} & unique identifier for this token\\
+    \fn{anonPrivKey} & \privk{p'} of generated anonymous principal $p'$\\
+    \fn{nextEncToken} & pointer to the next token in the list of private tokens produced by disguise $d$ for
+    principal $p$, \texttt{NULL} if none exists or if token is global\\
+\end{tabular}
+\vspace{12px}
+    \caption{\tpriv{pdp'} Attributes}
+\label{tab:privtokens}
+\end{table}
+
+\section{Token Storage}
+

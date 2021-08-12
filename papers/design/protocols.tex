@@ -1,0 +1,118 @@
+\begin{figure*}[h!]
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Principal p} \< \< \textbf{\sys} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+    (\pubk{p}, \privk{p}) \sample \kgen() \<\< \\
+\< \sendmessageright*{\texttt{RegisterPrincipal(p, $\pubk{p}$)}} \< \\
+\<\< \texttt{StorePubKey($\pubk{p}$)}
+}
+\caption{
+\textbf{Principal public key registration.}
+Every principal in the system must register a public key with \sys in order to later reveal (for
+disguise reversal or composition) any of privately disguised data. \sys remembers each public
+    key \privk{p} along with $p$'s ID.}
+\label{fig:acctreg}
+\end{figure*}
+
+\begin{figure*}
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Client Authenticated as $p$} \< \< \textbf{\sys} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+\< \sendmessageright*{\fn{StartDisguise($d$, Some($p$))}} \< \\
+\<\< \eks_{p} \gets \fn{LoadEncKeys}(p)\\
+    \< \sendmessageleft*{\fn{RequestTokenAccess($\eks_{p}$)}} \< \\
+\texttt{k\_set} \gets \{\}\\
+\forall d'~\text{that the client authorizes token access}: \\
+    \quad\texttt{k\_set.insert}(\dec(\privk{p}, \texttt{encks}[d'])) \<\< \\
+    \< \sendmessageright*{\texttt{GrantTokenAccess(\texttt{k\_set})}} \< \\
+% TODO we need to not retrieve all global tokens??? only for disguises that might conflict
+\<\< \texttt{tokens} \gets \{\}\\
+\<\< \forall d'~\text{previously applied}: \\
+    \<\< \quad\texttt{tokens.insert(\fn{ReadGlobalTokens}($d'$))}\\ 
+    \<\< \forall \key_{pd'} \in \texttt{k\_set}: \\
+    \<\< \quad\texttt{tokens.insert(\fn{ReadPrivateTokens($\key_{pd'}$)})}\\ 
+\<\< \texttt{ApplyDisguise($d$,tokens)}
+}
+    \caption{\textbf{Authenticated disguise application.} 
+    The client first invokes the \fn{StartDisguise} API call. 
+    Prior to applying the disguise, \sys requests to access tokens owned by the client by
+    sending a \fn{RequestTokenAccess} to the client with the set of $\eks_{p}$.
+If the client authorizes \sys to access $p$'s private tokens from a prior disguise $d'$, the client decrypts
+    $\ek_{pd'} \in \eks_{p}$ with \privk{p} to get $\key_{pd'}$. 
+The client sends all decrypted $\key_{pd'}$s back to \sys via a \fn{GrantTokenAccess} API call. 
+\sys uses each $\key_{pd'}$ to decrypt $p$'s private tokens produced by disguise $d'$,
+    and compose operations of $d$ on $p$'s data on top of $d'$s.}
+\end{figure*}
+
+\begin{figure*}
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Unauthenticated Client} \< \< \textbf{\sys} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+\< \sendmessageright*{\fn{StartDisguise($d$, None)}} \< \\
+\<\< \texttt{tokens} \gets \{\}\\
+\<\< \forall d'~\text{previously applied}: \\
+    \<\< \quad\texttt{tokens.insert(\fn{ReadGlobalTokens}($d'$))}\\ 
+\<\< \texttt{ApplyDisguise($d$,tokens)}
+}
+    \caption{\textbf{Unauthenticated disguise application}. In contrast to authenticated disguise
+    application, \sys does not request access to any private tokens, and instead simply applies the disguise  
+    with only globally-accessible tokens.}
+\end{figure*}
+
+\begin{figure*}
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Client Authenticated as $p$} \< \< \textbf{\sys} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+\< \sendmessageright*{\fn{StartDisguiseReversal($d$, Some($p$))}} \< \\
+\<\< \eks_{p} \gets \fn{LoadEncKeys}(p)\\
+    \< \sendmessageleft*{\fn{RequestTokenAccess($\eks_{p}$)}} \< \\
+\texttt{k\_set} \gets \{\}\\
+\forall d'~\text{that the client authorizes token access}: \\
+    \quad\texttt{k\_set.insert}(\dec(\privk{p}, \texttt{encks}[d'])) \<\< \\
+    \< \sendmessageright*{\texttt{GrantTokenAccess(\texttt{k\_set})}} \< \\
+% TODO we need to not retrieve all global tokens??? only for disguises that might conflict
+\<\< \texttt{tokens} \gets \{\}\\
+\<\< \forall d'~\text{previously applied}: \\
+    \<\< \quad\texttt{tokens.insert(\fn{ReadGlobalTokens}($d'$))}\\ 
+    \<\< \forall \key_{pd'} \in \texttt{k\_set}: \\
+    \<\< \quad\texttt{tokens.insert(\fn{ReadPrivateTokens($\key_{pd'}$)})}\\ 
+\<\< \texttt{ReverseDisguise($d$,tokens)}
+}
+    \caption{\textbf{Authenticated disguise reversal.}
+The client invokes the \texttt{StartDisguiseReversal} API call. 
+Prior to reversing the disguise, \sys requests to access tokens owned by the client by
+    sending a \fn{RequestTokenAccess} to the client with the set of $\eks_{p}$.
+If the client authorizes \sys to access $p$'s private tokens from disguises $d'$ up to and including
+    $d$, the client decrypts
+    $\ek_{pd'} \in \eks_{p}$ with \privk{p} to get $\key_{pd'}$. 
+The client sends all decrypted $\key_{pd'}$s back to \sys via a \fn{GrantTokenAccess} API call. 
+\sys uses each $\key_{pd'}$ to decrypt $p$'s private tokens produced by disguise $d'$,
+    and reverse the changes made by disguise $d$.}
+\label{fig:revdisg1p}
+\end{figure*}
+
+\begin{figure*}
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Unauthenticated Client} \< \< \textbf{\sys} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+\< \sendmessageright*{\fn{StartDisguiseReversal($d$, None)}} \< \\
+\<\< \texttt{tokens} \gets \{\}\\
+\<\< \forall d'~\text{previously applied}: \\
+    \<\< \quad\texttt{tokens.insert(\fn{ReadGlobalTokens}($d'$))}\\ 
+\<\< \texttt{ReverseDisguise($d$,tokens)}
+}
+    \caption{\textbf{Unauthenticated disguise application}. In contrast to authenticated disguise
+    reversal, \sys does not request access to any private tokens, and instead simply reverses the disguise  
+    with only globally-accessible tokens.}
+\end{figure*}
+

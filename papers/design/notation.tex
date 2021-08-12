@@ -16,15 +16,15 @@ $d$ & a disguise \\
 \tdata{pd} & token storing undisguised data belonging to $p$.
     Every disguise operation generates a \tdata{pd} for every principal $p$ whose data the operation
     updates.\\
-    & If a \globalop{d} produces \tdata{pd}, Edna stores \tdata{pd} in plaintext\\
+    & If a \globalop{d} produces \tdata{pd}, \sys stores \tdata{pd} in plaintext\\
     & If a \privop{d}
-    produces \tdata{pd}, Edna stores \tdata{pd} such that only $p$ can access \tdata{pd}.\\
+    produces \tdata{pd}, \sys stores \tdata{pd} such that only $p$ can access \tdata{pd}.\\
     \tpriv{pdp'} & token storing private key $\pubk{p'}$. Produced when a \globalop{d} or \privop{d} 
     decorrelates data from $p$ and creates a new anonymous principal $p'$ with corresponding private key $\pubk{p'}$.
-Enda always stores \tpriv{pdp'} such that only $p$ can access \tpriv{pdp'}.\\
+\sys always stores \tpriv{pdp'} such that only $p$ can access \tpriv{pdp'}.\\
 $\key_{pd}$ & symmetric key used to encrypt private \tdata{pd} and \tpriv{pdp'} tokens \\
 $\ek_{pd}$ & $\key_{pd}$ encrypted with $\pubk{p}$\\
-$\eks_{p}$ & the set of all the $\ek_{pd}$ persisted in Edna's storage for all disguises $d$
+$\eks_{p}$ & the set of all the $\ek_{pd}$ persisted in \sys's storage for all disguises $d$
     applied to $p$'s data\\
 \end{tabular}
 \vspace{12px}
@@ -42,10 +42,10 @@ $\eks_{p}$ & the set of all the $\ek_{pd}$ persisted in Edna's storage for all d
     on behalf of $p$.\\
     \fn{StartDisguiseReversal($d$, Option<$p$>)} & Begins the process of reversing disguise $d$,
     optionally on behalf of $p$.\\
-    \fn{RequestTokenAccess($\eks_p$)} & Sent from Edna to a client authenticated as
+    \fn{RequestTokenAccess($\eks_p$)} & Sent from \sys to a client authenticated as
     $p$, requesting the client decrypt all the $\ek_{pd} \in \eks_{p}$ with \privk{p} and uncover the
     corresponding $\key_{pd}$s. \\
-    \fn{GrantTokenAccess(\{$\key_{pd}$\})} & Grants Edna permission, for all $\key_{pd}$ in the
+    \fn{GrantTokenAccess(\{$\key_{pd}$\})} & Grants \sys permission, for all $\key_{pd}$ in the
     argument, to decrypt any
     privately-stored \tdata{pd} and \tpriv{pdp'} with $\key_{pd}$.\\
 \end{tabular}
@@ -76,8 +76,6 @@ $\eks_{p}$ & the set of all the $\ek_{pd}$ persisted in Edna's storage for all d
     recorded in the set of \tdata{} tokens.
 \end{tabular}
     \vspace{12px}
-\caption{Internal Edna Functions}
+\caption{Internal \sys Functions}
 \label{tab:funcs}
 \end{table*}
-
-
