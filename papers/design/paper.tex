@@ -82,8 +82,8 @@ keys
 \newcommand\ek{\texttt{enck}}
 \newcommand\eks{\texttt{enck\_set}}
 \newcommand\ks{\texttt{k\_set}}
-\newcommand\privk{\texttt{privk}}
-\newcommand\pubk{\texttt{pubk}}
+\newcommand\privk[1]{\texttt{privk$_{#1}$}}
+\newcommand\pubk[1]{\texttt{pubk$_{#1}$}}
 
 \lstdefinestyle{rust}{
     %backgroundcolor=\color{backcolour},
@@ -141,6 +141,7 @@ Edna: Data Disguises for Web Applications
 \maketitle
 \vspace{-2\baselineskip}
 
+\input{notation}
 \input{design}
 
 %-------------------------------------------------------------------------------
