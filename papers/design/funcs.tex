@@ -56,8 +56,8 @@ For each principal $p$ whose data is touched by the disguise, \sys generates sym
 \sys then applies each disguise operation, producing tokens for each operation. If the disguise is
 1p-revealable, \sys encrypts tokens with the corresponding principals' \symk{pd}s and stores
 these tokens as the tails of the principals' linked list of
-encrypted tokens. This is shown in Fig~\ref{fig:algos}.
-If the disguise operation, \sys simply stores the token plaintexts.
+encrypted tokens. 
+If the disguise operation is a \globalop{d}, \sys simply stores the token plaintexts.
 }
 \end{figure*}
 
@@ -68,7 +68,5 @@ If the disguise operation, \sys simply stores the token plaintexts.
     \texttt{Reveal data in tokens of disguise $d$}\\
     \texttt{Undo modifications to any prior disguise's tokens by disguise $d$}
 }{}
-
-\caption{\sys Algorithms (assuming all tokens are user-vault encrypted tokens, and ignoring global vault tokens for now)}
-\label{fig:algos}
+\caption{\textbf{ReverseDisguise Pseudocode.}}
 \end{figure*}

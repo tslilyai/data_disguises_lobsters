@@ -16,13 +16,3 @@ forget them once the disguise action is complete.
 Finally, we assume standard security of public key and symmetric key primitives~\note{under a random
 oracle model?}.
 
-%-------------------------------------------------------------------------------
-\section{Notes about Disguise Protocols}
-%-------------------------------------------------------------------------------
-\textbf{\emph{Why would disguise reversal require tokens from prior disguises?}} 
-Note that the application of a disguise $d$ may modify the contents of prior disguise $d'$ tokens!
-This can occur because some token \tdata{} may store removed data that, if in the database, would be
-affected by the application of $d$. When $d$ is applied, \tdata{}'s data is updated to reflect the
-modification by $d$; similarly, when $d$ is reversed, \tdata{}'s original contents are restored.
-
-
