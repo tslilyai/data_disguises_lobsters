@@ -1,27 +1,39 @@
-\section{Token Storage}
+\section{Disguise Tokens}
 
+Tables~\ref{tab:datatokens} and \ref{tab:privtokens} describe the attributes contained in a \tdata{pd} and
+\tpriv{pdp'} token respectively. Here we describe how \sys enforces access control to tokens, and
+hides the number of tokens corresponding to each principal $p$ and disguise $d$.
+
+\paragraph{Token Access Authorization.}
 If a \globalop{d} produces \tdata{pd}, \sys stores \tdata{pd} in plaintext.
-However, if a \privop{d} produces \tdata{pd}, \sys stores \tdata{pd} privately. 
-Furthermore, any \tpriv{pdp'} is also stored privately. 
+However, if a \privop{d} produces \tdata{pd}, \sys encrypts \tdata{pd} 
+such that only $p$ can authorize access to \tdata{pd} plaintext.\
+Any produced \tpriv{pdp'} is also encrypted such that only $p$ can authorize access to \tpriv{pdp'} plaintext.
 
-Privately storing a token requires guarantees that (1) only $p$ can authorize access to these
-tokens, and (2) that no adversary can learn how many private tokens correspond to $p$. \sys must
-meet these guarantees while still supporting the \fn{LoadEncKey}$(p, d)$ and \fn{LoadEncKeys}$(p)$
-calls, and to associate encrypted tokens with a particular $p$ and $d$ (after $p$ authorizes access.)
+\sys encrypts each token with symmetric key \symk{pd} during disguise application. 
+To ensure only $p$ can authorize the decryption of its associated \tdata{pd} and \tpriv{pdp'}
+ciphertexts, \symk{pd} itself is encrypted with \pubk{p} to create \ek{pd}, and \sys stores a mapping
+from $p$ and $d$ to \ek{pd}. This additionally allows \sys to support \fn{LoadEncKey/LoadEncKeys}
+calls.
 
-To achieve (1), \sys encrypts each private token with the appropriate \symk{pd} during disguise
-application, and encrypts \symk{pd} with \pubk{p}. \sys stores a mapping from $p$ and $d$ to the
-resulting \ek{pd}, which allows \sys to support \fn{LoadEncKey/LoadEncKeys}.
+\lyt{Not mentioning the strawman solution that encrypts each token with \pubk{p} for now.}
+%An alternative strawman solution would encrypt each token with \pubk{p}; however, this requires
+%sending all tokens 
 
-Naively, \sys could also map $p$ and $d$ to all associated \fn{Enc(\tdata{pd}) and Enc(\tpriv{pdp'})} 
-However, this violates guarantee (2): an adversary can learn how many private tokens correspond to $p$.
-A impractical strawman solution might require \sys to attempt to decrypt \emph{all} tokens with
-\symk{pd}.
+\paragraph{Hiding Token Metadata.}
+\sys must determine which token ciphertexts to decrypt after $p$ authorizes access by
+decrypting \ek{pd} with \privk{p} and returning \symk{pd}. 
+Naively, \sys could map $p$ and $d$ to all associated \fn{Enc(\tdata{pd}) and Enc(\tpriv{pdp'})} 
+However, this allows an adversary to learn \emph{how many} private tokens correspond to $p$, metadata that
+\sys should keep private.
 
-Instead, \sys stores the encrypted tokens in an encrypted linked list, and only remembers the tail
-of the list. 
+An impractical strawman solution could require \sys to attempt to decrypt \emph{all} tokens with
+\symk{pd}.  \sys utilizes a better solution, namely storing encrypted tokens for $p$ and $d$ in an
+encrypted linked list \tokls{pd}, and only remembering the tail of the list \toklstail{pd}.  When a
+new \tdata{pd} or \tpriv{pdp'} token is produced, \sys sets the token's \fn{nextEncToken} field to
+point to the current \toklstail{pd} before encrypting it.
 
-\begin{table}[h!]
+\begin{table}[t]
 \centering
 \begin{tabular}{ c p{.8\linewidth} }
     \fn{tokenID} & unique identifier for this token\\
@@ -32,12 +44,11 @@ of the list.
     \fn{nextEncToken} & pointer to the next token in the list of private tokens produced by disguise $d$ for
     principal $p$, \texttt{NULL} if none exists or if token is global\\
 \end{tabular}
-\vspace{12px}
 \caption{\tdata{pd} Attributes}
 \label{tab:datatokens}
 \end{table}
 
-\begin{table}[h!]
+\begin{table}[t]
 \centering
 \begin{tabular}{ c p{.8\linewidth} }
 \fn{tokenID} & unique identifier for this token\\
@@ -45,7 +56,6 @@ of the list.
 \fn{nextEncToken} & pointer to the next token in the list of private tokens produced by disguise $d$ for
 principal $p$, \texttt{NULL} if none exists or if token is global\\
 \end{tabular}
-\vspace{12px}
 \caption{\tpriv{pdp'} Attributes}
 \label{tab:privtokens}
 \end{table}
