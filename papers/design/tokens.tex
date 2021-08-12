@@ -33,6 +33,9 @@ encrypted linked list \tokls{pd}, and only remembering the tail of the list \tok
 new \tdata{pd} or \tpriv{pdp'} token is produced, \sys sets the token's \fn{nextEncToken} field to
 point to the current \toklstail{pd} before encrypting it.
 
+With this linked-list design, no party except for $p$ can traverse the list and determine how
+many\tdata{pd} and \tpriv{pdp'} tokens exist for any $d$.
+
 \begin{table}[t]
 \centering
 \begin{tabular}{ c p{.8\linewidth} }
