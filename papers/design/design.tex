@@ -1,18 +1,72 @@
-% TODO add description of what token contents contain
+%-------------------------------------------------------------------------------
+\section{Overview}
+%-------------------------------------------------------------------------------
+In normal database-backed applications, the application database contents completely capture data
+held by the system. The application acts as the sole creator and updater of database contents. We  
+target applications that have \emph{principals} (\ie user accounts in a \texttt{users} table) as first-class citizens; each principal $p$ owns some data objects in the database (\eg a row in an \texttt{address} table).
+This is typical of social network sites such as Facebook or Reddit; and other web applications that
+tie functionality to user accounts (\eg ecommerce or bank applications).
+
+Our design considers \emph{disguisable application systems}, which consist of a typical database-backed
+application and a disguising tool (\sys) operating alongside the application. This system operates
+on three types of data:
+\begin{enumerate}
+    \item \emph{\textbf{Database Contents}}: The application creates and updates its database
+        contents as in the typical non-disguisable setting. \sys also can read and write
+        the database to apply and reverse disguises.
+    \item \emph{\textbf{Disguise History}}: Data about which disguises have been applied or
+        reversed, used to compose disguises on top of one another.
+    \item \emph{\textbf{Disguise Tokens}}: Data produced as a byproduct by disguise application.
+        Tokens encode information about disguise modifications to database contents, and are used by
+        \sys to compose disguises on top of one another or reverse a disguise's modifications.
+\end{enumerate}
 
 %-------------------------------------------------------------------------------
-\section{Threat Model}
+\subsection{Security Goals}
 %-------------------------------------------------------------------------------
-An adversary can access any data stored as plaintext by the application or \sys, including data not
-exposed via its client-facing API. We assume that an adversary cannot access prior snapshots of the
-application database, or observe modifications or memory accesses performed during disguise
-application. Furthermore, undisguised content and implicit correlations based on this content (e.g.,
-a comment that mentions the author’s name) are out of scope.
-
-We assume \sys is honest but curious: when applying or reversing a disguise, \sys may temporarily
+We assume an attacker who, after compromising the system, can perform any actions the
+application or \sys can perform, and access any data the application or \sys can access.
+We assume \sys itself is honest but curious: when applying or reversing a disguise, \sys may temporarily
 hold (in memory) plaintext token data, as well as private or symmetric keys, but is trusted to
-forget them once the disguise action is complete.  
-
+forget them once the disguise action is complete. 
 Finally, we assume standard security of public key and symmetric key primitives~\note{under a random
 oracle model?}.
+With this threat model, our goals are three-fold: 
 
+\vspace{6pt}\noindent\emph{(1) Security of Restricted Disguise Application.}
+We support disguises that optionally require authentication as a principal $p$ prior to being
+applied. If so, only a client authenticated for principal $p$ can apply this disguise (and an
+attacker unauthenticated as $p$ cannot).
+
+\vspace{6pt}\noindent\emph{(2) Security of Private Disguise Tokens.} 
+Tokens are optionally private to a single principal $p$, such that only the user who created
+$p$'s account can authorize access to these tokens. An attacker who is not this user cannot
+authorize or access private disguise tokens created prior to system compromise, even if authenticated as $p$.
+
+\vspace{6pt}\noindent\emph{(3) Security of Private Disguise Token Metadata.}
+An attacker cannot learn how many private disguise tokens created prior to system compromise are associated with a principal $p$'s data.
+
+\vspace{6pt}\noindent\emph{Non-Goals.}
+\begin{itemize}
+    \item Security of private tokens or restricted disguises when an attacker has has knowledge of prior snapshots of system data.
+    \item Security of restricted disguise application if an attacker compromises a principal's account
+        and is authenticated as the principal.
+    \item Security of private tokens and token metadata of $p$ if an attacker compromises the user
+        who created $p$'s account.
+    \item Security of private tokens and token metadata of $p$ if a user authorizes access to these
+        tokens.
+    \item Unlinkability guarantees of disguised principal data: there may remain implicit
+        correlations based on undisguised content (e.g., a comment that mentions the author’s name).
+\end{itemize}
+
+
+%-------------------------------------------------------------------------------
+\subsection{Openly Disguisable Application Systems}
+%-------------------------------------------------------------------------------
+In the \emph{open setting}, no data is kept hidden from \sys. In particular, the different data
+types have the following access policies:
+\begin{enumerate}
+    \item Database Contents: accessible to both the application and \sys.
+    \item Disguise History: accessible to \sys.
+    \item Disguise Tokens: accessible to \sys.
+\end{enumerate}
