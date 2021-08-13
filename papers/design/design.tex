@@ -26,16 +26,18 @@ on three types of data:
 %-------------------------------------------------------------------------------
 We assume an attacker who, after compromising the system, can perform any actions the
 application or \sys can perform, and access any data the application or \sys can access.
-We assume \sys itself is honest but curious: when applying or reversing a disguise, \sys may temporarily
+
+\sys itself is honest but curious: when applying or reversing a disguise, \sys may temporarily
 hold (in memory) plaintext token data, as well as private or symmetric keys, but is trusted to
 forget them once the disguise action is complete. 
 Finally, we assume standard security of public key and symmetric key primitives~\note{under a random
 oracle model?}.
+
 With this threat model, our goals are three-fold: 
 
 \vspace{6pt}\noindent\emph{(1) Security of Restricted Disguise Application.}
 We support disguises that optionally require authentication as a principal $p$ prior to being
-applied. If so, only a client authenticated for principal $p$ can apply this disguise (and an
+applied (or reversed). If so, only a client authenticated for principal $p$ can apply (and reverse) this disguise (and an
 attacker unauthenticated as $p$ cannot).
 
 \vspace{6pt}\noindent\emph{(2) Security of Private Disguise Tokens.} 
@@ -55,18 +57,32 @@ An attacker cannot learn how many private disguise tokens created prior to syste
         who created $p$'s account.
     \item Security of private tokens and token metadata of $p$ if a user authorizes access to these
         tokens.
-    \item Unlinkability guarantees of disguised principal data: there may remain implicit
-        correlations based on undisguised content (e.g., a comment that mentions the author’s name).
+    \item Unlinkability guarantees after disguise application: a disguise may leave implicit
+        correlations between pieces of data and a principal (e.g., a comment that mentions the author’s name).
 \end{itemize}
 
-
 %-------------------------------------------------------------------------------
-\subsection{Openly Disguisable Application Systems}
+\subsection{Strawman: Security in an Open Setting}
 %-------------------------------------------------------------------------------
-In the \emph{open setting}, no data is kept hidden from \sys. In particular, the different data
+In the \emph{open setting}, no type of data is kept hidden from \sys. In particular, the different data
 types have the following access policies:
 \begin{enumerate}
     \item Database Contents: accessible to both the application and \sys.
     \item Disguise History: accessible to \sys.
     \item Disguise Tokens: accessible to \sys.
 \end{enumerate}
+
+Disguises affect each category of data as follows:
+\begin{enumerate}
+    \item Database Contents: \sys modifies the database contents to disguise 
+        application objects (decorrelating, modifying, or removing database rows).
+    \item Disguise History: \sys appends a record of the disguise action (disguise ID + whether
+        applied or reversed) to the history.
+    \item Disguise Tokens: \sys saves a set of tokens to remember what modifications each disguise
+        operation performed. 
+\end{enumerate}
+
+%-------------------------------------------------------------------------------
+\subsection{Support for a Private Setting}
+%-------------------------------------------------------------------------------
+
