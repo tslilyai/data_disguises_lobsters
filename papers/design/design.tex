@@ -15,15 +15,16 @@ Our design considers \emph{disguisable application systems}, which consist of a 
 application and a disguising tool (\sys) operating alongside the application. This system operates
 on three types of data:
 \begin{enumerate}
-    \item \emph{\textbf{Database Contents}}: The application creates and updates its database
-        contents as in the typical non-disguisable setting. \sys also can read and write
-        the database to apply and reverse disguises.
-    \item \emph{\textbf{Disguise History}}: Data about which disguises have been applied or
-        reversed, used to compose disguises on top of one another.
-    \item \emph{\textbf{Disguise Tokens}}: Data produced as a byproduct by disguise application.
-        Tokens encode information about disguise modifications to database contents, and are used by
-        \sys to compose disguises on top of one another or reverse a disguise's modifications.
+    \item \emph{\textbf{Database Contents}}: The application reads and modifies database
+        contents, which include visible, undisguised and currently-disguised daa.
+        \sys modifies the data database contents when it applies and reveals disguises.
+    \item \emph{\textbf{Disguise History}}: Data about which disguises \sys has applied or
+        reversed, used for revealing and to compose disguises on top of one another.
+    \item \emph{\textbf{Disguise Tokens}}: Application-inaccessible data that \sys's disguise application.
+        Tokens encode information about disguise modifications to database contents, and \sys uses
+        them to compose disguises on top of one another or to reveal a disguise.
 \end{enumerate}
+\ms{Edited above for passive voice and to add clarity about database contents.}
 
 %-------------------------------------------------------------------------------
 \subsection{Security Goals}
@@ -34,8 +35,7 @@ application or \sys can perform, and access any data the application or \sys can
 \sys itself is honest but curious: when applying or reversing a disguise, \sys may temporarily
 hold (in memory) plaintext token data, as well as private or symmetric keys, but is trusted to
 forget them once the disguise action is complete. 
-Finally, we assume standard security of public key and symmetric key primitives~\note{under a random
-oracle model?}.
+Finally, we assume standard security of public key and symmetric key primitives.
 
 With this threat model, our goals are three-fold: 
 
@@ -47,7 +47,8 @@ attacker unauthenticated as $p$ cannot).
 \vspace{6pt}\noindent\textbf{\emph{(2) Security of Private Disguise Tokens.} }
 Tokens are optionally private to a single principal $p$, such that only \user{p} can authorize
 access to these tokens. An attacker who is not this \user{p} cannot
-authorize or access private disguise tokens created prior to compromise, even if authenticated as $p$.
+authorize or access private disguise tokens created prior to compromise, even if authenticated as $p$.\ms{Don't understand this; seems self-contradictory?
+If \user{p} is authenticated as $p$, they surely speak-for $p$ and can access its data?}
 
 \vspace{6pt}\noindent\textbf{\emph{(3) Security of Private Disguise Token Metadata.}}
 An attacker cannot learn how many private disguise tokens created prior to compromise are associated with a principal $p$'s data.
@@ -57,9 +58,10 @@ An attacker cannot learn how many private disguise tokens created prior to compr
     \item Security of private tokens or restricted disguises when an attacker has prior snapshots of system data.
     \item Security of restricted disguise application if an attacker authenticates as the principal.
     \item Security of $p$'s private tokens and token metadata if \user{p} authorizes access to these
-        tokens, or if an attacker compromises \user{p}.
-    \item Any unlinkability guarantees after disguise application. A disguise may leave implicit
-        correlations between pieces of data and a principal (e.g., a comment that mentions the author’s name).
+        tokens, or if an attacker compromises \user{p}.\ms{See above; is there some subtle difference between \user{p} and $p$ that I'm missing?}
+    \item Unlinkability via unmodified data contents after disguising. A disguise may leave explicit correlations
+        between pieces of data and a principal (e.g., a comment that mentions the author’s name) as part
+        of database contents that the disguise leaves alone.
 \end{itemize}
 
 %-------------------------------------------------------------------------------
