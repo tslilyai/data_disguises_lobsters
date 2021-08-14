@@ -86,19 +86,19 @@ disguise on each type of data.
 \begin{table}[h]
 \centering
     \begin{tabular}{ c c c c }
-        \textbf{Data} & \textbf{App Access} & \textbf{\sys Access} & \textbf{\user{p} Access}\\
+        \textbf{Data} & \textbf{App?} & \textbf{\sys?} & \textbf{\user{p}?}\\
 \hline
         Database Contents & \checkmark & \checkmark & \checkmark \\
         Disguise History & \checkmark & \checkmark & \checkmark \\
         Disguise Tokens & & \checkmark & \checkmark \\
 \end{tabular}
-\caption{Data access policies.}
+\caption{Open setting data access policies.}
 \label{tab:accopen}
 \end{table}
 
 \begin{table}[h]
 \centering
-    \begin{tabular}{ p{0.2\linewidth} p{.8\linewidth}}
+    \begin{tabular}{ p{0.18\linewidth} p{.8\linewidth}}
         \textbf{Data} & \textbf{Disguise Effect}\\
 \hline
         Database Contents & \sys modifies database contents, converting database rows to disguised
@@ -108,7 +108,7 @@ disguise on each type of data.
         Disguise Tokens & Each disguise database modification generates a token recording the
         modification, which \sys saves in plaintext.\\
 \end{tabular}
-\caption{Effects of a disguise.}
+\caption{Open setting effects of a disguise.}
 \label{tab:disopen}
 \end{table}
 
@@ -123,17 +123,37 @@ primitives to render tokens inaccessible to \sys without permission from \user{p
 \subsection{Security in a Private Setting}
 %-------------------------------------------------------------------------------
 
-\begin{table}[h!]
+In a private setting, only \user{p} can authorize access to disguise tokens specified as private
+(Table~\ref{tab:accpriv}).
+
+\begin{table}[h]
 \centering
-    \begin{tabular}{ c c c}
-        \textbf{Data} & \textbf{\sys Access} & \textbf{\user{p} Access}\\
+    \begin{tabular}{ c c c c }
+        \textbf{Data} & \textbf{App?} & \textbf{\sys?} & \textbf{\user{p}?}\\
 \hline
-        Database Contents & Yes & Yes \\
-        Disguise History & Yes & Yes \\
-        Disguise Tokens & & Yes \\
+        Database Contents & \checkmark & \checkmark & \checkmark \\
+        Disguise History & \checkmark & \checkmark & \checkmark \\
+        Global Disguise Tokens & & \checkmark & \checkmark \\
+        Private Disguise Tokens & & & \checkmark \\
 \end{tabular}
-\caption{Accessiblity of different data types in the open setting}
-\label{tab:accopen}
+    \caption{Private setting data access policies.}
+\label{tab:accpriv}
 \end{table}
 
+\begin{table}[h]
+\centering
+    \begin{tabular}{ p{0.18\linewidth} p{.8\linewidth}}
+        \textbf{Data} & \textbf{Disguise Effect}\\
+\hline
+        Database Contents & \sys modifies database contents, converting database rows to disguised
+        versions according to the disguise specification.        
+        \\ Disguise History & \sys appends a record of the disguise action to the history.\\
+        Disguise Tokens & Each disguise database modification generates a token recording the
+        modification. If the token is global, \sys saves it in plaintext. Otherwise, if the
+        modification updated $p$'s data, \sys encrypts the token such that only \user{p} can decrypt
+        it.\\
+\end{tabular}
+\caption{Private setting effects of a disguise.}
+\label{tab:dispriv}
+\end{table}
 
