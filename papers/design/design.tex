@@ -1,19 +1,30 @@
 %-------------------------------------------------------------------------------
 \section{Overview}
 %-------------------------------------------------------------------------------
-In normal database-backed applications, the application database contents completely capture data
-held by the system. The application acts as the sole creator and updater of database contents. 
-
-We target applications that have \emph{principals} (\ie user accounts in a \texttt{users} table) as
-first-class citizens; each principal $p$ owns some data objects in the database (\eg a row in an
-\texttt{address} table), and is created by some external user \user{p}.
-%
-This is typical of social network sites such as Facebook or Reddit; and other web applications that
-tie functionality to user accounts (\eg ecommerce or bank applications).
 
 Our design considers \emph{disguisable application systems}, which consist of a typical database-backed
-application and a disguising tool (\sys) operating alongside the application. This system operates
-on three types of data:
+application and a disguising tool (\sys) operating alongside the application.
+This setting assumes the following elements:
+\begin{table}[h]
+\centering
+\begin{tabular}{ c p{.9\linewidth} }
+$d$ & a disguise that can be applied or reversed via \sys's API \\
+$p$ & an application principal, which owns some data
+    objects in the database (\eg a row in an \texttt{address} table).
+%
+This is typical of social network sites such as Facebook or Reddit; and other web applications that
+tie functionality to user accounts (\eg ecommerce or bank applications).\\
+\user{p} & external users of the application (potentially contacting the application via
+    multiple different clients, such as a mobile and computer web browser).
+    \user{p} creates $p$'s account, and can later authenticate as $p$.\\
+\end{tabular}
+\end{table}
+
+\noindent
+In normal database-backed applications, the application database contents completely capture data
+held by the system: the application acts as the sole creator and updater of database contents. 
+A disguisable application system, in contrast, operates on three different categories of data
+(stored separately):
 \begin{enumerate}
     \item \emph{\textbf{Database Contents}}: The application creates and updates its database
         contents as in the typical non-disguisable setting. \sys also can read and write
@@ -40,13 +51,12 @@ oracle model?}.
 With this threat model, our goals are three-fold: 
 
 \vspace{6pt}\noindent\textbf{\emph{(1) Security of Restricted Disguise Application.}}
-We support disguises that optionally require authentication as a principal $p$ prior to being
-applied (or reversed). If so, only a client authenticated for principal $p$ can apply (and reverse) this disguise (and an
-attacker unauthenticated as $p$ cannot).
+We support disguises that require authentication as a principal $p$ prior to being
+applied (or reversed). If so, only a client authenticated for principal $p$ can apply (and reverse) this disguise (and an attacker unauthenticated as $p$ cannot).
 
 \vspace{6pt}\noindent\textbf{\emph{(2) Security of Private Disguise Tokens.} }
 Tokens are optionally private to a single principal $p$, such that only \user{p} can authorize
-access to these tokens. An attacker who is not this \user{p} cannot
+access to these tokens. An attacker who is not \user{p} cannot
 authorize or access private disguise tokens created prior to compromise, even if authenticated as $p$.
 
 \vspace{6pt}\noindent\textbf{\emph{(3) Security of Private Disguise Token Metadata.}}
@@ -63,7 +73,7 @@ An attacker cannot learn how many private disguise tokens created prior to compr
 \end{itemize}
 
 %-------------------------------------------------------------------------------
-\subsection{Strawman: Open Setting}
+\subsection{Strawman: Security in an Open Setting}
 %-------------------------------------------------------------------------------
 In the \emph{open setting}, no type of data is kept hidden from \sys. In particular, the different data
 types have the following access policies and affect each category of data as follows:
@@ -87,17 +97,17 @@ types have the following access policies and affect each category of data as fol
         \textbf{Data Type} & \textbf{Disguise Effect}\\
 \hline
         Database Contents & \sys modifies database contents, converting database rows to disguised
-        versions according to the disguise specification (decorrelating, modifying, or removing the
-        rows).        
+        versions according to the disguise specification.        
         \\
-        Disguise History & \sys appends a record of the disguise action (disguise ID + whether
-        applied or reversed) to the history.\\
-        Disguise Tokens & \sys saves a set of tokens to remember what modifications each disguise
-        operation performed. \\
+        Disguise History & \sys appends a record of the disguise action to the history.\\
+        Disguise Tokens & Each disguise database modification generates a token recording the
+        modifictaion, which \sys saves in plaintext.\\
 \end{tabular}
 \caption{Effects of a disguise split by data type in the open setting.}
 \label{tab:disopen}
 \end{table}
+
+
 
 %-------------------------------------------------------------------------------
 \subsection{Security in a Private Setting}
