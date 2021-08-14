@@ -74,18 +74,18 @@ keys
 
 
 % token stuff
-\newcommand\tpriv[1]{\texttt{pk\_tok}\ensuremath{_{#1}}}
-\newcommand\tdata[1]{\texttt{data\_tok}\ensuremath{_{#1}}}
+\newcommand\tpriv[1]{\ensuremath{\mathcal{T}^{\text{pk}}_{#1}}}
+\newcommand\tdata[1]{\ensuremath{\mathcal{T}^{\text{data}}_{#1}}}
 \newcommand\fn[1]{\texttt{{#1}}}
-\newcommand\globalop[1]{\texttt{global\_op}\ensuremath{_{#1}}}
-\newcommand\privop[1]{\texttt{priv\_op}\ensuremath{_{#1}}}
-\newcommand\op[1]{\texttt{op}\ensuremath{_{#1}}}
-\newcommand\ek[1]{\texttt{enck}\ensuremath{_{#1}}}
-\newcommand\eks[1]{\texttt{enck\_set}\ensuremath{_{#1}}}
-\newcommand\ks{\texttt{k\_set}}
-\newcommand\privk[1]{\texttt{privk\ensuremath{_{#1}}}}
-\newcommand\pubk[1]{\texttt{pubk\ensuremath{_{#1}}}}
-\newcommand\symk[1]{\ensuremath{\key_{#1}}}
+\newcommand\privop[1]{\ensuremath{\mathcal{O}^{\text{priv}}_{#1}}}
+\newcommand\globalop[1]{\ensuremath{\mathcal{O}^{\text{glob}}_{#1}}}
+\newcommand\op[1]{\ensuremath{\mathcal{O}_{#1}}}
+\newcommand\ek[1]{\ensuremath{{E}^\texttt{k}_{#1}}}
+\newcommand\eks[1]{\ensuremath{\{{E}^\texttt{k}_{#1}\}}}
+\newcommand\ks{\ensuremath{\{\texttt{k}\}}}
+\newcommand\privk[1]{\texttt{\ensuremath{\texttt{k}^{\text{priv}}_{#1}}}}
+\newcommand\pubk[1]{\texttt{\ensuremath{\texttt{k}^{\text{pub}}_{#1}}}}
+\newcommand\symk[1]{\texttt{\ensuremath{\texttt{k}^{\text{sym}}_{#1}}}}
 \newcommand\tokls[1]{\texttt{EncTokens}\ensuremath{_{#1}}}
 \newcommand\toklstail[1]{\texttt{EncTokensTail}\ensuremath{_{#1}}}
 \newcommand\user[1]{\ensuremath{\mathcal{U}_{#1}}}
