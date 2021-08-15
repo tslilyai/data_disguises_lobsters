@@ -1,10 +1,50 @@
 \section{Disguise Tokens}
 
-Tables~\ref{tab:datatokens} and \ref{tab:privtokens} describe the attributes contained in a \tdata{pd} and
-\tpriv{pdp'} token respectively. Here we describe how \sys enforces access control to tokens, and
-hides the number of tokens corresponding to each principal $p$ and disguise $d$.
+Operations \op{d} of disguise $d$ generate tokens. Operations are one of three types:
+\begin{enumerate}
+    \item Decorrelate: generate a new anonymous principal $p'$, and rewrite the ownership (foreign key)
+        relationship from the data object (row) to the original principal $p$ to instead point to $p'$.
+    \item Modify: change an attribute of the data object.
+    \item Remove: delete the data object.
+\end{enumerate}
 
-\paragraph{Token Access Authorization.}
+\noindent
+Every \op{d} produces data tokens \tdata{pd} with the following fields, which record changes
+performed by \op{d}.
+\begin{itemize}
+\item \fn{tokenID}:  unique ID for this token
+\item \fn{objID}:  unique ID for the data object modified by \op{d}
+\item \fn{updateType}:  decorrelate, modify, or remove
+\item \fn{oldValue}:  original value of object \fn{objID}
+\item \fn{newValue}:  updated value of object \fn{objID}
+\end{itemize}
+
+%\lyt{XXX We don't actually need insert tokens?}
+%Note that a decorrelation \op{d} produces two tokens, one recording an insert of the new data object representing 
+
+\subsection{Private Token Access Design}
+\begin{itemize}
+    \item \globalop{d}: an operation of disguise $d$ (either a removal, modification, or decorrelation
+    operation) that produces global tokens: all parties can learn what data updates \globalop{d}
+    performed.
+    \item \privop{d}: an operation of disguise $d$ (either a removal, modification, or decorrelation
+    operation) that produces private tokens: only principals whose data \privop{d} updates can learn
+    what updates \privop{d} performed.
+\end{itemize}
+
+%\item \fn{nextEncToken}:  pointer to the next token in the list of private tokens produced by disguise $d$ for
+    %principal $p$, \texttt{NULL} if none exists or if token is global
+
+\noindent
+A decorrelation \op{d} additional generates a \emph{private key} token \tpriv{pdp'}.
+\begin{itemize}
+    \item \tdata{pd}: token storing undisguised data belonging to $p$.
+    Every disguise operation generates a \tdata{pd} for every principal $p$ whose data the operation
+    updates.
+\item \tpriv{pdp'}: token storing private key $\pubk{p'}$. Produced when a \globalop{d} or \privop{d} 
+    decorrelates data from $p$ and creates a new anonymous principal $p'$ with corresponding private key $\pubk{p'}$.
+\end{itemize}
+
 If a \globalop{d} produces \tdata{pd}, \sys stores \tdata{pd} in plaintext.
 However, if a \privop{d} produces \tdata{pd}, \sys encrypts \tdata{pd} 
 such that only $p$ can authorize access to \tdata{pd} plaintext.\
@@ -39,22 +79,7 @@ many\tdata{pd} and \tpriv{pdp'} tokens exist for any $d$.
 \begin{table}[t]
 \centering
 \begin{tabular}{ c p{.8\linewidth} }
-    \fn{tokenID} & unique identifier for this token\\
-    \fn{objID} & unique identifier for the data object modified by the \op{d} producing the token\\
-    \fn{updateType} & decorrelate, modify, or remove\\
-    \fn{oldValue} & unmodified value of object \fn{objID}\\
-    \fn{newValue} & modified value of object \fn{objID}\\
-    \fn{nextEncToken} & pointer to the next token in the list of private tokens produced by disguise $d$ for
-    principal $p$, \texttt{NULL} if none exists or if token is global\\
-\end{tabular}
-\caption{\tdata{pd} Attributes}
-\label{tab:datatokens}
-\end{table}
-
-\begin{table}[t]
-\centering
-\begin{tabular}{ c p{.8\linewidth} }
-\fn{tokenID} & unique identifier for this token\\
+\fn{tokenID} & unique ID for this token\\
 \fn{anonPrivKey} & \privk{p'} of generated anonymous principal $p'$\\
 \fn{nextEncToken} & pointer to the next token in the list of private tokens produced by disguise $d$ for
 principal $p$, \texttt{NULL} if none exists or if token is global\\

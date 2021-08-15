@@ -475,8 +475,8 @@ impl Disguiser {
             );
         }
 
-        // TOKEN INSERT
-        let mut insert_token = Token::new_insert_token(
+        // XXX TOKEN INSERT we don't need to record decorrelation insertions
+        /* let mut insert_token = Token::new_insert_token(
             did,
             uid,
             fk_name.to_string(),
@@ -492,7 +492,7 @@ impl Disguiser {
             } else {
                 token_ctrler.insert_global_token(&mut insert_token);
             }
-        }
+        }*/
 
         // B. UPDATE CHILD FOREIGN KEY
         cols_to_update.push(Assignment {
