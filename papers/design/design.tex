@@ -91,6 +91,7 @@ disguise on each type of data.
         Database Contents & \checkmark & \checkmark & \checkmark \\
         Disguise History & \checkmark & \checkmark & \checkmark \\
         Disguise Tokens & & \checkmark & \checkmark \\
+        Disguise Token Metadata & & \checkmark & \checkmark \\
 \end{tabular}
 \caption{Open setting data access policies.}
 \label{tab:accopen}
@@ -122,10 +123,6 @@ primitives to render tokens inaccessible to \sys without permission from \user{p
 %-------------------------------------------------------------------------------
 \subsection{Security in a Private Setting}
 %-------------------------------------------------------------------------------
-
-In a private setting, only \user{p} can authorize access to disguise tokens specified as private
-(Table~\ref{tab:accpriv}).
-
 \begin{table}[h]
 \centering
     \begin{tabular}{ c c c c }
@@ -134,11 +131,26 @@ In a private setting, only \user{p} can authorize access to disguise tokens spec
         Database Contents & \checkmark & \checkmark & \checkmark \\
         Disguise History & \checkmark & \checkmark & \checkmark \\
         Global Disguise Tokens & & \checkmark & \checkmark \\
+        Global Disguise Token Metadata & & \checkmark & \checkmark \\
         Private Disguise Tokens & & & \checkmark \\
+        Private Disguise Token Metadata & & & \checkmark \\
 \end{tabular}
     \caption{Private setting data access policies.}
 \label{tab:accpriv}
 \end{table}
+
+A private setting aims to additionally meet security goals (2) and (3) (Table~\ref{tab:accpriv}).
+
+Security goal (2) requires that only \user{p} can authorize access to disguise tokens specified as private.
+To achieve this, \sys encrypts private tokens recording modifications to $p$'s data such that only
+\user{p} can decrypt it, \eg with a public key for $p$ 
+where only \user{p} holds the corresponding private key.
+
+To achieve security goal 3, \sys must ensure that it does not know how many tokens belong to $p$.
+To hide token metadata, \sys stores all principals' private token ciphertexts in one large bag,
+where nothing distinguishes $p$'s encrypted token from $p'$'s encrypted token.
+
+Table~\ref{tab:dispriv} summarizes these changes.
 
 \begin{table}[h]
 \centering
@@ -149,11 +161,10 @@ In a private setting, only \user{p} can authorize access to disguise tokens spec
         versions according to the disguise specification.        
         \\ Disguise History & \sys appends a record of the disguise action to the history.\\
         Disguise Tokens & Each disguise database modification generates a token recording the
-        modification. If the token is global, \sys saves it in plaintext. Otherwise, if the
-        modification updated $p$'s data, \sys encrypts the token such that only \user{p} can decrypt
-        it.\\
+        modification. \sys saves global tokens in plaintext. For private tokens storing
+        updates to $p$'s data, \sys encrypts them such that only \user{p} can decrypt
+        it and stores it in a bag with other private token ciphertexts.\\
 \end{tabular}
 \caption{Private setting effects of a disguise.}
 \label{tab:dispriv}
 \end{table}
-
