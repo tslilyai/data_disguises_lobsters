@@ -23,14 +23,32 @@ performed by \op{d}.
 %Note that a decorrelation \op{d} produces two tokens, one recording an insert of the new data object representing 
 
 \subsection{Private Token Access Design}
-\begin{itemize}
-    \item \globalop{d}: an operation of disguise $d$ (either a removal, modification, or decorrelation
-    operation) that produces global tokens: all parties can learn what data updates \globalop{d}
-    performed.
-    \item \privop{d}: an operation of disguise $d$ (either a removal, modification, or decorrelation
-    operation) that produces private tokens: only principals whose data \privop{d} updates can learn
-    what updates \privop{d} performed.
-\end{itemize}
+
+To achieve our security goals, \sys encrypts private tokens recording modifications to $p$'s data such that only \user{p} can
+decrypt it, and stores ciphertexts such that nothing distinguishes $p_1$'s tokens from $p_2$'s
+tokens.
+
+\vspace{6pt}
+\noindent\textbf{An Initial Strawman.}
+As a strawman design, \sys saves a public key \pubk{p} for every principal $p$, and 
+encrypts each private token of $p$'s with \pubk{p}. 
+\sys stores all tokens in a bag of ciphertexts.
+
+When \user{p} wants to access $p$'s tokens, \sys sends \user{p} the bag of ciphertexts and \user{p}
+tries to decrypt all ciphertexts with its private key \privk{p}.
+\user{p} then sends \sys the tokens it could decrypt.
+
+\vspace{6pt}
+\noindent\textbf{A Better Strawman.}
+Clearly, the initial strawman achieves both security goals but is impractical.
+
+
+\lyt{TODO: Discuss additions (linked list pointers, private key tokens) necessary to support our
+design for private tokens!}
+
+\sys adds support for private tokens by allowing \op{d}s to be either global (\globalop{d}) or
+private (\privop{d}).  All parties can learn what data updates \globalop{d} performed, whereas only
+principals whose data \privop{d} updates can learn what updates \privop{d} performed.
 
 %\item \fn{nextEncToken}:  pointer to the next token in the list of private tokens produced by disguise $d$ for
     %principal $p$, \texttt{NULL} if none exists or if token is global
