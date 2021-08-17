@@ -1,28 +1,87 @@
-\section{Disguise Tokens}
+\section{Disguise Operations and Tokens}
 
-Operations \op{d} of disguise $d$ generate tokens. Operations are one of three types:
+Operations \op{d} of disguise $d$ take data objects as input, execute updates to application
+data, and produce (token, principal) pairs
+as output. This means that the disguise specification determines how tokens correspond to
+principals: for example, a comment may correspond to the principal whose ID is referenced by the
+author column.
+Operations come in three forms:
 \begin{enumerate}
-    \item Decorrelate: generate a new anonymous principal $p'$, and rewrite the ownership (foreign key)
-        relationship from the data object (row) to the original principal $p$ to instead point to $p'$.
     \item Modify: change an attribute of the data object.
     \item Remove: delete the data object.
+    \item Decorrelate: generate a \emph{pseudoprincipal} $q$, and rewrite the foreign key to original
+        principal $p$ from the data object to instead point to $q$.
+        A pseudoprincipal may or may not be indistinguishable from a real principal: for example,
+        $q$ may not have an associated password.
+
+        To support private tokens associated with $q$, decorrelation generates a
+        public-private key pair (\pubk{q} and \privk{q}).
 \end{enumerate}
 
 \noindent
-Every \op{d} produces data tokens \tdata{pd} with the following fields, which record changes
-performed by \op{d}.
+Tokens come in two forms. Every \op{d} produces data tokens associated with the disguise $d$ and a
+principal $p$, notated as \tdata{pd}. \tdata{pd} tokens are either be private or global depending on
+whether the producing \op{d} is global or private. 
+A \tdata{pd} contains the following fields, which record changes performed by \op{d}:
 \begin{itemize}
-\item \fn{tokenID}:  unique ID for this token
-\item \fn{objID}:  unique ID for the data object modified by \op{d}
-\item \fn{updateType}:  decorrelate, modify, or remove
-\item \fn{oldValue}:  original value of object \fn{objID}
-\item \fn{newValue}:  updated value of object \fn{objID}
+\item \fn{tokenID}: unique ID for this token
+\item \fn{disguiseID}: disguise ID $d$ 
+\item \fn{principalID}: principal ID $p$
+\item \fn{objID}: unique ID for the data object modified by \op{d}
+\item \fn{updateType}: decorrelate, modify, or remove
+\item \fn{oldValue}: original value of object \fn{objID}
+\item \fn{newValue}: updated value of object \fn{objID}
 \end{itemize}
 
-%\lyt{XXX We don't actually need insert tokens?}
-%Note that a decorrelation \op{d} produces two tokens, one recording an insert of the new data object representing 
+Only decorrelation operations generate the second form of token, namely a private key token associated with the disguise $d$, principal $p$, and the pseudoprincipal $q$ created
+during decorrelation (notated as \tpriv{pdq}).
+\tpriv{pdq} contains the following fields:
+\begin{itemize}
+\item \fn{tokenID}: unique ID for this token
+\item \fn{disguiseID}: disguise ID $d$ 
+\item \fn{principalID}: principal ID $p$
+\item \fn{pseudoprincipalID}: principal ID $q$
+\item \fn{pseudoPrincipalPrivateKey}: \privk{q}
+\end{itemize}
+\sys always stores \tpriv{pdq} privately and associated with $p$. This ensures that only a client
+with access to \privk{p} can access \privk{q} (and therefore access $q$'s private tokens).
 
-\subsection{Private Token Access Design}
+\subsection{Private Tokens Access Capability}
+\sys stores all global \tdata{pd} tokens in plaintext.
+\sys encrypts private \tdata{pd} and \tpriv{pdq} tokens with a symmetric key \symk{pd} specific to the
+disguise and principal. \sys then encrypts \symk{pd} with public key \pubk{p}. A client needs to prove it has
+\privk{p} by decrypting \symk{pd}, which only then allows decryption of $p$'s private tokens of
+disguise $d$.
+
+\paragraph{Hiding Token Metadata.}
+\sys stores a mapping from $p$ and $d$ to the encrypted \symk{pd}. To ensure that this does not leak
+metadata about which principals have disguised data, \sys generates dummy ciphertexts for all
+principals that do not have encrypted \symk{pd}s for disguise $d$.
+
+\sys also must hide which token ciphertexts correspond to which principals.  Naively, \sys can store
+all ciphertexts in one bag; in order to determine which ciphertexts a client may access, the client
+provides the decrypted \symk{pd} and \sys tries to decrypt every ciphertext in the bag. This clearly
+has poor performance and is unscalable.
+However, \sys cannot group the ciphertexts into bags indexed by principal ID: this leaks information
+about the number of private tokens associated with a principal.
+
+To provide metadata privacy while achieving better performance, \sys stores encrypted \tdata{pd} and
+\tpriv{pdq} tokens in a linked list of encrypted tokens produced by $d$ associated with $p$, notated
+as \tokls{pd}. 
+Tokens store links to the next token in the list with in an additional \fn{nextEncToken} field: this
+field stores a pointer to the location of current tail of \tokls{pd} for $p$ and $d$.
+Thus, only by decrypting tokens in the list one by one can the entire \tokls{pd} be discovered and
+the ciphertexts in the list decrypted.
+
+\sys stores current pointers to the tails of \tokls{pd} indexed by $p$ and $d$. This allows \sys to
+know where to start decrypting the list of tokens given $p$ and $d$, and how to set
+\fn{nextEncToken} for a new token in \tokls{pd} produced when applying $d$. \sys generates dummy
+tail pointers for all principals not associated with disguise $d$ to hide metadata about which lists
+exist.\lyt{TODO implement dummy}
+Because \tokls{pd} tails point to (real or dummy) token ciphertexts, an adversary learns nothing
+about the token contents or how many tokens are associated with a principal.
+
+\iffalse
 
 \vspace{6pt}
 \noindent\textbf{An Initial Strawman.}
@@ -38,66 +97,4 @@ The client then sends \sys the tokens it could decrypt.
 \noindent\textbf{A Better Strawman.}
 Clearly, the initial strawman achieves both security goals but is impractical.
 
-
-\lyt{TODO: Discuss additions (linked list pointers, private key tokens) necessary to support our
-design for private tokens!}
-
-\sys adds support for private tokens by allowing \op{d}s to be either global (\globalop{d}) or
-private (\privop{d}).  All parties can learn what data updates \globalop{d} performed, whereas only
-principals whose data \privop{d} updates can learn what updates \privop{d} performed.
-
-%\item \fn{nextEncToken}:  pointer to the next token in the list of private tokens produced by disguise $d$ for
-    %principal $p$, \texttt{NULL} if none exists or if token is global
-
-\noindent
-A decorrelation \op{d} additional generates a \emph{private key} token \tpriv{pdp'}.
-\begin{itemize}
-    \item \tdata{pd}: token storing undisguised data belonging to $p$.
-    Every disguise operation generates a \tdata{pd} for every principal $p$ whose data the operation
-    updates.
-\item \tpriv{pdp'}: token storing private key $\pubk{p'}$. Produced when a \globalop{d} or \privop{d} 
-    decorrelates data from $p$ and creates a new anonymous principal $p'$ with corresponding private key $\pubk{p'}$.
-\end{itemize}
-
-If a \globalop{d} produces \tdata{pd}, \sys stores \tdata{pd} in plaintext.
-However, if a \privop{d} produces \tdata{pd}, \sys encrypts \tdata{pd} 
-such that only $p$ can authorize access to \tdata{pd} plaintext.\
-Any produced \tpriv{pdp'} is also encrypted such that only $p$ can authorize access to \tpriv{pdp'} plaintext.
-
-\sys encrypts each token with symmetric key \symk{pd} during disguise application. 
-To ensure only $p$ can authorize the decryption of its associated \tdata{pd} and \tpriv{pdp'}
-ciphertexts, \symk{pd} itself is encrypted with \pubk{p} to create \ek{pd}, and \sys stores a mapping
-from $p$ and $d$ to \ek{pd}. This additionally allows \sys to support \fn{LoadEncKey/LoadEncKeys}
-calls.
-
-\lyt{Not mentioning the strawman solution that encrypts each token with \pubk{p} for now.}
-%An alternative strawman solution would encrypt each token with \pubk{p}; however, this requires
-%sending all tokens 
-
-\paragraph{Hiding Token Metadata.}
-\sys must determine which token ciphertexts to decrypt after $p$ authorizes access by
-decrypting \ek{pd} with \privk{p} and returning \symk{pd}. 
-Naively, \sys could map $p$ and $d$ to all associated \fn{Enc(\tdata{pd}) and Enc(\tpriv{pdp'})} 
-However, this allows an adversary to learn \emph{how many} private tokens correspond to $p$, metadata that
-\sys should keep private.
-
-An impractical strawman solution could require \sys to attempt to decrypt \emph{all} tokens with
-\symk{pd}.  \sys utilizes a better solution, namely storing encrypted tokens for $p$ and $d$ in an
-encrypted linked list \tokls{pd}, and only remembering the tail of the list \toklstail{pd}.  When a
-new \tdata{pd} or \tpriv{pdp'} token is produced, \sys sets the token's \fn{nextEncToken} field to
-point to the current \toklstail{pd} before encrypting it.
-
-With this linked-list design, no party except for $p$ can traverse the list and determine how
-many\tdata{pd} and \tpriv{pdp'} tokens exist for any $d$.
-
-\begin{table}[t]
-\centering
-\begin{tabular}{ c p{.8\linewidth} }
-\fn{tokenID} & unique ID for this token\\
-\fn{anonPrivKey} & \privk{p'} of generated anonymous principal $p'$\\
-\fn{nextEncToken} & pointer to the next token in the list of private tokens produced by disguise $d$ for
-principal $p$, \texttt{NULL} if none exists or if token is global\\
-\end{tabular}
-\caption{\tpriv{pdp'} Attributes}
-\label{tab:privtokens}
-\end{table}
+\fi
