@@ -31,6 +31,7 @@ A \tdata{pd} contains the following fields, which record changes performed by \o
 \item \fn{updateType}: decorrelate, modify, or remove
 \item \fn{oldValue}: original value of object \fn{objID}
 \item \fn{newValue}: updated value of object \fn{objID}
+\item \fn{nonce}: random value generated to prevent known-plaintext attacks
 \end{itemize}
 
 Only decorrelation operations generate the second form of token, namely a private key token associated with the disguise $d$, principal $p$, and the pseudoprincipal $q$ created
@@ -42,15 +43,18 @@ during decorrelation (notated as \tpriv{pdq}).
 \item \fn{principalID}: principal ID $p$
 \item \fn{pseudoprincipalID}: principal ID $q$
 \item \fn{pseudoPrincipalPrivateKey}: \privk{q}
+\item \fn{nonce}: random value generated to prevent known-plaintext attacks
 \end{itemize}
 \sys always stores \tpriv{pdq} privately and associated with $p$. This ensures that only a client
 with access to \privk{p} can access \privk{q} (and therefore access $q$'s private tokens).
 
 \vspace{6pt}\noindent\textbf{Enforcing Token Access.}
-\sys encrypts private \tdata{pd} and \tpriv{pdq} tokens with a symmetric key \symk{pd} specific to the
-disguise and principal. \sys then encrypts \symk{pd} with public key \pubk{p}. A client needs to prove it has
-\privk{p} by decrypting \symk{pd}, which only then allows decryption of $p$'s private tokens
-produced from applying $d$.
+\sys encrypts private \tdata{pd} and \tpriv{pdq} tokens with a symmetric key \symk{pd} specific to
+the disguise and principal: the nonce associated with the token ensures safety against
+known-plaintext attacks. \sys then encrypts \symk{pd} with public key \pubk{p}.
+%a key only known to \sys, \sysk, and encrypts the resulting ciphertext with public key \pubk{p}. 
+A client needs to prove it has \privk{p} by decrypting \symk{pd}, %$\enc(\sysk, \symk{pd})$, 
+which then allows \sys to decrypt $p$'s private tokens produced from applying $d$.
 
 \sys stores all global \tdata{pd} tokens in plaintext, where any party can access it.
 

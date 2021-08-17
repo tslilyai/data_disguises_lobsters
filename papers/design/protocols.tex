@@ -31,15 +31,18 @@
     updates with prior disguises using data recorded in the set of tokens. 
     \\
     \fn{ReverseDisguise($d$,tokens)} & Reverses disguise $d$ using data recorded in the set of tokens.\\
-    \fn{StorePubKey($\pubk{p}$)} & Persistently saves the public key \pubk{p} along with $p$'s ID.\\
+    \fn{StorePubKey($\pubk{p}$)} & Persistently saves the public key \pubk{p} indexed by $p$.\\
     \fn{LoadPubKey($p$)} & Retrieves public key \pubk{p} for $p$.\\
     \fn{LoadEncSymKey($p,d$)} & Retrieves \symk{pd} ciphertext.\\
     \fn{LoadEncKeys($p$)} & Retrieves \symk{pd} ciphertexts for all previously applied disguises $d$.\\
+    \fn{StoreEncSymKey($p,d$)} & Persistently saves the \symk{pd} ciphertext indexed by $p$ and $d$.\\
+    \fn{VerifySymKey($p,d$,symKey)} & Verifies that the symmetric key plaintext has not been falsified by the client\\
     \fn{ReadPrivateTokens(\symk{pd})} & Decrypts all of $p$'s private tokens produced by disguise
     $d$. \\
     \fn{ReadGlobalTokens($d$)} & Retrieves all global tokens produced by disguise $d$. \\
     \fn{LoadListTail}$(p,d)$ & Gets the first encrypted private token in \tokls{pd}, the list of
     tokens associated with $p$ produced by $d$\\
+    \fn{StoreListTail}$(p,d)$ & Persistenly saves the first encrypted private token in \tokls{pd}
 \end{tabular}
     \vspace{12px}
 \caption{Internal \sys functions}
@@ -48,12 +51,28 @@
 
 Table~\ref{tab:api} describes all the API calls used in disguise application and reversal protocols
 between \sys and a client. Table~\ref{tab:funcs} describe the internal functions used by \sys to
-support these protocols and apply or reverse disguises.
+support these protocols and apply or reverse disguises. 
+
+Figure~\ref{fig:acctreg} illustrates how every principal in the system must register a public key with \sys in order to later reveal (for disguise reversal or composition) any of privately disguised data. \sys remembers each public key \pubk{p} along with $p$'s ID.
+
+Figures~\ref{fig:authdisapp} and \ref{fig:unauthdisapp} illustrate the protocols for authenticated
+and unauthenticated disguise application respectively. Authenticated and unauthenticated disguise
+reversal protocols follow the same logic as disguise application protocols, with the only
+differences being the API call invoked by the client (\fn{StartDisguiseReversal($d$)}) and the
+function that \sys calls at the end (\fn{ReverseDisguise($d$ tokens)}).
+
+Figures~\ref{fig:rpt}, \ref{fig:appdisg}, and \ref{fig:revdisg} describe how \sys implements the
+functions necessary for disguising.
+
+\vspace{6pt}\noindent\textbf{\emph{Why would disguise reversal require tokens from prior disguises?}} 
+The application of a disguise $d$ may modify the contents of prior disguise $d'$ tokens!
+This can occur because some token \tdata{} may store removed data that, if in the database, would be
+affected by the application of $d$. When $d$ is applied, \tdata{}'s data is updated to reflect the
+modification by $d$; similarly, when $d$ is reversed, \tdata{}'s original contents are restored.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 \begin{figure*}[h!]
 \pcb{
 \<\< \\[-0.9\baselineskip]\\
@@ -67,19 +86,7 @@ support these protocols and apply or reverse disguises.
 \caption{\textbf{Principal public key registration.}}
 \label{fig:acctreg}
 \end{figure*} 
-Figure~\ref{fig:acctreg} illustrates how every principal in the system must register a public key with \sys in order to later reveal (for disguise reversal or composition) any of privately disguised data. \sys remembers each public key \pubk{p} along with $p$'s ID.
 
-Figures~\ref{fig:authdisapp} and \ref{fig:unauthdisapp} illustrate the protocols for authenticated
-and unauthenticated disguise application respectively. Authenticated and unauthenticated disguise
-reversal protocols follow the same logic as disguise application protocols, with the only
-differences being the API call invoked by the client (\fn{StartDisguiseReversal($d$)}) and the
-function that \sys calls at the end (\fn{ReverseDisguise($d$ tokens)}).
-
-\vspace{6pt}\noindent\textbf{\emph{Why would disguise reversal require tokens from prior disguises?}} 
-The application of a disguise $d$ may modify the contents of prior disguise $d'$ tokens!
-This can occur because some token \tdata{} may store removed data that, if in the database, would be
-affected by the application of $d$. When $d$ is applied, \tdata{}'s data is updated to reflect the
-modification by $d$; similarly, when $d$ is reversed, \tdata{}'s original contents are restored.
 
 \begin{figure*}[h]
 \pcb{
@@ -137,7 +144,7 @@ The client first invokes the \fn{StartDisguise} API call, authenticated as princ
 \<\< \pcforeach d'~\text{in the disguise history}: \\
 \<\< \quad\texttt{tokens.insert(\fn{ReadGlobalTokens}($d'$))}\\ 
 \<\< \pcendforeach\\
-\\<\< \texttt{ApplyDisguise($d$,tokens)}
+\<\< \texttt{ApplyDisguise($d$,tokens)}
 }
     \caption{\textbf{Unauthenticated disguise application}. In contrast to authenticated disguise
     application, \sys does not request access to any private tokens, and instead simply applies the disguise  
