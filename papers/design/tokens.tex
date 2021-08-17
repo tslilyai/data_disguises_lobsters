@@ -24,19 +24,15 @@ performed by \op{d}.
 
 \subsection{Private Token Access Design}
 
-To achieve our security goals, \sys encrypts private tokens recording modifications to $p$'s data such that only \user{p} can
-decrypt it, and stores ciphertexts such that nothing distinguishes $p_1$'s tokens from $p_2$'s
-tokens.
-
 \vspace{6pt}
 \noindent\textbf{An Initial Strawman.}
 As a strawman design, \sys saves a public key \pubk{p} for every principal $p$, and 
 encrypts each private token of $p$'s with \pubk{p}. 
 \sys stores all tokens in a bag of ciphertexts.
 
-When \user{p} wants to access $p$'s tokens, \sys sends \user{p} the bag of ciphertexts and \user{p}
-tries to decrypt all ciphertexts with its private key \privk{p}.
-\user{p} then sends \sys the tokens it could decrypt.
+When a session client wants to access $p$'s tokens, \sys sends the client the bag of ciphertexts and
+the client tries to decrypt all ciphertexts with its private key \privk{p}.
+The client then sends \sys the tokens it could decrypt.
 
 \vspace{6pt}
 \noindent\textbf{A Better Strawman.}

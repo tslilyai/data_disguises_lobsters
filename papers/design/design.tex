@@ -59,10 +59,12 @@ An attacker cannot learn how many private disguise tokens created prior to compr
     \item Security of private tokens or restricted disguises when an attacker has prior snapshots of system data.
     \item Security of restricted disguise application if an attacker authenticates as the principal.
     \item Security of $p$'s private tokens and token metadata if \privk{p} is compromised.  
-    \item Any guarantees about what information can be learned from disguised data: \sys 
-        simply applies a disguise according to the developer-provided specification. 
+    \item Any privacy guarantees about information left after disguise application: \sys 
+        simply applies a disguise according to the developer-provided specification.
         For example, a disguise may not modify data that leaks the writer's name (e.g., by leaving post content unmodified)
-    \item Hiding which application data objects have been disguised.
+    \item Hiding which application data objects have been disguised. For example, the author of a
+        paper may be replaced with ``anonymousFox'', leaking information that the paper has been
+        disguised.
 \end{itemize}
 
 
@@ -91,7 +93,7 @@ Table~\ref{tab:accpriv}.
 \end{table}
 
 Security goal (2) requires that only a session client authenticated as $p$ that has $p$'s private
-key \priv{k} can authorize access to disguise tokens specified as private.
+key \privk{p} can authorize access to disguise tokens specified as private.
 To achieve this, \sys encrypts private tokens recording modifications to $p$'s data with $p$'s public
 key \pubk{p}.
 
@@ -111,8 +113,7 @@ Table~\ref{tab:dispriv} summarizes these changes.
         \\ Disguise History & \sys appends a record of the disguise action to the history.\\
         Disguise Tokens & Each disguise database modification generates a token recording the
         modification. \sys saves global tokens in plaintext. For private tokens storing
-        updates to $p$'s data, \sys encrypts them such that only a session client with \privk{p} can decrypt
-        it and stores it in a bag with other private token ciphertexts.\\
+        updates to $p$'s data, \sys encrypts them such with \pubk{p} and stores it in a bag with other private token ciphertexts.\\
 \end{tabular}
 \caption{Private setting effects of a disguise.}
 \label{tab:dispriv}
