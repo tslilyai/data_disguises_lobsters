@@ -1,3 +1,28 @@
+\begin{table*}[t!]
+\centering
+\begin{tabular}{ c p{.7\linewidth} }
+\textbf{Function} & \textbf{Description} \\
+\hline
+    \fn{StorePubKey($\pubk{p}$)} & Persistently saves the public key $\pubk{p}$ along with $p$'s ID.\\
+    \fn{LoadPubKey($p$)} & Retrieves public key \pubk{p} for $p$.\\
+    \fn{LoadEncSymKey($p,d$)} & Retrieves \symk{pd} ciphertext.\\
+    \fn{LoadEncKeys($p$)} & Retrieves \symk{pd} ciphertexts for all previously applied disguises $d$.\\
+    \fn{LoadListTail}$(p,d)$ & Gets the first encrypted private token in \tokls{pd}, the list of
+    tokens associated with $p$ produced by $d$\\
+    \fn{ReadPrivateTokens(\symk{pd})} & Decrypts all of $p$'s private tokens produced by disguise
+    $d$. \\
+    \fn{ReadGlobalTokens($d$)} & Retrieves all global tokens produced by disguise $d$. \\
+    \fn{ApplyDisguise($d$, \{\tdata{}\})} & Applies disguise $d$, selectively composing $d$'s
+    updates with prior disguises using data recorded in the set of \tdata{} tokens. 
+    \\
+    \fn{ReverseDisguise($d$, \{\tdata{}\})} & Reverses disguise $d$ using data
+    recorded in the set of \tdata{} tokens.
+\end{tabular}
+    \vspace{12px}
+\caption{Internal \sys Functions}
+\label{tab:funcs}
+\end{table*}
+
 \begin{figure*}
 \procb{\texttt{ReadPrivateTokens(\symk{pd})}}{
     \< \\

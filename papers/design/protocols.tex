@@ -1,6 +1,30 @@
 %-------------------------------------------------------------------------------
 \section{Disguise Protocols}
 %-------------------------------------------------------------------------------
+\begin{table*}[t!]
+\centering
+\begin{tabular}{ c p{.7\linewidth} }
+\textbf{API Call} & \textbf{Description} \\
+\hline
+    \fn{RegisterPrincipal($\pubk{p}$)} & Registers $p$ as a principal whose data can be privately disguised. \\
+    \fn{StartDisguise($d$, Option<$p$>)} & Begins the process of applying disguise $d$, optionally 
+    on behalf of $p$.\\
+    \fn{StartDisguiseReversal($d$, Option<$p$>)} & Begins the process of reversing disguise $d$,
+    optionally on behalf of $p$.\\
+    \fn{RequestTokenAccess(\eks{p})} & Sent from \sys to a client authenticated as
+    $p$, requesting the client decrypt all the \ek{pd} $\in$ \eks{p} with \privk{p} and uncover the
+    corresponding \symk{pd}s. \\
+    \fn{GrantTokenAccess(\{\symk{pd}\})} & Grants \sys permission, for all \symk{pd} in the
+    argument, to decrypt any
+    privately-stored \tdata{pd} and \tpriv{pdq} with \symk{pd}.\\
+\end{tabular}
+    \vspace{12px}
+\caption{API Calls for Client Authenticated as Principal $p$}
+\label{tab:api}
+\end{table*}
+
+Table~\ref{tab:api} describes all the API calls used in disguise application and reversal protocols
+between \sys and a client.
 
 \begin{figure*}[h!]
 \pcb{
@@ -9,16 +33,13 @@
 [0.1\baselineskip][\hline]
 \<\< \\[-0.9\baselineskip]\\
     (\pubk{p}, \privk{p}) \sample \kgen() \<\< \\
-\< \sendmessageright*{\texttt{RegisterPrincipal(p, $\pubk{p}$)}} \< \\
+\< \sendmessageright*{\texttt{RegisterPrincipal(p,$\pubk{p}$)}} \< \\
 \<\< \texttt{StorePubKey($\pubk{p}$)}
 }
-\caption{
-\textbf{Principal public key registration.}
-Every principal in the system must register a public key with \sys in order to later reveal (for
-disguise reversal or composition) any of privately disguised data. \sys remembers each public
-    key \pubk{p} along with $p$'s ID.}
+\caption{\textbf{Principal public key registration.}}
 \label{fig:acctreg}
-\end{figure*}
+\end{figure*} 
+Figure~\ref{fig:acctreg} illustrates how every principal in the system must register a public key with \sys in order to later reveal (for disguise reversal or composition) any of privately disguised data. \sys remembers each public key \pubk{p} along with $p$'s ID.
 
 Figures~\ref{fig:authdisapp} and \ref{fig:unauthdisapp} illustrate the protocols for authenticated
 and unauthenticated disguise application respectively. Authenticated and unauthenticated disguise
@@ -26,7 +47,7 @@ reversal protocols follow the same logic as disguise application protocols, with
 differences being the API call invoked by the client (\fn{StartDisguiseReversal($d$)}) and the
 function that \sys calls at the end (\fn{ReverseDisguise($d$ tokens)}).
 
-\textbf{\emph{Why would disguise reversal require tokens from prior disguises?}} 
+\vspace{6pt}\noindent\textbf{\emph{Why would disguise reversal require tokens from prior disguises?}} 
 The application of a disguise $d$ may modify the contents of prior disguise $d'$ tokens!
 This can occur because some token \tdata{} may store removed data that, if in the database, would be
 affected by the application of $d$. When $d$ is applied, \tdata{}'s data is updated to reflect the
