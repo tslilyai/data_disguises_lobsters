@@ -1,6 +1,34 @@
 %-------------------------------------------------------------------------------
 \section{Overview}
 %-------------------------------------------------------------------------------
+\begin{table*}[t!]
+\centering
+\begin{tabular}{ c p{.8\linewidth} }
+\textbf{Symbol} & \textbf{Description} \\
+\hline
+$d$ & a disguise that can be applied or reversed via \sys's API\\
+    \vspace{6pt}
+$p$ & an application principal, corresponding to a user ID in the application\\
+    \vspace{6pt}
+\pubk{p} & public key of $p$ \\
+    \vspace{6pt}
+\privk{p} & private key of $p$ \\
+    \vspace{6pt}
+\symk{pd} & symmetric key used to encrypt private tokens associated with principal $p$ produced by
+    disguise $d$\\
+    \vspace{6pt}
+\op{d} & an operation of disguise $d$ (either a removal, modification, or decorrelation)\\
+    \vspace{6pt}
+\tdata{pd} & token storing undisguised data associated with $p$ and produced by $d$.\\
+    \vspace{6pt}
+\tpriv{pdq} & token storing private key $\pubk{q}$ when \op{d} decorrelates data from $p$.\\
+    \vspace{6pt}
+\tokls{pd} & linked list of private token ciphertexts associated with $p$ and produced by $d$
+\end{tabular}
+\vspace{12px}
+\caption{Notation used to describe \sys's design.}
+\label{tab:notation}
+\end{table*}
 
 Our design considers \emph{disguisable application systems}, which consist of a typical database-backed
 application with an integrated disguising tool (\sys).

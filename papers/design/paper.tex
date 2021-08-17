@@ -74,20 +74,18 @@ keys
 
 
 % token stuff
-\newcommand\tpriv[1]{\ensuremath{\mathcal{T}^{\text{pk}}_{#1}}}
+\newcommand\tpriv[1]{\ensuremath{\mathcal{T}^{\text{privk}}_{#1}}}
 \newcommand\tdata[1]{\ensuremath{\mathcal{T}^{\text{data}}_{#1}}}
 \newcommand\fn[1]{\texttt{{#1}}}
-\newcommand\privop[1]{\ensuremath{\mathcal{O}^{\text{priv}}_{#1}}}
-\newcommand\globalop[1]{\ensuremath{\mathcal{O}^{\text{glob}}_{#1}}}
 \newcommand\op[1]{\ensuremath{\texttt{op}_{#1}}}
-\newcommand\ek[1]{\ensuremath{{E}^\texttt{k}_{#1}}}
-\newcommand\eks[1]{\ensuremath{\{{E}^\texttt{k}_{#1}\}}}
-\newcommand\ks{\ensuremath{\{\texttt{k}\}}}
 \newcommand\privk[1]{\texttt{\ensuremath{\texttt{k}^{\text{priv}}_{#1}}}}
 \newcommand\pubk[1]{\texttt{\ensuremath{\texttt{k}^{\text{pub}}_{#1}}}}
 \newcommand\symk[1]{\texttt{\ensuremath{\texttt{k}^{\text{sym}}_{#1}}}}
 \newcommand\tokls[1]{\ensuremath{\mathcal{L}_{#1}}}
-\newcommand\toklstail[1]{\texttt{EncTokensTail}\ensuremath{_{#1}}}
+
+% for protocols
+\newcommand\ek[1]{\ensuremath{\texttt{ek}^{sym}_{#1}}}
+\newcommand\eks[1]{\ensuremath{\{\texttt{ek}^{sym}_{#1}\}}}
 \createpseudocodeblock{pcb}{center,boxed}{}{}{}
 \createprocedureblock{procb}{center,boxed}{}{}{}
 
@@ -149,9 +147,9 @@ Edna: Data Disguises for Web Applications
 
 \input{design}
 \input{tokens}
-\input{notation}
+\input{apis}
 \input{protocols}
-\input{funcs}
+%\input{funcs}
 
 %-------------------------------------------------------------------------------
 \printbibliography

@@ -46,18 +46,22 @@ during decorrelation (notated as \tpriv{pdq}).
 \sys always stores \tpriv{pdq} privately and associated with $p$. This ensures that only a client
 with access to \privk{p} can access \privk{q} (and therefore access $q$'s private tokens).
 
-\subsection{Private Tokens Access Capability}
-\sys stores all global \tdata{pd} tokens in plaintext.
+\vspace{6pt}\noindent\textbf{Enforcing Token Access.}
 \sys encrypts private \tdata{pd} and \tpriv{pdq} tokens with a symmetric key \symk{pd} specific to the
 disguise and principal. \sys then encrypts \symk{pd} with public key \pubk{p}. A client needs to prove it has
-\privk{p} by decrypting \symk{pd}, which only then allows decryption of $p$'s private tokens of
-disguise $d$.
+\privk{p} by decrypting \symk{pd}, which only then allows decryption of $p$'s private tokens
+produced from applying $d$.
 
-\paragraph{Hiding Token Metadata.}
+\sys stores all global \tdata{pd} tokens in plaintext, where any party can access it.
+
+\subsection{Hiding Private Token Metadata}
+
+\vspace{6pt}\noindent\textbf{\symk{} Storage.}
 \sys stores a mapping from $p$ and $d$ to the encrypted \symk{pd}. To ensure that this does not leak
 metadata about which principals have disguised data, \sys generates dummy ciphertexts for all
 principals that do not have encrypted \symk{pd}s for disguise $d$.
 
+\vspace{6pt}\noindent\textbf{Token Ciphertext Storage.}
 \sys also must hide which token ciphertexts correspond to which principals.  Naively, \sys can store
 all ciphertexts in one bag; in order to determine which ciphertexts a client may access, the client
 provides the decrypted \symk{pd} and \sys tries to decrypt every ciphertext in the bag. This clearly
@@ -77,24 +81,7 @@ the ciphertexts in the list decrypted.
 know where to start decrypting the list of tokens given $p$ and $d$, and how to set
 \fn{nextEncToken} for a new token in \tokls{pd} produced when applying $d$. \sys generates dummy
 tail pointers for all principals not associated with disguise $d$ to hide metadata about which lists
-exist.\lyt{TODO implement dummy}
+exist.
 Because \tokls{pd} tails point to (real or dummy) token ciphertexts, an adversary learns nothing
 about the token contents or how many tokens are associated with a principal.
-
-\iffalse
-
-\vspace{6pt}
-\noindent\textbf{An Initial Strawman.}
-As a strawman design, \sys saves a public key \pubk{p} for every principal $p$, and 
-encrypts each private token of $p$'s with \pubk{p}. 
-\sys stores all tokens in a bag of ciphertexts.
-
-When a session client wants to access $p$'s tokens, \sys sends the client the bag of ciphertexts and
-the client tries to decrypt all ciphertexts with its private key \privk{p}.
-The client then sends \sys the tokens it could decrypt.
-
-\vspace{6pt}
-\noindent\textbf{A Better Strawman.}
-Clearly, the initial strawman achieves both security goals but is impractical.
-
-\fi
+\lyt{TODO implement dummy}
