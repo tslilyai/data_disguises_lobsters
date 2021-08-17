@@ -3,7 +3,7 @@
 %-------------------------------------------------------------------------------
 \begin{table*}[t!]
 \centering
-\begin{tabular}{ c p{.7\linewidth} }
+\begin{tabular}{ c p{.6\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
     \fn{RegisterPrincipal($\pubk{p}$)} & Registers $p$ as a principal whose data can be privately disguised. \\
@@ -11,20 +11,48 @@
     on behalf of $p$.\\
     \fn{StartDisguiseReversal($d$, Option<$p$>)} & Begins the process of reversing disguise $d$,
     optionally on behalf of $p$.\\
-    \fn{RequestTokenAccess(\eks{p})} & Sent from \sys to a client authenticated as
-    $p$, requesting the client decrypt all the \ek{pd} $\in$ \eks{p} with \privk{p} and uncover the
-    corresponding \symk{pd}s. \\
+    \fn{RequestTokenAccess(encSymKeys)} & Sent from \sys to a client authenticated as
+    $p$, requesting the client decrypt all the encrypted symmetric keys in \fn{encSymKeys} with
+    \privk{p} and uncover the corresponding \symk{pd}s. \\
     \fn{GrantTokenAccess(\{\symk{pd}\})} & Grants \sys permission, for all \symk{pd} in the
-    argument, to decrypt any
-    privately-stored \tdata{pd} and \tpriv{pdq} with \symk{pd}.\\
+    argument, to decrypt any privately-stored \tdata{pd} and \tpriv{pdq} with \symk{pd}.
 \end{tabular}
     \vspace{12px}
 \caption{API Calls for Client Authenticated as Principal $p$}
 \label{tab:api}
 \end{table*}
 
+\begin{table*}[t!]
+\centering
+\begin{tabular}{ c p{.7\linewidth} }
+\textbf{Function} & \textbf{Description} \\
+\hline
+    \fn{ApplyDisguise($d$,tokens)} & Applies disguise $d$, selectively composing $d$'s
+    updates with prior disguises using data recorded in the set of tokens. 
+    \\
+    \fn{ReverseDisguise($d$,tokens)} & Reverses disguise $d$ using data recorded in the set of tokens.\\
+    \fn{StorePubKey($\pubk{p}$)} & Persistently saves the public key \pubk{p} along with $p$'s ID.\\
+    \fn{LoadPubKey($p$)} & Retrieves public key \pubk{p} for $p$.\\
+    \fn{LoadEncSymKey($p,d$)} & Retrieves \symk{pd} ciphertext.\\
+    \fn{LoadEncKeys($p$)} & Retrieves \symk{pd} ciphertexts for all previously applied disguises $d$.\\
+    \fn{ReadPrivateTokens(\symk{pd})} & Decrypts all of $p$'s private tokens produced by disguise
+    $d$. \\
+    \fn{ReadGlobalTokens($d$)} & Retrieves all global tokens produced by disguise $d$. \\
+    \fn{LoadListTail}$(p,d)$ & Gets the first encrypted private token in \tokls{pd}, the list of
+    tokens associated with $p$ produced by $d$\\
+\end{tabular}
+    \vspace{12px}
+\caption{Internal \sys functions}
+\label{tab:funcs}
+\end{table*}
+
 Table~\ref{tab:api} describes all the API calls used in disguise application and reversal protocols
-between \sys and a client.
+between \sys and a client. Table~\ref{tab:funcs} describe the internal functions used by \sys to
+support these protocols and apply or reverse disguises.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{figure*}[h!]
 \pcb{
@@ -63,11 +91,11 @@ modification by $d$; similarly, when $d$ is reversed, \tdata{}'s original conten
 \<\< \fn{symKeyCiphertxts} \gets \fn{LoadEncKeys}(p)\\
 \< \sendmessageleft*{\fn{RequestTokenAccess(symKeyCiphertxts)}} \< \\
 \texttt{symKeys} \gets \{\}\\
-    \pcforeach \enc(\symk{pd'}) \in \fn{symKeyCiphertxts}:\\
-    \quad \texttt{symk} \gets \dec(\privk{p}, \enc\symk{pd'})\\
-    \quad \pcif \text{authorizes access to $d'$-produced tokens}: \\
-    \quad\quad\texttt{symKeys.insert(symk)} \<\< \\
-    \quad\pcfi\\
+\pcforeach \fn{encSymKey} \in \fn{symKeyCiphertxts}:\\
+\quad \symk{pd'} \gets \dec(\privk{p}, \fn{encSymKey})\\
+\quad \pcif \text{authorizes access to $d'$-produced tokens}: \\
+\quad\quad\texttt{symKeys.insert(symk)} \<\< \\
+\quad\pcfi\\
 \pcendforeach\\
 \< \sendmessageright*{\texttt{GrantTokenAccess(\texttt{symKeys})}} \< \\
 % TODO we need to not retrieve all global tokens??? only for disguises that might conflict
