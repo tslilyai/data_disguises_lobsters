@@ -1,5 +1,4 @@
-\section{Disguise Operations and Tokens}
-
+\section{Disguise Operations} 
 Operations \op{d} of disguise $d$ take data objects as input, execute updates to application
 data, and produce (token, principal) pairs
 as output. This means that the disguise specification determines how tokens correspond to
@@ -18,15 +17,19 @@ Operations come in three forms:
         public-private key pair (\pubk{q} and \privk{q}).
 \end{enumerate}
 
-\noindent
-Tokens come in two forms. Every \op{d} produces data tokens associated with the disguise $d$ and a
+\section{Disguise Tokens} 
+Disguise tokens come in two forms: data tokens and privkey tokens.
+
+\vspace{6pt}
+\noindent\textbf{\emph{Data Tokens.}}
+Every \op{d} produces data tokens associated with the disguise $d$ and a
 principal $p$, notated as \tdata{pd}. \tdata{pd} tokens are either be private or global depending on
 whether the producing \op{d} is global or private. 
 A \tdata{pd} contains the following fields, which record changes performed by \op{d}:
 \begin{itemize}
 \item \fn{tokenID}: unique ID for this token
-\item \fn{disguiseID}: disguise ID $d$ 
-\item \fn{principalID}: principal ID $p$
+\item \fn{disguiseID}: producing disguise $d$ 
+\item \fn{principalID}: associated principal $p$
 \item \fn{objID}: unique ID for the data object modified by \op{d}
 \item \fn{updateType}: decorrelate, modify, or remove
 \item \fn{oldValue}: original value of object \fn{objID}
@@ -34,23 +37,26 @@ A \tdata{pd} contains the following fields, which record changes performed by \o
 \item \fn{nonce}: random value generated to prevent known-plaintext attacks
 \end{itemize}
 
-Only decorrelation operations generate the second form of token, namely a private key token associated with the disguise $d$, principal $p$, and the pseudoprincipal $q$ created
+\noindent\textbf{\emph{PrivKey Tokens.}}
+Decorrelation operations generate a second form of token, namely a privkey token associated with the disguise $d$, principal $p$, and the pseudoprincipal $q$ created
 during decorrelation (notated as \tpriv{pdq}).
 \tpriv{pdq} contains the following fields:
 \begin{itemize}
 \item \fn{tokenID}: unique ID for this token
-\item \fn{disguiseID}: disguise ID $d$ 
-\item \fn{principalID}: principal ID $p$
-\item \fn{pseudoprincipalID}: principal ID $q$
+\item \fn{disguiseID}: producing disguise $d$ 
+\item \fn{principalID}: associated principal $p$
+\item \fn{pseudoprincipalID}: generated pseudoprincipal $q$
 \item \fn{pseudoPrincipalPrivateKey}: \privk{q}
 \item \fn{nonce}: random value generated to prevent known-plaintext attacks
 \end{itemize}
 \sys always stores \tpriv{pdq} privately and associated with $p$. This ensures that only a client
 with access to \privk{p} can access \privk{q} (and therefore access $q$'s private tokens).
 
-\vspace{6pt}\noindent\textbf{Enforcing Token Access.}
-\sys encrypts private \tdata{pd} and \tpriv{pdq} tokens with a symmetric key \symk{pd} specific to
-the disguise and principal: the nonce associated with the token ensures safety against
+\vspace{12pt}
+\noindent\textbf{\emph{Enforcing Token Access.}}
+As described in \S\ref{sec:achievegoals}, \sys ensures the security of private disguise tokens as
+follows: \sys encrypts private \tdata{pd} and \tpriv{pdq} tokens with a symmetric key \symk{pd} specific to
+the disguise and principal. The token's nonce ensures safety against
 known-plaintext attacks. \sys then encrypts \symk{pd} with public key \pubk{p}.
 %a key only known to \sys, \sysk, and encrypts the resulting ciphertext with public key \pubk{p}. 
 A client needs to prove it has \privk{p} by decrypting \symk{pd}, %$\enc(\sysk, \symk{pd})$, 
@@ -58,15 +64,28 @@ which then allows \sys to decrypt $p$'s private tokens produced from applying $d
 
 \sys stores all global \tdata{pd} tokens in plaintext, where any party can access it.
 
-\subsection{Hiding Private Token Metadata}
 
-\vspace{6pt}\noindent\textbf{\symk{} Storage.}
+\vspace{12pt}
+\noindent\textbf{\emph{Hiding Private Token Metadata.}}
+With \sys's design, token metadata about which principals own which tokens can leak in two ways:
+\begin{enumerate}
+    \item If an adversary learns that \symk{pd} exists for $p$ and $d$, 
+        then an adversary knows that $d$ updated some data associated with $p$ (and produced a token
+        recording the update)
+    \item If an adversary can differentiate between token ciphertexts belonging to different
+        principals, then the adversary learns how many tokens belong to each principal.
+\end{enumerate}
+
+\noindent
+\sys prevents both leakage channels as follows:
+
+\vspace{6pt}\noindent\textbf{(1) \symk{} Storage.}
 \sys stores a mapping from $p$ and $d$ to the encrypted \symk{pd}. To ensure that this does not leak
 metadata about which principals have disguised data, \sys generates dummy ciphertexts for all
 principals that do not have encrypted \symk{pd}s for disguise $d$.
 
-\vspace{6pt}\noindent\textbf{Token Ciphertext Storage.}
-\sys also must hide which token ciphertexts correspond to which principals.  Naively, \sys can store
+\vspace{6pt}\noindent\textbf{(2) Token Ciphertext Storage.}
+\sys must hide which token ciphertexts correspond to which principals.  Naively, \sys can store
 all ciphertexts in one bag; in order to determine which ciphertexts a client may access, the client
 provides the decrypted \symk{pd} and \sys tries to decrypt every ciphertext in the bag. This clearly
 has poor performance and is unscalable.
