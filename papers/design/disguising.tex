@@ -16,39 +16,23 @@ corresponding to disguise $d$ and principal $p$ by recursively decrypting tokens
 persistent maps indexed by principal and/or disguise.
 
 \subsection{Using Disguise History to Delay Disguise Actions}
-\noindent\textbf{\emph{Delayed Disguise Application.}}
-\sys may not apply a disguise to relevant data until prior disguises have been reversed.
-This occurs because the data to disguise may be in an undisguisable form due to prior disguising of
-the data. For example, the data may have been removed by the prior disguise, or modified in
-untraceable ways (because e.g., the token is private and inaccessible).
 
-\sys uses the disguise history of all disguise applications/reversals to retroactively apply the
+\noindent\textbf{\emph{Delayed Disguise Application.}}
+A disguise $d_2$ may be retroactively applied to a data object $O$ revealed during reversal of
+disguise $d_1$.  This occurs when $d_2$ applies to the original $O$, but not the $d_1$-disguised
+$O$, and $d_1$'s tokens are inaccessible to \sys when applying $d_2$.
+
+\sys uses the disguise history to know when to retroactively apply the
 disguise when the data is revealed.  Disguising prior to restoration should be deterministic (based
 on contents of data in application database, and e.g., not predicated on the current time).
 
-\vspace{6pt}\noindent\textbf{\emph{Delayed Disguise Reversal.}}
-\sys will not reverse a disguise's modifications to a data objects until future disguises applied to
-the same object have been reversed.
-This occurs when the disguise's tokens are private and inaccessible; or cannot be reversed because
-future disguises have modified, decorrelated, or removed the same data.
-\sys uses the disguise history of all disguise applications/reversals to retroactively reverse
-the disguise when it becomes feasible.
+\noindent\textbf{\emph{Delayed Disguise Reversal.}}
+In certain scenarios, \sys may not completely reverse a disguise $d_1$ if future disguise $d_2$
+modifies the same data as $d_1$. If $d_2$ has applied a more recent, conflicting update to data
+objects disguised by $d_1$, then the original data contents prior to $d_1$ cannot be restored. 
 
-\subsection{Handling Interleaved Application Updates}
-\noindent\textbf{\emph{Application Updates to Present Disguised Data.}}
-\sys will not reveal disguised data still present in the database that has been updated by the
-application. Application updates are equivalent to irreversible disguise operations.
-\sys checks the current state of data against the latest disguised state
-expected as recorded in the token; if they do not match, then an application update has occurred
-since disguising, and \sys will not alter the data.
-
-\vspace{6pt}\noindent\textbf{\emph{Application Updates to Removed Disguised Data}}
-Application updates fail to update data removed by a disguise, which can later be revealed in
-original form.
-\sys requires all application updates that must immediately apply to revealed data (that is
-currently disguised and removed) to be disguises themselves; otherwise, the application must handle
-the possibility of non-updated data being revealed.
-%\sys stores a query log of all application update queries, and reapplies them to any removed data by a disguise prior to revealing the data
+\sys logs the reversal of $d_1$ in the disguise history, and uses this history to detect if it
+should reverse any conflicting updates performed by $d_1$ when $d_2$ is reversed.
 
 \subsection{Token Migration and Modification}
 \noindent\textbf{\emph{Global-to-Private Token Migration.}}
@@ -82,13 +66,37 @@ reversed, then reversing $d_2$ simply reverses the state of $O$ in the database 
 of $O$ in the global token.
 %Alternatively, Rev($d_1$) could do nothing, and the token could simply be moved into the $d_2$ user-vault, meaning that O could not be reinserted and revealed until $d_2$ is reversed
 
-\vspace{6pt}\noindent\textbf{\emph{Token Modification for Object Identification}}
+\vspace{6pt}\noindent\textbf{\emph{Token Modification for Object Identification.}}
 Tokens need to refer to the correct objects even if objects have been modified by future disguises.
 Prior tokens should be revised by future disguises so that they apply correctly to the disguised
 data.
 This allows an earlier disguise to be reversed correctly.
 An easy way to avoid needing to do this is to have all objects in the DB have unique, permanent
 identifiers.
+
+\vspace{6pt}\noindent\textbf{\emph{Delayed Disguise Reversal.}}
+\sys will not reverse a disguise's modifications to a data objects until future disguises applied to
+the same object have been reversed.
+This occurs when the disguise's tokens are private and inaccessible; or cannot be reversed because
+future disguises have modified, decorrelated, or removed the same data.
+\sys uses the disguise history of all disguise applications/reversals to retroactively reverse
+the disguise when it becomes feasible.
+
+\subsection{Handling Interleaved Application Updates}
+\noindent\textbf{\emph{Application Updates to Present Disguised Data.}}
+\sys will not reveal disguised data still present in the database that has been updated by the
+application. Application updates are equivalent to irreversible disguise operations.
+\sys checks the current state of data against the latest disguised state
+expected as recorded in the token; if they do not match, then an application update has occurred
+since disguising, and \sys will not alter the data.
+
+\vspace{6pt}\noindent\textbf{\emph{Application Updates to Removed Disguised Data}}
+Application updates fail to update data removed by a disguise, which can later be revealed in
+original form.
+\sys requires all application updates that must immediately apply to revealed data (that is
+currently disguised and removed) to be disguises themselves; otherwise, the application must handle
+the possibility of non-updated data being revealed.
+%\sys stores a query log of all application update queries, and reapplies them to any removed data by a disguise prior to revealing the data
 
 %\vspace{6pt}\noindent\textbf{\emph{Note: Why would disguise reversal require tokens from prior disguises?}} 
 %The application of a disguise $d$ may modify the contents of prior disguise $d'$ tokens!
