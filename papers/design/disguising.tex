@@ -15,11 +15,85 @@ corresponding to disguise $d$ and principal $p$ by recursively decrypting tokens
 \sys's implementations of the remaining functions in Table~\ref{tab:funcs} simply read or write into
 persistent maps indexed by principal and/or disguise.
 
-\vspace{6pt}\noindent\textbf{\emph{Note: Why would disguise reversal require tokens from prior disguises?}} 
-The application of a disguise $d$ may modify the contents of prior disguise $d'$ tokens!
-This can occur because some token \tdata{} may store removed data that, if in the database, would be
-affected by the application of $d$. When $d$ is applied, \tdata{}'s data is updated to reflect the
-modification by $d$; similarly, when $d$ is reversed, \tdata{}'s original contents are restored.
+\subsection{Using Disguise History to Delay Disguise Actions}
+\noindent\textbf{\emph{Delayed Disguise Application.}}
+\sys may not apply a disguise to relevant data until prior disguises have been reversed.
+This occurs because the data to disguise may be in an undisguisable form due to prior disguising of
+the data. For example, the data may have been removed by the prior disguise, or modified in
+untraceable ways (because e.g., the token is private and inaccessible).
 
-\lyt{TODO: modifications to prior disguise tokens, migration of global tokens to private tokens}
-\lyt{TODO : Undo modifications to any prior disguise's tokens by disguise $d$}
+\sys uses the disguise history of all disguise applications/reversals to retroactively apply the
+disguise when the data is revealed.  Disguising prior to restoration should be deterministic (based
+on contents of data in application database, and e.g., not predicated on the current time).
+
+\vspace{6pt}\noindent\textbf{\emph{Delayed Disguise Reversal.}}
+\sys will not reverse a disguise's modifications to a data objects until future disguises applied to
+the same object have been reversed.
+This occurs when the disguise's tokens are private and inaccessible; or cannot be reversed because
+future disguises have modified, decorrelated, or removed the same data.
+\sys uses the disguise history of all disguise applications/reversals to retroactively reverse
+the disguise when it becomes feasible.
+
+\subsection{Handling Interleaved Application Updates}
+\noindent\textbf{\emph{Application Updates to Present Disguised Data.}}
+\sys will not reveal disguised data still present in the database that has been updated by the
+application. Application updates are equivalent to irreversible disguise operations.
+\sys checks the current state of data against the latest disguised state
+expected as recorded in the token; if they do not match, then an application update has occurred
+since disguising, and \sys will not alter the data.
+
+\vspace{6pt}\noindent\textbf{\emph{Application Updates to Removed Disguised Data}}
+Application updates fail to update data removed by a disguise, which can later be revealed in
+original form.
+\sys requires all application updates that must immediately apply to revealed data (that is
+currently disguised and removed) to be disguises themselves; otherwise, the application must handle
+the possibility of non-updated data being revealed.
+%\sys stores a query log of all application update queries, and reapplies them to any removed data by a disguise prior to revealing the data
+
+\subsection{Token Migration and Modification}
+\noindent\textbf{\emph{Global-to-Private Token Migration.}}
+\sys requires migrating a global token to private token storage (in some \tokls{pd}) to prevent
+globally accessible tokens from leaking information that should be stored as private by a subsequent
+disguise.
+
+Let $d_1$ and $d_2$ be two disguises applied in sequence.
+Some \op{d_1} produces a global token \tdata{pd_1} recording an update to some data object
+associated with principal $p$. \op{d_2} updates the same data object, also associated with $p$.
+In the following scenarios, \tdata{pd_1} must be moved to \tokls{pd_1} when \op{d_2} executes:
+\begin{itemize}
+\item \op{d_1} and \op{d_2} both decorrelate the same data
+\item \op{d_1} and \op{d_2} both modify the same data
+\item \op{d_1} decorrelates or modified, and \op{d_2} removes the same data
+\end{itemize}
+\lyt{Even if $d_2$ is reversed, \tdata{pd_1} remains private...}
+
+\vspace{6pt}\noindent\textbf{\emph{Token Modification to Prevent Information Leakage.}}
+Let $d_1$ and $d_2$ be two disguises applied in sequence.
+Consider the scenario in which \op{d_1} removes a data object $O$, but \op{d_2} would have decorrelated
+or modified $O$.
+\sys can determine if \op{d_2} applies to the removed $O$ data stored in global tokens by applying
+the corresponding \op{d_2} predicate to the recorded token object data.
+
+\op{d_1} produced a global token \tdata{pd_1} recording the contents of the removed $O$.
+\sys should update this \tdata{pd_1} with \op{d_2}'s' decorrelation or modification update in order
+to not leak information about $O$.
+In addition, reversing $d_2$ should also reverse the modification to \tdata{pd_1}. If $d_1$ is
+reversed, then reversing $d_2$ simply reverses the state of $O$ in the database instead of the staet
+of $O$ in the global token.
+%Alternatively, Rev($d_1$) could do nothing, and the token could simply be moved into the $d_2$ user-vault, meaning that O could not be reinserted and revealed until $d_2$ is reversed
+
+\vspace{6pt}\noindent\textbf{\emph{Token Modification for Object Identification}}
+Tokens need to refer to the correct objects even if objects have been modified by future disguises.
+Prior tokens should be revised by future disguises so that they apply correctly to the disguised
+data.
+This allows an earlier disguise to be reversed correctly.
+An easy way to avoid needing to do this is to have all objects in the DB have unique, permanent
+identifiers.
+
+%\vspace{6pt}\noindent\textbf{\emph{Note: Why would disguise reversal require tokens from prior disguises?}} 
+%The application of a disguise $d$ may modify the contents of prior disguise $d'$ tokens!
+%This can occur because some token \tdata{} may store removed data that, if in the database, would be
+%affected by the application of $d$. When $d$ is applied, \tdata{}'s data is updated to reflect the
+%modification by $d$; similarly, when $d$ is reversed, \tdata{}'s original contents are restored.
+
+
