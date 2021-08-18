@@ -1,5 +1,5 @@
 %-------------------------------------------------------------------------------
-\section{Disguise Protocols}
+\section{\sys API Calls}
 %-------------------------------------------------------------------------------
 \begin{table*}[t!]
 \centering
@@ -53,8 +53,9 @@
 \label{tab:funcs}
 \end{table*}
 
-\vspace{6pt}\noindent\textbf{\emph{API Calls.}}
 Table~\ref{tab:api} describes all the API calls used in protocols between \sys and a client.
+These protocols also illustrate the internal functions fun server-side when the protocol occurs
+(described in Table~\ref{tab:funcs}).
 
 Figure~\ref{fig:acctreg} illustrates the principal registration protocol: every principal in the
 system must register a public key with \sys in order to later reveal (for disguise reversal or
@@ -66,28 +67,6 @@ and unauthenticated disguise application respectively. Authenticated and unauthe
 reversal protocols follow the same logic as disguise application protocols, with the only
 differences being the API call invoked by the client (\fn{StartDisguiseReversal($d$)}) and the
 function that \sys calls at the end (\fn{ReverseDisguise($d$ tokens)}).
-
-\vspace{6pt}\noindent\textbf{\emph{Internal \sys Functions.}}
-Table~\ref{tab:funcs} describe \sys's internal functions run server-side to implement these
-protocols and apply or reverse disguises. 
-
-Figure~\ref{fig:rpt} describes how \sys accesses the private tokens
-corresponding to disguise $d$ and principal $p$ by recursively decrypting tokens and traversing
-\tokls{pd}.
-Figures~\ref{fig:appdisg} and \ref{fig:revdisg} describe how \sys implements disguise application and
-reversal respectively. Figure~\ref{fig:opexec} describes how disguise operations update application
-state and produce and modify tokens, and 
-Figure~\ref{fig:revtoken} describes how \sys uses a token's recorded
-modification to reverse an applied disguise operation. 
-
-\sys's implementations of the remaining functions in Table~\ref{tab:funcs} simply read or write into
-persistent maps indexed by principal and/or disguise.
-
-\vspace{6pt}\noindent\textbf{\emph{Note: Why would disguise reversal require tokens from prior disguises?}} 
-The application of a disguise $d$ may modify the contents of prior disguise $d'$ tokens!
-This can occur because some token \tdata{} may store removed data that, if in the database, would be
-affected by the application of $d$. When $d$ is applied, \tdata{}'s data is updated to reflect the
-modification by $d$; similarly, when $d$ is reversed, \tdata{}'s original contents are restored.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

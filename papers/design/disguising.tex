@@ -1,0 +1,25 @@
+\section{\sys Internal Disguising Functions}
+
+Table~\ref{tab:funcs} describe \sys's internal functions run server-side to implement these
+protocols and apply or reverse disguises. 
+
+Figures~\ref{fig:appdisg} and \ref{fig:revdisg} describe how \sys implements disguise application and
+reversal respectively. Figure~\ref{fig:opexec} describes how disguise operations update application
+state and produce and modify tokens, and 
+Figure~\ref{fig:revtoken} describes how \sys uses a token's recorded
+modification to reverse an applied disguise operation. 
+Figure~\ref{fig:rpt} describes how \sys accesses the private tokens
+corresponding to disguise $d$ and principal $p$ by recursively decrypting tokens and traversing
+\tokls{pd}.
+
+\sys's implementations of the remaining functions in Table~\ref{tab:funcs} simply read or write into
+persistent maps indexed by principal and/or disguise.
+
+\vspace{6pt}\noindent\textbf{\emph{Note: Why would disguise reversal require tokens from prior disguises?}} 
+The application of a disguise $d$ may modify the contents of prior disguise $d'$ tokens!
+This can occur because some token \tdata{} may store removed data that, if in the database, would be
+affected by the application of $d$. When $d$ is applied, \tdata{}'s data is updated to reflect the
+modification by $d$; similarly, when $d$ is reversed, \tdata{}'s original contents are restored.
+
+\lyt{TODO: modifications to prior disguise tokens, migration of global tokens to private tokens}
+\lyt{TODO : Undo modifications to any prior disguise's tokens by disguise $d$}
