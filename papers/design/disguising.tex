@@ -26,7 +26,7 @@ $O$, and $d_1$'s tokens are inaccessible to \sys when applying $d_2$.
 disguise when the data is revealed.  Disguising prior to restoration should be deterministic (based
 on contents of data in application database, and e.g., not predicated on the current time).
 
-\noindent\textbf{\emph{Delayed Disguise Reversal.}}
+\vspace{6pt}\noindent\textbf{\emph{Delayed Disguise Reversal.}}
 In certain scenarios, \sys may not completely reverse a disguise $d_1$ if future disguise $d_2$
 modifies the same data as $d_1$. If $d_2$ has applied a more recent, conflicting update to data
 objects disguised by $d_1$, then the original data contents prior to $d_1$ cannot be restored. 
@@ -49,7 +49,7 @@ In the following scenarios, \tdata{pd_1} must be moved to \tokls{pd_1} when \op{
 \item \op{d_1} and \op{d_2} both modify the same data
 \item \op{d_1} decorrelates or modified, and \op{d_2} removes the same data
 \end{itemize}
-\lyt{Even if $d_2$ is reversed, \tdata{pd_1} remains private...}
+If $d_2$ is reversed, \tdata{pd_1} again becomes globally accessible.
 
 \vspace{6pt}\noindent\textbf{\emph{Token Modification to Prevent Information Leakage.}}
 Let $d_1$ and $d_2$ be two disguises applied in sequence.
