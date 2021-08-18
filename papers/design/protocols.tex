@@ -31,8 +31,10 @@
     $d$ using \symk{pd}. \\
     \fn{ReadGlobalTokens($d$)} & Retrieves all global tokens produced by disguise $d$. \\
     \fn{ApplyDisguise($d$,tokens)} & Applies disguise $d$, selectively composing $d$'s
-    updates with prior disguises using data recorded in the set of tokens. \\
-    \fn{ReverseDisguise($d$,tokens)} & Reverses disguise $d$ using data recorded in the set of tokens.\\
+    updates with prior disguises using the tokens's data. \\
+    \fn{\op{d}.execute(tokens)} & Executes the disguise operation \op{d}, composing the operation
+    with prior disguises using the tokens' data.\\
+    \fn{ReverseDisguise($d$,tokens)} & Reverses disguise $d$ using the tokens' data.\\
     \fn{ReverseTokenOp(token)} & Reverses the data modification performed by the disguise operation
     that produced the token.\\
     \fn{StorePubKey($\pubk{p}$)} & Persistently saves the public key \pubk{p} indexed by $p$.\\
@@ -65,7 +67,7 @@ reversal protocols follow the same logic as disguise application protocols, with
 differences being the API call invoked by the client (\fn{StartDisguiseReversal($d$)}) and the
 function that \sys calls at the end (\fn{ReverseDisguise($d$ tokens)}).
 
-\vspace{6pt}\noindent\textbf{\emph{\sys Internal Functions.}}
+\vspace{6pt}\noindent\textbf{\emph{Internal \sys Functions.}}
 Table~\ref{tab:funcs} describe \sys's internal functions run server-side to implement these
 protocols and apply or reverse disguises. 
 
@@ -73,7 +75,9 @@ Figure~\ref{fig:rpt} describes how \sys accesses the private tokens
 corresponding to disguise $d$ and principal $p$ by recursively decrypting tokens and traversing
 \tokls{pd}.
 Figures~\ref{fig:appdisg} and \ref{fig:revdisg} describe how \sys implements disguise application and
-reversal respectively; Figure~\ref{fig:revtoken} describes how \sys uses a token's recorded
+reversal respectively. Figure~\ref{fig:opexec} describes how disguise operations update application
+state and produce and modify tokens, and 
+Figure~\ref{fig:revtoken} describes how \sys uses a token's recorded
 modification to reverse an applied disguise operation. 
 
 \sys's implementations of the remaining functions in Table~\ref{tab:funcs} simply read or write into

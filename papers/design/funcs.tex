@@ -47,11 +47,22 @@ For each such pair of token and principal $p$, if the token should be private, t
 \end{figure*}
 
 \begin{figure*}
+\procb{\texttt{\op{d}.execute(tokens)}}{
+    \< \\
+    %Apply updates to tokens of disguise $d$\\
+    %Migrate tokens
+    %Generate the appropriate tokens for decor/remove/modify\\
+}{}
+\caption{\textbf{Operation Execution Pseudocode.}}
+    \label{fig:opexec}
+\end{figure*}
+
+\begin{figure*}
 \procb{\texttt{ReverseDisguise}($d$,\texttt{tokens})}{
 \< \\
 \t[0]\pcforeach \tdata{pd'} \in \fn{tokens}:\\
 \t[1]\pcif d' == d:\\
-    \t[2] \fn{ReverseTokenOp(\tdata{pd'})}
+\t[2] \fn{ReverseTokenOp(\tdata{pd'})}\\
 \t[1]\pcfi\\
 \t[0]\pcendforeach\\
 \t[0]\fn{\sys.DisguiseHistory.append(Reverse($d$))}
