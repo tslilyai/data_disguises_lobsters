@@ -74,14 +74,6 @@ This allows an earlier disguise to be reversed correctly.
 An easy way to avoid needing to do this is to have all objects in the DB have unique, permanent
 identifiers.
 
-\vspace{6pt}\noindent\textbf{\emph{Delayed Disguise Reversal.}}
-\sys will not reverse a disguise's modifications to a data objects until future disguises applied to
-the same object have been reversed.
-This occurs when the disguise's tokens are private and inaccessible; or cannot be reversed because
-future disguises have modified, decorrelated, or removed the same data.
-\sys uses the disguise history of all disguise applications/reversals to retroactively reverse
-the disguise when it becomes feasible.
-
 \subsection{Handling Interleaved Application Updates}
 \noindent\textbf{\emph{Application Updates to Present Disguised Data.}}
 \sys will not reveal disguised data still present in the database that has been updated by the
@@ -90,7 +82,7 @@ application. Application updates are equivalent to irreversible disguise operati
 expected as recorded in the token; if they do not match, then an application update has occurred
 since disguising, and \sys will not alter the data.
 
-\vspace{6pt}\noindent\textbf{\emph{Application Updates to Removed Disguised Data}}
+\vspace{6pt}\noindent\textbf{\emph{Application Updates to Removed Disguised Data.}}
 Application updates fail to update data removed by a disguise, which can later be revealed in
 original form.
 \sys requires all application updates that must immediately apply to revealed data (that is
