@@ -101,7 +101,9 @@ The client first invokes the \fn{StartDisguise} API call, authenticated as princ
     The client only includes the decrypted \symk{pd'} in the set of keys sent back to \sys via a
     \fn{GrantTokenAccess} API call if the client wants to authorizes access to $p$'s private tokens
     from disguise $d'$. \\
-    \sys uses each \symk{pd'} to decrypt $p$'s private tokens produced by disguise $d'$. 
+    \sys uses each \symk{pd'} to decrypt $p$'s private tokens produced by disguise $d'$. Note that
+    if the client returns a false \symk{pd'}, the decryption will fail, and \sys will not reveal any
+    $p$'s private tokens from $d'$.\\
     \sys combines all decrypted private tokens with the set of globally accessible tokens to produce
     all tokens available for disguise composition of $d$ on top of $d'$. 
     \lyt{Note: this requires that a client be authenticated as $p$ to access $p$'s tokens, which
@@ -138,7 +140,7 @@ The client first invokes the \fn{StartDisguise} API call, authenticated as princ
 \t[0]\pcforeach \op{d}:\\
 \t[1]\fn{opTokenPrincipalPairs} \gets \texttt{\op{d}.execute(tokens)}\\
 \t[1]\pcforeach (\fn{token}, p) \in \fn{opTokenPrincipalPairs}:\\
-\t[2]\pcif \texttt{token.isPrivate()}:\\
+\t[2]\pcif \texttt{d.isPrivate()}:\\
 \t[3]\pcif \texttt{LoadEncSymKey($p,d$) = NULL}:\\
 \t[4] \symk{pd} \sample \kgen() \\
 \t[4] \pubk{p} \gets \texttt{LoadPubKey}(c) \\
@@ -166,9 +168,10 @@ The client first invokes the \fn{StartDisguise} API call, authenticated as princ
 \caption{\textbf{ApplyDisguise Pseudocode.} \sys applies a disguise given the disguise
 specification and available tokens for composition.\\
     Every operation produces a set of (token, principal) pairs.
-For each such pair of token and principal $p$, if the token should be private, then \sys generates symmetric key
- \symk{pd} if it does not yet exist, encrypts it with \pubk{p}, and stores the resulting ciphertext. 
-    This ensures that only a client with \privk{p} can decrypt and access \symk{pd}. \\
+    For each such pair of token and principal $p$, if the disguise is private, then the token should be
+    private and \sys generates symmetric key \symk{pd} if it does not yet exist, encrypts it with
+    \pubk{p}, and stores the resulting ciphertext.  This ensures that only a client with \privk{p}
+    can decrypt and access \symk{pd}. \\
 \sys then encrypts the private token with \symk{pd} and stores the ciphertext as the tail of
     \tokls{pd}s.\\
     If the disguise operation is global, \sys simply stores the token plaintext indexed by principal and

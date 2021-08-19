@@ -25,8 +25,9 @@ Disguise tokens come in two forms: data tokens and privkey tokens.
 \vspace{6pt}
 \noindent\textbf{\emph{Data Tokens.}}
 Every \op{d} produces data tokens associated with the disguise $d$ and a
-principal $p$, notated as \tdata{pd}. \tdata{pd} tokens are either be private or global depending on
-whether the producing \op{d} is global or private. 
+principal $p$, notated as \tdata{pd}. \tdata{pd} tokens are either private or global depending on
+whether the disguise $d$ is global or private. 
+\lyt{Note: making explicit decision that global/private is a per-disguise setting}
 A \tdata{pd} contains the following fields, which record changes performed by \op{d}:
 \begin{itemize}
 \item \fn{tokenID}: unique ID for this token

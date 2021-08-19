@@ -1,4 +1,4 @@
-\section{How Does \sys Apply and Reverse Disguises?}
+\section{Disguise Application and Reversal}
 
 Table~\ref{tab:funcs} describe \sys's internal functions run server-side to implement its API 
 and apply or reverse disguises. 
@@ -14,6 +14,97 @@ corresponding to disguise $d$ and principal $p$ by recursively decrypting tokens
 
 \sys's implementations of the remaining functions in Table~\ref{tab:funcs} simply read or write into
 persistent maps indexed by principal and/or disguise.
+
+\subsection{Composing Disguise Applications and Reversals}
+
+\vspace{6pt}\noindent\textbf{\emph{Some Notation.}}
+We describe disguise histories as a list of \app{d} and \rev{d} actions, where \app{d} corresponds
+to the application of disguise $d$, and \rev{d} corresponds to the reversal of $d$. Time moves to
+the right in the list.
+
+For every data object $O$ in the system, \ostart describes its initial state, and
+\ohist{[\app{d_1}, \dots]} describes its state after \sys has applied the history [\app{d_1},
+$\dots$].
+
+\vspace{6pt}\noindent\textbf{\emph{Multiple Disguise Applications.}}
+Let $d_1$ and $d_2$ be two disguises, where $d_1$ is applied after $d_2$.
+to produce disguise history [\app{d_1}, \app{d_2}]. 
+%
+Let $O$ be some data object in the system, where \ostart is its initial state, and
+\ohist{[\app{d_1}, \app{d_2}]} be the final state after \sys applies $d_1$ and $d_2$.
+%
+If both $d_1$ and $d_2$ update $O$, what is \ohist{[\app{d_1}, \app{d_2}]}?
+We consider two possible end states: 
+%
+\begin{enumerate}
+\item[($S_1$)] \ohist{[\app{d_1}, \app{d_2}]} reflects the application of $d_1$ \textbf{and} $d_2$ to \ostart. In other
+words, \op{d_2} predicates match against \ostart, and ignore any updates to $O$ applied by $d_1$
+when selecting objects to update. \op{d_2} updates are applied in sequence with \op{d_1} updates if the two 
+conflict.
+
+\item[($S_2$] \ohist{[\app{d_1}, \app{d_2}]} reflects the application of $d_1$ to \ostart, followed by the application of $d_2$ to
+\ohist{[\app{d_1}]}. \op{d_2} predicates match against \ohist{[\app{d_1}]}, and are not aware of the
+original state \ostart.
+\end{enumerate}
+
+\noindent
+For example, let \op{d_1} decorrelate all posts from authors predicated
+on \texttt{author = Bea}, and let \op{d_2} remove all posts predicated on \texttt{author = Bea}.
+%
+\begin{enumerate}
+\item[($S_1$)] Both \op{d_1} and \op{d_2} update posts originally having author ``Bea'', resulting in the
+removal of all posts originally with author Bea.
+
+\item[($S_2$)] Applying \op{d_1} results in all posts with author ``Bea'' having
+pseudoprinicipal authors such as ``anonFox.'' \op{d_2} only knows the state of posts after
+\op{d_1} occurs, and does not remove any posts because no post has author ``Bea''.
+\end{enumerate}
+
+Whether $S_1$ or $S_2$ is the desirable outcome of \ohist{[\app{d_1}, \app{d_2}]} depends on the
+specific application in question, and is left to the developer to specify. 
+
+However, depending on the global or private nature of each disguise, only $S_2$ may be possible:
+in order to achieve $S_1$, $d_2$ must evalute predicates against \ostart, and therefore must know how $d_1$ modified
+$O$ (\eg knowing that a post with author ``anonFox'' originally was a post with author ``Bea''). 
+This information, however, is stored in tokens produced by $d_1$, and should these tokens be
+inaccessible to $d_2$, then $d_2$ can only match against \ohist{[\app{d_1}]} and achieve $S_2$.
+
+\vspace{6pt}\noindent\textbf{\emph{Disguise Applications with Reversals.}}
+
+\begin{table}[h]
+\footnotesize
+\centering
+\begin{tabular}{ c | c c c }
+& \textbf{$d_2$ Decorrelates} & \textbf{$d_2$ Modifies} & \textbf{$d_2$ Removes}\\
+\hline
+\textbf{$d_1$ Decorrelates}  & \ohist{[\app{d_2}]} & \ohist{[\app{d_2}]} &\ohist{[\app{d_2}]} \\
+\textbf{$d_1$ Modifies} & \ohist{[\app{d_2}]} & \ohist{[\app{d_2}]} &\ohist{[\app{d_2}]} \\
+\textbf{$d_2$ Removes}  & \ohist{[\app{d_2}]} & \ohist{[\app{d_2}]} &\ohist{[\app{d_2}]} \\
+\end{tabular}
+\vspace{6pt}
+\caption{\ohist{[\app{d_2}, \app{d_2}, \rev{d_1}]} when $d_1$ is global, and $d_2$ is private.}
+\label{tab:revinternal}
+\end{table}
+
+\begin{table*}[h]
+\centering
+\begin{tabular}{ c | c c c c }
+\textbf{History} & \textbf{(Global $d_1$, Global $d_2$)} & \textbf{(Private $d_1$, Private $d_2$)} &
+\textbf{(Private $d_1$, Global $d_2$)} & \textbf{(Global $d_1$, Private $d_2$)} \\
+\hline
+\ohist{[\app{d_1}, \app{d_2}]} & $S_1$ or $S_2$ & $S_1$ or $S_2$ & $S_2$ & $S_1$ or $S_2$ \\
+
+\ohist{[\app{d_1}, \app{d_2}, \rev{d_2}]} & \ohist{[\app{d_1}]} & \ohist{[\app{d_1}]} & \ohist{[\app{d_1}]} & \ohist{[\app{d_1}]}\\
+
+\ohist{[\app{d_2}, \app{d_2}, \rev{d_1}]} & \ohist{[\app{d_2}]} & \ohist{[\app{d_2}]} &
+\ohist{[\app{d_2}]} & \ohist{[\app{d_2}]} or \ohist{[\app{d_1}, \app{d_2}]}\\
+\vspace{6pt}
+\end{tabular}
+
+\caption{End state of object $O$ for various histories, depending on whether $d_1$ and
+$d_2$ are private or global.}
+\label{tab:compose}
+\end{table*}
 
 \subsection{Using Disguise History to Delay Disguise Actions}
 
