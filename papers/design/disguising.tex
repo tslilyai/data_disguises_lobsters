@@ -39,12 +39,12 @@ If both $d_1$ and $d_2$ update $O$, what is \ohist{[\app{d_1}, \app{d_2}]}?
 We consider two possible end states: 
 %
 \begin{enumerate}
-\item[($S_1$)] \ohist{[\app{d_1}, \app{d_2}]} reflects the application of $d_1$ \textbf{and} $d_2$ to \ostart. In other
+\item[(\appcompone)] \ohist{[\app{d_1}, \app{d_2}]} reflects the application of $d_1$ \textbf{and} $d_2$ to \ostart. In other
 words, at least one of the \op{d_2}s' predicates \texttt{pred} matches \ostart, and thus \op{d_2} is
 applied to \ohist[\app{d_1}] even if \texttt{pred} does not match \ohist[\app{d_1}]. 
 \op{d_2} updates are applied on top of any $d_1$'s' updates if the two conflict.
 
-\item[($S_2$] \ohist{[\app{d_1}, \app{d_2}]} reflects the application of $d_1$ to \ostart, followed
+\item[(\appcomptwo)] \ohist{[\app{d_1}, \app{d_2}]} reflects the application of $d_1$ to \ostart, followed
 by the application of $d_2$ to \ohist{[\app{d_1}]}. \op{d_2} predicates match only against
 \ohist{[\app{d_1}]}, and are not aware of the original state \ostart.
 \end{enumerate}
@@ -54,26 +54,26 @@ For example, let \op{d_1} decorrelate all posts from authors predicated
 on \texttt{author = Bea}, and let \op{d_2} remove all posts predicated on \texttt{author = Bea}.
 %
 \begin{enumerate}
-\item[($S_1$)] Both \op{d_1} and \op{d_2} update posts originally having author ``Bea'', resulting in the
+\item[(\appcompone)] Both \op{d_1} and \op{d_2} update posts originally having author ``Bea'', resulting in the
 removal of all posts originally with author Bea.
 
-\item[($S_2$)] Applying \op{d_1} results in all posts with author ``Bea'' having
+\item[(\appcomptwo)] Applying \op{d_1} results in all posts with author ``Bea'' having
 pseudoprinicipal authors such as ``anonFox.'' \op{d_2} only knows the state of posts after
 \op{d_1} occurs, and does not remove any posts because no post has author ``Bea''.
 \end{enumerate}
 
-The choice of whether \ohist{[\app{d_1}, \app{d_2}]} should result in $S_1$ or $S_2$ depends on the
+The choice of whether \ohist{[\app{d_1}, \app{d_2}]} should result in \appcompone or \appcomptwo depends on the
 specific application and is left to the developer to specify. 
 
-However, only $S_2$ may be possible in certain scenarios.
-In order to achieve $S_1$, $d_2$ must evalute predicates against \ostart, and therefore must know
+However, only \appcomptwo may be possible in certain scenarios.
+In order to achieve \appcompone, $d_2$ must evalute predicates against \ostart, and therefore must know
 how $d_1$ modified $O$ (\eg knowing that a post with author ``anonFox'' originally was a post with
 author ``Bea'').  This information, however, is stored in tokens produced by $d_1$. 
 
 These tokens may be inaccessible \sys when applying $d_2$, as they could be stored privately for
 principal $q$: a client who invokes $d_2$ while either unauthenticated, or authenticated as
 principal $p \neq q$, cannot access $q$'s tokens for $d_1$. 
-In this case, $d_2$ can only match against \ohist{[\app{d_1}]} and achieve $S_2$.
+In this case, $d_2$ can only match against \ohist{[\app{d_1}]} and achieve \appcomptwo.
 This is shown in Table~\ref{tab:composeapp}.
 
 \begin{table}[h]
@@ -82,9 +82,9 @@ This is shown in Table~\ref{tab:composeapp}.
 & \multicolumn{2}{c}{\textbf{$d_1$ Tokens for $O$}}\\
 \textbf{Client Invoking $d_2$ }& \textbf{Global} & \textbf{Private to $p$}\\
 \hline
-{Unauthenticated} & $S_1$ or $S_2$ & $S_2$\\
-{Authenticated as $p$} & $S_1$ or $S_2$ & $S_1$ or $S_2$ \\
-{Authenticated as $q \neq p$} & $S_1$ or $S_2$ & $S_2$
+{Unauthenticated} & \appcompone or \appcomptwo & \appcomptwo\\
+{Authenticated as $p$} & \appcompone or \appcomptwo & \appcompone or \appcomptwo \\
+{Authenticated as $q \neq p$} & \appcompone or \appcomptwo & \appcomptwo
 \end{tabular}
 \vspace{6pt}
 
@@ -94,8 +94,6 @@ state of tokens from $d_1$ regarding $O$.}
 \end{table}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\vspace{6pt}\noindent\textbf{\emph{Interleaving Disguise Applications with Reversals.}}
-
 \begin{table}[t]
 \centering
 \begin{tabular}{ c | c c }
@@ -128,6 +126,7 @@ state of tokens from $d_1$ regarding $O$.}
 \label{tab:composeapprev1}
 \end{table}
 
+\vspace{6pt}\noindent\textbf{\emph{Interleaving Disguise Applications with Reversals.}}
 We now consider composition of disguises in the presence of disguise reversals.
 
 We first consider \ohist{[\app{d},\rev{d}]}. Table~\ref{tab:composeapprev}
@@ -142,14 +141,14 @@ are stored. Similar to the prior scenario, when the client is either unauthentic
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \vspace{6pt}\noindent\textbf{\emph{Retroactive Disguise Application.}}
-In certain scenarios, \sys must retroactively apply a disguise in order to achieve the end states described in
-Table~\ref{tab:composeapprev1}. 
+In certain scenarios, \sys must retroactively apply a disguise in order to achieve the end states
+described in Table~\ref{tab:composeapprev1}. 
 
-Concretely, consider the history [\app{d_1},\app{d_2}].
-As we saw earlier, sometimes \sys can achieve only end state $S_2$: if $d_1$'s tokens about $O$
-tokens are private to principal $p$, and $d_2$ is invoked by an unauthenticated client or a client
-authenticated as a different principal $q$, then some \op{d_2} may not update $O$ because its
-predicate only matches again \ohist{[\app{d_1}]}.
+Concretely, consider the history [\app{d_1},\app{d_2}].  As we described in composing disguise
+applications, \appcomptwo may be the only possible outcome for \ohist{[\app{d_1},\app{d_2}]}: if $d_1$'s tokens
+about $O$ tokens are private to principal $p$, and $d_2$ is invoked by an unauthenticated client or
+a client authenticated as a different principal $q$, then some \op{d_2} may not update $O$ because
+its predicate only matches again \ohist{[\app{d_1}]}.
 
 However, even in this case, \sys needs to ensure that \ohist{[\app{d_1},\app{d_2},\rev{d_1}]}
 achieves the semantics described in Table~\ref{tab:composeapprev1}. In particular, even when $d_1$'s
@@ -157,13 +156,13 @@ tokens are private to $p$, a client authorized as $p$ should be able to reverse 
 state of $O$ is \ohist{[\app{d_2}]}, namely $d_2$ applied to \ostart. 
 
 This requires \sys to retroactively apply $d_2$ during reversal of disguise $d_1$, when \sys has
-access to $d_1$'s private tokens for $p$; \sys can then match \op{d_2}s' predicates against the
-revealed \ostart to see if the \op{d_2} should update $O$.
+access to $d_1$'s private tokens for $p$. \sys can use these private tokens to reveal \ostart, and
+then match each \op{d_2}'s predicate with \ostart to see if \op{d_2} should update $O$.
 
 \sys uses the disguise history to know what disguises to retroactively apply when a prior disguise
 reveals token data.
 \lyt{Disguising should based on only contents of data in application database, and
-not predicated on the current time.}
+not predicated \eg on the current time.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \vspace{6pt}\noindent\textbf{\emph{Retroactive Disguise Reversal.}}
@@ -268,7 +267,7 @@ the possibility of non-updated data being revealed.
 \textbf{History} & \textbf{(Global $d_1$, Global $d_2$)} & \textbf{(Private $d_1$, Private $d_2$)} &
 \textbf{(Private $d_1$, Global $d_2$)} & \textbf{(Global $d_1$, Private $d_2$)} \\
 \hline
-\ohist{[\app{d_1}, \app{d_2}]} & $S_1$ or $S_2$ & $S_1$ or $S_2$ & $S_2$ & $S_1$ or $S_2$ \\
+\ohist{[\app{d_1}, \app{d_2}]} & \appcompone or \appcomptwo & \appcompone or \appcomptwo & \appcomptwo & \appcompone or \appcomptwo \\
 
 \ohist{[\app{d_1}, \app{d_2}, \rev{d_2}]} & \ohist{[\app{d_1}]} & \ohist{[\app{d_1}]} & \ohist{[\app{d_1}]} & \ohist{[\app{d_1}]}\\
 
