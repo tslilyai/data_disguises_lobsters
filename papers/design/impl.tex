@@ -32,8 +32,9 @@ described in \S\ref{sec:comp} while retaining security guarantees. We next descr
 of \emph{retroactive disguise application}, \emph{retroactive disguise reversal}, and \emph{global
 token modification}.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \vspace{6pt}\noindent\textbf{\emph{Retroactive Disguise Application.}}
-In certain scenarios, \sys must retroactively apply a disguise in order to achieve the end states
+\sys must sometimes retroactively apply a disguise in order to achieve the end states
 described in Table~\ref{tab:composeapprev1}. 
 
 Concretely, consider the history [\app{d_1},\app{d_2}].  As we described in composing disguise
@@ -58,22 +59,19 @@ not predicated \eg on the current time.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \vspace{6pt}\noindent\textbf{\emph{Retroactive Disguise Reversal.}}
-% NOTE TODO this is an issue in a history that does rev d2 after rev d1, not the ones shown above..
 In certain scenarios, \sys must retroactively reverse a disguise. 
 
 Concretely, consider the history $H = [\app{d_1},\app{d_2},\rev{d_1},\rev{d_2}]$.
-We expect that \ohist{H} is equivalent in \ostart.
+\sys logs the reversal of $d_1$ in the disguise history. 
 
-When $d_1$'s tokens for $O$ are accessible by the client reversing $d_1$, achieving this requires
-only having access to $d_2$'s tokens (as shown in Table~\ref{tab:composeapprev1}).
+Executing \rev{d_1} cannot reveal data disguised by $d_2$ (\eg, \rev{d_1} cannot recorrelate a data
+object that $d_1$ decorrelated that was removed by $d_2$). To ensure that \rev{d_1} is properly
+reflected when $d_2$ is reversed, \sys retroactively executes \rev{d_1} if \rev{d_2} is invoked,
+using the disguise history to determine if \rev{d_1} had been invoked before.
 
-However, if the client reversing $d_2$ does not have access to $d_1$'s tokens, then'
-then \sys cannot restore the state to \ostart unless . 
+However, clearly \sys can only retroactively apply \rev{d_1} if the client invoking \rev{d_2} has
+access to the relevant $d_1$ tokens.
 
-TODO 
-
-\sys logs the reversal of $d_1$ in the disguise history, and uses this history to detect if it
-should reverse any conflicting updates performed by $d_1$ when $d_2$ is reversed.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \vspace{6pt}\noindent\textbf{\emph{Global Token Modification to Prevent Information Leakage.}}
