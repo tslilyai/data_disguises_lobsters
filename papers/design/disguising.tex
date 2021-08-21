@@ -141,8 +141,32 @@ We next consider reversing a disguise $d_1$ after a subsequent disguise $d_2$ ha
 are stored. Similar to the prior scenario, when the client is either unauthenticated or authenticated as a principal without access to $d_1$'s private tokens, then the updates applied by $d_1$ to $O$ cannot be reversed.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Necessary Techniques to Interleave Disguise Application and Reversal}
+\vspace{6pt}\noindent\textbf{\emph{Retroactive Disguise Application.}}
+In certain scenarios, \sys must retroactively apply a disguise in order to achieve the end states described in
+Table~\ref{tab:composeapprev1}. 
 
+Concretely, consider the history [\app{d_1},\app{d_2}].
+As we saw earlier, sometimes \sys can achieve only end state $S_2$: if $d_1$'s tokens about $O$
+tokens are private to principal $p$, and $d_2$ is invoked by an unauthenticated client or a client
+authenticated as a different principal $q$, then some \op{d_2} may not update $O$ because its
+predicate only matches again \ohist{[\app{d_1}]}.
+
+However, even in this case, \sys needs to ensure that \rev{d_1} achieves the semantics described in
+Table~\ref{tab:composeapprev1}. In particular, even when $d_1$'s tokens are private to $p$, a client
+authorized as $p$ should be able to reverse $d_1$ such that the state of $O$ is \ohist{[\app{d_2}]},
+namely $d_2$ applied to \ostart. 
+
+This requires \sys to retroactively apply $d_2$ during reversal of disguise $d_1$, when \sys has
+access to $d_1$'s private tokens for $p$; \sys can then match \op{d_2}s' predicates against the
+revealed \ostart to see if the \op{d_2} should update $O$.
+
+\sys uses the disguise history to know what disguises to retroactively apply when a prior disguise
+reveals token data.
+\lyt{Disguising should based on only contents of data in application database, and
+not predicated on the current time.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\vspace{6pt}\noindent\textbf{\emph{Modifying Tokens to Prevent Global Token Information Leakage.}}
 %D1 tokens inaccessible --> D2 can be anything --> Rev D1 requires applying D2 updates
 %
 %D1 tokens accessible --> D2 can be anything, UPDATES TOKENS --> Rev D1 simply restores D1 token data
@@ -153,56 +177,44 @@ are stored. Similar to the prior scenario, when the client is either unauthentic
 %%(Global?) tokens aren't restored to undisguised state if new state doesn't match recorded in
 %disguise token --> means that another disguise has been applied (similar approach to app updates)
 
-\sys must support \emph{delayed disguise actions} and \emph{token modification} in order to
-achieve the end states described in Table~\ref{tab:composeapprev1}. 
-%Without these techniques,
-%reversal of $d_1$ in history [\app{d_1},\app{d_2},\rev{d_1}] would always result in
-%state \ohist{[\app{d_1},\app{d_2}]}.
-
-\noindent\textbf{\emph{Delayed Disguise Actions.}}
-Consider the history [\app{d_1},\app{d_2}].
-If $d_1$'s tokens about $O$ tokens are private to principal $p$, and $d_2$ is invoked by an unauthenticated client or
-a client authenticated as a different principal $q$, then some \op{d_2} may not update $O$ because
-its predicate only matches again \ohist{[\app{d_1}]} (achieving ($S_2$) as described earlier).
-
-However, \sys needs to ensure that \rev{d_1} achieves the semantics described in
-Table~\ref{tab:composeapprev1}. In particular, even when $d_1$'s tokens are private to $p$, a client
-authorized as $p$ should be able to reverse $d_1$ such that the state of $O$ is \ohist{[\app{d_2}]},
-namely $d_2$ applied to \ostart. 
-
-This requires \sys to retroactively apply $d_2$ during reversal of disguise $d_1$, when \sys has
-access to $d_1$'s private tokens for $p$; \sys can then match \op{d_2}s' predicates against the
-revealed \ostart to see if the \op{d_2} should update $O$.
-
-\sys uses the disguise history to know if to retroactively apply the
-disguise when the data is revealed.  
-\lyt{Disguising should based on only contents of data in application database, and
-not predicated on the current time.}
-
-
-\subsection{Token Migration and Modification}
 Let $d_1$ be a global disguise and $d_2$ be a private disguise applied in sequence.
-
 Consider the scenario in which \op{d_1} updates (decorrelates, modifies, or removes) a data object
 $O$, producing a global token \tdata{pd_1}. Later, \sys determines that \op{d_2} would have applied to the
 removed $O$ by checking if the corresponding \op{d_2} predicate matches recorded object data stored in \tdata{pd_1}.
 
-\sys updates \tdata{pd_1} with \op{d_2}'s update in order to not leak information about $O$ that $d_2$ should disguise. An update to a token such as \tdata{pd_1} itself generates a (private) token \tdata{pd_2}, just as updating a data object generates a token. Reversing $d_2$ uses this \tdata{pd_2} to reverse the modification to \tdata{pd_1}. If $d_1$ has
-already been reversed and the state of $O$ in the database has been updated to reflect the contents of \tdata{pd_1},
-then \sys simply uses \tdata{dp_2} to reverse the current state of $O$ in the database. 
+If \sys simply performs \op{d_2}'s update to $O$ in the application database, an adversary can still
+read undisguised data from \tdata{pd_1} since is it global, and records a now-stale state of $O$!
+%
+%Furthermore, this means that \sys cannot restore the state of $O$ in the database to
+%\ohist{[\app{d_2}]} when reversing $d_1$, because the revealing the data in \tdata{pd_1} would
+%reveal data that $d_2$ should have disguised.
+%
+To prevent global tokens like \tdata{pd_1} from leaking information that should be disguised, \sys
+updates the data in \tdata{pd_1} with \op{d_2}'s update. An update to a token such as \tdata{pd_1}
+itself generates a (private) token \tdata{pd_2}, just as updating a data object generates a token.
+
+Reversing $d_2$ uses this \tdata{pd_2} to reverse the modification to \tdata{pd_1}. 
+If $d_1$ has already been reversed, and the database state of $O$ updated to reflect the contents
+of \tdata{pd_1} (which were updated by the application of $d_2$), 
+then \sys simply uses \tdata{pd_2} to reverse the current state of $O$ in the database. 
+
+If a future $d_3$ has further updated \tdata{pd_1} in a way that conflicts with $d_2$'s update,
+then upon reversal of $d_2$, \sys will notice that \tdata{pd_2} records a stale update to \tdata{pd_1}, 
+and will not revert
+the state of \tdata{pd_1} until the future disguise $d_3$ has been reversed.
 
 \lyt{Note that removal is just an interesting case of this, in which \tdata{pd_1} is removed, by a
 token \tdata{pd_2} is stored in \tokls{pd_2} that saves the removal of \tdata{pd_1} for reversal.}
 
-\vspace{6pt}\noindent\textbf{\emph{Token Modification for Object Identification.}}
-Tokens need to refer to the correct objects even if objects have been modified by future disguises.
-Prior tokens should be revised by future disguises so that they apply correctly to the disguised
-data.
-This allows an earlier disguise to be reversed correctly.
-An easy way to avoid needing to do this is to have all objects in the DB have unique, permanent
-identifiers.
+%\vspace{6pt}\noindent\textbf{\emph{Token Modification for Object Identification.}}
+%Tokens need to refer to the correct objects even if objects have been modified by future disguises.
+%Prior tokens should be revised by future disguises so that they apply correctly to the disguised
+%data.
+%This allows an earlier disguise to be reversed correctly.
+%An easy way to avoid needing to do this is to have all objects in the DB have unique, permanent
+%identifiers.
 
-% NOTE this is an issue in a history that does rev d2 after rev d1, not the ones shown above..
+% NOTE TODO this is an issue in a history that does rev d2 after rev d1, not the ones shown above..
 Similarly, if $d_2$ has applied a more recent, conflicting update to $O$, then \sys cannot restore
 the state to \ostart. 
 \sys logs the reversal of $d_1$ in the disguise history, and uses this history to detect if it
