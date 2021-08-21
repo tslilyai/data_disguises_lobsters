@@ -60,17 +60,16 @@ not predicated \eg on the current time.}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \vspace{6pt}\noindent\textbf{\emph{Retroactive Disguise Reversal.}}
 In certain scenarios, \sys must retroactively reverse a disguise. 
-
 Concretely, consider the history $H = [\app{d_1},\app{d_2},\rev{d_1},\rev{d_2}]$.
 \sys logs the reversal of $d_1$ in the disguise history. 
 
-Executing \rev{d_1} cannot reveal data disguised by $d_2$ (\eg, \rev{d_1} cannot recorrelate a data
-object that $d_1$ decorrelated that was removed by $d_2$). To ensure that \rev{d_1} is properly
-reflected when $d_2$ is reversed, \sys retroactively executes \rev{d_1} if \rev{d_2} is invoked,
-using the disguise history to determine if \rev{d_1} had been invoked before.
+As discussed in \S\ref{sec:comp}, executing \rev{d_1} cannot reveal data disguised by $d_2$. To
+ensure that \rev{d_1} is properly reflected when $d_2$ is reversed, \sys retroactively executes
+\rev{d_1} if \rev{d_2} is invoked, using the disguise history to determine if \rev{d_1} had been invoked before.
 
 However, clearly \sys can only retroactively apply \rev{d_1} if the client invoking \rev{d_2} has
-access to the relevant $d_1$ tokens.
+access to the relevant $d_1$ tokens, which results in the outcomes shown in
+Table~\ref{tab:composeapprev2}.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
