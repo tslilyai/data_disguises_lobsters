@@ -61,14 +61,14 @@ during decorrelation (notated as \tpriv{pdq}).
 with access to \privk{p} can access \privk{q} (and therefore access $q$'s private tokens).
 
 \vspace{12pt}
-\noindent\textbf{\emph{Enforcing Token Access.}}
-As described in \S\ref{sec:achievegoals}, \sys ensures the security of private disguise tokens as
-follows: \sys encrypts private \tdata{pd} and \tpriv{pdq} tokens with a symmetric key \symk{pd} specific to
-the disguise and principal. The token's nonce ensures safety against
-known-plaintext attacks. \sys then encrypts \symk{pd} with public key \pubk{p}.
+\noindent\textbf{\emph{Enforcing Private Token Access.}}
+\sys ensures the security of private disguise tokens as follows: \sys encrypts private \tdata{pd}
+and \tpriv{pdq} tokens with a symmetric key \symk{pd} specific to the disguise and principal. The
+token's nonce ensures safety against known-plaintext attacks. \sys then encrypts \symk{pd} with
+public key \pubk{p}.
 %a key only known to \sys, \sysk, and encrypts the resulting ciphertext with public key \pubk{p}. 
-A client needs to prove it has \privk{p} by decrypting \symk{pd}, %$\enc(\sysk, \symk{pd})$, 
-which then allows \sys to decrypt $p$'s private tokens produced from applying $d$.
+A client needs to prove it has \privk{p} by decrypting \symk{pd}, %$\enc(\sysk, \symk{pd})$, which
+then allows \sys to decrypt $p$'s private tokens produced from applying $d$.
 
 \sys stores all global \tdata{pd} tokens in plaintext, where any party can access it.
 
@@ -117,7 +117,7 @@ Because \tokls{pd} tails point to (real or dummy) token ciphertexts, an adversar
 about the token contents or how many tokens are associated with a principal.
 
 %-------------------------------------------------------------------------------
-\subsection{Did We Achieve Our Security Goals?}
+\subsection{Does this design achieve our security goals?}
 \label{sec:achievegoals}
 %-------------------------------------------------------------------------------
 \vspace{6pt}\noindent\textbf{\emph{(1) Security of Restricted Disguise Application.}}
@@ -125,20 +125,15 @@ about the token contents or how many tokens are associated with a principal.
 reverse a disguise, achieving security goal (1).
 
 \vspace{6pt}\noindent\textbf{\emph{(2) Security of Private Disguise Tokens.}}
-For each disguise $d$, \sys encrypts private tokens associated with $p$ with a symmetric key
-\symk{pd}. \sys then encrypts \symk{pd} with public key \pubk{p}.  A client needs to prove it has
-\privk{p} by decrypting \symk{pd}, which only then allows decryption of $p$'s private tokens of
-disguise $d$.
+Our design requires \sys to encrypt private tokens associated with $p$ with a symmetric key
+\symk{pd} for each disguise $d$. \sys then encrypts \symk{pd} with public key \pubk{p}.  
+A client needs to prove it has \privk{p} by decrypting \symk{pd}, which only then allows decryption
+of $p$'s private tokens of disguise $d$, achieving our goal to restrict access to $p$'s private
+tokens.
 %\lyt{Not mentioning the strawman solution that encrypts each token with \pubk{p} for now.}
 
 \vspace{6pt}\noindent\textbf{\emph{(3) Security of Private Disguise Token Metadata.}}
-\sys ensures it does not know how many private tokens belong to $p$ by storing
-all private token ciphertexts in one large array, where nothing distinguishes $p_1$'s encrypted token
-from $p_2$'s encrypted token.
-%
-
-The storage of \symk{pd} ciphertexts exposes another potential vector for metadata leakage: \sys stores \symk{pd} ciphertexts indexed by principal and disguise IDs.
-To ensure that the presence of a \symk{pd} does not leak information about which principals' data has
-been disguised, \sys stores a dummy ciphertext for every $q$ that $d$ does not disguise in the
-array, such that every principal appears to have disguised data for every disguise.
-
+We describe how \sys both hides which principals' data has
+been disguised by inserting dummy \symk{pd} ciphertexts for all principals $p$ not disguised by $d$;
+and how \sys ensures it does not know how many private tokens belong to $p$ by storing all private token
+ciphertexts in encrypted linked-lists.
