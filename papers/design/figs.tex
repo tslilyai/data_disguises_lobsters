@@ -1,33 +1,3 @@
-\begin{table*}[t!]
-\centering
-\begin{tabular}{ c p{.7\linewidth} }
-\textbf{Function} & \textbf{Description} \\
-\hline
-    \fn{ReadPrivateTokens(\symk{pd})} & Decrypts all of $p$'s private tokens produced by disguise
-    $d$ using \symk{pd}. \\
-    \fn{ReadGlobalTokens($d$)} & Retrieves all global tokens produced by disguise $d$. \\
-    \fn{ApplyDisguise($d$,tokens)} & Applies disguise $d$, selectively composing $d$'s
-    updates with prior disguises using the tokens's data. \\
-    \fn{\op{d}.execute(tokens)} & Executes the disguise operation \op{d}, composing the operation
-    with prior disguises using the tokens' data.\\
-    \fn{ReverseDisguise($d$,tokens)} & Reverses disguise $d$ using the tokens' data.\\
-    \fn{ReverseTokenOp(token)} & Reverses the data modification performed by the disguise operation
-    that produced the token.\\
-    \fn{StorePubKey($\pubk{p}$)} & Persistently saves the public key \pubk{p} indexed by $p$.\\
-    \fn{LoadPubKey($p$)} & Retrieves public key \pubk{p} for $p$.\\
-    \fn{LoadEncSymKey($p,d$)} & Retrieves \symk{pd} ciphertext.\\
-    \fn{LoadEncSymKeys($p$)} & Retrieves \symk{pd} ciphertexts for all previously applied disguises $d$.\\
-    \fn{StoreEncSymKey($p,d$)} & Persistently saves the \symk{pd} ciphertext indexed by $p$ and $d$.\\
-    %\fn{VerifySymKey($p,d$,symKey)} & Verifies that the symmetric key plaintext has not been falsified by the client\\
-    \fn{LoadListTail}$(p,d)$ & Gets the first encrypted private token in \tokls{pd}, the list of
-    tokens associated with $p$ produced by $d$.\\
-    \fn{StoreListTail}$(p,d)$ & Persistently saves the first encrypted private token in \tokls{pd}
-    indexed by $p$ and $d$.
-\end{tabular}
-    \vspace{12px}
-\caption{Internal \sys functions}
-\label{tab:funcs}
-\end{table*}
 
 \begin{figure*}[h!]
 \pcb{
@@ -42,6 +12,25 @@
 \caption{\textbf{Principal public key registration.}}
 \label{fig:acctreg}
 \end{figure*} 
+
+\begin{figure*}[h]
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Unauthenticated Client} \< \< \textbf{\sys} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+\< \sendmessageright*{\fn{StartDisguise($d$)}} \< \\
+\<\< \texttt{tokens} \gets \{\}\\
+\<\< \pcforeach d'~\text{in the disguise history}: \\
+\<\< \quad\texttt{tokens.insert(\fn{ReadGlobalTokens}($d'$))}\\ 
+\<\< \pcendforeach\\
+\<\< \texttt{ApplyDisguise($d$,tokens)}
+}
+    \caption{\textbf{Unauthenticated disguise application}. In contrast to authenticated disguise
+    application, \sys does not request access to any private tokens, and instead simply applies the disguise  
+    with only globally-accessible tokens.}
+    \label{fig:unauthdisapp}
+\end{figure*}
 
 \begin{figure*}[h]
 \pcb{
@@ -88,25 +77,6 @@ The client first invokes the \fn{StartDisguise} API call, authenticated as princ
     \lyt{Note: this requires that a client be authenticated as $p$ to access $p$'s tokens, which
     isn't necessarily fundamental.}}
     \label{fig:authdisapp}
-\end{figure*}
-
-\begin{figure*}[h]
-\pcb{
-\<\< \\[-0.9\baselineskip]\\
-\textbf{Unauthenticated Client} \< \< \textbf{\sys} \\
-[0.1\baselineskip][\hline]
-\<\< \\[-0.9\baselineskip]\\
-\< \sendmessageright*{\fn{StartDisguise($d$)}} \< \\
-\<\< \texttt{tokens} \gets \{\}\\
-\<\< \pcforeach d'~\text{in the disguise history}: \\
-\<\< \quad\texttt{tokens.insert(\fn{ReadGlobalTokens}($d'$))}\\ 
-\<\< \pcendforeach\\
-\<\< \texttt{ApplyDisguise($d$,tokens)}
-}
-    \caption{\textbf{Unauthenticated disguise application}. In contrast to authenticated disguise
-    application, \sys does not request access to any private tokens, and instead simply applies the disguise  
-    with only globally-accessible tokens.}
-    \label{fig:unauthdisapp}
 \end{figure*}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

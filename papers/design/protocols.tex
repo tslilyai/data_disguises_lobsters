@@ -30,8 +30,8 @@ system must register a public key with \sys in order to later reveal (for disgui
 composition) any of privately disguised data. \sys remembers each public key \pubk{p} along with
 $p$'s ID.
 
-Figures~\ref{fig:authdisapp} and \ref{fig:unauthdisapp} illustrate the protocols for authenticated
-and unauthenticated disguise application respectively. Authenticated and unauthenticated disguise
+Figures~\ref{fig:unauthdisapp} and \ref{fig:authdisapp} illustrate the protocols for unauthenticated
+and authenticated disguise application respectively. Authenticated and unauthenticated disguise
 reversal protocols follow the same logic as disguise application protocols, with the only
 differences being the API call invoked by the client (\fn{StartDisguiseReversal($d$)}) and the
 function that \sys calls at the end (\fn{ReverseDisguise($d$,tokens)}).
