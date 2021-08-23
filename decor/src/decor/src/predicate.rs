@@ -63,6 +63,7 @@ impl ToString for PredClause {
                     NotEq => format!("{} != {}", col, val),
                     And => format!("{} AND {}", col, val),
                     Or => format!("{} OR {}", col, val),
+                    BitwiseAnd => format!("{} & {}", col, val),
                     _ => unimplemented!("No support for op {}", op),
                 }
             }

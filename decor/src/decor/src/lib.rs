@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use std::*;
 
-mod disguise;
+pub mod disguise;
 pub mod helpers;
 mod history;
 pub mod predicate;

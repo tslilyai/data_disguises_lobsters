@@ -322,18 +322,22 @@ impl Disguiser {
                 // apply cols_to_update
                 if token.is_global {
                     let mut new_token = token.clone();
-                    new_token.old_value = token.old_value.iter().map(|rv| {
-                        let mut new_rv = rv.clone();
-                        for a in &cols_to_update {
-                            if rv.column == a.id.to_string() {
-                                new_rv = RowVal {
-                                    column: rv.column.clone(),
-                                    value: a.value.to_string(),
-                                };
-                            } 
-                        } 
-                        new_rv
-                    }).collect();
+                    new_token.old_value = token
+                        .old_value
+                        .iter()
+                        .map(|rv| {
+                            let mut new_rv = rv.clone();
+                            for a in &cols_to_update {
+                                if rv.column == a.id.to_string() {
+                                    new_rv = RowVal {
+                                        column: rv.column.clone(),
+                                        value: a.value.to_string(),
+                                    };
+                                }
+                            }
+                            new_rv
+                        })
+                        .collect();
                     if !locked_token_ctrler.update_token_from_old_to(uid, did, &token, &new_token) {
                         warn!("Could not update old disguise token!! {:?}", token);
                     }
@@ -423,11 +427,13 @@ impl Disguiser {
                             }
                             _ => (),
                         }
-                        // for all tokens (global or privately accessible), we want to update the
+                        // for all global tokens, we want to update the
                         // stored value of this token so that we only ever restore the most
-                        // up-to-date disguised data and the token doesn't leak any data 
+                        // up-to-date disguised data and the token doesn't leak any data
                         // NOTE: during reversal, we'll have to reverse this token update
-                        token_transforms.insert(pt.clone(), vec![]);
+                        if pt.is_global {
+                            token_transforms.insert(pt.clone(), vec![]);
+                        }
                     }
 
                     // just remove item if it's supposed to be removed
@@ -532,7 +538,8 @@ impl Disguiser {
                             }
 
                             // TOKENS modify any matching removed data tokens from prior disguises
-                            let token_keys: Vec<Token> = token_transforms.keys().map(|k| k.clone()).collect();
+                            let token_keys: Vec<Token> =
+                                token_transforms.keys().map(|k| k.clone()).collect();
                             for token in token_keys {
                                 // don't modify token if removed
                                 if removed_items.contains(&token.new_value) {
@@ -766,4 +773,3 @@ fn decor_item(
     stats.decor_dur += start.elapsed();
     warn!("Thread {:?} decor {}", thread::current().id(), child_table);
 }
-
