@@ -334,7 +334,7 @@ impl Disguiser {
                         } 
                         new_rv
                     }).collect();
-                    if !locked_token_ctrler.update_token_to(&new_token) {
+                    if !locked_token_ctrler.update_token_from_old_to(uid, did, &token, &new_token) {
                         warn!("Could not update old disguise token!! {:?}", token);
                     }
                 }

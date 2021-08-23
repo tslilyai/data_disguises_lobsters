@@ -49,7 +49,8 @@ pub struct Token {
     pub new_uid: UID,
 
     // TOKEN REMOVE/MODIFY
-    pub updated_token_blob: String,
+    pub old_token_blob: String,
+    pub new_token_blob: String,
 
     // FOR SECURITY DESIGN
     // for randomness
@@ -65,14 +66,15 @@ impl Hash for Token {
 }
 
 impl Token {
-    pub fn new_token_modify(did: DID, uid: UID, changed_token: &Token) -> Token{
+    pub fn new_token_modify(did: DID, uid: UID, old_token: &Token, changed_token: &Token) -> Token{
         let mut token: Token = Default::default();
         token.is_global = false;
         token.uid = uid;
         token.did = did;
         token.update_type = MODIFY_TOKEN;
         token.revealed = false;
-        token.updated_token_blob = serde_json::to_string(changed_token).unwrap();
+        token.old_token_blob = serde_json::to_string(old_token).unwrap();
+        token.new_token_blob = serde_json::to_string(changed_token).unwrap();
         token
     }
 
@@ -83,7 +85,7 @@ impl Token {
         token.did = did;
         token.update_type = REMOVE_TOKEN;
         token.revealed = false;
-        token.updated_token_blob = serde_json::to_string(changed_token).unwrap();
+        token.old_token_blob = serde_json::to_string(changed_token).unwrap();
         token
     }
 

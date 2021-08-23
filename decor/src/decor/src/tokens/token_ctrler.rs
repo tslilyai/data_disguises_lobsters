@@ -257,7 +257,10 @@ impl TokenCtrler {
                 found = true;
             }
             // log token for disguise that marks removal
-            self.insert_user_token(TokenType::Data, &mut Token::new_token_remove(uid, did, token));
+            self.insert_user_token(
+                TokenType::Data,
+                &mut Token::new_token_remove(uid, did, token),
+            );
             return found;
         }
         found
@@ -343,7 +346,13 @@ impl TokenCtrler {
         }*/
     }
 
-    pub fn update_token_to(&mut self, new_token: &Token) -> bool {
+    pub fn update_token_from_old_to(
+        &mut self,
+        uid: UID,
+        did: DID,
+        old_token: &Token,
+        new_token: &Token,
+    ) -> bool {
         let mut found = false;
         if new_token.is_global {
             if let Some(global_tokens) = self.global_vault.get(&(new_token.did, new_token.uid)) {
@@ -352,6 +361,10 @@ impl TokenCtrler {
                 tokens.insert(new_token.clone());
                 found = true;
             }
+            self.insert_user_token(
+                TokenType::Data,
+                &mut Token::new_token_modify(uid, did, old_token, new_token),
+            );
             return found;
         }
         found
