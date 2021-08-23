@@ -30,8 +30,14 @@ system must register a public key with \sys in order to later reveal (for disgui
 composition) any of privately disguised data. \sys remembers each public key \pubk{p} along with
 $p$'s ID.
 
-Figures~\ref{fig:unauthdisapp} and \ref{fig:authdisapp} illustrate the protocols for unauthenticated
-and authenticated disguise application respectively. Authenticated and unauthenticated disguise
+Figures~\ref{fig:adminauthdisapp} and \ref{fig:userauthdisapp} illustrate the protocols for admin-authenticated
+and user-authenticated disguise application respectively. User-authenticated and admin-authenticated disguise
 reversal protocols follow the same logic as disguise application protocols, with the only
 differences being the API call invoked by the client (\fn{StartDisguiseReversal($d$)}) and the
 function that \sys calls at the end (\fn{ReverseDisguise($d$,tokens)}).
+
+\lyt{Not sure if the admin- vs. user-authenticated client distinction is clear here..}
+
+%\lyt{TODO: I know the use of ``authenticated'' vs. ``unauthenticated'' here was incorrect, since
+%even an admin-applied disguise requires authentication as the admin, but I'm not sure what a
+%better terminology to use. User-authenticated vs. Admin-authenticated?}

@@ -28,7 +28,8 @@ Disguise tokens come in two forms: data tokens and privkey tokens.
 Every \op{d} produces data tokens associated with the disguise $d$ and a
 principal $p$, notated as \tdata{pd}. \tdata{pd} tokens are either private or global depending on
 whether the disguise $d$ is global or private. 
-\lyt{Note: making explicit decision that global/private is a per-disguise setting. An authenticated
+\lyt{Note: making explicit decision that global/private is a per-disguise setting. An
+admin-authenticated 
 client can still apply private disguises, but won't be able to access any non-global tokens.
 Furthermore, a private disguise may produce tokens private to many different principals.}
 

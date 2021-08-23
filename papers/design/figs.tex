@@ -16,7 +16,7 @@
 \begin{figure*}[h]
 \pcb{
 \<\< \\[-0.9\baselineskip]\\
-\textbf{Unauthenticated Client} \< \< \textbf{\sys} \\
+\textbf{Admin-authenticated Client} \< \< \textbf{\sys} \\
 [0.1\baselineskip][\hline]
 \<\< \\[-0.9\baselineskip]\\
 \< \sendmessageright*{\fn{StartDisguise($d$)}} \< \\
@@ -26,16 +26,16 @@
 \<\< \pcendforeach\\
 \<\< \texttt{ApplyDisguise($d$,tokens)}
 }
-    \caption{\textbf{Unauthenticated disguise application}. In contrast to authenticated disguise
+    \caption{\textbf{Admin-authenticated disguise application}. In contrast to user-authenticated disguise
     application, \sys does not request access to any private tokens, and instead simply applies the disguise  
     with only globally-accessible tokens.}
-    \label{fig:unauthdisapp}
+    \label{fig:adminauthdisapp}
 \end{figure*}
 
 \begin{figure*}[h]
 \pcb{
 \<\< \\[-0.9\baselineskip]\\
-\textbf{Client Authenticated as $p$} \< \< \textbf{\sys} \\
+\textbf{Client User-Authenticated as $p$} \< \< \textbf{\sys} \\
 [0.1\baselineskip][\hline]
 \<\< \\[-0.9\baselineskip]\\
     \< \sendmessageright*{\fn{StartDisguise($d$)}} \< \\
@@ -59,8 +59,8 @@
 \<\< \pcendforeach\\
 \<\< \texttt{ApplyDisguise($d$,tokens)}
 }
-    \caption{\textbf{Authenticated disguise application.} 
-The client first invokes the \fn{StartDisguise} API call, authenticated as principal $p$.  
+    \caption{\textbf{User-Authenticated disguise application.} 
+The client first invokes the \fn{StartDisguise} API call, user-authenticated as principal $p$.  
     Prior to applying the disguise, \sys requests to access $p$'s private tokens by sending a
     \fn{RequestTokenAccess} to the client with all \symk{pd} ciphertexts for all $d$ in the disguise
     history.  \\
@@ -74,9 +74,9 @@ The client first invokes the \fn{StartDisguise} API call, authenticated as princ
     $p$'s private tokens from $d'$.\\
     \sys combines all decrypted private tokens with the set of globally accessible tokens to produce
     all tokens available for disguise composition of $d$ on top of $d'$. 
-    \lyt{Note: this requires that a client be authenticated as $p$ to access $p$'s tokens, which
+    \lyt{Note: this requires that a client be user-authenticated as $p$ to access $p$'s tokens, which
     isn't necessarily fundamental.}}
-    \label{fig:authdisapp}
+    \label{fig:userauthdisapp}
 \end{figure*}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

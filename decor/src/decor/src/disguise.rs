@@ -115,6 +115,46 @@ impl Disguiser {
             .get_tokens(&keys, for_disguise_action)
     }
 
+    pub fn reverse(&mut self, disguise: Arc<Disguise>, tokens: Vec<Token>) -> Result<(), mysql::Error> {
+        let de = history::DisguiseEntry {
+            uid: match &disguise.user {
+                Some(u) => u.id,
+                None => 0,
+            },
+            did: disguise.did,
+            reverse: true,
+        };
+
+        let mut conn = self.pool.get_conn()?;
+        let mut tokens_to_reveal :Vec<Token> = vec![];
+
+        for t in tokens {
+            // only reverse tokens of disguise if not yet revealed 
+            if t.did == disguise.did && !t.revealed {
+                if !t.is_global {
+                    // retroactively apply any disguises that might have missed applying to the revealed data
+                    // note that this only happens for private tokens, 
+                }
+
+                // undo token
+                
+                // retroactively reverse tokens that couldn't be revealed because of
+                // this disguise
+                 
+                    
+            }
+        }
+        // mark all revealed tokens as revealed
+        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
+        for t in &tokens_to_reveal {
+            locked_token_ctrler.mark_token_revealed(t);
+        }
+        drop(locked_token_ctrler);
+            
+        self.record_disguise(&de, &mut conn)?;
+        self.clear_disguise_records();
+        Ok(())
+    }
     pub fn apply(
         &mut self,
         disguise: Arc<Disguise>,
@@ -315,16 +355,20 @@ impl Disguiser {
                         );
                     }
                     TransformArgs::Remove => {
-                        // remove token from vault (if global)
-                        if token.is_global {
-                            if !locked_token_ctrler.remove_token(uid, did, &token) {
+                        // remove token from vault if token is global, and the new transformation is
+                        // private (although we already check this above)
+                        if token.is_global && !t.global {
+                            if !locked_token_ctrler.remove_token(did, &token) {
                                 warn!("Could not remove old disguise token!! {:?}", token);
                             }
                         }
                     }
                 }
-                // apply cols_to_update
-                if token.is_global {
+                // apply cols_to_update if token is global, and the new transformation is
+                // private (although we already check this above)
+                if token.is_global && !t.global {
+                    // update both old and new values so that no data leaks
+                    // TODO
                     let mut new_token = token.clone();
                     new_token.old_value = token
                         .old_value
@@ -342,7 +386,7 @@ impl Disguiser {
                             new_rv
                         })
                         .collect();
-                    if !locked_token_ctrler.update_token_from_old_to(uid, did, &token, &new_token) {
+                    if !locked_token_ctrler.update_token_from_old_to(did, &token, &new_token) {
                         warn!("Could not update old disguise token!! {:?}", token);
                     }
                 }
@@ -579,28 +623,8 @@ impl Disguiser {
         }
     }
 
-    pub fn reverse(&self, disguise: Arc<Disguise>, tokens: Vec<Token>) -> Result<(), mysql::Error> {
-        let de = history::DisguiseEntry {
-            uid: match &disguise.user {
-                Some(u) => u.id,
-                None => 0,
-            },
-            did: disguise.did,
-            reverse: true,
-        };
 
-        let mut conn = self.pool.get_conn()?;
-
-        // only reverse if disguise has been applied
-        if !history::is_disguise_reversed(&de, &mut conn, self.stats.clone())? {
-            // TODO undo disguise
-
-            self.record_disguise(&de, &mut conn)?;
-        }
-        Ok(())
-    }
-
-    pub fn record_disguise(
+    fn record_disguise(
         &self,
         de: &history::DisguiseEntry,
         conn: &mut mysql::PooledConn,

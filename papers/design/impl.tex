@@ -69,19 +69,19 @@ token modification}.
 described in Table~\ref{tab:composeapprev1}. 
 
 Concretely, consider the history [\app{d_1},\app{d_2}].  As we described in composing disguise
-applications, \appcomptwo may be the only possible outcome for \ohist{[\app{d_1},\app{d_2}]}: if $d_1$'s tokens
-about $O$ tokens are private to principal $p$, and $d_2$ is invoked by an unauthenticated client or
-a client authenticated as a different principal $q$, then some \op{d_2} may not update $O$ because
-its predicate only matches again \ohist{[\app{d_1}]}.
+applications, \appcomptwo may be the only possible outcome for \xhist{[\app{d_1},\app{d_2}]}: if $d_1$'s tokens
+about $O$ tokens are private to principal $p$, and $d_2$ is invoked by an admin-authenticated client or
+a user-authenticated client speaking for different principal $q$, then some \op{d_2} may not update $O$ because
+its predicate only matches again \xhist{[\app{d_1}]}.
 
-However, even in this case, \sys needs to ensure that \ohist{[\app{d_1},\app{d_2},\rev{d_1}]}
+However, even in this case, \sys needs to ensure that \xhist{[\app{d_1},\app{d_2},\rev{d_1}]}
 achieves the semantics described in Table~\ref{tab:composeapprev1}. In particular, even when $d_1$'s
 tokens are private to $p$, a client authorized as $p$ should be able to reverse $d_1$ such that the
-state of $O$ is \ohist{[\app{d_2}]}, namely $d_2$ applied to \ostart. 
+state of $O$ is \xhist{[\app{d_2}]}, namely $d_2$ applied to \xstart. 
 
 This requires \sys to retroactively apply $d_2$ during reversal of disguise $d_1$, when \sys has
-access to $d_1$'s private tokens for $p$. \sys can use these private tokens to reveal \ostart, and
-then match each \op{d_2}'s predicate with \ostart to see if \op{d_2} should update $O$.
+access to $d_1$'s private tokens for $p$. \sys can use these private tokens to reveal \xstart, and
+then match each \op{d_2}'s predicate with \xstart to see if \op{d_2} should update $O$.
 
 \sys uses the disguise history to know what disguises to retroactively apply when a prior disguise
 reveals token data.
@@ -118,7 +118,7 @@ If \sys simply performs \op{d_2}'s update to $O$ in the application database, an
 read undisguised data from \tdata{pd_1} since is it global and records a now-stale state of $O$!
 %
 %Furthermore, this means that \sys cannot restore the state of $O$ in the database to
-%\ohist{[\app{d_2}]} when reversing $d_1$, because the revealing the data in \tdata{pd_1} would
+%\xhist{[\app{d_2}]} when reversing $d_1$, because the revealing the data in \tdata{pd_1} would
 %reveal data that $d_2$ should have disguised.
 %
 To prevent global tokens like \tdata{pd_1} from leaking information that should be disguised, \sys
