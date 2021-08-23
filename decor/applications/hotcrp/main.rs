@@ -23,8 +23,6 @@ use rand::seq::SliceRandom;
 
 const SCHEMA: &'static str = include_str!("schema.sql");
 const DBNAME: &'static str = &"test_hotcrp";
-const SCHEMA_UID_COL: &'static str = "contactId";
-const SCHEMA_UID_TABLE: &'static str = "ContactInfo";
 
 const GDPR_DISGUISE_ID: u64 = 1;
 const CONF_ANON_DISGUISE_ID: u64 = 2;
