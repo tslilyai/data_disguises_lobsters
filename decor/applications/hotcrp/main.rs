@@ -16,7 +16,7 @@ use rand::{rngs::OsRng};
 
 mod conf_anon_disguise;
 mod datagen;
-//mod gdpr_disguise;
+mod gdpr_disguise;
 
 use decor::{disguise, tokens};
 use rand::seq::SliceRandom;
@@ -54,8 +54,6 @@ impl std::str::FromStr for TestType {
 struct Cli {
     #[structopt(long = "prime")]
     prime: bool,
-    #[structopt(long = "spec")]
-    spec: bool,
 }
 
 fn init_logger() {
@@ -146,18 +144,15 @@ fn main() {
 
     let args = Cli::from_args();
     let prime = args.prime;
-    let spec = args.spec;
 
     let disguises = vec![
         Arc::new(conf_anon_disguise::get_disguise()),
-        //Arc::new(gdpr_disguise::get_disguise(
-         //   disguise::User {id: (datagen::NUSERS_NONPC + 1) as u64},
-        //)),
+        Arc::new(gdpr_disguise::get_disguise(
+            (datagen::NUSERS_NONPC + 1) as u64,
+        )),
     ];
-    let uids: Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();
-    
-
-    /*let mut rng = &mut rand::thread_rng();
+    /*let uids: Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();
+    let mut rng = &mut rand::thread_rng();
     let rand_users: Vec<usize> = uids;
         .choose_multiple(&mut rng, uids.len())
         .cloned()
@@ -166,9 +161,6 @@ fn main() {
         disguises.push(Arc::new(gdpr_disguise::get_disguise(*user as u64)));
     }*/
 
-    if spec {
-    } else {
-        let users = vec![0 as u64, (datagen::NUSERS_NONPC + 1) as u64];
-        run_test(disguises, &users, prime);
-    }
+    let users = vec![0 as u64, (datagen::NUSERS_NONPC + 1) as u64];
+    run_test(disguises, &users, prime);
 }
