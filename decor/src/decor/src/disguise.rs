@@ -311,28 +311,32 @@ impl Disguiser {
                         );
                     }
                     TransformArgs::Remove => {
-                        // remove token from vault (if possible)
-                        if !locked_token_ctrler.remove_token(uid, did, &token) {
-                            warn!("Could not remove old disguise token!! {:?}", token);
+                        // remove token from vault (if global)
+                        if token.is_global {
+                            if !locked_token_ctrler.remove_token(uid, did, &token) {
+                                warn!("Could not remove old disguise token!! {:?}", token);
+                            }
                         }
                     }
                 }
                 // apply cols_to_update
-                let mut new_token = token.clone();
-                new_token.old_value = token.old_value.iter().map(|rv| {
-                    let mut new_rv = rv.clone();
-                    for a in &cols_to_update {
-                        if rv.column == a.id.to_string() {
-                            new_rv = RowVal {
-                                column: rv.column.clone(),
-                                value: a.value.to_string(),
-                            };
+                if token.is_global {
+                    let mut new_token = token.clone();
+                    new_token.old_value = token.old_value.iter().map(|rv| {
+                        let mut new_rv = rv.clone();
+                        for a in &cols_to_update {
+                            if rv.column == a.id.to_string() {
+                                new_rv = RowVal {
+                                    column: rv.column.clone(),
+                                    value: a.value.to_string(),
+                                };
+                            } 
                         } 
-                    } 
-                    new_rv
-                }).collect();
-                if !locked_token_ctrler.update_token_to(&new_token) {
-                    warn!("Could not update old disguise token!! {:?}", token);
+                        new_rv
+                    }).collect();
+                    if !locked_token_ctrler.update_token_to(&new_token) {
+                        warn!("Could not update old disguise token!! {:?}", token);
+                    }
                 }
             }
         }
