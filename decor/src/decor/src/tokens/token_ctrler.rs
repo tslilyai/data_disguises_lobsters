@@ -71,7 +71,7 @@ pub struct TokenCtrler {
 
     pub rng: OsRng,
     pub hasher: Sha256,
-    
+
     pub tmp_symkeys: HashMap<(UID, DID), ListSymKey>,
 }
 
@@ -121,11 +121,14 @@ impl TokenCtrler {
             None => {
                 let mut key: Vec<u8> = repeat(0u8).take(16).collect();
                 self.rng.fill_bytes(&mut key[..]);
-                self.tmp_symkeys.insert((uid, did), ListSymKey {
-                    symkey: key.clone(),
-                    uid: uid,
-                    did: did,
-                });
+                self.tmp_symkeys.insert(
+                    (uid, did),
+                    ListSymKey {
+                        symkey: key.clone(),
+                        uid: uid,
+                        did: did,
+                    },
+                );
                 key
             }
         };
@@ -243,7 +246,7 @@ impl TokenCtrler {
         }
     }
 
-    pub fn remove_token(&mut self, token: &Token) -> bool {
+    pub fn remove_token(&mut self, uid: UID, did: DID, token: &Token) -> bool {
         let mut found = false;
         // delete token (either global or from accessible principal vault)
         if token.is_global {
@@ -253,10 +256,16 @@ impl TokenCtrler {
                 tokens.remove(&token);
                 found = true;
             }
+            // log token for disguise that marks removal
+            self.insert_user_token(TokenType::Data, &mut Token::new_token_remove(uid, did, token));
             return found;
         }
+        found
 
-        // not in global, we need to remove a user token
+        // NOTE: don't remove user tokens; if the disguise is reversed,
+        // we can note to apply the later disguise to this token, but this token
+        // isn't leaking any information
+        /*// not in global, we need to remove a user token
         let symkey = match self.tmp_symkeys.get(&(token.uid, token.did)) {
             Some(sk) => sk,
             None => unimplemented!("Token to update inaccessible!"),
@@ -292,7 +301,6 @@ impl TokenCtrler {
                                 Some(pt) => {
                                     let mut new_pt = pt.clone();
                                     new_pt.last_tail = next_ptr;
-                                    // TODO 
                                     let cipher = Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
                                     let plaintext = serialize_to_bytes(&new_pt);
                                     let encrypted = cipher.encrypt_vec(&plaintext);
@@ -314,7 +322,7 @@ impl TokenCtrler {
                             // remove this token from the vaults map
                             self.user_vaults_map.remove(&tail_ptr);
 
-                            
+
                             warn!(
                                 "token uid {} disguise {} removed token {}",
                                 token.uid,
@@ -332,9 +340,7 @@ impl TokenCtrler {
                     None => break,
                 }
             }
-        }
-        // TODO log token for disguise that marks removal
-        found
+        }*/
     }
 
     pub fn update_token_to(&mut self, new_token: &Token) -> bool {
@@ -348,7 +354,9 @@ impl TokenCtrler {
             }
             return found;
         }
+        found
 
+        /* NOTE: don't update user tokens, only global ones
         // we need to update the user token
         let symkey = match self.tmp_symkeys.get(&(new_token.uid, new_token.did)) {
             Some(sk) => sk,
@@ -379,23 +387,22 @@ impl TokenCtrler {
                         let token = Token::token_from_bytes(plaintext);
                         if token.token_id == new_token.token_id {
                             // XXX do we need a new IV?
-                            let cipher = Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
+                            let cipher =
+                                Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
                             let plaintext = serialize_to_bytes(&new_token);
                             let encrypted = cipher.encrypt_vec(&plaintext);
-                            let iv =  enc_token.iv.clone();
+                            let iv = enc_token.iv.clone();
                             assert_eq!(encrypted.len() % 16, 0);
                             self.user_vaults_map.insert(
                                 tail_ptr,
                                 EncryptedToken {
                                     token_data: encrypted,
                                     iv: iv,
-                                }
+                                },
                             );
                             warn!(
                                 "token uid {} disguise {} updated token {}",
-                                token.uid,
-                                token.did,
-                                token.token_id,
+                                token.uid, token.did, token.token_id,
                             );
                             found = true;
                             break;
@@ -407,8 +414,7 @@ impl TokenCtrler {
                     None => break,
                 }
             }
-        }
-        found
+        }*/
     }
 
     pub fn get_global_tokens(&self, uid: UID, did: DID) -> Vec<Token> {
@@ -425,7 +431,8 @@ impl TokenCtrler {
         for symkey in symkeys {
             if save_keys {
                 // save symkeys for later in the disguise
-                self.tmp_symkeys.insert((symkey.uid, symkey.did), symkey.clone());
+                self.tmp_symkeys
+                    .insert((symkey.uid, symkey.did), symkey.clone());
             }
 
             let p = self

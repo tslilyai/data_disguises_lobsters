@@ -255,10 +255,14 @@ impl Disguiser {
             }));
         }
 
-        // apply modifications to each token (for now do sequentially)
+        // apply updates to each token (for now do sequentially)
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
         for (token, ts) in self.tokens_to_modify.write().unwrap().iter() {
             for t in ts {
+                // don't apply updates if disguise is global (and token can be global)
+                if t.global {
+                    continue;
+                }
                 let mut cols_to_update = vec![];
                 match &*t.trans.read().unwrap() {
                     TransformArgs::Decor { fk_col, fk_name } => {
@@ -308,7 +312,7 @@ impl Disguiser {
                     }
                     TransformArgs::Remove => {
                         // remove token from vault (if possible)
-                        if !locked_token_ctrler.remove_token(&token) {
+                        if !locked_token_ctrler.remove_token(uid, did, &token) {
                             warn!("Could not remove old disguise token!! {:?}", token);
                         }
                     }
@@ -410,7 +414,7 @@ impl Disguiser {
                         // for tokens that decorrelated or updated a guise, we want to add the new
                         // value that should be transformed into the set of predicated items
                         match pt.update_type {
-                            DECOR_GUISE | UPDATE_GUISE => {
+                            DECOR_GUISE | MODIFY_GUISE => {
                                 pred_items.push(pt.new_value.clone());
                             }
                             _ => (),

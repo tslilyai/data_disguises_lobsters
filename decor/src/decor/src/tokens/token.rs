@@ -7,8 +7,10 @@ use std::hash::{Hash, Hasher};
 pub const INSERT_GUISE: u64 = 0;
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
-pub const UPDATE_GUISE: u64 = 3;
+pub const MODIFY_GUISE: u64 = 3;
 pub const PRIV_KEY: u64 = 4;
+pub const REMOVE_TOKEN : u64 = 5;
+pub const MODIFY_TOKEN : u64 = 6;
 
 #[derive(Clone)]
 pub enum TokenType {
@@ -30,7 +32,7 @@ pub struct Token {
     pub guise_name: String,
     pub guise_ids: Vec<RowVal>,
 
-    // DECOR/UPDATE/DELETE: store old blobs
+    // DECOR/MODIFY/DELETE: store old blobs
     pub old_value: Vec<RowVal>,
 
     // DECOR
@@ -39,16 +41,19 @@ pub struct Token {
     // INSERT
     pub referencer_name: String,
 
-    // DECOR/UPDATE/INSERT: store new blobs
+    // DECOR/MODIFY/INSERT: store new blobs
     pub new_value: Vec<RowVal>,
 
     // PRIV_KEY
     pub priv_key: Vec<u8>,
     pub new_uid: UID,
 
+    // TOKEN REMOVE/MODIFY
+    pub updated_token_blob: String,
+
+    // FOR SECURITY DESIGN
     // for randomness
     pub nonce: u64,
-
     // for linked-list
     pub last_tail: u64,
 }
@@ -60,6 +65,28 @@ impl Hash for Token {
 }
 
 impl Token {
+    pub fn new_token_modify(did: DID, uid: UID, changed_token: &Token) -> Token{
+        let mut token: Token = Default::default();
+        token.is_global = false;
+        token.uid = uid;
+        token.did = did;
+        token.update_type = MODIFY_TOKEN;
+        token.revealed = false;
+        token.updated_token_blob = serde_json::to_string(changed_token).unwrap();
+        token
+    }
+
+    pub fn new_token_remove(did: DID, uid: UID, changed_token: &Token) -> Token{
+        let mut token: Token = Default::default();
+        token.is_global = false;
+        token.uid = uid;
+        token.did = did;
+        token.update_type = REMOVE_TOKEN;
+        token.revealed = false;
+        token.updated_token_blob = serde_json::to_string(changed_token).unwrap();
+        token
+    }
+
     pub fn new_privkey_token(did: DID, uid: UID, new_uid: UID, priv_key: &RsaPrivateKey) -> Token {
         let mut token: Token = Default::default();
         token.uid = uid;
@@ -122,7 +149,7 @@ impl Token {
         let mut token: Token = Default::default();
         token.uid = uid;
         token.did = did;
-        token.update_type = UPDATE_GUISE;
+        token.update_type = MODIFY_GUISE;
         token.revealed = false;
         token.guise_name = guise_name;
         token.guise_ids = guise_ids;

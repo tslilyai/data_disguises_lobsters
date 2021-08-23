@@ -87,7 +87,7 @@ pub fn get_tokens_matching_pred(pred: &Vec<Vec<PredClause>>, tokens: &Vec<Token>
     let mut matching = vec![];
     for t in tokens {
         if match t.update_type {
-            REMOVE_GUISE | DECOR_GUISE | UPDATE_GUISE => predicate_applies_to_row(pred, &t.old_value),
+            REMOVE_GUISE | DECOR_GUISE | MODIFY_GUISE => predicate_applies_to_row(pred, &t.old_value),
             _ => false,
         } {
             matching.push(t.clone());
