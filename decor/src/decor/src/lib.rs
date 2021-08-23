@@ -6,6 +6,7 @@ use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
+use rsa::{RsaPublicKey};
 use std::*;
 
 pub mod disguise;
@@ -49,6 +50,10 @@ impl EdnaClient {
         let mut stats = self.disguiser.stats.lock().unwrap();
         stats.clear();
         drop(stats);
+    }
+
+    pub fn register_principal(&mut self, uid: u64, pubkey: &RsaPublicKey) {
+        self.disguiser.register_principal(uid, pubkey);
     }
 
     pub fn get_encrypted_symkeys_of_disguises(
@@ -123,7 +128,7 @@ fn create_schema(db: &mut mysql::Conn, in_memory: bool, schema: &str) -> Result<
     Ok(())
 }
 
-fn init_db(prime: bool, in_memory: bool, dbname: &str, schema: &str) {
+pub fn init_db(prime: bool, in_memory: bool, dbname: &str, schema: &str) {
     warn!("EDNA: Init db!");
     let url = format!("mysql://tslilyai:pass@127.0.0.1");
     let mut db = mysql::Conn::new(&url).unwrap();

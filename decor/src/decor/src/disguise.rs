@@ -8,6 +8,7 @@ use mysql::{Opts, Pool};
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, RwLock};
+use rsa::{RsaPublicKey};
 
 pub enum TransformArgs {
     Remove,
@@ -47,8 +48,6 @@ pub struct GuiseGen {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct User {
     pub id: u64,
-    pub nonce: Vec<u8>,
-    pub key: Vec<u8>,
 }
 
 pub struct Disguise {
@@ -83,6 +82,11 @@ impl Disguiser {
             to_insert: Arc::new(Mutex::new(HashMap::new())),
             items: Arc::new(RwLock::new(HashMap::new())),
         }
+    }
+
+    pub fn register_principal(&mut self, uid: u64, pubkey: &RsaPublicKey) {
+        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
+        locked_token_ctrler.register_principal(uid, pubkey);
     }
 
     pub fn get_encrypted_symkeys_of_disguises(

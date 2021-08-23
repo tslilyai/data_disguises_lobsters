@@ -8,10 +8,10 @@ use std::sync::{Arc, RwLock};
 
 const ROLE_PC: u64 = 1;
 
-pub fn get_disguise(user: User) -> Disguise {
+pub fn get_disguise() -> Disguise {
     Disguise {
         did: CONF_ANON_DISGUISE_ID,
-        user: Some(user),
+        user: None,
         table_disguises: get_table_disguises(),
         table_info: get_table_info(),
         guise_gen: get_guise_gen(),
@@ -137,153 +137,153 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
                         v.contains("anonymous") && v.contains("secret")
                     }),
                 })),
-                global: false,
+                global: true,
             },
         ])),
     );
-    /*Arc::new(RwLock::new(TableDisguise {
-        name: "PaperWatch".to_string(),
-        transforms: vec![(
-            None,
-            Arc::new(RwLock::new(Transform::Decor {
-                referencer_col: "contactId".to_string(),
+    hm.insert(
+        "PaperWatch".to_string(),
+        Arc::new(RwLock::new(vec![Transform {
+            pred: vec![],
+            trans: Arc::new(RwLock::new(TransformArgs::Decor {
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
             })),
-        )],
-    })),
-    Arc::new(RwLock::new(TableDisguise {
-        name: "PaperReviewPreference".to_string(),
-        transforms: vec![(
-            None,
-            Arc::new(RwLock::new(Transform::Decor {
-                referencer_col: "contactId".to_string(),
+            global: true,
+        }])),
+    );
+    hm.insert(
+        "PaperReviewPreference".to_string(),
+        Arc::new(RwLock::new(vec![Transform {
+            pred: vec![],
+            trans: Arc::new(RwLock::new(TransformArgs::Decor {
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
             })),
-        )],
-    })),
-    Arc::new(RwLock::new(TableDisguise {
-        name: "PaperReviewRefused".to_string(),
-        transforms: vec![
-            (
-                None,
-                Arc::new(RwLock::new(Transform::Decor {
-                    referencer_col: "requestedBy".to_string(),
+            global: true,
+        }])),
+    );
+    hm.insert(
+        "PaperReviewRefused".to_string(),
+        Arc::new(RwLock::new(vec![
+            Transform {
+                pred: vec![],
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "requestedBy".to_string(),
+                })),
+                global: true,
+            },
+            Transform {
+                pred: vec![],
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "refusedBy".to_string(),
+                })),
+                global: true,
+            },
+        ])),
+    );
+    hm.insert(
+        "ActionLog".to_string(),
+        Arc::new(RwLock::new(vec![
+            Transform {
+                pred: vec![],
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
                 })),
-            ),
-            (
-                None,
-                Arc::new(RwLock::new(Transform::Decor {
-                    referencer_col: "refusedBy".to_string(),
+                global: true,
+            },
+            Transform {
+                pred: vec![],
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
-                    fk_col: "contactId".to_string(),
+                    fk_col: "destContactId".to_string(),
                 })),
-            ),
-        ],
-    })),
-    Arc::new(RwLock::new(TableDisguise {
-        name: "ActionLog".to_string(),
-        transforms: vec![
-            (
-                None,
-                Arc::new(RwLock::new(Transform::Decor {
-                    referencer_col: "contactId".to_string(),
+                global: true,
+            },
+            Transform {
+                pred: vec![],
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
-                    fk_col: "contactId".to_string(),
+                    fk_col: "trueContactId".to_string(),
                 })),
-            ),
-            (
-                None,
-                Arc::new(RwLock::new(Transform::Decor {
-                    referencer_col: "destContactId".to_string(),
-                    fk_name: "ContactInfo".to_string(),
-                    fk_col: "contactId".to_string(),
-                })),
-            ),
-            (
-                None,
-                Arc::new(RwLock::new(Transform::Decor {
-                    referencer_col: "trueContactId".to_string(),
-                    fk_name: "ContactInfo".to_string(),
-                    fk_col: "contactId".to_string(),
-                })),
-            ),
-        ],
-    })),
-    Arc::new(RwLock::new(TableDisguise {
-        name: "ReviewRating".to_string(),
-        transforms: vec![(
-            None,
-            Arc::new(RwLock::new(Transform::Decor {
-                referencer_col: "contactId".to_string(),
+                global: true,
+            },
+        ])),
+    );
+    hm.insert(
+        "ReviewRating".to_string(),
+        Arc::new(RwLock::new(vec![Transform {
+            pred: vec![],
+            trans: Arc::new(RwLock::new(TransformArgs::Decor {
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
             })),
-        )],
-    })),
-    Arc::new(RwLock::new(TableDisguise {
-        name: "PaperComment".to_string(),
-        transforms: vec![(
-            None,
-            Arc::new(RwLock::new(Transform::Decor {
-                referencer_col: "contactId".to_string(),
+            global: true,
+        }])),
+    );
+    hm.insert(
+        "PaperComment".to_string(),
+        Arc::new(RwLock::new(vec![Transform {
+            pred: vec![],
+            trans: Arc::new(RwLock::new(TransformArgs::Decor {
                 fk_name: "ContactInfo".to_string(),
                 fk_col: "contactId".to_string(),
             })),
-        )],
-    })),
-    Arc::new(RwLock::new(TableDisguise {
-        name: "PaperReview".to_string(),
-        transforms: vec![
-            (
-                None,
-                Arc::new(RwLock::new(Transform::Decor {
-                    referencer_col: "contactId".to_string(),
+            global: true,
+        }])),
+    );
+    hm.insert(
+        "PaperReview".to_string(),
+        Arc::new(RwLock::new(vec![
+            Transform {
+                pred: vec![],
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
                     fk_col: "contactId".to_string(),
                 })),
-            ),
-            (
-                None,
-                Arc::new(RwLock::new(Transform::Decor {
-                    referencer_col: "requestedBy".to_string(),
+                global: true,
+            },
+            Transform {
+                pred: vec![],
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
-                    fk_col: "contactId".to_string(),
+                    fk_col: "requestedBy".to_string(),
                 })),
-            ),
-        ],
-    })),
-    Arc::new(RwLock::new(TableDisguise {
-        name: "Paper".to_string(),
-        transforms: vec![
-            (
-                None,
-                Arc::new(RwLock::new(Transform::Decor {
-                    referencer_col: "leadContactId".to_string(),
+                global: true,
+            },
+        ])),
+    );
+    hm.insert(
+        "Paper".to_string(),
+        Arc::new(RwLock::new(vec![
+            Transform {
+                pred: vec![],
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
-                    fk_col: "contactId".to_string(),
+                    fk_col: "leadContactId".to_string(),
                 })),
-            ),
-            (
-                None,
-                Arc::new(RwLock::new(Transform::Decor {
-                    referencer_col: "managerContactId".to_string(),
+                global: true,
+            },
+            Transform {
+                pred: vec![],
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
-                    fk_col: "contactId".to_string(),
+                    fk_col: "managerContactId".to_string(),
                 })),
-            ),
-            (
-                None,
-                Arc::new(RwLock::new(Transform::Decor {
-                    referencer_col: "shepherdContactId".to_string(),
+                global: true,
+            },
+            Transform {
+                pred: vec![],
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
-                    fk_col: "contactId".to_string(),
+                    fk_col: "shepherdContactId".to_string(),
                 })),
-            ),
-        ],
-    })),*/
+                global: true,
+            },
+        ])),
+    );
     hm
 }

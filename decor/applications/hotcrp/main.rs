@@ -5,19 +5,20 @@ extern crate mysql;
 extern crate rand;
 
 use log::warn;
-use mysql::prelude::*;
-use mysql::Conn;
 use std::fs::File;
 use std::io::Write;
 use std::sync::Arc;
+use rsa::{PaddingScheme, RsaPrivateKey, RsaPublicKey};
 use std::*;
+use std::collections::{HashSet, HashMap};
 use structopt::StructOpt;
+use rand::{rngs::OsRng};
 
 mod conf_anon_disguise;
 mod datagen;
-mod gdpr_disguise;
+//mod gdpr_disguise;
 
-use decor::{helpers, types};
+use decor::{disguise, tokens};
 use rand::seq::SliceRandom;
 
 const SCHEMA: &'static str = include_str!("schema.sql");
@@ -27,6 +28,7 @@ const SCHEMA_UID_TABLE: &'static str = "ContactInfo";
 
 const GDPR_DISGUISE_ID: u64 = 1;
 const CONF_ANON_DISGUISE_ID: u64 = 2;
+const RSA_BITS: usize = 2048;
 
 #[derive(Debug, Clone, PartialEq)]
 enum TestType {
@@ -67,7 +69,7 @@ fn init_logger() {
         .try_init();
 }
 
-fn run_test(disguises: Vec<Arc<types::Disguise>>, users: &Vec<u64>, prime: bool) {
+fn run_test(disguises: Vec<Arc<disguise::Disguise>>, users: &Vec<u64>, prime: bool) {
     let mut file = File::create("hotcrp.out".to_string()).unwrap();
     file.write(
         "Disguise, NQueries, NQueriesVault, RecordDur, RemoveDur, DecorDur, ModDur, Duration(ms)\n"
@@ -76,16 +78,42 @@ fn run_test(disguises: Vec<Arc<types::Disguise>>, users: &Vec<u64>, prime: bool)
     .unwrap();
 
     let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME);
-    let mut edna = decor::EdnaClient::new(&url, SCHEMA, true);
-    edna.init_db(prime, DBNAME);
+    let mut edna = decor::EdnaClient::new(prime, &url, SCHEMA, true);
+    decor::init_db(prime, true, DBNAME, SCHEMA);
     if prime {
         datagen::populate_database(&mut edna).unwrap();
     }
+    let mut user_keys = HashMap::new();
+    let mut rng = OsRng;
+    for uid in users {
+        let private_key =
+            RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+        let pub_key = RsaPublicKey::from(&private_key);
+        edna.register_principal(*uid, &pub_key);
+        user_keys.insert(uid, private_key);
+    }
     for (i, disguise) in disguises.into_iter().enumerate() {
         let start = time::Instant::now();
+        let user = users[i];
+        let did = disguise.did;
 
-        let id = disguise.disguise_id;
-        edna.apply_disguise(Some(users[i]), disguise).unwrap();
+        let enckeys = edna.get_encrypted_symkeys_of_disguises(user, vec![did]);
+        let mut symkeys = HashSet::new();
+
+        for ek in enckeys {
+            let padding = PaddingScheme::new_pkcs1v15_encrypt();
+            let symkey = user_keys[&ek.uid] 
+                .decrypt(padding, &ek.enc_symkey)
+                .expect("failed to decrypt");
+            symkeys.insert(tokens::ListSymKey {
+                uid: user,
+                did: did,
+                symkey: symkey,
+            });
+        }
+        
+        let tokens = edna.get_tokens_of_disguise_keys(symkeys, true);
+        edna.apply_disguise(disguise, tokens).unwrap();
         let dur = start.elapsed();
 
         let stats = edna.get_stats();
@@ -94,7 +122,7 @@ fn run_test(disguises: Vec<Arc<types::Disguise>>, users: &Vec<u64>, prime: bool)
             format!(
                 "disguise{}, {}, {}, {}, {}, {}, {}\n
                 Total disguise duration: {}\n",
-                id,
+                did,
                 stats.nqueries,
                 stats.nqueries_vault,
                 stats.record_dur.as_millis(),
@@ -122,12 +150,13 @@ fn main() {
 
     let disguises = vec![
         Arc::new(conf_anon_disguise::get_disguise()),
-        //gdpr_disguise::get_disguise((1) as u64),
-        Arc::new(gdpr_disguise::get_disguise(
-            (datagen::NUSERS_NONPC + 1) as u64,
-        )),
+        //Arc::new(gdpr_disguise::get_disguise(
+         //   disguise::User {id: (datagen::NUSERS_NONPC + 1) as u64},
+        //)),
     ];
     let uids: Vec<usize> = (1..(datagen::NUSERS_PC + datagen::NUSERS_NONPC + 1)).collect();
+    
+
     /*let mut rng = &mut rand::thread_rng();
     let rand_users: Vec<usize> = uids;
         .choose_multiple(&mut rng, uids.len())

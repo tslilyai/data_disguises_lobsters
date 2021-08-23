@@ -699,7 +699,7 @@ mod tests {
         });
 
         // get tokens
-        let cdtokens = ctrler.get_tokens(&hs);
+        let cdtokens = ctrler.get_tokens(&hs, true);
         assert_eq!(cdtokens.len(), 1);
         assert_eq!(cdtokens[0], decor_token);
     }

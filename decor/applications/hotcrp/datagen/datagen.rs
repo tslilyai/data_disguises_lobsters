@@ -1,8 +1,6 @@
 use crate::datagen::*;
 use crate::*;
-use decor::types;
 use rand::{distributions::Alphanumeric, Rng};
-use sql_parser::ast::*;
 
 
 // Generates NUSERS_NONPC+NUSERS_PC users
@@ -32,13 +30,13 @@ pub fn get_random_string() -> String {
         .collect()
 }
 
-pub fn get_schema_tables() -> Vec<types::TableColumns> {
+/*pub fn get_schema_tables() -> Vec<disguise::TableColumns> {
     let mut table_cols = vec![];
     let stmts = helpers::get_create_schema_statements(SCHEMA, true);
     for stmt in stmts {
         match stmt {
             Statement::CreateTable(CreateTableStatement { name, columns, .. }) => {
-                table_cols.push(types::TableColumns {
+                table_cols.push(disguise::TableColumns {
                     name: name.to_string(),
                     cols: columns.iter().map(|c| c.name.to_string()).collect(),
                     colformats: columns.iter().map(|c| helpers::get_parser_colformat(&c.data_type)).collect(),
@@ -48,11 +46,9 @@ pub fn get_schema_tables() -> Vec<types::TableColumns> {
         }
     }
     table_cols
-}
+}*/
 
 pub fn populate_database(edna: &mut decor::EdnaClient) -> Result<(), mysql::Error> {
-    edna.create_schema().unwrap();
-
     let total_users = NUSERS_NONPC + NUSERS_PC;
     let other_uids: Vec<usize> = (1..NUSERS_NONPC + 1).collect();
     let pc_uids: Vec<usize> = (NUSERS_NONPC + 1..total_users + 1).collect();
