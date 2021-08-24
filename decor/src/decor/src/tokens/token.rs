@@ -315,24 +315,23 @@ impl Token {
                     token_ctrler.insert_global_token(&mut token);
                 }
                 MODIFY_TOKEN => {
-                    let mut token : Token = serde_json::from_str(&self.new_token_blob).unwrap();
-                    assert!(token.is_global);
+                    let new_token : Token = serde_json::from_str(&self.new_token_blob).unwrap();
+                    assert!(new_token.is_global);
 
-                    let (revealed, eq) = token_ctrler.check_global_token_for_match(&token);
+                    let (revealed, eq) = token_ctrler.check_global_token_for_match(&new_token);
                     
                     // don't reveal if token has been modified
                     if !eq {
                         return Ok(false);
                     }
 
-                    // if token has been revealed, attempt to restore 
-                    // object in application DB unless its been modified                    
-                    if revealed {
+                    // actually update token
+                    let old_token : Token = serde_json::from_str(&self.old_token_blob).unwrap();
+                    token_ctrler.update_global_token_from_old_to(&new_token, &old_token, None);
 
-                    } else {
-                        // otherwise actually update token
-                        let old_token : Token = serde_json::from_str(&self.old_token_blob).unwrap();
-                        token_ctrler.update_global_token_from_old_to(&token, &old_token, None);
+                    // if token has been revealed, attempt to reveal old value of token 
+                    if revealed {
+                        return old_token.reveal(token_ctrler, conn, stats.clone());
                     }
                 }
                 _ => () // do nothing for PRIV_KEY 
