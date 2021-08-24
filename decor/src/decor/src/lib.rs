@@ -11,7 +11,6 @@ use std::*;
 
 pub mod disguise;
 pub mod helpers;
-mod history;
 pub mod predicate;
 pub mod stats;
 pub mod tokens;
@@ -123,8 +122,6 @@ fn create_schema(db: &mut mysql::Conn, in_memory: bool, schema: &str) -> Result<
             stmt = String::new();
         }
     }
-
-    history::create_history(in_memory, db)?;
     Ok(())
 }
 

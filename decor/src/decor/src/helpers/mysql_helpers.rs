@@ -1,5 +1,4 @@
 use crate::helpers::*;
-use crate::history::HISTORY_TABLE;
 use crate::stats::QueryStat;
 use log::debug;
 use mysql::prelude::*;
@@ -20,11 +19,7 @@ pub fn query_drop(
 ) -> Result<(), mysql::Error> {
     let mut locked_stats = stats.lock().unwrap();
     debug!("query_drop: {}", q);
-    if q.contains(HISTORY_TABLE) {
-        locked_stats.nqueries_vault += 1;
-    } else {
-        locked_stats.nqueries += 1;
-    }
+    locked_stats.nqueries += 1;
     drop(locked_stats);
     conn.query_drop(q)
 }
@@ -37,11 +32,7 @@ pub fn get_query_rows_str(
     debug!("get_query_rows: {}", qstr);
     let mut locked_stats = stats.lock().unwrap();
     debug!("query_drop: {}", qstr);
-    if qstr.contains(HISTORY_TABLE) {
-        locked_stats.nqueries_vault += 1;
-    } else {
-        locked_stats.nqueries += 1;
-    }
+    locked_stats.nqueries += 1;
     drop(locked_stats);
 
     let mut rows = vec![];

@@ -1,5 +1,4 @@
 use crate::helpers::*;
-use crate::history;
 use crate::predicate::*;
 use crate::stats::*;
 use crate::tokens::*;
@@ -116,15 +115,6 @@ impl Disguiser {
     }
 
     pub fn reverse(&mut self, disguise: Arc<Disguise>, tokens: Vec<Token>) -> Result<(), mysql::Error> {
-        let de = history::DisguiseEntry {
-            uid: match &disguise.user {
-                Some(u) => u.id,
-                None => 0,
-            },
-            did: disguise.did,
-            reverse: true,
-        };
-
         let mut conn = self.pool.get_conn()?;
         let mut tokens_to_reveal :Vec<Token> = vec![];
 
@@ -150,8 +140,6 @@ impl Disguiser {
             locked_token_ctrler.mark_token_revealed(t);
         }
         drop(locked_token_ctrler);
-            
-        self.record_disguise(&de, &mut conn)?;
         self.clear_disguise_records();
         Ok(())
     }
@@ -160,15 +148,6 @@ impl Disguiser {
         disguise: Arc<Disguise>,
         tokens: Vec<Token>,
     ) -> Result<(), mysql::Error> {
-        let de = history::DisguiseEntry {
-            uid: match &disguise.user {
-                Some(u) => u.id,
-                None => 0,
-            },
-            did: disguise.did,
-            reverse: false,
-        };
-
         let mut conn = self.pool.get_conn()?;
         let mut threads = vec![];
         let uid = match &disguise.user {
@@ -418,8 +397,6 @@ impl Disguiser {
         drop(locked_insert);
         warn!("Disguiser: Performed Inserts");
 
-        self.record_disguise(&de, &mut conn)?;
-
         self.clear_disguise_records();
         Ok(())
     }
@@ -621,17 +598,6 @@ impl Disguiser {
                 Err(_) => warn!("Join failed?"),
             }
         }
-    }
-
-
-    fn record_disguise(
-        &self,
-        de: &history::DisguiseEntry,
-        conn: &mut mysql::PooledConn,
-    ) -> Result<(), mysql::Error> {
-        history::insert_disguise_history_entry(de, conn, self.stats.clone());
-        warn!("Disguiser: recorded disguise");
-        Ok(())
     }
 
     fn clear_disguise_records(&self) {
