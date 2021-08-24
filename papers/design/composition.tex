@@ -14,6 +14,26 @@ For every data object $x$ in the system, \xstart describes its initial state, an
 \xhist{[\app{d_1}, \dots]} describes its state after \sys has applied the history [\app{d_1},
 $\dots$].
 
+\begin{table}[h]
+\centering
+\begin{tabular}{ c | c c }
+& \multicolumn{2}{c}{\textbf{$d_1$ Tokens for $x$}}\\
+\textbf{Client Invoking $d_2$ }& \textbf{Global} & \textbf{Private to $p$}\\
+\hline
+{Authenticated as $q \neq p$} & \checkmark & \\
+    {Authenticated as $p$} & \checkmark & \checkmark
+\end{tabular}
+\vspace{6pt}
+
+\caption{Access to $d_1$'s tokens for $x$ depending the state of the client invoking $d_1$, and the state of the
+tokens.}
+\label{tab:access}
+\end{table}
+
+Given two disguises $d_1$ and $d_2$ in history [\app{d_1},\app{d_2}],
+Table~\ref{tab:access} illustrates which clients can access to $d_1$'s tokens for $x$ depending the
+state of the client invoking $d_1$, and the state of the tokens.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \vspace{6pt}\noindent\textbf{\emph{Composing Multiple Disguise Applications.}}
 Let $d_1$ and $d_2$ be two disguises, where $d_1$ is applied after $d_2$.
@@ -67,105 +87,102 @@ This is shown in Table~\ref{tab:composeapp}.
 \begin{table}[h]
 \centering
 \begin{tabular}{ c | c c }
-& \multicolumn{2}{c}{\textbf{$d_1$ Tokens for $x$}}\\
-\textbf{Client Invoking $d_2$ }& \textbf{Global} & \textbf{Private to $p$}\\
+    & \multicolumn{2}{c}{\textbf{\app{d_2} client can access $d_1$ tokens?}}\\
+    & \textbf{Yes} & \textbf{No} \\
 \hline
-{Authenticated as $q \neq p$} & \appcompone or \appcomptwo & \appcomptwo\\
-{Authenticated as $p$} & \appcompone or \appcomptwo & \appcompone or \appcomptwo \\
+    \xhist{[\app{d_1},\app{d_2}]}& \appcompone or \appcomptwo & \appcomptwo 
 \end{tabular}
 \vspace{6pt}
 
-\caption{Possibilities for \xhist{[\app{d_1},\app{d_2}]} depending on the state of the client invoking $d_2$, and the
-state of tokens from $d_1$ regarding $x$.}
+\caption{Possibilities for \xhist{[\app{d_1},\app{d_2}]} depending on whether the client invoking
+    $d_2$ can access tokens from $d_1$ regarding $x$.}
 \label{tab:composeapp}
 \end{table}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\vspace{6pt}\noindent\textbf{\emph{Interleaving Disguise Applications with Reversals.}}
+\vspace{6pt}\noindent\textbf{\emph{Semantics of Disguise Reversals.}}
 We now consider composition of disguises in the presence of disguise reversals.
 
 \begin{table}[h]
 \centering
 \begin{tabular}{ c | c c }
-& \multicolumn{2}{c}{\textbf{$d$ Tokens for $x$}}\\
-\textbf{Client Invoking $\rev{d}$ }& \textbf{Global} & \textbf{Private to $p$}\\
+    & \multicolumn{2}{c}{\textbf{\rev{d} client can access $d$ tokens?}}\\
+    & \textbf{Yes} & \textbf{No} \\
 \hline
-{Authenticated as $q \neq p$} & \xstart & \xhist{[\app{d}]}\\
-{Authenticated as $p$} & \xstart & \xstart\\
+    \xhist{[\app{d},\rev{d}]} & \xstart & \xhist{[\app{d}]}
 \end{tabular}
 \vspace{6pt}
-\caption{\xhist{[\app{d},\rev{d}]} depending on the state of the client invoking
-\rev{d}, and the state of tokens from $d$ regarding $x$.}
+
+\caption{Possibilities for \xhist{[\app{d},\rev{d}]} depending on whether the client invoking
+    \rev{d} can access tokens from $d$ regarding $x$.}
 \label{tab:composeapprev}
 \end{table}
 
-\noindent 
 We first consider \textbf{\xhist{[\app{d},\rev{d}]}}; Table~\ref{tab:composeapprev}
 illustrates how this state depends on which client invokes \rev{d}, and how $d$'s tokens for $x$
 are stored.
-When the client is authenticated as a principal without access to $d$'s
+As expected, when the client is authenticated as a principal without access to $d$'s
 private tokens, then the updates applied by $d$ to $x$ cannot be reversed.
 
 \begin{table}[h]
 \centering
 \begin{tabular}{ c | c c }
-& \multicolumn{2}{c}{\textbf{$d_1$ Tokens for $x$}}\\
-\textbf{Client Invoking $\rev{d_1}$ }& \textbf{Global} & \textbf{Private to $p$}\\
-\hline
-{Authenticated as $q \neq p$} & \xhist{[\app{d_2}]} & \xhist{[\app{d_1},\app{d_2}]}\\
-{Authenticated as $p$} & \xhist{[\app{d_2}]} & \xhist{[\app{d_2}]}\\
+    %\multirow{2}{}{\textbf{$d_1$ and $d_2$'s Updates}} & \multicolumn{2}{c}{\textbf{$d_1$ Token Access of Client Invoking
+    \textbf{$d_1$ and $d_2$'s Updates} & \multicolumn{2}{c}{\textbf{\rev{d_1} client can access
+    $d_1$ tokens?}}\\
+    & \textbf{Yes} & \textbf{No} \\
+    \hline
+    \textbf{Independent} & \xhist{[\app{d_2}]} & \xhist{[\app{d_1},\app{d_2}]}
+    \textbf{Conflict} & \xhist{[\app{d_1},\app{d_2}]} & \xhist{[\app{d_1},\app{d_2}]}\\   
 \end{tabular}
 \vspace{6pt}
-\caption{\xhist{[\app{d_1},\app{d_2},\rev{d_1}]} depending on the state of the client invoking
-\rev{d_1}, and the state of tokens from $d_1$ regarding $x$.}
+    \caption{\xhist{[\app{d_1},\app{d_2},\rev{d_1}]} depending on the client's access to $d_1$'s
+    tokens, and whether updates from $d_1$ and $d_2$ to $x$ conflict.}
 \label{tab:composeapprev1}
 \end{table}
 
-\noindent 
 We next consider \textbf{\xhist{[\app{d_1},\app{d_2},\rev{d_1}]}}, the state of $x$ when a disguise
 $d_1$ is reversed after a subsequent disguise $d_2$ has been applied. 
 Table~\ref{tab:composeapprev1} illustrates how this state 
-depends on which client invokes \rev{d_1}, and how $d_1$'s tokens for $x$ are stored. Similar to
-the prior scenario, when the client is authenticated as a principal
-without access to $d_1$'s private tokens, then the updates applied by $d_1$ to $x$ cannot be
-reversed.
+depends on the invoking client's access to $d_1$ tokens, and whether $d_1$ and $d_2$ performed
+conflicting updates to $x$.
 
-\begin{table}[h]
-\centering
-\begin{tabular}{ c | c c }
-& \multicolumn{2}{c}{\textbf{$d_1$ Tokens for $x$}}\\
-\textbf{Client Invoking $\rev{d_1}$ }& \textbf{Global} & \textbf{Private to $p$}\\
-\hline
-{Authenticated as $q \neq p$} & \xstart & \xhist{[\app{d_1}]}\\
-{Authenticated as $p$} & \xstart & \xstart\\
-\end{tabular}
-\vspace{6pt}
-\caption{\xhist{[\app{d_1},\app{d_2},\rev{d_1},\rev{d_2}]} depending on the state of the client invoking
-\rev{d_1}, and the state of tokens from $d_1$ regarding $x$.
-We assume the client has access to tokens from $d_2$ regarding $x$.
-}
-\label{tab:composeapprev2}
-\end{table}
-
-\noindent 
-Finally, we consider how reversals compose with other reversals by analyzing
-\textbf{\xhist{[\app{d_1},\app{d_2},\rev{d_1},\rev{d_2}]}}. 
-Table~\ref{tab:composeapprev2} illustrates these outcomes (assuming that the client invoking
-\rev{d_2} has access to $d_2$'s tokens for $x$).
-
-This is a necessary scenario to consider (whose semantics cannot be derived from
-Tables~\ref{tab:composeapprev}) or~\ref{tab:composeapprev1} because $d_2$ may have updated $x$ in a
-way that conflicted with $d_1$, so \rev{d_1} could not actually revert the update performed by $d_1$
-to $x$.  For example, \rev{d_1} cannot recorrelate $x$ that $d_1$ decorrelated, if $x$ has been
-removed by $d_2$.
-
-In order to revert this update when $d_2$ is reversed, the client invoking \rev{d_2} must have access to $d_1$'s tokens for
-$x$; otherwise, \sys cannot also reverse $d_1$'s modification to $x$ once it becomes possible after
-$d_2$'s update has been undone.
-
+When the client is authenticated as a principal without access to $d_1$'s private tokens, then the
+updates applied by $d_1$ to $x$ cannot be reversed.  However, even if the client invoking \rev{d_1}
+has access to $d_1$'s tokens, \sys will fail to reverse $d_1$'s updates to $x$ if $d_2$ and $d_1$
+both update $x$ in a conflicting manner. $d_1$ must not restore data that was also disguised by
+$d_2$, and until $d_2$ is reversed, invocations of \rev{d_1} will not reveal \xstart.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \iffalse
+%\begin{table}[h]
+%\centering
+%\begin{tabular}{ c | c c }
+%%%& \multicolumn{2}{c}{\textbf{$d_1$ Tokens for $x$}}\\
+%\textbf{Client Invoking $\rev{d_1}$ }& \textbf{Global} & \textbf{Private to $p$}\\
+%\hline
+%{Authenticated as $q \neq p$} & \xstart & \xhist{[\app{d_1}]}\\
+%{Authenticated as $p$} & \xstart & \xstart\\
+%\end{tabular}
+%\vspace{6pt}
+%\caption{\xhist{[\app{d_1},\app{d_2},\rev{d_1},\rev{d_2}]} depending on the state of the client invoking
+%\rev{d_1}, and the state of tokens from $d_1$ regarding $x$.
+%We assume the client has access to tokens from $d_2$ regarding $x$.
+%}
+%\label{tab:composeapprev2}
+%\end{table}
+%
+%Finally, we consider how reversals compose with other reversals by analyzing
+%\textbf{\xhist{[\app{d_1},\app{d_2},\rev{d_1},\rev{d_2}]}}. 
+%Table~\ref{tab:composeapprev2} illustrates these outcomes (assuming that the client invoking
+%\rev{d_2} has access to $d_2$'s tokens for $x$).
+%
+%This is a necessary scenario to consider (whose semantics cannot be derived from
+%Tables~\ref{tab:composeapprev}) or~\ref{tab:composeapprev1} because $d_2$ may have updated $x$ in a
+%way that conflicted with $d_1$, so \rev{d_1} could not actually revert the update performed by $d_1$
+%to $x$.  For example, \rev{d_1} cannot recorrelate $x$ that $d_1$ decorrelated, if $x$ has been
+%removed by $d_2$.
+
 \subsection{Handling Interleaved Application Updates}
 \noindent\textbf{\emph{Application Updates to Present Disguised Data.}}
 \sys will not reveal disguised data still present in the database that has been updated by the
