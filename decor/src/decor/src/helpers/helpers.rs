@@ -37,6 +37,23 @@ pub fn get_ids(id_cols: &Vec<String>, row: &Vec<RowVal>) -> Vec<RowVal> {
         .collect()
 }
 
+pub fn get_select_of_ids(ids: &Vec<RowVal>) -> Expr {
+    let mut selection = Expr::Value(Value::Boolean(true));
+    for id in ids {
+        let eq_selection = Expr::BinaryOp {
+            left: Box::new(Expr::Identifier(vec![Ident::new(id.column.clone())])),
+            op: BinaryOperator::Eq,
+            right: Box::new(Expr::Value(Value::String(id.value.clone()))),
+        };
+        selection = Expr::BinaryOp {
+            left: Box::new(selection),
+            op: BinaryOperator::And,
+            right: Box::new(eq_selection),
+        };
+    }
+    selection
+}
+
 pub fn get_select_of_row(id_cols: &Vec<String>, row: &Vec<RowVal>) -> Expr {
     let mut selection = Expr::Value(Value::Boolean(true));
     let ids = get_ids(id_cols, row);

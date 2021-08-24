@@ -116,33 +116,29 @@ impl Disguiser {
 
     pub fn reverse(&mut self, disguise: Arc<Disguise>, tokens: Vec<Token>) -> Result<(), mysql::Error> {
         let mut conn = self.pool.get_conn()?;
-        let mut tokens_to_reveal :Vec<Token> = vec![];
+        let mut tokens_to_mark_revealed :Vec<Token> = vec![];
+        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
 
         for t in tokens {
             // only reverse tokens of disguise if not yet revealed 
             if t.did == disguise.did && !t.revealed {
-                if !t.is_global {
-                    // retroactively apply any disguises that might have missed applying to the revealed data
-                    // note that this only happens for private tokens, 
+                let revealed = t.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
+                if revealed {
+                    tokens_to_mark_revealed.push(t);
                 }
-
-                // undo token
-                
-                // retroactively reverse tokens that couldn't be revealed because of
-                // this disguise
-                 
-                    
             }
         }
+
         // mark all revealed tokens as revealed
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        for t in &tokens_to_reveal {
+        for t in &tokens_to_mark_revealed {
             locked_token_ctrler.mark_token_revealed(t);
         }
         drop(locked_token_ctrler);
         self.clear_disguise_records();
         Ok(())
     }
+
     pub fn apply(
         &mut self,
         disguise: Arc<Disguise>,
@@ -278,11 +274,48 @@ impl Disguiser {
             }));
         }
 
+        self.modify_global_tokens(disguise);
+
+        // wait until all mysql queries are done
+        for jh in threads.into_iter() {
+            match jh.join() {
+                Ok(_) => (),
+                Err(_) => warn!("Join failed?"),
+            }
+        }
+        let locked_insert = self.to_insert.lock().unwrap();
+        for ((table, cols), vals) in locked_insert.iter() {
+            query_drop(
+                Statement::Insert(InsertStatement {
+                    table_name: string_to_objname(&table),
+                    columns: cols.iter().map(|c| Ident::new(c.to_string())).collect(),
+                    source: InsertSource::Query(Box::new(values_query(vals.clone()))),
+                })
+                .to_string(),
+                &mut conn,
+                self.stats.clone(),
+            )
+            .unwrap();
+        }
+        drop(locked_insert);
+        warn!("Disguiser: Performed Inserts");
+
+        self.clear_disguise_records();
+        Ok(())
+    }
+
+    fn modify_global_tokens(&mut self, disguise: Arc<Disguise>) {
+        let did = disguise.did;
+        let uid = match &disguise.user {
+            Some(u) => u.id,
+            None => 0,
+        };
         // apply updates to each token (for now do sequentially)
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
         for (token, ts) in self.tokens_to_modify.write().unwrap().iter() {
             for t in ts {
-                // don't apply updates if disguise is global (and token can be global)
+                // we don't update global tokens if they've been disguised by a global
+                // disguise---no information leakage here
                 if t.global {
                     continue;
                 }
@@ -372,33 +405,6 @@ impl Disguiser {
             }
         }
         drop(locked_token_ctrler);
-
-        // wait until all mysql queries are done
-        for jh in threads.into_iter() {
-            match jh.join() {
-                Ok(_) => (),
-                Err(_) => warn!("Join failed?"),
-            }
-        }
-        let locked_insert = self.to_insert.lock().unwrap();
-        for ((table, cols), vals) in locked_insert.iter() {
-            query_drop(
-                Statement::Insert(InsertStatement {
-                    table_name: string_to_objname(&table),
-                    columns: cols.iter().map(|c| Ident::new(c.to_string())).collect(),
-                    source: InsertSource::Query(Box::new(values_query(vals.clone()))),
-                })
-                .to_string(),
-                &mut conn,
-                self.stats.clone(),
-            )
-            .unwrap();
-        }
-        drop(locked_insert);
-        warn!("Disguiser: Performed Inserts");
-
-        self.clear_disguise_records();
-        Ok(())
     }
 
     fn select_predicate_objs_and_execute_removes(
@@ -752,6 +758,7 @@ fn decor_item(
         child_table.to_string(),
         child_ids,
         fk_name.to_string(),
+        new_parent_ids[0].column.to_string(),
         i.clone(),
         new_child,
     );

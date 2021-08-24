@@ -1,10 +1,14 @@
 use crate::helpers::*;
+use crate::tokens::*;
+use crate::stats::QueryStat;
 use crate::{DID, UID};
 use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
 use serde::{Deserialize, Serialize};
 use std::hash::{Hash, Hasher};
+use sql_parser::ast::*;
+use std::sync::{Arc, Mutex};
+use std::str::FromStr;
 
-pub const INSERT_GUISE: u64 = 0;
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
 pub const MODIFY_GUISE: u64 = 3;
@@ -37,11 +41,11 @@ pub struct Token {
 
     // DECOR
     pub referenced_name: String,
+    // XXX assuming guise only has one id
+    // could just use tableinfo
+    pub referenced_id_col: String,
 
-    // INSERT
-    pub referencer_name: String,
-
-    // DECOR/MODIFY/INSERT: store new blobs
+    // DECOR/MODIFY: store new blobs
     pub new_value: Vec<RowVal>,
 
     // PRIV_KEY
@@ -106,6 +110,7 @@ impl Token {
         guise_name: String,
         guise_ids: Vec<RowVal>,
         referenced_name: String,
+        referenced_id_col: String,
         old_value: Vec<RowVal>,
         new_value: Vec<RowVal>,
     ) -> Token {
@@ -117,6 +122,7 @@ impl Token {
         token.guise_name = guise_name;
         token.guise_ids = guise_ids;
         token.referenced_name = referenced_name;
+        token.referenced_id_col = referenced_id_col;
         token.old_value = old_value;
         token.new_value = new_value;
         token
@@ -160,26 +166,6 @@ impl Token {
         token
     }
 
-    pub fn new_insert_token(
-        did: DID,
-        uid: UID,
-        guise_name: String,
-        guise_ids: Vec<RowVal>,
-        referencer_name: String,
-        new_value: Vec<RowVal>,
-    ) -> Token {
-        let mut token: Token = Default::default();
-        token.uid = uid;
-        token.did = did;
-        token.update_type = INSERT_GUISE;
-        token.revealed = false;
-        token.guise_name = guise_name;
-        token.guise_ids = guise_ids;
-        token.referencer_name = referencer_name;
-        token.new_value = new_value;
-        token
-    }
-
     pub fn token_to_bytes(token: &Token) -> Vec<u8> {
         let s = serde_json::to_string(token).unwrap();
         s.as_bytes().to_vec()
@@ -189,153 +175,152 @@ impl Token {
         serde_json::from_slice(&bytes).unwrap()
     }
 
-    /*fn reinsert_guise(
-        &self,
-        conn: &mut mysql::PooledConn,
-        stats: Arc<Mutex<QueryStat>>,
-    ) -> Result<(), mysql::Error> {
-        let mut cols = vec![];
-        let mut vals = vec![];
-        for rv in &self.old_value {
-            cols.push(Ident::new(rv.column.clone()));
-            // XXX treating everything like a string might backfire
-            vals.push(Expr::Value(Value::String(rv.value.clone())));
-        }
-        query_drop(
-            Statement::Insert(InsertStatement {
-                table_name: string_to_objname(&self.guise_name),
-                columns: cols,
-                source: InsertSource::Query(Box::new(values_query(vec![vals]))),
-            })
-            .to_string(),
-            conn,
-            stats,
-        )
-    }
+    pub fn reveal(&self, token_ctrler: &mut TokenCtrler, conn: &mut mysql::PooledConn, stats: Arc<Mutex<QueryStat>>) -> Result<bool, mysql::Error> {
+        if !self.revealed {
+            // get current guise in db
+            let token_guise_selection = get_select_of_ids(&self.guise_ids);
+            let selected = get_query_rows_str(
+                &str_select_statement(&self.guise_name, &token_guise_selection.to_string()),
+                conn,
+                stats.clone()
+            )?;
 
-    fn recorrelate_guise(
-        &self,
-        conn: &mut mysql::PooledConn,
-        stats: Arc<Mutex<QueryStat>>,
-    ) -> Result<(), mysql::Error> {
-        warn!(
-            "Recorrelating guise of table {} to {}, user {}",
-            self.guise_name, self.fk_name, self.uid
-        );
+            match self.update_type {
+                REMOVE_GUISE => {
+                    // XXX problematic case: data can be revealed even if it should've been
+                    // disguised?
+                   
+                    // item has been re-inserted, ignore
+                    if !selected.is_empty() {
+                        // XXX true here because it's technically revealed?
+                        return Ok(true);
+                    }
 
-        // this may be none if this token entry is an insert, and not a modification
-        let owner_col = &self.modified_cols[0];
-        let new_val: String;
-        let old_val: String;
-        match get_value_of_col(&self.new_value, owner_col) {
-            Some(n) => new_val = n,
-            None => unimplemented!("Bad col name?"),
-        }
-        match get_value_of_col(&self.old_value, owner_col) {
-            Some(n) => old_val = n,
-            None => unimplemented!("Bad col name?"),
-        }
-        let updates = vec![Assignment {
-            id: Ident::new(owner_col),
-            value: Expr::Value(Value::Number(old_val)),
-        }];
-        let selection = Expr::BinaryOp {
-            left: Box::new(Expr::Identifier(vec![Ident::new(owner_col)])),
-            op: BinaryOperator::Eq,
-            right: Box::new(Expr::Value(Value::Number(new_val.clone()))),
-        };
-        query_drop(
-            Statement::Update(UpdateStatement {
-                table_name: string_to_objname(&self.guise_name),
-                assignments: updates,
-                selection: Some(selection),
-            })
-            .to_string(),
-            conn,
-            stats.clone(),
-        )?;
-        //insert_reversed_token_entry(&ve, conn, stats.clone());
-
-        /*
-         * Delete created guises if objects in this table had been decorrelated
-         * TODO can make per-guise-table, rather than assume that only users are guises
-         */
-        // delete guise
-        query_drop(
-            Statement::Delete(DeleteStatement {
-                table_name: string_to_objname(&self.fk_name),
-                selection: Some(Expr::BinaryOp {
-                    left: Box::new(Expr::Identifier(vec![Ident::new(self.fk_col.to_string())])),
-                    op: BinaryOperator::Eq,
-                    // XXX assuming guise is a user... only has one id
-                    right: Box::new(Expr::Value(Value::Number(new_val.clone()))),
-                }),
-            })
-            .to_string(),
-            conn,
-            stats.clone(),
-        )?;
-        // mark token entries as reversed
-        //insert_reversed_token_entry(&ve, conn, stats.clone());
-        Ok(())
-    }
-
-    pub fn restore_ownership(
-        &self,
-        conn: &mut mysql::PooledConn,
-        stats: Arc<Mutex<QueryStat>>,
-    ) -> Result<(), mysql::Error> {
-        match self.update_type {
-            DECOR_GUISE => self.recorrelate_guise(conn, stats.clone())?,
-            DELETE_GUISE => self.reinsert_guise(conn, stats.clone())?,
-            _ => unimplemented!("Bad update type"),
-        }
-        Ok(())
-    }
-
-    // if this token entry modifies or removes something that this disguise predicate
-    // depends on, then we have a RAW conflict
-    pub fn conflicts_with(&self, disguise: &Disguise) -> bool {
-        // a disguise can only conflict with prior disguises of lower priority
-        if self.priority >= disguise.priority {
-            return false;
-        }
-        if self.modified_cols.is_empty() {
-            return false;
-        }
-        if self.update_type == DELETE_GUISE || self.update_type == DECOR_GUISE {
-            for (_, td) in disguise.table_disguises.clone() {
-                let td_locked = td.read().unwrap();
-                // if this table disguise isn't of the conflicting table, ignore
-                if self.guise_name != td_locked.name {
-                    continue;
+                    // otherwise insert it
+                    let cols : Vec<String> = self.old_value.iter().map(|rv| rv.column.clone()).collect();
+                    let colstr = cols.join(",");
+                    let vals : Vec<String> = self.old_value.iter().map(|rv| rv.value.clone()).collect();
+                    let valstr = vals.join(",");
+                    query_drop(
+                        format!("INSERT INTO {} COLUMNS ({}) VALUES ({})", self.guise_name, colstr, valstr),
+                        conn, stats.clone())?;
                 }
-                for t in &td_locked.transforms {
-                    for col in &self.modified_cols {
-                        if t.pred.contains(col) {
-                            return true;
+                DECOR_GUISE => {
+                    // rewrite it to original
+                    // and if pseudoprincipal is still present, remove it
+                    let mut new_val = "".to_string();
+                    let mut old_val = "".to_string();
+                    let mut owner_col = String::new();
+                    for (i, newrv) in self.new_value.iter().enumerate() {
+                        new_val = newrv.value.clone();
+                        old_val = self.old_value[i].value.clone();
+                        if new_val != old_val {
+                            owner_col = newrv.column.clone();
+                            break;
                         }
                     }
+                    assert!(!owner_col.is_empty());
+
+                    // if foreign key is rewritten, don't reverse anything
+                    if selected.len() > 0 {
+                        assert_eq!(selected.len(), 1);
+                        let curval = get_value_of_col(&selected[0], &owner_col).unwrap();
+                        if curval != new_val {
+                            return Ok(false);
+                        }
+                    }
+                    // if original entity does not exist, do not recorrelate
+                    let selection = Expr::BinaryOp {
+                        left: Box::new(Expr::Identifier(vec![Ident::new(self.referenced_id_col.clone())])),
+                        op: BinaryOperator::Eq,
+                        right: Box::new(Expr::Value(Value::Number(old_val.clone()))),
+                    };
+                    let selected = get_query_rows_str(
+                        &str_select_statement(&self.referenced_name, &selection.to_string()),
+                        conn,
+                        stats.clone()
+                    )?;
+                    if selected.is_empty() {
+                        return Ok(false);
+                    }
+
+                    // ok, we can actually update this to point to the original entity!
+                    let updates = vec![Assignment {
+                        id: Ident::new(owner_col.clone()),
+                        value: Expr::Value(Value::Number(old_val)),
+                    }];
+                    query_drop(
+                        Statement::Update(UpdateStatement {
+                            table_name: string_to_objname(&self.guise_name),
+                            assignments: updates,
+                            selection: Some(token_guise_selection),
+                        })
+                        .to_string(),
+                        conn,
+                        stats.clone(),
+                    )?;
+
+                     // remove the pseudoprincipal 
+                    query_drop(
+                        Statement::Delete(DeleteStatement {
+                            table_name: string_to_objname(&self.referenced_name),
+                            selection: Some(Expr::BinaryOp {
+                                left: Box::new(Expr::Identifier(vec![Ident::new(self.referenced_id_col.to_string())])),
+                                op: BinaryOperator::Eq,
+                                right: Box::new(Expr::Value(Value::Number(new_val.clone()))),
+                            }),
+                        })
+                        .to_string(),
+                        conn,
+                        stats.clone(),
+                    )?;
+                    // remove the principal from being registered by the token ctrler
+                    token_ctrler.remove_anon_principal(u64::from_str(&new_val).unwrap());
                 }
+                MODIFY_GUISE => {
+                    // if field hasn't been modified, return it to original
+                    if selected.is_empty() || selected[0] != self.new_value {
+                        return Ok(false);
+                    }
+
+                    // ok, we can actually update this! 
+                    let mut updates = vec![];
+                    for (i, newrv) in self.new_value.iter().enumerate() {
+                        let new_val = newrv.value.clone();
+                        let old_val = self.old_value[i].value.clone();
+                        if new_val != old_val {
+                            updates.push(Assignment{
+                                id: Ident::new(newrv.column.clone()),
+                                // XXX problem if it's not a string?
+                                value: Expr::Value(Value::String(newrv.value.clone()))
+                            })
+                        }
+                    }                    
+                    query_drop(
+                        Statement::Update(UpdateStatement {
+                            table_name: string_to_objname(&self.guise_name),
+                            assignments: updates,
+                            selection: Some(token_guise_selection),
+                        })
+                        .to_string(),
+                        conn,
+                        stats.clone(),
+                    )?;
+
+                }
+                REMOVE_TOKEN => {
+                    // restore global token (may or may not have been revealed, but oh well!)
+                }
+                MODIFY_TOKEN => {
+                    // restore global token 
+                    
+                    // if token has been revealed, attempt to restore 
+                    // object in application DB unless its been modified                    
+                }
+                _ => () // do nothing for PRIV_KEY 
+                
             }
         }
-        false
-    }*/
+        Ok(true)
+    }
 }
-
-/*pub fn reverse_decor_ve(
-    referencer_table: &str,
-    referencer_col: &str,
-    fktable: &str,
-    fkcol: &str,
-    conn: &mut mysql::PooledConn,
-    stats: Arc<Mutex<QueryStat>>,
-) -> Result<Vec<Token>, mysql::Error> {
-    // TODO assuming that all FKs point to users
-
-    /*
-     * Undo modifications to objects of this table
-     * TODO undo any token modifications that were dependent on this one, namely "filters" that
-     * join with this "filter" (any updates that happened after this?)
-     */
-}*/

@@ -235,6 +235,10 @@ impl TokenCtrler {
         anon_uid
     }
 
+    pub fn remove_anon_principal(&mut self, anon_uid: UID) {
+        self.principal_tokens.remove(&anon_uid);
+    }
+
     pub fn move_global_tokens_to_user_vault(&mut self, tokens: &Vec<Token>) {
         for token in tokens {
             if let Some(global_tokens) = self.global_vault.get(&(token.did, token.uid)) {
