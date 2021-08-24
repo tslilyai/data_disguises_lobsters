@@ -63,7 +63,7 @@ However, \sys must be careful of two potential problems:
 tokens recording updates to data $x$ leak information if $x$ is subsequently (privately) disguised.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\vspace{6pt}\noindent\textbf{\emph{Preventing Accidentally Revealing Data.}}
+\vspace{6pt}\noindent\textbf{\emph{Preventing Accidental Data Revealing.}}
 \sys records the disguised state of data $x$ in each \tdata{pd} recording a update performed by $d$
 to $x$. If the state of $x$ does not match the disguised state in $d$'s token for $x$, then \sys
 knows the token records an overwritten update to $x$, and refuses to reveal the undisguised state of $x$
