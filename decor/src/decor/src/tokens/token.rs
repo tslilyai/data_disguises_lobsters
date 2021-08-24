@@ -310,12 +310,30 @@ impl Token {
                 }
                 REMOVE_TOKEN => {
                     // restore global token (may or may not have been revealed, but oh well!)
+                    let mut token : Token = serde_json::from_str(&self.old_token_blob).unwrap();
+                    assert!(token.is_global);
+                    token_ctrler.insert_global_token(&mut token);
                 }
                 MODIFY_TOKEN => {
-                    // restore global token 
+                    let mut token : Token = serde_json::from_str(&self.new_token_blob).unwrap();
+                    assert!(token.is_global);
+
+                    let (revealed, eq) = token_ctrler.check_global_token_for_match(&token);
                     
+                    // don't reveal if token has been modified
+                    if !eq {
+                        return Ok(false);
+                    }
+
                     // if token has been revealed, attempt to restore 
                     // object in application DB unless its been modified                    
+                    if revealed {
+
+                    } else {
+                        // otherwise actually update token
+                        let old_token : Token = serde_json::from_str(&self.old_token_blob).unwrap();
+                        token_ctrler.update_global_token_from_old_to(&token, &old_token, None);
+                    }
                 }
                 _ => () // do nothing for PRIV_KEY 
                 

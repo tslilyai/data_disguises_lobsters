@@ -238,57 +238,64 @@ impl TokenCtrler {
     pub fn remove_anon_principal(&mut self, anon_uid: UID) {
         self.principal_tokens.remove(&anon_uid);
     }
-
-    pub fn move_global_tokens_to_user_vault(&mut self, tokens: &Vec<Token>) {
-        for token in tokens {
-            if let Some(global_tokens) = self.global_vault.get(&(token.did, token.uid)) {
-                let mut gts = global_tokens.write().unwrap();
-                gts.remove(token);
-                drop(gts);
-                self.insert_user_token(TokenType::Data, &mut token.clone());
+    
+    pub fn check_global_token_for_match(&mut self, token: &Token) -> (bool, bool) {
+        if let Some(global_tokens) = self.global_vault.get(&(token.did, token.uid)) {
+            let tokens = global_tokens.read().unwrap();
+            for t in tokens.iter() {
+                if t.token_id == token.token_id {
+                    // XXX todo this is a bit inefficient
+                    let mut mytok = token.clone();
+                    mytok.revealed = t.revealed;
+                    let eq = mytok == *t;
+                    if t.revealed {
+                        return (true, eq);
+                    }
+                    return (false, eq);
+                }
             }
         }
+        return (false, false);
     }
-
-    pub fn remove_token(&mut self, did: DID, token: &Token) -> bool {
+ 
+    pub fn remove_global_token(&mut self, did: DID, token: &Token) -> bool {
+        assert!(token.is_global);
         let mut found = false;
-        // delete token (either global or from accessible principal vault)
-        if token.is_global {
-            if let Some(global_tokens) = self.global_vault.get(&(token.did, token.uid)) {
-                let mut tokens = global_tokens.write().unwrap();
-                // just insert the token to replace the old one
-                tokens.remove(&token);
-                found = true;
-            }
-            // log token for disguise that marks removal
-            self.insert_user_token(
-                TokenType::Data,
-                &mut Token::new_token_remove(token.uid, did, token),
-            );
-            return found;
+        
+        // delete token 
+        if let Some(global_tokens) = self.global_vault.get(&(token.did, token.uid)) {
+            let mut tokens = global_tokens.write().unwrap();
+            // just insert the token to replace the old one
+            tokens.remove(&token);
+            found = true;
         }
-        found
+        // log token for disguise that marks removal
+        self.insert_user_token(
+            TokenType::Data,
+            &mut Token::new_token_remove(token.uid, did, token),
+        );
+        return found;
     }
 
-    pub fn update_token_from_old_to(
+    pub fn update_global_token_from_old_to (
         &mut self,
-        did: DID,
         old_token: &Token,
         new_token: &Token,
+        record_token_for_disguise: Option<DID> 
     ) -> bool {
+        assert!(new_token.is_global);
         let mut found = false;
-        if new_token.is_global {
-            if let Some(global_tokens) = self.global_vault.get(&(new_token.did, new_token.uid)) {
-                let mut tokens = global_tokens.write().unwrap();
-                // just insert the token to replace the old one
-                tokens.insert(new_token.clone());
-                found = true;
-            }
+        if let Some(global_tokens) = self.global_vault.get(&(new_token.did, new_token.uid)) {
+            let mut tokens = global_tokens.write().unwrap();
+            // just insert the token to replace the old one
+            tokens.insert(new_token.clone());
+            found = true;
+        }
+        if let Some(did) = record_token_for_disguise {
             self.insert_user_token(
                 TokenType::Data,
                 &mut Token::new_token_modify(new_token.uid, did, old_token, new_token),
             );
-            return found;
         }
         found
     }

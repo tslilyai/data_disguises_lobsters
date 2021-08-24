@@ -370,7 +370,7 @@ impl Disguiser {
                         // remove token from vault if token is global, and the new transformation is
                         // private (although we already check this above)
                         if token.is_global && !t.global {
-                            if !locked_token_ctrler.remove_token(did, &token) {
+                            if !locked_token_ctrler.remove_global_token(did, &token) {
                                 warn!("Could not remove old disguise token!! {:?}", token);
                             }
                         }
@@ -398,7 +398,7 @@ impl Disguiser {
                             new_rv
                         })
                         .collect();
-                    if !locked_token_ctrler.update_token_from_old_to(did, &token, &new_token) {
+                    if !locked_token_ctrler.update_global_token_from_old_to(&token, &new_token, Some(did)) {
                         warn!("Could not update old disguise token!! {:?}", token);
                     }
                 }
