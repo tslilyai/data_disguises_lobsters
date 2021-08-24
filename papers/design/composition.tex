@@ -14,25 +14,6 @@ For every data object $x$ in the system, \xstart describes its initial state, an
 \xhist{[\app{d_1}, \dots]} describes its state after \sys has applied the history [\app{d_1},
 $\dots$].
 
-\begin{table}[h]
-\centering
-\begin{tabular}{ c | c c }
-& \multicolumn{2}{c}{\textbf{$d_1$ Tokens for $x$}}\\
-\textbf{Client Invoking $d_2$ }& \textbf{Global} & \textbf{Private to $p$}\\
-\hline
-{Authenticated as $q \neq p$} & \checkmark & \\
-    {Authenticated as $p$} & \checkmark & \checkmark
-\end{tabular}
-\vspace{6pt}
-
-\caption{Access to $d_1$'s tokens for $x$ depending the state of the client invoking $d_1$, and the state of the
-tokens.}
-\label{tab:access}
-\end{table}
-
-Given two disguises $d_1$ and $d_2$ in history [\app{d_1},\app{d_2}],
-Table~\ref{tab:access} illustrates which clients can access to $d_1$'s tokens for $x$ depending the
-state of the client invoking $d_1$, and the state of the tokens.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \vspace{6pt}\noindent\textbf{\emph{Composing Multiple Disguise Applications.}}
@@ -87,7 +68,7 @@ This is shown in Table~\ref{tab:composeapp}.
 \begin{table}[h]
 \centering
 \begin{tabular}{ c | c c }
-    & \multicolumn{2}{c}{\textbf{\app{d_2} client can access $d_1$ tokens?}}\\
+    & \multicolumn{2}{c}{\textbf{\app{d_2} client access to $d_1$'s tokens?}}\\
     & \textbf{Yes} & \textbf{No} \\
 \hline
     \xhist{[\app{d_1},\app{d_2}]}& \appcompone or \appcomptwo & \appcomptwo 
@@ -95,7 +76,7 @@ This is shown in Table~\ref{tab:composeapp}.
 \vspace{6pt}
 
 \caption{Possibilities for \xhist{[\app{d_1},\app{d_2}]} depending on whether the client invoking
-    $d_2$ can access tokens from $d_1$ regarding $x$.}
+    $\app{d_2}$ can access tokens from $d_1$ regarding $x$.}
 \label{tab:composeapp}
 \end{table}
 
@@ -106,7 +87,7 @@ We now consider composition of disguises in the presence of disguise reversals.
 \begin{table}[h]
 \centering
 \begin{tabular}{ c | c c }
-    & \multicolumn{2}{c}{\textbf{\rev{d} client can access $d$ tokens?}}\\
+    & \multicolumn{2}{c}{\textbf{\rev{d} client access to $d$'s tokens?}}\\
     & \textbf{Yes} & \textbf{No} \\
 \hline
     \xhist{[\app{d},\rev{d}]} & \xstart & \xhist{[\app{d}]}
@@ -127,16 +108,16 @@ private tokens, then the updates applied by $d$ to $x$ cannot be reversed.
 \begin{table}[h]
 \centering
 \begin{tabular}{ c | c c }
-    \textbf{$d_1$ and $d_2$'s Updates} & \multicolumn{2}{c}{\textbf{\rev{d_1} client can access
-    $d_1$ tokens?}}\\
+    \textbf{$d_1$ and $d_2$'s Updates} & \multicolumn{2}{c}{\textbf{\rev{d_1} client access 
+        to $d_1$'s tokens}}\\
     & \textbf{Yes} & \textbf{No} \\
     \hline
     \textbf{Independent} & \xhist{[\app{d_2}]} & \xhist{[\app{d_1},\app{d_2}]}\\
     \textbf{Conflict} & \xhist{[\app{d_1},\app{d_2}]} & \xhist{[\app{d_1},\app{d_2}]}
 \end{tabular}
 \vspace{6pt}
-    \caption{\xhist{[\app{d_1},\app{d_2},\rev{d_1}]} depending on the client's access to $d_1$'s
-    tokens, and whether updates from $d_1$ and $d_2$ to $x$ conflict.}
+    \caption{\xhist{[\app{d_1},\app{d_2},\rev{d_1}]} depending on whether the client invoking
+    \rev{d_1} has access to $d_1$'s tokens, and whether updates from $d_1$ and $d_2$ to $x$ conflict.}
 \label{tab:composeapprev1}
 \end{table}
 

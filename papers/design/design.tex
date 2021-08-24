@@ -66,12 +66,26 @@ with access to \privk{p} can access \privk{q} (and therefore access $q$'s privat
 and \tpriv{pdq} tokens with a symmetric key \symk{pd} specific to the disguise and principal. The
 token's nonce ensures safety against known-plaintext attacks. \sys then encrypts \symk{pd} with
 public key \pubk{p}.
-%a key only known to \sys, \sysk, and encrypts the resulting ciphertext with public key \pubk{p}. 
-A client needs to prove it has \privk{p} by decrypting \symk{pd}, %$\enc(\sysk, \symk{pd})$, which
-then allows \sys to decrypt $p$'s private tokens produced from applying $d$.
+A client needs to prove it has \privk{p} by decrypting \symk{pd}, 
+which then allows \sys to decrypt $p$'s private tokens produced from applying $d$.
 
 \sys stores all global \tdata{pd} tokens in plaintext, where any party can access it.
 
+\begin{table}[t!]
+\centering
+\begin{tabular}{ c | c c }
+& \multicolumn{2}{c}{\textbf{$d$ Tokens}}\\
+\textbf{Client}& \textbf{Global} & \textbf{Private to $p$}\\
+\hline
+{Authenticated as $q \neq p$} & \checkmark & \\
+{Authenticated as $p$} & \checkmark & \checkmark
+\end{tabular}
+\vspace{6pt}
+\caption{Client access to disguise $d$'s tokens, depending the client's authentication and the state of the tokens.}
+\label{tab:access}
+\end{table}
+Table~\ref{tab:access} illustrates which clients can access a disguise $d$'s tokens, depending on
+how the client is authorized, and the state of the tokens.
 
 \vspace{12pt}
 \noindent\textbf{\emph{Hiding Private Token Metadata.}}
@@ -131,6 +145,7 @@ A client needs to prove it has \privk{p} by decrypting \symk{pd}, which only the
 of $p$'s private tokens of disguise $d$, achieving our goal to restrict access to $p$'s private
 tokens.
 %\lyt{Not mentioning the strawman solution that encrypts each token with \pubk{p} for now.}
+
 
 \vspace{6pt}\noindent\textbf{\emph{(3) Security of Private Disguise Token Metadata.}}
 We describe how \sys both hides which principals' data has
