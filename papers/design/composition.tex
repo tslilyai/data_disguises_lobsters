@@ -127,13 +127,12 @@ private tokens, then the updates applied by $d$ to $x$ cannot be reversed.
 \begin{table}[h]
 \centering
 \begin{tabular}{ c | c c }
-    %\multirow{2}{}{\textbf{$d_1$ and $d_2$'s Updates}} & \multicolumn{2}{c}{\textbf{$d_1$ Token Access of Client Invoking
     \textbf{$d_1$ and $d_2$'s Updates} & \multicolumn{2}{c}{\textbf{\rev{d_1} client can access
     $d_1$ tokens?}}\\
     & \textbf{Yes} & \textbf{No} \\
     \hline
-    \textbf{Independent} & \xhist{[\app{d_2}]} & \xhist{[\app{d_1},\app{d_2}]}
-    \textbf{Conflict} & \xhist{[\app{d_1},\app{d_2}]} & \xhist{[\app{d_1},\app{d_2}]}\\   
+    \textbf{Independent} & \xhist{[\app{d_2}]} & \xhist{[\app{d_1},\app{d_2}]}\\
+    \textbf{Conflict} & \xhist{[\app{d_1},\app{d_2}]} & \xhist{[\app{d_1},\app{d_2}]}
 \end{tabular}
 \vspace{6pt}
     \caption{\xhist{[\app{d_1},\app{d_2},\rev{d_1}]} depending on the client's access to $d_1$'s
