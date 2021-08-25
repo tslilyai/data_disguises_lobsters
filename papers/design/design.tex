@@ -102,9 +102,44 @@ With \sys's design, token metadata about which principals own which tokens can l
 \sys prevents both leakage channels as follows:
 
 \vspace{6pt}\noindent\textbf{(1) \symk{} Storage.}
-\sys stores a mapping from $p$ and $d$ to the encrypted \symk{pd}. To ensure that this does not leak
-metadata about which principals have disguised data, \sys generates dummy ciphertexts for all
+
+\emph{Original design}: \sys stores a mapping from $p$ and $d$ to encrypted \symk{pd}.
+To ensure that this does not leak metadata about which principals have disguised data, \sys generates dummy ciphertexts for all
 principals that do not have encrypted \symk{pd}s for disguise $d$.
+
+Note that if we don't generate dummy ciphertexts, the problem here is that \sys/an attacker can always
+learn which and how many disguises applied to $p$'s data.
+
+\vspace{12pt}
+\emph{Alternative design 1}:
+\sys stores a mapping from $p$ to encrypted \emph{disguise keys}. 
+%
+Each disguise key, notated \dk{p}, is encrypted with \pubk{p}. 
+\sys uses \dk{p} to encrypt the locations of the encrypted \symk{pd} for all $d$ that produced
+tokens associated with $p$.
+A client must first decrypt (with \privk{p}) and return the \dk{p} plaintext; only then can \sys find the appropriate
+encrypted \symk{pd} to send to the client to decrypt with \privk{p}. The plaintext \symk{pd} then allows decryption of
+$d$'s tokens associated with $p$.
+
+This ensures that \sys (and equivalently, any adversary) only sees the plaintext tokens for disguise
+$d$ and no other disguise if the client wishes to reveal them; 
+furthermore, the adversary only learns how many disguises applied to $p$'s data if $p$ reveals a
+disguise.
+\lyt{HMM compared to the original design, this simply delays the adversary's knowledge of which/how
+many disguises applied to a principal's data to when the client reveals a disguise. Not sure if it's
+actually more secure given our threat model?}
+
+\vspace{12pt}
+\emph{Alternative design 2}: When a disguise is applied, \sys hands client a pointer to the
+encrypted disguise's \symk{pd} location. The client has to bring pointers to the locations to give
+to \sys if it wants to reveal tokens for that disguise.  
+
+While this hides how many disguises were
+applied to a particular $p$, it leaks how many (principal, disguise) keys there are in total; so if
+only one principal's data has been disguised, for example, then this leaks how many disguises apply
+to that principal.
+
+This also puts a lot more work on the client to remember disguise pointers...
 
 \vspace{6pt}\noindent\textbf{(2) Token Ciphertext Storage.}
 \sys must hide which token ciphertexts correspond to which principals.  Naively, \sys can store

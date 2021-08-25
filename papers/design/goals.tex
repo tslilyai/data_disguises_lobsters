@@ -20,6 +20,9 @@ $p$ & an application principal, corresponding to a user ID in the application\\
 %    \vspace{6pt}
 \symk{pd} & symmetric key used to perform the second level of encryption of private tokens associated with principal $p$ produced by disguise $d$\\
     \vspace{6pt}
+\dk{p} & symmetric key used to encrypt the pointer to an array of \symk{pd}s for all $d$
+    disguising data of principal $p$\\
+    \vspace{6pt}
 \op{d} & an operation of disguise $d$ (either a removal, modification, or decorrelation)\\
     \vspace{6pt}
 \tdata{pd} & token storing undisguised data associated with $p$ and produced by $d$.\\
@@ -120,6 +123,8 @@ Table~\ref{tab:accpriv} illustrates our goal's data access policies.
     \item Security of private tokens or restricted disguises when an attacker has prior snapshots of system data.
     \item Security of disguise application restricted to $p$ if an attacker authenticates as $p$.
     \item Security of $p$'s private tokens and token metadata if \privk{p} is compromised.  
+    \item Security of $p$'s private tokens and token metadata if an authorized client with \privk{p}
+        grants \sys access to these tokens. 
     \item Any privacy guarantees about information left after disguise application: \sys 
         simply applies a disguise according to the developer-provided specification.
         For example, a disguise may not modify data that leaks the writer's name (e.g., by leaving post content unmodified)
