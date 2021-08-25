@@ -4,10 +4,11 @@ use crate::stats::*;
 use crate::tokens::*;
 use crate::*;
 use mysql::{Opts, Pool};
+use rsa::RsaPublicKey;
 use std::collections::{HashMap, HashSet};
+use std::iter::FromIterator;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, RwLock};
-use rsa::{RsaPublicKey};
 
 pub enum TransformArgs {
     Remove,
@@ -114,13 +115,17 @@ impl Disguiser {
             .get_tokens(&keys, for_disguise_action)
     }
 
-    pub fn reverse(&mut self, disguise: Arc<Disguise>, tokens: Vec<Token>) -> Result<(), mysql::Error> {
+    pub fn reverse(
+        &mut self,
+        disguise: Arc<Disguise>,
+        tokens: Vec<Token>,
+    ) -> Result<(), mysql::Error> {
         let mut conn = self.pool.get_conn()?;
-        let mut tokens_to_mark_revealed :Vec<Token> = vec![];
+        let mut tokens_to_mark_revealed: Vec<Token> = vec![];
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
 
         for t in tokens {
-            // only reverse tokens of disguise if not yet revealed 
+            // only reverse tokens of disguise if not yet revealed
             if t.did == disguise.did && !t.revealed {
                 let revealed = t.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
                 if revealed {
@@ -382,6 +387,22 @@ impl Disguiser {
                     // update both old and new values so that no data leaks
                     // TODO
                     let mut new_token = token.clone();
+                    new_token.new_value = token
+                        .new_value
+                        .iter()
+                        .map(|rv| {
+                            let mut new_rv = rv.clone();
+                            for a in &cols_to_update {
+                                if rv.column == a.id.to_string() {
+                                    new_rv = RowVal {
+                                        column: rv.column.clone(),
+                                        value: a.value.to_string(),
+                                    };
+                                }
+                            }
+                            new_rv
+                        })
+                        .collect();
                     new_token.old_value = token
                         .old_value
                         .iter()
@@ -398,7 +419,11 @@ impl Disguiser {
                             new_rv
                         })
                         .collect();
-                    if !locked_token_ctrler.update_global_token_from_old_to(&token, &new_token, Some(did)) {
+                    if !locked_token_ctrler.update_global_token_from_old_to(
+                        &token,
+                        &new_token,
+                        Some(did),
+                    ) {
                         warn!("Could not update old disguise token!! {:?}", token);
                     }
                 }
@@ -440,12 +465,14 @@ impl Disguiser {
                 // (so vault transforms are always first)
                 for t in &*my_transforms {
                     let selection = predicate::pred_to_sql_where(&t.pred);
-                    let mut pred_items = get_query_rows_str(
+                    let selected_rows = get_query_rows_str(
                         &str_select_statement(&table, &selection),
                         &mut conn,
                         mystats.clone(),
                     )
                     .unwrap();
+                    let mut pred_items: HashSet<&Vec<RowVal>> =
+                        HashSet::from_iter(selected_rows.iter());
 
                     // TOKENS RETRIEVAL: get tokens that match the predicate
                     let pred_tokens = predicate::get_tokens_matching_pred(&t.pred, &my_tokens);
@@ -454,7 +481,7 @@ impl Disguiser {
                         // value that should be transformed into the set of predicated items
                         match pt.update_type {
                             DECOR_GUISE | MODIFY_GUISE => {
-                                pred_items.push(pt.new_value.clone());
+                                pred_items.insert(&pt.new_value);
                             }
                             _ => (),
                         }
@@ -470,7 +497,7 @@ impl Disguiser {
                     // just remove item if it's supposed to be removed
                     match &*t.trans.read().unwrap() {
                         TransformArgs::Remove => {
-                            for i in &pred_items {
+                            for i in pred_items {
                                 // don't remove an item that's already removed
                                 if removed_items.contains(i) {
                                     continue;
@@ -516,16 +543,16 @@ impl Disguiser {
                         TransformArgs::Decor { fk_col, .. } => {
                             for i in pred_items {
                                 // don't decorrelate if removed
-                                if removed_items.contains(&i) {
+                                if removed_items.contains(i) {
                                     // remove if we'd accidentally added it before
-                                    items_of_table.remove(&i);
+                                    items_of_table.remove(i);
                                     continue;
                                 }
                                 // don't decorrelate twice
                                 if decorrelated_items.contains(&(fk_col.clone(), i.clone())) {
                                     continue;
                                 }
-                                if let Some(ts) = items_of_table.get_mut(&i) {
+                                if let Some(ts) = items_of_table.get_mut(i) {
                                     ts.push(t.clone());
                                 } else {
                                     items_of_table.insert(i.clone(), vec![t.clone()]);
@@ -557,14 +584,14 @@ impl Disguiser {
                         _ => {
                             for i in pred_items {
                                 // don't modify if removed
-                                if removed_items.contains(&i) {
-                                    items_of_table.remove(&i);
+                                if removed_items.contains(i) {
+                                    items_of_table.remove(i);
                                     continue;
                                 }
-                                if let Some(ts) = items_of_table.get_mut(&i) {
+                                if let Some(ts) = items_of_table.get_mut(i) {
                                     ts.push(t.clone());
                                 } else {
-                                    items_of_table.insert(i, vec![t.clone()]);
+                                    items_of_table.insert(i.clone(), vec![t.clone()]);
                                 }
                             }
 
