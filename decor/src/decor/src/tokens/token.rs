@@ -1,20 +1,20 @@
 use crate::helpers::*;
-use crate::tokens::*;
 use crate::stats::QueryStat;
+use crate::tokens::*;
 use crate::{DID, UID};
 use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
 use sql_parser::ast::*;
-use std::sync::{Arc, Mutex};
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
 pub const MODIFY_GUISE: u64 = 3;
 pub const PRIV_KEY: u64 = 4;
-pub const REMOVE_TOKEN : u64 = 5;
-pub const MODIFY_TOKEN : u64 = 6;
+pub const REMOVE_TOKEN: u64 = 5;
+pub const MODIFY_TOKEN: u64 = 6;
 
 #[derive(Clone)]
 pub enum TokenType {
@@ -64,13 +64,13 @@ pub struct Token {
 }
 
 impl Hash for Token {
-    fn hash<H:Hasher>(&self, state:&mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.token_id.hash(state);
     }
 }
 
 impl Token {
-    pub fn new_token_modify(did: DID, uid: UID, old_token: &Token, changed_token: &Token) -> Token{
+    pub fn new_token_modify(did: DID, uid: UID, old_token: &Token, changed_token: &Token) -> Token {
         let mut token: Token = Default::default();
         token.is_global = false;
         token.uid = uid;
@@ -82,7 +82,7 @@ impl Token {
         token
     }
 
-    pub fn new_token_remove(did: DID, uid: UID, changed_token: &Token) -> Token{
+    pub fn new_token_remove(did: DID, uid: UID, changed_token: &Token) -> Token {
         let mut token: Token = Default::default();
         token.is_global = false;
         token.uid = uid;
@@ -175,21 +175,26 @@ impl Token {
         serde_json::from_slice(&bytes).unwrap()
     }
 
-    pub fn reveal(&self, token_ctrler: &mut TokenCtrler, conn: &mut mysql::PooledConn, stats: Arc<Mutex<QueryStat>>) -> Result<bool, mysql::Error> {
+    pub fn reveal(
+        &self,
+        token_ctrler: &mut TokenCtrler,
+        conn: &mut mysql::PooledConn,
+        stats: Arc<Mutex<QueryStat>>,
+    ) -> Result<bool, mysql::Error> {
         if !self.revealed {
             // get current guise in db
             let token_guise_selection = get_select_of_ids(&self.guise_ids);
             let selected = get_query_rows_str(
                 &str_select_statement(&self.guise_name, &token_guise_selection.to_string()),
                 conn,
-                stats.clone()
+                stats.clone(),
             )?;
 
             match self.update_type {
                 REMOVE_GUISE => {
                     // XXX problematic case: data can be revealed even if it should've been
                     // disguised?
-                   
+
                     // item has been re-inserted, ignore
                     if !selected.is_empty() {
                         // XXX true here because it's technically revealed?
@@ -197,13 +202,20 @@ impl Token {
                     }
 
                     // otherwise insert it
-                    let cols : Vec<String> = self.old_value.iter().map(|rv| rv.column.clone()).collect();
+                    let cols: Vec<String> =
+                        self.old_value.iter().map(|rv| rv.column.clone()).collect();
                     let colstr = cols.join(",");
-                    let vals : Vec<String> = self.old_value.iter().map(|rv| rv.value.clone()).collect();
+                    let vals: Vec<String> =
+                        self.old_value.iter().map(|rv| rv.value.clone()).collect();
                     let valstr = vals.join(",");
                     query_drop(
-                        format!("INSERT INTO {} COLUMNS ({}) VALUES ({})", self.guise_name, colstr, valstr),
-                        conn, stats.clone())?;
+                        format!(
+                            "INSERT INTO {} COLUMNS ({}) VALUES ({})",
+                            self.guise_name, colstr, valstr
+                        ),
+                        conn,
+                        stats.clone(),
+                    )?;
                 }
                 DECOR_GUISE => {
                     // rewrite it to original
@@ -231,14 +243,16 @@ impl Token {
                     }
                     // if original entity does not exist, do not recorrelate
                     let selection = Expr::BinaryOp {
-                        left: Box::new(Expr::Identifier(vec![Ident::new(self.referenced_id_col.clone())])),
+                        left: Box::new(Expr::Identifier(vec![Ident::new(
+                            self.referenced_id_col.clone(),
+                        )])),
                         op: BinaryOperator::Eq,
                         right: Box::new(Expr::Value(Value::Number(old_val.clone()))),
                     };
                     let selected = get_query_rows_str(
                         &str_select_statement(&self.referenced_name, &selection.to_string()),
                         conn,
-                        stats.clone()
+                        stats.clone(),
                     )?;
                     if selected.is_empty() {
                         return Ok(false);
@@ -260,12 +274,14 @@ impl Token {
                         stats.clone(),
                     )?;
 
-                     // remove the pseudoprincipal 
+                    // remove the pseudoprincipal
                     query_drop(
                         Statement::Delete(DeleteStatement {
                             table_name: string_to_objname(&self.referenced_name),
                             selection: Some(Expr::BinaryOp {
-                                left: Box::new(Expr::Identifier(vec![Ident::new(self.referenced_id_col.to_string())])),
+                                left: Box::new(Expr::Identifier(vec![Ident::new(
+                                    self.referenced_id_col.to_string(),
+                                )])),
                                 op: BinaryOperator::Eq,
                                 right: Box::new(Expr::Value(Value::Number(new_val.clone()))),
                             }),
@@ -283,19 +299,19 @@ impl Token {
                         return Ok(false);
                     }
 
-                    // ok, we can actually update this! 
+                    // ok, we can actually update this!
                     let mut updates = vec![];
                     for (i, newrv) in self.new_value.iter().enumerate() {
                         let new_val = newrv.value.clone();
                         let old_val = self.old_value[i].value.clone();
                         if new_val != old_val {
-                            updates.push(Assignment{
+                            updates.push(Assignment {
                                 id: Ident::new(newrv.column.clone()),
                                 // XXX problem if it's not a string?
-                                value: Expr::Value(Value::String(newrv.value.clone()))
+                                value: Expr::Value(Value::String(newrv.value.clone())),
                             })
                         }
-                    }                    
+                    }
                     query_drop(
                         Statement::Update(UpdateStatement {
                             table_name: string_to_objname(&self.guise_name),
@@ -306,36 +322,34 @@ impl Token {
                         conn,
                         stats.clone(),
                     )?;
-
                 }
                 REMOVE_TOKEN => {
                     // restore global token (may or may not have been revealed, but oh well!)
-                    let mut token : Token = serde_json::from_str(&self.old_token_blob).unwrap();
+                    let mut token: Token = serde_json::from_str(&self.old_token_blob).unwrap();
                     assert!(token.is_global);
                     token_ctrler.insert_global_token(&mut token);
                 }
                 MODIFY_TOKEN => {
-                    let new_token : Token = serde_json::from_str(&self.new_token_blob).unwrap();
+                    let new_token: Token = serde_json::from_str(&self.new_token_blob).unwrap();
                     assert!(new_token.is_global);
 
                     let (revealed, eq) = token_ctrler.check_global_token_for_match(&new_token);
-                    
+
                     // don't reveal if token has been modified
                     if !eq {
                         return Ok(false);
                     }
 
                     // actually update token
-                    let old_token : Token = serde_json::from_str(&self.old_token_blob).unwrap();
+                    let old_token: Token = serde_json::from_str(&self.old_token_blob).unwrap();
                     token_ctrler.update_global_token_from_old_to(&new_token, &old_token, None);
 
-                    // if token has been revealed, attempt to reveal old value of token 
+                    // if token has been revealed, attempt to reveal old value of token
                     if revealed {
                         return old_token.reveal(token_ctrler, conn, stats.clone());
                     }
                 }
-                _ => () // do nothing for PRIV_KEY 
-                
+                _ => (), // do nothing for PRIV_KEY
             }
         }
         Ok(true)

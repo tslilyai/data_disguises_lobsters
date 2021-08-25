@@ -378,6 +378,8 @@ impl Disguiser {
                             if !locked_token_ctrler.remove_global_token(did, &token) {
                                 warn!("Could not remove old disguise token!! {:?}", token);
                             }
+                            // continue onto the next token, don't modify it!
+                            continue;
                         }
                     }
                 }
@@ -385,7 +387,6 @@ impl Disguiser {
                 // private (although we already check this above)
                 if token.is_global && !t.global {
                     // update both old and new values so that no data leaks
-                    // TODO
                     let mut new_token = token.clone();
                     new_token.new_value = token
                         .new_value
