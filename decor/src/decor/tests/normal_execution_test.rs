@@ -5,7 +5,6 @@ use mysql::prelude::*;
 use std::*;
 use decor::{helpers};
 
-const SCHEMA : &'static str = include_str!("./schema.sql");
 const DBNAME : &'static str = "test_normal";
 
 fn init_logger() {
@@ -22,7 +21,6 @@ fn init_logger() {
 fn test_normal_execution() {
     init_logger();
 
-    let edna = decor::EdnaClient::new(true, DBNAME, SCHEMA, true);
     let mut db= mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME)).unwrap();
     assert_eq!(db.ping(), true);
 
@@ -45,8 +43,6 @@ fn test_normal_execution() {
         "stories", 
         "users", 
         "moderations", 
-        "GlobalVault", 
-        "DisguiseHistory", 
     ];
     assert_eq!(results.len(), tables.len());
     for tab in results {

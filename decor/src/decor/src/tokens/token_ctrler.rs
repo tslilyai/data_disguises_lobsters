@@ -570,6 +570,7 @@ mod tests {
             guise_name,
             guise_ids,
             referenced_name,
+            fk_col.clone(),
             vec![RowVal {
                 column: fk_col.clone(),
                 value: old_fk_value.to_string(),
@@ -611,6 +612,7 @@ mod tests {
             guise_name,
             guise_ids,
             referenced_name,
+            fk_col.clone(),
             vec![RowVal {
                 column: fk_col.clone(),
                 value: old_fk_value.to_string(),
@@ -621,7 +623,7 @@ mod tests {
             }],
         );
         ctrler.insert_user_token(TokenType::Data, &mut decor_token);
-        ctrler.end_disguise();
+        ctrler.clear_symkeys();
         assert_eq!(ctrler.global_vault.len(), 0);
 
         // check principal data
@@ -632,7 +634,7 @@ mod tests {
         assert_eq!(pub_key, p.pubkey);
         assert_eq!(p.cd_lists.len(), 1);
         assert_eq!(p.privkey_lists.len(), 0);
-        assert!(p.tmp_symkeys.is_empty());
+        assert!(ctrler.tmp_symkeys.is_empty());
 
         // check symkey stored for principal lists
         let cd_ls = p.cd_lists.get(&did).expect("failed to get disguise?");
@@ -686,6 +688,7 @@ mod tests {
                         guise_name.clone(),
                         guise_ids.clone(),
                         referenced_name.clone(),
+                        fk_col.clone(),
                         vec![RowVal {
                             column: fk_col.clone(),
                             value: (old_fk_value + i).to_string(),
@@ -697,10 +700,11 @@ mod tests {
                     );
                     ctrler.insert_user_token(TokenType::Data, &mut decor_token);
                 }
-                ctrler.end_disguise();
             }
         }
         assert_eq!(ctrler.global_vault.len(), 0);
+        ctrler.clear_symkeys();
+        assert!(ctrler.tmp_symkeys.is_empty());
 
         for u in 1..iters {
             // check principal data
@@ -712,7 +716,6 @@ mod tests {
             assert_eq!(pub_keys[u as usize - 1], p.pubkey);
             assert_eq!(p.cd_lists.len(), iters as usize - 1);
             assert_eq!(p.privkey_lists.len(), 0);
-            assert!(p.tmp_symkeys.is_empty());
 
             for d in 1..iters {
                 // check symkey stored for principal lists
@@ -777,6 +780,7 @@ mod tests {
                     guise_name.clone(),
                     guise_ids.clone(),
                     referenced_name.clone(),
+                    fk_col.clone(),
                     vec![RowVal {
                         column: fk_col.clone(),
                         value: (old_fk_value + d).to_string(),
@@ -790,20 +794,12 @@ mod tests {
 
                 // create an anonymous user
                 // and insert some token for the anon user
-                let anon_uid = ctrler.create_anon_principal(u, d);
-                let mut insert_token = Token::new_insert_token(
-                    d,
-                    anon_uid,
-                    guise_name.clone(),
-                    guise_ids.clone(),
-                    format!("{}", d),
-                    vec![],
-                );
-                ctrler.insert_user_token(TokenType::Data, &mut insert_token);
-                ctrler.end_disguise();
+                ctrler.create_anon_principal(u, d);
             }
         }
         assert_eq!(ctrler.global_vault.len(), 0);
+        ctrler.clear_symkeys();
+        assert!(ctrler.tmp_symkeys.is_empty());
 
         for u in 1..iters {
             // check principal data
@@ -815,7 +811,6 @@ mod tests {
             assert_eq!(pub_keys[u as usize - 1], p.pubkey);
             assert_eq!(p.cd_lists.len(), iters as usize - 1);
             assert_eq!(p.privkey_lists.len(), iters as usize - 1);
-            assert!(p.tmp_symkeys.is_empty());
 
             for d in 1..iters {
                 // check symkey stored for principal lists
@@ -833,7 +828,7 @@ mod tests {
 
                 // get tokens
                 let cdtokens = ctrler.get_tokens(&hs, true);
-                assert_eq!(cdtokens.len(), 2);
+                assert_eq!(cdtokens.len(), 1);
                 assert_eq!(
                     cdtokens[0].old_value[0].value,
                     (old_fk_value + d).to_string()
@@ -842,8 +837,6 @@ mod tests {
                     cdtokens[0].new_value[0].value,
                     (new_fk_value + d).to_string()
                 );
-                assert!(cdtokens[1].uid != u);
-                assert_eq!(cdtokens[1].referencer_name, format!("{}", d));
             }
         }
     }

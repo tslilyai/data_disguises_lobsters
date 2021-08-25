@@ -140,7 +140,7 @@ impl Disguiser {
             locked_token_ctrler.mark_token_revealed(t);
         }
         drop(locked_token_ctrler);
-        self.clear_disguise_records();
+        self.end_disguise_action();
         Ok(())
     }
 
@@ -305,7 +305,7 @@ impl Disguiser {
         drop(locked_insert);
         warn!("Disguiser: Performed Inserts");
 
-        self.clear_disguise_records();
+        self.end_disguise_action();
         Ok(())
     }
 
@@ -634,9 +634,10 @@ impl Disguiser {
         }
     }
 
-    fn clear_disguise_records(&self) {
+    fn end_disguise_action(&self) {
         self.to_insert.lock().unwrap().clear();
         self.items.write().unwrap().clear();
+        self.token_ctrler.lock().unwrap().clear_symkeys();
         warn!("Disguiser: clear disguise records");
     }
 }
