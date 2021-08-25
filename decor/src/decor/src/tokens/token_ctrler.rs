@@ -89,6 +89,7 @@ impl TokenCtrler {
 
     pub fn insert_global_token(&mut self, token: &mut Token) {
         token.is_global = true;
+        token.token_id = self.rng.next_u64();
         warn!(
             "Inserting global token disguise {} user {}",
             token.did, token.uid
@@ -105,9 +106,11 @@ impl TokenCtrler {
     }
 
     pub fn insert_user_token(&mut self, token_type: TokenType, token: &mut Token) {
+        assert!(token.uid != 0);
         token.is_global = false;
         let did = token.did;
         let uid = token.uid;
+        warn!("inserting user token {:?} with uid {} did {}", token, uid, did);
         let p = self
             .principal_tokens
             .get_mut(&uid)
@@ -203,6 +206,7 @@ impl TokenCtrler {
     }
 
     pub fn register_principal(&mut self, uid: u64, pubkey: &RsaPublicKey) {
+        warn!("Registering principal {}", uid);
         self.principal_tokens.insert(
             uid,
             PrincipalData {
@@ -213,24 +217,15 @@ impl TokenCtrler {
         );
     }
 
-    pub fn create_anon_principal(&mut self, uid: UID, did: DID) -> u64 {
+    pub fn register_anon_principal(&mut self, uid: UID, anon_uid: UID, did: DID) -> u64 {
         let private_key =
             RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
 
         // save the anon principal as a new principal with a public key
         // and initially empty token vaults
-        let anon_uid: u64 = self.rng.next_u64();
-        self.principal_tokens.insert(
-            anon_uid,
-            PrincipalData {
-                cd_lists: HashMap::new(),
-                privkey_lists: HashMap::new(),
-                pubkey: pub_key,
-            },
-        );
-
-        let mut token: Token = Token::new_privkey_token(did, uid, anon_uid, &private_key);
+        self.register_principal(anon_uid, &pub_key);
+        let mut token: Token = Token::new_privkey_token(uid, did, anon_uid, &private_key);
         self.insert_user_token(TokenType::PrivKey, &mut token);
         anon_uid
     }
@@ -258,8 +253,9 @@ impl TokenCtrler {
         return (false, false);
     }
  
-    pub fn remove_global_token(&mut self, did: DID, token: &Token) -> bool {
+    pub fn remove_global_token(&mut self, uid: UID, did: DID, token: &Token) -> bool {
         assert!(token.is_global);
+        assert!(uid != 0);
         let mut found = false;
         
         // delete token 
@@ -272,7 +268,7 @@ impl TokenCtrler {
         // log token for disguise that marks removal
         self.insert_user_token(
             TokenType::Data,
-            &mut Token::new_token_remove(token.uid, did, token),
+            &mut Token::new_token_remove(uid, did, token),
         );
         return found;
     }
@@ -281,7 +277,7 @@ impl TokenCtrler {
         &mut self,
         old_token: &Token,
         new_token: &Token,
-        record_token_for_disguise: Option<DID> 
+        record_token_for_disguise: Option<(UID,DID)> 
     ) -> bool {
         assert!(new_token.is_global);
         let mut found = false;
@@ -291,10 +287,10 @@ impl TokenCtrler {
             tokens.insert(new_token.clone());
             found = true;
         }
-        if let Some(did) = record_token_for_disguise {
+        if let Some((uid, did)) = record_token_for_disguise {
             self.insert_user_token(
                 TokenType::Data,
-                &mut Token::new_token_modify(new_token.uid, did, old_token, new_token),
+                &mut Token::new_token_modify(uid, did, old_token, new_token),
             );
         }
         found
@@ -566,7 +562,6 @@ mod tests {
 
         let mut decor_token = Token::new_decor_token(
             did,
-            uid,
             guise_name,
             guise_ids,
             referenced_name,
@@ -580,6 +575,7 @@ mod tests {
                 value: new_fk_value.to_string(),
             }],
         );
+        decor_token.uid = uid;
         ctrler.insert_global_token(&mut decor_token);
         assert_eq!(ctrler.global_vault.len(), 1);
         let tokens = ctrler.get_global_tokens(uid, did);
@@ -608,7 +604,6 @@ mod tests {
 
         let mut decor_token = Token::new_decor_token(
             did,
-            uid,
             guise_name,
             guise_ids,
             referenced_name,
@@ -622,6 +617,7 @@ mod tests {
                 value: new_fk_value.to_string(),
             }],
         );
+        decor_token.uid = uid;
         ctrler.insert_user_token(TokenType::Data, &mut decor_token);
         ctrler.clear_symkeys();
         assert_eq!(ctrler.global_vault.len(), 0);
@@ -684,7 +680,6 @@ mod tests {
                 for i in 0..iters {
                     let mut decor_token = Token::new_decor_token(
                         d,
-                        u,
                         guise_name.clone(),
                         guise_ids.clone(),
                         referenced_name.clone(),
@@ -698,6 +693,7 @@ mod tests {
                             value: (new_fk_value + i).to_string(),
                         }],
                     );
+                    decor_token.uid = u;
                     ctrler.insert_user_token(TokenType::Data, &mut decor_token);
                 }
             }
@@ -776,7 +772,6 @@ mod tests {
             for d in 1..iters {
                 let mut decor_token = Token::new_decor_token(
                     d,
-                    u,
                     guise_name.clone(),
                     guise_ids.clone(),
                     referenced_name.clone(),
@@ -790,11 +785,13 @@ mod tests {
                         value: (new_fk_value + d).to_string(),
                     }],
                 );
+                decor_token.uid = u;
                 ctrler.insert_user_token(TokenType::Data, &mut decor_token);
 
+                let anon_uid: u64 = rng.next_u64();
                 // create an anonymous user
                 // and insert some token for the anon user
-                ctrler.create_anon_principal(u, d);
+                ctrler.register_anon_principal(u, anon_uid, d);
             }
         }
         assert_eq!(ctrler.global_vault.len(), 0);

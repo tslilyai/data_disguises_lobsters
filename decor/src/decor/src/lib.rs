@@ -66,16 +66,16 @@ impl EdnaClient {
     pub fn get_tokens_of_disguise_keys(
         &mut self,
         keys: HashSet<tokens::ListSymKey>,
-        for_disguise_action: bool,
     ) -> Vec<tokens::Token> {
-        self.disguiser.get_tokens_of_disguise_keys(keys, for_disguise_action)
+        self.disguiser.get_tokens_of_disguise_keys(keys, false)
     }
 
     pub fn apply_disguise(
         &mut self,
         disguise: Arc<disguise::Disguise>,
-        tokens: Vec<tokens::Token>,
+        keys: HashSet<tokens::ListSymKey>,
     ) -> Result<(), mysql::Error> {
+        let tokens = self.disguiser.get_tokens_of_disguise_keys(keys, true);
         self.disguiser.apply(disguise.clone(), tokens)?;
         warn!("EDNA: Applied Disguise {}", disguise.clone().did);
         Ok(())

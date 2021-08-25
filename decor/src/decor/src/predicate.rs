@@ -143,7 +143,7 @@ pub fn clause_applies_to_row(p: &PredClause, row: &Vec<RowVal>) -> bool {
             let rv1: String;
             match row.iter().find(|rv| &rv.column == col) {
                 Some(rv) => rv1 = rv.value.clone(),
-                None => unimplemented!("bad predicate, no col {:?}", p),
+                None => return false, // this can happen if the row just isn't of the right type?
             }
             let rv2 = val;
             vals_satisfy_cmp(&rv1, &rv2, &op)

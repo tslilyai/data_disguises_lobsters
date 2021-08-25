@@ -214,7 +214,6 @@ impl Disguiser {
                                 decor_item(
                                     // disguise and per-thread state
                                     did,
-                                    uid,
                                     t.global,
                                     &mut locked_insert,
                                     &mut locked_token_ctrler,
@@ -242,7 +241,6 @@ impl Disguiser {
 
                                 modify_item(
                                     did,
-                                    uid,
                                     t.global,
                                     &mut locked_token_ctrler,
                                     &mut cols_to_update,
@@ -333,7 +331,6 @@ impl Disguiser {
                         decor_item(
                             // disguise and per-thread state
                             did,
-                            uid,
                             t.global,
                             &mut self.to_insert.lock().unwrap(),
                             &mut locked_token_ctrler,
@@ -359,7 +356,6 @@ impl Disguiser {
 
                         modify_item(
                             did,
-                            uid,
                             t.global,
                             &mut locked_token_ctrler,
                             &mut cols_to_update,
@@ -375,7 +371,8 @@ impl Disguiser {
                         // remove token from vault if token is global, and the new transformation is
                         // private (although we already check this above)
                         if token.is_global && !t.global {
-                            if !locked_token_ctrler.remove_global_token(did, &token) {
+                            assert!(uid != 0);
+                            if !locked_token_ctrler.remove_global_token(uid, did, &token) {
                                 warn!("Could not remove old disguise token!! {:?}", token);
                             }
                             // continue onto the next token, don't modify it!
@@ -420,10 +417,11 @@ impl Disguiser {
                             new_rv
                         })
                         .collect();
+                    assert!(uid != 0);
                     if !locked_token_ctrler.update_global_token_from_old_to(
                         &token,
                         &new_token,
-                        Some(did),
+                        Some((uid, did)),
                     ) {
                         warn!("Could not update old disguise token!! {:?}", token);
                     }
@@ -509,14 +507,13 @@ impl Disguiser {
                                 // TOKEN INSERT
                                 let mut token = Token::new_delete_token(
                                     did,
-                                    0,
                                     table.clone(),
                                     ids.clone(),
                                     i.clone(),
                                 );
                                 for owner_col in &curtable_info.owner_cols {
-                                    let uid = get_value_of_col(&i, &owner_col).unwrap();
-                                    token.uid = u64::from_str(&uid).unwrap();
+                                    let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
+                                    token.uid = u64::from_str(&owner_uid).unwrap();
                                     let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
                                     if t.global {
                                         locked_token_ctrler.insert_global_token(&mut token);
@@ -638,13 +635,13 @@ impl Disguiser {
         self.to_insert.lock().unwrap().clear();
         self.items.write().unwrap().clear();
         self.token_ctrler.lock().unwrap().clear_symkeys();
+        self.tokens_to_modify.write().unwrap().clear();
         warn!("Disguiser: clear disguise records");
     }
 }
 
 fn modify_item(
     did: DID,
-    uid: UID,
     global: bool,
     token_ctrler: &mut TokenCtrler,
     cols_to_update: &mut Vec<Assignment>,
@@ -679,11 +676,10 @@ fn modify_item(
         })
         .collect();
     let ids = get_ids(&table_info.id_cols, &i);
-    let mut update_token =
-        Token::new_update_token(did, uid, table.to_string(), ids, i.clone(), new_obj);
+    let mut update_token = Token::new_modify_token(did, table.to_string(), ids, i.clone(), new_obj);
     for owner_col in &table_info.owner_cols {
-        let uid = get_value_of_col(&i, &owner_col).unwrap();
-        update_token.uid = u64::from_str(&uid).unwrap();
+        let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
+        update_token.uid = u64::from_str(&owner_uid).unwrap();
         if !global {
             token_ctrler.insert_user_token(TokenType::Data, &mut update_token);
         } else {
@@ -697,7 +693,6 @@ fn modify_item(
 
 fn decor_item(
     did: DID,
-    uid: UID,
     global: bool,
     to_insert: &mut HashMap<(String, Vec<String>), Vec<Vec<Expr>>>,
     token_ctrler: &mut TokenCtrler,
@@ -747,7 +742,7 @@ fn decor_item(
         })
         .collect();
     let new_parent_ids = get_ids(&fk_table_info.id_cols, &new_parent_rowvals);
-    let guise_id = new_parent_ids[0].value.to_string();
+    let guise_id = u64::from_str(&new_parent_ids[0].value).unwrap();
     warn!("decor_obj: inserted guise {}.{}", fk_name, guise_id);
 
     // save guise to insert
@@ -783,7 +778,6 @@ fn decor_item(
     let child_ids = get_ids(&child_table_info.id_cols, &new_child);
     let mut decor_token = Token::new_decor_token(
         did,
-        uid,
         child_table.to_string(),
         child_ids,
         fk_name.to_string(),
@@ -792,13 +786,15 @@ fn decor_item(
         new_child,
     );
     for owner_col in &child_table_info.owner_cols {
-        let uid = get_value_of_col(&i, &owner_col).unwrap();
-        decor_token.uid = u64::from_str(&uid).unwrap();
+        let old_uid = get_value_of_col(&i, &owner_col).unwrap();
+        decor_token.uid = u64::from_str(&old_uid).unwrap();
         if !global {
             token_ctrler.insert_user_token(TokenType::Data, &mut decor_token);
         } else {
             token_ctrler.insert_global_token(&mut decor_token);
         }
+        // actually register the anon principal, including saving its privkey for the old uid
+        token_ctrler.register_anon_principal(u64::from_str(&old_uid).unwrap(), guise_id, did);
     }
     stats.decor_dur += start.elapsed();
     warn!("Thread {:?} decor {}", thread::current().id(), child_table);

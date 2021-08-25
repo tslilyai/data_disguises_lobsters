@@ -70,7 +70,7 @@ impl Hash for Token {
 }
 
 impl Token {
-    pub fn new_token_modify(did: DID, uid: UID, old_token: &Token, changed_token: &Token) -> Token {
+    pub fn new_token_modify(uid: UID, did:DID, old_token: &Token, changed_token: &Token) -> Token {
         let mut token: Token = Default::default();
         token.is_global = false;
         token.uid = uid;
@@ -82,7 +82,7 @@ impl Token {
         token
     }
 
-    pub fn new_token_remove(did: DID, uid: UID, changed_token: &Token) -> Token {
+    pub fn new_token_remove(uid: UID, did: DID, changed_token: &Token) -> Token {
         let mut token: Token = Default::default();
         token.is_global = false;
         token.uid = uid;
@@ -93,7 +93,7 @@ impl Token {
         token
     }
 
-    pub fn new_privkey_token(did: DID, uid: UID, new_uid: UID, priv_key: &RsaPrivateKey) -> Token {
+    pub fn new_privkey_token(uid: UID, did:DID, new_uid: UID, priv_key: &RsaPrivateKey) -> Token {
         let mut token: Token = Default::default();
         token.uid = uid;
         token.did = did;
@@ -106,7 +106,6 @@ impl Token {
 
     pub fn new_decor_token(
         did: DID,
-        uid: UID,
         guise_name: String,
         guise_ids: Vec<RowVal>,
         referenced_name: String,
@@ -115,7 +114,6 @@ impl Token {
         new_value: Vec<RowVal>,
     ) -> Token {
         let mut token: Token = Default::default();
-        token.uid = uid;
         token.did = did;
         token.update_type = DECOR_GUISE;
         token.revealed = false;
@@ -130,13 +128,11 @@ impl Token {
 
     pub fn new_delete_token(
         did: DID,
-        uid: UID,
         guise_name: String,
         guise_ids: Vec<RowVal>,
         old_value: Vec<RowVal>,
     ) -> Token {
         let mut token: Token = Default::default();
-        token.uid = uid;
         token.did = did;
         token.update_type = REMOVE_GUISE;
         token.revealed = false;
@@ -146,16 +142,14 @@ impl Token {
         token
     }
 
-    pub fn new_update_token(
+    pub fn new_modify_token(
         did: DID,
-        uid: UID,
         guise_name: String,
         guise_ids: Vec<RowVal>,
         old_value: Vec<RowVal>,
         new_value: Vec<RowVal>,
     ) -> Token {
         let mut token: Token = Default::default();
-        token.uid = uid;
         token.did = did;
         token.update_type = MODIFY_GUISE;
         token.revealed = false;
