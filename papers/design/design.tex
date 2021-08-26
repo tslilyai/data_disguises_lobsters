@@ -125,7 +125,8 @@ This ensures that \sys (and equivalently, any adversary) only sees the plaintext
 $d$ and no other disguise if the client wishes to reveal them; 
 furthermore, the adversary only learns how many disguises applied to $p$'s data if $p$ reveals a
 disguise.
-\lyt{HMM compared to the original design, this simply delays the adversary's knowledge of which/how
+
+\lyt{Compared to the original design, this simply delays the adversary's knowledge of which/how
 many disguises applied to a principal's data to when the client reveals a disguise. Not sure if it's
 actually more secure given our threat model?}
 
@@ -139,7 +140,7 @@ applied to a particular $p$, it leaks how many (principal, disguise) keys there 
 only one principal's data has been disguised, for example, then this leaks how many disguises apply
 to that principal.
 
-This also puts a lot more work on the client to remember disguise pointers...
+\lyt{This also puts a lot more work on the client to remember disguise pointers...}
 
 \vspace{6pt}\noindent\textbf{(2) Token Ciphertext Storage.}
 \sys must hide which token ciphertexts correspond to which principals.  Naively, \sys can store

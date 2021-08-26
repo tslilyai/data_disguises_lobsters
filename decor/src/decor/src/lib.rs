@@ -84,8 +84,9 @@ impl EdnaClient {
     pub fn reverse_disguise(
         &mut self,
         disguise: Arc<disguise::Disguise>,
-        tokens: Vec<tokens::Token>,
+        keys: HashSet<tokens::ListSymKey>,
     ) -> Result<(), mysql::Error> {
+        let tokens = self.disguiser.get_tokens_of_disguise_keys(keys, true);
         self.disguiser.reverse(disguise.clone(), tokens)?;
         warn!("EDNA: Applied Disguise {}", disguise.clone().did);
         Ok(())

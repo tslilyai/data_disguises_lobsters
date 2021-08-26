@@ -12,7 +12,6 @@ use decor::helpers;
 use decor::tokens;
 
 const SCHEMA: &'static str = include_str!("./schema.sql");
-const DBNAME: &'static str = "test_disg";
 const RSA_BITS: usize = 2048;
 const USER_ITERS: u64 = 2;
 const NSTORIES : u64 = 2;
@@ -30,8 +29,9 @@ fn init_logger() {
 #[test]
 fn test_compose_anon_gdpr_disguises() {
     init_logger();
-    let mut edna = decor::EdnaClient::new(true, DBNAME, SCHEMA, true);
-    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME)).unwrap();
+    let dbname = "testAppComposeDisguise".to_string();
+    let mut edna = decor::EdnaClient::new(true, &dbname, SCHEMA, true);
+    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", &dbname)).unwrap();
     assert_eq!(db.ping(), true);
 
     let mut rng = OsRng;
@@ -68,8 +68,8 @@ fn test_compose_anon_gdpr_disguises() {
     }
     
     // APPLY ANON DISGUISE
-    let anon_disguise = disguises::universal_anon_disguise::get_disguise();
-    edna.apply_disguise(Arc::new(anon_disguise), HashSet::new()).unwrap();
+    let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
+    edna.apply_disguise(anon_disguise.clone(), HashSet::new()).unwrap();
 
     // APPLY GDPR DISGUISES
     for u in 1..USER_ITERS {
@@ -174,8 +174,9 @@ fn test_compose_anon_gdpr_disguises() {
 #[test]
 fn test_app_anon_disguise() {
     init_logger();
-    let mut edna = decor::EdnaClient::new(true, DBNAME, SCHEMA, true);
-    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME)).unwrap();
+    let dbname = "testAppAnonDisguise".to_string();
+    let mut edna = decor::EdnaClient::new(true, &dbname, SCHEMA, true);
+    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", &dbname)).unwrap();
     assert_eq!(db.ping(), true);
 
     let mut rng = OsRng;
@@ -210,9 +211,9 @@ fn test_app_anon_disguise() {
         priv_keys.push(private_key.clone());
     }
 
-    // APPLY GDPR DISGUISES
-    let anon_disguise = disguises::universal_anon_disguise::get_disguise();
-    edna.apply_disguise(Arc::new(anon_disguise), HashSet::new()).unwrap();
+    // APPLY ANON DISGUISES
+    let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
+    edna.apply_disguise(anon_disguise.clone(), HashSet::new()).unwrap();
 
     // CHECK DISGUISE RESULTS
     // users exist
@@ -272,7 +273,6 @@ fn test_app_anon_disguise() {
     assert_eq!(stories_results.len() as u64, (USER_ITERS-1)*NSTORIES);
 
     // moderations have guises as owners
-    let mut guises = HashSet::new();
     let res = db.query_iter(format!(r"SELECT moderator_user_id, user_id FROM moderations")).unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
@@ -301,8 +301,9 @@ fn test_app_anon_disguise() {
 #[test]
 fn test_app_gdpr_disguise() {
     init_logger();
-    let mut edna = decor::EdnaClient::new(true, DBNAME, SCHEMA, true);
-    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME)).unwrap();
+    let dbname = "testAppGDPR".to_string();
+    let mut edna = decor::EdnaClient::new(true, &dbname, SCHEMA, true);
+    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", &dbname)).unwrap();
     assert_eq!(db.ping(), true);
 
     let mut rng = OsRng;
