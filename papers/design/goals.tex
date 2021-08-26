@@ -77,6 +77,14 @@ A disguisable application system operates on two categories of data:
 \label{tab:accpriv}
 \end{table}
 
+\vspace{6pt}\noindent\textbf{\emph{Snapshot Threat Model.}}
+An attacker can compromise the web application at any point and gain full access to 
+a snapshot of the backend server.
+\lyt{Assuming this allows us to not worry about leaking disguised information that is revealed only during
+disguise application (e.g., the private keys of pseudoprincipals.) This also allows us to simplify
+the design for metadata privacy, if we still want that.}
+
+\vspace{6pt}\noindent\textbf{\emph{Compromise-and-Sit Threat Model.}}
 An attacker compromises the web application and gains full access to the backend server.
 %
 This means that the attacker can access any data stored on the server, perform any actions the
