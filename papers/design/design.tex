@@ -62,12 +62,14 @@ with access to \privk{p} can access \privk{q} (and therefore access $q$'s privat
 
 \vspace{12pt}
 \noindent\textbf{\emph{Enforcing Private Token Access.}}
-\sys ensures the security of private disguise tokens as follows: \sys encrypts private \tdata{pd}
-and \tpriv{pdq} tokens with a symmetric key \symk{pd} specific to the disguise and principal. The
+\sys ensures the security of private disguise data tokens as follows: \sys encrypts private \tdata{pd}
+with a symmetric key \symk{pd} specific to the disguise and principal. The
 token's nonce ensures safety against known-plaintext attacks. \sys then encrypts \symk{pd} with
 public key \pubk{p}.
 A client needs to prove it has \privk{p} by decrypting \symk{pd}, 
-which then allows \sys to decrypt $p$'s private tokens produced from applying $d$.
+which then allows \sys to decrypt $p$'s data tokens produced from applying $d$.
+
+%\sys ensures security of \tpriv{pdq} tokens by encrypting them with a special \symk\pubk{p}.
 
 \sys stores all global \tdata{pd} tokens in plaintext, where any party can access it.
 

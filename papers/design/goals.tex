@@ -113,20 +113,13 @@ created prior to time of compromise, even if authenticated as $p$.
 \vspace{6pt}\noindent\textbf{\emph{(3) Security of Private Disguise Token Metadata.}}
 Only a client with private key \privk{p} knows how many private disguise tokens correspond to
 principal $p$. An attacker cannot learn how many tokens are associated with any principal prior to
-time of compromise.
+time of compromise, unlesss the principal authorizes access to these tokens.
 
-\lyt{Do we want to hide how many/which disguises have been applied to a principal's data? 
-Do we want to ensure separation of disguises, namely that if $p$ authorizes access to a single
-disguise's tokens, the adversary learns nothing about what other disguises have been applied to
+\lyt{Do we want to hide how many/which disguises have been applied to a principal's data even if the
+principal authorizes access to (one or more) disguise tokens? 
+If $p$ authorizes access to a single
+disguise's tokens, should the adversary learn nothing about what other disguises have been applied to
 $p$'s data?}
-
-\lyt{If we want to ensure the latter, then we need to hide the number of per-disguise "linked lists"
-for each principal, each with their distinct \symk{pd}s. 
-However, $p$ still needs to grant \sys the ability to
-\emph{find} the correct \symk{pd}; unless $p$ provides the location of the \symk{pd} for a
-particular $d$ to \sys, \sys will have to store information about all \symk{pd}s for $p$ for all
-$d$, which leaks how many/which disguises have been applied to $p$'s data. I discuss this tradeoff
-more in the next section.}
 
 \vspace{6pt}\noindent
 Table~\ref{tab:accpriv} illustrates our goal's data access policies.
