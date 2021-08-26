@@ -69,22 +69,13 @@ A disguisable application system operates on two categories of data:
 \hline
         Database Contents & \checkmark & \checkmark \\
         Global Disguise Tokens & \checkmark & \checkmark \\
-        Global Disguise Token Metadata & \checkmark & \checkmark \\
         Private Disguise Tokens & & \checkmark \\
-        Private Disguise Token Metadata & & \checkmark \\
+        Set of Disguises Applied to Principal & & \checkmark \\
 \end{tabular}
     \caption{Desired data access policies.}
 \label{tab:accpriv}
 \end{table}
 
-%\vspace{6pt}\noindent\textbf{\emph{Snapshot Threat Model.}}
-%An attacker can compromise the web application at any point and gain full access to 
-%a snapshot of the backend server.
-%\lyt{Assuming this allows us to not worry about leaking disguised information that is revealed only during
-%disguise application (e.g., the private keys of pseudoprincipals.) This also allows us to simplify
-%the design for metadata privacy, if we still want that.}
-%
-%\vspace{6pt}\noindent\textbf{\emph{Compromise-and-Sit Threat Model.}}
 An attacker compromises the web application and gains full access to the backend server.
 %
 This means that the attacker can access any data stored on the server, perform any actions the
@@ -118,17 +109,13 @@ only a client who knows the corresponding private key \privk{p} can access $p$'s
 disguise $d$; an attacker without \privk{p} cannot authorize access to private disguise tokens
 created prior to time of compromise, even if authenticated as $p$.
 
-\vspace{6pt}\noindent\textbf{\emph{(3) Security of Private Disguise Token Metadata.}}
-Only a client with private key \privk{p} knows how many private disguise tokens correspond to
-principal $p$, and which disguises have produced private tokens for $p$.
+\vspace{6pt}\noindent\textbf{\emph{(3) Security of Disguise-Principal Associations.}}
+An attacker cannot learn if a disguise $d$ has been applied to a principal, unless the principal
+authorizes access to their private tokens for $d$.
+%or the number of private tokens a
+%how many private disguise tokens correspond to
+%principal $p$, and which disguises have produced private tokens for $p$.
 %
-An attacker cannot learn the set of applied disguises or the number of private tokens associated
-with any principal prior to time of compromise, unless the principal authorizes access to their
-disguise tokens.
-
-\lyt{Importantly, once a principal reveals some tokens, all metadata privacy is lost!  Do we want to
-hide how many/which disguises have been applied to a principal's data even if the principal
-authorizes access to (one or more) disguise tokens?}
 
 \vspace{6pt}\noindent
 Table~\ref{tab:accpriv} illustrates our goal's data access policies.
@@ -137,13 +124,11 @@ Table~\ref{tab:accpriv} illustrates our goal's data access policies.
 \begin{itemize}
     \item Security of private tokens or restricted disguises when an attacker has prior snapshots of system data.
     \item Security of disguise application restricted to $p$ if an attacker authenticates as $p$.
-    \item Security of $p$'s private tokens and token metadata if \privk{p} is compromised.  
-    \item Security of $p$'s private tokens and token metadata if an authorized client with \privk{p}
-        grants \sys access to these tokens. 
-        \lyt{As stated above, this allows our design to expose which disguises were applied to a
-        principal once a principal authorizes access to any of their tokens.}
-    \item Any privacy guarantees about information left after disguise application: \sys 
-        simply applies a disguise according to the developer-provided specification.
+    \item Security of $p$'s private tokens and disguise associations if \privk{p} is compromised.  
+    \item Security of $p$'s private tokens from, and disguise associations with disguise $d$ if an authorized client with \privk{p} grants \sys access to tokens from $d$. 
+    \item Token metadata such as the number of disguise applied to, or number of tokens associated
+        with, a particular principal $p$.
+    \item Any privacy guarantees about information left after disguise application: \sys simply applies a disguise according to the developer-provided specification.
         For example, a disguise may not modify data that leaks the writer's name (e.g., by leaving post content unmodified)
     \item Hiding which application data objects have been disguised. For example, the author of a
         paper may be replaced with ``anonFox,'' leaking information that the paper has been
@@ -183,7 +168,6 @@ disguise on each type of data.
 \hline
         Database Contents & \checkmark & \checkmark \\
         Disguise Tokens & \checkmark & \checkmark \\
-        Disguise Token Metadata & & \checkmark & \checkmark \\
 \end{tabular}
 \caption{Open setting data access policies.}
 \label{tab:accopen}

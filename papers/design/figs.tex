@@ -43,6 +43,7 @@
 \< \sendmessageleft*{\fn{privKeyEncs}} \< \\
 \texttt{privKeys} \gets \{p \mapsto \privk{p}\}\\
 \texttt{principalIds} \gets \{p\}\\
+% TODO recursively loop to get all privkey tokens for all principals
 \pcforeach \fn{privKey} \in \fn{privKeyEncs}:\\
 \quad \tpriv{pd'q} \gets \dec(\privk{p}, \fn{privKey})\\
 \quad \pcif \text{authorizes access to $q$'s private tokens}: \\
