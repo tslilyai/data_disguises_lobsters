@@ -151,10 +151,6 @@ impl Disguiser {
     ) -> Result<(), mysql::Error> {
         let mut conn = self.pool.get_conn()?;
         let mut threads = vec![];
-        let uid = match &disguise.user {
-            Some(u) => u.id,
-            None => 0,
-        };
         let did = disguise.did;
 
         /*
@@ -211,6 +207,7 @@ impl Disguiser {
                                 let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
                                 let mut locked_stats = mystats.lock().unwrap();
 
+                                warn!("Decor item of table {} in apply disguise: {:?}", table, i);
                                 decor_item(
                                     // disguise and per-thread state
                                     did,
@@ -328,6 +325,7 @@ impl Disguiser {
                         let locked_table_info = disguise.table_info.read().unwrap();
                         let locked_guise_gen = disguise.guise_gen.read().unwrap();
 
+                        warn!("Decor item in modify global tokens: {:?}", token.old_value);
                         decor_item(
                             // disguise and per-thread state
                             did,
@@ -474,7 +472,7 @@ impl Disguiser {
                         HashSet::from_iter(selected_rows.iter());
 
                     // TOKENS RETRIEVAL: get tokens that match the predicate
-                    let pred_tokens = predicate::get_tokens_matching_pred(&t.pred, &my_tokens);
+                    let pred_tokens = predicate::get_tokens_matching_pred(&t.pred, &table, &my_tokens);
                     for pt in &pred_tokens {
                         // for tokens that decorrelated or updated a guise, we want to add the new
                         // value that should be transformed into the set of predicated items
@@ -797,5 +795,4 @@ fn decor_item(
         token_ctrler.register_anon_principal(u64::from_str(&old_uid).unwrap(), guise_id, did);
     }
     stats.decor_dur += start.elapsed();
-    warn!("Thread {:?} decor {}", thread::current().id(), child_table);
 }

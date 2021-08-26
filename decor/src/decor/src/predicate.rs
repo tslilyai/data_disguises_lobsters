@@ -84,12 +84,21 @@ pub fn pred_to_sql_where(pred: &Vec<Vec<PredClause>>) -> String {
     ors.join(" OR ")
 }
 
-pub fn get_tokens_matching_pred(pred: &Vec<Vec<PredClause>>, tokens: &Vec<Token>) -> Vec<Token> {
+pub fn get_tokens_matching_pred(
+    pred: &Vec<Vec<PredClause>>,
+    name: &str,
+    tokens: &Vec<Token>,
+) -> Vec<Token> {
     let mut matching = vec![];
     for t in tokens {
+        if t.guise_name != name {
+            continue;
+        }
         if match t.update_type {
-            REMOVE_GUISE | DECOR_GUISE | MODIFY_GUISE => predicate_applies_to_row(pred, &t.old_value) ||
-            predicate_applies_to_row(pred, &t.new_value),
+            REMOVE_GUISE | DECOR_GUISE | MODIFY_GUISE => {
+                predicate_applies_to_row(pred, &t.old_value)
+                    || predicate_applies_to_row(pred, &t.new_value)
+            }
             _ => false,
         } {
             matching.push(t.clone());
@@ -143,7 +152,7 @@ pub fn clause_applies_to_row(p: &PredClause, row: &Vec<RowVal>) -> bool {
             let rv1: String;
             match row.iter().find(|rv| &rv.column == col) {
                 Some(rv) => rv1 = rv.value.clone(),
-                None => return false, // this can happen if the row just isn't of the right type?
+                None => return false, // this can happen if the row just isn't of the right guise type?
             }
             let rv2 = val;
             vals_satisfy_cmp(&rv1, &rv2, &op)
