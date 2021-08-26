@@ -1,5 +1,9 @@
 \section{Design} 
 
+Two levels of encryption: 
+- principal key encrypted with pubkey
+- principal key used to encrypt which disguise each disguise symmetric keys (which are stored in some array) applies to
+
 \subsection{Disguise Operations} 
 Operations \op{d} of disguise $d$ take data objects as input, execute updates to application
 data, and produce (\texttt{token, principal}) pairs
@@ -62,14 +66,17 @@ with access to \privk{p} can access \privk{q} (and therefore access $q$'s privat
 
 \vspace{12pt}
 \noindent\textbf{\emph{Enforcing Private Token Access.}}
-\sys ensures the security of private disguise data tokens as follows: \sys encrypts private \tdata{pd}
-with a symmetric key \symk{pd} specific to the disguise and principal. The
-token's nonce ensures safety against known-plaintext attacks. \sys then encrypts \symk{pd} with
-public key \pubk{p}.
-A client needs to prove it has \privk{p} by decrypting \symk{pd}, 
-which then allows \sys to decrypt $p$'s data tokens produced from applying $d$.
+\sys ensures the security of private disguise data tokens as follows: \sys encrypts private
+\tdata{pd} with a symmetric key \symk{pd} specific to the disguise and principal. The token's nonce
+ensures safety against known-plaintext attacks. \sys then encrypts \symk{pd} with public key
+\pubk{p}.  
+%
+A client needs to prove it has \privk{p} by decrypting \symk{pd}, which then allows \sys
+to decrypt $p$'s data tokens produced from applying $d$.
 
-%\sys ensures security of \tpriv{pdq} tokens by encrypting them with a special \symk\pubk{p}.
+\sys ensures security of \tpriv{pdq} tokens by encrypting them with \pubk{p}. Only a client who has
+\privk{p} can decrypt \tpriv{pdq} and gain access to pseudoprincipal $q$'s private key \privk{q}
+(and thus access to $q$'s private tokens).
 
 \sys stores all global \tdata{pd} tokens in plaintext, where any party can access it.
 
@@ -93,11 +100,11 @@ how the client is authorized, and the state of the tokens.
 \noindent\textbf{\emph{Hiding Private Token Metadata.}}
 With \sys's design, token metadata about which principals own which tokens can leak in two ways:
 \begin{enumerate}
-    \item If an adversary learns that \symk{pd} exists for $p$ and $d$, 
-        then an adversary knows that $d$ updated some data associated with $p$ (and produced a token
-        recording the update)
-    \item If an adversary can differentiate between token ciphertexts belonging to different
-        principals, then the adversary learns how many tokens belong to each principal.
+    \item \emph{Which disguises have applied to a principal $p$:} If an adversary learns that \symk{pd} exists for $p$ and $d$, then an adversary knows that $d$ updated some data associated with $p$ (and produced a token
+        recording the update). Similarly, the number of \tpriv{pdq} token ciphertexts associated
+        with prinicipal $p$ leaks information about the number of decorrelating disguises applied to $p$'s data.
+    \item \emph{How much data of $p$'s has been disguise:} If an adversary can differentiate between
+        token ciphertexts belonging to different principals, then the adversary learns how many tokens belong to each principal.
 \end{enumerate}
 
 \noindent
@@ -142,7 +149,8 @@ applied to a particular $p$, it leaks how many (principal, disguise) keys there 
 only one principal's data has been disguised, for example, then this leaks how many disguises apply
 to that principal.
 
-\lyt{This also puts a lot more work on the client to remember disguise pointers...}
+\lyt{This also puts a lot more work on the client to remember disguise pointer, and requires the
+client to be online.}
 
 \vspace{6pt}\noindent\textbf{(2) Token Ciphertext Storage.}
 \sys must hide which token ciphertexts correspond to which principals.  Naively, \sys can store
