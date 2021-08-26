@@ -19,7 +19,7 @@
 \textbf{Admin-authenticated Client} \< \< \textbf{\sys} \\
 [0.1\baselineskip][\hline]
 \<\< \\[-0.9\baselineskip]\\
-\< \sendmessageright*{\fn{StartDisguise($d$)}} \< \\
+\< \sendmessageright*{\fn{StartDisguise($d$,None)}} \< \\
 \<\< \texttt{tokens} \gets \{\}\\
 \<\< \pcforeach d'~\text{in the disguise history}: \\
 \<\< \quad\texttt{tokens.insert(\fn{ReadGlobalTokens}($d'$))}\\ 
@@ -38,14 +38,31 @@
 \textbf{Client User-Authenticated as $p$} \< \< \textbf{\sys} \\
 [0.1\baselineskip][\hline]
 \<\< \\[-0.9\baselineskip]\\
-    \< \sendmessageright*{\fn{StartDisguise($d$)}} \< \\
-\<\< \fn{symKeyCiphertxts} \gets \fn{LoadEncKeys}(p)\\
-\< \sendmessageleft*{\fn{RequestTokenAccess(symKeyCiphertxts)}} \< \\
+\< \sendmessageright*{\fn{StartDisguise($d$, Some($p$))}} \< \\
+\<\< \fn{privKeyEncs} \gets \fn{LoadEncPrivKeyTokens}(p)\\
+\< \sendmessageleft*{\fn{privKeyEncs}} \< \\
+\texttt{privKeys} \gets \{p \mapsto \privk{p}\}\\
+\texttt{principalIds} \gets \{p\}\\
+\pcforeach \fn{privKey} \in \fn{privKeyEncs}:\\
+\quad \tpriv{pd'q} \gets \dec(\privk{p}, \fn{privKey})\\
+\quad \pcif \text{authorizes access to $q$'s private tokens}: \\
+\quad\quad\texttt{privKeys.insert}(q\mapsto \tpriv{pd'q}.\texttt{privKey}) \<\< \\
+\quad\quad\texttt{principalIds.insert(q)} \<\< \\
+\quad\pcfi\\
+\pcendforeach\\
+\< \sendmessageright*{\fn{RequestEncKeys($d$,principalIds)}} \< \\
+\<\< \texttt{symKeyEncs} \gets \{\}\\
+\<\< \pcforeach q \in \fn{principalIds}:\\
+\<\< \quad\fn{symKeyEncs.insert(LoadEncSymKeys}(q))\\
+\<\< \pcendforeach\\
+\< \sendmessageleft*{\fn{RequestTokenAccess(symKeyEncs)}} \< \\
 \texttt{symKeys} \gets \{\}\\
-\pcforeach \fn{encSymKey} \in \fn{symKeyCiphertxts}:\\
-\quad \symk{pd'} \gets \dec(\privk{p}, \fn{encSymKey})\\
-\quad \pcif \text{authorizes access to $d'$-produced tokens}: \\
-    \quad\quad\texttt{symKeys.insert(\symk{pd'})} \<\< \\
+\pcforeach \fn{encSymKey} \in \fn{symKeyEncs}:\\
+\quad q \gets \fn{encSymKey.principalId}\\
+\quad \privk{q} \gets \fn{privKeys}[q]\\
+\quad \symk{qd'} \gets \dec(\privk{q}, \fn{encSymKey})\\
+\quad \pcif \text{authorizes access to $d'$-produced tokens for $q$}: \\
+\quad\quad\texttt{symKeys.insert(\symk{qd'})} \<\< \\
 \quad\pcfi\\
 \pcendforeach\\
 \< \sendmessageright*{\texttt{GrantTokenAccess(\texttt{symKeys})}} \< \\
@@ -54,8 +71,8 @@
 \<\< \pcforeach d'~\text{in the disguise history}: \\
 \<\< \quad\texttt{tokens.insert(\fn{ReadGlobalTokens}($d'$))}\\ 
 \<\< \pcendforeach\\
-\<\< \pcforeach \symk{pd'} \in \texttt{symKeys}: \\
-\<\< \quad\texttt{tokens.insert(\fn{ReadPrivateTokens(\symk{pd'})})}\\ 
+\<\< \pcforeach \symk{qd'} \in \texttt{symKeys}: \\
+\<\< \quad\texttt{tokens.insert(\fn{ReadPrivateTokens(\symk{qd'})})}\\ 
 \<\< \pcendforeach\\
 \<\< \texttt{ApplyDisguise($d$,tokens)}
 }
