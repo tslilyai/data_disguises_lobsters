@@ -1,9 +1,5 @@
 \section{Design} 
 
-Two levels of encryption: 
-- principal key encrypted with pubkey
-- principal key used to encrypt which disguise each disguise symmetric keys (which are stored in some array) applies to
-
 \subsection{Disguise Operations} 
 Operations \op{d} of disguise $d$ take data objects as input, execute updates to application
 data, and produce (\texttt{token, principal}) pairs
@@ -86,13 +82,14 @@ to decrypt $p$'s data tokens produced from applying $d$.
 & \multicolumn{2}{c}{\textbf{$d$ Tokens}}\\
 \textbf{Client}& \textbf{Global} & \textbf{Private to $p$}\\
 \hline
-{Authenticated as $q \neq p$} & \checkmark & \\
-{Authenticated as $p$} & \checkmark & \checkmark
+    {Authenticated as $q \neq p$, has \privk{q}} & \checkmark & \\
+    {Authenticated as $p$, has \privk{p}} & \checkmark & \checkmark\\
 \end{tabular}
 \vspace{6pt}
 \caption{Client access to disguise $d$'s tokens, depending the client's authentication and the state of the tokens.}
 \label{tab:access}
 \end{table}
+
 Table~\ref{tab:access} illustrates which clients can access a disguise $d$'s tokens, depending on
 how the client is authorized, and the state of the tokens.
 
@@ -100,12 +97,13 @@ how the client is authorized, and the state of the tokens.
 \noindent\textbf{\emph{Hiding Private Token Metadata.}}
 With \sys's design, token metadata about which principals own which tokens can leak in two ways:
 \begin{enumerate}
-    \item \emph{Which disguises have applied to a principal $p$:} If an adversary learns that \symk{pd} exists for $p$ and $d$, then an adversary knows that $d$ updated some data associated with $p$ (and produced a token
+\item \emph{Which disguises have applied to a principal $p$:} If an adversary learns that \symk{pd} exists for $p$ and $d$, then an adversary knows that $d$ updated some data associated with $p$ (and produced a token
         recording the update).
-    \item \emph{Which disguises decorrelated $p$'s data:} The number of \tpriv{pdq} token ciphertexts associated
-        with principal $p$ leaks information about the number of decorrelating disguises applied to $p$'s data.
-    \item \emph{How much data of $p$'s has been disguise:} If an adversary can differentiate between
+\item \emph{How much data of $p$'s has been disguised:} If an adversary can differentiate between
         token ciphertexts belonging to different principals, then the adversary learns how many tokens belong to each principal.
+\item \emph{Which disguises decorrelated $p$'s data:} The number of \tpriv{pdq} token ciphertexts associated
+        with principal $p$ leaks information about the number of decorrelating disguises applied to $p$'s data.
+
 \end{enumerate}
 
 \noindent
@@ -153,7 +151,7 @@ to that principal.
 \lyt{This also puts a lot more work on the client to remember disguise pointer, and requires the
 client to be online.}
 
-\vspace{6pt}\noindent\textbf{(2) Token Ciphertext Storage.}
+\vspace{6pt}\noindent\textbf{(2) \tdata{} Token Ciphertext Storage.}
 \sys must hide which token ciphertexts correspond to which principals.  Naively, \sys can store
 all ciphertexts in one bag; in order to determine which ciphertexts a client may access, the client
 provides the decrypted \symk{pd} and \sys tries to decrypt every ciphertext in the bag. This clearly
@@ -177,6 +175,10 @@ exist.
 Because \tokls{pd} tails point to (real or dummy) token ciphertexts, an adversary learns nothing
 about the token contents or how many tokens are associated with a principal.
 
+\vspace{6pt}\noindent\textbf{(3) \tpriv{} Token Ciphertext Storage.}
+\lyt{For this, we would need to store in a linked list, each node would have to be sent one at a
+time to the client because each token is encrypted with \pubk{p}}.
+
 %-------------------------------------------------------------------------------
 \subsection{Does this design achieve our security goals?}
 \label{sec:achievegoals}
@@ -186,16 +188,17 @@ about the token contents or how many tokens are associated with a principal.
 reverse a disguise, achieving security goal (1).
 
 \vspace{6pt}\noindent\textbf{\emph{(2) Security of Private Disguise Tokens.}}
-Our design requires \sys to encrypt private tokens associated with $p$ with a symmetric key
+Our design requires \sys to encrypt private \tdata{} tokens associated with $p$ with a symmetric key
 \symk{pd} for each disguise $d$. \sys then encrypts \symk{pd} with public key \pubk{p}.  
 A client needs to prove it has \privk{p} by decrypting \symk{pd}, which only then allows decryption
 of $p$'s private tokens of disguise $d$, achieving our goal to restrict access to $p$'s private
 tokens.
+
+Each private \privk{pdq} is encrypted with \pubk{p}, and thus also requires a client to prove it has
+\privk{p} before the client can gain access to $q$'s private tokens.
 %\lyt{Not mentioning the strawman solution that encrypts each token with \pubk{p} for now.}
 
-
 \vspace{6pt}\noindent\textbf{\emph{(3) Security of Private Disguise Token Metadata.}}
-We describe how \sys both hides which principals' data has
+We describe how \sys hides which principals' data has
 been disguised by inserting dummy \symk{pd} ciphertexts for all principals $p$ not disguised by $d$;
-and how \sys ensures it does not know how many private tokens belong to $p$ by storing all private token
-ciphertexts in encrypted linked-lists.
+and how \sys ensures it does not know how many private tokens (either \tdata{} or \tpriv{} tokens) belong to $p$ by storing all private token ciphertexts in encrypted linked-lists.
