@@ -77,14 +77,14 @@ A disguisable application system operates on two categories of data:
 \label{tab:accpriv}
 \end{table}
 
-\vspace{6pt}\noindent\textbf{\emph{Snapshot Threat Model.}}
-An attacker can compromise the web application at any point and gain full access to 
-a snapshot of the backend server.
-\lyt{Assuming this allows us to not worry about leaking disguised information that is revealed only during
-disguise application (e.g., the private keys of pseudoprincipals.) This also allows us to simplify
-the design for metadata privacy, if we still want that.}
-
-\vspace{6pt}\noindent\textbf{\emph{Compromise-and-Sit Threat Model.}}
+%\vspace{6pt}\noindent\textbf{\emph{Snapshot Threat Model.}}
+%An attacker can compromise the web application at any point and gain full access to 
+%a snapshot of the backend server.
+%\lyt{Assuming this allows us to not worry about leaking disguised information that is revealed only during
+%disguise application (e.g., the private keys of pseudoprincipals.) This also allows us to simplify
+%the design for metadata privacy, if we still want that.}
+%
+%\vspace{6pt}\noindent\textbf{\emph{Compromise-and-Sit Threat Model.}}
 An attacker compromises the web application and gains full access to the backend server.
 %
 This means that the attacker can access any data stored on the server, perform any actions the
@@ -120,14 +120,15 @@ created prior to time of compromise, even if authenticated as $p$.
 
 \vspace{6pt}\noindent\textbf{\emph{(3) Security of Private Disguise Token Metadata.}}
 Only a client with private key \privk{p} knows how many private disguise tokens correspond to
-principal $p$. An attacker cannot learn how many tokens are associated with any principal prior to
-time of compromise, unlesss the principal authorizes access to these tokens.
+principal $p$, and which disguises have produced private tokens for $p$.
+%
+An attacker cannot learn the set of applied disguises or the number of private tokens associated
+with any principal prior to time of compromise, unless the principal authorizes access to their
+disguise tokens.
 
-\lyt{Do we want to hide how many/which disguises have been applied to a principal's data even if the
-principal authorizes access to (one or more) disguise tokens? 
-If $p$ authorizes access to a single
-disguise's tokens, should the adversary learn nothing about what other disguises have been applied to
-$p$'s data?}
+\lyt{Importantly, once a principal reveals some tokens, all metadata privacy is lost!  Do we want to
+hide how many/which disguises have been applied to a principal's data even if the principal
+authorizes access to (one or more) disguise tokens?}
 
 \vspace{6pt}\noindent
 Table~\ref{tab:accpriv} illustrates our goal's data access policies.
