@@ -140,6 +140,8 @@ Table~\ref{tab:accpriv} illustrates our goal's data access policies.
     \item Security of $p$'s private tokens and token metadata if \privk{p} is compromised.  
     \item Security of $p$'s private tokens and token metadata if an authorized client with \privk{p}
         grants \sys access to these tokens. 
+        \lyt{As stated above, this allows our design to expose which disguises were applied to a
+        principal once a principal authorizes access to any of their tokens.}
     \item Any privacy guarantees about information left after disguise application: \sys 
         simply applies a disguise according to the developer-provided specification.
         For example, a disguise may not modify data that leaks the writer's name (e.g., by leaving post content unmodified)
