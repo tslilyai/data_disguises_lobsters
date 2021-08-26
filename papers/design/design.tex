@@ -101,8 +101,9 @@ how the client is authorized, and the state of the tokens.
 With \sys's design, token metadata about which principals own which tokens can leak in two ways:
 \begin{enumerate}
     \item \emph{Which disguises have applied to a principal $p$:} If an adversary learns that \symk{pd} exists for $p$ and $d$, then an adversary knows that $d$ updated some data associated with $p$ (and produced a token
-        recording the update). Similarly, the number of \tpriv{pdq} token ciphertexts associated
-        with prinicipal $p$ leaks information about the number of decorrelating disguises applied to $p$'s data.
+        recording the update).
+    \item \emph{Which disguises decorrelated $p$'s data:} The number of \tpriv{pdq} token ciphertexts associated
+        with principal $p$ leaks information about the number of decorrelating disguises applied to $p$'s data.
     \item \emph{How much data of $p$'s has been disguise:} If an adversary can differentiate between
         token ciphertexts belonging to different principals, then the adversary learns how many tokens belong to each principal.
 \end{enumerate}
