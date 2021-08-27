@@ -4,7 +4,6 @@ extern crate ordered_float;
 use log::{debug, warn};
 use mysql::prelude::*;
 use sql_parser::ast::*;
-use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use rsa::{RsaPublicKey};
 use std::*;
@@ -51,21 +50,21 @@ impl EdnaClient {
         drop(stats);
     }
 
-    pub fn register_principal(&mut self, uid: u64, pubkey: &RsaPublicKey) {
-        self.disguiser.register_principal(uid, pubkey);
+    pub fn register_principal(&mut self, uid: u64, email: String, pubkey: &RsaPublicKey) {
+        self.disguiser.register_principal(uid, email, pubkey);
     }
 
-    pub fn get_encrypted_symkeys_of_disguises(
+    pub fn get_enc_symkeys_of_capabilities_and_pseudoprincipals(
         &mut self,
-        uid: UID,
-        dids: Vec<DID>,
-    ) -> Vec<tokens::EncListSymKey> {
-        self.disguiser.get_encrypted_symkeys_of_disguises(uid, dids)
+        caps: Vec<tokens::Capability>,
+        pseudouids: Vec<UID>,
+    ) -> Vec<(tokens::EncSymKey, tokens::Capability)> {
+        self.disguiser.get_enc_symkeys_with_capabilities_and_pseudoprincipals(caps, pseudouids)
     }
 
     pub fn get_tokens_of_disguise_keys(
         &mut self,
-        keys: HashSet<tokens::ListSymKey>,
+        keys: Vec<(tokens::SymKey, tokens::Capability)>,
     ) -> Vec<tokens::Token> {
         self.disguiser.get_tokens_of_disguise_keys(keys, false)
     }
@@ -73,7 +72,7 @@ impl EdnaClient {
     pub fn apply_disguise(
         &mut self,
         disguise: Arc<disguise::Disguise>,
-        keys: HashSet<tokens::ListSymKey>,
+        keys: Vec<(tokens::SymKey, tokens::Capability)>,
     ) -> Result<(), mysql::Error> {
         let tokens = self.disguiser.get_tokens_of_disguise_keys(keys, true);
         self.disguiser.apply(disguise.clone(), tokens)?;
@@ -84,7 +83,7 @@ impl EdnaClient {
     pub fn reverse_disguise(
         &mut self,
         disguise: Arc<disguise::Disguise>,
-        keys: HashSet<tokens::ListSymKey>,
+        keys: Vec<(tokens::SymKey, tokens::Capability)>,
     ) -> Result<(), mysql::Error> {
         let tokens = self.disguiser.get_tokens_of_disguise_keys(keys, true);
         self.disguiser.reverse(disguise.clone(), tokens)?;

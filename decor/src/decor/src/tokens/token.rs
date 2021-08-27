@@ -16,12 +16,6 @@ pub const PRIV_KEY: u64 = 4;
 pub const REMOVE_TOKEN: u64 = 5;
 pub const MODIFY_TOKEN: u64 = 6;
 
-#[derive(Clone)]
-pub enum TokenType {
-    PrivKey,
-    Data,
-}
-
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Token {
     // metadata set by Edna

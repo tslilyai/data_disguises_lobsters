@@ -84,29 +84,32 @@ impl Disguiser {
         }
     }
 
-    pub fn register_principal(&mut self, uid: u64, pubkey: &RsaPublicKey) {
+    pub fn register_principal(&mut self, uid: u64, email: String, pubkey: &RsaPublicKey) {
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        locked_token_ctrler.register_principal(uid, pubkey);
+        locked_token_ctrler.register_principal(uid, email, pubkey);
     }
 
-    pub fn get_encrypted_symkeys_of_disguises(
+    pub fn get_enc_symkeys_with_capabilities_and_pseudoprincipals(
         &mut self,
-        uid: UID,
-        dids: Vec<DID>,
-    ) -> Vec<EncListSymKey> {
+        caps: Vec<u64>,
+        pseudo_uids: Vec<UID>,
+    ) -> Vec<(EncSymKey, Capability)> {
         let mut encsymkeys = vec![];
         let locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        for d in dids {
-            if let Some(esk) = locked_token_ctrler.get_encrypted_symkey(uid, d) {
-                encsymkeys.push(esk);
+        for c in caps {
+            if let Some(esk) = locked_token_ctrler.get_enc_symkey(c) {
+                encsymkeys.push((esk, c));
             }
+        }
+        for puid in pseudo_uids {
+            locked_token_ctrler.get_pseudouid_enc_symkeys(puid);
         }
         encsymkeys
     }
 
     pub fn get_tokens_of_disguise_keys(
         &mut self,
-        keys: HashSet<ListSymKey>,
+        keys: Vec<(SymKey, Capability)>,
         for_disguise_action: bool,
     ) -> Vec<tokens::Token> {
         self.token_ctrler
@@ -517,7 +520,7 @@ impl Disguiser {
                                         locked_token_ctrler.insert_global_token(&mut token);
                                     } else {
                                         locked_token_ctrler
-                                            .insert_user_token(TokenType::Data, &mut token);
+                                            .insert_user_data_token(&mut token);
                                     }
                                     drop(locked_token_ctrler);
                                 }
@@ -632,7 +635,7 @@ impl Disguiser {
     fn end_disguise_action(&self) {
         self.to_insert.lock().unwrap().clear();
         self.items.write().unwrap().clear();
-        self.token_ctrler.lock().unwrap().clear_symkeys();
+        self.token_ctrler.lock().unwrap().clear_tmp();
         self.tokens_to_modify.write().unwrap().clear();
         warn!("Disguiser: clear disguise records");
     }
@@ -679,7 +682,7 @@ fn modify_item(
         let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
         update_token.uid = u64::from_str(&owner_uid).unwrap();
         if !global {
-            token_ctrler.insert_user_token(TokenType::Data, &mut update_token);
+            token_ctrler.insert_user_data_token(&mut update_token);
         } else {
             token_ctrler.insert_global_token(&mut update_token);
         }
@@ -787,7 +790,7 @@ fn decor_item(
         let old_uid = get_value_of_col(&i, &owner_col).unwrap();
         decor_token.uid = u64::from_str(&old_uid).unwrap();
         if !global {
-            token_ctrler.insert_user_token(TokenType::Data, &mut decor_token);
+            token_ctrler.insert_user_data_token(&mut decor_token);
         } else {
             token_ctrler.insert_global_token(&mut decor_token);
         }

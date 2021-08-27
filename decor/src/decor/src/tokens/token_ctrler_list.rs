@@ -6,6 +6,7 @@ use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
 use log::warn;
 use rand::{rngs::OsRng, RngCore};
+use rsa::pkcs1::FromRsaPrivateKey;
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -13,110 +14,77 @@ use std::hash::{Hash, Hasher};
 use std::iter::repeat;
 use std::sync::{Arc, RwLock};
 
-pub type Capability = u64;
 const RSA_BITS: usize = 2048;
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct EncSymKey {
+#[derive(Clone)]
+pub struct EncListTail {
+    pub tail: u64,
+    pub list_enc_symkey: EncListSymKey,
+}
+
+#[derive(Clone)]
+pub struct EncListSymKey {
     pub enc_symkey: Vec<u8>,
     pub uid: UID,
     pub did: DID,
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct SymKey {
-    pub symkey: Vec<u8>,
+#[derive(Clone, Eq, PartialEq)]
+pub struct ListSymKey {
     pub uid: UID,
     pub did: DID,
+    pub symkey: Vec<u8>,
 }
 
-impl Hash for SymKey {
+impl Hash for ListSymKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.uid.hash(state);
         self.did.hash(state);
     }
 }
 
+#[derive(Clone)]
+pub struct PrincipalData {
+    // each principal has two lists of encrypted tokens,
+    // sharded by disguise ID
+    cd_lists: HashMap<DID, EncListTail>,
+    privkey_lists: HashMap<DID, EncListTail>,
+    pubkey: RsaPublicKey,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EncDataToken {
+pub struct EncryptedToken {
     token_data: Vec<u8>,
     iv: Vec<u8>,
 }
 
 #[derive(Clone)]
-pub struct PrincipalData {
-    enc_privkey_tokens: Vec<Vec<u8>>,
-    pubkey: RsaPublicKey,
-    email: String,
-    // only for pseudoprincipals! 
-    capabilities: Vec<Capability>,
-}
-
-#[derive(Clone)]
 pub struct TokenCtrler {
     // principal tokens are stored indexed by some large random num
-    pub principal_data: HashMap<UID, PrincipalData>,
+    pub principal_tokens: HashMap<UID, PrincipalData>,
 
-    // (p,d) capability -> set of token ciphertext for principal+disguise
-    pub data_tokens_map: HashMap<Capability, Vec<EncDataToken>>,
-    
-    // (p,d) capability -> encrypted symkey for principal+disguise
-    pub enc_symkeys_map: HashMap<Capability, EncSymKey>,
+    // a large array of encrypted tokens indexed by random number
+    pub user_vaults_map: HashMap<u64, EncryptedToken>,
 
-    pub global_tokens: HashMap<(DID, UID), Arc<RwLock<HashSet<Token>>>>,
+    pub global_vault: HashMap<(DID, UID), Arc<RwLock<HashSet<Token>>>>,
 
-    // used for randomness stuff
     pub rng: OsRng,
     pub hasher: Sha256,
 
-    // used to temporarily store keys used during disguises
-    pub tmp_symkeys: HashMap<(UID, DID), SymKey>,
-    pub tmp_capabilities: HashMap<(UID, DID), Capability>,
+    pub tmp_symkeys: HashMap<(UID, DID), ListSymKey>,
 }
 
 impl TokenCtrler {
     pub fn new() -> TokenCtrler {
         TokenCtrler {
-            principal_data: HashMap::new(),
-            data_tokens_map: HashMap::new(),
-            enc_symkeys_map: HashMap::new(),
-            global_tokens: HashMap::new(),
+            principal_tokens: HashMap::new(),
+            user_vaults_map: HashMap::new(),
+            global_vault: HashMap::new(),
             rng: OsRng,
             hasher: Sha256::new(),
             tmp_symkeys: HashMap::new(),
-            tmp_capabilities: HashMap::new(),
         }
-    }
-
-    pub fn register_principal(&mut self, uid: UID, email: String, pubkey: &RsaPublicKey) {
-        warn!("Registering principal {}", uid);
-        self.principal_data.insert(
-            uid,
-            PrincipalData {
-                enc_privkey_tokens: vec![],
-                pubkey: pubkey.clone(),
-                email: email,
-                capabilities: vec![],
-            },
-        );
-    }
-
-    pub fn register_anon_principal(&mut self, uid: UID, anon_uid: UID, did: DID) -> UID {
-        let private_key =
-            RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
-        let pub_key = RsaPublicKey::from(&private_key);
-
-        // save the anon principal as a new principal with a public key
-        // and initially empty token vaults
-        self.register_principal(anon_uid, String::new(), &pub_key);
-        let mut token: Token = Token::new_privkey_token(uid, did, anon_uid, &private_key);
-        self.insert_privkey_token(&mut token);
-        anon_uid
-    }
-
-    pub fn remove_anon_principal(&mut self, anon_uid: UID) {
-        self.principal_data.remove(&anon_uid);
     }
 
     pub fn insert_global_token(&mut self, token: &mut Token) {
@@ -126,43 +94,25 @@ impl TokenCtrler {
             "Inserting global token disguise {} user {}",
             token.did, token.uid
         );
-        if let Some(user_disguise_tokens) = self.global_tokens.get_mut(&(token.did, token.uid)) {
+        if let Some(user_disguise_tokens) = self.global_vault.get_mut(&(token.did, token.uid)) {
             let mut tokens = user_disguise_tokens.write().unwrap();
             tokens.insert(token.clone());
         } else {
             let mut hs = HashSet::new();
             hs.insert(token.clone());
-            self.global_tokens
+            self.global_vault
                 .insert((token.did, token.uid), Arc::new(RwLock::new(hs)));
         }
     }
 
-    pub fn insert_privkey_token(&mut self, token: &mut Token) {
-        assert!(token.uid != 0);
-        token.is_global = false;
-
-        let p = self
-            .principal_data
-            .get_mut(&token.uid)
-            .expect("no user with uid found?");
-
-        let tokbytes = serialize_to_bytes(&token);
-        let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        let enc_pk = p
-            .pubkey
-            .encrypt(&mut self.rng, padding, &tokbytes[..])
-            .expect("failed to encrypt");
-        p.enc_privkey_tokens.push(enc_pk);
-    }
-
-    pub fn insert_user_data_token(&mut self, token: &mut Token) {
+    pub fn insert_user_token(&mut self, token_type: TokenType, token: &mut Token) {
         assert!(token.uid != 0);
         token.is_global = false;
         let did = token.did;
         let uid = token.uid;
         warn!("inserting user token {:?} with uid {} did {}", token, uid, did);
         let p = self
-            .principal_data
+            .principal_tokens
             .get_mut(&uid)
             .expect("no user with uid found?");
 
@@ -174,49 +124,57 @@ impl TokenCtrler {
             None => {
                 let mut key: Vec<u8> = repeat(0u8).take(16).collect();
                 self.rng.fill_bytes(&mut key[..]);
-                
-                let padding = PaddingScheme::new_pkcs1v15_encrypt();
-                let enc_symkey = p
-                    .pubkey
-                    .encrypt(&mut self.rng, padding, &key[..])
-                    .expect("failed to encrypt");
-
-                // insert key into enc symkeys map
-                let cap = self.rng.next_u64();
-                assert_eq!(self.enc_symkeys_map.insert(cap, EncSymKey {
-                    enc_symkey: enc_symkey,
-                    uid: uid,
-                    did: did,
-                }), None);
-                
-                // temporarily save symkey for future use
-                assert_eq!(self.tmp_symkeys.insert(
-                    (uid, did), SymKey {
+                self.tmp_symkeys.insert(
+                    (uid, did),
+                    ListSymKey {
                         symkey: key.clone(),
                         uid: uid,
-                        did:did,
-                }), None);
-
-                // temporarily save cap for future use
-                assert_eq!(self.tmp_capabilities.insert(
-                    (uid, did), cap
-                ), None);
+                        did: did,
+                    },
+                );
                 key
             }
         };
 
-        let cap = match self.tmp_capabilities.get(&(uid, did)) {
-            Some(c) => c,
-            // otherwise generate it (and save it temporarily)
-            None => unimplemented!("Capability should have been generated with symkey?"),
-        };
-
-        // give the token a random nonce and some id
+        // give the token a random nonce
         token.nonce = self.rng.next_u64();
-        token.token_id = self.rng.next_u64();
 
-        // encrypt and add the token to the map of encrypted tokens corresponding to this
-        // capability
+        // insert encrypted token into list for principal
+        let next_token_ptr = self.rng.next_u64();
+        token.token_id = next_token_ptr;
+
+        let disguise_lists = match token_type {
+            TokenType::Data => &mut p.cd_lists,
+            TokenType::PrivKey => &mut p.privkey_lists,
+        };
+        match disguise_lists.get_mut(&did) {
+            // if the list exists, just append and set the tail
+            Some(tokenls) => {
+                token.last_tail = tokenls.tail;
+                tokenls.tail = next_token_ptr;
+            }
+            // if the list doesn't exist, also encrypt and set the symmetric key
+            None => {
+                // XXX the last tail could legit be 0, although this is so improbable
+                token.last_tail = 0;
+                let padding = PaddingScheme::new_pkcs1v15_encrypt();
+                let enc_symkey = p
+                    .pubkey
+                    .encrypt(&mut self.rng, padding, &symkey[..])
+                    .expect("failed to encrypt");
+                let tokenls = EncListTail {
+                    tail: next_token_ptr,
+                    list_enc_symkey: EncListSymKey {
+                        enc_symkey: enc_symkey,
+                        uid: uid,
+                        did: did,
+                    },
+                };
+                disguise_lists.insert(did, tokenls);
+            }
+        }
+
+        // encrypt and add the token to the encrypted tokens array
         let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
         self.rng.fill_bytes(&mut iv[..]);
         let cipher = Aes128Cbc::new_from_slices(&symkey, &iv).unwrap();
@@ -229,28 +187,55 @@ impl TokenCtrler {
             symkey,
             iv
         );
-        let enctok = EncDataToken {
-            token_data: encrypted,
-            iv: iv,
-        };
-        match self.data_tokens_map.get_mut(&cap) {
-            Some(ts) => {
-                ts.push(enctok);
-            },
-            None => {
-                self.data_tokens_map.insert(*cap, vec![enctok]);
-            },
-        }
+        // ensure that no token existed at this pointer before
+        assert_eq!(
+            self.user_vaults_map.insert(
+                next_token_ptr,
+                EncryptedToken {
+                    token_data: encrypted,
+                    iv: iv,
+                }
+            ),
+            None
+        );
     }
 
     // XXX note this doesn't allow for concurrent disguising right now
-    pub fn clear_tmp(&mut self) {
+    pub fn clear_symkeys(&mut self) {
         self.tmp_symkeys.clear();
-        self.tmp_capabilities.clear();
+    }
+
+    pub fn register_principal(&mut self, uid: u64, pubkey: &RsaPublicKey) {
+        warn!("Registering principal {}", uid);
+        self.principal_tokens.insert(
+            uid,
+            PrincipalData {
+                cd_lists: HashMap::new(),
+                privkey_lists: HashMap::new(),
+                pubkey: pubkey.clone(),
+            },
+        );
+    }
+
+    pub fn register_anon_principal(&mut self, uid: UID, anon_uid: UID, did: DID) -> u64 {
+        let private_key =
+            RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
+        let pub_key = RsaPublicKey::from(&private_key);
+
+        // save the anon principal as a new principal with a public key
+        // and initially empty token vaults
+        self.register_principal(anon_uid, &pub_key);
+        let mut token: Token = Token::new_privkey_token(uid, did, anon_uid, &private_key);
+        self.insert_user_token(TokenType::PrivKey, &mut token);
+        anon_uid
+    }
+
+    pub fn remove_anon_principal(&mut self, anon_uid: UID) {
+        self.principal_tokens.remove(&anon_uid);
     }
     
     pub fn check_global_token_for_match(&mut self, token: &Token) -> (bool, bool) {
-        if let Some(global_tokens) = self.global_tokens.get(&(token.did, token.uid)) {
+        if let Some(global_tokens) = self.global_vault.get(&(token.did, token.uid)) {
             let tokens = global_tokens.read().unwrap();
             for t in tokens.iter() {
                 if t.token_id == token.token_id {
@@ -274,14 +259,15 @@ impl TokenCtrler {
         let mut found = false;
         
         // delete token 
-        if let Some(global_tokens) = self.global_tokens.get(&(token.did, token.uid)) {
+        if let Some(global_tokens) = self.global_vault.get(&(token.did, token.uid)) {
             let mut tokens = global_tokens.write().unwrap();
             // just insert the token to replace the old one
             tokens.remove(&token);
             found = true;
         }
         // log token for disguise that marks removal
-        self.insert_user_data_token(
+        self.insert_user_token(
+            TokenType::Data,
             &mut Token::new_token_remove(uid, did, token),
         );
         return found;
@@ -295,14 +281,15 @@ impl TokenCtrler {
     ) -> bool {
         assert!(new_token.is_global);
         let mut found = false;
-        if let Some(global_tokens) = self.global_tokens.get(&(new_token.did, new_token.uid)) {
+        if let Some(global_tokens) = self.global_vault.get(&(new_token.did, new_token.uid)) {
             let mut tokens = global_tokens.write().unwrap();
             // just insert the token to replace the old one
             tokens.insert(new_token.clone());
             found = true;
         }
         if let Some((uid, did)) = record_token_for_disguise {
-            self.insert_user_data_token(
+            self.insert_user_token(
+                TokenType::Data,
                 &mut Token::new_token_modify(uid, did, old_token, new_token),
             );
         }
@@ -315,7 +302,7 @@ impl TokenCtrler {
     ) -> bool {
         let mut found = false;
         if token.is_global {
-            if let Some(global_tokens) = self.global_tokens.get(&(token.did, token.uid)) {
+            if let Some(global_tokens) = self.global_vault.get(&(token.did, token.uid)) {
                 let mut tokens = global_tokens.write().unwrap();
                 // just insert the token to replace the old one
                 let mut t = token.clone();
@@ -331,45 +318,57 @@ impl TokenCtrler {
             Some(sk) => sk,
             None => unimplemented!("Token to update inaccessible!"),
         };
-        let cap = match self.tmp_capabilities.get(&(token.uid, token.did)) {
-            Some(c) => c,
-            None => unimplemented!("Token to update inaccessible!"),
-        };
 
-        // iterate through user's encrypted datatokens
-        if let Some(tokenls) = self.data_tokens_map.get_mut(&cap) {
-            for (i, enc_token) in tokenls.iter_mut().enumerate() {
-                // decrypt token with symkey provided by client
-                warn!(
-                    "Got cd data of len {} with symkey {:?}-{:?}",
-                    enc_token.token_data.len(),
-                    symkey.symkey,
-                    enc_token.iv
-                );
-                let cipher =
-                    Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
-                let plaintext = cipher.decrypt_vec(&mut enc_token.token_data).unwrap();
-                let mut t = Token::token_from_bytes(plaintext);
-                if t.token_id == token.token_id {
-                    t.revealed = true;
-                    // XXX do we need a new IV?
-                    let cipher =
-                        Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
-                    let plaintext = serialize_to_bytes(&t);
-                    let encrypted = cipher.encrypt_vec(&plaintext);
-                    let iv = enc_token.iv.clone();
-                    assert_eq!(encrypted.len() % 16, 0);
-                    // replace token with updated token
-                    tokenls[i] = EncDataToken {
-                        token_data: encrypted,
-                        iv: iv,
-                    };
-                    warn!(
-                        "token uid {} disguise {} revealed token {}",
-                        token.uid, token.did, token.token_id,
-                    );
-                    found = true;
-                    break;
+        let p = self
+            .principal_tokens
+            .get(&symkey.uid)
+            .expect("no user with uid found?");
+
+        // iterate through user's encrypted correlation/datatokens
+        if let Some(tokenls) = p.cd_lists.get(&symkey.did) {
+            let mut tail_ptr = tokenls.tail;
+            loop {
+                match self.user_vaults_map.get_mut(&tail_ptr) {
+                    Some(enc_token) => {
+                        // decrypt token with symkey provided by client
+                        warn!(
+                            "Got cd data of len {} with symkey {:?}-{:?}",
+                            enc_token.token_data.len(),
+                            symkey.symkey,
+                            enc_token.iv
+                        );
+                        let cipher =
+                            Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
+                        let plaintext = cipher.decrypt_vec(&mut enc_token.token_data).unwrap();
+                        let mut t = Token::token_from_bytes(plaintext);
+                        if t.token_id == token.token_id {
+                            t.revealed = true;
+                            // XXX do we need a new IV?
+                            let cipher =
+                                Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
+                            let plaintext = serialize_to_bytes(&t);
+                            let encrypted = cipher.encrypt_vec(&plaintext);
+                            let iv = enc_token.iv.clone();
+                            assert_eq!(encrypted.len() % 16, 0);
+                            self.user_vaults_map.insert(
+                                tail_ptr,
+                                EncryptedToken {
+                                    token_data: encrypted,
+                                    iv: iv,
+                                },
+                            );
+                            warn!(
+                                "token uid {} disguise {} revealed token {}",
+                                token.uid, token.did, token.token_id,
+                            );
+                            found = true;
+                            break;
+                        }
+
+                        // update which encrypted token is to be next in list
+                        tail_ptr = token.last_tail;
+                    }
+                    None => break,
                 }
             }
         }
@@ -377,82 +376,154 @@ impl TokenCtrler {
     }
 
     pub fn get_global_tokens(&self, uid: UID, did: DID) -> Vec<Token> {
-        if let Some(global_tokens) = self.global_tokens.get(&(did, uid)) {
+        if let Some(global_tokens) = self.global_vault.get(&(did, uid)) {
             let tokens = global_tokens.read().unwrap();
             return tokens.clone().into_iter().filter(|t| !t.revealed).collect();
         }
         vec![]
     }
 
-    pub fn get_tokens(&mut self, symkeys: &Vec<(SymKey, Capability)>, for_disguise: bool) -> Vec<Token> {
-        let mut tokens = vec![];
+    pub fn get_tokens(&mut self, symkeys: &HashSet<ListSymKey>, save_keys: bool) -> Vec<Token> {
+        let mut cd_tokens = vec![];
 
-        for (symkey, cap) in symkeys {
-            if for_disguise {
+        for symkey in symkeys {
+            if save_keys {
                 // save symkeys for later in the disguise
                 self.tmp_symkeys
                     .insert((symkey.uid, symkey.did), symkey.clone());
-                self.tmp_capabilities
-                    .insert((symkey.uid, symkey.did), *cap);
             }
+
+            let p = self
+                .principal_tokens
+                .get(&symkey.uid)
+                .expect("no user with uid found?");
+
+            // XXX should we check that client didn't forge symkey?
+            // we would need to remember padding scheme
 
             // get all of this user's globally accessible tokens
-            tokens.append(&mut self.get_global_tokens(symkey.uid, symkey.did));
-            warn!("cd tokens global pushed to len {}", tokens.len());
+            cd_tokens.append(&mut self.get_global_tokens(symkey.uid, symkey.did));
+            warn!("cd tokens global pushed to len {}", cd_tokens.len());
 
             // get all of this user's encrypted correlation/datatokens
-            if let Some(tokenls) = self.data_tokens_map.get_mut(&cap) {
-                for enc_token in tokenls {
-                    // decrypt token with symkey provided by client
-                    warn!(
-                        "Got cd data of len {} with symkey {:?}-{:?}",
-                        enc_token.token_data.len(),
-                        symkey.symkey,
-                        enc_token.iv
-                    );
-                    let cipher =
-                        Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
-                    let plaintext = cipher.decrypt_vec(&mut enc_token.token_data).unwrap();
-                    let token = Token::token_from_bytes(plaintext);
+            if let Some(tokenls) = p.cd_lists.get(&symkey.did) {
+                let mut tail_ptr = tokenls.tail;
+                loop {
+                    match self.user_vaults_map.get_mut(&tail_ptr) {
+                        Some(enc_token) => {
+                            // decrypt token with symkey provided by client
+                            warn!(
+                                "Got cd data of len {} with symkey {:?}-{:?}",
+                                enc_token.token_data.len(),
+                                symkey.symkey,
+                                enc_token.iv
+                            );
+                            let cipher =
+                                Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
+                            let plaintext = cipher.decrypt_vec(&mut enc_token.token_data).unwrap();
+                            let token = Token::token_from_bytes(plaintext);
 
-                    // add token to list only if it hasn't be revealed before
-                    if !token.revealed {
-                        tokens.push(token.clone());
+                            // add token to list only if it hasn't be revealed before
+                            if !token.revealed {
+                                cd_tokens.push(token.clone());
+                            }
+                            warn!(
+                                "cd tokens uid {} disguise {} pushed to len {}",
+                                token.uid,
+                                token.did,
+                                cd_tokens.len()
+                            );
+
+                            // update which encrypted token is to be next in list
+                            tail_ptr = token.last_tail;
+                        }
+                        None => break,
                     }
-                    warn!(
-                        "tokens uid {} disguise {} pushed to len {}",
-                        token.uid,
-                        token.did,
-                        tokens.len()
-                    );
                 }
             }
-        }
-        tokens
-    }
 
-    pub fn get_pseudouid_enc_symkeys(&self, puid: UID) -> Vec<(EncSymKey, Capability)> {
-        let p = self
-            .principal_data
-            .get(&puid)
-            .expect("no user with uid found?");
-        assert!(p.email.is_empty());
+            // get all privkey tokens, even from other disguises
+            let mut privkey_tokens = vec![];
+            if let Some(tokenls) = p.privkey_lists.get(&symkey.did) {
+                let mut tail_ptr = tokenls.tail;
+                loop {
+                    match self.user_vaults_map.get_mut(&tail_ptr) {
+                        Some(enc_token) => {
+                            // decrypt token with symkey provided by client
+                            warn!(
+                                "Got privkey data of len {} with symkey {:?}-{:?}",
+                                enc_token.token_data.len(),
+                                symkey.symkey,
+                                enc_token.iv
+                            );
+                            let cipher =
+                                Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
+                            let plaintext = cipher.decrypt_vec(&mut enc_token.token_data).unwrap();
+                            let token = Token::token_from_bytes(plaintext);
 
-        let mut esks = vec![];
-        for c in &p.capabilities {
-            match self.enc_symkeys_map.get(&c) {
-                Some(esk) =>  esks.push((esk.clone(), *c)),
-                None => (),
+                            // add token to list
+                            privkey_tokens.push(token.clone());
+
+                            // go to next encrypted token in list
+                            tail_ptr = token.last_tail;
+                        }
+                        None => break,
+                    }
+                }
             }
+
+            // use privkey tokens to decrypt symkeys of anon principles, and recursively get all of their cd_tokens
+            let mut new_symkeys = HashSet::new();
+            for pk_token in &privkey_tokens {
+                let priv_key = RsaPrivateKey::from_pkcs1_der(&pk_token.priv_key).unwrap();
+                new_symkeys.extend(self.get_all_principal_symkeys(pk_token.new_uid, priv_key));
+            }
+            cd_tokens.extend(self.get_tokens(&new_symkeys, save_keys));
+            warn!("cd tokens extended to len {}", cd_tokens.len());
         }
-        esks
+        cd_tokens
     }
 
-    pub fn get_enc_symkey(&self, cap: Capability) -> Option<EncSymKey> {
-        if let Some(esk) = self.enc_symkeys_map.get(&cap) {
-            return Some(esk.clone());
+    pub fn get_encrypted_symkey(&self, uid: UID, did: DID) -> Option<EncListSymKey> {
+        let p = self
+            .principal_tokens
+            .get(&uid)
+            .expect("no user with uid found?");
+        if let Some(tokenls) = p.cd_lists.get(&did) {
+            return Some(tokenls.list_enc_symkey.clone());
         }
         None
+    }
+
+    fn get_all_principal_symkeys(&self, uid: UID, priv_key: RsaPrivateKey) -> HashSet<ListSymKey> {
+        let mut symkeys = HashSet::new();
+        let p = self
+            .principal_tokens
+            .get(&uid)
+            .expect("no user with uid found?");
+        for (_, tokenls) in &p.cd_lists {
+            let padding = PaddingScheme::new_pkcs1v15_encrypt();
+            let symkey = priv_key
+                .decrypt(padding, &tokenls.list_enc_symkey.enc_symkey)
+                .expect("failed to decrypt");
+            symkeys.insert(ListSymKey {
+                uid: uid,
+                did: tokenls.list_enc_symkey.did,
+                symkey: symkey,
+            });
+        }
+        for (_, tokenls) in &p.privkey_lists {
+            let padding = PaddingScheme::new_pkcs1v15_encrypt();
+            let symkey = priv_key
+                .decrypt(padding, &tokenls.list_enc_symkey.enc_symkey)
+                .expect("failed to decrypt");
+            symkeys.insert(ListSymKey {
+                uid: uid,
+                did: tokenls.list_enc_symkey.did,
+                symkey: symkey,
+            });
+        }
+        symkeys
     }
 }
 
@@ -506,7 +577,7 @@ mod tests {
         );
         decor_token.uid = uid;
         ctrler.insert_global_token(&mut decor_token);
-        assert_eq!(ctrler.global_tokens.len(), 1);
+        assert_eq!(ctrler.global_vault.len(), 1);
         let tokens = ctrler.get_global_tokens(uid, did);
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0], decor_token);
@@ -547,13 +618,13 @@ mod tests {
             }],
         );
         decor_token.uid = uid;
-        ctrler.insert_user_data_token(&mut decor_token);
+        ctrler.insert_user_token(TokenType::Data, &mut decor_token);
         ctrler.clear_symkeys();
-        assert_eq!(ctrler.global_tokens.len(), 0);
+        assert_eq!(ctrler.global_vault.len(), 0);
 
         // check principal data
         let p = ctrler
-            .principal_data
+            .principal_tokens
             .get(&uid)
             .expect("failed to get user?");
         assert_eq!(pub_key, p.pubkey);
@@ -568,7 +639,7 @@ mod tests {
             .decrypt(padding, &cd_ls.list_enc_symkey.enc_symkey)
             .expect("failed to decrypt");
         let mut hs = HashSet::new();
-        hs.insert(SymKey {
+        hs.insert(ListSymKey {
             uid: cd_ls.list_enc_symkey.uid,
             did: cd_ls.list_enc_symkey.did,
             symkey: symkey,
@@ -581,7 +652,7 @@ mod tests {
     }
 
     #[test]
-    fn test_insert_user_data_token_multi() {
+    fn test_insert_user_token_multi() {
         init_logger();
         let mut ctrler = TokenCtrler::new();
 
@@ -623,18 +694,18 @@ mod tests {
                         }],
                     );
                     decor_token.uid = u;
-                    ctrler.insert_user_data_token(TokenType::Data, &mut decor_token);
+                    ctrler.insert_user_token(TokenType::Data, &mut decor_token);
                 }
             }
         }
-        assert_eq!(ctrler.global_tokens.len(), 0);
+        assert_eq!(ctrler.global_vault.len(), 0);
         ctrler.clear_symkeys();
         assert!(ctrler.tmp_symkeys.is_empty());
 
         for u in 1..iters {
             // check principal data
             let p = ctrler
-                .principal_data
+                .principal_tokens
                 .get(&(u))
                 .expect("failed to get user?")
                 .clone();
@@ -650,7 +721,7 @@ mod tests {
                     .decrypt(padding, &cd_ls.list_enc_symkey.enc_symkey)
                     .expect("failed to decrypt");
                 let mut hs = HashSet::new();
-                hs.insert(SymKey {
+                hs.insert(ListSymKey {
                     uid: cd_ls.list_enc_symkey.uid,
                     did: cd_ls.list_enc_symkey.did,
                     symkey: symkey,
@@ -715,7 +786,7 @@ mod tests {
                     }],
                 );
                 decor_token.uid = u;
-                ctrler.insert_user_data_token(&mut decor_token);
+                ctrler.insert_user_token(TokenType::Data, &mut decor_token);
 
                 let anon_uid: u64 = rng.next_u64();
                 // create an anonymous user
@@ -723,14 +794,14 @@ mod tests {
                 ctrler.register_anon_principal(u, anon_uid, d);
             }
         }
-        assert_eq!(ctrler.global_tokens.len(), 0);
+        assert_eq!(ctrler.global_vault.len(), 0);
         ctrler.clear_symkeys();
         assert!(ctrler.tmp_symkeys.is_empty());
 
         for u in 1..iters {
             // check principal data
             let p = ctrler
-                .principal_data
+                .principal_tokens
                 .get(&(u))
                 .expect("failed to get user?")
                 .clone();
@@ -746,7 +817,7 @@ mod tests {
                     .decrypt(padding, &cd_ls.list_enc_symkey.enc_symkey)
                     .expect("failed to decrypt");
                 let mut hs = HashSet::new();
-                hs.insert(SymKey {
+                hs.insert(ListSymKey {
                     uid: cd_ls.list_enc_symkey.uid,
                     did: cd_ls.list_enc_symkey.did,
                     symkey: symkey,
