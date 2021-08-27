@@ -14,22 +14,13 @@ $p$ & an application principal, corresponding to a user ID in the application\\
     \vspace{6pt}
 \privk{p} & private key of $p$ \\
     \vspace{6pt}
-%\sysk & secret key used by \sys to perform the first level of encryption of private tokens (of
-%    any disguise and any principal) \lyt{What happens if \sysk is compromised? then a symmetric key can be
-%    faked, but this key won't able to decrypt anything.... do we need validation at all?}\\
-%    \vspace{6pt}
 \symk{pd} & symmetric key used to perform the second level of encryption of private tokens associated with principal $p$ produced by disguise $d$\\
-    \vspace{6pt}
-\dk{p} & symmetric key used to encrypt the pointer to an array of \symk{pd}s for all $d$
-    disguising data of principal $p$\\
     \vspace{6pt}
 \op{d} & an operation of disguise $d$ (either a removal, modification, or decorrelation)\\
     \vspace{6pt}
 \tdata{pd} & token storing undisguised data associated with $p$ and produced by $d$.\\
     \vspace{6pt}
 \tpriv{pdq} & token storing private key $\pubk{q}$ when \op{d} decorrelates data from $p$.\\
-    \vspace{6pt}
-\tokls{pd} & linked list of private token ciphertexts associated with $p$ and produced by $d$
 \end{tabular}
 \caption{Notation used to describe \sys's design.}
 \label{tab:notation}
@@ -109,9 +100,9 @@ only a client who knows the corresponding private key \privk{p} can access $p$'s
 disguise $d$; an attacker without \privk{p} cannot authorize access to private disguise tokens
 created prior to time of compromise, even if authenticated as $p$.
 
-\vspace{6pt}\noindent\textbf{\emph{(3) Security of Disguise-Principal Associations.}}
-An attacker cannot learn if a disguise $d$ has been applied to a principal, unless the principal
-authorizes access to their private tokens for $d$.
+\vspace{6pt}\noindent\textbf{\emph{(3) Security of Disguises Applied to Principal.}}
+An attacker cannot learn the set of disguises applied to a principal. An attacker only learns a
+disguise $d$ applied to principal $p$ if $p$ authorizes access to their private tokens for $d$.
 %or the number of private tokens a
 %how many private disguise tokens correspond to
 %principal $p$, and which disguises have produced private tokens for $p$.
@@ -122,76 +113,16 @@ Table~\ref{tab:accpriv} illustrates our goal's data access policies.
 
 \vspace{6pt}\noindent\textbf{\emph{Non-Goals.}}
 \begin{itemize}
-    \item Security of private tokens or restricted disguises when an attacker has prior snapshots of system data.
-    \item Security of disguise application restricted to $p$ if an attacker authenticates as $p$.
-    \item Security of $p$'s private tokens and disguise associations if \privk{p} is compromised.  
-    \item Security of $p$'s private tokens from, and disguise associations with disguise $d$ if an authorized client with \privk{p} grants \sys access to tokens from $d$. 
-    \item Token metadata such as the number of disguise applied to, or number of tokens associated
-        with, a particular principal $p$.
-    \item Any privacy guarantees about information left after disguise application: \sys simply applies a disguise according to the developer-provided specification.
-        For example, a disguise may not modify data that leaks the writer's name (e.g., by leaving post content unmodified)
-    \item Hiding which application data objects have been disguised. For example, the author of a
+    \item Security of private tokens or disguise access control when an attacker has prior snapshots of system data.
+    \item Security of disguise access control if an attacker authenticates as a principal $p$.
+    \item Security of $p$'s private tokens and applied disguises if \privk{p} is compromised.  
+    \item Security of $p$'s private tokens from $d$ and knowledge that $d$ disguised $p$ if an authorized client with \privk{p} grants \sys access to tokens from $d$. 
+    \item Security of token metadata such as the number of disguise applied to, or number of tokens associated with, a particular principal $p$.
+    \item Privacy guarantees about post-disguised data: \sys simply
+        applies a disguise according to the developer-provided specification.  For example, a
+        disguise may not modify data that leaks the writer's name (e.g., by leaving post content
+        unmodified)
+    \item Recognition of disguised application data objects as disguised. For example, the author of a
         paper may be replaced with ``anonFox,'' leaking information that the paper has been
         disguised.
 \end{itemize}
-
-
-\iffalse
-%Table~\ref{tab:dispriv} summarizes these changes.
-\begin{table}[h]
-\centering
-    \begin{tabular}{ p{0.18\linewidth} p{.8\linewidth}}
-        \textbf{Data} & \textbf{Disguise Effects}\\
-\hline
-        Database Contents & \sys modifies database contents, converting database rows to disguised
-        versions according to the disguise specification.        \\
-        Disguise Tokens & Each disguise database modification generates a token recording the
-        modification. \sys saves global tokens in plaintext. For private tokens storing
-        updates to $p$'s data, \sysencrypts them such with \pubk{p} and stores it in a bag with other private token ciphertexts.\\
-\end{tabular}
-\caption{Private setting effects of a disguise.}
-\label{tab:dispriv}
-\end{table}
-
-%-------------------------------------------------------------------------------
-\subsection{Strawman: Security in an Open Setting}
-%-------------------------------------------------------------------------------
-In the \emph{open setting}, no type of data is kept hidden from \sys: \sys reads and writes
-application data, and token data plaintext. Table~\ref{tab:accopen} shows the
-different data types access policies, and Table~\ref{tab:disopen} describes the effects of a
-disguise on each type of data.
-
-\begin{table}[h]
-\centering
-    \begin{tabular}{ c c c }
-        \textbf{Data} & \textbf{\sys?} & \textbf{p?}\\
-\hline
-        Database Contents & \checkmark & \checkmark \\
-        Disguise Tokens & \checkmark & \checkmark \\
-\end{tabular}
-\caption{Open setting data access policies.}
-\label{tab:accopen}
-\end{table}
-
-\begin{table}[h]
-\centering
-    \begin{tabular}{ p{0.18\linewidth} p{.8\linewidth}}
-        \textbf{Data} & \textbf{Disguise Effect}\\
-\hline
-        Database Contents & \sys modifies database contents, converting database rows to disguised
-        versions according to the disguise specification.        
-        \\
-        Disguise Tokens & Each disguise database modification generates a token recording the
-        modification, which \sys saves in plaintext.\\
-\end{tabular}
-\caption{Open setting effects of a disguise.}
-\label{tab:disopen}
-\end{table}
-
-An open setting can achieve only security goal (1) via application
-authentication a principal prior to applying a disguise.
-However, clearly an open setting fails to support private disguise tokens or hide token metadata: an
-attacker who compromises \sys can read all generated tokens.
-To meet all security goals, we move to a private setting, in which \sys uses cryptographic
-primitives to render tokens inaccessible to \sys without 
-\fi
