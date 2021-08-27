@@ -12,9 +12,16 @@ use std::sync::{Arc, Mutex};
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
 pub const MODIFY_GUISE: u64 = 3;
-pub const PRIV_KEY: u64 = 4;
 pub const REMOVE_TOKEN: u64 = 5;
 pub const MODIFY_TOKEN: u64 = 6;
+
+#[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct PrivKeyToken {
+    pub did: DID,
+    pub uid: UID,
+    pub new_uid: UID,
+    pub priv_key: Vec<u8>,
+}
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Token {
@@ -42,10 +49,6 @@ pub struct Token {
     // DECOR/MODIFY: store new blobs
     pub new_value: Vec<RowVal>,
 
-    // PRIV_KEY
-    pub priv_key: Vec<u8>,
-    pub new_uid: UID,
-
     // TOKEN REMOVE/MODIFY
     pub old_token_blob: String,
     pub new_token_blob: String,
@@ -54,7 +57,6 @@ pub struct Token {
     // for randomness
     pub nonce: u64,
     // for linked-list
-    pub last_tail: u64,
 }
 
 impl Hash for Token {
@@ -87,12 +89,10 @@ impl Token {
         token
     }
 
-    pub fn new_privkey_token(uid: UID, did:DID, new_uid: UID, priv_key: &RsaPrivateKey) -> Token {
-        let mut token: Token = Default::default();
+    pub fn new_privkey_token(uid: UID, did:DID, new_uid: UID, priv_key: &RsaPrivateKey) -> PrivKeyToken {
+        let mut token: PrivKeyToken = Default::default();
         token.uid = uid;
         token.did = did;
-        token.update_type = PRIV_KEY;
-        token.revealed = false;
         token.priv_key = priv_key.to_pkcs1_der().unwrap().as_der().to_vec();
         token.new_uid = new_uid;
         token

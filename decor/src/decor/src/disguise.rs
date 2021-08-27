@@ -303,6 +303,8 @@ impl Disguiser {
         drop(locked_insert);
         warn!("Disguiser: Performed Inserts");
 
+        // any capabilities generated during disguise should be emailed
+        self.token_ctrler.lock().unwrap().save_capabilities();
         self.end_disguise_action();
         Ok(())
     }
