@@ -21,6 +21,8 @@ $p$ & an application principal, corresponding to a user ID in the application\\
 \tdata{pd} & token storing undisguised data associated with $p$ and produced by $d$.\\
     \vspace{6pt}
 \tpriv{pdq} & token storing private key $\pubk{q}$ when \op{d} decorrelates data from $p$.\\
+    \vspace{6pt}
+\rptr{pd} & random number acting as the capability to locate encrypted \symk{pd} and \tdata{pd} records. 
 \end{tabular}
 \caption{Notation used to describe \sys's design.}
 \label{tab:notation}

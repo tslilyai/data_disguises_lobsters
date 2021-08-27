@@ -102,25 +102,28 @@ This is a problem: for example, \sys should not store information that a princip
 invoked GDPR deletion.
 
 \vspace{6pt}\noindent\textbf{Storing \symk{pd} and \tdata{pd}}.
-When a disguise $d$ generates tokens for principal $p$, \sys generates a random number $r$ and saves
-a map from $r$ to:
+When a disguise $d$ generates tokens for principal $p$, \sys generates a random number \rptr{pd} and saves
+a map from \rptr{pd} to:
 \begin{enumerate}
     \item the \symk{pd} ciphertext
     \item an array of \tdata{pd} ciphertexts
 \end{enumerate}
+\rptr{pd} acts as the capability to locate (and thus access) the \symk{pd} and \tdata{pd}
+ciphertexts.
 
 Because no client speaking for $p$ may be currently online, \sys emails (or otherwise communicates)
-$r$ to a party that can authenticate as $p$. If no email is present (\eg $p$ is a pseudoprincipal),
-\sys publically saves a mapping from $p$ to $r$; this leaks disguise-principal associations, but
+\rptr{pd} to a party that can authenticate as $p$. If no email is present (\eg $p$ is a pseudoprincipal),
+\sys publically saves a mapping from $p$ to \rptr{pd}; this leaks disguise-principal associations, but
 only for pseudoprincipals whose data is already decorrelated from their original principal owner.
 \lyt{This assumes that every real user must have an email.}
 
-In order to reveal tokens for $p$ from disguise $d$, the client has first produce random number $r$,
+In order to reveal tokens for $p$ from disguise $d$, the client must prove it has the capability
+\rptr{pd},
 which allows \sys to return to the client the encrypted \symk{pd}. The client then has to prove it
 can access $p$'s tokens for $d$ by decrypting \symk{pd} with \privk{p}.  Only with the plaintext
 \symk{pd} can the array of \tdata{pd} ciphertexts be decrypted by \sys.
 
-Thus, even an attacker who can spoof $r$ will not be able to access $p$'s tokens for $d$ without
+Thus, even an attacker who can spoof \rptr{pd} will not be able to access $p$'s tokens for $d$ without
 \privk{p}.
 
 However, note that \sys does learn the number of \tdata{pd} tokens for each $p$ and $d$; this
@@ -130,10 +133,10 @@ metadata is out of scope of our threat model.
 \tpriv{pdq} token ciphertexts are stored in one array corresponding to the original principal $p$, but are not
 separated by disguise $d$ as \tdata{pd} ciphertexts are.
 
-\sys (and equivalently an attacker) cannot learn which disguises applied to
-principal $p$ from observing the array of \tpriv{pdq} ciphertexts. However, \sys can learn how many
-disguises were applied to---and in particular, decorrelated---$p$'s data, as well as the number of
-pseudoprincipals in the system linked to $p$. This metadata is out of scope of our threat model.
+\sys (and equivalently an attacker) cannot learn which disguises applied to principal $p$ from
+observing the array of \tpriv{pdq} ciphertexts. However, \sys can learn how many disguises were
+applied to---and in particular, decorrelated---$p$'s data, as well as the number of pseudoprincipals
+in the system linked to $p$. This metadata is out of scope of our threat model.
 
 %While this hides which disguises were applied to a particular $p$, it leaks how many (principal, disguise) keys there are in total; so if
 %only one principal's data has been disguised, for example, then this leaks how many disguises apply
