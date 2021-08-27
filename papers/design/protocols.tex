@@ -6,18 +6,30 @@
 \begin{tabular}{ c p{.6\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
+    \vspace{6pt}
     \fn{RegisterPrincipal($\pubk{p}$)} & Registers $p$ as a principal whose data can be privately disguised. \\
-    \fn{StartDisguise($d$, Option<$p$>)} & Begins the process of applying disguise $d$, optionally 
-    on behalf of $p$.\\
-    \fn{StartDisguiseReversal($d$, Option<$p$>)} & Begins the process of reversing disguise $d$,
-    optionally on behalf of $p$.\\
+    \vspace{6pt}
+    \fn{PseudoPrincipalKeysRequest($p$)} & Requests the encrypted private keys of pseudoprincipals
+    created by decorrelating data from $p$.\\
+    \vspace{6pt}
+    \fn{PseudoPrincipalKeysResponse(encPrivKs)} & Sent from \sys to the client authenticated as $p$ with the set of encrypted
+    private keys of pseudoprincipals linked to $p$.\\
+    \vspace{6pt}
+    \fn{StartDisguise($d$, caps, ppIds)} & Begins the process of applying disguise
+    $d$, granting \sys access to prior disguised data of $p$'s with the provided capabilities in
+    \texttt{caps}, and access to prior disguised data of any pseudoprincipals in \texttt{ppIds}.\\
+    \vspace{6pt}
+    \fn{StartDisguiseReversal($d$, caps, ppIds)} & Begins the process of reversing disguise $d$,
+    granting \sys access to prior disguised data of $p$'s with the provided capabilities in \texttt{caps}, and access to prior disguised data of any pseudoprincipals in \texttt{ppIds}.\\
+    \vspace{6pt}
     \fn{RequestTokenAccess(encSymKeys)} & Sent from \sys to a client authenticated as
     $p$, requesting the client decrypt all the encrypted symmetric keys in \fn{encSymKeys} with
     \privk{p} and uncover the corresponding \symk{pd}s. \\
+    \vspace{6pt}
     \fn{GrantTokenAccess(\{\symk{pd}\})} & Grants \sys permission, for all \symk{pd} in the
     argument, to decrypt any privately-stored \tdata{pd} and \tpriv{pdq} with \symk{pd}.
 \end{tabular}
-    \vspace{12px}
+    \vspace{6px}
 \caption{API Calls for Client Authenticated as Principal $p$}
 \label{tab:api}
 \end{table*}
@@ -30,43 +42,6 @@ Figure~\ref{fig:acctreg} illustrates the principal registration protocol: every 
 system must register a public key with \sys in order to later reveal (for disguise reversal or
 composition) any of privately disguised data. \sys remembers each public key \pubk{p} along with
 $p$'s ID.
-
- User-authenticated and admin-authenticated disguise
-reversal protocols follow the same logic as disguise application protocols, with the only
-differences being the API call invoked by the client (\fn{StartDisguiseReversal($d$,Some($p$))}) and the
-function that \sys calls at the end (\fn{ReverseDisguise($d$,tokens)}).
-
-\head{PseudoPrincipal Private Key Retrieval.}
-
-\head{User-Authenticated Disguise Application.}
-Figure~\ref{fig::userauthdisapp} illustrates the protocol for user-authenticated disguise application.
-%
-The client first invokes the \fn{StartDisguise} API call, user-authenticated as principal $p$.  
-%
-Prior to applying the disguise, \sys requests to access $p$'s private tokens by sending a
-\fn{RequestTokenAccess} to the client with all \symk{pd} ciphertexts for all $d$ in the disguise
-history. 
-%
-The client decrypts the ciphertexts if it has $p$'s private key \privk{p} (proving
-that the client has access to $p$'s private tokens). 
-%
-The client only includes the decrypted \symk{pd'} in the set of keys sent back to \sys via a
-\fn{GrantTokenAccess} API call if the client wants to authorizes access to $p$'s private tokens
-from disguise $d'$. 
-%
-\sys uses each \symk{pd'} to decrypt $p$'s private tokens produced by disguise $d'$. Note that
-if the client returns a false \symk{pd'}, the decryption will fail, and \sys will not reveal any
-$p$'s private tokens from $d'$.
-%
-\sys combines all decrypted private tokens with the set of globally accessible tokens to produce
-all tokens available for disguise composition of $d$ on top of $d'$. 
-%
-\lyt{Note: this requires that a client be user-authenticated as $p$ to access $p$'s tokens, which
-isn't necessarily fundamental.}
-
-\head{Admin-Authenticated Disguise Application.}
-In contrast to user-authenticated disguise application, \sys does not request access to any private
-tokens, and instead simply applies the disguise with only globally-accessible tokens (shown in Figure~\ref{fig:adminauthdisapp}).
 
 \begin{figure*}[h!]
 \pcb{
@@ -82,19 +57,34 @@ tokens, and instead simply applies the disguise with only globally-accessible to
 \label{fig:acctreg}
 \end{figure*} 
 
-\begin{figure*}[h]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{PseudoPrincipal Private Key Retrieval.}
+Figure~\ref{fig:userprivkeyretrieval} illustrates the protocol by which a client, authenticated as
+principal $p$, can gain access to the private keys (and thus the tokens) of pseudoprincipals created
+from decorrelating $p$'s data.
+
+The client sends a request to \sys for the private keys of pseudoprincipals linked to $p$. \sys
+loads the encrypted private key tokens for $p$, and sends these back in a response to the client.
+%
+The client then decrypts these tokens with \privk{p}, and saves the mapping from pseudoprincipal ID
+$q$ to private key \privk{q} encoded in the token.
+
+The client recursively retrieves the private keys of all pseudoprincipals linked to $q$ until
+no more nested pseudoprincipals exist.
+
+\begin{figure*}[h!]
 \pcb{
 \<\< \\[-0.9\baselineskip]\\
 \textbf{Client User-Authenticated as $p$} \< \< \textbf{\sys} \\
 [0.1\baselineskip][\hline]
 \fn{privKs} \gets \{p \mapsto \privk{p}\}\\
 \fn{idsToProcess} \gets \{p\}\\
-\fn{principalIds} \gets \{\}\\
+\fn{ppIds} \gets \{\}\\
 \pcwhile \fn{idsToProcess} \neq \{\}:\\
 \quad q \gets \fn{idsToProcess.pop()}\\
-\< \sendmessageright*{\fn{LinkedPseudoPKeysRequest($d$,$q$)}} \< \\
+\< \sendmessageright*{\fn{PseudoPrincipalKeysRequest($q$)}} \< \\
 \<\< \fn{encPrivKs} \gets \fn{LoadEncPrivKTokens}(q)\\
-\< \sendmessageleft*{\fn{LinkedPseudoPKeysResponse(encPrivKs)}} \< \\
+\< \sendmessageleft*{\fn{PseudoPrincipalKeysResponse(encPrivKs)}} \< \\
 \quad \pcforeach \fn{encPrivK} \in \fn{encPrivKs}:\\
 \quad \quad \privk{q} \gets \fn{privKs}[q]\\
 \quad \quad \tpriv{qd'r} \gets \dec(\privk{q}, \fn{encPrivK})\\
@@ -102,7 +92,9 @@ tokens, and instead simply applies the disguise with only globally-accessible to
 \quad \quad\quad\fn{privKs.insert}(r\mapsto \tpriv{qd'r}.\fn{privKey}) \<\< \\
 \quad \quad\quad\fn{idsToProcess.insert($r$)} \<\< \\
 \quad \quad\pcfi\\
-\quad \fn{principalIds.append($q$)}\\
+\quad \pcif q \neq p:\\
+\quad\quad \fn{ppIds.append($q$)}\\
+\quad \pcfi\\
 \quad \pcendforeach\\
 \pcendwhile
 }
@@ -110,7 +102,38 @@ tokens, and instead simply applies the disguise with only globally-accessible to
 \label{fig:userprivkeyretrieval}
 \end{figure*}
 
-\begin{figure*}[h]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{User-Authenticated Disguise Application.}
+Figure~\ref{fig:userauthdisapp} illustrates the protocol for user-authenticated (as principal $p$) disguise application.
+
+The client first performs pseudoprincipal private key retrieval for $p$, and retrieves all capabilities from
+prior disguises for which the client grants token access.
+%
+The client then invokes \fn{StartDisguise} with these capabilities and the set of pseudoprincipals.
+
+\sys takes the capabilities of $p$ and the public capabilities of all pseudoprincipals in the
+provided set, and retrieves the corresponding encrypted \symk{}s.
+\sys then requests to access all private tokens protected by these symmetric keys by sending a
+\fn{RequestTokenAccess} to the client with the \symk{} ciphertexts.
+
+The client decrypts the ciphertexts using the appropriate \privk{q} (proving
+that the client has access to $q$'s private tokens). 
+%
+The client only includes the decrypted \symk{qd'} in the set of keys sent back to \sys via a
+\fn{GrantTokenAccess} API call if the client wants to authorizes access to $q$'s private tokens
+from disguise $d'$. 
+
+\sys then uses each \symk{qd'} to decrypt $q$'s private tokens produced by disguise $d'$. Note that
+if the client returns a false \symk{qd'}, the decryption will fail, and \sys will not reveal any
+$q$'s private tokens from $d'$.
+
+\sys combines all decrypted private tokens with the set of globally accessible tokens to produce
+all tokens available to apply disguise $d$. 
+
+\lyt{Note: this requires that a client be user-authenticated as $p$ to access $p$'s tokens, which
+isn't necessarily fundamental.}
+
+\begin{figure*}[h!]
 \pcb{
 \<\< \\[-1\baselineskip]\\
 \textbf{Client User-Authenticated as $p$} \< \< \textbf{\sys} \\
@@ -122,16 +145,13 @@ tokens, and instead simply applies the disguise with only globally-accessible to
 \quad\quad\fn{caps.insert(\rptr{pd'})} \<\< \\
 \quad\pcfi\\
 \pcendforeach\\
-\< \sendmessageright*{\fn{StartDisguise($d$,principalIds,caps)}} \< \\
+\< \sendmessageright*{\fn{StartDisguise($d$,caps,ppIds)}} \< \\
 \<\< \fn{symKeyEncs} \gets \{\}\\
-\<\< \pcforeach q \in \fn{principalIds}:\\
-\<\< \quad\pcif q = p:\\
-    \<\< \quad\quad\fn{symKeyEncs.insert(}\\
-    \<\< \quad\quad\quad\quad \fn{LoadEncSymKeys(caps))}\\
-\<\< \quad\pcelse:\\
-\<\< \quad\quad\fn{pseudoPCaps} \gets \fn{\sys.PseudoPCaps[q]}\\
+    \<\< \fn{symKeyEncs.insert(LoadEncSymKeys(caps))}\\
+\<\< \pcforeach q \in \fn{ppIds}:\\
+\<\< \quad\quad\fn{ppCaps} \gets \fn{\sys.PseudoPCaps[q]}\\
 \<\< \quad\quad\fn{symKeyEncs.insert(}\\
-\<\< \quad\quad\quad\quad \fn{LoadEncSymKeys(pseudoPCaps))}\\
+\<\< \quad\quad\quad\quad \fn{LoadEncSymKeys(ppCaps))}\\
 \<\< \quad\pcendif\\
 \<\< \pcendforeach\\
 \< \sendmessageleft*{\fn{RequestTokenAccess(symKeyEncs)}} \< \\
@@ -161,13 +181,18 @@ tokens, and instead simply applies the disguise with only globally-accessible to
     \label{fig:userauthdisapp}
 \end{figure*}
 
-\begin{figure*}[h]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Admin-Authenticated Disguise Application.}
+In contrast to user-authenticated disguise application, \sys does not request access to any private
+tokens, and instead simply applies the disguise with only globally-accessible tokens (shown in Figure~\ref{fig:adminauthdisapp}).
+
+\begin{figure*}[h!]
 \pcb{
 \<\< \\[-0.9\baselineskip]\\
 \textbf{Admin-authenticated Client} \< \< \textbf{\sys} \\
 [0.1\baselineskip][\hline]
 \<\< \\[-0.9\baselineskip]\\
-\< \sendmessageright*{\fn{StartDisguise($d$,None)}} \< \\
+    \< \sendmessageright*{\fn{StartDisguise($d$,\{\},\{\})}} \< \\
 \<\< \fn{tokens} \gets \{\}\\
 \<\< \pcforeach d'~\text{in the disguise history}: \\
 \<\< \quad\fn{tokens.insert(\fn{ReadGlobalTokens}($d'$))}\\ 
@@ -177,4 +202,13 @@ tokens, and instead simply applies the disguise with only globally-accessible to
     \caption{\textbf{Admin-authenticated disguise application}. }
     \label{fig:adminauthdisapp}
 \end{figure*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Disguise Reversal.}
+User- and admin-authenticated disguise
+reversal protocols follow the same logic as disguise application protocols, with the only
+differences being the API call invoked by the client 
+(\fn{StartDisguiseReversal}\fn{($d$,caps,ppIds)}) and the
+function that \sys calls at the end (\fn{ReverseDisguise} \fn{($d$,tokens)}).
+
 
