@@ -80,13 +80,13 @@ to decrypt $p$'s data tokens produced from applying $d$.
 \centering
 \begin{tabular}{ c | c c }
 & \multicolumn{2}{c}{\textbf{$d$ Tokens}}\\
-\textbf{Client}& \textbf{Global} & \textbf{Private to $p$}\\
+\textbf{Client-Provided Capabilities}& \textbf{Global} & \textbf{Private to $p$}\\
 \hline
-    {Authenticated as $q \neq p$, has \privk{q}} & \checkmark & \\
-    {Authenticated as $p$, has \privk{p}} & \checkmark & \checkmark\\
+    \{\privk{q}, \rptr{qd}\} for $q \neq p$ & \checkmark & \\
+    \{\privk{p}, \rptr{pd}\} & \checkmark & \checkmark\\
 \end{tabular}
 \vspace{6pt}
-\caption{Client access to disguise $d$'s tokens, depending the client's authentication and the state of the tokens.}
+\caption{Client access to disguise $d$'s tokens, depending on the client's capabilities and the state of the tokens.}
 \label{tab:access}
 \end{table}
 
@@ -101,7 +101,7 @@ ciphertexts.
 This is a problem: for example, \sys should not store information that a principal $p$ has
 invoked GDPR deletion.
 
-\vspace{6pt}\noindent\textbf{Storing \symk{pd} and \tdata{pd}}.
+\head{Storing \symk{pd} and \tdata{pd}.}
 When a disguise $d$ generates tokens for principal $p$, \sys generates a random number \rptr{pd} and saves
 a map from \rptr{pd} to:
 \begin{enumerate}
