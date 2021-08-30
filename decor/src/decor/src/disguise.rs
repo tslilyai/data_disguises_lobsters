@@ -89,8 +89,27 @@ impl Disguiser {
         locked_token_ctrler.register_principal(uid, email, pubkey);
     }
 
-    pub fn get_enc_symkeys_with_capabilities_and_pseudoprincipals(
+    pub fn get_pseudoprincipal_enc_privkeys(
         &mut self,
+        uid: UID,
+    ) -> Vec<EncPrivKeyToken> {
+        self.token_ctrler.lock().unwrap().get_enc_privkeys_of_user(uid)
+    }
+    
+    // XXX remove
+    pub fn get_capability(
+        &self,
+        uid: UID,
+        did: DID,
+    ) -> Option<Capability> {
+        match self.token_ctrler.lock().unwrap().capabilities.get(&(uid,did)) {
+            Some(c) => Some(*c),
+            None => None,
+        }
+    }
+
+    pub fn get_enc_token_symkeys_with_capabilities_and_pseudoprincipals(
+        &self,
         caps: Vec<u64>,
         pseudo_uids: Vec<UID>,
     ) -> Vec<(EncSymKey, Capability)> {
@@ -102,7 +121,7 @@ impl Disguiser {
             }
         }
         for puid in pseudo_uids {
-            locked_token_ctrler.get_pseudouid_enc_symkeys(puid);
+            locked_token_ctrler.get_pseudouid_enc_token_symkeys(puid);
         }
         encsymkeys
     }

@@ -54,6 +54,22 @@ impl EdnaClient {
         self.disguiser.register_principal(uid, email, pubkey);
     }
 
+    // XXX get rid of this
+    pub fn get_pseudoprincipal_enc_privkeys(
+        &mut self,
+        uid: UID,
+    ) -> Vec<tokens::EncPrivKeyToken> {
+        self.disguiser.get_pseudoprincipal_enc_privkeys(uid)
+    }
+
+    pub fn get_capability(
+        &mut self,
+        uid: UID,
+        did: DID,
+    ) -> Option<tokens::Capability> {
+        self.disguiser.get_capability(uid, did)
+    }
+
     pub fn get_enc_symkeys_of_capabilities_and_pseudoprincipals(
         &mut self,
         caps: Vec<tokens::Capability>,

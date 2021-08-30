@@ -65,6 +65,14 @@ impl Hash for Token {
     }
 }
 
+pub fn privkeytoken_from_bytes(bytes: Vec<u8>) -> PrivKeyToken {
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+pub fn token_from_bytes(bytes: Vec<u8>) -> Token {
+    serde_json::from_slice(&bytes).unwrap()
+}
+
 impl Token {
     pub fn new_token_modify(uid: UID, did:DID, old_token: &Token, changed_token: &Token) -> Token {
         let mut token: Token = Default::default();
@@ -157,10 +165,6 @@ impl Token {
     pub fn token_to_bytes(token: &Token) -> Vec<u8> {
         let s = serde_json::to_string(token).unwrap();
         s.as_bytes().to_vec()
-    }
-
-    pub fn token_from_bytes(bytes: Vec<u8>) -> Token {
-        serde_json::from_slice(&bytes).unwrap()
     }
 
     pub fn reveal(
