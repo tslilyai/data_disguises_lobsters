@@ -40,26 +40,6 @@ Table~\ref{tab:api} describes all the API calls used in protocols between \sys a
 \lyt{Not sure if the admin- vs. user-authenticated client distinction is clear here..}
 \fi
 
-\head{Principal Public Key Registration.}
-Figure~\ref{fig:acctreg} illustrates the principal registration protocol: every principal in the
-system must register a public key with \sys in order to later reveal (for disguise reversal or
-composition) any of privately disguised data. \sys remembers each public key \pubk{p} along with
-$p$'s ID.
-
-\begin{figure*}[t!]
-\pcb{
-\<\< \\[-0.9\baselineskip]\\
-\textbf{Principal p} \< \< \textbf{\sys} \\
-[0.1\baselineskip][\hline]
-\<\< \\[-0.9\baselineskip]\\
-    (\pubk{p}, \privk{p}) \sample \kgen() \<\< \\
-\< \sendmessageright*{\fn{RegisterPrincipal(p,$\pubk{p}$)}} \< \\
-\<\< \fn{StorePubKey($\pubk{p}$)}
-}
-\caption{\textbf{Principal public key registration.}}
-\label{fig:acctreg}
-\end{figure*} 
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{PseudoPrincipal Private Key Retrieval.}
 Figure~\ref{fig:userprivkeyretrieval} illustrates the protocol by which a client, authenticated as

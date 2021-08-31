@@ -151,6 +151,27 @@ Note that an adversary can learn the number of \tdata{pd} tokens for each $p$ an
 metadata is out of scope of our threat model.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{External Storage of \capa{pd}.} 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\sys should not store \capa{pd} such that \sys can learn the
+set of capabilities associated with one principal $p$: existence of \capa{pd} allows an adversary to
+learn that disguise $d$ has applied to principal $p$. Thus, \capa{pd} must be stored externally,
+even when no client speaking for $p$ is currently online.
+
+If $p$ is a pseudoprincipal, \sys saves a (globally accessible) mapping from $p$ to \capa{pd}; this leaks disguise-principal associations, but only for pseudoprincipals whose data is already decorrelated from their original principal owner.
+
+If $p$ is an actual principal, we consider two options: 
+
+(1) \sys can email (or otherwise communicate)
+\capa{pd} to a party that can authenticate as $p$. If no email is present (\eg $p$ is a pseudoprincipal),
+\sys can save a (globally accessible) mapping from $p$ to \capa{pd}; this leaks disguise-principal associations, but
+only for pseudoprincipals whose data is already decorrelated from their original principal owner.
+\lyt{This assumes that every real user must have an email.}
+
+(2) Alternatively, \sys can simply return the capabilities back to the application; the application
+then must handle the logic of contacting the respective parties and saving capabilities externally.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Storing \tpriv{pdq} Tokens.}
 \tpriv{pdq} tokens are encrypted with \pubk{p} and the resulting ciphertexts stored in one array
 corresponding to the original principal $p$. These token ciphertexts are not separated by disguise
@@ -173,40 +194,27 @@ in the system linked to $p$. This metadata is out of scope of our threat model.
     \vspace{6pt}
     \fn{RegisterPrincipal($p$, email, $\pubk{p}$) $\rightarrow ()$} & Registers $p$ as a principal whose data can be privately disguised.\\
     \vspace{6pt}
-    \fn{CapabilitiesToEncKeys(\{\capa{}\}) $\rightarrow$ \{Enc(\symk{})\}} & Retrieves the set
-    of encrypted keys accessible using the provided capabilities.\\
+    \fn{GetGlobalCapabilities($p$)} $\rightarrow$ \{\capa{pd}\} & Retrieves the (globally 
+    available) capabilities associated with principal $p$; nonempty only if $p$ is a pseudoprincipal.\\
     \vspace{6pt}
-    \fn{Disguise($d$, \{\capa{}\}) $\rightarrow$ \{\capa{}\}} & Applies disguise $d$. 
-    The provided set of capabilities grant \sys access to tokens 
-    tokens from previous disguises, which allow \sys to compose disguise $d$ on top of these previous disguises.
-    This function returns a set of capabilities enabling access to tokens produced by this disguise.\\
+    \fn{CapabilitiesToEncTokenKeys(\{\capa{}\}) $\rightarrow$ \{Enc(\symk{})\}} & Uses the provided
+    capabilities to retrieve the corresponding encrypted symmetric keys that were used to encrypt tokens.\\
     \vspace{6pt}
-    \fn{Reveal(\{\symk{}\}) $\rightarrow ()$} & 
-    Reveals, when possible, the token data that can be decrypted by the provided \symk, when possible.
+    \fn{GetPseudoPrincipalEncPrivKeys($p$)} $\rightarrow$ \{Enc(\tpriv{pdq})\} & Retrieves the
+    encrypted private key tokens of pseudoprincipal created by decorrelating data from $p$.\\
+    \vspace{6pt}
+    \fn{Disguise($d$, \{\symk{pd'}\}) $\rightarrow$ \{\capa{}\}} & Applies disguise $d$.  The
+    provided set of symmetric keys (potentially corresponding to several disguises and several
+    principals) grant \sys access to tokens tokens from these disguises for these principals, which
+    allow \sys to compose disguise $d$ on top of these previous disguises.  This function returns a
+    set of capabilities enabling access to tokens produced by this disguise.\\
+    \vspace{6pt}
+    \fn{Reveal($d$, \{\symk{pd}\}) $\rightarrow ()$} & 
+    Reveals disguise $d$.  The provided set of symmetric keys corresponding to disguise $d$ and
+    potentially several principals grant \sys access to tokens from disguise $d$ for these
+    principals. \sys reveals the data stored in the tokens if possible.
 \end{tabular}
-    \vspace{6px}
-
-\pcb{
-\<\< \\[-0.9\baselineskip]\\
-\textbf{Client Authenticated as $p$} \< \< \textbf{\sys} \\
-[0.1\baselineskip][\hline]
-\<\< \\[-0.9\baselineskip]\\
-    (\pubk{p}, \privk{p}) \sample \kgen() \<\< \\
-\< \sendmessageright*{\fn{RegisterPrincipal(p,email,$\pubk{p}$)}} \< \\
-\<\< \fn{StorePubKey($\pubk{p}$)}\\
-    \{\capa{pd'}\} \gets \fn{LoadPriorDisguiseCapabilities()} \<\< \\
-    \< \sendmessageright*{\fn{CapabilitiesToEncKeys(\{\capa{pd'}\})}} \< \\
-    \<\< \fn{LoadEncKeys(\{\capa{pd'}\})}\\
-    \< \sendmessageleft*{\{Enc(\symk{pd'})\}} \< \\
-\fn{symKeys} \gets \{\}\\
-\pcforeach \fn{Enc(\symk{pd'})} \in \fn{\{Enc(\symk{pd'})\}}:\\
-    \quad \fn{symKeys.insert(\dec(\privk{q}, \symk{pd'}))}\\
-\pcendforeach\\
-    \< \sendmessageright*{\fn{Disguise($d$,symKeys)}} \< \\
-    \<\< \fn{ApplyDisguise($d$,symKeys)}\\
-\< \sendmessageleft*{\{\capa{pd}\}} \<\\
-\fn{StoreCapabilities(\{\capa{pd}\})} \<\< \\
-}
+\vspace{6px}
 
 \caption{\sys API}
 \label{tab:api}
@@ -214,24 +222,80 @@ in the system linked to $p$. This metadata is out of scope of our threat model.
 
 \sys takes these developer-provided specifications and exposes the API in Table~\ref{tab:api} to the
 application. 
-An application can apply a disguise $d$ (\sys returns \capa{pd}s for the produced disguise tokens); 
-query for the encrypted symmetric keys corresponding to the set of provided capabilities; and 
-reveal token data that can be decrypted using the provided \symk{}.
 
-\head{External Storage of \capa{pd}.} \sys should not store \capa{pd} such that \sys can learn the
-set of capabilities associated with one principal $p$: existence of \capa{pd} allows an adversary to
-learn that disguise $d$ has applied to principal $p$. Thus, \capa{pd} must be stored externally,
-even when no client speaking for $p$ is currently online.
-There are two options here: 
+\head{Principal Public Key Registration.}
+Figure~\ref{fig:acctreg} illustrates the principal registration protocol: every principal in the
+system must register a public key with \sys in order to later reveal (for disguise reversal or
+composition) any of privately disguised data. \sys remembers each public key \pubk{p} along with
+$p$'s ID.
 
-(1) \sys can email (or otherwise communicate)
-\capa{pd} to a party that can authenticate as $p$. If no email is present (\eg $p$ is a pseudoprincipal),
-\sys can publically save a mapping from $p$ to \capa{pd}; this leaks disguise-principal associations, but
-only for pseudoprincipals whose data is already decorrelated from their original principal owner.
-\lyt{This assumes that every real user must have an email.}
+\begin{figure*}[t!]
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Principal p} \< \< \textbf{\sys} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+    (\pubk{p}, \privk{p}) \sample \kgen() \<\< \\
+\< \sendmessageright*{\fn{RegisterPrincipal(p,$\pubk{p}$)}} \< \\
+\<\< \fn{StorePubKey($\pubk{p}$)}
+}
+\caption{\textbf{Principal public key registration.}}
+\label{fig:acctreg}
+\end{figure*} 
 
-(2) Alternatively, \sys can simply return the capabilities back to the application; the application
-then must handle the logic of contacting the respective parties and saving capabilities externally.
+\begin{figure*}[t!]
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Client Authenticated as $p$} \< \< \textbf{\sys} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+    \fn{caps} \gets \fn{LoadClientCapabilities($p$)}\\
+\fn{privKs} \gets \{p \mapsto \privk{p}\}\pclb
+\pcintertext[dotted]{Recursively get capabilities of all linked pseudoprincipals}
+\fn{idsToProcess} \gets \{p\}\\
+\pcwhile \fn{idsToProcess} \neq \{\}:\\
+\quad q \gets \fn{idsToProcess.pop()}\\
+\< \sendmessageright*{\fn{GetPseudoPrincipalEncPrivKeys($q$)}} \< \\
+\<\< \fn{encPrivKs} \gets \fn{\sys.Principals[q].EncPKTokens}\\
+\< \sendmessageleft*{\fn{encPrivKs}} \< \\
+\quad \pcforeach \fn{encPrivK} \in \fn{encPrivKs}:\\
+\quad \quad \privk{q} \gets \fn{privKeys}[q]\\
+\quad \quad \tpriv{qd'r} \gets \dec(\privk{q}, \fn{encPrivK})\\
+\quad\quad\fn{privKs.insert}(r\mapsto \tpriv{qd'r}.\fn{privKey}) \<\< \\
+\quad\quad\fn{idsToProcess.insert($r$)} \<\< \\
+\< \sendmessageright*{\fn{GetGlobalCapabilities($q$)}} \< \\
+\<\< \fn{globalCaps} \gets \fn{\sys.Principals[q].GlobalCaps}\\
+\< \sendmessageleft*{\fn{globalCaps}} \< \\
+\quad\quad\fn{caps.append(globalCaps)}\\
+\quad \pcendforeach\\
+\pcendwhile\pclb
+    \pcintertext[dotted]{Use capabilities to get corresponding encrypted token keys}
+\< \sendmessageright*{\fn{CapabilitiesToEncTokenKeys(caps)}} \< \\
+    \<\< \fn{encTokKeys} \gets \fn{LoadEncTokenKeys(caps)}\\
+\< \sendmessageleft*{\fn{encTokKeys}}\\
+\fn{symKeys} \gets \{\}\\
+\pcforeach \fn{Enc(\symk{qd'})} \in \fn{encTokKeys}\\
+\quad \pcif \text{authorizes access to $q$'s private tokens for $d'$}: \\
+\quad\quad \privk{q} \gets \fn{privKs[q]}\\
+\quad\quad \fn{symKeys.insert(\dec(\privk{q}, \symk{qd'}))}\\
+\pcendforeach\pclb
+\pcintertext[dotted]{Apply disguise with token keys}
+\< \sendmessageright*{\fn{Disguise($d$,symKeys)}} \< \\
+\<\< \{\capa{}\}\gets\fn{ApplyDisguise($d$,symKeys)} \pclb
+\pcintertext[dotted]{Capabilities can be emailed by \sys or returned to application}
+}
+\caption{\textbf{Disguise Application.}}
+\label{fig:disgapp}
+\end{figure*} 
+
+\head{Disguise Application and Reversal with Capabilities.}
+As shown in Figure~\ref{fig:disgapp}, an \sys client can retrieve capabilities both provided for an
+original principal $p$ (for which the client is authenticated and has \privk{p}). 
+
+The client can also retrieve capabilities and private keys for all pseudoprincipals associated with $p$.
+
+Using these capabilities, the client can query for encrypted symmetric \symk{} keys corresponding to
+the set of provided capabilities; and decrypt and provide these \symk{}s to \sys to disguise (or reveal) using token data that can be decrypted using the provided \symk{}.
 
 %-------------------------------------------------------------------------------
 \subsection{Does this design achieve our security goals?}
@@ -239,7 +303,7 @@ then must handle the logic of contacting the respective parties and saving capab
 %-------------------------------------------------------------------------------
 \vspace{6pt}\noindent\textbf{\emph{(1) Security of Restricted Disguise Application.}}
 \sys ensures that only properly authenticated clients can apply or
-reverse a disguise, achieving security goal (1).
+reveal a disguise, achieving security goal (1).
 
 \vspace{6pt}\noindent\textbf{\emph{(2) Security of Private Disguise Token Plaintext.}}
 Our design requires \sys to encrypt private \tdata{} tokens associated with $p$ with a symmetric key

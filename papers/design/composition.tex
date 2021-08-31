@@ -1,14 +1,14 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\section{Disguise Application and Reversal Semantics}
+\section{Disguising and Revealing Semantics}
 \label{sec:comp}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-This section describes the semantics of disguising provided by \sys. In particular, we describe the
-end state of data given some history of disguise applications and reversals.
+This section describes the semantics of disguising provided by \sys. 
+In particular, we describe the end state of a data object given some history of disguise
+applications and reveals.
 
-\vspace{6pt}\noindent\textbf{\emph{Some Notation.}}
-We describe disguise histories as a list of \app{d} and \rev{d} actions, where \app{d} corresponds
-to the application of disguise $d$, and \rev{d} corresponds to the reversal of $d$. Time moves to
-the right in the list.
+\vspace{6pt}\noindent\textbf{\emph{Some Notation.}} We describe disguise histories as a list of
+\app{d} and \rev{d} actions, where \app{d} corresponds to the application of disguise $d$, and
+\rev{d} corresponds to the reveal of $d$'s token data. Time moves to the right in the list.
 
 For every data object $x$ in the system, \xstart describes its initial state, and
 \xhist{[\app{d_1}, \dots]} describes its state after \sys has applied the history [\app{d_1},
@@ -103,7 +103,7 @@ We first consider \textbf{\xhist{[\app{d},\rev{d}]}}; Table~\ref{tab:composeappr
 illustrates how this state depends on which client invokes \rev{d}, and how $d$'s tokens for $x$
 are stored.
 As expected, when the client is authenticated as a principal without access to $d$'s
-private tokens, then the updates applied by $d$ to $x$ cannot be reversed.
+private tokens, then the updates applied by $d$ to $x$ cannot be revealed.
 
 \begin{table}[h]
 \centering
@@ -122,16 +122,83 @@ private tokens, then the updates applied by $d$ to $x$ cannot be reversed.
 \end{table}
 
 We next consider \textbf{\xhist{[\app{d_1},\app{d_2},\rev{d_1}]}}, the state of $x$ when a disguise
-$d_1$ is reversed after a subsequent disguise $d_2$ has been applied. 
+$d_1$ is revealed after a subsequent disguise $d_2$ has been applied. 
 Table~\ref{tab:composeapprev1} illustrates how this state 
 depends on the invoking client's access to $d_1$ tokens, and whether $d_1$ and $d_2$ performed
 conflicting updates to $x$.
 
 When the client is authenticated as a principal without access to $d_1$'s private tokens, then the
-updates applied by $d_1$ to $x$ cannot be reversed.  However, even if the client invoking \rev{d_1}
-has access to $d_1$'s tokens, \sys will fail to reverse $d_1$'s updates to $x$ if $d_2$ and $d_1$
+updates applied by $d_1$ to $x$ cannot be revealed.  However, even if the client invoking \rev{d_1}
+has access to $d_1$'s tokens, \sys will fail to reveal $d_1$'s updates to $x$ if $d_2$ and $d_1$
 both update $x$ in a conflicting manner. $d_1$ must not restore data that was also disguised by
-$d_2$, and until $d_2$ is reversed, invocations of \rev{d_1} will not reveal \xstart.
+$d_2$, and until $d_2$ is revealed, invocations of \rev{d_1} will not reveal \xstart.
+
+\subsection{Composition Implementation Techniques}
+\sys's algorithm for disguising and disguise reversal in most scenarios is straightforward. 
+
+To apply disguise $d$, \sys applies each \op{d} to all
+data objects satisfying \op{d}'s predicate, while also taking into account the information in
+accessible tokens (to \eg predicate against undisguised versions of objects). Each \op{d} produces
+one or more tokens, which \sys stores appropriately (globally, or encrypted in a \tokls{pd}).
+
+For reversal of disguise $d$, \sys reveals the undisguised version of data stored in accessible tokens
+corresponding to $d$ by updating the relevant objects $O$ in the database.
+
+However, \sys must be careful of two potential problems:
+(1) \sys cannot accidentally reveal data that must be disguised; and (2) \sys cannot let global
+tokens recording updates to data $x$ leak information if $x$ is subsequently (privately) disguised.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\vspace{6pt}\noindent\textbf{\emph{Preventing Accidental Data Revealing.}}
+\sys records the disguised state of data $x$ in each \tdata{pd} recording a update performed by $d$
+to $x$. If the state of $x$ does not match the disguised state in $d$'s token for $x$, then \sys
+knows the token records an overwritten update to $x$, and refuses to reveal the undisguised state of $x$
+stored in the token.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\vspace{6pt}\noindent\textbf{\emph{Preventing Global Token Information Leakage.}}
+%The ONLY REASON we need to update tokens is if they're global!!! If they're private, we can use the
+%retroactive application method... (optimization to update our "own" tokens though)
+%
+Let $d_1$ be a global disguise and $d_2$ be a private disguise applied in sequence.  Consider the
+scenario in which \op{d_1} updates a data object $O$, producing a global token \tdata{pd_1}. Later,
+\sys determines that \op{d_2} also should update $O$.
+%by checking if the corresponding \op{d_2}
+%predicate matches recorded object data stored in \tdata{pd_1}.
+
+If \sys simply performs \op{d_2}'s update to $O$ in the application database, an adversary can still
+read undisguised data from \tdata{pd_1} since is it global and records a now-stale state of $O$!
+%
+%Furthermore, this means that \sys cannot restore the state of $O$ in the database to
+%\xhist{[\app{d_2}]} when reversing $d_1$, because the revealing the data in \tdata{pd_1} would
+%reveal data that $d_2$ should have disguised.
+%
+To prevent global tokens like \tdata{pd_1} from leaking information that should be disguised, \sys
+updates the data in \tdata{pd_1} with \op{d_2}'s update. An update to a token such as \tdata{pd_1}
+itself generates a (private) token \tdata{pd_2}, just as updating a data object generates a token.
+
+Revealing $d_2$ uses this \tdata{pd_2} to reveal the modification to \tdata{pd_1}. 
+If $d_1$ has already been revealed, and the database state of $O$ updated to reflect the contents
+of \tdata{pd_1} (which were updated by the application of $d_2$), 
+then \sys simply uses \tdata{pd_2} to reveal the current state of $O$ in the database. 
+
+If a future $d_3$ has further updated \tdata{pd_1} in a way that conflicts with $d_2$'s update, then
+upon reversal of $d_2$, \sys will notice that \tdata{pd_2} records an overwritten update to
+\tdata{pd_1}, and will not revert the state of \tdata{pd_1} until the future disguise $d_3$ has been
+revealed .
+
+\lyt{Note that removal is just an interesting case of this, in which \tdata{pd_1} is removed, by a
+token \tdata{pd_2} is stored in \tokls{pd_2} that saves the removal of \tdata{pd_1} for reversal.}
+
+%\vspace{6pt}\noindent\textbf{\emph{Token Modification for Object Identification.}}
+%Tokens need to refer to the correct objects even if objects have been modified by future disguises.
+%Prior tokens should be revised by future disguises so that they apply correctly to the disguised
+%data.
+%This allows an earlier disguise to be revealed correctly.
+%An easy way to avoid needing to do this is to have all objects in the DB have unique, permanent
+%identifiers.
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \iffalse

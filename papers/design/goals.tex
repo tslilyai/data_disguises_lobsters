@@ -7,7 +7,7 @@
 \begin{tabular}{ c p{.8\linewidth} }
 \textbf{Symbol} & \textbf{Description} \\
 \hline
-$d$ & a disguise corresponding to a developer-provided specification that can be applied or reversed via \sys's API\\
+$d$ & a disguise corresponding to a developer-provided specification that can be applied or revealed via \sys's API\\
     \vspace{6pt}
 \op{d} & an operation of disguise $d$ (either a removal, modification, or decorrelation)\\
     \vspace{6pt}
@@ -33,7 +33,7 @@ Our design considers \emph{disguisable application systems}, which consist of a 
 application with an integrated disguising tool (\sys).
 We assume the following elements:
 \begin{itemize}
-    \item $d$: a disguise that can be applied or reversed via \sys's API. Disguises modify and remove
+    \item $d$: a disguise that can be applied or revealed via \sys's API. Disguises modify and remove
     application data to hide revealing information. 
     \item $p$: an application principal, corresponding to a user ID in the application. 
 \end{itemize}
@@ -81,7 +81,7 @@ have the same threat model, and compromising one also compromises the other).
 \sys operates in an honest-but-curious setting: even if compromised, \sys faithfully executes
 its protocols.
 %
-Further, when it applies or reverses a disguise, \sys may temporarily
+Further, when it applies or reveals a disguise, \sys may temporarily
 hold (in memory) plaintext token data, but is trusted to delete it once the disguise is
 complete.
 %
@@ -91,7 +91,7 @@ With this threat model, our goals are three-fold:
 
 \vspace{6pt}\noindent\textbf{\emph{(1) Security of Disguise Access Control.}}
 We support disguises that require authentication as an admin, or as a user principal $p$, prior to being applied (or
-reversed). Only a properly authenticated client can apply (and reverse) selective disguises
+revealed). Only a properly authenticated client can apply (and reveal) selective disguises
 (and an attacker authenticated as the wrong party cannot).
 
 \vspace{6pt}\noindent\textbf{\emph{(2) Security of Private Disguise Token Plaintext.}}
