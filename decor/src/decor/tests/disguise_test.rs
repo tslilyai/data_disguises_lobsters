@@ -2,24 +2,23 @@ extern crate log;
 extern crate mysql;
 
 mod disguises;
-use mysql::prelude::*;
-use rand::rngs::OsRng;
-use rsa::{RsaPrivateKey, RsaPublicKey, PaddingScheme, pkcs1::FromRsaPrivateKey};
-use std::sync::Arc;
-use std::collections::{HashSet, HashMap};
-use std::*;
-use decor::helpers;
-use decor::tokens;
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
-use log::warn;
+use decor::helpers;
+use decor::tokens;
+use mysql::prelude::*;
+use rand::rngs::OsRng;
+use rsa::{pkcs1::FromRsaPrivateKey, PaddingScheme, RsaPrivateKey, RsaPublicKey};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::*;
 
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 const SCHEMA: &'static str = include_str!("./schema.sql");
 const RSA_BITS: usize = 2048;
 const USER_ITERS: u64 = 2;
-const NSTORIES : u64 = 2;
+const NSTORIES: u64 = 2;
 
 fn init_logger() {
     let _ = env_logger::builder()
@@ -79,7 +78,12 @@ fn test_app_anon_disguise() {
     // users exist
     for u in 1..USER_ITERS {
         let mut results = vec![];
-        let res = db.query_iter(format!(r"SELECT * FROM users WHERE users.username='hello{}'", u)).unwrap();
+        let res = db
+            .query_iter(format!(
+                r"SELECT * FROM users WHERE users.username='hello{}'",
+                u
+            ))
+            .unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
             assert_eq!(vals.len(), 3);
@@ -94,7 +98,9 @@ fn test_app_anon_disguise() {
     // no correlated stories
     for u in 1..USER_ITERS {
         let mut results = vec![];
-        let res = db.query_iter(format!(r"SELECT id FROM stories WHERE user_id={}", u)).unwrap();
+        let res = db
+            .query_iter(format!(r"SELECT id FROM stories WHERE user_id={}", u))
+            .unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
             assert_eq!(vals.len(), 1);
@@ -107,7 +113,12 @@ fn test_app_anon_disguise() {
     // no correlated moderations
     for u in 1..USER_ITERS {
         let mut results = vec![];
-        let res = db.query_iter(format!(r"SELECT id FROM moderations WHERE moderator_user_id={} OR user_id={}", u, u)).unwrap();
+        let res = db
+            .query_iter(format!(
+                r"SELECT id FROM moderations WHERE moderator_user_id={} OR user_id={}",
+                u, u
+            ))
+            .unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
             assert_eq!(vals.len(), 1);
@@ -116,12 +127,14 @@ fn test_app_anon_disguise() {
         }
         assert_eq!(results.len(), 0);
     }
-   
+
     let mut guises = HashSet::new();
-    
+
     // stories have guises as owners
     let mut stories_results = vec![];
-    let res = db.query_iter(format!(r"SELECT user_id FROM stories")).unwrap();
+    let res = db
+        .query_iter(format!(r"SELECT user_id FROM stories"))
+        .unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 1);
@@ -130,10 +143,14 @@ fn test_app_anon_disguise() {
         assert!(user_id >= USER_ITERS);
         stories_results.push(user_id);
     }
-    assert_eq!(stories_results.len() as u64, (USER_ITERS-1)*NSTORIES);
+    assert_eq!(stories_results.len() as u64, (USER_ITERS - 1) * NSTORIES);
 
     // moderations have guises as owners
-    let res = db.query_iter(format!(r"SELECT moderator_user_id, user_id FROM moderations")).unwrap();
+    let res = db
+        .query_iter(format!(
+            r"SELECT moderator_user_id, user_id FROM moderations"
+        ))
+        .unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 2);
@@ -147,7 +164,9 @@ fn test_app_anon_disguise() {
 
     // check that all guises exist
     for u in guises {
-        let res = db.query_iter(format!(r"SELECT * FROM users WHERE id={}", u)).unwrap();
+        let res = db
+            .query_iter(format!(r"SELECT * FROM users WHERE id={}", u))
+            .unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
             assert_eq!(vals.len(), 3);
@@ -209,7 +228,12 @@ fn test_app_gdpr_disguise() {
     // users removed
     for u in 1..USER_ITERS {
         let mut results = vec![];
-        let res = db.query_iter(format!(r"SELECT * FROM users WHERE users.username='hello{}'", u)).unwrap();
+        let res = db
+            .query_iter(format!(
+                r"SELECT * FROM users WHERE users.username='hello{}'",
+                u
+            ))
+            .unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
             assert_eq!(vals.len(), 3);
@@ -223,7 +247,12 @@ fn test_app_gdpr_disguise() {
     // no correlated moderations
     for u in 1..USER_ITERS {
         let mut results = vec![];
-        let res = db.query_iter(format!(r"SELECT id FROM moderations WHERE moderator_user_id={} OR user_id={}", u, u)).unwrap();
+        let res = db
+            .query_iter(format!(
+                r"SELECT id FROM moderations WHERE moderator_user_id={} OR user_id={}",
+                u, u
+            ))
+            .unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
             assert_eq!(vals.len(), 1);
@@ -234,15 +263,21 @@ fn test_app_gdpr_disguise() {
     }
     // stories removed
     let mut stories_results = vec![];
-    let res = db.query_iter(format!(r"SELECT user_id FROM stories")).unwrap();
+    let res = db
+        .query_iter(format!(r"SELECT user_id FROM stories"))
+        .unwrap();
     for _ in res {
         stories_results.push(1);
     }
     assert_eq!(stories_results.len() as u64, 0);
-    
+
     // moderations have guises as owners
     let mut guises = HashSet::new();
-    let res = db.query_iter(format!(r"SELECT moderator_user_id, user_id FROM moderations")).unwrap();
+    let res = db
+        .query_iter(format!(
+            r"SELECT moderator_user_id, user_id FROM moderations"
+        ))
+        .unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 2);
@@ -256,7 +291,9 @@ fn test_app_gdpr_disguise() {
 
     // check that all guises exist
     for u in guises {
-        let res = db.query_iter(format!(r"SELECT * FROM users WHERE id={}", u)).unwrap();
+        let res = db
+            .query_iter(format!(r"SELECT * FROM users WHERE id={}", u))
+            .unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
             assert_eq!(vals.len(), 3);
@@ -280,7 +317,7 @@ fn test_compose_anon_gdpr_disguises() {
     let mut pub_keys = vec![];
 
     // INITIALIZATION
-    
+
     for u in 1..USER_ITERS {
         // insert user into DB
         db.query_drop(format!(
@@ -307,7 +344,7 @@ fn test_compose_anon_gdpr_disguises() {
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key.clone());
     }
-    
+
     // APPLY ANON DISGUISE
     let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
     edna.apply_disguise(anon_disguise.clone(), vec![]).unwrap();
@@ -315,9 +352,9 @@ fn test_compose_anon_gdpr_disguises() {
     // APPLY GDPR DISGUISES
     for u in 1..USER_ITERS {
         let mut pp_privkeys = HashMap::new();
-        let mut pps= vec![];
+        let mut pps = vec![];
 
-        // get private key tokens 
+        // get private key tokens
         let cap = edna.get_capability(u, 1).unwrap();
         let pps_enc_keys = edna.get_pseudoprincipal_enc_privkeys(u);
         for mut pk in pps_enc_keys {
@@ -325,35 +362,45 @@ fn test_compose_anon_gdpr_disguises() {
             let symkey = priv_keys[u as usize - 1]
                 .decrypt(padding, &pk.enc_key)
                 .expect("failed to decrypt");
-           // decrypt token with symkey 
-           let cipher = Aes128Cbc::new_from_slices(&symkey, &pk.enc_token.iv).unwrap();
-           let plaintext = cipher.decrypt_vec(&mut pk.enc_token.token_data).unwrap();
-           let pktoken = tokens::privkeytoken_from_bytes(plaintext);
-           let privkey = RsaPrivateKey::from_pkcs1_der(&pktoken.priv_key).unwrap();
-           pp_privkeys.insert(pktoken.new_uid, privkey);
-           pps.push(pktoken.new_uid);
+            // decrypt token with symkey
+            let cipher = Aes128Cbc::new_from_slices(&symkey, &pk.enc_token.iv).unwrap();
+            let plaintext = cipher.decrypt_vec(&mut pk.enc_token.token_data).unwrap();
+            let pktoken = tokens::privkeytoken_from_bytes(plaintext);
+            let privkey = RsaPrivateKey::from_pkcs1_der(&pktoken.priv_key).unwrap();
+            pp_privkeys.insert(pktoken.new_uid, privkey);
+            pps.push(pktoken.new_uid);
         }
 
-        let esymks = edna.get_enc_symkeys_of_capabilities_and_pseudoprincipals(vec![cap], pps); 
+        let esymks =
+            edna.get_enc_token_symkeys_of_capabilities_and_pseudoprincipals(vec![cap], pps);
         assert_eq!(esymks.len(), 1);
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
         let symkey = priv_keys[u as usize - 1]
             .decrypt(padding, &esymks[0].0.enc_symkey)
             .expect("failed to decrypt");
-        let tokens = vec![(tokens::SymKey {
-            uid: u,
-            did: 1,
-            symkey: symkey,
-        }, cap)];
+        let symkeys = vec![(
+            tokens::SymKey {
+                uid: u,
+                did: 1,
+                symkey: symkey,
+            },
+            cap,
+        )];
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
-        edna.apply_disguise(Arc::new(gdpr_disguise), tokens).unwrap();
+        edna.apply_disguise(Arc::new(gdpr_disguise), symkeys)
+            .unwrap();
     }
 
     // CHECK DISGUISE RESULTS
     // users removed
     for u in 1..USER_ITERS {
         let mut results = vec![];
-        let res = db.query_iter(format!(r"SELECT * FROM users WHERE users.username='hello{}'", u)).unwrap();
+        let res = db
+            .query_iter(format!(
+                r"SELECT * FROM users WHERE users.username='hello{}'",
+                u
+            ))
+            .unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
             assert_eq!(vals.len(), 3);
@@ -367,7 +414,12 @@ fn test_compose_anon_gdpr_disguises() {
     // no correlated moderations
     for u in 1..USER_ITERS {
         let mut results = vec![];
-        let res = db.query_iter(format!(r"SELECT id FROM moderations WHERE moderator_user_id={} OR user_id={}", u, u)).unwrap();
+        let res = db
+            .query_iter(format!(
+                r"SELECT id FROM moderations WHERE moderator_user_id={} OR user_id={}",
+                u, u
+            ))
+            .unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
             assert_eq!(vals.len(), 1);
@@ -379,7 +431,9 @@ fn test_compose_anon_gdpr_disguises() {
     // no correlated stories
     for u in 1..USER_ITERS {
         let mut results = vec![];
-        let res = db.query_iter(format!(r"SELECT id FROM stories WHERE user_id={}", u)).unwrap();
+        let res = db
+            .query_iter(format!(r"SELECT id FROM stories WHERE user_id={}", u))
+            .unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
             assert_eq!(vals.len(), 1);
@@ -390,10 +444,12 @@ fn test_compose_anon_gdpr_disguises() {
     }
 
     let mut guises = HashSet::new();
-    
+
     // stories have guises as owners
     let mut stories_results = vec![];
-    let res = db.query_iter(format!(r"SELECT user_id FROM stories")).unwrap();
+    let res = db
+        .query_iter(format!(r"SELECT user_id FROM stories"))
+        .unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 1);
@@ -402,10 +458,14 @@ fn test_compose_anon_gdpr_disguises() {
         assert!(user_id >= USER_ITERS);
         stories_results.push(user_id);
     }
-    assert_eq!(stories_results.len() as u64, (USER_ITERS-1)*NSTORIES);
-    
+    assert_eq!(stories_results.len() as u64, (USER_ITERS - 1) * NSTORIES);
+
     // moderations have guises as owners
-    let res = db.query_iter(format!(r"SELECT moderator_user_id, user_id FROM moderations")).unwrap();
+    let res = db
+        .query_iter(format!(
+            r"SELECT moderator_user_id, user_id FROM moderations"
+        ))
+        .unwrap();
     for row in res {
         let vals = row.unwrap().unwrap();
         assert_eq!(vals.len(), 2);
@@ -419,7 +479,9 @@ fn test_compose_anon_gdpr_disguises() {
 
     // check that all guises exist
     for u in guises {
-        let res = db.query_iter(format!(r"SELECT * FROM users WHERE id={}", u)).unwrap();
+        let res = db
+            .query_iter(format!(r"SELECT * FROM users WHERE id={}", u))
+            .unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
             assert_eq!(vals.len(), 3);
@@ -427,5 +489,5 @@ fn test_compose_anon_gdpr_disguises() {
             assert_eq!(username, format!("{}", u));
         }
     }
-        drop(db);
+    drop(db);
 }

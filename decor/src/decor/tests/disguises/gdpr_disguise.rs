@@ -28,6 +28,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
             },
         ])),
     );
+    // REMOVE STORIES
     hm.insert(
         "stories".to_string(),
         Arc::new(RwLock::new(vec![

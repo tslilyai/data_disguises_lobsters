@@ -70,7 +70,7 @@ pub struct TokenCtrler {
     // (p,d) capability -> encrypted symkey for principal+disguise
     pub enc_token_symkeys_map: HashMap<Capability, EncSymKey>,
 
-    pub global_tokens: HashMap<(DID, UID), Arc<RwLock<HashSet<Token>>>>,
+    pub global_tokens: HashMap<DID, HashMap<UID, Arc<RwLock<HashSet<Token>>>>>,
 
     // used for randomness stuff
     pub rng: OsRng,
@@ -176,14 +176,15 @@ impl TokenCtrler {
             "Inserting global token disguise {} user {}",
             token.did, token.uid
         );
-        if let Some(user_disguise_tokens) = self.global_tokens.get_mut(&(token.did, token.uid)) {
-            let mut tokens = user_disguise_tokens.write().unwrap();
-            tokens.insert(token.clone());
-        } else {
-            let mut hs = HashSet::new();
-            hs.insert(token.clone());
-            self.global_tokens
-                .insert((token.did, token.uid), Arc::new(RwLock::new(hs)));
+        if let Some(hm) = self.global_tokens.get_mut(&token.did) {
+            if let Some(user_disguise_tokens) = hm.get_mut(&token.uid) {
+                let mut tokens = user_disguise_tokens.write().unwrap();
+                tokens.insert(token.clone());
+            } else {
+                let mut hs = HashSet::new();
+                hs.insert(token.clone());
+               hm.insert(token.uid), Arc::new(RwLock::new(hs)));
+            }
         }
     }
 

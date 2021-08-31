@@ -70,12 +70,12 @@ impl EdnaClient {
         self.disguiser.get_capability(uid, did)
     }
 
-    pub fn get_enc_symkeys_of_capabilities_and_pseudoprincipals(
+    pub fn get_enc_token_symkeys_of_capabilities_and_pseudoprincipals(
         &mut self,
         caps: Vec<tokens::Capability>,
         pseudouids: Vec<UID>,
     ) -> Vec<(tokens::EncSymKey, tokens::Capability)> {
-        self.disguiser.get_enc_symkeys_with_capabilities_and_pseudoprincipals(caps, pseudouids)
+        self.disguiser.get_enc_token_symkeys_with_capabilities_and_pseudoprincipals(caps, pseudouids)
     }
 
     pub fn get_tokens_of_disguise_keys(
@@ -92,7 +92,7 @@ impl EdnaClient {
     ) -> Result<(), mysql::Error> {
         let tokens = self.disguiser.get_tokens_of_disguise_keys(keys, true);
         self.disguiser.apply(disguise.clone(), tokens)?;
-        warn!("EDNA: Applied Disguise {}", disguise.clone().did);
+        warn!("EDNA: APPLIED Disguise {}", disguise.clone().did);
         Ok(())
     }
 
@@ -103,7 +103,7 @@ impl EdnaClient {
     ) -> Result<(), mysql::Error> {
         let tokens = self.disguiser.get_tokens_of_disguise_keys(keys, true);
         self.disguiser.reverse(disguise.clone(), tokens)?;
-        warn!("EDNA: Applied Disguise {}", disguise.clone().did);
+        warn!("EDNA: REVERSED Disguise {}", disguise.clone().did);
         Ok(())
     }
 

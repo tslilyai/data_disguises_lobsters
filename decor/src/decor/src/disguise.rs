@@ -93,7 +93,10 @@ impl Disguiser {
         &mut self,
         uid: UID,
     ) -> Vec<EncPrivKeyToken> {
-        self.token_ctrler.lock().unwrap().get_enc_privkeys_of_user(uid)
+        let locked_token_ctrler = self.token_ctrler.lock().unwrap();
+        let epks = locked_token_ctrler.get_enc_privkeys_of_user(uid);
+        drop(locked_token_ctrler);
+        epks
     }
     
     // XXX remove
@@ -102,10 +105,13 @@ impl Disguiser {
         uid: UID,
         did: DID,
     ) -> Option<Capability> {
-        match self.token_ctrler.lock().unwrap().capabilities.get(&(uid,did)) {
+        let locked_token_ctrler = self.token_ctrler.lock().unwrap();
+        let c = match locked_token_ctrler.capabilities.get(&(uid,did)) {
             Some(c) => Some(*c),
             None => None,
-        }
+        };
+        drop(locked_token_ctrler);
+        c
     }
 
     pub fn get_enc_token_symkeys_with_capabilities_and_pseudoprincipals(
@@ -131,10 +137,11 @@ impl Disguiser {
         keys: Vec<(SymKey, Capability)>,
         for_disguise_action: bool,
     ) -> Vec<tokens::Token> {
-        self.token_ctrler
-            .lock()
-            .unwrap()
-            .get_tokens(&keys, for_disguise_action)
+        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
+        let tokens = locked_token_ctrler.get_tokens(&keys, for_disguise_action);
+        warn!("Got {} tokens for {} keys", tokens.len(),keys.len());
+        drop(locked_token_ctrler);
+        tokens
     }
 
     pub fn reverse(
@@ -149,15 +156,17 @@ impl Disguiser {
         for t in tokens {
             // only reverse tokens of disguise if not yet revealed
             if t.did == disguise.did && !t.revealed {
+                warn!("Reversing token {:?}", t);
                 let revealed = t.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
                 if revealed {
                     tokens_to_mark_revealed.push(t);
                 }
+            } else {
+                warn!("Skipping reversal of token {:?}", t);
             }
         }
 
         // mark all revealed tokens as revealed
-        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
         for t in &tokens_to_mark_revealed {
             locked_token_ctrler.mark_token_revealed(t);
         }
