@@ -1,23 +1,26 @@
+%-------------------------------------------------------------------------------
 \section{Design} 
+%-------------------------------------------------------------------------------
 
-\subsection{\sys vs. The Application} 
-\sys and the application lie the same security domain, but \sys adds extra functionality to the
-application to support disguising.
-
-Because disguises must be application-specific, the application developer has to add functionality
-in the following ways:
+\sys adds extra functionality to the application to support disguising (and \sys and the application lie the same security domain).
+%
+Because disguises are inherently application-specific, the application developer provides the following:
 \begin{itemize}
-    \item Writing disguise specifications, which include (1) annotations over the application schema
-        to tell \sys how to generate pseudoprincipals, and (2) the set of predicated disguise operations to
+    \item Disguise specifications that consist of a set of predicated disguise operations to
         perform during the disguise.
+    \item Application-aware pseudoprincipal generation (how to generate new user accounts in a
+        manner that the application can handle, e.g., they may not have email addresses)
 \end{itemize}
 
-\subsection{Disguise Operations} 
+\vspace{-6pt}
+\head{Disguise Specification Operations.} 
 Operations \op{d} of disguise $d$ take data objects as input, execute updates to application data,
-and produce (\texttt{token, principal}) pairs as output. This means that the disguise specification
-determines how tokens correspond to principals: for example, a comment may correspond to the
+and produce (\texttt{token, principal}) pairs as output. \sys automatically generates data tokens
+(described below) based on the type of \op{d}; however, developers describe in the specification
+which principals an operation's token corresponds to. For example, a comment may correspond to the
 principal whose ID is referenced by the author column.  
-%
+
+\vspace{6pt}\noindent
 Operations come in three forms:
 \begin{enumerate}
     \item Modify: change an attribute of the data object.
@@ -30,20 +33,25 @@ Operations come in three forms:
         To support private tokens associated with $q$, decorrelation generates a
         public-private key pair \pubk{q} and \privk{q}.
 \end{enumerate}
-Every \op{d} has an associated predicate over the application database that selects \op{d}'s input objects.
 
-\subsection{Disguise Tokens} 
-Disguise tokens come in two forms: data tokens and privkey tokens.
+For each \op{d}, the application developer specifies:
+\begin{itemize}
+    \item An associated predicate over the application database that selects \op{d}'s input
+        objects in a SQL-like fashion.
+    \item The type of operation and its arguments (e.g., which attributes of the data object to
+        modify).
+    \item The corresponding principal(s) with capabilities to access the produced token.
+\end{itemize}
+
+\noindent
+The generated tokens come in two forms: data tokens and privkey tokens.
 
 \vspace{6pt}
 \noindent\textbf{\emph{Data Tokens.}}
 Every \op{d} produces data tokens associated with the disguise $d$ and a
 principal $p$, notated as \tdata{pd}. \tdata{pd} tokens are either private or global depending on
 whether the disguise $d$ is global or private. 
-\lyt{Note: making explicit decision that global/private is a per-disguise setting.}
-%An admin-authenticated client can still apply private disguises, but won't be able to access any
-%non-global tokens.  Furthermore, a private disguise may produce tokens private to many different
-%principals.}
+\lyt{global/private is a per-disguise setting.}
 
 A \tdata{pd} contains the following fields, which record changes performed by \op{d}:
 \begin{itemize}
@@ -69,95 +77,161 @@ during decorrelation (notated as \tpriv{pdq}).
 \item \fn{pseudoPrincipalPrivateKey}: \privk{q}
 \item \fn{nonce}: random value generated to prevent known-plaintext attacks
 \end{itemize}
-\sys always stores \tpriv{pdq} privately and associated with $p$. This ensures that only a client
-with access to \privk{p} can access \privk{q} (and therefore access $q$'s private tokens).
+\sys always stores \tpriv{pdq} privately associated with $p$. 
+%This ensures that only a client
+%with access to \privk{p} can access \privk{q} (and therefore access $q$'s private tokens).
 
-\vspace{12pt}
-\noindent\textbf{\emph{Enforcing Private Token Access.}}
-\sys ensures the security of private disguise data tokens as follows: \sys encrypts private
-\tdata{pd} with a symmetric key \symk{pd} specific to the disguise and principal. The token's nonce
-ensures safety against known-plaintext attacks. \sys then encrypts \symk{pd} with public key
-\pubk{p}.  
+%-------------------------------------------------------------------------------
+\subsection{Security}
+%-------------------------------------------------------------------------------
+\begin{table}[t!]
+\centering
+\begin{tabular}{ c | c c }
+    & \multicolumn{2}{c}{\textbf{\tdata{pd} Token Access}}\\
+\textbf{Client Proof}& \textbf{Global} & \textbf{Private to $p$}\\
+\hline
+    $\emptyset$ & plaintext & \\
+    \privk{p} & plaintext & \\
+    \capa{pd} & plaintext & ciphertext \\
+    \privk{p}, \capa{pd} & plaintext & plaintext \\
+\end{tabular}
+\vspace{6pt}
+\caption{Client access to disguise $d$'s tokens, depending on what proof the client can provide and the state of the tokens.}
+\label{tab:access}
+\end{table}
+
+Table~\ref{tab:access} illustrates which clients can access a disguise $d$'s tokens, depending on
+what the client presents as proof, and the state of the tokens.
+
+\sys ensures that private tokens are properly secured such that only a client with private key
+\privk{p} and capability \capa{pd} can access tokens produced by disguise $d$ associated with $p$.
+%
+Furthermore, \sys ensures that only a client with capability \capa{pd} can learn if a disguise $d$
+applies to principal $p$.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Securing Plaintext Token Access.}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\sys protects private disguise data tokens by encrypting the private \tdata{pd} with a symmetric key
+\symk{pd} specific to the disguise and principal. The token's nonce ensures safety against
+known-plaintext attacks. \sys then encrypts \symk{pd} with public key \pubk{p}.  
 %
 A client needs to prove it has \privk{p} by decrypting \symk{pd}, which then allows \sys
 to decrypt $p$'s data tokens produced from applying $d$.
 
-\sys ensures security of \tpriv{pdq} tokens by encrypting them with \pubk{p}. Only a client who has
+\sys protects \tpriv{pdq} tokens by encrypting them with \pubk{p}. Only a client who has
 \privk{p} can decrypt \tpriv{pdq} and gain access to pseudoprincipal $q$'s private key \privk{q}
 (and thus access to $q$'s private tokens).
 
 \sys stores all global \tdata{pd} tokens in plaintext, where any party can access it.
 
-\begin{table}[t!]
-\centering
-\begin{tabular}{ c | c c }
-& \multicolumn{2}{c}{\textbf{$d$ Tokens}}\\
-\textbf{Client-Provided Capabilities}& \textbf{Global} & \textbf{Private to $p$}\\
-\hline
-    \{\privk{q}, \rptr{qd}\} for $q \neq p$ & \checkmark & \\
-    \{\privk{p}, \rptr{pd}\} & \checkmark & \checkmark\\
-\end{tabular}
-\vspace{6pt}
-\caption{Client access to disguise $d$'s tokens, depending on the client's capabilities and the state of the tokens.}
-\label{tab:access}
-\end{table}
-
-Table~\ref{tab:access} illustrates which clients can access a disguise $d$'s tokens, depending on
-how the client is authorized, and the state of the tokens.
-
-\vspace{12pt}
-\noindent\textbf{\emph{Hiding the Set of Disguises Applied to a Principal.}}
-As described, \sys's design may leak information that principal $p$ has been disguised by disguise
-$d$ by storing a map from $p$ and $d$ to \symk{pd} ciphertexts and \tdata{pd} or \tpriv{pdq}
-ciphertexts. 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Hiding the Set of Disguises Applied to a Principal.}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\sys's design may leak information that principal $p$ has been disguised by disguise
+$d$ because an adversary may learn that ciphertexts for \symk{pd} and \tdata{pd} tokens exists for a particular $p$ and $d$.
 This is a problem: for example, \sys should not store information that a principal $p$ has
 invoked GDPR deletion.
 
-\head{Storing \symk{pd} and \tdata{pd}.}
-When a disguise $d$ generates tokens for principal $p$, \sys generates a random number \rptr{pd} and saves
-a map from \rptr{pd} to:
-\begin{enumerate}
-    \item the \symk{pd} ciphertext
-    \item an array of \tdata{pd} ciphertexts
-\end{enumerate}
-\rptr{pd} acts as the capability to locate (and thus access) the \symk{pd} and \tdata{pd}
+To avoid this problem, \sys generates a capability \capa{pd} (e.g., a random number or string)
+and saves a map from \capa{pd} to (1) the \symk{pd} ciphertext and (2) an array of \tdata{pd}
 ciphertexts.
-
-Because no client speaking for $p$ may be currently online, \sys emails (or otherwise communicates)
-\rptr{pd} to a party that can authenticate as $p$. If no email is present (\eg $p$ is a pseudoprincipal),
-\sys publically saves a mapping from $p$ to \rptr{pd}; this leaks disguise-principal associations, but
-only for pseudoprincipals whose data is already decorrelated from their original principal owner.
-\lyt{This assumes that every real user must have an email.}
+%\capa{pd} acts as the capability to locate (and thus access) the \symk{pd} and \tdata{pd}
+%ciphertexts.
 
 In order to reveal tokens for $p$ from disguise $d$, the client must prove it has the capability
-\rptr{pd},
-which allows \sys to return to the client the encrypted \symk{pd}. The client then has to prove it
-can access $p$'s tokens for $d$ by decrypting \symk{pd} with \privk{p}.  Only with the plaintext
-\symk{pd} can the array of \tdata{pd} ciphertexts be decrypted by \sys.
+\capa{pd}, which allows \sys to find the encrypted \symk{pd}. The client then has to prove it can
+access $p$'s tokens for $d$ by decrypting \symk{pd} with \privk{p}.  Only with the
+plaintext \symk{pd} can the array of \tdata{pd} ciphertexts be decrypted by \sys.
 
-Thus, even an attacker who can spoof \rptr{pd} will not be able to access $p$'s tokens for $d$ without
-\privk{p}.
+Thus, an attacker who can spoof \capa{pd} will not be able to access the plaintext of $p$'s tokens for $d$ without
+\privk{p}, although they can learn if $d$ disguised some of $p$'s data.
 
-However, note that \sys does learn the number of \tdata{pd} tokens for each $p$ and $d$; this
+Note that an adversary can learn the number of \tdata{pd} tokens for each $p$ and $d$; this
 metadata is out of scope of our threat model.
 
-\vspace{6pt}\noindent\textbf{Storing \tpriv{pdq}}.
-\tpriv{pdq} token ciphertexts are stored in one array corresponding to the original principal $p$, but are not
-separated by disguise $d$ as \tdata{pd} ciphertexts are.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Storing \tpriv{pdq} Tokens.}
+\tpriv{pdq} tokens are encrypted with \pubk{p} and the resulting ciphertexts stored in one array
+corresponding to the original principal $p$. These token ciphertexts are not separated by disguise
+$d$ as \tdata{pd} ciphertexts are, since \tpriv{pdq} tokens grant the holder authorization to access
+tokens from any disguise for pseudoprincipal $q$.
 
 \sys (and equivalently an attacker) cannot learn which disguises applied to principal $p$ from
 observing the array of \tpriv{pdq} ciphertexts. However, \sys can learn how many disguises were
 applied to---and in particular, decorrelated---$p$'s data, as well as the number of pseudoprincipals
 in the system linked to $p$. This metadata is out of scope of our threat model.
 
-%While this hides which disguises were applied to a particular $p$, it leaks how many (principal, disguise) keys there are in total; so if
-%only one principal's data has been disguised, for example, then this leaks how many disguises apply
-%to that principal.
+%-------------------------------------------------------------------------------
+\subsection{\sys API.}
+%-------------------------------------------------------------------------------
+\begin{table*}[t!]
+\centering
+\begin{tabular}{ c p{.5\linewidth} }
+\textbf{API Call} & \textbf{Description} \\
+\hline
+    \vspace{6pt}
+    \fn{RegisterPrincipal($p$, email, $\pubk{p}$) $\rightarrow ()$} & Registers $p$ as a principal whose data can be privately disguised.\\
+    \vspace{6pt}
+    \fn{CapabilitiesToEncKeys(\{\capa{}\}) $\rightarrow$ \{Enc(\symk{})\}} & Retrieves the set
+    of encrypted keys accessible using the provided capabilities.\\
+    \vspace{6pt}
+    \fn{Disguise($d$, \{\capa{}\}) $\rightarrow$ \{\capa{}\}} & Applies disguise $d$. 
+    The provided set of capabilities grant \sys access to tokens 
+    tokens from previous disguises, which allow \sys to compose disguise $d$ on top of these previous disguises.
+    This function returns a set of capabilities enabling access to tokens produced by this disguise.\\
+    \vspace{6pt}
+    \fn{Reveal(\{\symk{}\}) $\rightarrow ()$} & 
+    Reveals, when possible, the token data that can be decrypted by the provided \symk, when possible.
+\end{tabular}
+    \vspace{6px}
 
-%\emph{Original design}: 
-%\sys stores a mapping from $p$ and $d$ to encrypted \symk{pd}.
-%To ensure that this does not leak metadata about which principals have disguised data, \sys generates dummy ciphertexts for all
-%principals that do not have encrypted \symk{pd}s for disguise $d$.
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Client Authenticated as $p$} \< \< \textbf{\sys} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+    (\pubk{p}, \privk{p}) \sample \kgen() \<\< \\
+\< \sendmessageright*{\fn{RegisterPrincipal(p,email,$\pubk{p}$)}} \< \\
+\<\< \fn{StorePubKey($\pubk{p}$)}\\
+    \{\capa{pd'}\} \gets \fn{LoadPriorDisguiseCapabilities()} \<\< \\
+    \< \sendmessageright*{\fn{CapabilitiesToEncKeys(\{\capa{pd'}\})}} \< \\
+    \<\< \fn{LoadEncKeys(\{\capa{pd'}\})}\\
+    \< \sendmessageleft*{\{Enc(\symk{pd'})\}} \< \\
+\fn{symKeys} \gets \{\}\\
+\pcforeach \fn{Enc(\symk{pd'})} \in \fn{\{Enc(\symk{pd'})\}}:\\
+    \quad \fn{symKeys.insert(\dec(\privk{q}, \symk{pd'}))}\\
+\pcendforeach\\
+    \< \sendmessageright*{\fn{Disguise($d$,symKeys)}} \< \\
+    \<\< \fn{ApplyDisguise($d$,symKeys)}\\
+\< \sendmessageleft*{\{\capa{pd}\}} \<\\
+\fn{StoreCapabilities(\{\capa{pd}\})} \<\< \\
+}
+
+\caption{\sys API}
+\label{tab:api}
+\end{table*}
+
+\sys takes these developer-provided specifications and exposes the API in Table~\ref{tab:api} to the
+application. 
+An application can apply a disguise $d$ (\sys returns \capa{pd}s for the produced disguise tokens); 
+query for the encrypted symmetric keys corresponding to the set of provided capabilities; and 
+reveal token data that can be decrypted using the provided \symk{}.
+
+\head{External Storage of \capa{pd}.} \sys should not store \capa{pd} such that \sys can learn the
+set of capabilities associated with one principal $p$: existence of \capa{pd} allows an adversary to
+learn that disguise $d$ has applied to principal $p$. Thus, \capa{pd} must be stored externally,
+even when no client speaking for $p$ is currently online.
+There are two options here: 
+
+(1) \sys can email (or otherwise communicate)
+\capa{pd} to a party that can authenticate as $p$. If no email is present (\eg $p$ is a pseudoprincipal),
+\sys can publically save a mapping from $p$ to \capa{pd}; this leaks disguise-principal associations, but
+only for pseudoprincipals whose data is already decorrelated from their original principal owner.
+\lyt{This assumes that every real user must have an email.}
+
+(2) Alternatively, \sys can simply return the capabilities back to the application; the application
+then must handle the logic of contacting the respective parties and saving capabilities externally.
 
 %-------------------------------------------------------------------------------
 \subsection{Does this design achieve our security goals?}
@@ -167,7 +241,7 @@ in the system linked to $p$. This metadata is out of scope of our threat model.
 \sys ensures that only properly authenticated clients can apply or
 reverse a disguise, achieving security goal (1).
 
-\vspace{6pt}\noindent\textbf{\emph{(2) Security of Private Disguise Tokens.}}
+\vspace{6pt}\noindent\textbf{\emph{(2) Security of Private Disguise Token Plaintext.}}
 Our design requires \sys to encrypt private \tdata{} tokens associated with $p$ with a symmetric key
 \symk{pd} for each disguise $d$. \sys then encrypts \symk{pd} with public key \pubk{p}.  
 A client needs to prove it has \privk{p} by decrypting \symk{pd}, which only then allows decryption
@@ -176,15 +250,12 @@ tokens.
 
 Each private \privk{pdq} is encrypted with \pubk{p}, and thus also requires a client to prove it has
 \privk{p} before the client can gain access to $q$'s private tokens.
-%\lyt{Not mentioning the strawman solution that encrypts each token with \pubk{p} for now.}
 
 \vspace{6pt}\noindent\textbf{\emph{(3) Security of Disguises Applied to Principal.}}
 We describe how \sys hides which disguises affect each principals' data by requiring a client to
-provide a capability \rptr{pd} in order to locate the encrypted token data from disguise $d$ applied
+provide a capability \capa{pd} in order to locate the encrypted token data from disguise $d$ applied
 to $p$. Because \sys does not store these capabilities, and the capabilities are per-disguise, \sys
 cannot link different disguises' encrypted token data to the same principal.
-%The client must additionally provide the correct random number generated by \sys in order to
-%access the corresponding disguise $d$'s tokens for $p$.
 
 \iffalse
 \vspace{6pt}\noindent\textbf{(2) \tdata{} Token Ciphertext Storage.}
