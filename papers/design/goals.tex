@@ -54,38 +54,52 @@ A disguisable application system operates on two categories of data:
 \subsection{Threat Model}
 %-------------------------------------------------------------------------------
 
-\begin{table}[h]
-\centering
-    \begin{tabular}{ c c c }
-        \textbf{Data} & \textbf{\sys?} & \textbf{p?}\\
-\hline
-        Database Contents & \checkmark & \checkmark \\
-        Global Disguise Tokens & \checkmark & \checkmark \\
-        Private Disguise Tokens & & \checkmark \\
-        Set of Disguises Applied to Principal & & \checkmark \\
-\end{tabular}
-    \caption{Desired data access policies.}
-\label{tab:accpriv}
-\end{table}
+%\begin{table}[h]
+%\centering
+%    \begin{tabular}{ c c c }
+%        \textbf{Data} & \textbf{\sys?} & \textbf{p?}\\
+%\hline
+%        Database Contents & \checkmark & \checkmark \\
+%        Global Disguise Tokens & \checkmark & \checkmark \\
+%        Private Disguise Tokens & & \checkmark \\
+%        Set of Disguises Applied to Principal & & \checkmark \\
+%\end{tabular}
+%    \caption{Desired data access policies.}
+%\label{tab:accpriv}
+%\end{table}
 
-An attacker compromises the web application and gains full access to the backend server.
 %
-This means that the attacker can access any data stored on the server, perform any actions the
-application can perform, and access any information about disguises tracked by \sys.
+Data disguises seek to protect user information in a web application against external observation
+and service compromise.
 %
-The application and the data disguising tool, \sys, are in the same untrusted domain (\ie they
-have the same threat model, and compromising one also compromises the other).
+\sys, our data disguising framework, links into the web application as a library.
+%
+An attacker who compromises the web application and gains full access to the server therefore
+can access any data stored, perform any actions the application can perform, and access any
+disguise metadata.
+%
+
+%
+A data disguise guarantees that the disguised data is hidden from any future attackers unless
+explicitly revealed.
+%
+In particular, an attacker who compromises \sys at time $t$ learns \emph{nothing but}:
+\begin{enumerate}[nosep]
+  \item the (plaintext) contents of the application database at or after time $t$;
+  \item the disguises invoked, and the identity of the principals invoking them, after time $t$; and
+  \item the results of revealing, after time $t$, disguises applied prior to $t$.
+\end{enumerate}
+%
+We make standard assumptions about the security of cryptographic primitives.
 %
 
 %
 \sys operates in an honest-but-curious setting: even if compromised, \sys faithfully executes
-its protocols.
+its protocols, but the attacker can observe any plaintext data handled as well as the behavior
+of the disguise.
 %
-Further, when it applies or reveals a disguise, \sys may temporarily
-hold (in memory) plaintext token data, but is trusted to delete it once the disguise is
-complete.
-%
-Finally, we assume standard security of public key and symmetric key primitives.
+
+\subsection{Security Goals}
 
 With this threat model, our goals are three-fold: 
 
