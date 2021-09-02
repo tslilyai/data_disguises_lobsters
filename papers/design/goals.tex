@@ -15,18 +15,23 @@ $d$ & an instance of a disguise specification (developer-provided) that can be a
     \vspace{6pt}
 \op{d} & an operation specified as part of disguise $d$ (either a removal, modification, or decorrelation)\\
     \vspace{6pt}
-\pubk{p} & public key of $p$ \\
+\capa{pd} & capability required to grant \sys permissions to compose on top of disguise $d$'s
+    updates, or reveal updates applied by disguise $d$. Permissions are associated with some
+    principal $p$.\\
+    \vspace{6pt}
+\pubk{p} & public key of $p$, used to encrypt \tokk{pd} and \tpriv{pq} \\
     \vspace{6pt}
 \privk{p} & private key of $p$ \\
     \vspace{6pt}
-\symk{pd} & symmetric key used to perform the second level of encryption of private tokens associated with principal $p$ produced by disguise $d$\\
+\addr{pd} & address at which encrypted \tokk{pd} and \tdata{pd} ciphertexts are located\\
     \vspace{6pt}
-\tdata{pd} & token storing undisguised data associated with $p$ and produced by $d$.\\
+\tokk{pd} & symmetric key used to perform encrypt \tdata{pd}\\
     \vspace{6pt}
-\tpriv{pdq} & token storing private key $\pubk{q}$ when \op{d} decorrelates data from $p$.\\
+\tdata{pd} & data token storing undisguised data associated with $p$ prior to application of $d$.\\
     \vspace{6pt}
-\capa{pd} & capability required to locate encrypted \symk{pd} and \tdata{pd} records. 
-\end{tabular}
+\tpriv{pq} & private key token storing the private key $\pubk{q}$ for a pseudoprincipal $q$ created
+    when some disguise decorrelates data from $p$.\\
+    \end{tabular}
 \caption{Notation used to describe \sys's design.}
 \label{tab:notation}
 \end{table*}
@@ -110,8 +115,8 @@ by disguise $d$.
 %
 An attacker without \capa{pd} cannot access private disguise tokens created prior to time of compromise, even if authenticated as $p$.
 
-\vspace{6pt}\noindent\textbf{\emph{(3) Security of Disguises Applied to Principal.}}
-An attacker cannot learn the set of disguises applied to a principal. An attacker only learns a
+\vspace{6pt}\noindent\textbf{\emph{(3) Security of Invoked Disguises Metadata.}}
+An attacker cannot learn the set of disguises that have disguised a principal's data. An attacker only learns a
 disguise $d$ applied to principal $p$ if a client grants \sys access to $p$'s permissions for $d$ by
 providing \capa{pd}.
 %$p$ authorizes access to private token ciphertexts for $d$ with

@@ -1,8 +1,146 @@
 %-------------------------------------------------------------------------------
-\section{\sys Protocols}
+\section{\sys API.}
 %-------------------------------------------------------------------------------
+\begin{table*}[t!]
+\centering
+\begin{tabular}{ c p{.5\linewidth} }
+\textbf{API Call} & \textbf{Description} \\
+\hline
+    \vspace{6pt}
+    \fn{RegisterPrincipal($p$, email, $\pubk{p}$) $\rightarrow ()$} & Registers $p$ as a principal whose data can be privately disguised.\\
+    \vspace{6pt}
+    \fn{GetGlobalAddresses($p$)} $\rightarrow$ \{\addr{pd}\} & Retrieves the (globally 
+    available) addresses associated with principal $p$; nonempty only if $p$ is a pseudoprincipal.\\
+    \vspace{6pt}
+    \fn{AddressesToEncTokenKeys(\{\addr{}\}) $\rightarrow$ \{Enc(\tokk{})\}} & Uses the provided
+    addresses to retrieve the corresponding encrypted symmetric keys that were used to encrypt tokens.\\
+    \vspace{6pt}
+    \fn{GetPseudoPrincipalEncPrivKeys($p$)} $\rightarrow$ \{Enc(\tpriv{pq})\} & Retrieves the
+    encrypted private key tokens of pseudoprincipal created by decorrelating data from $p$.\\
+    \vspace{6pt}
+    \fn{Disguise($d$, \{\tokk{pd'}\}) $\rightarrow$ \{\addr{}\}} & Applies disguise $d$.  The
+    provided set of symmetric keys (potentially corresponding to several disguises and several
+    principals) grant \sys access to tokens tokens from these disguises for these principals, which
+    allow \sys to compose disguise $d$ on top of these previous disguises.  This function returns a
+    set of addresses corresponding to the addresses of \tdata{} and \tokk{} ciphertexts produced by this disguise.\\
+    \vspace{6pt}
+    \fn{Reveal($d$, \{\tokk{pd}\}) $\rightarrow ()$} & 
+    Reveals disguise $d$.  The provided set of symmetric keys corresponding to disguise $d$ and
+    potentially several principals grant \sys access to tokens from disguise $d$ for these
+    principals. \sys reveals the data stored in the tokens if possible.
+\end{tabular}
+\vspace{6px}
+
+\caption{\sys API}
+\label{tab:api}
+\end{table*}
+
+\sys takes these developer-provided specifications and exposes the API in Table~\ref{tab:api} to the
+application. 
+
+\head{Principal Public Key Registration.}
+Figure~\ref{fig:acctreg} illustrates the principal registration protocol: every principal in the
+system must register a public key with \sys in order to later reveal (for disguise reversal or
+composition) any of privately disguised data. \sys remembers each public key \pubk{p} along with
+$p$'s ID.
+
+\begin{figure*}[t!]
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Principal p} \< \< \textbf{\sys} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+    (\pubk{p}, \privk{p}) \sample \kgen() \<\< \\
+\< \sendmessageright*{\fn{RegisterPrincipal(p,$\pubk{p}$)}} \< \\
+\<\< \fn{StorePubKey($\pubk{p}$)}
+}
+\caption{\textbf{Principal public key registration.}}
+\label{fig:acctreg}
+\end{figure*} 
+
+\begin{figure*}[t!]
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Client Authenticated as $p$} \< \< \textbf{\sys} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+    \fn{addrs} \gets \fn{LoadClientAddresses($p$)}\\
+\fn{privKs} \gets \{p \mapsto \privk{p}\}\pclb
+\pcintertext[dotted]{Recursively get addresses of all linked pseudoprincipals}
+\fn{idsToProcess} \gets \{p\}\\
+\pcwhile \fn{idsToProcess} \neq \{\}:\\
+\quad q \gets \fn{idsToProcess.pop()}\\
+\< \sendmessageright*{\fn{GetPseudoPrincipalEncPrivKeys($q$)}} \< \\
+\<\< \fn{encPrivKs} \gets \fn{\sys.Principals[q].EncPKTokens}\\
+\< \sendmessageleft*{\fn{encPrivKs}} \< \\
+\quad \pcforeach \fn{encPrivK} \in \fn{encPrivKs}:\\
+\quad \quad \privk{q} \gets \fn{privKeys}[q]\\
+\quad \quad \tpriv{qr} \gets \dec(\privk{q}, \fn{encPrivK})\\
+\quad\quad\fn{privKs.insert}(r\mapsto \tpriv{qr}.\fn{privKey}) \<\< \\
+\quad\quad\fn{idsToProcess.insert($r$)} \<\< \\
+\< \sendmessageright*{\fn{GetGlobalAddresses($q$)}} \< \\
+\<\< \fn{globalAddrs} \gets \fn{\sys.Principals[q].GlobalAddrs}\\
+\< \sendmessageleft*{\fn{globalAddrs}} \< \\
+\quad\quad\fn{addrs.append(globalAddrs)}\\
+\quad \pcendforeach\\
+\pcendwhile\pclb
+    \pcintertext[dotted]{Use addresses to get corresponding encrypted token keys}
+\< \sendmessageright*{\fn{AddressesToEncTokenKeys(addrs)}} \< \\
+    \<\< \fn{encTokKeys} \gets \fn{LoadEncTokenKeys(addrs)}\\
+\< \sendmessageleft*{\fn{encTokKeys}}\\
+\fn{tokkeys} \gets \{\}\\
+\pcforeach \fn{Enc(\tokk{qd'})} \in \fn{encTokKeys}\\
+\quad \pcif \text{authorizes access to $q$'s private tokens for $d'$}: \\
+\quad\quad \privk{q} \gets \fn{privKs[q]}\\
+\quad\quad \fn{tokkeys.insert(\dec(\privk{q}, \tokk{qd'}))}\\
+\pcendforeach\pclb
+\pcintertext[dotted]{Apply disguise with token keys}
+\< \sendmessageright*{\fn{Disguise($d$,tokkeys)}} \< \\
+\<\< \{\addr{}\}\gets\fn{ApplyDisguise($d$,tokkeys)} \pclb
+\pcintertext[dotted]{Addresses can be emailed by \sys or returned to application}
+}
+\caption{\textbf{Disguise Application.}}
+\label{fig:disgapp}
+\end{figure*} 
+
+\head{Disguise Application and Reversal with Addresses.}
+As shown in Figure~\ref{fig:disgapp}, an \sys client can retrieve addresses both provided for an
+original principal $p$ (for which the client is authenticated and has \privk{p}). 
+
+The client can also retrieve addresses and private keys for all pseudoprincipals associated with $p$.
+
+Using these addresses, the client can query for encrypted symmetric \tokk{} keys corresponding to
+the set of provided addresses; and decrypt and provide these \tokk{}s to \sys to disguise (or reveal) using token data that can be decrypted using the provided \tokk{}.
 
 \iffalse
+\vspace{6pt}\noindent\textbf{(2) \tdata{} Token Ciphertext Storage.}
+\sys must hide which token ciphertexts correspond to which principals.  Naively, \sys can store
+all ciphertexts in one bag; in order to determine which ciphertexts a client may access, the client
+provides the decrypted \tokk{pd} and \sys tries to decrypt every ciphertext in the bag. This clearly
+has poor performance and is unscalable.
+However, \sys cannot group the ciphertexts into bags indexed by principal ID: this leaks information
+about the number of private tokens associated with a principal.
+
+To provide metadata privacy while achieving better performance, \sys stores encrypted \tdata{pd} and
+\tpriv{pq} tokens in a linked list of encrypted tokens produced by $d$ associated with $p$, notated
+as \tokls{pd}. 
+Tokens store links to the next token in the list with in an additional \fn{nextEncToken} field: this
+field stores a pointer to the location of current tail of \tokls{pd} for $p$ and $d$.
+Thus, only by decrypting tokens in the list one by one can the entire \tokls{pd} be discovered and
+the ciphertexts in the list decrypted.
+
+\sys stores current pointers to the tails of \tokls{pd} indexed by $p$ and $d$. This allows \sys to
+know where to start decrypting the list of tokens given $p$ and $d$, and how to set
+\fn{nextEncToken} for a new token in \tokls{pd} produced when applying $d$. \sys generates dummy
+tail pointers for all principals not associated with disguise $d$ to hide metadata about which lists
+exist.
+Because \tokls{pd} tails point to (real or dummy) token ciphertexts, an adversary learns nothing
+about the token contents or how many tokens are associated with a principal.
+
+\vspace{6pt}\noindent\textbf{(3) \tpriv{} Token Ciphertext Storage.}
+\lyt{For this, we would need to store in a linked list, each node would have to be sent one at a
+time to the client because each token is encrypted with \pubk{p}}.
+
 \begin{table*}[t!]
 \centering
 \begin{tabular}{ c p{.6\linewidth} }
@@ -17,19 +155,19 @@
     \fn{PseudoPrincipalKeysResponse(encPrivKs)} & Sent from \sys to the client authenticated as $p$ with the set of encrypted
     private keys of pseudoprincipals linked to $p$.\\
     \vspace{6pt}
-    \fn{StartDisguise($d$, caps, ppIds)} & Begins the process of applying disguise
-    $d$, granting \sys access to prior disguised data of $p$'s with the provided capabilities in
-    \texttt{caps}, and access to prior disguised data of any pseudoprincipals in \texttt{ppIds}.\\
+    \fn{StartDisguise($d$, addrs, ppIds)} & Begins the process of applying disguise
+    $d$, granting \sys access to prior disguised data of $p$'s with the provided addresses in
+    \texttt{addrs}, and access to prior disguised data of any pseudoprincipals in \texttt{ppIds}.\\
     \vspace{6pt}
-    \fn{StartDisguiseReversal($d$, caps, ppIds)} & Begins the process of reversing disguise $d$,
-    granting \sys access to prior disguised data of $p$'s with the provided capabilities in \texttt{caps}, and access to prior disguised data of any pseudoprincipals in \texttt{ppIds}.\\
+    \fn{StartDisguiseReversal($d$, addrs, ppIds)} & Begins the process of reversing disguise $d$,
+    granting \sys access to prior disguised data of $p$'s with the provided addresses in \texttt{addrs}, and access to prior disguised data of any pseudoprincipals in \texttt{ppIds}.\\
     \vspace{6pt}
     \fn{RequestTokenAccess(encSymKeys)} & Sent from \sys to a client authenticated as
     $p$, requesting the client decrypt all the encrypted symmetric keys in \fn{encSymKeys} with
-    \privk{p} and uncover the corresponding \symk{pd}s. \\
+    \privk{p} and uncover the corresponding \tokk{pd}s. \\
     \vspace{6pt}
-    \fn{GrantTokenAccess(\{\symk{pd}\})} & Grants \sys permission, for all \symk{pd} in the
-    argument, to decrypt any privately-stored \tdata{pd} and \tpriv{pdq} with \symk{pd}.
+    \fn{GrantTokenAccess(\{\tokk{pd}\})} & Grants \sys permission, for all \tokk{pd} in the
+    argument, to decrypt any privately-stored \tdata{pd} and \tpriv{pdq} with \tokk{pd}.
 \end{tabular}
     \vspace{6px}
 \caption{API Calls for Client Authenticated as Principal $p$}
@@ -38,7 +176,6 @@
 
 Table~\ref{tab:api} describes all the API calls used in protocols between \sys and a client.
 \lyt{Not sure if the admin- vs. user-authenticated client distinction is clear here..}
-\fi
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{PseudoPrincipal Private Key Retrieval.}
@@ -89,25 +226,25 @@ no more nested pseudoprincipals exist.
 \head{User-Authenticated Disguise Application.}
 Figure~\ref{fig:userauthdisapp} illustrates the protocol for user-authenticated (as principal $p$) disguise application.
 
-The client first performs pseudoprincipal private key retrieval for $p$, and retrieves all capabilities from
+The client first performs pseudoprincipal private key retrieval for $p$, and retrieves all addresses from
 prior disguises for which the client grants token access.
 %
-The client then invokes \fn{StartDisguise} with these capabilities and the set of pseudoprincipals.
+The client then invokes \fn{StartDisguise} with these addresses and the set of pseudoprincipals.
 
-\sys takes the capabilities of $p$ and the public capabilities of all pseudoprincipals in the
-provided set, and retrieves the corresponding encrypted \symk{}s.
+\sys takes the addresses of $p$ and the public addresses of all pseudoprincipals in the
+provided set, and retrieves the corresponding encrypted \tokk{}s.
 \sys then requests to access all private tokens protected by these symmetric keys by sending a
-\fn{RequestTokenAccess} to the client with the \symk{} ciphertexts.
+\fn{RequestTokenAccess} to the client with the \tokk{} ciphertexts.
 
 The client decrypts the ciphertexts using the appropriate \privk{q} (proving
 that the client has access to $q$'s private tokens). 
 %
-The client only includes the decrypted \symk{qd'} in the set of keys sent back to \sys via a
+The client only includes the decrypted \tokk{qd'} in the set of keys sent back to \sys via a
 \fn{GrantTokenAccess} API call if the client wants to authorizes access to $q$'s private tokens
 from disguise $d'$. 
 
-\sys then uses each \symk{qd'} to decrypt $q$'s private tokens produced by disguise $d'$. Note that
-if the client returns a false \symk{qd'}, the decryption will fail, and \sys will not reveal any
+\sys then uses each \tokk{qd'} to decrypt $q$'s private tokens produced by disguise $d'$. Note that
+if the client returns a false \tokk{qd'}, the decryption will fail, and \sys will not reveal any
 $q$'s private tokens from $d'$.
 
 \sys combines all decrypted private tokens with the set of globally accessible tokens to produce
@@ -122,19 +259,19 @@ isn't necessarily fundamental.}
 \textbf{Client User-Authenticated as $p$} \< \< \textbf{\sys} \\
 [0.1\baselineskip][\hline]\\
 \texttt{//perform pseudoprincipal key retrieval}\\
-\fn{caps} \gets \{\}\\
-\pcforeach \capa{pd'} \in \fn{client.Capabilities}:\\
+\fn{addrs} \gets \{\}\\
+\pcforeach \addr{pd'} \in \fn{client.Addresses}:\\
 \quad \pcif \text{authorizes access to $d'$ tokens for $p$}: \\
-\quad\quad\fn{caps.insert(\capa{pd'})} \<\< \\
+\quad\quad\fn{addrs.insert(\addr{pd'})} \<\< \\
 \quad\pcfi\\
 \pcendforeach\\
-\< \sendmessageright*{\fn{StartDisguise($d$,caps,ppIds)}} \< \\
+\< \sendmessageright*{\fn{StartDisguise($d$,addrs,ppIds)}} \< \\
 \<\< \fn{symKeyEncs} \gets \{\}\\
-    \<\< \fn{symKeyEncs.insert(LoadEncSymKeys(caps))}\\
+    \<\< \fn{symKeyEncs.insert(LoadEncSymKeys(addrs))}\\
 \<\< \pcforeach q \in \fn{ppIds}:\\
-\<\< \quad\quad\fn{ppCaps} \gets \fn{\sys.PseudoPCaps[q]}\\
+\<\< \quad\quad\fn{ppAddrs} \gets \fn{\sys.PseudoPAddrs[q]}\\
 \<\< \quad\quad\fn{symKeyEncs.insert(}\\
-\<\< \quad\quad\quad\quad \fn{LoadEncSymKeys(ppCaps))}\\
+\<\< \quad\quad\quad\quad \fn{LoadEncSymKeys(ppAddrs))}\\
 \<\< \quad\pcendif\\
 \<\< \pcendforeach\\
 \< \sendmessageleft*{\fn{RequestTokenAccess(symKeyEncs)}} \< \\
@@ -154,9 +291,9 @@ isn't necessarily fundamental.}
     \<\< \quad\fn{tokens.insert(}\\
     \<\<\quad\quad\fn{ReadGlobalTokens}(d'))\\ 
 \<\< \pcendforeach\\
-\<\< \pcforeach \symk{qd'} \in \fn{symKeys}: \\
+\<\< \pcforeach \tokk{qd'} \in \fn{symKeys}: \\
 \<\< \quad\fn{tokens.insert(}\\
-\<\< \quad \quad \fn{ReadPrivateTokens(\symk{qd'}))}\\ 
+\<\< \quad \quad \fn{ReadPrivateTokens(\tokk{qd'}))}\\ 
 \<\< \pcendforeach\\
 \<\< \fn{ApplyDisguise($d$,tokens)}
 }
@@ -191,7 +328,6 @@ tokens, and instead simply applies the disguise with only globally-accessible to
 User- and admin-authenticated disguise
 reversal protocols follow the same logic as disguise application protocols, with the only
 differences being the API call invoked by the client 
-(\fn{StartDisguiseReversal}\fn{($d$,caps,ppIds)}) and the
+(\fn{StartDisguiseReversal}\fn{($d$,addrs,ppIds)}) and the
 function that \sys calls at the end (\fn{ReverseDisguise} \fn{($d$,tokens)}).
-
-
+\fi
