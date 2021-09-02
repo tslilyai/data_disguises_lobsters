@@ -36,17 +36,33 @@ $d$ & an instance of a disguise specification (developer-provided) that can be a
 \label{tab:notation}
 \end{table*}
 
-Our design considers \emph{disguisable application systems}, which consist of a typical database-backed
-application with an integrated disguising tool (\sys).
-We assume the following elements:
+%
+Our design considers typical database-backed applications that link a library provided by our disguising
+tool (\sys).
+%
+This library provides an API that the application uses to specify disguises, apply them, and (in some
+cases), reveal disguised data with proper authorization (Figure~\ref{f:api}).
+%
+\sys takes care of executing the database transformations required as part of a disguise, and stores
+disguised data in a secure way, subject to the threat model we describe in \S\ref{s:threat}.
+%
+To work with \sys, the application uses two abstractions:
 \begin{itemize}
-    \item $p$: an application principal, corresponding to a user ID in the application. 
-    \item $d$: an instance of a disguise specification that can be applied or revealed by a principal via \sys's
-        API. Invoking a disguise modifies and removes application data to hide revealing information.
+    \item Application principals, which correspond to natural persons using the application, and
+	which are uniquely identifiable (\eg via a user ID).
+        %
+	We denote an application principal as $p \in P$, where $P$ is the set of all active and
+	inactive application principals.
+	%
+    \item A disguise specification that consists of one or more disguises, $d \in D$, which each specify
+	how \sys transforms the application database when $d$ is invoked by a principal $p$.
+	%
+	This results in a unique \emph{disguise instance} $d_p$; a principal can only apply a disguise
+        once.
+	%
 \end{itemize}
-
-\noindent
-A disguisable application system operates on two categories of data:
+%
+\sys considers operates on two categories of data:
 \begin{enumerate}
     \item \emph{\textbf{Database Contents}}: The application reads and writes database
         contents, which include visible, undisguised and currently-disguised data.
@@ -62,6 +78,7 @@ A disguisable application system operates on two categories of data:
 
 %-------------------------------------------------------------------------------
 \subsection{Threat Model}
+\label{s:threat}
 %-------------------------------------------------------------------------------
 
 %
