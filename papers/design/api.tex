@@ -3,28 +3,124 @@
 %-------------------------------------------------------------------------------
 \begin{table*}[t!]
 \centering
+    \begin{tabular}{ p{.65\linewidth} p{.4\linewidth} }
+\textbf{API Call} & \textbf{Description} \\
+\hline
+    \fn{void RegisterPrincipal(PrincipalID $p$, Email email, PubKey $\pubk{p}$)} & Registers $p$ as a principal.
+        \vspace{6pt}\\
+    \fn{Set<Capability> ApplyDisguise(PrincipalID $p$, DisguiseSpec $d$, Set<Capability> caps)} & Applies
+    disguise $d$. The provided capabilities allow \sys to compose disguise $d$ on top of
+    prior disguises using the accessible of disguise change records. \sys returns a
+    set of capabilities that will enable access to disguise changes from the corresponding disguise
+    instance $\delta$ and recorrelation with decorrelated data.
+        \vspace{6pt}\\
+    \fn{void RevealDisguise(PrincipalID $p$, DisguiseInstance $\delta$, Set<Capability> caps)} & 
+    Reveals disguise instance $\delta$. The provided capabilities grant \sys access to database
+    changes from applying $\delta$, which allows \sys to reveal undisguised data.
+\end{tabular}
+\vspace{6px}
+
+\caption{Client Disguising API}
+\label{tab:api}
+\end{table*}
+
+\begin{table*}[t!]
+\centering
+\begin{tabular}{ p{.55\linewidth} p{.5\linewidth} }
+\textbf{API Call} & \textbf{Description} \\
+\hline
+    \fn{bool CapabilityAllowsCorrelation(PrincipalID $p$, DatabaseObj $o$, Capability \capa{p\delta})} & Returns
+    whether principal $p$ is correlated with the provided database object. The capability grants
+    the ability to recorrelate $p$ with prior decorrelated objects. \lyt{This would be a row, or the table + object primary key depending on what
+    we want to assume.}
+    \vspace{6pt}\\
+    \fn{Set<DisguiseChangeRecord> CapToDisguiseChangeRecords} \fn{(Capability \capa{p\delta})} & Returns the
+   recorded disguise changes accessible given the provided capability.
+\end{tabular}
+\vspace{6px}
+
+\caption{Capability-Exercising API}
+\label{tab:internal_api}
+\end{table*}
+
+\subsection{Example API Usage}
+
+\head{Disguising and Revealing.}
+A client speaking for (registered) principal $p$ applies a disguise by providing the chosen disguise
+spec and a set of capabilities. Applying a disguise instance $\delta$ produces associated
+capabilities, which grant access to disguise change records from $\delta$. Any provided capabilities
+to \fn{ApplyDisguise} allow \sys to access disguise change records of the corresponding disguises to
+compose the new disguise on top.
+
+In order to reveal data disguised by $\delta$, a client speaking for $p$ invokes
+\fn{RevealDisguise}.
+The client provides capabilities that allow \sys to access disguise change records that it can use to
+restore the original, undisguised data.
+
+\head{Granting Post-Disguise Permissions.}
+Imagine the scenario in which an invoked disguise $\delta$ for HotCRP anonymizes all reviewers and authors of a
+conference by decorrelating them from their papers and reviews respectively.
+
+The application normally ensures that only a client speaking for $p$ should have read-only access to reviews
+for $p$'s authored papers, and read-write access to reviews $p$ wrote.
+
+If no modifications to its protocol is taken, the appliction after $\delta$ applies will grant a
+client authenticated as $p$ no permissions to read or write any reviews of the conference: any
+previously correlated paper or review is now associated with pseudoprincipal $q$.
+
+To allow the client to regain authorship or reviewership permissions, the application can first
+query \fn{IsCorrelated($p$, paper|review, \capa{p\delta})}, where \capa{p\delta} is provided by the
+client speaking for $p$ when the client sends a read or write request.
+
+If \fn{IsCorrelated} returns \fn{true}, then the application can treat the client as if the 
+client speaks for pseudoprincipal $q$ who is correlated with the paper or review, and thus permit
+the client to read reviews on $q$'s authored papers, or read/write reviews belonging to $q$.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\iffalse
+\begin{table*}[t!]
+\centering
 \begin{tabular}{ c p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
     \vspace{6pt}
     \fn{RegisterPrincipal($p$, email, $\pubk{p}$) $\rightarrow ()$} & Registers $p$ as a principal whose data can be privately disguised.\\
     \vspace{6pt}
-    \fn{GetGlobalAddresses($p$)} $\rightarrow$ \{\addr{pd}\} & Retrieves the (globally 
+    \fn{GetGlobalAddresses($p$)} $\rightarrow$ \{\addr{p\delta}\} & Retrieves the (globally 
     available) addresses associated with principal $p$; nonempty only if $p$ is a pseudoprincipal.\\
     \vspace{6pt}
-    \fn{AddressesToEncTokenKeys(\{\addr{}\}) $\rightarrow$ \{Enc(\tokk{})\}} & Uses the provided
+    \fn{AddressesToEncTokenKeys(\{\addr{}\}) $\rightarrow$ \{Enc(\symk{})\}} & Uses the provided
     addresses to retrieve the corresponding encrypted symmetric keys that were used to encrypt tokens.\\
     \vspace{6pt}
-    \fn{GetPseudoPrincipalEncPrivKeys($p$)} $\rightarrow$ \{Enc(\tpriv{pq})\} & Retrieves the
+    \fn{GetPseudoPrincipalEncPrivKeys($p$)} $\rightarrow$ \{\tpriv{pq}\} & Retrieves the
     encrypted private key tokens of pseudoprincipal created by decorrelating data from $p$.\\
     \vspace{6pt}
-    \fn{Disguise($d$, \{\tokk{pd'}\}) $\rightarrow$ \{\addr{}\}} & Applies disguise $d$.  The
+    \fn{Disguise($d$, \{\symk{pd'}\}) $\rightarrow$ \{\addr{}\}} & Applies disguise $d$.  The
     provided set of symmetric keys (potentially corresponding to several disguises and several
     principals) grant \sys access to tokens tokens from these disguises for these principals, which
     allow \sys to compose disguise $d$ on top of these previous disguises.  This function returns a
-    set of addresses corresponding to the addresses of \tdata{} and \tokk{} ciphertexts produced by this disguise.\\
+    set of addresses corresponding to the addresses of \tdata{} and \symk{} ciphertexts produced by this disguise.\\
     \vspace{6pt}
-    \fn{Reveal($d$, \{\tokk{pd}\}) $\rightarrow ()$} & 
+    \fn{Reveal($d$, \{\symk{p\delta}\}) $\rightarrow ()$} & 
     Reveals disguise $d$.  The provided set of symmetric keys corresponding to disguise $d$ and
     potentially several principals grant \sys access to tokens from disguise $d$ for these
     principals. \sys reveals the data stored in the tokens if possible.
@@ -86,17 +182,17 @@ $p$'s ID.
 \pcendwhile\pclb
     \pcintertext[dotted]{Use addresses to get corresponding encrypted token keys}
 \< \sendmessageright*{\fn{AddressesToEncTokenKeys(addrs)}} \< \\
-    \<\< \fn{encTokKeys} \gets \fn{LoadEncTokenKeys(addrs)}\\
-\< \sendmessageleft*{\fn{encTokKeys}}\\
-\fn{tokkeys} \gets \{\}\\
-\pcforeach \fn{Enc(\tokk{qd'})} \in \fn{encTokKeys}\\
+    \<\< \fn{encsymkeys} \gets \fn{LoadEncTokenKeys(addrs)}\\
+\< \sendmessageleft*{\fn{encsymkeys}}\\
+\fn{symkeys} \gets \{\}\\
+\pcforeach \fn{Enc(\symk{qd'})} \in \fn{encsymkeys}\\
 \quad \pcif \text{authorizes access to $q$'s private tokens for $d'$}: \\
 \quad\quad \privk{q} \gets \fn{privKs[q]}\\
-\quad\quad \fn{tokkeys.insert(\dec(\privk{q}, \tokk{qd'}))}\\
+\quad\quad \fn{symkeys.insert(\dec(\privk{q}, \symk{qd'}))}\\
 \pcendforeach\pclb
 \pcintertext[dotted]{Apply disguise with token keys}
-\< \sendmessageright*{\fn{Disguise($d$,tokkeys)}} \< \\
-\<\< \{\addr{}\}\gets\fn{ApplyDisguise($d$,tokkeys)} \pclb
+\< \sendmessageright*{\fn{Disguise($d$,symkeys)}} \< \\
+\<\< \{\addr{}\}\gets\fn{ApplyDisguise($d$,symkeys)} \pclb
 \pcintertext[dotted]{Addresses can be emailed by \sys or returned to application}
 }
 \caption{\textbf{Disguise Application.}}
@@ -109,32 +205,32 @@ original principal $p$ (for which the client is authenticated and has \privk{p})
 
 The client can also retrieve addresses and private keys for all pseudoprincipals associated with $p$.
 
-Using these addresses, the client can query for encrypted symmetric \tokk{} keys corresponding to
-the set of provided addresses; and decrypt and provide these \tokk{}s to \sys to disguise (or reveal) using token data that can be decrypted using the provided \tokk{}.
+Using these addresses, the client can query for encrypted symmetric \symk{} keys corresponding to
+the set of provided addresses; and decrypt and provide these \symk{}s to \sys to disguise (or reveal) using token data that can be decrypted using the provided \symk{}.
 
 \iffalse
 \vspace{6pt}\noindent\textbf{(2) \tdata{} Token Ciphertext Storage.}
 \sys must hide which token ciphertexts correspond to which principals.  Naively, \sys can store
 all ciphertexts in one bag; in order to determine which ciphertexts a client may access, the client
-provides the decrypted \tokk{pd} and \sys tries to decrypt every ciphertext in the bag. This clearly
+provides the decrypted \symk{p\delta} and \sys tries to decrypt every ciphertext in the bag. This clearly
 has poor performance and is unscalable.
 However, \sys cannot group the ciphertexts into bags indexed by principal ID: this leaks information
 about the number of private tokens associated with a principal.
 
-To provide metadata privacy while achieving better performance, \sys stores encrypted \tdata{pd} and
+To provide metadata privacy while achieving better performance, \sys stores encrypted \tdata{p\delta} and
 \tpriv{pq} tokens in a linked list of encrypted tokens produced by $d$ associated with $p$, notated
-as \tokls{pd}. 
+as \tokls{p\delta}. 
 Tokens store links to the next token in the list with in an additional \fn{nextEncToken} field: this
-field stores a pointer to the location of current tail of \tokls{pd} for $p$ and $d$.
-Thus, only by decrypting tokens in the list one by one can the entire \tokls{pd} be discovered and
+field stores a pointer to the location of current tail of \tokls{p\delta} for $p$ and $d$.
+Thus, only by decrypting tokens in the list one by one can the entire \tokls{p\delta} be discovered and
 the ciphertexts in the list decrypted.
 
-\sys stores current pointers to the tails of \tokls{pd} indexed by $p$ and $d$. This allows \sys to
+\sys stores current pointers to the tails of \tokls{p\delta} indexed by $p$ and $d$. This allows \sys to
 know where to start decrypting the list of tokens given $p$ and $d$, and how to set
-\fn{nextEncToken} for a new token in \tokls{pd} produced when applying $d$. \sys generates dummy
+\fn{nextEncToken} for a new token in \tokls{p\delta} produced when applying $d$. \sys generates dummy
 tail pointers for all principals not associated with disguise $d$ to hide metadata about which lists
 exist.
-Because \tokls{pd} tails point to (real or dummy) token ciphertexts, an adversary learns nothing
+Because \tokls{p\delta} tails point to (real or dummy) token ciphertexts, an adversary learns nothing
 about the token contents or how many tokens are associated with a principal.
 
 \vspace{6pt}\noindent\textbf{(3) \tpriv{} Token Ciphertext Storage.}
@@ -164,10 +260,10 @@ time to the client because each token is encrypted with \pubk{p}}.
     \vspace{6pt}
     \fn{RequestTokenAccess(encSymKeys)} & Sent from \sys to a client authenticated as
     $p$, requesting the client decrypt all the encrypted symmetric keys in \fn{encSymKeys} with
-    \privk{p} and uncover the corresponding \tokk{pd}s. \\
+    \privk{p} and uncover the corresponding \symk{p\delta}s. \\
     \vspace{6pt}
-    \fn{GrantTokenAccess(\{\tokk{pd}\})} & Grants \sys permission, for all \tokk{pd} in the
-    argument, to decrypt any privately-stored \tdata{pd} and \tpriv{pdq} with \tokk{pd}.
+    \fn{GrantTokenAccess(\{\symk{p\delta}\})} & Grants \sys permission, for all \symk{p\delta} in the
+    argument, to decrypt any privately-stored \tdata{p\delta} and \tpriv{pdq} with \symk{p\delta}.
 \end{tabular}
     \vspace{6px}
 \caption{API Calls for Client Authenticated as Principal $p$}
@@ -232,19 +328,19 @@ prior disguises for which the client grants token access.
 The client then invokes \fn{StartDisguise} with these addresses and the set of pseudoprincipals.
 
 \sys takes the addresses of $p$ and the public addresses of all pseudoprincipals in the
-provided set, and retrieves the corresponding encrypted \tokk{}s.
+provided set, and retrieves the corresponding encrypted \symk{}s.
 \sys then requests to access all private tokens protected by these symmetric keys by sending a
-\fn{RequestTokenAccess} to the client with the \tokk{} ciphertexts.
+\fn{RequestTokenAccess} to the client with the \symk{} ciphertexts.
 
 The client decrypts the ciphertexts using the appropriate \privk{q} (proving
 that the client has access to $q$'s private tokens). 
 %
-The client only includes the decrypted \tokk{qd'} in the set of keys sent back to \sys via a
+The client only includes the decrypted \symk{qd'} in the set of keys sent back to \sys via a
 \fn{GrantTokenAccess} API call if the client wants to authorizes access to $q$'s private tokens
 from disguise $d'$. 
 
-\sys then uses each \tokk{qd'} to decrypt $q$'s private tokens produced by disguise $d'$. Note that
-if the client returns a false \tokk{qd'}, the decryption will fail, and \sys will not reveal any
+\sys then uses each \symk{qd'} to decrypt $q$'s private tokens produced by disguise $d'$. Note that
+if the client returns a false \symk{qd'}, the decryption will fail, and \sys will not reveal any
 $q$'s private tokens from $d'$.
 
 \sys combines all decrypted private tokens with the set of globally accessible tokens to produce
@@ -291,9 +387,9 @@ isn't necessarily fundamental.}
     \<\< \quad\fn{tokens.insert(}\\
     \<\<\quad\quad\fn{ReadGlobalTokens}(d'))\\ 
 \<\< \pcendforeach\\
-\<\< \pcforeach \tokk{qd'} \in \fn{symKeys}: \\
+\<\< \pcforeach \symk{qd'} \in \fn{symKeys}: \\
 \<\< \quad\fn{tokens.insert(}\\
-\<\< \quad \quad \fn{ReadPrivateTokens(\tokk{qd'}))}\\ 
+\<\< \quad \quad \fn{ReadPrivateTokens(\symk{qd'}))}\\ 
 \<\< \pcendforeach\\
 \<\< \fn{ApplyDisguise($d$,tokens)}
 }
@@ -330,4 +426,5 @@ reversal protocols follow the same logic as disguise application protocols, with
 differences being the API call invoked by the client 
 (\fn{StartDisguiseReversal}\fn{($d$,addrs,ppIds)}) and the
 function that \sys calls at the end (\fn{ReverseDisguise} \fn{($d$,tokens)}).
+\fi
 \fi

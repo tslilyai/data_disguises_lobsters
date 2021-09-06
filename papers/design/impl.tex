@@ -6,8 +6,8 @@
 \begin{tabular}{ c p{.7\linewidth} }
 \textbf{Function} & \textbf{Description} \\
 \hline
-    \fn{ReadPrivateTokens(\symk{pd})} & Decrypts all of $p$'s private tokens produced by disguise
-    $d$ using \symk{pd}. \\
+    \fn{ReadPrivateTokens(\symk{p\delta})} & Decrypts all of $p$'s private tokens produced by disguise
+    $d$ using \symk{p\delta}. \\
     \fn{ReadGlobalTokens($d$)} & Retrieves all global tokens produced by disguise $d$. \\
     \fn{ApplyDisguise($d$,tokens)} & Applies disguise $d$, selectively composing $d$'s
     updates with prior disguises using the tokens's data. \\
@@ -19,13 +19,13 @@
     \fn{StorePubKey($\pubk{p}$)} & Persistently saves the public key \pubk{p} indexed by $p$.\\
     \fn{LoadPubKey($p$)} & Retrieves public key \pubk{p} for $p$.\\
     \fn{LoadEncPrivKeyTokens($p$)} & Retrieves \tpriv{pdq'} ciphertexts for $p$.\\
-    \fn{LoadEncSymKeys(caps)} & Retrieves \symk{pd} ciphertexts corresponding to the specified
+    \fn{LoadEncSymKeys(caps)} & Retrieves \symk{p\delta} ciphertexts corresponding to the specified
     capabilities.\\
-    \fn{StoreEncSymKey(\capa{pd})} & Persistently saves the \symk{pd} ciphertext indexed by
-    capability \capa{pd}.\\
-    \fn{LoadListTail}$(p,d)$ & Gets the first encrypted private token in \tokls{pd}, the list of
+    \fn{StoreEncSymKey(\capa{p\delta})} & Persistently saves the \symk{p\delta} ciphertext indexed by
+    capability \capa{p\delta}.\\
+    \fn{LoadListTail}$(p,d)$ & Gets the first encrypted private token in \tokls{p\delta}, the list of
     tokens associated with $p$ produced by $d$.\\
-    \fn{StoreListTail}$(p,d)$ & Persistently saves the first encrypted private token in \tokls{pd}
+    \fn{StoreListTail}$(p,d)$ & Persistently saves the first encrypted private token in \tokls{p\delta}
     indexed by $p$ and $d$.
 \end{tabular}
     \vspace{12px}
@@ -43,7 +43,7 @@ Figure~\ref{fig:revtoken} describes how \sys uses a token's recorded
 modification to reverse an applied disguise operation. 
 Figure~\ref{fig:rpt} describes how \sys accesses the private tokens
 corresponding to disguise $d$ and principal $p$ by recursively decrypting tokens and traversing
-\tokls{pd}.
+\tokls{p\delta}.
 
 \sys's implementations of the remaining functions in Table~\ref{tab:funcs} simply read or write into
 persistent maps indexed by principal and/or disguise.

@@ -77,14 +77,14 @@ keys
 
 
 % token stuff
-\newcommand\tpriv[1]{\ensuremath{\mathcal{T}^{\text{privk}}_{#1}}}
-\newcommand\tdata[1]{\ensuremath{\mathcal{T}^{\text{data}}_{#1}}}
+\newcommand\tdata[1]{\ensuremath{\Delta_{#1}}}
 \newcommand\fn[1]{\texttt{{#1}}}
 \newcommand\op[1]{\ensuremath{\texttt{op}_{#1}}}
 \newcommand\privk[1]{\texttt{\ensuremath{\texttt{k}^{\text{priv}}_{#1}}}}
+\newcommand\tpriv[1]{\ensuremath{\enc(\privk{{#1}})}}
 \newcommand\pubk[1]{\texttt{\ensuremath{\texttt{k}^{\text{pub}}_{#1}}}}
-\newcommand\tokk[1]{\texttt{\ensuremath{\texttt{k}^{\text{tok}}_{#1}}}}
-\newcommand\capa[1]{\ensuremath{\mathcal{C}_{#1}}}
+\newcommand\symk[1]{\texttt{\ensuremath{\texttt{k}_{#1}}}}
+\newcommand\capa[1]{\ensuremath{c_{#1}}}
 \newcommand\addr[1]{\ensuremath{\alpha_{#1}}}
 \newcommand\sysk{\texttt{\ensuremath{\texttt{k}_{\text{\sys}}}}}
 \newcommand\tokls[1]{\ensuremath{\mathcal{L}_{#1}}}
@@ -154,8 +154,8 @@ keys
 \vspace{-2\baselineskip}
 
 \input{goals}
+\input{api}
 \input{design}
-\input{protocols}
 \input{composition}
 %\input{impl}
 %\input{algofigs}
