@@ -79,7 +79,7 @@ pub struct TokenCtrler {
     // used to temporarily store keys used during disguises
     pub tmp_symkeys: HashMap<(UID, DID), SymKey>,
     pub tmp_capabilities: HashMap<(UID, DID), Capability>,
-    
+
     // XXX get rid of this, just for testing
     pub capabilities: HashMap<(UID, DID), Capability>,
 }
@@ -155,7 +155,7 @@ impl TokenCtrler {
         anon_uid
     }
 
-    pub fn get_enc_privkeys_of_user(&self ,uid:UID) -> Vec<EncPrivKeyToken> {
+    pub fn get_enc_privkeys_of_user(&self, uid: UID) -> Vec<EncPrivKeyToken> {
         match self.principal_data.get(&uid) {
             Some(p) => p.enc_privkey_tokens.clone(),
             None => vec![],
@@ -183,8 +183,14 @@ impl TokenCtrler {
             } else {
                 let mut hs = HashSet::new();
                 hs.insert(token.clone());
-               hm.insert(token.uid), Arc::new(RwLock::new(hs)));
+                hm.insert(token.uid, Arc::new(RwLock::new(hs)));
             }
+        } else {
+            let mut user_hm = HashMap::new();
+            let mut hs = HashSet::new();
+            hs.insert(token.clone());
+            user_hm.insert(token.uid, Arc::new(RwLock::new(hs)));
+            self.global_tokens.insert(token.did, user_hm);
         }
     }
 
@@ -329,18 +335,20 @@ impl TokenCtrler {
      * GLOBAL TOKEN FUNCTIONS
      */
     pub fn check_global_token_for_match(&mut self, token: &Token) -> (bool, bool) {
-        if let Some(global_tokens) = self.global_tokens.get(&(token.did, token.uid)) {
-            let tokens = global_tokens.read().unwrap();
-            for t in tokens.iter() {
-                if t.token_id == token.token_id {
-                    // XXX todo this is a bit inefficient
-                    let mut mytok = token.clone();
-                    mytok.revealed = t.revealed;
-                    let eq = mytok == *t;
-                    if t.revealed {
-                        return (true, eq);
+        if let Some(global_tokens) = self.global_tokens.get(&token.did) {
+            if let Some(user_tokens) = global_tokens.get(&token.uid) {
+                let tokens = user_tokens.read().unwrap();
+                for t in tokens.iter() {
+                    if t.token_id == token.token_id {
+                        // XXX todo this is a bit inefficient
+                        let mut mytok = token.clone();
+                        mytok.revealed = t.revealed;
+                        let eq = mytok == *t;
+                        if t.revealed {
+                            return (true, eq);
+                        }
+                        return (false, eq);
                     }
-                    return (false, eq);
                 }
             }
         }
@@ -353,11 +361,12 @@ impl TokenCtrler {
         let mut found = false;
 
         // delete token
-        if let Some(global_tokens) = self.global_tokens.get(&(token.did, token.uid)) {
-            let mut tokens = global_tokens.write().unwrap();
-            // just insert the token to replace the old one
-            tokens.remove(&token);
-            found = true;
+        if let Some(global_tokens) = self.global_tokens.get(&token.did) {
+            if let Some(user_tokens) = global_tokens.get(&token.uid) {
+                let mut tokens = user_tokens.write().unwrap();
+                tokens.remove(&token);
+                found = true;
+            }
         }
         // log token for disguise that marks removal
         self.insert_user_data_token(&mut Token::new_token_remove(uid, did, token));
@@ -372,11 +381,13 @@ impl TokenCtrler {
     ) -> bool {
         assert!(new_token.is_global);
         let mut found = false;
-        if let Some(global_tokens) = self.global_tokens.get(&(new_token.did, new_token.uid)) {
-            let mut tokens = global_tokens.write().unwrap();
-            // just insert the token to replace the old one
-            tokens.insert(new_token.clone());
-            found = true;
+        if let Some(global_tokens) = self.global_tokens.get(&old_token.did) {
+            if let Some(user_tokens) = global_tokens.get(&old_token.uid) {
+                let mut tokens = user_tokens.write().unwrap();
+                // just insert the token to replace the old one
+                tokens.insert(new_token.clone());
+                found = true;
+            }
         }
         if let Some((uid, did)) = record_token_for_disguise {
             self.insert_user_data_token(&mut Token::new_token_modify(
@@ -392,13 +403,15 @@ impl TokenCtrler {
     pub fn mark_token_revealed(&mut self, token: &Token) -> bool {
         let mut found = false;
         if token.is_global {
-            if let Some(global_tokens) = self.global_tokens.get(&(token.did, token.uid)) {
-                let mut tokens = global_tokens.write().unwrap();
-                // just insert the token to replace the old one
-                let mut t = token.clone();
-                t.revealed = true;
-                tokens.insert(t);
-                found = true;
+            if let Some(global_tokens) = self.global_tokens.get(&token.did) {
+                if let Some(user_tokens) = global_tokens.get(&token.uid) {
+                    let mut tokens = user_tokens.write().unwrap();
+                    let mut t = token.clone();
+                    t.revealed = true;
+                    tokens.insert(t);
+                    found = true;
+                }
+                // just return if the disguise was global
             }
             return found;
         }
@@ -455,9 +468,11 @@ impl TokenCtrler {
      * GET TOKEN FUNCTIONS
      */
     pub fn get_global_tokens(&self, uid: UID, did: DID) -> Vec<Token> {
-        if let Some(global_tokens) = self.global_tokens.get(&(did, uid)) {
-            let tokens = global_tokens.read().unwrap();
-            return tokens.clone().into_iter().filter(|t| !t.revealed).collect();
+        if let Some(global_tokens) = self.global_tokens.get(&did) {
+            if let Some(user_tokens) = global_tokens.get(&uid) {
+                let tokens = user_tokens.read().unwrap();
+                return tokens.clone().into_iter().filter(|t| !t.revealed).collect();
+            }
         }
         vec![]
     }
@@ -858,14 +873,8 @@ mod tests {
                 // get tokens
                 let tokens = ctrler.get_tokens(&keys, true);
                 assert_eq!(tokens.len(), 1);
-                assert_eq!(
-                    tokens[0].old_value[0].value,
-                    (old_fk_value + d).to_string()
-                );
-                assert_eq!(
-                    tokens[0].new_value[0].value,
-                    (new_fk_value + d).to_string()
-                );
+                assert_eq!(tokens[0].old_value[0].value, (old_fk_value + d).to_string());
+                assert_eq!(tokens[0].new_value[0].value, (new_fk_value + d).to_string());
             }
         }
     }

@@ -6,9 +6,8 @@
     \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-    \fn{void RegisterPrincipal(PrincipalID $p$, Email email, PubKey $\pubk{p}$)} & Registers $p$ as
-        a principal.\\
-        \vspace{6pt}
+    \fn{Set<DataCapability> ApplyDisguise(PrincipalID $p$, DisguiseSpec $d$, Set<InstanceCapability>
+        caps)} & Applies\\
     \fn{Set<Capability> ApplyDisguise(PrincipalID $p$, DisguiseSpec $d$, Set<Capability> caps)} & Applies
     disguise $d$. The provided capabilities allow \sys to compose disguise $d$ on top of
     prior disguises using the accessible of disguise change records. \sys returns a
@@ -21,7 +20,7 @@
 \end{tabular}
 \vspace{6px}
 
-\caption{Client Disguising API}
+\caption{Client-side API}
 \label{tab:api}
 \end{table*}
 
@@ -30,17 +29,20 @@
 \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-    \fn{bool CapabilityAllowsCorrelation(PrincipalID $p$, DatabaseObj $o$, Capability \capa{p\delta})} & Returns
+    \fn{void RegisterPrincipal(PrincipalID $p$, Email email, PubKey $\pubk{p}$)} & Registers $p$ as
+        a principal.\\
+    \vspace{6pt}
+    \fn{bool CapabilityAllowsCorrelation(PrincipalID $p$, DatabaseObj $o$, Capability \dcapa{p\delta})} & Returns
     whether principal $p$ is correlated with the provided database object. The capability grants
     the ability to recorrelate $p$ with prior decorrelated objects. \lyt{This would be a row, or the table + object primary key depending on what
     we want to assume.}
     \vspace{6pt}\\
-    \fn{Set<DisguiseChangeRecord> CapToDisguiseChangeRecords} \fn{(Capability \capa{p\delta})} & Returns the
+    \fn{Set<DisguiseChangeRecord> CapToDisguiseChangeRecords} \fn{(Capability \dcapa{p\delta})} & Returns the
    recorded disguise changes accessible given the provided capability.
 \end{tabular}
 \vspace{6px}
 
-\caption{Capability-Exercising API}
+\caption{Server-side API}
 \label{tab:internal_api}
 \end{table*}
 
@@ -70,7 +72,7 @@ client authenticated as $p$ no permissions to read or write any reviews of the c
 previously correlated paper or review is now associated with pseudoprincipal $q$.
 
 To allow the client to regain authorship or reviewership permissions, the application can first
-query \fn{IsCorrelated($p$, paper|review, \capa{p\delta})}, where \capa{p\delta} is provided by the
+query \fn{IsCorrelated($p$, paper|review, \dcapa{p\delta})}, where \dcapa{p\delta} is provided by the
 client speaking for $p$ when the client sends a read or write request.
 
 If \fn{IsCorrelated} returns \fn{true}, then the application can treat the client as if the 

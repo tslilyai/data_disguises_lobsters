@@ -130,7 +130,7 @@ then must handle the logic of contacting the respective parties and saving addre
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Capabilities}
-A capability \capa{p\delta} grants permissions to compose upon and reveal data from disguise $d$ and
+A capability \dcapa{p\delta} grants permissions to compose upon and reveal data from disguise $d$ and
 principal $p$ (\ie access to database change records), and has components:
 \begin{enumerate}
 \item Address \addr{p\delta} at which encrypted \symk{p\delta} and \tdata{p\delta} ciphertexts are located
@@ -144,12 +144,12 @@ plaintext \symk{p\delta} can the array of \tdata{p\delta} ciphertexts be decrypt
 \sys to reveal or compose upon disguise $d$'s updates for $p$.
 
 Because \sys can access \addr{qd}s for pseudoprincipal $q$ without a client providing it, a client
-only needs to prove it has \privk{q} to gain \capa{qd} for all $d$.  A client that can acquire
+only needs to prove it has \privk{q} to gain \dcapa{qd} for all $d$.  A client that can acquire
 private key token \tpriv{pq} and decrypt it with \privk{p} can access \privk{q}, and gain the
 capability to reveal or compose upon disguises' updates for pseudoprincipals $q$ of $p$. 
 
 Note that each part of the capability in isolation is insufficient: an attacker who can spoof
-\capa{p\delta} will not be able to access the plaintext of $p$'s records from $d$ without \privk{p}, although they can learn if $d$ disguised some of $p$'s data.
+\dcapa{p\delta} will not be able to access the plaintext of $p$'s records from $d$ without \privk{p}, although they can learn if $d$ disguised some of $p$'s data.
 
 %-------------------------------------------------------------------------------
 \subsection{Does this design achieve our security goals?}
@@ -187,8 +187,8 @@ cannot link different disguises' encrypted token data to the same principal.
 \hline
     $\emptyset$ & plaintext & \\
     \privk{p} & plaintext & \\
-    \capa{p\delta} & plaintext & ciphertext \\
-    \privk{p}, \capa{p\delta} & plaintext & plaintext \\
+    \dcapa{p\delta} & plaintext & ciphertext \\
+    \privk{p}, \dcapa{p\delta} & plaintext & plaintext \\
 \end{tabular}
 \vspace{6pt}
 \caption{Client access to disguise $d$'s tokens, depending on what proof the client can provide and the state of the tokens.}
@@ -199,9 +199,9 @@ Table~\ref{tab:access} illustrates which clients can access a disguise $d$'s tok
 what the client presents as proof, and the state of the tokens.
 
 \sys ensures that private tokens are properly secured such that only a client with private key
-\privk{p} and capability \capa{p\delta} can access tokens produced by disguise $d$ associated with $p$.
+\privk{p} and capability \dcapa{p\delta} can access tokens produced by disguise $d$ associated with $p$.
 %
-Furthermore, \sys ensures that only a client with capability \capa{p\delta} can learn if a disguise $d$
+Furthermore, \sys ensures that only a client with capability \dcapa{p\delta} can learn if a disguise $d$
 applies to principal $p$.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
