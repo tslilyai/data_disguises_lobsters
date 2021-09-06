@@ -3,11 +3,12 @@
 %-------------------------------------------------------------------------------
 \begin{table*}[t!]
 \centering
-    \begin{tabular}{ p{.65\linewidth} p{.4\linewidth} }
+    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-    \fn{void RegisterPrincipal(PrincipalID $p$, Email email, PubKey $\pubk{p}$)} & Registers $p$ as a principal.
-        \vspace{6pt}\\
+    \fn{void RegisterPrincipal(PrincipalID $p$, Email email, PubKey $\pubk{p}$)} & Registers $p$ as
+        a principal.\\
+        \vspace{6pt}
     \fn{Set<Capability> ApplyDisguise(PrincipalID $p$, DisguiseSpec $d$, Set<Capability> caps)} & Applies
     disguise $d$. The provided capabilities allow \sys to compose disguise $d$ on top of
     prior disguises using the accessible of disguise change records. \sys returns a
