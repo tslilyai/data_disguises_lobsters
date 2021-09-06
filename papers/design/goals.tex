@@ -16,10 +16,10 @@ $\delta_i$ & instance of disguise specification $d_i$\\
     \vspace{6pt}
 \op{d} & a disguise specification operation (either a removal, modification, or decorrelation)\\
     \vspace{6pt}
-\capa{p\delta} & capability required to grant \sys permissions to compose on top of disguise  
-    instance $\delta$'s
-    updates, or reveal updates applied by disguise instance $\delta$. Capabilities are associated with some
-    principal $p$.\\
+\tdata{p\delta} & database change record storing undisguised data associated with $p$ prior to application of $d$.\\
+    \vspace{6pt}
+\capa{p\delta} & capability that grants access to database change records from $\delta$, as well as
+    pre-$\delta$ correlations. Capabilities are associated with a principal $p$.\\
     \vspace{6pt}
 \pubk{p} & public key of $p$, used to encrypt $p$'s undisguised data s.t. only one with the
     corresponding private can access it\\
@@ -28,9 +28,7 @@ $\delta_i$ & instance of disguise specification $d_i$\\
     \vspace{6pt}
 \symk{p\delta} & symmetric key used to perform encrypt \tdata{p\delta}\\
     \vspace{6pt}
-    \addr{p\delta} & address at which $\enc(\symk{p\delta})$ and $\enc(\tdata{p\delta})$ ciphertexts are located\\
-    \vspace{6pt}
-\tdata{p\delta} & database change record storing undisguised data associated with $p$ prior to application of $d$.\\
+\addr{p\delta} & address at which $\enc(\symk{p\delta})$ and $\enc(\tdata{p\delta})$ ciphertexts are located\\
     \end{tabular}
 \caption{Notation used to describe \sys's design.}
 \label{tab:notation}
@@ -154,11 +152,11 @@ Under \sys's threat model, the following properties are out of scope:
 \begin{itemize}
     \item Security of disguised data when an attacker has prior snapshots the system.
     \item Authorized disguises if an attacker authenticates as a principal $p$. \ms{this seems trivial}
-    \item Security of $p$'s permissions and disguise history if $p$'s private eky, \privk{p}, is compromised.
-    \item Security of $p$'s permissions from $d$ and knowledge that $\delta$ exists if an
-	authorized client with \capa{p\delta} grants \sys access to $p$'s permissions from $\delta$. \ms{as above}
-    \item Security of permission metadata such as the number of disguises applied to, or number of
-	permissions associated with, a particular principal $p$.
+    \item Security of disguise changes and disguise history applied to $p$ if $p$'s private eky, \privk{p}, is compromised.
+    \item Security of disguise changes and disguise history of $\delta$ applied to $p$ if an
+	authorized client provides \capa{p\delta}. \ms{as above}
+    \item Security of metadata such as the number of disguises applied to, or number of
+	disguise change records associated with, a particular principal $p$.
     \item Privacy guarantees about undisguised data: if identifying data about $p$ is not covered by
         disguise specification $d$, it remains visible to attackers after $\delta$ applies.
         For example, a disguise that leaves contents of posts unmodified does not hide identifying references
