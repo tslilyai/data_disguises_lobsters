@@ -18,11 +18,11 @@ $\delta_i$ & instance of a disguise specification, identified with disguise sequ
     \vspace{6pt}
 \tdata{p\delta_i} & database diff that stores the undisguised data associated with $p$ prior to application of $d$.\\
     \vspace{6pt}
-\dcapa{p\delta_i} & data capability that grants access to database diffs from $\delta_i$, as well as
-    pre-$\delta_i$ correlations. Data capabilities are associated with a principal $p$.\\
+\dcapa{p\delta_i} & data capability that grants access to database diffs and decorrelated links associated with principal
+    $p$ from $\delta_i$. \\
     \vspace{6pt}
 \lcapa{p\delta_i} & locating capability that allows the holder to find the database diffs from
-    $\delta_i$. Locating capabilities are associated with a principal $p$.\\
+    $\delta_i$ associated with a principal $p$.\\
     \vspace{6pt}
 \pubk{p} & public key of $p$, used to encrypt $p$'s undisguised data s.t. only one with the
     corresponding private can access it\\
@@ -120,17 +120,16 @@ With this threat model, \sys seeks to meet four security goals:
 %
 
 %
-\vspace{6pt}\noindent\textbf{\emph{(1) Authenticated and Authorized Disguises.}}
+\vspace{6pt}\noindent\textbf{\emph{(1) Authorized Disguises.}}
 %
-Only a client properly authenticated as a principal $p$ who is allowed to invoke $d$ can apply (and
-later reveal) $\delta_i$.
-\lyt{This was ``authorized disguise'' previously; but we mean authenticated?}
+Only a client properly authenticated as a principal $p$ who is authorized to invoke $d$ can apply (and
+later reveal) the corresponding disguise instance $\delta_i$.
 %
 
 %
 \vspace{6pt}\noindent\textbf{\emph{(2) Secure Linking.}}
 %
-Only a client who has the capability \dcapa{p\delta_i} can relink $p$
+Only a client who has both locating capability \lcapa{p\delta_i} and data capability \dcapa{p\delta_i} can relink $p$
 with any data previously owned by $p$ but decorrelated by $\delta_i$.
 Establishing links allows the application to grant permissions to $p$ to act upon data otherwise
 decorrelated from $p$.
@@ -138,8 +137,8 @@ decorrelated from $p$.
 
 \vspace{6pt}\noindent\textbf{\emph{(3) Secure Disguise Changes.}}
 %
-Only a client who has the capability \dcapa{p\delta} can grant \sys access to the disguise changes from 
-disguise instance $\delta_i$.
+Only a client who has both locating capability \lcapa{p\delta_i} and data capability
+\dcapa{p\delta_i} can grant \sys access to the disguise changes from disguise instance $\delta_i$.
 %
 
 \vspace{6pt}\noindent\textbf{\emph{(4) Privacy of Disguise History.}}
@@ -147,7 +146,7 @@ disguise instance $\delta_i$.
 An attacker cannot learn the set of disguises that have disguised a principal's data.
 %
 An attacker only learns a disguise instance $\delta_i$ exists if an authenticated principal $p$ provides
-\dcapa{p\delta_i} to \sys.
+locating capability \lcapa{p\delta_i} to \sys.
 
 \vspace{6pt}\noindent\textbf{\emph{Non-Goals.}}
 %
@@ -155,14 +154,14 @@ Under \sys's threat model, the following properties are out of scope:
 %
 \begin{itemize}
     \item Security of disguised data when an attacker has prior snapshots the system.
-    \item Authorized disguises if an attacker authenticates as a principal $p$. \ms{this seems trivial}
+    %\item Authorized disguises if an attacker authenticates as a principal $p$. \ms{this seems trivial}
     \item Security of disguise changes and disguise history applied to $p$ if $p$'s private eky, \privk{p}, is compromised.
-    \item Security of disguise changes and disguise history of $\delta_i$ applied to $p$ if an
-	authorized client provides \dcapa{p\delta_i}. \ms{as above}
+    %\item Security of disguise changes and disguise history of $\delta_i$ applied to $p$ if an
+        %authorized client provides \lcapa{p\delta_i} and \dcapa{p\delta_i}. \ms{as above}
     \item Security of metadata such as the number of disguises applied to, or number of
 	disguise change records associated with, a particular principal $p$.
     \item Privacy guarantees about undisguised data: if identifying data about $p$ is not covered by
-        disguise specification $d$, it remains visible to attackers after $\delta_i$ applies.
+        disguise specification $d$, it remains visible to attackers after corresponding instance $\delta_i$ applies.
         For example, a disguise that leaves contents of posts unmodified does not hide identifying references
 	to users in that content.
     \item Hiding whether data is disguised or not. For example, if a post's author is anonymized as ``anonFox'',

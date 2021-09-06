@@ -6,17 +6,21 @@
     \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-    \fn{Set<DataCapability> ApplyDisguise(PrincipalID $p$, DisguiseSpec $d$, Set<InstanceCapability>
-        caps)} & Applies\\
-    \fn{Set<Capability> ApplyDisguise(PrincipalID $p$, DisguiseSpec $d$, Set<Capability> caps)} & Applies
-    disguise $d$. The provided capabilities allow \sys to compose disguise $d$ on top of
-    prior disguises using the accessible of disguise change records. \sys returns a
-    set of capabilities that will enable access to disguise changes from the corresponding disguise
-    instance $\delta$ and recorrelation with decorrelated data.
+    \fn{ApplyDisguise(PrincipalID $p$, DisguiseSpec $d$,
+        Set<(LocCap, DataCap)> caps)} $\rightarrow$\fn{(DisguiseInstance, Set<LocCap>)} & Applies
+        disguise $d$ and returns the corresponding disguise instance $\delta_i$ and locating
+        capability \lcapa{p\delta_i}. The provided capability pairs allow \sys to locate and access
+        disguise diffs, which \sys uses to compose disguise $d$ on top of
+    prior disguises.
         \vspace{6pt}\\
-    \fn{void RevealDisguise(PrincipalID $p$, DisguiseInstance $\delta$, Set<Capability> caps)} & 
-    Reveals disguise instance $\delta$. The provided capabilities grant \sys access to database
-    changes from applying $\delta$, which allows \sys to reveal undisguised data.
+    \fn{RevealDisguise(PrincipalID $p$, DisguiseInstance $\delta_i$,
+        Set<(LocCap, DataCap)> caps)} $\rightarrow$ ()& 
+    Reveals disguise instance $\delta_i$. The provided capability pairs grant \sys access to database
+    diffs from applying $\delta_i$, which allows \sys to reveal undisguised data.
+        \vspace{6pt}\\
+    \fn{GetDataCap(PrincipalID $p$, DisguiseInstance $\delta_i$,
+        LocCap \lcapa{p\delta_i})} $\rightarrow$ \fn{EncryptedDataCap} & Returns the data capability \dcapa{p\delta_i} encrypted with
+        \pubk{p}. \lcapa{p\delta_i} is required to retrieve the correct encrypted data capability.
 \end{tabular}
 \vspace{6px}
 
@@ -29,16 +33,19 @@
 \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-    \fn{void RegisterPrincipal(PrincipalID $p$, Email email, PubKey $\pubk{p}$)} & Registers $p$ as
+    \fn{RegisterPrincipal(PrincipalID $p$, Email email, PubKey $\pubk{p}$)} $\rightarrow$ () & Registers $p$ as
         a principal.\\
-    \vspace{6pt}
-    \fn{bool CapabilityAllowsCorrelation(PrincipalID $p$, DatabaseObj $o$, Capability \dcapa{p\delta})} & Returns
-    whether principal $p$ is correlated with the provided database object. The capability grants
-    the ability to recorrelate $p$ with prior decorrelated objects. \lyt{This would be a row, or the table + object primary key depending on what
+    \vspace{6pt}\\
+    \fn{CapEstablishesLink(PrincipalID $p$, DatabaseObj $o$, LocCap \lcapa{p\delta_i}, DataCap
+    \dcapa{p\delta_i})}
+    $\rightarrow$ \fn{bool} & Returns
+    whether principal $p$ is correlated with the provided database object. The capability pair
+    acts as proof that there exists a link between $p$ and prior decorrelated objects. 
+    \lyt{This would be a row, or the table + object primary key depending on what
     we want to assume.}
     \vspace{6pt}\\
-    \fn{Set<DisguiseChangeRecord> CapToDisguiseChangeRecords} \fn{(Capability \dcapa{p\delta})} & Returns the
-   recorded disguise changes accessible given the provided capability.
+    \fn{CapToDiffs}\fn{(LocCap \lcapa{p\delta_i}, DataCap \dcapa{p\delta_i})} $\rightarrow$ \fn{Set<Diff>} & Returns the
+   disguise diffs accessible given the provided capability pair.
 \end{tabular}
 \vspace{6px}
 
@@ -46,21 +53,39 @@
 \label{tab:internal_api}
 \end{table*}
 
-%\subsection{Example API Usage}
+\head{Retrieving Capabilities.}
+Applying a disguise returns the instance identifier $\delta_i$ and a locating
+capability \lcapa{p\delta_i} that the client remembers. 
+%
+However, clients need to invoke disguise application or reveal with capability \emph{pairs}, not just
+locating capabilities.
+This is because the locating capability enables access to the encrypted data
+capability \dcapa{p\delta_i} and encrypted disguise diffs \tdata{p\delta_i}, while
+the data capability \dcapa{p\delta_i} enables decryption of the encrypted \tdata{p\delta_i}. 
+
+Client therefore must retrieve \dcapa{p\delta_i} before invoking the disguise or reveal API calls.
+A client who has \lcapa{p\delta_i} and \privk{p} can get a capability pair for $p$ and $\delta_i$ by
+calling \fn{GetDataCap} to acquire the encrypted \dcapa{p\delta_i}. The client can then decrypt it
+with \privk{p} to get \dcapa{p\delta{i}}. 
+%
+Then the client has the necessary (\lcapa{p\delta_i},\dcapa{p\delta{i}}) capability pair to provide to future disguise or reveal invocations, and enable
+access to \tdata{p\delta_i}.
 
 \head{Disguising and Revealing.}
 A client speaking for (registered) principal $p$ applies a disguise by providing the chosen disguise
-spec and a set of capabilities. Applying a disguise instance $\delta$ produces associated
-capabilities, which grant access to disguise change records from $\delta$. Any provided capabilities
-to \fn{ApplyDisguise} allow \sys to access disguise change records of the corresponding disguises to
-compose the new disguise on top.
+spec, and a set of locating and data capability pairs. 
+These capability pairs allow \sys to access disguise diffs of the corresponding disguises to
+compose the new disguise on top of these disguises during application.
 
 In order to reveal data disguised by $\delta$, a client speaking for $p$ invokes
 \fn{RevealDisguise}.
-The client provides capabilities that allow \sys to access disguise change records that it can use to
+The client provides the capability pair (\lcapa{p\delta_i},\dcapa{p\delta{i}}) to allow \sys to
+access disguise diffs that it can use to
 restore the original, undisguised data.
 
 \head{Granting Post-Disguise Permissions.}
+\lyt{TODO, also need to add how flow of client getting capability to hand to application via e.g., a
+url would work.}
 Imagine the scenario in which an invoked disguise $\delta$ for HotCRP anonymizes all reviewers and authors of a
 conference by decorrelating them from their papers and reviews respectively.
 
