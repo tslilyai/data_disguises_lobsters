@@ -75,6 +75,18 @@ To work with \sys, the application uses two abstractions:
         %\ms{This sounds very operational. What \emph{are} permissions?
 \end{enumerate}
 
+\noindent Data access is controlled via two capabilities: 
+\begin{enumerate}
+    \item \emph{\textbf{Data Capability \dcapa{p\delta_i}}}: Grants read access to disguise diff data
+        associated with principal $p$ produced from applying $\delta_i$.
+    \item \emph{\textbf{Locating Capability \lcapa{p\delta_i}}}: Allows locating the disguise
+        diffs associated with principal $p$ produced from applying $\delta_i$, but grants no 
+        access to the diffs' data.
+\end{enumerate}
+
+\noindent Possession of the pair of data and locating capabilities \pcapa{p\delta_i} is required in
+practice to grant read access to disguise diff data.
+
 %-------------------------------------------------------------------------------
 \subsection{Threat Model}
 \label{s:threat}

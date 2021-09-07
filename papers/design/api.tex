@@ -6,104 +6,134 @@
     \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-    \fn{ApplyDisguise(PrincipalID $p$, DisguiseSpec $d$,
-        Set<(LocCap, DataCap)> caps)} $\rightarrow$\fn{(DisguiseInstance, Set<LocCap>)} & Applies
+    \fn{RegisterPrincipal($p$, Email email, PubKey $\pubk{p}$)} $\rightarrow$ () & Registers $p$ as
+        a principal in \sys.\\
+    \vspace{6pt}\\
+    \fn{ApplyDisguise($p$, DisguiseSpec $d$,
+        Vec<CapPair> caps)} $\rightarrow$\fn{(DisguiseInstance, Vec<LocCap>)} & Applies
         disguise $d$ and returns the corresponding disguise instance $\delta_i$ and locating
         capability \lcapa{p\delta_i}. The provided capability pairs allow \sys to locate and access
         disguise diffs, which \sys uses to compose disguise $d$ on top of
     prior disguises.
         \vspace{6pt}\\
-    \fn{RevealDisguise(PrincipalID $p$, DisguiseInstance $\delta_i$,
-        Set<(LocCap, DataCap)> caps)} $\rightarrow$ ()& 
+    \fn{RevealDisguise($p$, DisguiseInstance $\delta_i$,
+        Vec<CapPair> caps)} $\rightarrow$ ()& 
     Reveals disguise instance $\delta_i$. The provided capability pairs grant \sys access to database
     diffs from applying $\delta_i$, which allows \sys to reveal undisguised data.
         \vspace{6pt}\\
-    \fn{GetDataCap(PrincipalID $p$, DisguiseInstance $\delta_i$,
+    \fn{GetEncryptedDataCap($p$, DisguiseInstance $\delta_i$,
         LocCap \lcapa{p\delta_i})} $\rightarrow$ \fn{EncryptedDataCap} & Returns the data capability \dcapa{p\delta_i} encrypted with
         \pubk{p}. \lcapa{p\delta_i} is required to retrieve the correct encrypted data capability.
 \end{tabular}
 \vspace{6px}
 
-\caption{Client-side API}
-\label{tab:api}
+\caption{Client-\sys API}
+\label{tab:client_api}
 \end{table*}
+
+\begin{table*}[t!]
+\centering
+    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
+\textbf{API Call} & \textbf{Description} \\
+\hline
+\fn{ActWithCapabilities($p$, Action $a$, Vec<CapPair> caps)} $\rightarrow$ bool & Requests
+        a particular application action $a$ specific to the application's API (\eg read access to paper reviews) with the provided
+        capabilities.
+\end{tabular}
+\vspace{6px}
+
+\caption{Client-Application API}
+\label{tab:app_api}
+\end{table*}
+
 
 \begin{table*}[t!]
 \centering
 \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-    \fn{RegisterPrincipal(PrincipalID $p$, Email email, PubKey $\pubk{p}$)} $\rightarrow$ () & Registers $p$ as
-        a principal.\\
-    \vspace{6pt}\\
-    \fn{CapEstablishesLink(PrincipalID $p$, DatabaseObj $o$, LocCap \lcapa{p\delta_i}, DataCap
-    \dcapa{p\delta_i})}
+    \fn{CapPairEstablishesLink($p$, DatabaseObj $o$, CapPair \pcapa{p\delta_i})}
     $\rightarrow$ \fn{bool} & Returns
     whether principal $p$ is correlated with the provided database object. The capability pair
     acts as proof that there exists a link between $p$ and prior decorrelated objects. 
     \lyt{This would be a row, or the table + object primary key depending on what
     we want to assume.}
     \vspace{6pt}\\
-    \fn{CapToDiffs}\fn{(LocCap \lcapa{p\delta_i}, DataCap \dcapa{p\delta_i})} $\rightarrow$ \fn{Set<Diff>} & Returns the
+    \fn{CapPairToDiffs}(\fn{CapPair \pcapa{p\delta_i}}) $\rightarrow$ \fn{Vec<Diff>} & Returns the
    disguise diffs accessible given the provided capability pair.
 \end{tabular}
 \vspace{6px}
 
-\caption{Server-side API}
+\caption{Server-Side API}
 \label{tab:internal_api}
 \end{table*}
 
-\head{Retrieving Capabilities.}
-Applying a disguise returns the instance identifier $\delta_i$ and a locating
-capability \lcapa{p\delta_i} that the client remembers. 
-%
-However, clients need to invoke disguise application or reveal with capability \emph{pairs}, not just
-locating capabilities.
-This is because the locating capability enables access to the encrypted data
-capability \dcapa{p\delta_i} and encrypted disguise diffs \tdata{p\delta_i}, while
-the data capability \dcapa{p\delta_i} enables decryption of the encrypted \tdata{p\delta_i}. 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Client therefore must retrieve \dcapa{p\delta_i} before invoking the disguise or reveal API calls.
-A client who has \lcapa{p\delta_i} and \privk{p} can get a capability pair for $p$ and $\delta_i$ by
-calling \fn{GetDataCap} to acquire the encrypted \dcapa{p\delta_i}. The client can then decrypt it
-with \privk{p} to get \dcapa{p\delta{i}}. 
-%
-Then the client has the necessary (\lcapa{p\delta_i},\dcapa{p\delta{i}}) capability pair to provide to future disguise or reveal invocations, and enable
-access to \tdata{p\delta_i}.
+At a high level, \sys's API is broken up into a client-side API (\ie calls made in Javascript from a
+client browser), and a server-side API (\ie calls made by the application to \sys, or by \sys 
+itself).
 
-\head{Disguising and Revealing.}
+The client-side API in Table~\ref{tab:client_api} allows the client to retrieve register a principal, retrieve relevant
+capabilities, and apply and reveal disguises. The server-side API in Table~\ref{tab:internal_api} allows the application/\sys to gain access to data using capabilities.
+Applications integrating with \sys may also expose an extra API call to the client shown in
+Table~\ref{tab:app_api} that allows the application to receive the capability along with the normal
+API call.
+
+We next describe example usages of the API.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\head{Client-\sys: Retrieving Capabilities.}
+
+Clients invoke API calls with capability \emph{pairs}. 
+However, clients only ever receive and store locating capabilities \lcapa{p\delta_i} returned from
+the application of $\delta_i$.
+%
+Thus, \sys provides a way for a client who has \lcapa{p\delta_i} to acquire the full capability pair
+by retrieving an encrypted \dcapa{p\delta_i} via \fn{GetEncryptedDataCap} before invoking API calls.
+
+\sys stores \dcapa{p\delta_i} encrypted with \pubk{p}, so only a client who has both
+\lcapa{p\delta_i} and \privk{p} can decrypt the respond with \privk{p} to get the necessary
+\pcapa{p\delta_i},\dcapa{p\delta{i}} capability pair. 
+
+\head{Client-\sys: Disguising and Revealing.}
 A client speaking for (registered) principal $p$ applies a disguise by providing the chosen disguise
-spec, and a set of locating and data capability pairs. 
-These capability pairs allow \sys to access disguise diffs of the corresponding disguises to
-compose the new disguise on top of these disguises during application.
+spec, and a set of locating and data capability pairs. These capability pairs allow \sys to access
+disguise diffs of the corresponding disguises to compose the new disguise on top of these disguises
+during application. Applying a disguise returns the instance identifier $\delta_i$ and a locating
+capability \lcapa{p\delta_i} that only the client stores. 
 
 In order to reveal data disguised by $\delta$, a client speaking for $p$ invokes
-\fn{RevealDisguise}.
-The client provides the capability pair (\lcapa{p\delta_i},\dcapa{p\delta{i}}) to allow \sys to
-access disguise diffs that it can use to
-restore the original, undisguised data.
+\fn{RevealDisguise}.  The client provides the capability pair (\lcapa{p\delta_i},\dcapa{p\delta{i}})
+to allow \sys to access disguise diffs that it can use to restore the original, undisguised data.
 
-\head{Granting Post-Disguise Permissions.}
-\lyt{TODO, also need to add how flow of client getting capability to hand to application via e.g., a
-url would work.}
-Imagine the scenario in which an invoked disguise $\delta$ for HotCRP anonymizes all reviewers and authors of a
-conference by decorrelating them from their papers and reviews respectively.
+\head{Client-Application-\sys: Performing Permitted Application Actions.}
 
-The application normally ensures that only a client speaking for $p$ should have read-only access to reviews
-for $p$'s authored papers, and read-write access to reviews $p$ wrote.
+Imagine the scenario in which an invoked disguise $\delta_i$ for HotCRP anonymizes all reviewers and
+authors of a conference by decorrelating them from their papers and reviews respectively.
 
-If no modifications to its protocol is taken, the appliction after $\delta$ applies will grant a
-client authenticated as $p$ no permissions to read or write any reviews of the conference: any
-previously correlated paper or review is now associated with pseudoprincipal $q$.
+The application normally ensures that only a client speaking for $p$ should have read-only access to
+reviews for $p$'s authored papers, and read-write access to reviews $p$ wrote.
 
-To allow the client to regain authorship or reviewership permissions, the application can first
-query \fn{IsCorrelated($p$, paper|review, \dcapa{p\delta})}, where \dcapa{p\delta} is provided by the
-client speaking for $p$ when the client sends a read or write request.
+If the client speaking for $p$ invokes application action $a$, such as ``edit review'', as normal, the application
+(post-$\delta_i)$ will not grant the client any read/write permissions to perform actions on 
+any reviews of the conference: any previously correlated paper or review is now associated with
+pseudoprincipal $q$.
+Instead, to allow the client speaking for $p$ to regain authorship or reviewership permissions, the client first invokes the
+\fn{ActWithCapabilities} API call to the application, passing in the action $a$ and a set of
+capability pairs.  
 
-If \fn{IsCorrelated} returns \fn{true}, then the application can treat the client as if the 
-client speaks for pseudoprincipal $q$ who is correlated with the paper or review, and thus permit
-the client to read reviews on $q$'s authored papers, or read/write reviews belonging to $q$.
+When the application attempts to perform $a$, the application code may check that the invoking
+principal $p$ is linked to object $o$ (\eg $p$ is the author of some paper or review).  To work with
+disguises, the application developer augments these these checks with a queries to \sys of
+\fn{CapPairEstablishesLink($p$, $o$, \pcapa{p\delta_i})} for all capability pairs provided by the
+client.
 
+If any query returns \fn{true}, the application knows that $p$ is indeed linked to $o$, even if $o$
+is currently linked (in the application database) to pseudoprincipal $q$. The application can thus
+treat the client as if the client speaks for pseudoprincipal $q$, and permit the action $a$ (\eg 
+read reviews on $q$'s authored papers, or read/write reviews belonging to $q$).
 
 
 
