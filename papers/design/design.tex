@@ -166,15 +166,16 @@ this pair, \sys can retrieve diffs or establish links for $q$'s data.
 \sys ensures that only properly authenticated clients speaking for authorized principals can apply or
 reveal a disguise, achieving security goal (1).
 
-\vspace{6pt}\noindent\textbf{\emph{(2) Secure Linking.}}
-\lyt{TODO}
+\vspace{6pt}\noindent\textbf{\emph{(2/3) Secure Linking and Secure Disguise Diffs.}}
+\lcapa{p\delta_i} is required to find the encrypted \dcapa{p\delta_i}---a symmetric key
+specific to each disguise instance $\delta$ and principal $p$ encrypted with \pubk{p}.
+Because \sys encrypts \tdata{p\delta_i} diffs associated with $p$ with \dcapa{p\delta_i}, a client
+needs to first decrypt $\dcapa{p\delta_i}$ with \privk{p}, and then hand the pair \pcapa{p\delta_i}
+to \sys for \sys to decrypt of $p$'s diffs from $\delta_i$.
 
-\vspace{6pt}\noindent\textbf{\emph{(3) Secure Disguise Diffs.}}
-\sys encrypts \tdata{p\delta_i} diffs associated with $p$ with the data capability \dcapa{p\delta_i}---a symmetric key
-specific to each disguise instance $\delta$ and principal $p$. \sys then encrypts \dcapa{p\delta_i} with public key \pubk{p}.  
-A client needs to prove it has \privk{p} by return data capability
-$\dcapa{p\delta_i}$, which only then allows decryption
-of $p$'s records from $\delta_i$, achieving our goal to restrict access to $p$'s disguise diffs.
+Thus, \sys ensures that only clients who can provide \lcapa{p\delta_i} and \dcapa{p\delta_i} (and,
+by consequence, have \privk{p}) can access $p$'s disguise diffs, or learn what links can be
+established between $p$ and data objects.
 
 \vspace{6pt}\noindent\textbf{\emph{(4) Privacy of Disguise History.}}
 We describe how \sys hides which disguises affect each principals' data by requiring a client to
