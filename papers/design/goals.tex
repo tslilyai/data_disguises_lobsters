@@ -29,11 +29,7 @@ $\delta_i$ & instance of a disguise specification, identified with disguise sequ
     \vspace{6pt}
 \privk{p} & private key of $p$ \\
     \vspace{6pt}
-\tpriv{p}{q} & locked private key of $q$, encrypted with \pubk{p} \\
-    \vspace{6pt}
-\symk{p\delta_i} & symmetric key used to perform encrypt \tdata{p\delta_i}\\
-    \vspace{6pt}
-\addr{p\delta_i} & address at which $\enc(\symk{p\delta_i})$ and $\enc(\tdata{p\delta_i})$ ciphertexts are located\\
+\tpriv{p}{q} & locked private key of $q$, encrypted with \pubk{p}
     \end{tabular}
 \caption{Notation used to describe \sys's design.}
 \label{tab:notation}
@@ -147,10 +143,10 @@ Establishing links allows the application to grant permissions to $p$ to act upo
 decorrelated from $p$.
 %
 
-\vspace{6pt}\noindent\textbf{\emph{(3) Secure Disguise Changes.}}
+\vspace{6pt}\noindent\textbf{\emph{(3) Secure Disguise Diffs.}}
 %
 Only a client who has both locating capability \lcapa{p\delta_i} and data capability
-\dcapa{p\delta_i} can grant \sys access to the disguise changes from disguise instance $\delta_i$.
+\dcapa{p\delta_i} can grant \sys access to the disguise diffs from disguise instance $\delta_i$.
 %
 
 \vspace{6pt}\noindent\textbf{\emph{(4) Privacy of Disguise History.}}

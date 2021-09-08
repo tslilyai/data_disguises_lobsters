@@ -125,28 +125,15 @@ Instead, to allow the client speaking for $p$ to regain authorship or reviewersh
 capability pairs.  
 
 When the application attempts to perform $a$, the application code may check that the invoking
-principal $p$ is linked to object $o$ (\eg $p$ is the author of some paper or review).  To work with
+principal $p$ is linked to object $o$ (\eg $p$ is the author of some paper or review). To work with
 disguises, the application developer augments these these checks with a queries to \sys of
 \fn{CapPairEstablishesLink($p$, $o$, \pcapa{p\delta_i})} for all capability pairs provided by the
 client.
 
-If any query returns \fn{true}, the application knows that $p$ is indeed linked to $o$, even if $o$
+If any query returns \fn{true}, the application can establish a link between $p$ and $o$, even if $o$
 is currently linked (in the application database) to pseudoprincipal $q$. The application can thus
 treat the client as if the client speaks for pseudoprincipal $q$, and permit the action $a$ (\eg 
 read reviews on $q$'s authored papers, or read/write reviews belonging to $q$).
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
