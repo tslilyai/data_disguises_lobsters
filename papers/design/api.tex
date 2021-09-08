@@ -116,7 +116,8 @@ authors of a conference by decorrelating them from their papers and reviews resp
 The application normally ensures that only a client speaking for $p$ should have read-only access to
 reviews for $p$'s authored papers, and read-write access to reviews $p$ wrote.
 
-If the client speaking for $p$ invokes application action $a$, such as ``edit review'', as normal, the application
+If the client speaking for $p$ invokes application action $a$ such as ``edit review'' as it would
+normally, the application
 (post-$\delta_i)$ will not grant the client any read/write permissions to perform actions on 
 any reviews of the conference: any previously correlated paper or review is now associated with
 pseudoprincipal $q$.
@@ -126,7 +127,7 @@ capability pairs.
 
 When the application attempts to perform $a$, the application code may check that the invoking
 principal $p$ is linked to object $o$ (\eg $p$ is the author of some paper or review). To work with
-disguises, the application developer augments these these checks with a queries to \sys of
+disguises, the application developer augments these these checks with queries to \sys of
 \fn{CapPairEstablishesLink($p$, $o$, \pcapa{p\delta_i})} for all capability pairs provided by the
 client.
 

@@ -82,6 +82,11 @@ To work with \sys, the application uses two abstractions:
 
 \noindent Possession of the pair of data and locating capabilities \pcapa{p\delta_i} is required in
 practice to grant read access to disguise diff data.
+Each capability in the pair alone is insufficient: an attacker who can spoof
+\lcapa{p\delta_i} will not be able to access disguise diffs without
+\dcapa{p\delta_i}, although they can learn that $\delta_i$ disguised some of $p$'s data;
+and an attacker holding \dcapa{p\delta_i} cannot locate the disguise diffs to access without
+\lcapa{p\delta_i}.
 
 %-------------------------------------------------------------------------------
 \subsection{Threat Model}
