@@ -25,8 +25,6 @@
         LocCap \lcapa{p\delta_i})} $\rightarrow$ \fn{EncryptedDataCap} & Returns the data capability \dcapa{p\delta_i} encrypted with
         \pubk{p}. \lcapa{p\delta_i} is required to retrieve the correct encrypted data capability.
 \end{tabular}
-\vspace{6px}
-
 \caption{Client-\sys API}
 \label{tab:client_api}
 \end{table*}
@@ -40,8 +38,6 @@
         a particular application action $a$ specific to the application's API (\eg read access to paper reviews) with the provided
         capabilities.
 \end{tabular}
-\vspace{6px}
-
 \caption{Client-Application API}
 \label{tab:app_api}
 \end{table*}
@@ -56,14 +52,12 @@
     $\rightarrow$ \fn{bool} & Returns
     whether principal $p$ is correlated with the provided database object. The capability pair
     acts as proof that there exists a link between $p$ and prior decorrelated objects. 
-    \lyt{This would be a row, or the table + object primary key depending on what
-    we want to assume.}
+    %\lyt{This would be a row, or the table + object primary key depending on what
+    %we want to assume.}
     \vspace{6pt}\\
     \fn{CapPairToDiffs}(\fn{CapPair \pcapa{p\delta_i}}) $\rightarrow$ \fn{Vec<Diff>} & Returns the
    disguise diffs accessible given the provided capability pair.
 \end{tabular}
-\vspace{6px}
-
 \caption{Server-Side API}
 \label{tab:internal_api}
 \end{table*}
@@ -83,9 +77,8 @@ API call.
 We next describe example usages of the API.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 \head{Client-\sys: Retrieving Capabilities.}
-
+%
 Clients invoke API calls with capability \emph{pairs}. 
 However, clients only ever receive and store locating capabilities \lcapa{p\delta_i} returned from
 the application of $\delta_i$.
@@ -97,6 +90,7 @@ by retrieving an encrypted \dcapa{p\delta_i} via \fn{GetEncryptedDataCap} before
 \lcapa{p\delta_i} and \privk{p} can decrypt the respond with \privk{p} to get the necessary
 \pcapa{p\delta_i},\dcapa{p\delta{i}} capability pair. 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Client-\sys: Disguising and Revealing.}
 A client speaking for (registered) principal $p$ applies a disguise by providing the chosen disguise
 spec, and a set of locating and data capability pairs. These capability pairs allow \sys to access
@@ -108,8 +102,8 @@ In order to reveal data disguised by $\delta$, a client speaking for $p$ invokes
 \fn{RevealDisguise}.  The client provides the capability pair (\lcapa{p\delta_i},\dcapa{p\delta{i}})
 to allow \sys to access disguise diffs that it can use to restore the original, undisguised data.
 
-\head{Client-Application-\sys: Performing Permitted Application Actions.}
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Client-Application-\sys: Performing Application Actions with Permissions.}
 Imagine the scenario in which an invoked disguise $\delta_i$ for HotCRP anonymizes all reviewers and
 authors of a conference by decorrelating them from their papers and reviews respectively.
 
