@@ -151,12 +151,10 @@ keys \tpriv{p}{q} generated when decorrelating data from $p$.
 A client then must prove it has \privk{p} to decrypt \tpriv{p}{q} and extract pseudoprincipal ID $q$ and \privk{q}.
 
 With $q$ and \privk{q}, the client can get all encrypted \dcapa{q\delta_i} for all $\delta_i$, and
-provide these to \sys to allow \sys so \sys has the full capability pair \pcapa{q\delta_i}. With
+provide these to \sys so \sys has the full capability pair \pcapa{q\delta_i}. With
 this pair, \sys can retrieve diffs or establish links for $q$'s data.
 
-\lyt{TODO: Add an internal API call that retrieves globally accessible location capabilities?)}
-
-
+\lyt{TODO: Add an internal server-side API call that retrieves globally accessible location capabilities?}
 
 %-------------------------------------------------------------------------------
 \subsection{Does this design achieve our security goals?}

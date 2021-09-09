@@ -7,76 +7,82 @@ In particular, we describe the end state of a data object given some history of 
 applications and reveals.
 
 \vspace{6pt}\noindent\textbf{\emph{Some Notation.}} We describe disguise histories as a list of
-\app{d} and \rev{d} actions, where \app{d} corresponds to the application of disguise $d$, and
-\rev{d} corresponds to the reveal of $d$'s token data. Time moves to the right in the list.
+\app{\delta_i} and \rev{\delta_i} actions, where \app{\delta_i} corresponds to the application of disguise $\delta_i$, and
+\rev{\delta_i} corresponds to the reveal of $\delta_i$'s diffs. Time moves to the right in the list.
 
 For every data object $x$ in the system, \xstart describes its initial state, and
-\xhist{[\app{d_1}, \dots]} describes its state after \sys has applied the history [\app{d_1},
+\xhist{[\app{\delta_1}, \dots]} describes its state after \sys has applied the history [\app{\delta_1},
 $\dots$].
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \vspace{6pt}\noindent\textbf{\emph{Composing Multiple Disguise Applications.}}
-Let $d_1$ and $d_2$ be two disguises, where $d_1$ is applied after $d_2$.
-to produce disguise history [\app{d_1}, \app{d_2}]. 
+Let $\delta_1$ and $\delta_2$ be two disguises, where $\delta_1$ is applied after $\delta_2$.
+to produce disguise history [\app{\delta_1}, \app{\delta_2}]. 
 %
-Let $x$ be some data object in the system, where \xstart is its initial state, and
-\xhist{[\app{d_1}, \app{d_2}]} be the final state after \sys applies $d_1$ and $d_2$.
+Let $x$ be some application data object, where \xstart is its initial state, and
+\xhist{[\app{\delta_1}, \app{\delta_2}]} is the final state after \sys applies $\delta_1$ and $\delta_2$.
 %
-If both $d_1$ and $d_2$ update $x$, what is \xhist{[\app{d_1}, \app{d_2}]}?
+If both $\delta_1$ and $\delta_2$ update $x$, what is \xhist{[\app{\delta_1}, \app{\delta_2}]}?
 We consider two possible end states: 
 %
 \begin{enumerate}
-\item[(\appcompone)] \xhist{[\app{d_1}, \app{d_2}]} reflects the application of $d_1$ \textbf{and} $d_2$ to \xstart. In other
-words, at least one of the \op{d_2}s' predicates \texttt{pred} matches \xstart, and thus \op{d_2} is
-applied to \xhist[\app{d_1}] even if \texttt{pred} does not match \xhist[\app{d_1}]. 
-\op{d_2} updates are applied on top of any $d_1$'s' updates if the two conflict.
+    \item[(\appcompone)] \xhist{[\app{\delta_1}, \app{\delta_2}]} reflects the application of
+        \emph{both $\delta_1$ and $\delta_2$} to \xstart. 
 
-\item[(\appcomptwo)] \xhist{[\app{d_1}, \app{d_2}]} reflects the application of $d_1$ to \xstart, followed
-by the application of $d_2$ to \xhist{[\app{d_1}]}. \op{d_2} predicates match only against
-\xhist{[\app{d_1}]}, and are not aware of the original state \xstart.
+        In other words, if an \op{\delta_2}'s predicate \texttt{pred} matches \xstart, then \op{\delta_2} is
+        applied to \xhist[\app{\delta_1}], even if \texttt{pred} does not match
+        \xhist{[\app{\delta_1}]}. 
+
+    \op{\delta_2} updates are applied sequentially after $\delta_1$'s updates if the two modify the
+        same object attribute.
+
+\item[(\appcomptwo)] \xhist{[\app{\delta_1}, \app{\delta_2}]} reflects the application of $\delta_1$ to \xstart, followed
+by the application of $\delta_2$ to \xhist{[\app{\delta_1}]}. When deciding whether to apply to $x$,
+        \sys matches \op{\delta_2}'s predicate only against
+\xhist{[\app{\delta_1}]}, and not against the original state \xstart.
 \end{enumerate}
 
 \noindent
-For example, let \op{d_1} decorrelate all posts from authors predicated
-on \texttt{author = Bea}, and let \op{d_2} remove all posts predicated on \texttt{author = Bea}.
+For example, let \op{\delta_1} decorrelate all posts from authors predicated on \texttt{author =
+Bea}, and let \op{\delta_2} remove all posts predicated on \texttt{author = Bea}.
 %
 \begin{enumerate}
-\item[(\appcompone)] Both \op{d_1} and \op{d_2} update posts originally having author ``Bea'', resulting in the
+\item[(\appcompone)] Both \op{\delta_1} and \op{\delta_2} update posts originally having author ``Bea'', resulting in the
 removal of all posts originally with author Bea.
 
-\item[(\appcomptwo)] Applying \op{d_1} results in all posts with author ``Bea'' having
-pseudoprinicipal authors such as ``anonFox.'' \op{d_2} only knows the state of posts after
-\op{d_1} occurs, and does not remove any posts because no post has author ``Bea''.
+\item[(\appcomptwo)] Applying \op{\delta_1} results in all posts with author ``Bea'' having
+pseudoprinicipal authors such as ``anonFox.'' \op{\delta_2} only knows the state of posts after
+\op{\delta_1} occurs, and does not remove any posts because no post has author ``Bea''.
 \end{enumerate}
 
-The choice of whether \xhist{[\app{d_1}, \app{d_2}]} should result in \appcompone or \appcomptwo depends on the
+The choice of whether \xhist{[\app{\delta_1}, \app{\delta_2}]} should result in \appcompone or \appcomptwo depends on the
 specific application and is left to the developer to specify. 
 
-In certain scenarios, however, \sys can only produce \appcomptwo.  In order to achieve \appcompone,
-$d_2$ must evalute predicates against \xstart, which requires knowing what \xstart is.  To learn
-\xstart, \sys must know how $d_1$ modified $x$ (\eg knowing that a post with author ``anonFox''
-originally was a post with author ``Bea''); this information, however, is stored in tokens produced
-by $d_1$. 
+In certain scenarios, however, \sys can only achieve end state \appcomptwo. In order to achieve \appcompone,
+$\delta_2$ must evalute predicates against \xstart, which requires knowing the value of \xstart.  To learn
+\xstart, \sys must know how $\delta_1$ modified $x$ (\eg knowing that a post with author ``anonFox''
+originally was a post with author ``Bea''); this information, however, is stored in in the diffs produced
+by $\delta_1$. 
 
-These tokens may be inaccessible \sys when applying $d_2$, as they could be stored privately for
-principal $q$: a client who invokes $d_2$ while authenticated as
-principal $p \neq q$, cannot access $q$'s tokens for $d_1$. 
-In this case, $d_2$ can only match against \xhist{[\app{d_1}]} and achieve \appcomptwo.
+\sys may not have access to these diffs when applying $\delta_2$: a client who invokes $\delta_2$ while authenticated as
+principal $q \neq p$, and who does not provide the relevant capability pairs \pcapa{p\delta_1}, 
+cannot access $p$'s diffs for $\delta_1$. 
+
+In this case, $\delta_2$ can only match against \xhist{[\app{\delta_1}]} and achieve end state \appcomptwo.
 This is shown in Table~\ref{tab:composeapp}.
 
 \begin{table}[h]
 \centering
 \begin{tabular}{ c | c c }
-    & \multicolumn{2}{c}{\textbf{\app{d_2} client access to $d_1$'s tokens?}}\\
+    & \multicolumn{2}{c}{\textbf{Access $\delta_1$'s diffs while \app{\delta_2}?}}\\
     & \textbf{Yes} & \textbf{No} \\
 \hline
-    \xhist{[\app{d_1},\app{d_2}]}& \appcompone or \appcomptwo & \appcomptwo 
+    \xhist{[\app{\delta_1},\app{\delta_2}]}& \appcompone or \appcomptwo & \appcomptwo 
 \end{tabular}
 \vspace{6pt}
 
-\caption{Possibilities for \xhist{[\app{d_1},\app{d_2}]} depending on whether the client invoking
-    $\app{d_2}$ can access tokens from $d_1$ regarding $x$.}
+\caption{Possibilities for \xhist{[\app{\delta_1},\app{\delta_2}]} depending on whether \sys has access to diffs from $\delta_1$ regarding $x$.}
 \label{tab:composeapp}
 \end{table}
 
@@ -87,200 +93,117 @@ We now consider composition of disguises in the presence of disguise reversals.
 \begin{table}[h]
 \centering
 \begin{tabular}{ c | c c }
-    & \multicolumn{2}{c}{\textbf{\rev{d} client access to $d$'s tokens?}}\\
+    & \multicolumn{2}{c}{\textbf{Access to $\delta_i$'s diffs while \app{\delta_i}?}}\\
     & \textbf{Yes} & \textbf{No} \\
 \hline
-    \xhist{[\app{d},\rev{d}]} & \xstart & \xhist{[\app{d}]}
+    \xhist{[\app{\delta_i},\rev{\delta_i}]} & \xstart & \xhist{[\app{\delta_i}]}
 \end{tabular}
 \vspace{6pt}
 
-\caption{Possibilities for \xhist{[\app{d},\rev{d}]} depending on whether the client invoking
-    \rev{d} can access tokens from $d$ regarding $x$.}
+\caption{Possibilities for \xhist{[\app{\delta_i},\rev{\delta_i}]} depending on whether \sys has 
+    access to diffs from $\delta_i$ regarding $x$.}
 \label{tab:composeapprev}
 \end{table}
 
-We first consider \textbf{\xhist{[\app{d},\rev{d}]}}; Table~\ref{tab:composeapprev}
-illustrates how this state depends on which client invokes \rev{d}, and how $d$'s tokens for $x$
-are stored.
-As expected, when the client is authenticated as a principal without access to $d$'s
-private tokens, then the updates applied by $d$ to $x$ cannot be revealed.
+We first consider \textbf{\xhist{[\app{\delta_i},\rev{\delta_i}]}}; Table~\ref{tab:composeapprev}
+illustrates how this state depends the authorization a client invoking \rev{\delta_i} provides to
+\sys to access $\delta_i$'s diffs for $x$.
+As expected, the updates applied by $\delta_i$ to $x$ cannot be revealed when the relevant diffs are
+inaccessible.
 
 \begin{table}[h]
 \centering
 \begin{tabular}{ c | c c }
-    \textbf{$d_1$ and $d_2$'s Updates} & \multicolumn{2}{c}{\textbf{\rev{d_1} client access 
-        to $d_1$'s tokens}}\\
+    \textbf{$\delta_1$ and $\delta_2$'s Updates} & \multicolumn{2}{c}{\textbf{Access 
+        to $\delta_1$'s diffs while \rev{\delta_1}?}}\\
     & \textbf{Yes} & \textbf{No} \\
     \hline
-    \textbf{Independent} & \xhist{[\app{d_2}]} & \xhist{[\app{d_1},\app{d_2}]}\\
-    \textbf{Conflict} & \xhist{[\app{d_1},\app{d_2}]} & \xhist{[\app{d_1},\app{d_2}]}
+    \textbf{Independent} & \xhist{[\app{\delta_2}]} & \xhist{[\app{\delta_1},\app{\delta_2}]}\\
+    \textbf{Conflict} & \xhist{[\app{\delta_1},\app{\delta_2}]} & \xhist{[\app{\delta_1},\app{\delta_2}]}
 \end{tabular}
 \vspace{6pt}
-    \caption{\xhist{[\app{d_1},\app{d_2},\rev{d_1}]} depending on whether the client invoking
-    \rev{d_1} has access to $d_1$'s tokens, and whether updates from $d_1$ and $d_2$ to $x$ conflict.}
+    \caption{\xhist{[\app{\delta_1},\app{\delta_2},\rev{\delta_1}]} depending on whether \sys has
+    access to $\delta_1$'s diffs when revealing $\delta_1$, and whether updates from $\delta_1$ and
+    $\delta_2$ to $x$ modify the same data.}
 \label{tab:composeapprev1}
 \end{table}
 
-We next consider \textbf{\xhist{[\app{d_1},\app{d_2},\rev{d_1}]}}, the state of $x$ when a disguise
-$d_1$ is revealed after a subsequent disguise $d_2$ has been applied. 
-Table~\ref{tab:composeapprev1} illustrates how this state 
-depends on the invoking client's access to $d_1$ tokens, and whether $d_1$ and $d_2$ performed
-conflicting updates to $x$.
+We next consider \textbf{\xhist{[\app{\delta_1},\app{\delta_2},\rev{\delta_1}]}}: the end state of $x$ when a disguise
+$\delta_1$ is revealed after a subsequent disguise $\delta_2$ has been applied. 
+Table~\ref{tab:composeapprev1} illustrates how the result
+depends on \sys's access to $\delta_1$ diffs, and whether $\delta_1$ and $\delta_2$ performed
+conflicting modifications to $x$'s attributes.
 
-When the client is authenticated as a principal without access to $d_1$'s private tokens, then the
-updates applied by $d_1$ to $x$ cannot be revealed.  However, even if the client invoking \rev{d_1}
-has access to $d_1$'s tokens, \sys will fail to reveal $d_1$'s updates to $x$ if $d_2$ and $d_1$
-both update $x$ in a conflicting manner. $d_1$ must not restore data that was also disguised by
-$d_2$, and until $d_2$ is revealed, invocations of \rev{d_1} will not reveal \xstart.
+When the client invoking \rev{\delta_1} provides no authorization to access to $\delta_1$'s diffs, then the
+updates applied by $\delta_1$ to $x$ cannot be revealed.  However, even if the client 
+grants access to $\delta_1$'s diffs, \sys will fail to reveal $\delta_1$'s updates to $x$ if $\delta_2$ and $\delta_1$
+both modify $x$ in a conflicting manner: $\rev{\delta_1}$ must not restore data that was also disguised by
+$\delta_2$, and until $\delta_2$ is revealed, invocations of \rev{\delta_1} will not reveal \xstart.
 
 \subsection{Composition Implementation Techniques}
 \sys's algorithm for disguising and disguise reversal in most scenarios is straightforward. 
 
-To apply disguise $d$, \sys applies each \op{d} to all
-data objects satisfying \op{d}'s predicate, while also taking into account the information in
-accessible tokens (to \eg predicate against undisguised versions of objects). Each \op{d} produces
-one or more tokens, which \sys stores appropriately (globally, or encrypted in a \tokls{pd}).
+To apply disguise $\delta_i$, \sys applies each \op{\delta_i} to all
+data objects satisfying \op{\delta_i}'s predicate, while also taking into account the information in
+accessible diffs(to \eg predicate against undisguised versions of objects). Each \op{\delta_i} produces
+one or more diffs, which \sys stores appropriately (globally, or encrypted in a \tokls{pd}).
 
-For reversal of disguise $d$, \sys reveals the undisguised version of data stored in accessible tokens
-corresponding to $d$ by updating the relevant objects $O$ in the database.
+To reveal disguise $\delta_i$, \sys reveals the undisguised version of data stored in
+accessible diffs corresponding to $\delta_i$ by updating the relevant objects $x$ in the database.
 
 However, \sys must be careful of two potential problems:
 (1) \sys cannot accidentally reveal data that must be disguised; and (2) \sys cannot let global
-tokens recording updates to data $x$ leak information if $x$ is subsequently (privately) disguised.
+diffs recording updates to data $x$ leak information if $x$ is subsequently (privately) disguised.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\vspace{6pt}\noindent\textbf{\emph{Preventing Accidental Data Revealing.}}
-\sys records the disguised state of data $x$ in each \tdata{pd} recording a update performed by $d$
-to $x$. If the state of $x$ does not match the disguised state in $d$'s token for $x$, then \sys
-knows the token records an overwritten update to $x$, and refuses to reveal the undisguised state of $x$
-stored in the token.
+\vspace{6pt}\noindent\textbf{\emph{Preventing Accidental Data Revelation.}}
+\sys records the disguised state of data $x$ in each \tdata{pd} recording a update performed by $\delta_i$
+to $x$. If the state of $x$ does not match the disguised state in $\delta_i$'s diff for $x$, then \sys
+knows the diff records a stale and overwritten update to $x$, and refuses to reveal the undisguised state of $x$
+stored in the diff.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\vspace{6pt}\noindent\textbf{\emph{Preventing Global Token Information Leakage.}}
-%The ONLY REASON we need to update tokens is if they're global!!! If they're private, we can use the
-%retroactive application method... (optimization to update our "own" tokens though)
+\vspace{6pt}\noindent\textbf{\emph{Preventing Global Diff Information Leakage.}}
+%The ONLY REASON we need to update diffs is if they're global!!! If they're private, we can use the
+%retroactive application method... (optimization to update our "own" diffs though)
 %
-Let $d_1$ be a global disguise and $d_2$ be a private disguise applied in sequence.  Consider the
-scenario in which \op{d_1} updates a data object $O$, producing a global token \tdata{pd_1}. Later,
-\sys determines that \op{d_2} also should update $O$.
-%by checking if the corresponding \op{d_2}
-%predicate matches recorded object data stored in \tdata{pd_1}.
+A disguise may optionally store diffs in global storage, accessible to \sys without any client
+authorization.
+Such a global disguise provides no privacy guarantees against an adversary who compromises 
+the application server, but does transform the application database so external users see disguised
+data.
 
-If \sys simply performs \op{d_2}'s update to $O$ in the application database, an adversary can still
-read undisguised data from \tdata{pd_1} since is it global and records a now-stale state of $O$!
+If $\delta_1$ is a global disguise and $\delta_2$ a normal, privacy-preserving disguise,
+\op{\delta_2} may update a data object $x$ previously updated by \op{\delta_1}. 
+
+\op{\delta_1} produces a global diff \tdata{p\delta_1}; \op{\delta_2} produces a normal,
+encrypted and secured diff \tdata{p\delta_2}.
+
+If \sys simply performs \op{\delta_2}'s update to $x$, an adversary can still read undisguised data
+from the \tdata{p\delta_1} diff because the diff is global and records a now-stale state of $x$!
 %
-%Furthermore, this means that \sys cannot restore the state of $O$ in the database to
-%\xhist{[\app{d_2}]} when reversing $d_1$, because the revealing the data in \tdata{pd_1} would
-%reveal data that $d_2$ should have disguised.
-%
-To prevent global tokens like \tdata{pd_1} from leaking information that should be disguised, \sys
-updates the data in \tdata{pd_1} with \op{d_2}'s update. An update to a token such as \tdata{pd_1}
-itself generates a (private) token \tdata{pd_2}, just as updating a data object generates a token.
+To prevent global diffs like \tdata{p\delta_1} from leaking data that should be disguised, \sys
+updates the data in \tdata{p\delta_1} with \op{\delta_2}'s update. An update to a diff such as
+\tdata{p\delta_1} itself generates a (private) diff \tdata{p\delta_2}, just as updating a data
+object generates a diff.
 
-Revealing $d_2$ uses this \tdata{pd_2} to reveal the modification to \tdata{pd_1}. 
-If $d_1$ has already been revealed, and the database state of $O$ updated to reflect the contents
-of \tdata{pd_1} (which were updated by the application of $d_2$), 
-then \sys simply uses \tdata{pd_2} to reveal the current state of $O$ in the database. 
+Revealing $\delta_2$ uses \tdata{p\delta_2} to reveal the modification to \tdata{p\delta_1}. 
+If $\delta_1$ has already been revealed, and the database state of $x$ updated to reflect the
+contents of \tdata{p\delta_1} (which were updated by the application of $\delta_2$), then \sys
+simply uses \tdata{p\delta_2} to reveal the current state of $x$ in the database. 
 
-If a future $d_3$ has further updated \tdata{pd_1} in a way that conflicts with $d_2$'s update, then
-upon reversal of $d_2$, \sys will notice that \tdata{pd_2} records an overwritten update to
-\tdata{pd_1}, and will not revert the state of \tdata{pd_1} until the future disguise $d_3$ has been
+If a future $d_3$ has further updated \tdata{p\delta_1} in a way that conflicts with $\delta_2$'s update, then
+upon reversal of $\delta_2$, \sys will notice that \tdata{p\delta_2} records an overwritten update to
+\tdata{p\delta_1}, and will not revert the state of \tdata{p\delta_1} until the future disguise $d_3$ has been
 revealed .
 
-\lyt{Note that removal is just an interesting case of this, in which \tdata{pd_1} is removed, by a
-token \tdata{pd_2} is stored in \tokls{pd_2} that saves the removal of \tdata{pd_1} for reversal.}
+\lyt{Note that removal is just an interesting case of this, in which \tdata{p\delta_1} is removed, by a
+diff \tdata{p\delta_2} is stored in \tokls{p\delta_2} that saves the removal of \tdata{p\delta_1} for reversal.}
 
-%\vspace{6pt}\noindent\textbf{\emph{Token Modification for Object Identification.}}
-%Tokens need to refer to the correct objects even if objects have been modified by future disguises.
-%Prior tokens should be revised by future disguises so that they apply correctly to the disguised
+%\vspace{6pt}\noindent\textbf{\emph{diff Modification for Object Identification.}}
+%diffs need to refer to the correct objects even if objects have been modified by future disguises.
+%Prior diffs should be revised by future disguises so that they apply correctly to the disguised
 %data.
 %This allows an earlier disguise to be revealed correctly.
 %An easy way to avoid needing to do this is to have all objects in the DB have unique, permanent
 %identifiers.
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\iffalse
-%\begin{table}[h]
-%\centering
-%\begin{tabular}{ c | c c }
-%%%& \multicolumn{2}{c}{\textbf{$d_1$ Tokens for $x$}}\\
-%\textbf{Client Invoking $\rev{d_1}$ }& \textbf{Global} & \textbf{Private to $p$}\\
-%\hline
-%{Authenticated as $q \neq p$} & \xstart & \xhist{[\app{d_1}]}\\
-%{Authenticated as $p$} & \xstart & \xstart\\
-%\end{tabular}
-%\vspace{6pt}
-%\caption{\xhist{[\app{d_1},\app{d_2},\rev{d_1},\rev{d_2}]} depending on the state of the client invoking
-%\rev{d_1}, and the state of tokens from $d_1$ regarding $x$.
-%We assume the client has access to tokens from $d_2$ regarding $x$.
-%}
-%\label{tab:composeapprev2}
-%\end{table}
-%
-%Finally, we consider how reversals compose with other reversals by analyzing
-%\textbf{\xhist{[\app{d_1},\app{d_2},\rev{d_1},\rev{d_2}]}}. 
-%Table~\ref{tab:composeapprev2} illustrates these outcomes (assuming that the client invoking
-%\rev{d_2} has access to $d_2$'s tokens for $x$).
-%
-%This is a necessary scenario to consider (whose semantics cannot be derived from
-%Tables~\ref{tab:composeapprev}) or~\ref{tab:composeapprev1} because $d_2$ may have updated $x$ in a
-%way that conflicted with $d_1$, so \rev{d_1} could not actually revert the update performed by $d_1$
-%to $x$.  For example, \rev{d_1} cannot recorrelate $x$ that $d_1$ decorrelated, if $x$ has been
-%removed by $d_2$.
-
-\subsection{Handling Interleaved Application Updates}
-\noindent\textbf{\emph{Application Updates to Present Disguised Data.}}
-\sys will not reveal disguised data still present in the database that has been updated by the
-application. Application updates are equivalent to irreversible disguise operations.
-\sys checks the current state of data against the latest disguised state
-expected as recorded in the token; if they do not match, then an application update has occurred
-since disguising, and \sys will not alter the data.
-
-\vspace{6pt}\noindent\textbf{\emph{Application Updates to Removed Disguised Data.}}
-Application updates fail to update data removed by a disguise, which can later be revealed in
-original form.
-\sys requires all application updates that must immediately apply to revealed data (that is
-currently disguised and removed) to be disguises themselves; otherwise, the application must handle
-the possibility of non-updated data being revealed.
-%\sys stores a query log of all application update queries, and reapplies them to any removed data by a disguise prior to revealing the data
-
-\begin{table}[h]
-\footnotesize
-\centering
-\begin{tabular}{ c | c c c }
-& \textbf{$d_2$ Decorrelates} & \textbf{$d_2$ Modifies} & \textbf{$d_2$ Removes}\\
-\hline
-\textbf{$d_1$ Decorrelates}  & \xhist{[\app{d_2}]} & \xhist{[\app{d_2}]} &\xhist{[\app{d_2}]} \\
-\textbf{$d_1$ Modifies} & \xhist{[\app{d_2}]} & \xhist{[\app{d_2}]}\checkmark
-&\xhist{[\app{d_2}]}\checkmark \\
-\textbf{$d_2$ Removes}  & \xhist{[\app{d_2}]}\checkmark & \xhist{[\app{d_2}]}\checkmark
-&\xhist{[\app{d_2}]}\checkmark \\
-\end{tabular}
-\vspace{6pt}
-\caption{\xhist{[\app{d_2}, \app{d_2}, \rev{d_1}]} when $d_1$ is global, and $d_2$ is private.}
-\label{tab:revinternal}
-\end{table}
-
-\begin{table*}[h]
-\centering
-\begin{tabular}{ c | c c c c }
-\textbf{History} & \textbf{(Global $d_1$, Global $d_2$)} & \textbf{(Private $d_1$, Private $d_2$)} &
-\textbf{(Private $d_1$, Global $d_2$)} & \textbf{(Global $d_1$, Private $d_2$)} \\
-\hline
-\xhist{[\app{d_1}, \app{d_2}]} & \appcompone or \appcomptwo & \appcompone or \appcomptwo & \appcomptwo & \appcompone or \appcomptwo \\
-
-\xhist{[\app{d_1}, \app{d_2}, \rev{d_2}]} & \xhist{[\app{d_1}]} & \xhist{[\app{d_1}]} & \xhist{[\app{d_1}]} & \xhist{[\app{d_1}]}\\
-
-\xhist{[\app{d_2}, \app{d_2}, \rev{d_1}]} & \xhist{[\app{d_2}]} & \xhist{[\app{d_2}]} &
-\xhist{[\app{d_2}]} & \xhist{[\app{d_2}]} or \xhist{[\app{d_1}, \app{d_2}]}\\
-\vspace{6pt}
-\end{tabular}
-
-\caption{End state of object $x$ for various histories, depending on whether $d_1$ and
-$d_2$ are private or global.}
-\label{tab:compose}
-\end{table*}
-
-\fi
