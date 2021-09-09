@@ -5,5 +5,5 @@ members = [
     "src/decor",
     "src/sql-parser",
     "applications",
-    "demo-app"
+    #"demo-app"
 ]
