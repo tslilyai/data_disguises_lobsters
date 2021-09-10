@@ -54,12 +54,12 @@ impl EdnaClient {
         self.disguiser.register_principal(uid, email, pubkey);
     }
 
-    // XXX get rid of this
-    pub fn get_pseudoprincipal_enc_privkeys(
+    // XXX get rid of this? why?
+    pub fn get_locked_pseudoprincipal_privkeys(
         &mut self,
         uid: UID,
-    ) -> Vec<diffs::EncPrivKeyDiff> {
-        self.disguiser.get_pseudoprincipal_enc_privkeys(uid)
+    ) -> Vec<diffs::LockedPPPrivKey> {
+        self.disguiser.get_locked_pseudoprincipal_privkeys(uid)
     }
 
     pub fn get_capability(

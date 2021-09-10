@@ -89,14 +89,14 @@ impl Disguiser {
         locked_diff_ctrler.register_principal(uid, email, pubkey);
     }
 
-    pub fn get_pseudoprincipal_enc_privkeys(
+    pub fn get_locked_pseudoprincipal_privkeys(
         &mut self,
         uid: UID,
-    ) -> Vec<EncPrivKeyDiff> {
+    ) -> Vec<LockedPPPrivKey> {
         let locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
-        let epks = locked_diff_ctrler.get_enc_privkeys_of_user(uid);
+        let lked_pppks = locked_diff_ctrler.get_locked_ppprivkeys_of_user(uid);
         drop(locked_diff_ctrler);
-        epks
+        lked_pppks
     }
     
     // XXX remove

@@ -2,7 +2,6 @@ use crate::helpers::*;
 use crate::stats::QueryStat;
 use crate::diffs::*;
 use crate::{DID, UID};
-use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::hash::{Hash, Hasher};
@@ -14,14 +13,6 @@ pub const DECOR_GUISE: u64 = 2;
 pub const MODIFY_GUISE: u64 = 3;
 pub const REMOVE_TOKEN: u64 = 5;
 pub const MODIFY_TOKEN: u64 = 6;
-
-#[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct PrivKeyDiff {
-    pub did: DID,
-    pub uid: UID,
-    pub new_uid: UID,
-    pub priv_key: Vec<u8>,
-}
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Diff {
@@ -65,10 +56,6 @@ impl Hash for Diff {
     }
 }
 
-pub fn privkeydiff_from_bytes(bytes: Vec<u8>) -> PrivKeyDiff {
-    serde_json::from_slice(&bytes).unwrap()
-}
-
 pub fn diff_from_bytes(bytes: Vec<u8>) -> Diff {
     serde_json::from_slice(&bytes).unwrap()
 }
@@ -94,15 +81,6 @@ impl Diff {
         diff.update_type = REMOVE_TOKEN;
         diff.revealed = false;
         diff.old_diff_blob = serde_json::to_string(changed_diff).unwrap();
-        diff
-    }
-
-    pub fn new_privkey_diff(uid: UID, did:DID, new_uid: UID, priv_key: &RsaPrivateKey) -> PrivKeyDiff {
-        let mut diff: PrivKeyDiff = Default::default();
-        diff.uid = uid;
-        diff.did = did;
-        diff.priv_key = priv_key.to_pkcs1_der().unwrap().as_der().to_vec();
-        diff.new_uid = new_uid;
         diff
     }
 
