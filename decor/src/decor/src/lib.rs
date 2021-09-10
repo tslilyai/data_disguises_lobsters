@@ -12,7 +12,7 @@ pub mod disguise;
 pub mod helpers;
 pub mod predicate;
 pub mod stats;
-pub mod tokens;
+pub mod diffs;
 
 pub type DID = u64;
 pub type UID = u64;
@@ -58,7 +58,7 @@ impl EdnaClient {
     pub fn get_pseudoprincipal_enc_privkeys(
         &mut self,
         uid: UID,
-    ) -> Vec<tokens::EncPrivKeyToken> {
+    ) -> Vec<diffs::EncPrivKeyDiff> {
         self.disguiser.get_pseudoprincipal_enc_privkeys(uid)
     }
 
@@ -66,35 +66,35 @@ impl EdnaClient {
         &mut self,
         uid: UID,
         did: DID,
-    ) -> Option<tokens::Capability> {
+    ) -> Option<diffs::Capability> {
         self.disguiser.get_capability(uid, did)
     }
 
-    pub fn get_enc_token_symkeys_of_capabilities_and_pseudoprincipals(
+    pub fn get_enc_diff_symkeys_of_capabilities_and_pseudoprincipals(
         &mut self,
-        caps: Vec<tokens::Capability>,
+        caps: Vec<diffs::Capability>,
         pseudouids: Vec<UID>,
-    ) -> Vec<(tokens::EncSymKey, tokens::Capability)> {
-        self.disguiser.get_enc_token_symkeys_with_capabilities_and_pseudoprincipals(caps, pseudouids)
+    ) -> Vec<(diffs::EncSymKey, diffs::Capability)> {
+        self.disguiser.get_enc_diff_symkeys_with_capabilities_and_pseudoprincipals(caps, pseudouids)
     }
 
-    pub fn get_tokens_of_disguise_keys(
+    pub fn get_diffs_of_disguise_keys(
         &mut self,
-        keys: Vec<(tokens::SymKey, tokens::Capability)>,
-        global_tokens_of: Vec<(DID,UID)>,
-    ) -> Vec<tokens::Token> {
-        self.disguiser.get_tokens_of_disguise_keys(keys, global_tokens_of, false)
+        keys: Vec<(diffs::SymKey, diffs::Capability)>,
+        global_diffs_of: Vec<(DID,UID)>,
+    ) -> Vec<diffs::Diff> {
+        self.disguiser.get_diffs_of_disguise_keys(keys, global_diffs_of, false)
     }
 
     pub fn apply_disguise(
-        // TODO filter all global tokens?????
+        // TODO filter all global diffs?????
         &mut self,
         disguise: Arc<disguise::Disguise>,
-        keys: Vec<(tokens::SymKey, tokens::Capability)>,
-        global_tokens_of: Vec<(DID,UID)>,
+        keys: Vec<(diffs::SymKey, diffs::Capability)>,
+        global_diffs_of: Vec<(DID,UID)>,
     ) -> Result<(), mysql::Error> {
-        let tokens = self.disguiser.get_tokens_of_disguise_keys(keys, global_tokens_of, true);
-        self.disguiser.apply(disguise.clone(), tokens)?;
+        let diffs = self.disguiser.get_diffs_of_disguise_keys(keys, global_diffs_of, true);
+        self.disguiser.apply(disguise.clone(), diffs)?;
         warn!("EDNA: APPLIED Disguise {}", disguise.clone().did);
         Ok(())
     }
@@ -102,11 +102,11 @@ impl EdnaClient {
     pub fn reverse_disguise(
         &mut self,
         disguise: Arc<disguise::Disguise>,
-        keys: Vec<(tokens::SymKey, tokens::Capability)>,
-        global_tokens_of: Vec<(DID,UID)>,
+        keys: Vec<(diffs::SymKey, diffs::Capability)>,
+        global_diffs_of: Vec<(DID,UID)>,
     ) -> Result<(), mysql::Error> {
-        let tokens = self.disguiser.get_tokens_of_disguise_keys(keys, global_tokens_of, true);
-        self.disguiser.reverse(disguise.clone(), tokens)?;
+        let diffs = self.disguiser.get_diffs_of_disguise_keys(keys, global_diffs_of, true);
+        self.disguiser.reverse(disguise.clone(), diffs)?;
         warn!("EDNA: REVERSED Disguise {}", disguise.clone().did);
         Ok(())
     }

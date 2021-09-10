@@ -1,6 +1,6 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
-use crate::tokens::*;
+use crate::diffs::*;
 use crate::{DID, UID};
 use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
 use serde::{Deserialize, Serialize};
@@ -16,7 +16,7 @@ pub const REMOVE_TOKEN: u64 = 5;
 pub const MODIFY_TOKEN: u64 = 6;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct PrivKeyToken {
+pub struct PrivKeyDiff {
     pub did: DID,
     pub uid: UID,
     pub new_uid: UID,
@@ -24,9 +24,9 @@ pub struct PrivKeyToken {
 }
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct Token {
+pub struct Diff {
     // metadata set by Edna
-    pub token_id: u64,
+    pub diff_id: u64,
     pub did: DID,
     pub uid: UID,
     pub update_type: u64,
@@ -50,8 +50,8 @@ pub struct Token {
     pub new_value: Vec<RowVal>,
 
     // TOKEN REMOVE/MODIFY
-    pub old_token_blob: String,
-    pub new_token_blob: String,
+    pub old_diff_blob: String,
+    pub new_diff_blob: String,
 
     // FOR SECURITY DESIGN
     // for randomness
@@ -59,54 +59,54 @@ pub struct Token {
     // for linked-list
 }
 
-impl Hash for Token {
+impl Hash for Diff {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.token_id.hash(state);
+        self.diff_id.hash(state);
     }
 }
 
-pub fn privkeytoken_from_bytes(bytes: Vec<u8>) -> PrivKeyToken {
+pub fn privkeydiff_from_bytes(bytes: Vec<u8>) -> PrivKeyDiff {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-pub fn token_from_bytes(bytes: Vec<u8>) -> Token {
+pub fn diff_from_bytes(bytes: Vec<u8>) -> Diff {
     serde_json::from_slice(&bytes).unwrap()
 }
 
-impl Token {
-    pub fn new_token_modify(uid: UID, did:DID, old_token: &Token, changed_token: &Token) -> Token {
-        let mut token: Token = Default::default();
-        token.is_global = false;
-        token.uid = uid;
-        token.did = did;
-        token.update_type = MODIFY_TOKEN;
-        token.revealed = false;
-        token.old_token_blob = serde_json::to_string(old_token).unwrap();
-        token.new_token_blob = serde_json::to_string(changed_token).unwrap();
-        token
+impl Diff {
+    pub fn new_diff_modify(uid: UID, did:DID, old_diff: &Diff, changed_diff: &Diff) -> Diff {
+        let mut diff: Diff = Default::default();
+        diff.is_global = false;
+        diff.uid = uid;
+        diff.did = did;
+        diff.update_type = MODIFY_TOKEN;
+        diff.revealed = false;
+        diff.old_diff_blob = serde_json::to_string(old_diff).unwrap();
+        diff.new_diff_blob = serde_json::to_string(changed_diff).unwrap();
+        diff
     }
 
-    pub fn new_token_remove(uid: UID, did: DID, changed_token: &Token) -> Token {
-        let mut token: Token = Default::default();
-        token.is_global = false;
-        token.uid = uid;
-        token.did = did;
-        token.update_type = REMOVE_TOKEN;
-        token.revealed = false;
-        token.old_token_blob = serde_json::to_string(changed_token).unwrap();
-        token
+    pub fn new_diff_remove(uid: UID, did: DID, changed_diff: &Diff) -> Diff {
+        let mut diff: Diff = Default::default();
+        diff.is_global = false;
+        diff.uid = uid;
+        diff.did = did;
+        diff.update_type = REMOVE_TOKEN;
+        diff.revealed = false;
+        diff.old_diff_blob = serde_json::to_string(changed_diff).unwrap();
+        diff
     }
 
-    pub fn new_privkey_token(uid: UID, did:DID, new_uid: UID, priv_key: &RsaPrivateKey) -> PrivKeyToken {
-        let mut token: PrivKeyToken = Default::default();
-        token.uid = uid;
-        token.did = did;
-        token.priv_key = priv_key.to_pkcs1_der().unwrap().as_der().to_vec();
-        token.new_uid = new_uid;
-        token
+    pub fn new_privkey_diff(uid: UID, did:DID, new_uid: UID, priv_key: &RsaPrivateKey) -> PrivKeyDiff {
+        let mut diff: PrivKeyDiff = Default::default();
+        diff.uid = uid;
+        diff.did = did;
+        diff.priv_key = priv_key.to_pkcs1_der().unwrap().as_der().to_vec();
+        diff.new_uid = new_uid;
+        diff
     }
 
-    pub fn new_decor_token(
+    pub fn new_decor_diff(
         did: DID,
         guise_name: String,
         guise_ids: Vec<RowVal>,
@@ -114,70 +114,70 @@ impl Token {
         referenced_id_col: String,
         old_value: Vec<RowVal>,
         new_value: Vec<RowVal>,
-    ) -> Token {
-        let mut token: Token = Default::default();
-        token.did = did;
-        token.update_type = DECOR_GUISE;
-        token.revealed = false;
-        token.guise_name = guise_name;
-        token.guise_ids = guise_ids;
-        token.referenced_name = referenced_name;
-        token.referenced_id_col = referenced_id_col;
-        token.old_value = old_value;
-        token.new_value = new_value;
-        token
+    ) -> Diff {
+        let mut diff: Diff = Default::default();
+        diff.did = did;
+        diff.update_type = DECOR_GUISE;
+        diff.revealed = false;
+        diff.guise_name = guise_name;
+        diff.guise_ids = guise_ids;
+        diff.referenced_name = referenced_name;
+        diff.referenced_id_col = referenced_id_col;
+        diff.old_value = old_value;
+        diff.new_value = new_value;
+        diff
     }
 
-    pub fn new_delete_token(
+    pub fn new_delete_diff(
         did: DID,
         guise_name: String,
         guise_ids: Vec<RowVal>,
         old_value: Vec<RowVal>,
-    ) -> Token {
-        let mut token: Token = Default::default();
-        token.did = did;
-        token.update_type = REMOVE_GUISE;
-        token.revealed = false;
-        token.guise_name = guise_name;
-        token.guise_ids = guise_ids;
-        token.old_value = old_value;
-        token
+    ) -> Diff {
+        let mut diff: Diff = Default::default();
+        diff.did = did;
+        diff.update_type = REMOVE_GUISE;
+        diff.revealed = false;
+        diff.guise_name = guise_name;
+        diff.guise_ids = guise_ids;
+        diff.old_value = old_value;
+        diff
     }
 
-    pub fn new_modify_token(
+    pub fn new_modify_diff(
         did: DID,
         guise_name: String,
         guise_ids: Vec<RowVal>,
         old_value: Vec<RowVal>,
         new_value: Vec<RowVal>,
-    ) -> Token {
-        let mut token: Token = Default::default();
-        token.did = did;
-        token.update_type = MODIFY_GUISE;
-        token.revealed = false;
-        token.guise_name = guise_name;
-        token.guise_ids = guise_ids;
-        token.old_value = old_value;
-        token.new_value = new_value;
-        token
+    ) -> Diff {
+        let mut diff: Diff = Default::default();
+        diff.did = did;
+        diff.update_type = MODIFY_GUISE;
+        diff.revealed = false;
+        diff.guise_name = guise_name;
+        diff.guise_ids = guise_ids;
+        diff.old_value = old_value;
+        diff.new_value = new_value;
+        diff
     }
 
-    pub fn token_to_bytes(token: &Token) -> Vec<u8> {
-        let s = serde_json::to_string(token).unwrap();
+    pub fn diff_to_bytes(diff: &Diff) -> Vec<u8> {
+        let s = serde_json::to_string(diff).unwrap();
         s.as_bytes().to_vec()
     }
 
     pub fn reveal(
         &self,
-        token_ctrler: &mut TokenCtrler,
+        diff_ctrler: &mut DiffCtrler,
         conn: &mut mysql::PooledConn,
         stats: Arc<Mutex<QueryStat>>,
     ) -> Result<bool, mysql::Error> {
         if !self.revealed {
             // get current guise in db
-            let token_guise_selection = get_select_of_ids(&self.guise_ids);
+            let diff_guise_selection = get_select_of_ids(&self.guise_ids);
             let selected = get_query_rows_str(
-                &str_select_statement(&self.guise_name, &token_guise_selection.to_string()),
+                &str_select_statement(&self.guise_name, &diff_guise_selection.to_string()),
                 conn,
                 stats.clone(),
             )?;
@@ -259,7 +259,7 @@ impl Token {
                         Statement::Update(UpdateStatement {
                             table_name: string_to_objname(&self.guise_name),
                             assignments: updates,
-                            selection: Some(token_guise_selection),
+                            selection: Some(diff_guise_selection),
                         })
                         .to_string(),
                         conn,
@@ -282,8 +282,8 @@ impl Token {
                         conn,
                         stats.clone(),
                     )?;
-                    // remove the principal from being registered by the token ctrler
-                    token_ctrler.remove_anon_principal(u64::from_str(&new_val).unwrap());
+                    // remove the principal from being registered by the diff ctrler
+                    diff_ctrler.remove_anon_principal(u64::from_str(&new_val).unwrap());
                 }
                 MODIFY_GUISE => {
                     // if field hasn't been modified, return it to original
@@ -308,7 +308,7 @@ impl Token {
                         Statement::Update(UpdateStatement {
                             table_name: string_to_objname(&self.guise_name),
                             assignments: updates,
-                            selection: Some(token_guise_selection),
+                            selection: Some(diff_guise_selection),
                         })
                         .to_string(),
                         conn,
@@ -316,29 +316,29 @@ impl Token {
                     )?;
                 }
                 REMOVE_TOKEN => {
-                    // restore global token (may or may not have been revealed, but oh well!)
-                    let mut token: Token = serde_json::from_str(&self.old_token_blob).unwrap();
-                    assert!(token.is_global);
-                    token_ctrler.insert_global_token(&mut token);
+                    // restore global diff (may or may not have been revealed, but oh well!)
+                    let mut diff: Diff = serde_json::from_str(&self.old_diff_blob).unwrap();
+                    assert!(diff.is_global);
+                    diff_ctrler.insert_global_diff(&mut diff);
                 }
                 MODIFY_TOKEN => {
-                    let new_token: Token = serde_json::from_str(&self.new_token_blob).unwrap();
-                    assert!(new_token.is_global);
+                    let new_diff: Diff = serde_json::from_str(&self.new_diff_blob).unwrap();
+                    assert!(new_diff.is_global);
 
-                    let (revealed, eq) = token_ctrler.check_global_token_for_match(&new_token);
+                    let (revealed, eq) = diff_ctrler.check_global_diff_for_match(&new_diff);
 
-                    // don't reveal if token has been modified
+                    // don't reveal if diff has been modified
                     if !eq {
                         return Ok(false);
                     }
 
-                    // actually update token
-                    let old_token: Token = serde_json::from_str(&self.old_token_blob).unwrap();
-                    token_ctrler.update_global_token_from_old_to(&new_token, &old_token, None);
+                    // actually update diff
+                    let old_diff: Diff = serde_json::from_str(&self.old_diff_blob).unwrap();
+                    diff_ctrler.update_global_diff_from_old_to(&new_diff, &old_diff, None);
 
-                    // if token has been revealed, attempt to reveal old value of token
+                    // if diff has been revealed, attempt to reveal old value of diff
                     if revealed {
-                        return old_token.reveal(token_ctrler, conn, stats.clone());
+                        return old_diff.reveal(diff_ctrler, conn, stats.clone());
                     }
                 }
                 _ => (), // do nothing for PRIV_KEY

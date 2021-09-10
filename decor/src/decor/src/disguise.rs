@@ -1,7 +1,7 @@
 use crate::helpers::*;
 use crate::predicate::*;
 use crate::stats::*;
-use crate::tokens::*;
+use crate::diffs::*;
 use crate::*;
 use mysql::{Opts, Pool};
 use rsa::RsaPublicKey;
@@ -61,11 +61,11 @@ pub struct Disguise {
 pub struct Disguiser {
     pub pool: mysql::Pool,
     pub stats: Arc<Mutex<QueryStat>>,
-    pub token_ctrler: Arc<Mutex<TokenCtrler>>,
+    pub diff_ctrler: Arc<Mutex<DiffCtrler>>,
 
     // table name to [(rows) -> transformations] map
     items: Arc<RwLock<HashMap<String, HashMap<Vec<RowVal>, Vec<Transform>>>>>,
-    tokens_to_modify: Arc<RwLock<HashMap<Token, Vec<Transform>>>>,
+    diffs_to_modify: Arc<RwLock<HashMap<Diff, Vec<Transform>>>>,
     to_insert: Arc<Mutex<HashMap<(String, Vec<String>), Vec<Vec<Expr>>>>>,
 }
 
@@ -77,25 +77,25 @@ impl Disguiser {
         Disguiser {
             pool: pool,
             stats: Arc::new(Mutex::new(stats::QueryStat::new())),
-            token_ctrler: Arc::new(Mutex::new(TokenCtrler::new())),
-            tokens_to_modify: Arc::new(RwLock::new(HashMap::new())),
+            diff_ctrler: Arc::new(Mutex::new(DiffCtrler::new())),
+            diffs_to_modify: Arc::new(RwLock::new(HashMap::new())),
             to_insert: Arc::new(Mutex::new(HashMap::new())),
             items: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
     pub fn register_principal(&mut self, uid: u64, email: String, pubkey: &RsaPublicKey) {
-        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        locked_token_ctrler.register_principal(uid, email, pubkey);
+        let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
+        locked_diff_ctrler.register_principal(uid, email, pubkey);
     }
 
     pub fn get_pseudoprincipal_enc_privkeys(
         &mut self,
         uid: UID,
-    ) -> Vec<EncPrivKeyToken> {
-        let locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        let epks = locked_token_ctrler.get_enc_privkeys_of_user(uid);
-        drop(locked_token_ctrler);
+    ) -> Vec<EncPrivKeyDiff> {
+        let locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
+        let epks = locked_diff_ctrler.get_enc_privkeys_of_user(uid);
+        drop(locked_diff_ctrler);
         epks
     }
     
@@ -105,73 +105,73 @@ impl Disguiser {
         uid: UID,
         did: DID,
     ) -> Option<Capability> {
-        let locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        let c = match locked_token_ctrler.capabilities.get(&(uid,did)) {
+        let locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
+        let c = match locked_diff_ctrler.capabilities.get(&(uid,did)) {
             Some(c) => Some(*c),
             None => None,
         };
-        drop(locked_token_ctrler);
+        drop(locked_diff_ctrler);
         c
     }
 
-    pub fn get_enc_token_symkeys_with_capabilities_and_pseudoprincipals(
+    pub fn get_enc_diff_symkeys_with_capabilities_and_pseudoprincipals(
         &self,
         caps: Vec<u64>,
         pseudo_uids: Vec<UID>,
     ) -> Vec<(EncSymKey, Capability)> {
         let mut encsymkeys = vec![];
-        let locked_token_ctrler = self.token_ctrler.lock().unwrap();
+        let locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
         for c in caps {
-            if let Some(esk) = locked_token_ctrler.get_enc_symkey(c) {
+            if let Some(esk) = locked_diff_ctrler.get_enc_symkey(c) {
                 encsymkeys.push((esk, c));
             }
         }
         for puid in pseudo_uids {
-            locked_token_ctrler.get_pseudouid_enc_token_symkeys(puid);
+            locked_diff_ctrler.get_pseudouid_enc_diff_symkeys(puid);
         }
         encsymkeys
     }
 
-    pub fn get_tokens_of_disguise_keys(
+    pub fn get_diffs_of_disguise_keys(
         &mut self,
         keys: Vec<(SymKey, Capability)>,
-        global_tokens_of: Vec<(DID, UID)>,
+        global_diffs_of: Vec<(DID, UID)>,
         for_disguise_action: bool,
-    ) -> Vec<tokens::Token> {
-        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        let tokens = locked_token_ctrler.get_tokens(&keys, global_tokens_of, for_disguise_action);
-        warn!("Got {} tokens for {} keys", tokens.len(),keys.len());
-        drop(locked_token_ctrler);
-        tokens
+    ) -> Vec<diffs::Diff> {
+        let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
+        let diffs = locked_diff_ctrler.get_diffs(&keys, global_diffs_of, for_disguise_action);
+        warn!("Got {} diffs for {} keys", diffs.len(),keys.len());
+        drop(locked_diff_ctrler);
+        diffs
     }
 
     pub fn reverse(
         &mut self,
         disguise: Arc<Disguise>,
-        tokens: Vec<Token>,
+        diffs: Vec<Diff>,
     ) -> Result<(), mysql::Error> {
         let mut conn = self.pool.get_conn()?;
-        let mut tokens_to_mark_revealed: Vec<Token> = vec![];
-        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
+        let mut diffs_to_mark_revealed: Vec<Diff> = vec![];
+        let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
 
-        for t in tokens {
-            // only reverse tokens of disguise if not yet revealed
+        for t in diffs {
+            // only reverse diffs of disguise if not yet revealed
             if t.did == disguise.did && !t.revealed {
-                warn!("Reversing token {:?}", t);
-                let revealed = t.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
+                warn!("Reversing diff {:?}", t);
+                let revealed = t.reveal(&mut locked_diff_ctrler, &mut conn, self.stats.clone())?;
                 if revealed {
-                    tokens_to_mark_revealed.push(t);
+                    diffs_to_mark_revealed.push(t);
                 }
             } else {
-                warn!("Skipping reversal of token {:?}", t);
+                warn!("Skipping reversal of diff {:?}", t);
             }
         }
 
-        // mark all revealed tokens as revealed
-        for t in &tokens_to_mark_revealed {
-            locked_token_ctrler.mark_token_revealed(t);
+        // mark all revealed diffs as revealed
+        for t in &diffs_to_mark_revealed {
+            locked_diff_ctrler.mark_diff_revealed(t);
         }
-        drop(locked_token_ctrler);
+        drop(locked_diff_ctrler);
         self.end_disguise_action();
         Ok(())
     }
@@ -179,7 +179,7 @@ impl Disguiser {
     pub fn apply(
         &mut self,
         disguise: Arc<Disguise>,
-        tokens: Vec<Token>,
+        diffs: Vec<Diff>,
     ) -> Result<(), mysql::Error> {
         let mut conn = self.pool.get_conn()?;
         let mut threads = vec![];
@@ -190,7 +190,7 @@ impl Disguiser {
          */
         // get all the objects, remove the objects to remove
         // integrate vault_transforms into disguise read + write phases
-        self.select_predicate_objs_and_execute_removes(disguise.clone(), tokens);
+        self.select_predicate_objs_and_execute_removes(disguise.clone(), diffs);
 
         /*
          * UPDATE/DECOR
@@ -201,7 +201,7 @@ impl Disguiser {
             let mystats = self.stats.clone();
             let my_insert = self.to_insert.clone();
             let my_items = self.items.clone();
-            let my_token_ctrler = self.token_ctrler.clone();
+            let my_diff_ctrler = self.diff_ctrler.clone();
 
             // clone disguise fields
             let my_table_info = disguise.table_info.clone();
@@ -236,7 +236,7 @@ impl Disguiser {
                                 let fk_table_info = locked_table_info.get(fk_name).unwrap();
                                 let locked_fk_gen = locked_guise_gen.get(fk_name).unwrap();
                                 let mut locked_insert = my_insert.lock().unwrap();
-                                let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
+                                let mut locked_diff_ctrler = my_diff_ctrler.lock().unwrap();
                                 let mut locked_stats = mystats.lock().unwrap();
 
                                 warn!("Decor item of table {} in apply disguise: {:?}", table, i);
@@ -245,7 +245,7 @@ impl Disguiser {
                                     did,
                                     t.global,
                                     &mut locked_insert,
-                                    &mut locked_token_ctrler,
+                                    &mut locked_diff_ctrler,
                                     &mut cols_to_update,
                                     &mut locked_stats,
                                     // info needed for decorrelation
@@ -264,14 +264,14 @@ impl Disguiser {
                                 generate_modified_value,
                                 ..
                             } => {
-                                let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
+                                let mut locked_diff_ctrler = my_diff_ctrler.lock().unwrap();
                                 let mut locked_stats = mystats.lock().unwrap();
                                 let old_val = get_value_of_col(&i, &col).unwrap();
 
                                 modify_item(
                                     did,
                                     t.global,
-                                    &mut locked_token_ctrler,
+                                    &mut locked_diff_ctrler,
                                     &mut cols_to_update,
                                     &mut locked_stats,
                                     &table,
@@ -306,7 +306,7 @@ impl Disguiser {
             }));
         }
 
-        self.modify_global_tokens(disguise);
+        self.modify_global_diffs(disguise);
 
         // wait until all mysql queries are done
         for jh in threads.into_iter() {
@@ -333,22 +333,22 @@ impl Disguiser {
         warn!("Disguiser: Performed Inserts");
 
         // any capabilities generated during disguise should be emailed
-        self.token_ctrler.lock().unwrap().save_capabilities();
+        self.diff_ctrler.lock().unwrap().save_capabilities();
         self.end_disguise_action();
         Ok(())
     }
 
-    fn modify_global_tokens(&mut self, disguise: Arc<Disguise>) {
+    fn modify_global_diffs(&mut self, disguise: Arc<Disguise>) {
         let did = disguise.did;
         let uid = match &disguise.user {
             Some(u) => u.id,
             None => 0,
         };
-        // apply updates to each token (for now do sequentially)
-        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        for (token, ts) in self.tokens_to_modify.write().unwrap().iter() {
+        // apply updates to each diff (for now do sequentially)
+        let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
+        for (diff, ts) in self.diffs_to_modify.write().unwrap().iter() {
             for t in ts {
-                // we don't update global tokens if they've been disguised by a global
+                // we don't update global diffs if they've been disguised by a global
                 // disguise---no information leakage here
                 if t.global {
                     continue;
@@ -359,23 +359,23 @@ impl Disguiser {
                         let locked_table_info = disguise.table_info.read().unwrap();
                         let locked_guise_gen = disguise.guise_gen.read().unwrap();
 
-                        warn!("Decor item in modify global tokens: {:?}", token.old_value);
+                        warn!("Decor item in modify global diffs: {:?}", diff.old_value);
                         decor_item(
                             // disguise and per-thread state
                             did,
                             t.global,
                             &mut self.to_insert.lock().unwrap(),
-                            &mut locked_token_ctrler,
+                            &mut locked_diff_ctrler,
                             &mut cols_to_update,
                             &mut self.stats.lock().unwrap(),
                             // info needed for decorrelation
-                            &token.guise_name,
-                            locked_table_info.get(&token.guise_name).unwrap(),
+                            &diff.guise_name,
+                            locked_table_info.get(&diff.guise_name).unwrap(),
                             fk_name,
                             fk_col,
                             locked_table_info.get(fk_name).unwrap(),
                             locked_guise_gen.get(fk_name).unwrap(),
-                            &token.old_value,
+                            &diff.old_value,
                         );
                     }
                     TransformArgs::Modify {
@@ -384,40 +384,40 @@ impl Disguiser {
                         ..
                     } => {
                         let locked_table_info = disguise.table_info.read().unwrap();
-                        let old_val = get_value_of_col(&token.old_value, &col).unwrap();
+                        let old_val = get_value_of_col(&diff.old_value, &col).unwrap();
 
                         modify_item(
                             did,
                             t.global,
-                            &mut locked_token_ctrler,
+                            &mut locked_diff_ctrler,
                             &mut cols_to_update,
                             &mut self.stats.lock().unwrap(),
-                            &token.guise_name,
-                            locked_table_info.get(&token.guise_name).unwrap(),
+                            &diff.guise_name,
+                            locked_table_info.get(&diff.guise_name).unwrap(),
                             col,
                             (*(generate_modified_value))(&old_val),
-                            &token.old_value,
+                            &diff.old_value,
                         );
                     }
                     TransformArgs::Remove => {
-                        // remove token from vault if token is global, and the new transformation is
+                        // remove diff from vault if diff is global, and the new transformation is
                         // private (although we already check this above)
-                        if token.is_global && !t.global {
+                        if diff.is_global && !t.global {
                             assert!(uid != 0);
-                            if !locked_token_ctrler.remove_global_token(uid, did, &token) {
-                                warn!("Could not remove old disguise token!! {:?}", token);
+                            if !locked_diff_ctrler.remove_global_diff(uid, did, &diff) {
+                                warn!("Could not remove old disguise diff!! {:?}", diff);
                             }
-                            // continue onto the next token, don't modify it!
+                            // continue onto the next diff, don't modify it!
                             continue;
                         }
                     }
                 }
-                // apply cols_to_update if token is global, and the new transformation is
+                // apply cols_to_update if diff is global, and the new transformation is
                 // private (although we already check this above)
-                if token.is_global && !t.global {
+                if diff.is_global && !t.global {
                     // update both old and new values so that no data leaks
-                    let mut new_token = token.clone();
-                    new_token.new_value = token
+                    let mut new_diff = diff.clone();
+                    new_diff.new_value = diff
                         .new_value
                         .iter()
                         .map(|rv| {
@@ -433,7 +433,7 @@ impl Disguiser {
                             new_rv
                         })
                         .collect();
-                    new_token.old_value = token
+                    new_diff.old_value = diff
                         .old_value
                         .iter()
                         .map(|rv| {
@@ -450,23 +450,23 @@ impl Disguiser {
                         })
                         .collect();
                     assert!(uid != 0);
-                    if !locked_token_ctrler.update_global_token_from_old_to(
-                        &token,
-                        &new_token,
+                    if !locked_diff_ctrler.update_global_diff_from_old_to(
+                        &diff,
+                        &new_diff,
                         Some((uid, did)),
                     ) {
-                        warn!("Could not update old disguise token!! {:?}", token);
+                        warn!("Could not update old disguise diff!! {:?}", diff);
                     }
                 }
             }
         }
-        drop(locked_token_ctrler);
+        drop(locked_diff_ctrler);
     }
 
     fn select_predicate_objs_and_execute_removes(
         &self,
         disguise: Arc<Disguise>,
-        tokens: Vec<Token>,
+        diffs: Vec<Diff>,
     ) {
         let mut threads = vec![];
         for (table, transforms) in disguise.table_disguises.clone() {
@@ -475,13 +475,13 @@ impl Disguiser {
             let mystats = self.stats.clone();
             let did = disguise.did;
             let my_items = self.items.clone();
-            let my_tokens_to_modify = self.tokens_to_modify.clone();
-            let my_tokens = tokens.clone();
-            let my_token_ctrler = self.token_ctrler.clone();
+            let my_diffs_to_modify = self.diffs_to_modify.clone();
+            let my_diffs = diffs.clone();
+            let my_diff_ctrler = self.diff_ctrler.clone();
 
             // hashmap from item value --> transform
             let mut items_of_table: HashMap<Vec<RowVal>, Vec<Transform>> = HashMap::new();
-            let mut token_transforms: HashMap<Token, Vec<Transform>> = HashMap::new();
+            let mut diff_transforms: HashMap<Diff, Vec<Transform>> = HashMap::new();
 
             threads.push(thread::spawn(move || {
                 let mut conn = pool.get_conn().unwrap();
@@ -505,10 +505,10 @@ impl Disguiser {
                     let mut pred_items: HashSet<&Vec<RowVal>> =
                         HashSet::from_iter(selected_rows.iter());
 
-                    // TOKENS RETRIEVAL: get tokens that match the predicate
-                    let pred_tokens = predicate::get_tokens_matching_pred(&t.pred, &table, &my_tokens);
-                    for pt in &pred_tokens {
-                        // for tokens that decorrelated or updated a guise, we want to add the new
+                    // TOKENS RETRIEVAL: get diffs that match the predicate
+                    let pred_diffs = predicate::get_diffs_matching_pred(&t.pred, &table, &my_diffs);
+                    for pt in &pred_diffs {
+                        // for diffs that decorrelated or updated a guise, we want to add the new
                         // value that should be transformed into the set of predicated items
                         match pt.update_type {
                             DECOR_GUISE | MODIFY_GUISE => {
@@ -516,12 +516,12 @@ impl Disguiser {
                             }
                             _ => (),
                         }
-                        // for all global tokens, we want to update the
-                        // stored value of this token so that we only ever restore the most
-                        // up-to-date disguised data and the token doesn't leak any data
-                        // NOTE: during reversal, we'll have to reverse this token update
+                        // for all global diffs, we want to update the
+                        // stored value of this diff so that we only ever restore the most
+                        // up-to-date disguised data and the diff doesn't leak any data
+                        // NOTE: during reversal, we'll have to reverse this diff update
                         if pt.is_global {
-                            token_transforms.insert(pt.clone(), vec![]);
+                            diff_transforms.insert(pt.clone(), vec![]);
                         }
                     }
 
@@ -537,7 +537,7 @@ impl Disguiser {
                                 let ids = get_ids(&curtable_info.id_cols, i);
 
                                 // TOKEN INSERT
-                                let mut token = Token::new_delete_token(
+                                let mut diff = Diff::new_delete_diff(
                                     did,
                                     table.clone(),
                                     ids.clone(),
@@ -545,15 +545,15 @@ impl Disguiser {
                                 );
                                 for owner_col in &curtable_info.owner_cols {
                                     let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
-                                    token.uid = u64::from_str(&owner_uid).unwrap();
-                                    let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
+                                    diff.uid = u64::from_str(&owner_uid).unwrap();
+                                    let mut locked_diff_ctrler = my_diff_ctrler.lock().unwrap();
                                     if t.global {
-                                        locked_token_ctrler.insert_global_token(&mut token);
+                                        locked_diff_ctrler.insert_global_diff(&mut diff);
                                     } else {
-                                        locked_token_ctrler
-                                            .insert_user_data_token(&mut token);
+                                        locked_diff_ctrler
+                                            .insert_user_data_diff(&mut diff);
                                     }
-                                    drop(locked_token_ctrler);
+                                    drop(locked_diff_ctrler);
                                 }
 
                                 // EXTRA: save in removed so we don't transform this item further
@@ -564,9 +564,9 @@ impl Disguiser {
                             let delstmt = format!("DELETE FROM {} WHERE {}", table, selection);
                             helpers::query_drop(delstmt, &mut conn, mystats.clone()).unwrap();
 
-                            // save that these tokens should be removed
-                            for (_, ts) in &mut token_transforms {
-                                // save the transformation to perform on this token
+                            // save that these diffs should be removed
+                            for (_, ts) in &mut diff_transforms {
+                                // save the transformation to perform on this diff
                                 ts.push(t.clone());
                             }
                         }
@@ -590,25 +590,25 @@ impl Disguiser {
                                 decorrelated_items.insert((fk_col.clone(), i.clone()));
                             }
 
-                            // TOKENS modify any matching data tokens from prior disguises
-                            let token_keys: Vec<Token> =
-                                token_transforms.keys().map(|k| k.clone()).collect();
-                            for token in token_keys {
-                                // don't decorrelate token if removed
-                                if removed_items.contains(&token.new_value) {
+                            // TOKENS modify any matching data diffs from prior disguises
+                            let diff_keys: Vec<Diff> =
+                                diff_transforms.keys().map(|k| k.clone()).collect();
+                            for diff in diff_keys {
+                                // don't decorrelate diff if removed
+                                if removed_items.contains(&diff.new_value) {
                                     continue;
                                 }
                                 // don't decorrelate twice
                                 if decorrelated_items
-                                    .contains(&(fk_col.clone(), token.new_value.clone()))
+                                    .contains(&(fk_col.clone(), diff.new_value.clone()))
                                 {
                                     continue;
                                 }
-                                // save the transformation to perform on this token
-                                let ts = token_transforms.get_mut(&token).unwrap();
+                                // save the transformation to perform on this diff
+                                let ts = diff_transforms.get_mut(&diff).unwrap();
                                 ts.push(t.clone());
                                 decorrelated_items
-                                    .insert((fk_col.clone(), token.new_value.clone()));
+                                    .insert((fk_col.clone(), diff.new_value.clone()));
                             }
                         }
                         _ => {
@@ -625,16 +625,16 @@ impl Disguiser {
                                 }
                             }
 
-                            // TOKENS modify any matching removed data tokens from prior disguises
-                            let token_keys: Vec<Token> =
-                                token_transforms.keys().map(|k| k.clone()).collect();
-                            for token in token_keys {
-                                // don't modify token if removed
-                                if removed_items.contains(&token.new_value) {
+                            // TOKENS modify any matching removed data diffs from prior disguises
+                            let diff_keys: Vec<Diff> =
+                                diff_transforms.keys().map(|k| k.clone()).collect();
+                            for diff in diff_keys {
+                                // don't modify diff if removed
+                                if removed_items.contains(&diff.new_value) {
                                     continue;
                                 }
-                                // save the transformation to perform on this token
-                                let ts = token_transforms.get_mut(&token).unwrap();
+                                // save the transformation to perform on this diff
+                                let ts = diff_transforms.get_mut(&diff).unwrap();
                                 ts.push(t.clone());
                             }
                         }
@@ -648,9 +648,9 @@ impl Disguiser {
                     }
                 }
                 drop(locked_items);
-                let mut locked_tokens = my_tokens_to_modify.write().unwrap();
-                locked_tokens.extend(token_transforms);
-                drop(locked_tokens);
+                let mut locked_diffs = my_diffs_to_modify.write().unwrap();
+                locked_diffs.extend(diff_transforms);
+                drop(locked_diffs);
             }));
         }
 
@@ -666,8 +666,8 @@ impl Disguiser {
     fn end_disguise_action(&self) {
         self.to_insert.lock().unwrap().clear();
         self.items.write().unwrap().clear();
-        self.token_ctrler.lock().unwrap().clear_tmp();
-        self.tokens_to_modify.write().unwrap().clear();
+        self.diff_ctrler.lock().unwrap().clear_tmp();
+        self.diffs_to_modify.write().unwrap().clear();
         warn!("Disguiser: clear disguise records");
     }
 }
@@ -675,7 +675,7 @@ impl Disguiser {
 fn modify_item(
     did: DID,
     global: bool,
-    token_ctrler: &mut TokenCtrler,
+    diff_ctrler: &mut DiffCtrler,
     cols_to_update: &mut Vec<Assignment>,
     stats: &mut QueryStat,
     table: &str,
@@ -708,14 +708,14 @@ fn modify_item(
         })
         .collect();
     let ids = get_ids(&table_info.id_cols, &i);
-    let mut update_token = Token::new_modify_token(did, table.to_string(), ids, i.clone(), new_obj);
+    let mut update_diff = Diff::new_modify_diff(did, table.to_string(), ids, i.clone(), new_obj);
     for owner_col in &table_info.owner_cols {
         let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
-        update_token.uid = u64::from_str(&owner_uid).unwrap();
+        update_diff.uid = u64::from_str(&owner_uid).unwrap();
         if !global {
-            token_ctrler.insert_user_data_token(&mut update_token);
+            diff_ctrler.insert_user_data_diff(&mut update_diff);
         } else {
-            token_ctrler.insert_global_token(&mut update_token);
+            diff_ctrler.insert_global_diff(&mut update_diff);
         }
     }
 
@@ -727,7 +727,7 @@ fn decor_item(
     did: DID,
     global: bool,
     to_insert: &mut HashMap<(String, Vec<String>), Vec<Vec<Expr>>>,
-    token_ctrler: &mut TokenCtrler,
+    diff_ctrler: &mut DiffCtrler,
     cols_to_update: &mut Vec<Assignment>,
     stats: &mut QueryStat,
     child_table: &str,
@@ -808,7 +808,7 @@ fn decor_item(
         })
         .collect();
     let child_ids = get_ids(&child_table_info.id_cols, &new_child);
-    let mut decor_token = Token::new_decor_token(
+    let mut decor_diff = Diff::new_decor_diff(
         did,
         child_table.to_string(),
         child_ids,
@@ -819,14 +819,14 @@ fn decor_item(
     );
     for owner_col in &child_table_info.owner_cols {
         let old_uid = get_value_of_col(&i, &owner_col).unwrap();
-        decor_token.uid = u64::from_str(&old_uid).unwrap();
+        decor_diff.uid = u64::from_str(&old_uid).unwrap();
         if !global {
-            token_ctrler.insert_user_data_token(&mut decor_token);
+            diff_ctrler.insert_user_data_diff(&mut decor_diff);
         } else {
-            token_ctrler.insert_global_token(&mut decor_token);
+            diff_ctrler.insert_global_diff(&mut decor_diff);
         }
         // actually register the anon principal, including saving its privkey for the old uid
-        token_ctrler.register_anon_principal(u64::from_str(&old_uid).unwrap(), guise_id, did);
+        diff_ctrler.register_anon_principal(u64::from_str(&old_uid).unwrap(), guise_id, did);
     }
     stats.decor_dur += start.elapsed();
 }

@@ -1,5 +1,5 @@
 use crate::helpers::*;
-use crate::tokens::*;
+use crate::diffs::*;
 use crate::{DID, UID};
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
@@ -39,20 +39,20 @@ impl Hash for SymKey {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EncToken {
-    pub token_data: Vec<u8>,
+pub struct EncDiff {
+    pub diff_data: Vec<u8>,
     pub iv: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EncPrivKeyToken {
+pub struct EncPrivKeyDiff {
     pub enc_key: Vec<u8>,
-    pub enc_token: EncToken,
+    pub enc_diff: EncDiff,
 }
 
 #[derive(Clone)]
 pub struct PrincipalData {
-    enc_privkey_tokens: Vec<EncPrivKeyToken>,
+    enc_privkey_diffs: Vec<EncPrivKeyDiff>,
     pubkey: RsaPublicKey,
     email: String,
     // only for pseudoprincipals!
@@ -60,17 +60,17 @@ pub struct PrincipalData {
 }
 
 #[derive(Clone)]
-pub struct TokenCtrler {
-    // principal tokens are stored indexed by some large random num
+pub struct DiffCtrler {
+    // principal diffs are stored indexed by some large random num
     pub principal_data: HashMap<UID, PrincipalData>,
 
-    // (p,d) capability -> set of token ciphertext for principal+disguise
-    pub data_tokens_map: HashMap<Capability, Vec<EncToken>>,
+    // (p,d) capability -> set of diff ciphertext for principal+disguise
+    pub data_diffs_map: HashMap<Capability, Vec<EncDiff>>,
 
     // (p,d) capability -> encrypted symkey for principal+disguise
-    pub enc_token_symkeys_map: HashMap<Capability, EncSymKey>,
+    pub enc_diff_symkeys_map: HashMap<Capability, EncSymKey>,
 
-    pub global_tokens: HashMap<DID, HashMap<UID, Arc<RwLock<HashSet<Token>>>>>,
+    pub global_diffs: HashMap<DID, HashMap<UID, Arc<RwLock<HashSet<Diff>>>>>,
 
     // used for randomness stuff
     pub rng: OsRng,
@@ -84,13 +84,13 @@ pub struct TokenCtrler {
     pub capabilities: HashMap<(UID, DID), Capability>,
 }
 
-impl TokenCtrler {
-    pub fn new() -> TokenCtrler {
-        TokenCtrler {
+impl DiffCtrler {
+    pub fn new() -> DiffCtrler {
+        DiffCtrler {
             principal_data: HashMap::new(),
-            data_tokens_map: HashMap::new(),
-            enc_token_symkeys_map: HashMap::new(),
-            global_tokens: HashMap::new(),
+            data_diffs_map: HashMap::new(),
+            enc_diff_symkeys_map: HashMap::new(),
+            global_diffs: HashMap::new(),
             rng: OsRng,
             hasher: Sha256::new(),
             tmp_symkeys: HashMap::new(),
@@ -135,7 +135,7 @@ impl TokenCtrler {
         self.principal_data.insert(
             uid,
             PrincipalData {
-                enc_privkey_tokens: vec![],
+                enc_privkey_diffs: vec![],
                 pubkey: pubkey.clone(),
                 email: email,
                 capabilities: vec![],
@@ -148,16 +148,16 @@ impl TokenCtrler {
         let pub_key = RsaPublicKey::from(&private_key);
 
         // save the anon principal as a new principal with a public key
-        // and initially empty token vaults
+        // and initially empty diff vaults
         self.register_principal(anon_uid, String::new(), &pub_key);
-        let mut token: PrivKeyToken = Token::new_privkey_token(uid, did, anon_uid, &private_key);
-        self.insert_privkey_token(&mut token);
+        let mut diff: PrivKeyDiff = Diff::new_privkey_diff(uid, did, anon_uid, &private_key);
+        self.insert_privkey_diff(&mut diff);
         anon_uid
     }
 
-    pub fn get_enc_privkeys_of_user(&self, uid: UID) -> Vec<EncPrivKeyToken> {
+    pub fn get_enc_privkeys_of_user(&self, uid: UID) -> Vec<EncPrivKeyDiff> {
         match self.principal_data.get(&uid) {
-            Some(p) => p.enc_privkey_tokens.clone(),
+            Some(p) => p.enc_privkey_diffs.clone(),
             None => vec![],
         }
     }
@@ -169,51 +169,51 @@ impl TokenCtrler {
     /*
      * TOKEN INSERT
      */
-    pub fn insert_global_token(&mut self, token: &mut Token) {
-        token.is_global = true;
-        token.token_id = self.rng.next_u64();
+    pub fn insert_global_diff(&mut self, diff: &mut Diff) {
+        diff.is_global = true;
+        diff.diff_id = self.rng.next_u64();
         warn!(
-            "Inserting global token disguise {} user {}",
-            token.did, token.uid
+            "Inserting global diff disguise {} user {}",
+            diff.did, diff.uid
         );
-        if let Some(hm) = self.global_tokens.get_mut(&token.did) {
-            if let Some(user_disguise_tokens) = hm.get_mut(&token.uid) {
-                let mut tokens = user_disguise_tokens.write().unwrap();
-                tokens.insert(token.clone());
+        if let Some(hm) = self.global_diffs.get_mut(&diff.did) {
+            if let Some(user_disguise_diffs) = hm.get_mut(&diff.uid) {
+                let mut diffs = user_disguise_diffs.write().unwrap();
+                diffs.insert(diff.clone());
             } else {
                 let mut hs = HashSet::new();
-                hs.insert(token.clone());
-                hm.insert(token.uid, Arc::new(RwLock::new(hs)));
+                hs.insert(diff.clone());
+                hm.insert(diff.uid, Arc::new(RwLock::new(hs)));
             }
         } else {
             let mut user_hm = HashMap::new();
             let mut hs = HashSet::new();
-            hs.insert(token.clone());
-            user_hm.insert(token.uid, Arc::new(RwLock::new(hs)));
-            self.global_tokens.insert(token.did, user_hm);
+            hs.insert(diff.clone());
+            user_hm.insert(diff.uid, Arc::new(RwLock::new(hs)));
+            self.global_diffs.insert(diff.did, user_hm);
         }
     }
 
-    pub fn insert_privkey_token(&mut self, token: &mut PrivKeyToken) {
-        assert!(token.uid != 0);
+    pub fn insert_privkey_diff(&mut self, diff: &mut PrivKeyDiff) {
+        assert!(diff.uid != 0);
 
         let p = self
             .principal_data
-            .get_mut(&token.uid)
+            .get_mut(&diff.uid)
             .expect("no user with uid found?");
 
         // generate key
         let mut key: Vec<u8> = repeat(0u8).take(16).collect();
         self.rng.fill_bytes(&mut key[..]);
 
-        // encrypt token with key
+        // encrypt diff with key
         let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
         self.rng.fill_bytes(&mut iv[..]);
         let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
-        let plaintext = serialize_to_bytes(&token);
+        let plaintext = serialize_to_bytes(&diff);
         let encrypted = cipher.encrypt_vec(&plaintext);
-        let enctok = EncToken {
-            token_data: encrypted,
+        let enctok = EncDiff {
+            diff_data: encrypted,
             iv: iv,
         };
 
@@ -225,20 +225,20 @@ impl TokenCtrler {
             .expect("failed to encrypt");
 
         // save
-        p.enc_privkey_tokens.push(EncPrivKeyToken {
+        p.enc_privkey_diffs.push(EncPrivKeyDiff {
             enc_key: enc_symkey,
-            enc_token: enctok,
+            enc_diff: enctok,
         });
     }
 
-    pub fn insert_user_data_token(&mut self, token: &mut Token) {
-        assert!(token.uid != 0);
-        token.is_global = false;
-        let did = token.did;
-        let uid = token.uid;
+    pub fn insert_user_data_diff(&mut self, diff: &mut Diff) {
+        assert!(diff.uid != 0);
+        diff.is_global = false;
+        let did = diff.did;
+        let uid = diff.uid;
         warn!(
-            "inserting user token {:?} with uid {} did {}",
-            token, uid, did
+            "inserting user diff {:?} with uid {} did {}",
+            diff, uid, did
         );
         let p = self
             .principal_data
@@ -263,7 +263,7 @@ impl TokenCtrler {
                 // insert key into enc symkeys map
                 let cap = self.rng.next_u64();
                 assert_eq!(
-                    self.enc_token_symkeys_map.insert(
+                    self.enc_diff_symkeys_map.insert(
                         cap,
                         EncSymKey {
                             enc_symkey: enc_symkey,
@@ -299,34 +299,34 @@ impl TokenCtrler {
             None => unimplemented!("Capability should have been generated with symkey?"),
         };
 
-        // give the token a random nonce and some id
-        token.nonce = self.rng.next_u64();
-        token.token_id = self.rng.next_u64();
+        // give the diff a random nonce and some id
+        diff.nonce = self.rng.next_u64();
+        diff.diff_id = self.rng.next_u64();
 
-        // encrypt and add the token to the map of encrypted tokens corresponding to this
+        // encrypt and add the diff to the map of encrypted diffs corresponding to this
         // capability
         let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
         self.rng.fill_bytes(&mut iv[..]);
         let cipher = Aes128Cbc::new_from_slices(&symkey, &iv).unwrap();
-        let plaintext = serialize_to_bytes(&token);
+        let plaintext = serialize_to_bytes(&diff);
         let encrypted = cipher.encrypt_vec(&plaintext);
         assert_eq!(encrypted.len() % 16, 0);
         warn!(
-            "Encrypted token data of len {} with symkey {:?}-{:?}",
+            "Encrypted diff data of len {} with symkey {:?}-{:?}",
             encrypted.len(),
             symkey,
             iv
         );
-        let enctok = EncToken {
-            token_data: encrypted,
+        let enctok = EncDiff {
+            diff_data: encrypted,
             iv: iv,
         };
-        match self.data_tokens_map.get_mut(&cap) {
+        match self.data_diffs_map.get_mut(&cap) {
             Some(ts) => {
                 ts.push(enctok);
             }
             None => {
-                self.data_tokens_map.insert(*cap, vec![enctok]);
+                self.data_diffs_map.insert(*cap, vec![enctok]);
             }
         }
     }
@@ -334,14 +334,14 @@ impl TokenCtrler {
     /*
      * GLOBAL TOKEN FUNCTIONS
      */
-    pub fn check_global_token_for_match(&mut self, token: &Token) -> (bool, bool) {
-        if let Some(global_tokens) = self.global_tokens.get(&token.did) {
-            if let Some(user_tokens) = global_tokens.get(&token.uid) {
-                let tokens = user_tokens.read().unwrap();
-                for t in tokens.iter() {
-                    if t.token_id == token.token_id {
+    pub fn check_global_diff_for_match(&mut self, diff: &Diff) -> (bool, bool) {
+        if let Some(global_diffs) = self.global_diffs.get(&diff.did) {
+            if let Some(user_diffs) = global_diffs.get(&diff.uid) {
+                let diffs = user_diffs.read().unwrap();
+                for t in diffs.iter() {
+                    if t.diff_id == diff.diff_id {
                         // XXX todo this is a bit inefficient
-                        let mut mytok = token.clone();
+                        let mut mytok = diff.clone();
                         mytok.revealed = t.revealed;
                         let eq = mytok == *t;
                         if t.revealed {
@@ -355,43 +355,43 @@ impl TokenCtrler {
         return (false, false);
     }
 
-    pub fn remove_global_token(&mut self, uid: UID, did: DID, token: &Token) -> bool {
-        assert!(token.is_global);
+    pub fn remove_global_diff(&mut self, uid: UID, did: DID, diff: &Diff) -> bool {
+        assert!(diff.is_global);
         assert!(uid != 0);
         let mut found = false;
 
-        // delete token
-        if let Some(global_tokens) = self.global_tokens.get(&token.did) {
-            if let Some(user_tokens) = global_tokens.get(&token.uid) {
-                let mut tokens = user_tokens.write().unwrap();
-                tokens.remove(&token);
+        // delete diff
+        if let Some(global_diffs) = self.global_diffs.get(&diff.did) {
+            if let Some(user_diffs) = global_diffs.get(&diff.uid) {
+                let mut diffs = user_diffs.write().unwrap();
+                diffs.remove(&diff);
                 found = true;
             }
         }
-        // log token for disguise that marks removal
-        self.insert_user_data_token(&mut Token::new_token_remove(uid, did, token));
+        // log diff for disguise that marks removal
+        self.insert_user_data_diff(&mut Diff::new_diff_remove(uid, did, diff));
         return found;
     }
 
-    pub fn update_global_token_from_old_to(
+    pub fn update_global_diff_from_old_to(
         &mut self,
-        old_token: &Token,
-        new_token: &Token,
-        record_token_for_disguise: Option<(UID, DID)>,
+        old_diff: &Diff,
+        new_diff: &Diff,
+        record_diff_for_disguise: Option<(UID, DID)>,
     ) -> bool {
-        assert!(new_token.is_global);
+        assert!(new_diff.is_global);
         let mut found = false;
-        if let Some(global_tokens) = self.global_tokens.get(&old_token.did) {
-            if let Some(user_tokens) = global_tokens.get(&old_token.uid) {
-                let mut tokens = user_tokens.write().unwrap();
-                // just insert the token to replace the old one
-                tokens.insert(new_token.clone());
+        if let Some(global_diffs) = self.global_diffs.get(&old_diff.did) {
+            if let Some(user_diffs) = global_diffs.get(&old_diff.uid) {
+                let mut diffs = user_diffs.write().unwrap();
+                // just insert the diff to replace the old one
+                diffs.insert(new_diff.clone());
                 found = true;
             }
         }
-        if let Some((uid, did)) = record_token_for_disguise {
-            self.insert_user_data_token(&mut Token::new_token_modify(
-                uid, did, old_token, new_token,
+        if let Some((uid, did)) = record_diff_for_disguise {
+            self.insert_user_data_diff(&mut Diff::new_diff_modify(
+                uid, did, old_diff, new_diff,
             ));
         }
         found
@@ -400,15 +400,15 @@ impl TokenCtrler {
     /*
      * UPDATE TOKEN FUNCTIONS
      */
-    pub fn mark_token_revealed(&mut self, token: &Token) -> bool {
+    pub fn mark_diff_revealed(&mut self, diff: &Diff) -> bool {
         let mut found = false;
-        if token.is_global {
-            if let Some(global_tokens) = self.global_tokens.get(&token.did) {
-                if let Some(user_tokens) = global_tokens.get(&token.uid) {
-                    let mut tokens = user_tokens.write().unwrap();
-                    let mut t = token.clone();
+        if diff.is_global {
+            if let Some(global_diffs) = self.global_diffs.get(&diff.did) {
+                if let Some(user_diffs) = global_diffs.get(&diff.uid) {
+                    let mut diffs = user_diffs.write().unwrap();
+                    let mut t = diff.clone();
                     t.revealed = true;
-                    tokens.insert(t);
+                    diffs.insert(t);
                     found = true;
                 }
                 // just return if the disguise was global
@@ -417,44 +417,44 @@ impl TokenCtrler {
         }
 
         // otherwise search the user list
-        let symkey = match self.tmp_symkeys.get(&(token.uid, token.did)) {
+        let symkey = match self.tmp_symkeys.get(&(diff.uid, diff.did)) {
             Some(sk) => sk,
-            None => unimplemented!("Token to update inaccessible!"),
+            None => unimplemented!("Diff to update inaccessible!"),
         };
-        let cap = match self.tmp_capabilities.get(&(token.uid, token.did)) {
+        let cap = match self.tmp_capabilities.get(&(diff.uid, diff.did)) {
             Some(c) => c,
-            None => unimplemented!("Token to update inaccessible!"),
+            None => unimplemented!("Diff to update inaccessible!"),
         };
 
-        // iterate through user's encrypted datatokens
-        if let Some(tokenls) = self.data_tokens_map.get_mut(&cap) {
-            for (i, enc_token) in tokenls.iter_mut().enumerate() {
-                // decrypt token with symkey provided by client
+        // iterate through user's encrypted datadiffs
+        if let Some(diffls) = self.data_diffs_map.get_mut(&cap) {
+            for (i, enc_diff) in diffls.iter_mut().enumerate() {
+                // decrypt diff with symkey provided by client
                 warn!(
                     "Got cd data of len {} with symkey {:?}-{:?}",
-                    enc_token.token_data.len(),
+                    enc_diff.diff_data.len(),
                     symkey.symkey,
-                    enc_token.iv
+                    enc_diff.iv
                 );
-                let cipher = Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
-                let plaintext = cipher.decrypt_vec(&mut enc_token.token_data).unwrap();
-                let mut t = token_from_bytes(plaintext);
-                if t.token_id == token.token_id {
+                let cipher = Aes128Cbc::new_from_slices(&symkey.symkey, &enc_diff.iv).unwrap();
+                let plaintext = cipher.decrypt_vec(&mut enc_diff.diff_data).unwrap();
+                let mut t = diff_from_bytes(plaintext);
+                if t.diff_id == diff.diff_id {
                     t.revealed = true;
                     // XXX do we need a new IV?
-                    let cipher = Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
+                    let cipher = Aes128Cbc::new_from_slices(&symkey.symkey, &enc_diff.iv).unwrap();
                     let plaintext = serialize_to_bytes(&t);
                     let encrypted = cipher.encrypt_vec(&plaintext);
-                    let iv = enc_token.iv.clone();
+                    let iv = enc_diff.iv.clone();
                     assert_eq!(encrypted.len() % 16, 0);
-                    // replace token with updated token
-                    tokenls[i] = EncToken {
-                        token_data: encrypted,
+                    // replace diff with updated diff
+                    diffls[i] = EncDiff {
+                        diff_data: encrypted,
                         iv: iv,
                     };
                     warn!(
-                        "token uid {} disguise {} revealed token {}",
-                        token.uid, token.did, token.token_id,
+                        "diff uid {} disguise {} revealed diff {}",
+                        diff.uid, diff.did, diff.diff_id,
                     );
                     found = true;
                     break;
@@ -467,28 +467,28 @@ impl TokenCtrler {
     /*
      * GET TOKEN FUNCTIONS
      */
-    pub fn get_global_tokens(&self, uid: UID, did: DID) -> Vec<Token> {
-        if let Some(global_tokens) = self.global_tokens.get(&did) {
-            if let Some(user_tokens) = global_tokens.get(&uid) {
-                let tokens = user_tokens.read().unwrap();
-                warn!("Filtering {} global tokens of disg {} user {}", tokens.len(), did, uid);
-                return tokens.clone().into_iter().filter(|t| !t.revealed).collect();
+    pub fn get_global_diffs(&self, uid: UID, did: DID) -> Vec<Diff> {
+        if let Some(global_diffs) = self.global_diffs.get(&did) {
+            if let Some(user_diffs) = global_diffs.get(&uid) {
+                let diffs = user_diffs.read().unwrap();
+                warn!("Filtering {} global diffs of disg {} user {}", diffs.len(), did, uid);
+                return diffs.clone().into_iter().filter(|t| !t.revealed).collect();
             }
         }
         vec![]
     }
 
-    pub fn get_tokens(
+    pub fn get_diffs(
         &mut self,
         symkeys: &Vec<(SymKey, Capability)>,
-        global_tokens_of: Vec<(DID, UID)>,
+        global_diffs_of: Vec<(DID, UID)>,
         for_disguise: bool,
-    ) -> Vec<Token> {
-        let mut tokens = vec![];
-        for (did, uid) in global_tokens_of {
-            tokens.append(&mut self.get_global_tokens(uid, did));
+    ) -> Vec<Diff> {
+        let mut diffs = vec![];
+        for (did, uid) in global_diffs_of {
+            diffs.append(&mut self.get_global_diffs(uid, did));
         }
-        warn!("cd tokens global pushed to len {}", tokens.len());
+        warn!("cd diffs global pushed to len {}", diffs.len());
 
         for (symkey, cap) in symkeys {
             if for_disguise {
@@ -498,44 +498,44 @@ impl TokenCtrler {
                 self.tmp_capabilities.insert((symkey.uid, symkey.did), *cap);
             }
 
-            // get all of this user's globally accessible tokens
-            tokens.append(&mut self.get_global_tokens(symkey.uid, symkey.did));
-            warn!("cd tokens global pushed to len {}", tokens.len());
+            // get all of this user's globally accessible diffs
+            diffs.append(&mut self.get_global_diffs(symkey.uid, symkey.did));
+            warn!("cd diffs global pushed to len {}", diffs.len());
 
-            // get all of this user's encrypted correlation/datatokens
-            if let Some(tokenls) = self.data_tokens_map.get_mut(&cap) {
-                for enc_token in tokenls {
-                    // decrypt token with symkey provided by client
+            // get all of this user's encrypted correlation/datadiffs
+            if let Some(diffls) = self.data_diffs_map.get_mut(&cap) {
+                for enc_diff in diffls {
+                    // decrypt diff with symkey provided by client
                     warn!(
                         "Got cd data of len {} with symkey {:?}-{:?}",
-                        enc_token.token_data.len(),
+                        enc_diff.diff_data.len(),
                         symkey.symkey,
-                        enc_token.iv
+                        enc_diff.iv
                     );
-                    let cipher = Aes128Cbc::new_from_slices(&symkey.symkey, &enc_token.iv).unwrap();
-                    let plaintext = cipher.decrypt_vec(&mut enc_token.token_data).unwrap();
-                    let token = token_from_bytes(plaintext);
+                    let cipher = Aes128Cbc::new_from_slices(&symkey.symkey, &enc_diff.iv).unwrap();
+                    let plaintext = cipher.decrypt_vec(&mut enc_diff.diff_data).unwrap();
+                    let diff = diff_from_bytes(plaintext);
 
-                    // add token to list only if it hasn't be revealed before
-                    if !token.revealed {
-                        tokens.push(token.clone());
+                    // add diff to list only if it hasn't be revealed before
+                    if !diff.revealed {
+                        diffs.push(diff.clone());
                     }
                     warn!(
-                        "tokens uid {} disguise {} pushed to len {}",
-                        token.uid,
-                        token.did,
-                        tokens.len()
+                        "diffs uid {} disguise {} pushed to len {}",
+                        diff.uid,
+                        diff.did,
+                        diffs.len()
                     );
                 }
             }
         }
-        tokens
+        diffs
     }
 
     /*
      * GET ENC SYMKEYS FUNCTIONS
      */
-    pub fn get_pseudouid_enc_token_symkeys(&self, puid: UID) -> Vec<(EncSymKey, Capability)> {
+    pub fn get_pseudouid_enc_diff_symkeys(&self, puid: UID) -> Vec<(EncSymKey, Capability)> {
         let p = self
             .principal_data
             .get(&puid)
@@ -544,7 +544,7 @@ impl TokenCtrler {
 
         let mut esks = vec![];
         for c in &p.capabilities {
-            match self.enc_token_symkeys_map.get(&c) {
+            match self.enc_diff_symkeys_map.get(&c) {
                 Some(esk) => esks.push((esk.clone(), *c)),
                 None => (),
             }
@@ -553,7 +553,7 @@ impl TokenCtrler {
     }
 
     pub fn get_enc_symkey(&self, cap: Capability) -> Option<EncSymKey> {
-        if let Some(esk) = self.enc_token_symkeys_map.get(&cap) {
+        if let Some(esk) = self.enc_diff_symkeys_map.get(&cap) {
             return Some(esk.clone());
         }
         None
@@ -575,9 +575,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_insert_global_token_single() {
+    fn test_insert_global_diff_single() {
         init_logger();
-        let mut ctrler = TokenCtrler::new();
+        let mut ctrler = DiffCtrler::new();
 
         let did = 1;
         let uid = 11;
@@ -593,7 +593,7 @@ mod tests {
         let pub_key = RsaPublicKey::from(&private_key);
         ctrler.register_principal(uid, "email@mail.com".to_string(), &pub_key);
 
-        let mut decor_token = Token::new_decor_token(
+        let mut decor_diff = Diff::new_decor_diff(
             did,
             guise_name,
             guise_ids,
@@ -608,18 +608,18 @@ mod tests {
                 value: new_fk_value.to_string(),
             }],
         );
-        decor_token.uid = uid;
-        ctrler.insert_global_token(&mut decor_token);
-        assert_eq!(ctrler.global_tokens.len(), 1);
-        let tokens = ctrler.get_global_tokens(uid, did);
-        assert_eq!(tokens.len(), 1);
-        assert_eq!(tokens[0], decor_token);
+        decor_diff.uid = uid;
+        ctrler.insert_global_diff(&mut decor_diff);
+        assert_eq!(ctrler.global_diffs.len(), 1);
+        let diffs = ctrler.get_global_diffs(uid, did);
+        assert_eq!(diffs.len(), 1);
+        assert_eq!(diffs[0], decor_diff);
     }
 
     #[test]
-    fn test_insert_user_token_single() {
+    fn test_insert_user_diff_single() {
         init_logger();
-        let mut ctrler = TokenCtrler::new();
+        let mut ctrler = DiffCtrler::new();
 
         let did = 1;
         let uid = 11;
@@ -635,7 +635,7 @@ mod tests {
         let pub_key = RsaPublicKey::from(&private_key);
         ctrler.register_principal(uid, "email@mail.com".to_string(), &pub_key);
 
-        let mut decor_token = Token::new_decor_token(
+        let mut decor_diff = Diff::new_decor_diff(
             did,
             guise_name,
             guise_ids,
@@ -650,11 +650,11 @@ mod tests {
                 value: new_fk_value.to_string(),
             }],
         );
-        decor_token.uid = uid;
-        ctrler.insert_user_data_token(&mut decor_token);
+        decor_diff.uid = uid;
+        ctrler.insert_user_data_diff(&mut decor_diff);
         let c = ctrler.get_tmp_capability(uid, did).unwrap().clone();
         ctrler.clear_tmp();
-        assert_eq!(ctrler.global_tokens.len(), 0);
+        assert_eq!(ctrler.global_diffs.len(), 0);
 
         // check principal data
         let p = ctrler
@@ -662,14 +662,14 @@ mod tests {
             .get(&uid)
             .expect("failed to get user?");
         assert_eq!(pub_key, p.pubkey);
-        assert!(p.enc_privkey_tokens.is_empty());
+        assert!(p.enc_privkey_diffs.is_empty());
         assert!(p.capabilities.is_empty());
         assert!(ctrler.tmp_symkeys.is_empty());
         assert!(ctrler.tmp_capabilities.is_empty());
 
         // check symkey stored for principal lists
         let encsymkey = ctrler
-            .enc_token_symkeys_map
+            .enc_diff_symkeys_map
             .get(&c)
             .expect("failed to get disguise?");
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
@@ -685,16 +685,16 @@ mod tests {
             c,
         )];
 
-        // get tokens
-        let tokens = ctrler.get_tokens(&keys, vec![], true);
-        assert_eq!(tokens.len(), 1);
-        assert_eq!(tokens[0], decor_token);
+        // get diffs
+        let diffs = ctrler.get_diffs(&keys, vec![], true);
+        assert_eq!(diffs.len(), 1);
+        assert_eq!(diffs[0], decor_diff);
     }
 
     #[test]
-    fn test_insert_user_data_token_multi() {
+    fn test_insert_user_data_diff_multi() {
         init_logger();
-        let mut ctrler = TokenCtrler::new();
+        let mut ctrler = DiffCtrler::new();
 
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
@@ -719,7 +719,7 @@ mod tests {
 
             for d in 1..iters {
                 for i in 0..iters {
-                    let mut decor_token = Token::new_decor_token(
+                    let mut decor_diff = Diff::new_decor_diff(
                         d,
                         guise_name.clone(),
                         guise_ids.clone(),
@@ -734,14 +734,14 @@ mod tests {
                             value: (new_fk_value + i).to_string(),
                         }],
                     );
-                    decor_token.uid = u;
-                    ctrler.insert_user_data_token(&mut decor_token);
+                    decor_diff.uid = u;
+                    ctrler.insert_user_data_diff(&mut decor_diff);
                 }
                 let c = ctrler.get_tmp_capability(u, d).unwrap().clone();
                 caps.insert((u, d), c);
             }
         }
-        assert_eq!(ctrler.global_tokens.len(), 0);
+        assert_eq!(ctrler.global_diffs.len(), 0);
         ctrler.clear_tmp();
         assert!(ctrler.tmp_symkeys.is_empty());
         assert!(ctrler.tmp_capabilities.is_empty());
@@ -754,13 +754,13 @@ mod tests {
                 .expect("failed to get user?")
                 .clone();
             assert_eq!(pub_keys[u as usize - 1], p.pubkey);
-            assert!(p.enc_privkey_tokens.is_empty());
+            assert!(p.enc_privkey_diffs.is_empty());
             assert!(p.capabilities.is_empty());
 
             for d in 1..iters {
                 let c = caps.get(&(u, d)).unwrap().clone();
                 let encsymkey = ctrler
-                    .enc_token_symkeys_map
+                    .enc_diff_symkeys_map
                     .get(&c)
                     .expect("failed to get disguise?");
                 let padding = PaddingScheme::new_pkcs1v15_encrypt();
@@ -775,16 +775,16 @@ mod tests {
                     },
                     c,
                 )];
-                // get tokens
-                let tokens = ctrler.get_tokens(&keys, vec![], true);
-                assert_eq!(tokens.len(), (iters as usize));
+                // get diffs
+                let diffs = ctrler.get_diffs(&keys, vec![], true);
+                assert_eq!(diffs.len(), (iters as usize));
                 for i in 0..iters {
                     assert_eq!(
-                        tokens[i as usize].old_value[0].value,
+                        diffs[i as usize].old_value[0].value,
                         (old_fk_value + i as u64).to_string()
                     );
                     assert_eq!(
-                        tokens[i as usize].new_value[0].value,
+                        diffs[i as usize].new_value[0].value,
                         (new_fk_value + i as u64).to_string()
                     );
                 }
@@ -793,9 +793,9 @@ mod tests {
     }
 
     #[test]
-    fn test_insert_user_token_privkey() {
+    fn test_insert_user_diff_privkey() {
         init_logger();
-        let mut ctrler = TokenCtrler::new();
+        let mut ctrler = DiffCtrler::new();
 
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
@@ -819,7 +819,7 @@ mod tests {
             priv_keys.push(private_key.clone());
 
             for d in 1..iters {
-                let mut decor_token = Token::new_decor_token(
+                let mut decor_diff = Diff::new_decor_diff(
                     d,
                     guise_name.clone(),
                     guise_ids.clone(),
@@ -834,18 +834,18 @@ mod tests {
                         value: (new_fk_value + d).to_string(),
                     }],
                 );
-                decor_token.uid = u;
-                ctrler.insert_user_data_token(&mut decor_token);
+                decor_diff.uid = u;
+                ctrler.insert_user_data_diff(&mut decor_diff);
 
                 let anon_uid: u64 = rng.next_u64();
                 // create an anonymous user
-                // and insert some token for the anon user
+                // and insert some diff for the anon user
                 ctrler.register_anon_principal(u, anon_uid, d);
                 let c = ctrler.get_tmp_capability(u, d).unwrap().clone();
                 caps.insert((u, d), c);
             }
         }
-        assert_eq!(ctrler.global_tokens.len(), 0);
+        assert_eq!(ctrler.global_diffs.len(), 0);
         ctrler.clear_tmp();
 
         for u in 1..iters {
@@ -856,12 +856,12 @@ mod tests {
                 .expect("failed to get user?")
                 .clone();
             assert_eq!(pub_keys[u as usize - 1], p.pubkey);
-            assert_eq!(p.enc_privkey_tokens.len() as u64, iters - 1);
+            assert_eq!(p.enc_privkey_diffs.len() as u64, iters - 1);
 
             for d in 1..iters {
                 let c = caps.get(&(u, d)).unwrap().clone();
                 let encsymkey = ctrler
-                    .enc_token_symkeys_map
+                    .enc_diff_symkeys_map
                     .get(&c)
                     .expect("failed to get disguise?");
                 let padding = PaddingScheme::new_pkcs1v15_encrypt();
@@ -876,11 +876,11 @@ mod tests {
                     },
                     c,
                 )];
-                // get tokens
-                let tokens = ctrler.get_tokens(&keys, vec![], true);
-                assert_eq!(tokens.len(), 1);
-                assert_eq!(tokens[0].old_value[0].value, (old_fk_value + d).to_string());
-                assert_eq!(tokens[0].new_value[0].value, (new_fk_value + d).to_string());
+                // get diffs
+                let diffs = ctrler.get_diffs(&keys, vec![], true);
+                assert_eq!(diffs.len(), 1);
+                assert_eq!(diffs[0].old_value[0].value, (old_fk_value + d).to_string());
+                assert_eq!(diffs[0].new_value[0].value, (new_fk_value + d).to_string());
             }
         }
     }

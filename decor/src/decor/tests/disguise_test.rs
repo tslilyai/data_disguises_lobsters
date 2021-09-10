@@ -6,7 +6,7 @@ use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
 use decor::helpers;
-use decor::tokens;
+use decor::diffs;
 use mysql::prelude::*;
 use rand::rngs::OsRng;
 use rsa::{pkcs1::FromRsaPrivateKey, PaddingScheme, RsaPrivateKey, RsaPublicKey};
@@ -354,7 +354,7 @@ fn test_compose_anon_gdpr_disguises() {
         let mut pp_privkeys = HashMap::new();
         let mut pps = vec![];
 
-        // get private key tokens
+        // get private key diffs
         let cap = edna.get_capability(u, 1).unwrap();
         let pps_enc_keys = edna.get_pseudoprincipal_enc_privkeys(u);
         for mut pk in pps_enc_keys {
@@ -362,24 +362,24 @@ fn test_compose_anon_gdpr_disguises() {
             let symkey = priv_keys[u as usize - 1]
                 .decrypt(padding, &pk.enc_key)
                 .expect("failed to decrypt");
-            // decrypt token with symkey
-            let cipher = Aes128Cbc::new_from_slices(&symkey, &pk.enc_token.iv).unwrap();
-            let plaintext = cipher.decrypt_vec(&mut pk.enc_token.token_data).unwrap();
-            let pktoken = tokens::privkeytoken_from_bytes(plaintext);
-            let privkey = RsaPrivateKey::from_pkcs1_der(&pktoken.priv_key).unwrap();
-            pp_privkeys.insert(pktoken.new_uid, privkey);
-            pps.push(pktoken.new_uid);
+            // decrypt diff with symkey
+            let cipher = Aes128Cbc::new_from_slices(&symkey, &pk.enc_diff.iv).unwrap();
+            let plaintext = cipher.decrypt_vec(&mut pk.enc_diff.diff_data).unwrap();
+            let pkdiff = diffs::privkeydiff_from_bytes(plaintext);
+            let privkey = RsaPrivateKey::from_pkcs1_der(&pkdiff.priv_key).unwrap();
+            pp_privkeys.insert(pkdiff.new_uid, privkey);
+            pps.push(pkdiff.new_uid);
         }
 
         let esymks =
-            edna.get_enc_token_symkeys_of_capabilities_and_pseudoprincipals(vec![cap], pps);
+            edna.get_enc_diff_symkeys_of_capabilities_and_pseudoprincipals(vec![cap], pps);
         assert_eq!(esymks.len(), 1);
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
         let symkey = priv_keys[u as usize - 1]
             .decrypt(padding, &esymks[0].0.enc_symkey)
             .expect("failed to decrypt");
         let symkeys = vec![(
-            tokens::SymKey {
+            diffs::SymKey {
                 uid: u,
                 did: 1,
                 symkey: symkey,

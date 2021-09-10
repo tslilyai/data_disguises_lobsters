@@ -1,5 +1,5 @@
 use crate::helpers::*;
-use crate::tokens::*;
+use crate::diffs::*;
 use log::warn;
 use sql_parser::ast::*;
 use std::cmp::Ordering;
@@ -84,13 +84,13 @@ pub fn pred_to_sql_where(pred: &Vec<Vec<PredClause>>) -> String {
     ors.join(" OR ")
 }
 
-pub fn get_tokens_matching_pred(
+pub fn get_diffs_matching_pred(
     pred: &Vec<Vec<PredClause>>,
     name: &str,
-    tokens: &Vec<Token>,
-) -> Vec<Token> {
+    diffs: &Vec<Diff>,
+) -> Vec<Diff> {
     let mut matching = vec![];
-    for t in tokens {
+    for t in diffs {
         if t.guise_name != name {
             continue;
         }
