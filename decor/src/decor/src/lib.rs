@@ -81,16 +81,19 @@ impl EdnaClient {
     pub fn get_tokens_of_disguise_keys(
         &mut self,
         keys: Vec<(tokens::SymKey, tokens::Capability)>,
+        global_tokens_of: Vec<(DID,UID)>,
     ) -> Vec<tokens::Token> {
-        self.disguiser.get_tokens_of_disguise_keys(keys, false)
+        self.disguiser.get_tokens_of_disguise_keys(keys, global_tokens_of, false)
     }
 
     pub fn apply_disguise(
+        // TODO filter all global tokens?????
         &mut self,
         disguise: Arc<disguise::Disguise>,
         keys: Vec<(tokens::SymKey, tokens::Capability)>,
+        global_tokens_of: Vec<(DID,UID)>,
     ) -> Result<(), mysql::Error> {
-        let tokens = self.disguiser.get_tokens_of_disguise_keys(keys, true);
+        let tokens = self.disguiser.get_tokens_of_disguise_keys(keys, global_tokens_of, true);
         self.disguiser.apply(disguise.clone(), tokens)?;
         warn!("EDNA: APPLIED Disguise {}", disguise.clone().did);
         Ok(())
@@ -100,8 +103,9 @@ impl EdnaClient {
         &mut self,
         disguise: Arc<disguise::Disguise>,
         keys: Vec<(tokens::SymKey, tokens::Capability)>,
+        global_tokens_of: Vec<(DID,UID)>,
     ) -> Result<(), mysql::Error> {
-        let tokens = self.disguiser.get_tokens_of_disguise_keys(keys, true);
+        let tokens = self.disguiser.get_tokens_of_disguise_keys(keys, global_tokens_of, true);
         self.disguiser.reverse(disguise.clone(), tokens)?;
         warn!("EDNA: REVERSED Disguise {}", disguise.clone().did);
         Ok(())

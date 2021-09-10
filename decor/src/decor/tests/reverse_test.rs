@@ -60,7 +60,14 @@ fn test_app_rev_anon_disguise() {
                 u
             ))
             .unwrap();
-            db.query_drop(format!(r"INSERT INTO moderations (moderator_user_id, story_id, user_id, action) VALUES ({}, {}, {}, 'bad story!');", u, s*u + s, u)).unwrap();
+            db.query_drop(format!(
+                r"INSERT INTO moderations (moderator_user_id, story_id, user_id,
+            action) VALUES ({}, {}, {}, 'bad story!');",
+                u,
+                s * u + s,
+                u
+            ))
+            .unwrap();
         }
 
         // register user in Edna
@@ -76,7 +83,7 @@ fn test_app_rev_anon_disguise() {
     edna.apply_disguise(anon_disguise.clone(), vec![]).unwrap();
 
     // REVERSE ANON DISGUISE WITH NO USER TOKENS
-    edna.reverse_disguise(anon_disguise.clone(), vec![]) 
+    edna.reverse_disguise(anon_disguise.clone(), vec![])
         .unwrap();
 
     // CHECK DISGUISE RESULTS: moderations have been restored

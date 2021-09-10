@@ -471,6 +471,7 @@ impl TokenCtrler {
         if let Some(global_tokens) = self.global_tokens.get(&did) {
             if let Some(user_tokens) = global_tokens.get(&uid) {
                 let tokens = user_tokens.read().unwrap();
+                warn!("Filtering {} global tokens of disg {} user {}", tokens.len(), did, uid);
                 return tokens.clone().into_iter().filter(|t| !t.revealed).collect();
             }
         }
@@ -480,9 +481,14 @@ impl TokenCtrler {
     pub fn get_tokens(
         &mut self,
         symkeys: &Vec<(SymKey, Capability)>,
+        global_tokens_of: Vec<(DID, UID)>,
         for_disguise: bool,
     ) -> Vec<Token> {
         let mut tokens = vec![];
+        for (did, uid) in global_tokens_of {
+            tokens.append(&mut self.get_global_tokens(uid, did));
+        }
+        warn!("cd tokens global pushed to len {}", tokens.len());
 
         for (symkey, cap) in symkeys {
             if for_disguise {
@@ -680,7 +686,7 @@ mod tests {
         )];
 
         // get tokens
-        let tokens = ctrler.get_tokens(&keys, true);
+        let tokens = ctrler.get_tokens(&keys, vec![], true);
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0], decor_token);
     }
@@ -770,7 +776,7 @@ mod tests {
                     c,
                 )];
                 // get tokens
-                let tokens = ctrler.get_tokens(&keys, true);
+                let tokens = ctrler.get_tokens(&keys, vec![], true);
                 assert_eq!(tokens.len(), (iters as usize));
                 for i in 0..iters {
                     assert_eq!(
@@ -871,7 +877,7 @@ mod tests {
                     c,
                 )];
                 // get tokens
-                let tokens = ctrler.get_tokens(&keys, true);
+                let tokens = ctrler.get_tokens(&keys, vec![], true);
                 assert_eq!(tokens.len(), 1);
                 assert_eq!(tokens[0].old_value[0].value, (old_fk_value + d).to_string());
                 assert_eq!(tokens[0].new_value[0].value, (new_fk_value + d).to_string());

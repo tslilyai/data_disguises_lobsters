@@ -135,10 +135,11 @@ impl Disguiser {
     pub fn get_tokens_of_disguise_keys(
         &mut self,
         keys: Vec<(SymKey, Capability)>,
+        global_tokens_of: Vec<(DID, UID)>,
         for_disguise_action: bool,
     ) -> Vec<tokens::Token> {
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        let tokens = locked_token_ctrler.get_tokens(&keys, for_disguise_action);
+        let tokens = locked_token_ctrler.get_tokens(&keys, global_tokens_of, for_disguise_action);
         warn!("Got {} tokens for {} keys", tokens.len(),keys.len());
         drop(locked_token_ctrler);
         tokens
