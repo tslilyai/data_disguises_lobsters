@@ -112,11 +112,10 @@ This dissociates one disguise applied to a principal $p$ from all other disguise
 learns about a single disguise instance if \sys gains permission to reveal or compose upon that
 disguise instance.
 
-Note that an adversary, even with any \lcapa{p\delta_i}, can learn that $n$ diffs exist for
-\emph{some} $p$ and $\delta_i$, but cannot identify which principal or disguise these diffs
-correlate with.
-Futhermore, an adversary given \lcapa{p\delta_i}, can learn the number of \tdata{p\delta_i} diffs
-for that $p$ and $d$. This metadata is out of scope of our threat model.
+Note that an adversary without access to any \lcapa{p\delta_i} can learn that $n$ diffs exist for
+\emph{some} $p$ and $\delta_i$, but cannot directly identify which $p$ or $\delta_i$.
+If an adversary has access to \lcapa{p\delta_i}, the adversary can learn that $\delta_i$
+applied to $p$, and the number of \tdata{p\delta_i} diffs for that $p$ and $d$. This metadata is out of scope of our threat model.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{External Storage of \lcapa{p\delta_i}.} 
