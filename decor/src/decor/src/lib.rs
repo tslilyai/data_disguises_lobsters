@@ -33,6 +33,17 @@ pub struct EdnaClient {
 }
 
 impl EdnaClient {
+    /* EXTRA FXNS */
+    pub fn clear_stats(&mut self) {
+        warn!("EDNA: Clearing stats!");
+        let mut stats = self.disguiser.stats.lock().unwrap();
+        stats.clear();
+        drop(stats);
+    }
+
+    /********************************
+     * EDNA-APPLICATION API 
+    ********************************/
     pub fn new(prime: bool, dbname: &str, schema: &str, in_memory: bool) -> EdnaClient {
         init_db(prime, in_memory, dbname, schema);
         let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname);
@@ -42,27 +53,20 @@ impl EdnaClient {
             disguiser: disguise::Disguiser::new(&url),
         }
     }
-
-    pub fn clear_stats(&mut self) {
-        warn!("EDNA: Clearing stats!");
-        let mut stats = self.disguiser.stats.lock().unwrap();
-        stats.clear();
-        drop(stats);
-    }
-
+    
     pub fn register_principal(&mut self, uid: u64, email: String, pubkey: &RsaPublicKey) {
         self.disguiser.register_principal(uid, email, pubkey);
     }
 
-    // XXX get rid of this? why?
     pub fn get_locked_pseudoprincipal_privkeys(
         &mut self,
         uid: UID,
     ) -> Vec<diffs::LockedPPPrivKey> {
         self.disguiser.get_locked_pseudoprincipal_privkeys(uid)
     }
-
-    pub fn get_capability(
+    
+    // XXX get rid of this?
+    pub fn get_temp_capability(
         &mut self,
         uid: UID,
         did: DID,

@@ -1,40 +1,6 @@
 %-------------------------------------------------------------------------------
 \section{Setting and Goals}
 %-------------------------------------------------------------------------------
-
-\begin{table*}[t!]
-\centering
-\begin{tabular}{ c p{.8\linewidth} }
-\textbf{Symbol} & \textbf{Description} \\
-\hline
-    \vspace{6pt}
-$p$ & application principals, corresponding to a user ID in the application\\
-    \vspace{6pt}
-$d$ & disguise specifications (developer-provided) that can be applied or revealed\\
-    \vspace{6pt}
-$\delta_i$ & instance of a disguise specification, identified with disguise sequence number $i$\\
-    \vspace{6pt}
-\op{d} & a disguise specification operation (either a removal, modification, or decorrelation)\\
-    \vspace{6pt}
-\tdata{p\delta_i} & database diff that stores the undisguised data associated with $p$ prior to application of $d$.\\
-    \vspace{6pt}
-\dcapa{p\delta_i} & data capability that grants access to database diffs and decorrelated links associated with principal
-    $p$ from $\delta_i$. \\
-    \vspace{6pt}
-\lcapa{p\delta_i} & locating capability that allows the holder to find the database diffs from
-    $\delta_i$ associated with a principal $p$.\\
-    \vspace{6pt}
-\pubk{p} & public key of $p$, used to encrypt \dcapa{p\delta_i} and \tdata{p\delta_i} s.t. only
-    clients with the corresponding private key can access them\\
-    \vspace{6pt}
-\privk{p} & private key of $p$ \\
-    \vspace{6pt}
-\tpriv{p}{q} & locked private key of $q$, encrypted with \pubk{p}
-    \end{tabular}
-\caption{Notation used to describe \sys's design.}
-\label{tab:notation}
-\end{table*}
-
 Our design considers typical database-backed applications that link a library provided by our disguising
 tool (\sys).
 %
@@ -43,7 +9,33 @@ cases), reveal disguised data with proper authorization (Table~\ref{tab:client_a
 %
 \sys takes care of executing the database transformations required as part of a disguise, and stores
 disguised data in a secure way, subject to the threat model we describe in \S\ref{s:threat}.
-%
+
+\subsection{Use Cases \sys Should Support} We describe the most beneficial and practical use cases
+that \sys should support. Importantly, these use cases should be possible with minimal burden on
+clients: clients should be able to apply and reveal disguises, or ask for permission to view
+disguised data, by clicking one url link.
+
+\head{User-Granularity Disguises for GDPR.}
+\sys should support a user-invoked disguise to decorrelate and/or delete a user's data and account to meet the requirements of the
+GDPR's right to be forgotten.
+
+\head{User-Granularity Revealing.}
+Disguises can optionally be revealable, in which users can \eg permanently restore their accounts and/or data ownership.
+
+\head{Universal Disguises for Anonymization.}
+\sys should support a universal, administrator-applied disguise to decorrelate and anonymize all users in the systems.
+
+\head{Universal Revealing.}
+Universally-applied disguises can optionally be revealed by an administrator.
+\lyt{Note: universal revealing only makes sense for non-private disguises.}
+
+\head{User-Granularity Views and Permissions.}
+Users should be able to operate with ownership permissions on data previously correlated with their
+account, but decorrelated by a disguise, \emph{without} changing the database views of others using
+the application.
+
+
+\subsection{\sys Abstractions}
 To work with \sys, the application uses two abstractions:
 \begin{itemize}
     \item Application principals, which correspond to natural persons using the application, and
@@ -65,13 +57,12 @@ To work with \sys, the application uses two abstractions:
     \item \emph{\textbf{Database Contents}}: The application reads and writes database
         contents, which include visible, undisguised and currently-disguised data.
         \sys modifies the data database contents when it applies and reveals disguises.
-    \item \emph{\textbf{Disguise Diffs}}: \sys records the set of disguise diffs---database changes performed when
-        applying a disguise---and uses these diffs to compose disguises on top of one another, or to
-        reveal the updates done by a disguise. 
+    \item \emph{\textbf{Disguise Diffs}}: \sys records the set of disguise diffs---which contain the original database contents and the modifications performed to them---and uses
+        diffs to compose disguises on top of one another, or to reveal the updates done by a disguise. 
         %\ms{This sounds very operational. What \emph{are} permissions?
 \end{enumerate}
 
-\noindent Data access is controlled via two capabilities: 
+\noindent Disguise diff access is controlled via two capabilities: 
 \begin{enumerate}
     \item \emph{\textbf{Data Capability \dcapa{p\delta_i}}}: Grants read access to disguise diff data
         associated with principal $p$ produced from applying $\delta_i$.
