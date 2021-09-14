@@ -13,30 +13,31 @@ disguised data in a secure way, subject to the threat model we describe in \S\re
 \subsection{Use Cases \sys Should Support} We describe the most beneficial and practical use cases
 that \sys should support. Importantly, these use cases should be possible with minimal burden on
 clients: clients should be able to apply and reveal disguises, or ask for permission to view
-disguised data, by clicking one url link.
+disguised data, by logging in and clicking one url link.
 
-\head{User-Granularity Disguises for GDPR.}
-\sys should support a user-invoked disguise to decorrelate and/or delete a user's data and account to meet the requirements of the
-GDPR's right to be forgotten.
+\head{Per-User, GDPR-Compliant Disguising and Revealing.}
+\sys should support user-invoked disguise(s) to modify, decorrelate and/or delete a user's data and
+account that enable applications to meet the requirements of the GDPR's right to be forgotten.
 
-\head{User-Granularity Revealing.}
-Disguises can optionally be revealable, in which users can \eg permanently restore their accounts and/or data ownership.
+These disguises can optionally be revealable, enabling users to \eg permanently restore their accounts and/or data ownership.
 
-\head{Universal Disguises for Anonymization.}
-\sys should support a universal, administrator-applied disguise to decorrelate and anonymize all users in the systems.
+\head{Universal Disguising and Revealing.}
+\sys should support universal, administrator-applied disguise to decorrelate and anonymize all users in the system.
 
-\head{Universal Revealing.}
 Universally-applied disguises can optionally be revealed by an administrator.
-\lyt{Note: universal revealing only makes sense for non-private disguises.}
+\lyt{(universal revealing only makes sense for non-private disguises)}
 
-\head{User-Granularity Views and Permissions.}
+\head{Per-User Revealed Views and Permissions.}
 Users should be able to operate with ownership permissions on data previously correlated with their
 account, but decorrelated by a disguise, \emph{without} changing the database views of others using
-the application.
+the application. In other words, the disguise can be temporarily revealed for a particular user.
 
+\head{Further Disguising of Disguised Data.}
+Data can be disguised to different granularities (\eg anonymized vs. removed), and being disguised
+once should not prevent data from being later disguised.
 
 \subsection{\sys Abstractions}
-To work with \sys, the application uses two abstractions:
+To support these use cases, applications work with two abstractions of \sys:
 \begin{itemize}
     \item Application principals, which correspond to natural persons using the application, and
 	which are uniquely identifiable (\eg via a user ID).
@@ -52,17 +53,25 @@ To work with \sys, the application uses two abstractions:
 	%
 \end{itemize}
 %
+%
 \sys operates on two categories of data:
 \begin{enumerate}
     \item \emph{\textbf{Database Contents}}: The application reads and writes database
         contents, which include visible, undisguised and currently-disguised data.
         \sys modifies the data database contents when it applies and reveals disguises.
-    \item \emph{\textbf{Disguise Diffs}}: \sys records the set of disguise diffs---which contain the original database contents and the modifications performed to them---and uses
-        diffs to compose disguises on top of one another, or to reveal the updates done by a disguise. 
-        %\ms{This sounds very operational. What \emph{are} permissions?
+    \item \emph{\textbf{Disguise Diffs}}: \sys records the set of disguise diffs---which contain the
+        original database contents and the modifications performed to them---and uses diffs to
+        compose disguises on top of one another, or to reveal the updates done by a disguise. 
 \end{enumerate}
 
-\noindent Disguise diff access is controlled via two capabilities: 
+The application's normal permissions logic controls data access to database contents. 
+Clients and the application using \sys never directly access diff contents: instead, \sys exposes
+an API allowing the client or application to learn specific information contained in the diff.
+Clients can additionally that request \sys access and use diff information to reveal or apply
+disguises.
+
+These API calls require \sys to access diffs, and \sys's access to diffs is controlled by a pair of 
+capabilities: 
 \begin{enumerate}
     \item \emph{\textbf{Data Capability \dcapa{p\delta_i}}}: Grants read access to disguise diff data
         associated with principal $p$ produced from applying $\delta_i$.
@@ -70,6 +79,8 @@ To work with \sys, the application uses two abstractions:
         diffs associated with principal $p$ produced from applying $\delta_i$, but grants no 
         access to the diffs' data.
 \end{enumerate}
+
+\sys's design intends for Applications 
 
 \noindent Possession of the pair of data and locating capabilities \pcapa{p\delta_i} is required in
 practice to grant read access to disguise diff data.
