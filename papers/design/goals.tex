@@ -10,31 +10,69 @@ cases), reveal disguised data with proper authorization (Table~\ref{tab:client_a
 \sys takes care of executing the database transformations required as part of a disguise, and stores
 disguised data in a secure way, subject to the threat model we describe in \S\ref{s:threat}.
 
-\subsection{Use Cases \sys Should Support} We describe the most beneficial and practical use cases
-that \sys should support. Importantly, these use cases should be possible with minimal burden on
-clients: clients should be able to apply and reveal disguises, or ask for permission to view
-disguised data, by logging in and clicking one url link.
+\subsection{Use Cases \sys Should Support}
 
-\head{Per-User, GDPR-Compliant Disguising and Revealing.}
+\head{Example in HotCRP.}
+We imagine three useful disguises to support in HotCRP: (1) per-user GDPR account deletion (which
+removes all of a particular user's data); (2) universal account pseudonymization (which modifies a user's
+account to remove any personal identifiers); and (3) universal decorrelation (which decorrelates users from
+their authored reviews and papers).
+
+Users who invoke GDPR deletion are given the option to return by revealing their disguise; however,
+between disguising and revealing their account, no other entity learns that the identity or
+existence of the user (ensuring that the disguise complies by the GDPR).
+
+Admins can apply universal account pseudonymization to provide a weak form of pseudonymization after a
+conference ends, erasing \eg identifying email accounts, usernames, and phone numbers. 
+After several years, the admin can decay identifiers in the conference data futher by decorrelating
+all users from their authored reviews and papers. Both disguises help protect reviewers and paper authors
+from being unblinded in the case of a data breach.
+
+Even after universal account pseudonymization or decorrelation, it would be nice if HotCRP allowed
+users to still apply GDPR account deletion to delete (even decorrelated) papers and reviews that they
+wrote. Furthermore, account pseudonymization should not prevent the application of a
+universal decorrelation disguise. Thus, HotCRP should support disguises that can operate on top of
+disguised data.
+
+Finally, HotCRP would retain much of its usefulness if users could be permitted to view
+reviews on their papers, or edit their reviews, even if these papers and reviews have been
+decorrelated and belong to anonymous users.
+However, this should be possible \emph{without} revealing to other users of the system which
+actual user authored these anonymized papers and reviews.
+
+\head{Usability.} These disguising properties should be achieved with minimal burden on
+users: users should be able to apply and reveal disguises, or ask for permission to view
+disguised data, by \eg logging in and clicking one url link. Application of universal disguises
+should not require a user to be online in order to gain the capability to apply further disguises or
+view their disguised data.
+
+\head{General Use Cases.} 
+We generalize from the HorCRP example a handful of the most beneficial and practical use cases
+that \sys should support:
+
+\begin{itemize}
+    \item\textbf{Per-User, GDPR-Compliant Disguising and Revealing.}
 \sys should support user-invoked disguise(s) to modify, decorrelate and/or delete a user's data and
 account that enable applications to meet the requirements of the GDPR's right to be forgotten.
-
+%
 These disguises can optionally be revealable, enabling users to \eg permanently restore their accounts and/or data ownership.
 
-\head{Universal Disguising and Revealing.}
-\sys should support universal, administrator-applied disguise to decorrelate and anonymize all users in the system.
-
+\item\textbf{Universal Disguising and Revealing.}
+\sys should support universal, administrator-applied disguise to modify, decorrelate, and/or delete
+        data of all users in the system.
+%
 Universally-applied disguises can optionally be revealed by an administrator.
 \lyt{(universal revealing only makes sense for non-private disguises)}
 
-\head{Per-User Revealed Views and Permissions.}
+\item\textbf{Per-User Revealed Views and Permissions.}
 Users should be able to operate with ownership permissions on data previously correlated with their
 account, but decorrelated by a disguise, \emph{without} changing the database views of others using
 the application. In other words, the disguise can be temporarily revealed for a particular user.
 
-\head{Further Disguising of Disguised Data.}
+\item\textbf{Further Disguising of Disguised Data.}
 Data can be disguised to different granularities (\eg anonymized vs. removed), and being disguised
-once should not prevent data from being later disguised.
+once should not prevent data from being later disguised (in a way that complies with the GDPR).
+\end{itemize}
 
 \subsection{\sys Abstractions}
 To support these use cases, applications work with two abstractions of \sys:
@@ -64,11 +102,11 @@ To support these use cases, applications work with two abstractions of \sys:
         compose disguises on top of one another, or to reveal the updates done by a disguise. 
 \end{enumerate}
 
-The application's normal permissions logic controls data access to database contents. 
-Clients and the application using \sys never directly access diff contents: instead, \sys exposes
-an API allowing the client or application to learn specific information contained in the diff.
-Clients can additionally that request \sys access and use diff information to reveal or apply
-disguises.
+\noindent
+The application's normal permissions logic controls data access to database contents.  Only \sys
+ever accesses and needs to parse diff contents directly: \sys exposes an API allowing the client or
+application to learn specific information contained in the diff.  Clients can additionally request
+that \sys access and use diff information to reveal or apply disguises.
 
 These API calls require \sys to access diffs, and \sys's access to diffs is controlled by a pair of 
 capabilities: 
@@ -79,8 +117,6 @@ capabilities:
         diffs associated with principal $p$ produced from applying $\delta_i$, but grants no 
         access to the diffs' data.
 \end{enumerate}
-
-\sys's design intends for Applications 
 
 \noindent Possession of the pair of data and locating capabilities \pcapa{p\delta_i} is required in
 practice to grant read access to disguise diff data.
