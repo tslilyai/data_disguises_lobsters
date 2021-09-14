@@ -75,13 +75,20 @@ once should not prevent data from being later disguised (in a way that complies 
 \end{itemize}
 
 \subsection{\sys Abstractions}
-To support these use cases, applications work with two abstractions of \sys:
+\sys supports these use cases by exposing three abstractions to applications:
 \begin{itemize}
-    \item Application principals, which correspond to natural persons using the application, and
-	which are uniquely identifiable (\eg via a user ID).
+    \item Application \emph{principals}, which correspond to users of the application, 
+	and which are uniquely identifiable (\eg via a user ID).
+        %natural persons using the application, and
         %
 	We denote an application principal as $p \in P$, where $P$ is the set of all active and
-	inactive application principals.
+        inactive application principals.\lyt{Wait why do we have a distinction between active and
+        inactive here?}
+	%
+    \item Application \emph{pseudoprincipals}, which correspond to anonymous users not tied to any natural
+    person, and which are uniquely identifiable (\eg via a user ID).
+        %
+	Pseudoprincipals are part of the set of application principals $p \in P$.
 	%
     \item A disguise specification that consists of one or more disguises, $d \in D$, which each specify
 	how \sys transforms the application database when $d$ is invoked by a principal $p$.
@@ -105,11 +112,11 @@ To support these use cases, applications work with two abstractions of \sys:
 \noindent
 The application's normal permissions logic controls data access to database contents.  Only \sys
 ever accesses and needs to parse diff contents directly: \sys exposes an API allowing the client or
-application to learn specific information contained in the diff.  Clients can additionally request
+application to learn specific semantic information contained in diffs (\eg whether a particular
+principal used to own a now-decorrelated piece of data). Clients can additionally request
 that \sys access and use diff information to reveal or apply disguises.
 
-These API calls require \sys to access diffs, and \sys's access to diffs is controlled by a pair of 
-capabilities: 
+\sys's access to diffs is controlled by a pair of capabilities: 
 \begin{enumerate}
     \item \emph{\textbf{Data Capability \dcapa{p\delta_i}}}: Grants read access to disguise diff data
         associated with principal $p$ produced from applying $\delta_i$.
@@ -178,11 +185,11 @@ later reveal) the corresponding disguise instance $\delta_i$.
 %
 
 %
-\vspace{6pt}\noindent\textbf{\emph{(2) Secure Linking.}}
+\vspace{6pt}\noindent\textbf{\emph{(2) Secure Ownership.}}
 %
-Only a client who has both locating capability \lcapa{p\delta_i} and data capability \dcapa{p\delta_i} can relink $p$
-with any data previously owned by $p$ but decorrelated by $\delta_i$.
-Establishing links allows the application to grant permissions to $p$ to act upon data otherwise
+Only a client who has both locating capability \lcapa{p\delta_i} and data capability
+\dcapa{p\delta_i} can reestablish ownership by $p$ of data previously owned by $p$ but decorrelated by $\delta_i$.
+Establishing ownership allows the application to grant permissions to $p$ to act upon data otherwise
 decorrelated from $p$.
 %
 

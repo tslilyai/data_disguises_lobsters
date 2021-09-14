@@ -48,10 +48,10 @@
 \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-    \fn{CapPairEstablishesLink($p$, DatabaseObj $x$, CapPair \pcapa{p\delta_i})}
+    \fn{CapPairEstablishesOwnership($p$, DatabaseObj $x$, CapPair \pcapa{p\delta_i})}
     $\rightarrow$ \fn{bool} & Returns
-    whether principal $p$ is correlated with the provided database object. The capability pair
-    acts as proof that there exists a link between $p$ and prior decorrelated objects. 
+    whether principal $p$ has ownership rights to the provided database object. The capability pair
+    acts as proof that $p$ had been correlated with the object. 
     %\lyt{This would be a row, or the table + object primary key depending on what
     %we want to assume.}
     \vspace{6pt}\\
@@ -68,8 +68,7 @@ At a high level, \sys's API is broken up into a client-side API (\ie calls made 
 client browser), and a server-side API (\ie calls made by the application to \sys, or by \sys 
 itself).
 
-The client-side API in Table~\ref{tab:client_api} allows the client to retrieve register a principal, retrieve relevant
-capabilities, and apply and reveal disguises. The server-side API in Table~\ref{tab:internal_api} allows the application/\sys to gain access to data using capabilities.
+The client-side API in Table~\ref{tab:client_api} allows the client to register a principal, retrieve relevant capabilities, and apply and reveal disguises. The server-side API in Table~\ref{tab:internal_api} allows the application/\sys to gain access to data using capabilities.
 Applications integrating with \sys may also expose an extra API call to the client shown in
 Table~\ref{tab:app_api} that allows the application to receive the capability along with the normal
 API call.
@@ -120,13 +119,13 @@ Instead, to allow the client speaking for $p$ to regain authorship or reviewersh
 capability pairs.  
 
 When the application attempts to perform $a$, the application code may check that the invoking
-principal $p$ is linked to object $x$ (\eg $p$ is the author of some paper or review). To work with
+principal $p$ owns object $x$ (\eg $p$ is the author of some paper or review). To work with
 disguises, the application developer augments these these checks with queries to \sys of
-\fn{CapPairEstablishesLink($p$, $x$, \pcapa{p\delta_i})} for all capability pairs provided by the
+\fn{CapPairEstablishesOwnership($p$, $x$, \pcapa{p\delta_i})} for all capability pairs provided by the
 client.
 
-If any query returns \fn{true}, the application can establish a link between $p$ and $x$, even if $x$
-is currently linked (in the application database) to pseudoprincipal $q$. The application can thus
+If any query returns \fn{true}, the application can establish $p$'s ownership of $x$, even if $x$
+is currently owned (in the application database) by pseudoprincipal $q$. The application can thus
 treat the client as if the client speaks for pseudoprincipal $q$, and permit the action $a$ (\eg 
 read reviews on $q$'s authored papers, or read/write reviews belonging to $q$).
 
