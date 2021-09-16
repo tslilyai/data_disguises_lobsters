@@ -145,16 +145,56 @@ explain next.
 \subsection{Supporting Sequences of Disguises}
 
 To apply one disguise on top of another in a way that supports, \eg universal decorrelation after
-account pseudonymization, \sys must support \emph{pseudoprincipal-diffs}, namely diffs produced
+account pseudonymization, \sys must support \emph{pseudoprincipal diffs}, namely diffs 
 associated with pseudoprincipals. 
 
-Clearly, diffs produced after at least one disguise has been applied may be associated with pseudoprincipals.
-This causes a problem: note that disguise diffs are encrypted with \dcapa{p\delta_i} and stored at
-\lcapa{p\delta_i}, and capabilities are emailed or otherwise sent to (potentially offline) clients
+These diffs can occur after at least one disguise has been applied: subsequent disguises may
+associate diffs with pseudoprincipals. For example, after account pseudonymization, every user account
+ with a paper or review is a pseudoprincipal user. When \sys applies universal decorrelation,
+ decorrelation of all papers and reviews generates correlation diffs for these pseudoprincipals.
+
+This causes a problem: because diffs are encrypted with \dcapa{p\delta_i} and stored at
+\lcapa{p\delta_i}, capabilities are emailed or otherwise sent to (potentially offline) clients
 so \sys never holds onto capabilities. However, pseudoprincipals have no corresponding real user
 (and \sys cannot store which real user each pseudoprincipal corresponds with to provide
-unlinkability), so pseudoprincipals' capabilities can either be insecurely stored by \sys, or lost
-forever!
+unlinkability), so \sys has no way to communicate capabilities to a real user!
+%, so pseudoprincipals' capabilities can either be insecurely stored by \sys, or lost forever!
+
+To solve this issue, \sys has a couple options:
+\begin{itemize}
+    \item \sys can store \pcapa{p\delta_i} for pseudoprincipal $p$. This means
+        an adversary will be able to learn $p$'s undisguised data, even if it had been disguised by
+        $\delta_i$.
+
+    \item \sys can throw away \pcapa{p\delta_i} for pseudoprincipal $p$. This means that the
+        disguise modifications are permanent, and no links (to determine ownership) between
+        $p$ and other pseudoprincipals can be made.
+
+    \item \sys can use asymmetric encryption to grant a client access to encrypted pseudoprincipal
+        $p$'s \pcapa{p\delta_i}: each principal (real or pseudo) has an associated private-public
+        key pair, of which \sys knows the public key. 
+
+        When a pseudoprincipal $p$ is generated to decorrelate data from $q$, \sys also generates a
+        keypair (\pubk{p}, \privk{p}) for $p$, and encrypts \privk{p} with \pubk{q}. \sys stores the
+        resulting ciphertext as part in $q$'s metadata storage (\eg associated with $q$' account).
+        Thus, only a user with access to $q$'s account can decrypt and access private key \privk{p}.
+
+        \sys then encrypts \pcapa{p\delta_i} with \pubk{p} and store the ciphertexts,
+        allowing \sys avoid needing to send them to some email address while retaining strong
+        security of $p$'s database diffs.
+
+        A client speaking for $q$ would need to prove it can access \privk{p} and therefore
+        \pcapa{p\delta_i} by decrypting \privk{p} with \privk{q}.
+        This introduces another round of complexity into the API: a client speaking for $q$ who
+        wants to reveal modifications made by a disguise that produced pseudoprincipal diffs must
+        first query for all pseudoprincipal encrypted \privk{p}s associated with $q$.
+
+        The client must then decrypt with \privk{q} to get \privk{p}. Only then can the client
+        retrieve the encrypted \pcapa{p\delta_i} for pseudoprincipal $q$, and decrypt it with the
+        decrypted \privk{p}. \pcapa{p\delta_i} then gives the client the ability to reveal,
+        disguise, or
+        perform application actions with access to diffs from $\delta_i$ applying to $p$.
+\end{itemize}
 
 \iffalse
 \head{Decorrelation and Locked Private Keys.}
