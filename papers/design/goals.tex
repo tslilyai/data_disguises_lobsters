@@ -12,11 +12,16 @@ disguised data in a secure way, subject to the threat model we describe in \S\re
 
 \subsection{Use Cases \sys Should Support}
 
-\head{Example in HotCRP.}
-We imagine three useful disguises to support in HotCRP: (1) per-user GDPR account deletion (which
-removes all of a particular user's data); (2) universal account pseudonymization (which modifies a user's
-account to remove any personal identifiers); and (3) universal decorrelation (which decorrelates users from
-their authored reviews and papers).
+\head{Example: HotCRP.}
+We imagine three useful disguises to support in HotCRP: 
+\begin{enumerate}
+    \item Per-user GDPR account deletion (which
+removes all of a particular user's data)
+        \item Universal account pseudonymization (which modifies a user's
+account to remove any personal identifiers)
+        \item Universal decorrelation (which decorrelates users from
+their authored reviews and papers)
+\end{enumerate}
 
 Users who invoke GDPR deletion are given the option to return by revealing their disguise; however,
 between disguising and revealing their account, no other entity learns that the identity or
@@ -47,7 +52,7 @@ should not require a user to be online in order to gain the capability to apply 
 view their disguised data.
 
 \head{General Use Cases.} 
-We generalize from the HorCRP example a handful of the most beneficial and practical use cases
+From the HotCRP example, we generalize a handful of the most beneficial and practical use cases
 that \sys should support:
 
 \begin{itemize}
@@ -109,12 +114,12 @@ once should not prevent data from being later disguised (in a way that complies 
         compose disguises on top of one another, or to reveal the updates done by a disguise. 
 \end{enumerate}
 
-\noindent
+\head{Data Access Control.}
 The application's normal permissions logic controls data access to database contents.  Only \sys
-ever accesses and needs to parse diff contents directly: \sys exposes an API allowing the client or
-application to learn specific semantic information contained in diffs (\eg whether a particular
-principal used to own a now-decorrelated piece of data). Clients can additionally request
-that \sys access and use diff information to reveal or apply disguises.
+ever accesses and needs to parse diff contents directly: \sys exposes an API (\S\ref{s:api})
+allowing the client or application to learn specific semantic information contained in diffs (\eg
+whether a particular principal used to own a now-decorrelated piece of data). Clients can
+additionally request that \sys access and use diff information to reveal or apply disguises.
 
 \sys's access to diffs is controlled by a pair of capabilities: 
 \begin{enumerate}

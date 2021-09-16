@@ -18,6 +18,11 @@ Developers also specify an application-aware pseudoprincipal generation policy, 
 generate new user accounts in a manner that the application can handle (e.g., pseudoprincipals may
 not have email addresses).
 
+Finally, developers specify which principals are authorized to apply each disguise: enforcing
+access control for disguising is left to the application.
+\lyt{It seems most reasonable for the application to enforce AC for the disguising API the
+application exposes to the client?}
+
 \vspace{6pt}\noindent
 Operations come in three forms:
 \begin{enumerate}
@@ -41,76 +46,41 @@ Operations come in three forms:
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Database Diffs.}
-Every \op{d} produces a \emph{database diff} \tdata{p\delta_i} associated with the disguise instance $\delta$ and a
-principal $p$. 
-%
-\tdata{p\delta_i} contains the following fields, which record any changes made when applying \op{d}:
-%
-\begin{itemize}
-\item \fn{diffID}: unique ID for this diff
-\item \fn{disguiseID}: ID of disguise $d$ being applied
-\item \fn{principalID}: associated principal $p$
-\item \fn{objID}: unique ID for the data object modified by \op{d}
-\item \fn{updateType}: decorrelate, modify, or remove
-\item \fn{oldValue}: original value of object \fn{objID}
-\item \fn{newValue}: updated value of object \fn{objID}
-\item \fn{nonce}: random value generated to prevent known-plaintext attacks
-\end{itemize}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Every \op{d} produces a \emph{database diff} \tdata{p\delta_i} associated with the disguise instance $\delta$ and a principal $p$. 
 
-\noindent\sys uses \tdata{p\delta_i} to:
-\begin{itemize}
-    \item Compose updates of $\delta_j$ on top of updates of disguise $\delta_i$ associated with
-        $p$'s data.
-    \item Reveal updates performed by disguise $\delta_i$ associated with $p$, if no conflicting updates have been
-        performed since.
-\lyt{This is slightly vague and may not handle all situations? \eg if the application made updates
-        that don't conflict, but may be dependent on the status of the disguised object}.
-\end{itemize}
+Each \tdata{p\delta_i} contains the ID of the disguise instance, the associated principal $p$'s ID,
+and a random nonce.
+%
+In addition to this data, a decorrelation \tdata{p\delta_i} contains the created pseudoprincipal's
+ID; a removal \tdata{p\delta_i} contains the removed object's value; and a modification
+\tdata{p\delta_i} contains the old and new value of the modified object.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Decorrelation and Locked Private Keys.}
-Decorrelation generates a public-private key pair \pubk{q} and \privk{q} for pseudoprincipal $q$
-created during decorrelation.
-\sys stores \pubk{q} associated with $q$'s user ID, and puts \privk{q} in a \emph{locked private key}
-associated with the original principal $p$ and $q$, notated as \tpriv{p}{q}. \tpriv{p}{q} contains the
-following fields, encrypted with \pubk{p}:
-\begin{itemize}
-\item \fn{principalID}: original principal $p$
-\item \fn{pseudoprincipalID}: generated pseudoprincipal $q$
-\item \fn{pseudoPrincipalPrivateKey}: \privk{q}
-\item \fn{nonce}: random value generated to prevent known-plaintext attacks
-\end{itemize}
-\noindent Because \tpriv{p}{q} is encrypted with \pubk{p}, only a client who has
-\privk{p} can access pseudoprincipal $q$'s private key \privk{q}.
+\subsection{Diff Access Control.} 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Security and Capabilities}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Securing Access to Database Diffs.} 
+\sys secures database diffs with data capabilities \dcapa{p\delta_i}.
 \sys represents a data capability \dcapa{p\delta_i} as a symmetric key specific to
 the disguise instance and principal.
 %
-\sys protects access to database diffs \tdata{p\delta_i} by encrypting \tdata{p\delta_i} with the
-\dcapa{p\delta_i}. The diff's nonce ensures safety against known-plaintext attacks. \sys then encrypts
-\dcapa{p\delta_i} with public key \pubk{p}.  
-%
-Thus, only a client who has \privk{p} can decrypt the data capability, and return in the capability pair the plaintext symmetric key that enables \sys to decrypt $p$'s database diffs produced from applying $d$.
+\sys encrypts \tdata{p\delta_i} with the \dcapa{p\delta_i}. The diff's nonce ensures safety against
+known-plaintext attacks. 
 
-%\sys stores all global \tdata{p\delta_i} tokens in plaintext, where any party can access it.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Protecting Disguise History.}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Securing Disguise History.}
 \sys's design may leak information that $\delta_i$ disguised principal $p$ 
-because an adversary may learn that ciphertexts for \dcapa{p\delta_i} and
+because an adversary may learn that ciphertexts for %\dcapa{p\delta_i} and
 \tdata{p\delta_i} exist for a particular $p$ and $\delta_i$.
 This is a problem: for example, \sys should not store information that a principal $p$ has
 invoked GDPR deletion.
 
-To avoid this problem, \sys stores (1) the \dcapa{p\delta_i} ciphertext and (2) an array of
-\tdata{p\delta_i} ciphertexts at random location \lcapa{p\delta_i} (\eg a random number or string).
-This dissociates one disguise applied to a principal $p$ from all other disguises, so an adversary only ever
-learns about a single disguise instance if \sys gains permission to reveal or compose upon that
-disguise instance.
+To avoid this problem, \sys stores 
+%(1) the \dcapa{p\delta_i} ciphertext and (2) 
+an array of \tdata{p\delta_i} ciphertexts at random location pointed to by locating capability
+\lcapa{p\delta_i}.  This dissociates one disguise applied to a principal $p$ from all other
+disguises, so an adversary only ever learns about a single disguise instance if \sys gains
+permission to reveal or compose upon that disguise instance.
 
 Note that an adversary without access to any \lcapa{p\delta_i} can learn that $n$ diffs exist for
 \emph{some} $p$ and $\delta_i$, but cannot directly identify which $p$ or $\delta_i$.
@@ -118,26 +88,104 @@ If an adversary has access to \lcapa{p\delta_i}, the adversary can learn that $\
 applied to $p$, and the number of \tdata{p\delta_i} diffs for that $p$ and $d$. This metadata is out of scope of our threat model.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{External Storage of \lcapa{p\delta_i}.} 
-\sys should not store \lcapa{p\delta_i}: existence of \lcapa{p\delta_i} allows an adversary to
-learn that $\delta_i$ has applied to principal $p$. Thus, \lcapa{p\delta_i} must be stored externally,
+\head{Storage of \dcapa{p\delta_i} and \lcapa{p\delta_i}.} 
+\sys should not store \dcapa{p\delta_i} or \lcapa{p\delta_i}: an adversary could then
+learn that $\delta_i$ has applied to principal $p$. Thus, these capabilities must be stored externally,
 even when no client speaking for $p$ is currently online.
+%
+%The only exception to this occurs when $p$ is a pseudoprincipal: in this case, \sys saves a
+%(globally accessible) mapping from $p$ to \lcapa{p\delta_i}. This leaks the disguise history of
+%pseudoprincipals, but is allowable because pseudoprincipals' data has already been decorrelated from their
+%original principal owner.
+%
+To communicate these capabilities to a client,
+\sys can email (or otherwise communicate) \lcapa{p\delta_i} to a party that can authenticate as $p$. 
+\lyt{This assumes that every real user must have an email; alternatively, this could be offloaded to
+the application.}
+%If no email is present (\eg $p$ is a pseudoprincipal), \sys can save a (globally accessible) mapping from $p$ to \lcapa{p\delta_i}; this leaks disguise-principal associations, but
+%only for pseudoprincipals whose data is already decorrelated from their original principal owner.
 
-The only exception to this occurs when $p$ is a pseudoprincipal: in this case, \sys saves a
-(globally accessible) mapping from $p$ to \lcapa{p\delta_i}. This leaks the disguise history of
-pseudoprincipals, but is allowable because pseudoprincipals' data has already been decorrelated from their
-original principal owner.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Which Use Cases and Security Properties Have We Achieved?}
+As the current design stands, \sys supports ``Per-User, GDPR-Compliant Disguising and
+Revealing,'' ``Universal Disguising and Revealing,'' and ``Per-User Revealed Views and
+Permissions.''
 
-If $p$ is an actual principal, we consider two options: 
-\begin{enumerate}
-    \item \sys can email (or otherwise communicate)
-\lcapa{p\delta_i} to a party that can authenticate as $p$. If no email is present (\eg $p$ is a pseudoprincipal),
-\sys can save a (globally accessible) mapping from $p$ to \lcapa{p\delta_i}; this leaks disguise-principal associations, but
-only for pseudoprincipals whose data is already decorrelated from their original principal owner.
-\lyt{This assumes that every real user must have an email.}
-\item Alternatively, \sys can simply return the addresses back to the application; the application
-then must handle the logic of contacting the respective parties and saving addresses externally.
-\end{enumerate}
+Application developers can write GDPR-compliant and/or universal disguises with the primitives
+exposed by \sys to write disguise specifications.
+%
+\sys can then use the produced disguise diffs to reveal data when authorized to do so, and when
+revealing does not revert updates made to the data since the time of disguise application.
+%
+\sys can now also support the API discussed in \S\ref{s:api}, where applications can also query \sys to check accessible diffs for
+ownership properties.
+
+Furthermore, \sys does this while meeting all security goals: \sys supports authorized disguises and
+ensures the security of ownership claims, disguise diffs, and disguise history.
+
+Our current design falls short, however, by failing to support ``Further Disguising of Disguised
+Data.''
+
+%\begin{itemize}
+%\item \fn{diffID}: unique ID for this diff
+%\item \fn{disguiseID}: ID of disguise $d$ being applied
+%\item \fn{principalID}: associated principal $p$
+%\item \fn{objID}: unique ID for the data object modified by \op{d}
+%\item \fn{updateType}: decorrelate, modify, or remove
+%\item \fn{oldValue}: original value of object \fn{objID}
+%\item \fn{newValue}: updated value of object \fn{objID}
+%\item \fn{nonce}: random value generated to prevent known-plaintext attacks
+%\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Supporting Further Disguising of Disguised Data}
+
+To apply one disguise on top of another in a way that supports, \eg GDPR deletion or universal
+decorrelation after account pseudonymization, \sys must support (1) \emph{ownership-composition},
+temporarily restoring ownership of decorrelated data to the invoking principal so that a future
+disguise can act upon this data; and (2) \emph{pseudoprincipal-diffs}, produced by disguising
+pseudoprincipals. 
+
+\head{Ownership-Composition}
+\sys already has a mechanism to perform ownership-composition: the same server-side API call used by
+the application to check ownership requires \sys to be able to parse ownership information from
+decorrelation diffs. Thus, \sys can determine ownership for ownership-composition purposes once \sys
+gains access to decorrelation diffs (by the client providing the appropriate capability pairs).
+
+\head{Pseudoprincipal Diffs.}
+Diffs produced after at least one disguise has been applied may be associated with pseudoprincipals.
+
+However, note that disguise diffs are encrypted with \dcapa{p\delta_i} and stored at
+\lcapa{p\delta_i}, and capabilities are emailed or otherwise sent to (potentially offline) clients
+so \sys never holds onto capabilities. However, pseudoprincipals have no corresponding real user
+(and \sys cannot store which real user each pseudoprincipal corresponds with to provide
+unlinkability), so pseudoprincipals' capabilities can either be insecurely stored by \sys, or lost
+forever!
+
+\iffalse
+\head{Decorrelation and Locked Private Keys.}
+Decorrelation generates a public-private key pair \pubk{q} and \privk{q} for pseudoprincipal $q$
+created during decorrelation.
+\sys stores \pubk{q} associated with $q$'s user ID, and puts \privk{q} in a \emph{locked private key}
+associated with the original principal $p$ and $q$, notated as \tpriv{p}{q}. \tpriv{p}{q} contains the
+pseudoprincipal's ID and private key, along with a random nonce, which are all encrypted with \pubk{p}:
+%\begin{itemize}
+%\item \fn{principalID}: original principal $p$
+%\item \fn{pseudoprincipalID}: generated pseudoprincipal $q$
+%\item \fn{pseudoPrincipalPrivateKey}: \privk{q}
+%\item \fn{nonce}: random value generated to prevent known-plaintext attacks
+%\end{itemize}
+Because \tpriv{p}{q} is encrypted with \pubk{p}, only a client who has
+\privk{p} can access pseudoprincipal $q$'s private key \privk{q}.
+
+
+\head{Protecting \dcapa{p\delta_i} when stored by \sys.}
+\lyt{We need public keys here so that \sys does not hold onto keys that can decrypt for pseudoprincipals!!}
+\sys then encrypts \dcapa{p\delta_i} with public key \pubk{p}.  
+%
+Thus, only a client who has \privk{p} can decrypt the data capability, and return in the capability pair the plaintext symmetric key that enables \sys to decrypt $p$'s database diffs produced from applying $d$.
+
+%\sys stores all global \tdata{p\delta_i} tokens in plaintext, where any party can access it.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Acquiring Pseudoprincipal Capabilities}
@@ -182,7 +230,6 @@ provide a locating capability \lcapa{p\delta_i} in order to find encrypted data 
 to (non-pseudoprincipal) $p$. Because \sys does not store these locations, and the locationsare per-disguise, \sys
 cannot link different disguises' encrypted data to the same principal.
 
-\iffalse
 \begin{table}[t!]
 \centering
 \begin{tabular}{ c | c c }
