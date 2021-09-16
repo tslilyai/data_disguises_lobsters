@@ -108,23 +108,27 @@ the application.}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Which Use Cases and Security Properties Have We Achieved?}
 As the current design stands, \sys supports ``Per-User, GDPR-Compliant Disguising and
-Revealing,'' ``Universal Disguising and Revealing,'' and ``Per-User Revealed Views and
-Permissions.''
+Revealing,'' ``Universal Disguising and Revealing,'' ``Per-User Revealed Views and
+Permissions,'' and ``Disguising of Decorrelated Data.''
 
 Application developers can write GDPR-compliant and/or universal disguises with the primitives
 exposed by \sys to write disguise specifications.
 %
 \sys can then use the produced disguise diffs to reveal data when authorized to do so, and when
 revealing does not revert updates made to the data since the time of disguise application.
-%
-\sys can now also support the API discussed in \S\ref{s:api}, where applications can also query \sys to check accessible diffs for
-ownership properties.
+
+Finally, we see that \sys can now also support the API discussed in \S\ref{s:api}, where
+applications can also query \sys to check accessible diffs for ownership properties.  This also
+allows \sys to disguise decorrelated data: the same server-side API call used by the application to
+check ownership requires \sys to be able to parse ownership information from decorrelation diffs.
+Thus, \sys can determine temporary ownership in order to disguise decorrelated data, as long as \sys
+has access to decorrelation diffs (by the client providing the appropriate capability pairs).
 
 Furthermore, \sys does this while meeting all security goals: \sys supports authorized disguises and
 ensures the security of ownership claims, disguise diffs, and disguise history.
 
-Our current design falls short, however, by failing to support ``Further Disguising of Disguised
-Data.''
+Our current design falls short, however, by failing to support ``Sequences of Disguises,'' which we
+explain next.
 
 %\begin{itemize}
 %\item \fn{diffID}: unique ID for this diff
@@ -138,24 +142,14 @@ Data.''
 %\end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Supporting Further Disguising of Disguised Data}
+\subsection{Supporting Sequences of Disguises}
 
-To apply one disguise on top of another in a way that supports, \eg GDPR deletion or universal
-decorrelation after account pseudonymization, \sys must support (1) \emph{ownership-composition},
-temporarily restoring ownership of decorrelated data to the invoking principal so that a future
-disguise can act upon this data; and (2) \emph{pseudoprincipal-diffs}, produced by disguising
-pseudoprincipals. 
+To apply one disguise on top of another in a way that supports, \eg universal decorrelation after
+account pseudonymization, \sys must support \emph{pseudoprincipal-diffs}, namely diffs produced
+associated with pseudoprincipals. 
 
-\head{Ownership-Composition}
-\sys already has a mechanism to perform ownership-composition: the same server-side API call used by
-the application to check ownership requires \sys to be able to parse ownership information from
-decorrelation diffs. Thus, \sys can determine ownership for ownership-composition purposes once \sys
-gains access to decorrelation diffs (by the client providing the appropriate capability pairs).
-
-\head{Pseudoprincipal Diffs.}
-Diffs produced after at least one disguise has been applied may be associated with pseudoprincipals.
-
-However, note that disguise diffs are encrypted with \dcapa{p\delta_i} and stored at
+Clearly, diffs produced after at least one disguise has been applied may be associated with pseudoprincipals.
+This causes a problem: note that disguise diffs are encrypted with \dcapa{p\delta_i} and stored at
 \lcapa{p\delta_i}, and capabilities are emailed or otherwise sent to (potentially offline) clients
 so \sys never holds onto capabilities. However, pseudoprincipals have no corresponding real user
 (and \sys cannot store which real user each pseudoprincipal corresponds with to provide

@@ -35,9 +35,11 @@ from being unblinded in the case of a data breach.
 
 Even after universal account pseudonymization or decorrelation, it would be nice if HotCRP allowed
 users to still apply GDPR account deletion to delete (even decorrelated) papers and reviews that they
-wrote. Furthermore, account pseudonymization should not prevent the application of a
-universal decorrelation disguise. Thus, HotCRP should support disguises that can operate on top of
-disguised data.
+wrote: a disguise that applies to a user's data may, in some circumstances, apply to even decorrelated data.
+
+Furthermore, account pseudonymization should not prevent the application of a universal
+decorrelation disguise: disguises should be able to operate on top of already-disguised data, and be
+similarly revealable as if they applied to undisguised data.
 
 Finally, HotCRP would retain much of its usefulness if users could be permitted to view
 reviews on their papers, or edit their reviews, even if these papers and reviews have been
@@ -74,7 +76,11 @@ Users should be able to operate with ownership permissions on data previously co
 account, but decorrelated by a disguise, \emph{without} changing the database views of others using
 the application. In other words, the disguise can be temporarily revealed for a particular user.
 
-\item\textbf{Further Disguising of Disguised Data.}
+\item\textbf{Disguising of Decorrelated Data.}
+A disguise affecting a user's data can, if authorized, operate on data decorrelated from the user by
+prior disguises.
+
+\item\textbf{Support for Sequences of Disguises.}
 Data can be disguised to different granularities (\eg anonymized vs. removed), and being disguised
 once should not prevent data from being later disguised (in a way that complies with the GDPR).
 \end{itemize}
