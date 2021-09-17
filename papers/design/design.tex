@@ -144,6 +144,26 @@ explain next.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Supporting Sequences of Disguises}
 
+\begin{table*}[t!]
+\centering
+    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
+\textbf{API Call} & \textbf{Description} \\
+\hline
+    \fn{RegisterPrincipal($p$, Email email, PubKey $\pubk{p}$)} $\rightarrow$ () & Registers $p$ as
+        a principal in \sys.\\
+    \vspace{6pt}\\
+    \fn{GetEncryptedCapPairs($p$) $\rightarrow$
+        \fn{Vec<Enc\pcapa{p\delta_i}>}} & Returns the set of corresponding \pcapa{p\delta_i} encrypted with
+        \pubk{p}, for all $\delta_i$ that applied to $p$.\\
+    \vspace{6pt}\\
+    \fn{GetEncryptedPseudoPrincipals($p$) $\rightarrow$
+        \fn{Vec<Enc($q$,\privk{q})>}} & Returns the set of pseudoprincipals created by decorrelation
+        $p$'s data and their private keys.
+\end{tabular}
+\caption{Client-\sys API with Asymmetric Encryption}
+\label{tab:client_api_ext}
+\end{table*}
+
 To apply one disguise on top of another in a way that supports, \eg universal decorrelation after
 account pseudonymization, \sys must support \emph{pseudoprincipal diffs}, namely diffs 
 associated with pseudoprincipals. 
@@ -183,6 +203,8 @@ We pose three potential solutions for this issue:
         \sys then encrypts \pcapa{p\delta_i} with \pubk{p} and stores the ciphertext, allowing \sys
         to avoid the need to send capabilities to some email address, while retaining strong
         security of $p$'s database diffs.
+        \lyt{Note: an adversary can learn \emph{how many} disguises applied to a principal, but not
+        \emph{which} disguises.}
 
         A client speaking for $p_0$ first needs to prove it can access \privk{p} by decrypting the
         \privk{p} ciphertext with \privk{p_0}.  Only then can the client decrypt the encrypted
@@ -209,6 +231,10 @@ all principals+pseudoprincipals first (\ie would need to query for what capabili
 perform some action that requires \sys diff access. This makes it difficult to implement a userflow
 where the user can click on a single URL to grant \sys diff access: with Option (3)'s design, the user has to first retrieve
 all possible URLs.
+
+Table~\ref{tab:client_api_ext} shows the additional API calls added by \sys to support asymmetric
+encryption of capabilities. 
+\lyt{TODO protocol diagrams for this vs. the simple design without asymmetric encryption}
 
 \iffalse
 \begin{figure*}[t!]
