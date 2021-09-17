@@ -171,29 +171,30 @@ To solve this issue, \sys has a couple options:
         $p$ and other pseudoprincipals can be made.
 
     \item \sys can use asymmetric encryption to grant a client access to encrypted pseudoprincipal
-        $p$'s \pcapa{p\delta_i}: each principal (real or pseudo) has an associated private-public
-        key pair, of which \sys knows the public key. 
+        $p$'s \pcapa{p\delta_i}. In this scheme, each principal (real or pseudo) has an associated private-public
+        key pair, of which \sys knows only the public key. 
 
         When a pseudoprincipal $p$ is generated to decorrelate data from $q$, \sys also generates a
-        keypair (\pubk{p}, \privk{p}) for $p$, and encrypts \privk{p} with \pubk{q}. \sys stores the
+        keypair (\pubk{p}, \privk{p}) for $p$, and encrypts \privk{p} with the original principal
+        $q$'s public key \pubk{q}. \sys stores the
         resulting ciphertext as part in $q$'s metadata storage (\eg associated with $q$' account).
         Thus, only a user with access to $q$'s account can decrypt and access private key \privk{p}.
 
-        \sys then encrypts \pcapa{p\delta_i} with \pubk{p} and store the ciphertexts,
-        allowing \sys avoid needing to send them to some email address while retaining strong
+        \sys then encrypts \pcapa{p\delta_i} with \pubk{p} and stores the ciphertext, allowing \sys
+        to avoid the need to send capabilities to some email address, while retaining strong
         security of $p$'s database diffs.
 
-        A client speaking for $q$ would need to prove it can access \privk{p} and therefore
-        \pcapa{p\delta_i} by decrypting \privk{p} with \privk{q}.
-        This introduces another round of complexity into the API: a client speaking for $q$ who
-        wants to reveal modifications made by a disguise that produced pseudoprincipal diffs must
-        first query for all pseudoprincipal encrypted \privk{p}s associated with $q$.
+        A client speaking for $q$ first needs to prove it can access \privk{p} by decrypting the
+        \privk{p} ciphertext with \privk{q}.  Only then can the client decrypt the encrypted
+        \pcapa{p\delta_i} associated with pseudoprincipal $p$ with the decrypted \privk{p}.
+        \pcapa{p\delta_i} then gives the client the ability to reveal, disguise, or perform
+        application actions with access to diffs from $\delta_i$ applying to $p$.
 
-        The client must then decrypt with \privk{q} to get \privk{p}. Only then can the client
-        retrieve the encrypted \pcapa{p\delta_i} for pseudoprincipal $q$, and decrypt it with the
-        decrypted \privk{p}. \pcapa{p\delta_i} then gives the client the ability to reveal,
-        disguise, or
-        perform application actions with access to diffs from $\delta_i$ applying to $p$.
+        This introduces another round-trip for any client using the API: a client speaking
+        for $q$ that wants to reveal or compose on top of pseudoprincipal diffs must (1) query for
+        all pseudoprincipal \privk{p} ciphertexts associated with $q$, (2) retrieve the capabilities
+        corresponding to all pseudoprincipals $p$, and (3) actually invoke the action with the
+        decrypted capability pairs.
 \end{itemize}
 
 \iffalse
