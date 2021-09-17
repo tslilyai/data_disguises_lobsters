@@ -160,8 +160,8 @@ so \sys never holds onto capabilities. However, pseudoprincipals have no corresp
 unlinkability), so \sys has no way to communicate capabilities to a real user!
 %, so pseudoprincipals' capabilities can either be insecurely stored by \sys, or lost forever!
 
-To solve this issue, \sys has a couple options:
-\begin{itemize}
+We pose three potential solutions for this issue:
+\begin{enumerate}
     \item \sys can store \pcapa{p\delta_i} for pseudoprincipal $p$. This means
         an adversary will be able to learn $p$'s undisguised data, even if it had been disguised by
         $\delta_i$.
@@ -195,7 +195,20 @@ To solve this issue, \sys has a couple options:
         all pseudoprincipal \privk{p} ciphertexts associated with $q$, (2) retrieve the capabilities
         corresponding to all pseudoprincipals $p$, and (3) actually invoke the action with the
         decrypted capability pairs.
-\end{itemize}
+\end{enumerate}
+
+Options (1) and (2) are undesirable because they fail to meet our security and use case goals
+respectively.
+Option (3) introduces an extra roundtrip and layer of cryptography (namely by encrypting
+the \pcapa{p\delta_i} with a public key, instead of sending it directly to the client). 
+
+Option (3) does the best job at meeting our security and use case goals, at the cost of usability:
+a client needs to do one round-trip of communication retrieve all capabilities of
+all principals+pseudoprincipals first (\ie would need to query for what capabilities ciphertexts
+\sys stores for the principal). Only then can the client use the locating and data capabilities to
+perform some action that requires \sys diff access. This makes it difficult to implement a userflow
+where the user can click on a single URL to grant \sys diff access: with Option (3)'s design, the user has to first retrieve
+all possible URLs.
 
 \iffalse
 \head{Decorrelation and Locked Private Keys.}
