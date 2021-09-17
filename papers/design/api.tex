@@ -11,9 +11,9 @@
         a principal in \sys.\\
     \vspace{6pt}\\
     \fn{ApplyDisguise($p$, DisguiseSpec $d$,
-        Vec<CapPair> caps)} $\rightarrow$\fn{(DisguiseInstance, Vec<LocCap>)} & Applies
-        disguise $d$ and returns the corresponding disguise instance $\delta_i$ and locating
-        capability \lcapa{p\delta_i}. The provided capability pairs allow \sys to locate and access
+        Vec<CapPair> caps)} $\rightarrow$\fn{(DisguiseInstance, Vec<CapPair>)} & Applies
+        disguise $d$ and returns the corresponding disguise instance $\delta_i$ and 
+        capability pair \pcapa{p\delta_i}. The provided capability pairs allow \sys to locate and access
         disguise diffs, which \sys uses to compose disguise $d$ on top of
     prior disguises.
         \vspace{6pt}\\
@@ -21,10 +21,10 @@
         Vec<CapPair> caps)} $\rightarrow$ ()& 
     Reveals disguise instance $\delta_i$. The provided capability pairs grant \sys access to database
     diffs from applying $\delta_i$, which allows \sys to reveal undisguised data.
-        \vspace{6pt}\\
-    \fn{GetEncryptedDataCap($p$, DisguiseInstance $\delta_i$,
-        LocCap \lcapa{p\delta_i})} $\rightarrow$ \fn{EncryptedDataCap} & Returns the data capability \dcapa{p\delta_i} encrypted with
-        \pubk{p}. \lcapa{p\delta_i} is required to retrieve the correct encrypted data capability.
+        %\vspace{6pt}\\
+    %\fn{GetEncryptedDataCap($p$, DisguiseInstance $\delta_i$,
+        %LocCap \lcapa{p\delta_i})} $\rightarrow$ \fn{EncryptedDataCap} & Returns the data capability \dcapa{p\delta_i} encrypted with
+        %\pubk{p}. \lcapa{p\delta_i} is required to retrieve the correct encrypted data capability.
 \end{tabular}
 \caption{Client-\sys API}
 \label{tab:client_api}
@@ -69,34 +69,37 @@ At a high level, \sys's API is broken up into a client-side API (\ie calls made 
 client browser), and a server-side API (\ie calls made by the application to \sys, or by \sys 
 itself).
 
-The client-side API in Table~\ref{tab:client_api} allows the client to register a principal, retrieve relevant capabilities, and apply and reveal disguises. The server-side API in Table~\ref{tab:internal_api} allows the application/\sys to gain access to data using capabilities.
-Applications integrating with \sys may also expose an extra API call to the client shown in
-Table~\ref{tab:app_api} that allows the application to receive the capability along with the normal
-API call.
+The client-side API in Table~\ref{tab:client_api} allows the client to 
+%register a principal, 
+%retrieve relevant capabilities, and 
+apply and reveal disguises. The server-side API in Table~\ref{tab:internal_api} allows the
+application/\sys to gain access to data using capabilities.  Applications integrating with \sys may
+also expose an extra API call to the client shown in Table~\ref{tab:app_api} that allows the
+application to receive the capability along with the normal API call.
 
 We next describe example usages of the API.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Client-\sys: Retrieving Capabilities.}
+%\head{Client-\sys: Retrieving Capabilities.}
+%%
+%Clients invoke API calls with capability \emph{pairs}. 
+%However, clients only ever receive and store locating capabilities \lcapa{p\delta_i} returned from
+%the application of $\delta_i$.
+%%
+%Thus, \sys provides a way for a client who has \lcapa{p\delta_i} to acquire the full capability pair
+%by retrieving an encrypted \dcapa{p\delta_i} via \fn{GetEncryptedDataCap} before invoking API calls.
 %
-Clients invoke API calls with capability \emph{pairs}. 
-However, clients only ever receive and store locating capabilities \lcapa{p\delta_i} returned from
-the application of $\delta_i$.
-%
-Thus, \sys provides a way for a client who has \lcapa{p\delta_i} to acquire the full capability pair
-by retrieving an encrypted \dcapa{p\delta_i} via \fn{GetEncryptedDataCap} before invoking API calls.
-
-\sys stores \dcapa{p\delta_i} encrypted with \pubk{p}, so only a client who has both
-\lcapa{p\delta_i} and \privk{p} can decrypt the respond with \privk{p} to get the necessary
-\pcapa{p\delta_i} capability pair. 
+%\sys stores \dcapa{p\delta_i} encrypted with \pubk{p}, so only a client who has both
+%\lcapa{p\delta_i} and \privk{p} can decrypt the respond with \privk{p} to get the necessary
+%\pcapa{p\delta_i} capability pair. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Client-\sys: Disguising and Revealing.}
-A client speaking for (registered) principal $p$ applies a disguise by providing the chosen disguise
+A client speaking for principal $p$ applies a disguise by providing the chosen disguise
 spec, and a set of locating and data capability pairs. These capability pairs allow \sys to access
 disguise diffs of the corresponding disguises to compose the new disguise on top of these disguises
-during application. Applying a disguise returns the instance identifier $\delta_i$ and a locating
-capability \lcapa{p\delta_i} that only the client stores. 
+during application. Applying a disguise returns the instance identifier $\delta_i$ and the locating
+and data capability pair \pcapa{p\delta_i} that only the client stores. 
 
 In order to reveal data disguised by $\delta$, a client speaking for $p$ invokes
 \fn{RevealDisguise}.  The client provides the capability pair (\lcapa{p\delta_i},\dcapa{p\delta{i}})
@@ -131,11 +134,6 @@ treat the client as if the client speaks for pseudoprincipal $q$, and permit the
 read reviews on $q$'s authored papers, or read/write reviews belonging to $q$).
 
 
-
-
-
-
-
 \iffalse
 \begin{table*}[t!]
 \centering
@@ -143,8 +141,8 @@ read reviews on $q$'s authored papers, or read/write reviews belonging to $q$).
 \textbf{API Call} & \textbf{Description} \\
 \hline
     \vspace{6pt}
-    \fn{RegisterPrincipal($p$, email, $\pubk{p}$) $\rightarrow ()$} & Registers $p$ as a principal whose data can be privately disguised.\\
-    \vspace{6pt}
+    %\fn{RegisterPrincipal($p$, email, $\pubk{p}$) $\rightarrow ()$} & Registers $p$ as a principal whose data can be privately disguised.\\
+    %\vspace{6pt}
     \fn{GetGlobalAddresses($p$)} $\rightarrow$ \{\addr{p\delta}\} & Retrieves the (globally 
     available) addresses associated with principal $p$; nonempty only if $p$ is a pseudoprincipal.\\
     \vspace{6pt}
