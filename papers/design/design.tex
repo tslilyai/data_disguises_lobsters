@@ -157,8 +157,8 @@ explain next.
         \pubk{p}, for all $\delta_i$ that applied to $p$.\\
     \vspace{6pt}\\
     \fn{GetEncryptedPseudoPrincipals($p$) $\rightarrow$
-        \fn{Vec<Enc($q$,\privk{q})>}} & Returns the set of pseudoprincipals created by decorrelation
-        $p$'s data and their private keys.
+        \fn{Vec<Enc($q$,\privk{q})>}} & Returns the set of encrypted pseudoprincipals and their
+        private keys created when decorrelating $p$'s data.
 \end{tabular}
 \caption{Additional Client-\sys API Calls for Asymmetric Encryption}
 \label{tab:client_api_ext}
