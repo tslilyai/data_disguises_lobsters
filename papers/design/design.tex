@@ -174,25 +174,25 @@ We pose three potential solutions for this issue:
         $p$'s \pcapa{p\delta_i}. In this scheme, each principal (real or pseudo) has an associated private-public
         key pair, of which \sys knows only the public key. 
 
-        When a pseudoprincipal $p$ is generated to decorrelate data from $q$, \sys also generates a
+        When a pseudoprincipal $p$ is generated to decorrelate data from $p_0$, \sys also generates a
         keypair (\pubk{p}, \privk{p}) for $p$, and encrypts \privk{p} with the original principal
-        $q$'s public key \pubk{q}. \sys stores the
-        resulting ciphertext as part in $q$'s metadata storage (\eg associated with $q$' account).
-        Thus, only a user with access to $q$'s account can decrypt and access private key \privk{p}.
+        $p_0$'s public key \pubk{p_0}. \sys stores the
+        resulting ciphertext as part in $p_0$'s metadata storage (\eg associated with $p_0$' account).
+        Thus, only a user with access to $p_0$'s account can decrypt and access private key \privk{p}.
 
         \sys then encrypts \pcapa{p\delta_i} with \pubk{p} and stores the ciphertext, allowing \sys
         to avoid the need to send capabilities to some email address, while retaining strong
         security of $p$'s database diffs.
 
-        A client speaking for $q$ first needs to prove it can access \privk{p} by decrypting the
-        \privk{p} ciphertext with \privk{q}.  Only then can the client decrypt the encrypted
+        A client speaking for $p_0$ first needs to prove it can access \privk{p} by decrypting the
+        \privk{p} ciphertext with \privk{p_0}.  Only then can the client decrypt the encrypted
         \pcapa{p\delta_i} associated with pseudoprincipal $p$ with the decrypted \privk{p}.
         \pcapa{p\delta_i} then gives the client the ability to reveal, disguise, or perform
         application actions with access to diffs from $\delta_i$ applying to $p$.
 
         This introduces another round-trip for any client using the API: a client speaking
-        for $q$ that wants to reveal or compose on top of pseudoprincipal diffs must (1) query for
-        all pseudoprincipal \privk{p} ciphertexts associated with $q$, (2) retrieve the capabilities
+        for $p_0$ that wants to reveal or compose on top of pseudoprincipal diffs must (1) query for
+        all pseudoprincipal \privk{p} ciphertexts associated with $p_0$, (2) retrieve the capabilities
         corresponding to all pseudoprincipals $p$, and (3) actually invoke the action with the
         decrypted capability pairs.
 \end{enumerate}
@@ -203,13 +203,65 @@ Option (3) introduces an extra roundtrip and layer of cryptography (namely by en
 the \pcapa{p\delta_i} with a public key, instead of sending it directly to the client). 
 
 Option (3) does the best job at meeting our security and use case goals, at the cost of usability:
-a client needs to do one round-trip of communication retrieve all capabilities of
+a client needs to do one extra round-trip of communication to retrieve all capabilities of
 all principals+pseudoprincipals first (\ie would need to query for what capabilities ciphertexts
 \sys stores for the principal). Only then can the client use the locating and data capabilities to
 perform some action that requires \sys diff access. This makes it difficult to implement a userflow
 where the user can click on a single URL to grant \sys diff access: with Option (3)'s design, the user has to first retrieve
 all possible URLs.
 
+\iffalse
+\begin{figure*}[t!]
+\pcb{
+\<\< \\[-0.9\baselineskip]\\
+\textbf{Client Authenticated as $p_0$} \< \< \textbf{\sys} \\
+[0.1\baselineskip][\hline]
+\<\< \\[-0.9\baselineskip]\\
+\fn{capPairs} \gets \fn{LoadClientCapPairs($p_0$)}\\
+% TODO get all privkeys
+\fn{encPrivKs} \gets \fn{LoadClientCapPairs($p_0$)}\\
+\fn{privKs} \gets \{p \mapsto \privk{p}\}\pclb
+\pcintertext[dotted]{Recursively get addresses of all linked pseudoprincipals}
+\fn{idsToProcess} \gets \{p\}\\
+\pcwhile \fn{idsToProcess} \neq \{\}:\\
+\quad q \gets \fn{idsToProcess.pop()}\\
+\< \sendmessageright*{\fn{GetPseudoPrincipalEncPrivKeys($q$)}} \< \\
+\<\< \fn{encPrivKs} \gets \fn{\sys.Principals[q].EncPKTokens}\\
+\< \sendmessageleft*{\fn{encPrivKs}} \< \\
+\quad \pcforeach \fn{encPrivK} \in \fn{encPrivKs}:\\
+\quad \quad \privk{q} \gets \fn{privKeys}[q]\\
+\quad \quad \tpriv{qr} \gets \dec(\privk{q}, \fn{encPrivK})\\
+\quad\quad\fn{privKs.insert}(r\mapsto \tpriv{qr}.\fn{privKey}) \<\< \\
+\quad\quad\fn{idsToProcess.insert($r$)} \<\< \\
+\< \sendmessageright*{\fn{GetGlobalAddresses($q$)}} \< \\
+\<\< \fn{globalAddrs} \gets \fn{\sys.Principals[q].GlobalAddrs}\\
+\< \sendmessageleft*{\fn{globalAddrs}} \< \\
+\quad\quad\fn{addrs.append(globalAddrs)}\\
+\quad \pcendforeach\\
+\pcendwhile\pclb
+    \pcintertext[dotted]{Use addresses to get corresponding encrypted token keys}
+\< \sendmessageright*{\fn{AddressesToEncTokenKeys(addrs)}} \< \\
+    \<\< \fn{encsymkeys} \gets \fn{LoadEncTokenKeys(addrs)}\\
+\< \sendmessageleft*{\fn{encsymkeys}}\\
+\fn{symkeys} \gets \{\}\\
+\pcforeach \fn{Enc(\symk{qd'})} \in \fn{encsymkeys}\\
+\quad \pcif \text{authorizes access to $q$'s private tokens for $d'$}: \\
+\quad\quad \privk{q} \gets \fn{privKs[q]}\\
+\quad\quad \fn{symkeys.insert(\dec(\privk{q}, \symk{qd'}))}\\
+\pcendforeach\pclb
+\pcintertext[dotted]{Apply disguise with token keys}
+\< \sendmessageright*{\fn{Disguise($d$,symkeys)}} \< \\
+\<\< \{\addr{}\}\gets\fn{ApplyDisguise($d$,symkeys)} \pclb
+\pcintertext[dotted]{Addresses can be emailed by \sys or returned to application}
+}
+\caption{\textbf{Disguise Application.}}
+\label{fig:disgapp}
+\end{figure*} 
+\fi
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \iffalse
 \head{Decorrelation and Locked Private Keys.}
 Decorrelation generates a public-private key pair \pubk{q} and \privk{q} for pseudoprincipal $q$
