@@ -15,17 +15,17 @@ disguised data in a secure way, subject to the threat model we describe in \S\re
 \head{Example: HotCRP.}
 We imagine three useful disguises to support in HotCRP: 
 \begin{enumerate}
-    \item Per-user GDPR account deletion (which
-removes all of a particular user's data)
-        \item Universal account pseudonymization (which modifies a user's
-account to remove any personal identifiers)
-        \item Universal decorrelation (which decorrelates users from
-their authored reviews and papers)
+    \item Per-user GDPR account deletion, which
+removes all of a particular user's data.
+        \item Universal account pseudonymization, which modifies a user's
+account to remove any personal identifiers.
+        \item Universal decorrelation, which decorrelates users from
+their authored reviews and papers.
 \end{enumerate}
 
 Users who invoke GDPR deletion are given the option to return by revealing their disguise; however,
-between disguising and revealing their account, no other entity learns that the identity or
-existence of the user (ensuring that the disguise complies by the GDPR).
+between disguising and revealing their account, no other entity learns the identity or
+existence of the user (ensuring that the disguise complies with the GDPR).
 
 Admins can apply universal account pseudonymization to provide a weak form of pseudonymization after a
 conference ends, erasing \eg identifying email accounts, usernames, and phone numbers. 
@@ -38,8 +38,10 @@ users to still apply GDPR account deletion to delete (even decorrelated) papers 
 wrote: a disguise that applies to a user's data may, in some circumstances, apply to even decorrelated data.
 
 Furthermore, account pseudonymization should not prevent the application of a universal
-decorrelation disguise: disguises should be able to operate on top of already-disguised data, and be
-similarly revealable as if they applied to undisguised data.
+decorrelation disguise: disguises should be able to operate on top of already-disguised data, and if
+revealed, return the data to the previously disguised state. 
+%, and be
+%similarly revealable as if they applied to undisguised data.
 
 Finally, HotCRP would retain much of its usefulness if users could be permitted to view
 reviews on their papers, or edit their reviews, even if these papers and reviews have been
@@ -68,13 +70,14 @@ These disguises can optionally be revealable, enabling users to \eg permanently 
 \sys should support universal, administrator-applied disguise to modify, decorrelate, and/or delete
         data of all users in the system.
 %
-Universally-applied disguises can optionally be revealed by an administrator.
-\lyt{(universal revealing only makes sense for non-private disguises)}
+%Universally-applied disguises can optionally be revealed by an administrator.
+%\lyt{(universal revealing only makes sense for non-private disguises)}
 
 \item\textbf{Per-User Revealed Views and Permissions.}
 Users should be able to operate with ownership permissions on data previously correlated with their
 account, but decorrelated by a disguise, \emph{without} changing the database views of others using
 the application. In other words, the disguise can be temporarily revealed for a particular user.
+        \lyt{Discuss reveal terminology}
 
 \item\textbf{Disguising of Decorrelated Data.}
 A disguise affecting a user's data can, if authorized, operate on data decorrelated from the user by
@@ -82,7 +85,10 @@ prior disguises.
 
 \item\textbf{Support for Sequences of Disguises.}
 Data can be disguised to different granularities (\eg anonymized vs. removed), and being disguised
-once should not prevent data from being later disguised (in a way that complies with the GDPR).
+once should not prevent data from being later disguised.
+        \lyt{I know there is overlap here with disguising decorrelated data, but disguising
+        disguised data (\eg pseudoprincipal data) requires a different mechanism, which is why I
+        separated it out here.}
 \end{itemize}
 
 \subsection{\sys Abstractions}
@@ -92,20 +98,21 @@ once should not prevent data from being later disguised (in a way that complies 
 	and which are uniquely identifiable (\eg via a user ID).
         %natural persons using the application, and
         %
-	We denote an application principal as $p \in P$, where $P$ is the set of all active and
-        inactive application principals.\lyt{Wait why do we have a distinction between active and
-        inactive here?}
+	We denote an application principal as $p \in P$, where $P$ is the set of all application principals.
 	%
     \item Application \emph{pseudoprincipals}, which correspond to anonymous users not tied to any natural
     person, and which are uniquely identifiable (\eg via a user ID).
         %
 	Pseudoprincipals are part of the set of application principals $p \in P$.
+        \lyt{I don't see why they should be a different set?}
 	%
     \item A disguise specification that consists of one or more disguises, $d \in D$, which each specify
 	how \sys transforms the application database when $d$ is invoked by a principal $p$.
 	%
 	Each invocation of $d$ results in a unique \emph{disguise instance} $\delta_i$, identified by
-        disguise sequence number $i$.
+        a global disguise sequence number $i$.
+        \lyt{We can imagine the sequence number being split by disguise specification, but it
+        doesn't seem important here? All it needs to be is uniquely identifiable.}
 	%
 \end{itemize}
 %
@@ -124,10 +131,12 @@ once should not prevent data from being later disguised (in a way that complies 
 The application's normal permissions logic controls data access to database contents.  Only \sys
 ever accesses and needs to parse diff contents directly: \sys exposes an API (\S\ref{s:api})
 allowing the client or application to learn specific semantic information contained in diffs (\eg
-whether a particular principal used to own a now-decorrelated piece of data). Clients can
+whether a particular principal used to own a now-decorrelated piece of data) if
+provided appropriate authorization. Clients can
 additionally request that \sys access and use diff information to reveal or apply disguises.
 
-\sys's access to diffs is controlled by a pair of capabilities: 
+\sys's access to diffs is controlled by a pair of capabilities: \lyt{(The application never directly
+accesses diffs, which is why I say \sys's access)}
 \begin{enumerate}
     \item \emph{\textbf{Data Capability \dcapa{p\delta_i}}}: Grants read access to disguise diff data
         associated with principal $p$ produced from applying $\delta_i$.
@@ -156,7 +165,7 @@ and service compromise.
 An external observer is a user of the web application (authenticated or unauthenticated) who
 observes information exposed through using the application.
 %
-A service compromise occurs when an attacker compromises the web application and potentially
+A service compromise occurs when an attacker compromises the web application and 
 gains full access to the server.
 %
 The attacker therefore can access any data stored, perform any actions the application can
@@ -209,6 +218,8 @@ decorrelated from $p$.
 Only a client who has both locating capability \lcapa{p\delta_i} and data capability
 \dcapa{p\delta_i} can grant \sys access to the disguise diffs from disguise instance $\delta_i$.
 %
+\lyt{I put this as a separate goal because diffs are used to check ownership, but also potentially
+contain more information?}
 
 \vspace{6pt}\noindent\textbf{\emph{(4) Privacy of Disguise History.}}
 %
@@ -224,7 +235,7 @@ Under \sys's threat model, the following properties are out of scope:
 \begin{itemize}
     \item Security of disguised data when an attacker has prior snapshots the system.
     %\item Authorized disguises if an attacker authenticates as a principal $p$. \ms{this seems trivial}
-    \item Security of disguise changes and disguise history applied to $p$ if $p$'s private key, \privk{p}, is compromised.
+    %\item Security of disguise changes and disguise history applied to $p$ if $p$'s private key, \privk{p}, is compromised.
     %\item Security of disguise changes and disguise history of $\delta_i$ applied to $p$ if an
         %authorized client provides \lcapa{p\delta_i} and \dcapa{p\delta_i}. \ms{as above}
     \item Security of metadata such as the number of disguises applied to, or number of
