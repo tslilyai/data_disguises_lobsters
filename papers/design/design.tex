@@ -108,8 +108,9 @@ the application.}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Which Use Cases and Security Properties Have We Achieved?}
 As the current design stands, \sys supports ``Per-User, GDPR-Compliant Disguising and
-Revealing,'' ``Universal Disguising and Revealing,'' ``Per-User Revealed Views and
-Permissions,'' and ``Disguising of Decorrelated Data.''
+Revealing,'' ``Universal Disguising and Revealing,'', and ``Temporary Recorrelation of Decorrelated
+Data'' for both ``Per-User Revealed Views and
+Permissions,'' and ``Disguise Composition.''
 
 Application developers can write GDPR-compliant and/or universal disguises with the primitives
 exposed by \sys to write disguise specifications.
@@ -127,7 +128,7 @@ has access to decorrelation diffs (by the client providing the appropriate capab
 Furthermore, \sys does this while meeting all security goals: \sys supports authorized disguises and
 ensures the security of ownership claims, disguise diffs, and disguise history.
 
-Our current design falls short, however, by failing to support ``Sequences of Disguises,'' which we
+Our current design falls short, however, by failing to support ``Multiple Disguises,'' which we
 explain next.
 
 %\begin{itemize}
@@ -142,7 +143,7 @@ explain next.
 %\end{itemize}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Supporting Sequences of Disguises}
+\subsection{Supporting Multiple Disguises}
 
 \begin{table*}[t!]
 \centering
