@@ -1,13 +1,13 @@
 %-------------------------------------------------------------------------------
 \section{Setting and Goals}
 %-------------------------------------------------------------------------------
-Our design considers typical database-backed applications that link a library provided by our disguising
+Our design considers typical database-backed applications that link a library implementing our disguising
 tool (\sys).
 %
-This library provides an API that the application uses to specify disguises, apply them, and (in some
+\sys provides an API that the application uses to specify disguises, apply them, and (in some
 cases), reveal disguised data with proper authorization (Table~\ref{tab:client_api}).
 %
-\sys takes care of executing the database transformations required as part of a disguise, and stores
+\sys executes the database transformations required as part of a disguise, and stores
 disguised data in a secure way, subject to the threat model we describe in \S\ref{s:threat}.
 
 \subsection{Use Cases \sys Should Support}
