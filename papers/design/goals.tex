@@ -83,10 +83,6 @@ These disguises can optionally be revealable, which enables users to restore the
 \sys should support universal, administrator-applied disguise to modify, decorrelate, and/or delete
         data of all users in the system.
 
-\item\textbf{Multiple Disguises.}
-Data can be disguised multiple times (\eg to different granularities). For example, accounts can be
-pseudonymized, and then later decorrelated from all data belonging to the account.
-
 \item\textbf{Temporary Recorrelation without Database Changes.}
     \begin{itemize}
         \item \emph{For Disguising Decorrelated Data}: 
@@ -104,6 +100,15 @@ pseudonymized, and then later decorrelated from all data belonging to the accoun
             For example, a user whose authored papers have been decorrelated can log in and view their
             papers and reviews on their papers.
 \end{itemize}
+
+\item\textbf{Universal Disguising of Anonymized Users.}
+Data of anonymized users can be later disguised by a universal, administrator-applied disguise.
+For example, accounts can be
+pseudonymized, and then later decorrelated from all data belonging to the account.
+
+\lyt{I am not convinced about this use case anymore: In our example, why doesn't the admin
+just apply universal anonymization to begin with? Maybe we *should* only support
+a single decorrelation for each piece of data.}
 \end{itemize}
 
 \subsection{\sys Abstractions}
