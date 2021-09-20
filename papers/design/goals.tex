@@ -87,20 +87,23 @@ These disguises can optionally be revealable, which enables users to restore the
 Data can be disguised multiple times (\eg to different granularities). For example, accounts can be
 pseudonymized, and then later decorrelated from all data belonging to the account.
 
-\item\textbf{Temporary Recorrelation of Decorrelated Data for Disguise Composition.}
-A disguise targeting a user's data can, if authorized, also operate on data decorrelated from the user by
-prior disguises.
-For example, GDPR account deletion removes user $u$'s reviews even if \sys has decorrelated these
-        reviews from $u$.
+\item\textbf{Temporary Recorrelation without Database Changes.}
+    \begin{itemize}
+        \item \emph{For Disguise Composition}: 
+            A disguise targeting a user's data can, if authorized, also operate on data decorrelated
+            from the user by prior disguises \emph{without} modifying the links between data and
+            owning users in the database.  For example, GDPR account deletion removes user $u$'s
+            reviews even if \sys has decorrelated these reviews from $u$.
 
-\item\textbf{Temporary Recorrelation of Decorrelated Data for Per-User Revealed Views and Permissions.}
-Users should be able to operate with ownership permissions on data previously correlated with their
-account, but decorrelated by a disguise, \emph{without} changing the database contents.
-In other words, users can see a personalized, temporary database view that allows them to operate on
-previously owned data.
+    \item \emph{For Per-User Revealed Views and Permissions}:
+            Users should be able to operate with ownership permissions on data previously correlated
+            with their account, but decorrelated by a disguise by, interacting with a personalized,
+            temporary database view when they visit their decorrelated data. This should require no
+            modifications to the actual database contents.
 
-    For example, a user whose authored papers have been decorrelated can still log in and view their
-    papers and reviews on their papers.
+            For example, a user whose authored papers have been decorrelated can log in and view their
+            papers and reviews on their papers.
+\end{itemize}
 \end{itemize}
 
 \subsection{\sys Abstractions}
