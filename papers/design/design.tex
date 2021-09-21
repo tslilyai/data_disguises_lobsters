@@ -47,62 +47,62 @@ Operations come in three forms:
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Database Diffs.}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Every \op{d} produces a \emph{database diff} \tdata{p\delta_i} associated with the disguise instance $\delta$ and a principal $p$. 
+Every \op{d} produces a \emph{database diff} \tdata{pd} associated with the disguise instance $\delta$ and a principal $p$. 
 
-Each \tdata{p\delta_i} contains the ID of the disguise instance, the associated principal $p$'s ID,
+Each \tdata{pd} contains the ID of the disguise instance, the associated principal $p$'s ID,
 and a random nonce.
 %
-In addition to this data, a decorrelation \tdata{p\delta_i} contains the created pseudoprincipal's
-ID; a removal \tdata{p\delta_i} contains the removed object's value; and a modification
-\tdata{p\delta_i} contains the old and new value of the modified object.
+In addition to this data, a decorrelation \tdata{pd} contains the created pseudoprincipal's
+ID; a removal \tdata{pd} contains the removed object's value; and a modification
+\tdata{pd} contains the old and new value of the modified object.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Diff Access Control.} 
 
 \head{Securing Access to Database Diffs.} 
-\sys secures database diffs with data capabilities \dcapa{p\delta_i}.
-\sys represents a data capability \dcapa{p\delta_i} as a symmetric key specific to
+\sys secures database diffs with data capabilities \dcapa{p}.
+\sys represents a data capability \dcapa{p} as a symmetric key specific to
 the disguise instance and principal.
 %
-\sys encrypts \tdata{p\delta_i} with the \dcapa{p\delta_i}. The diff's nonce ensures safety against
+\sys encrypts \tdata{pd} with the \dcapa{p}. The diff's nonce ensures safety against
 known-plaintext attacks. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Securing Disguise History.}
-\sys's design may leak information that $\delta_i$ disguised principal $p$ 
-because an adversary may learn that ciphertexts for %\dcapa{p\delta_i} and
-\tdata{p\delta_i} exist for a particular $p$ and $\delta_i$.
+\sys's design may leak information that $d$ disguised principal $p$ 
+because an adversary may learn that ciphertexts for %\dcapa{p} and
+\tdata{pd} exist for a particular $p$ and $d$.
 This is a problem: for example, \sys should not store information that a principal $p$ has
 invoked GDPR deletion.
 
 To avoid this problem, \sys stores 
-%(1) the \dcapa{p\delta_i} ciphertext and (2) 
-an array of \tdata{p\delta_i} ciphertexts at random location pointed to by locating capability
-\lcapa{p\delta_i}.  This dissociates one disguise applied to a principal $p$ from all other
+%(1) the \dcapa{p} ciphertext and (2) 
+an array of \tdata{pd} ciphertexts at random location pointed to by locating capability
+\lcapa{pd}.  This dissociates one disguise applied to a principal $p$ from all other
 disguises, so an adversary only ever learns about a single disguise instance if \sys gains
 permission to reveal or compose upon that disguise instance.
 
-Note that an adversary without access to any \lcapa{p\delta_i} can learn that $n$ diffs exist for
-\emph{some} $p$ and $\delta_i$, but cannot directly identify which $p$ or $\delta_i$.
-If an adversary has access to \lcapa{p\delta_i}, the adversary can learn that $\delta_i$
-applied to $p$, and the number of \tdata{p\delta_i} diffs for that $p$ and $d$. This metadata is out of scope of our threat model.
+Note that an adversary without access to any \lcapa{pd} can learn that $n$ diffs exist for
+\emph{some} $p$ and $d$, but cannot directly identify which $p$ or $d$.  If an adversary has access
+to \lcapa{pd}, the adversary can learn that $d$ applied to $p$, and the number of \tdata{pd} diffs
+for that $p$ and $d$. This metadata is out of scope of our threat model.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Storage of \dcapa{p\delta_i} and \lcapa{p\delta_i}.} 
-\sys should not store \dcapa{p\delta_i} or \lcapa{p\delta_i}: an adversary could then
-learn that $\delta_i$ has applied to principal $p$. Thus, these capabilities must be stored externally,
+\head{Storage of \dcapa{p} and \lcapa{pd}.} 
+\sys should not store \dcapa{p} or \lcapa{pd}: an adversary could then
+learn that $d$ has applied to principal $p$. Thus, these capabilities must be stored externally,
 even when no client speaking for $p$ is currently online.
 %
 %The only exception to this occurs when $p$ is a pseudoprincipal: in this case, \sys saves a
-%(globally accessible) mapping from $p$ to \lcapa{p\delta_i}. This leaks the disguise history of
+%(globally accessible) mapping from $p$ to \lcapa{pd}. This leaks the disguise history of
 %pseudoprincipals, but is allowable because pseudoprincipals' data has already been decorrelated from their
 %original principal owner.
 %
 To communicate these capabilities to a client,
-\sys emails (or otherwise communicates) \pcapa{p\delta_i} to a party that can authenticate as $p$. 
+\sys emails (or otherwise communicates) \pcapa{p}{d} to a party that can authenticate as $p$. 
 \lyt{This assumes that every real user must have an email; alternatively, this could be offloaded to
 the application.}
-%If no email is present (\eg $p$ is a pseudoprincipal), \sys can save a (globally accessible) mapping from $p$ to \lcapa{p\delta_i}; this leaks disguise-principal associations, but
+%If no email is present (\eg $p$ is a pseudoprincipal), \sys can save a (globally accessible) mapping from $p$ to \lcapa{pd}; this leaks disguise-principal associations, but
 %only for pseudoprincipals whose data is already decorrelated from their original principal owner.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -134,6 +134,12 @@ ensures the security of ownership claims, disguise diffs, and disguise history.
 Our current design falls short, however, by failing to support ``Universal Disguising of Anonymized
 users'' which we explain next.
 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
 %\begin{itemize}
 %\item \fn{diffID}: unique ID for this diff
 %\item \fn{disguiseID}: ID of disguise $d$ being applied
@@ -213,28 +219,28 @@ Because \tpriv{p}{q} is encrypted with \pubk{p}, only a client who has
 \privk{p} can access pseudoprincipal $q$'s private key \privk{q}.
 
 
-\head{Protecting \dcapa{p\delta_i} when stored by \sys.}
+\head{Protecting \dcapa{p} when stored by \sys.}
 \lyt{We need public keys here so that \sys does not hold onto keys that can decrypt for pseudoprincipals!!}
-\sys then encrypts \dcapa{p\delta_i} with public key \pubk{p}.  
+\sys then encrypts \dcapa{p} with public key \pubk{p}.  
 %
 Thus, only a client who has \privk{p} can decrypt the data capability, and return in the capability pair the plaintext symmetric key that enables \sys to decrypt $p$'s database diffs produced from applying $d$.
 
-%\sys stores all global \tdata{p\delta_i} tokens in plaintext, where any party can access it.
+%\sys stores all global \tdata{pd} tokens in plaintext, where any party can access it.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Acquiring Pseudoprincipal Capabilities}
-As discussed above, \sys can access locating capabilities \lcapa{q\delta_i}s for pseudoprincipal $q$ without a
+As discussed above, \sys can access locating capabilities \lcapa{qd}s for pseudoprincipal $q$ without a
 client providing it. 
 %
-However, a client still needs to acquire \dcapa{q\delta_i} for \sys to have full capability pairs
+However, a client still needs to acquire \dcapa{qd} for \sys to have full capability pairs
 to disguise, reveal, or otherwise act on behalf of pseudoprincipal $q$.
 
 \sys adds a \fn{GetPrincipalLockedPrivateKeys} Client API call, which returns all locked private
 keys \tpriv{p}{q} generated when decorrelating data from $p$.
 A client then must prove it has \privk{p} to decrypt \tpriv{p}{q} and extract pseudoprincipal ID $q$ and \privk{q}.
 
-With $q$ and \privk{q}, the client can get all encrypted \dcapa{q\delta_i} for all $\delta_i$, and
-provide these to \sys so \sys has the full capability pair \pcapa{q\delta_i}. With
+With $q$ and \privk{q}, the client can get all encrypted \dcapa{qd} for all $d$, and
+provide these to \sys so \sys has the full capability pair \pcapa{q}{d}. With
 this pair, \sys can retrieve diffs or establish ownership for $q$'s data.
 
 \lyt{TODO: Add an internal server-side API call that retrieves globally accessible location capabilities?}
@@ -248,32 +254,32 @@ this pair, \sys can retrieve diffs or establish ownership for $q$'s data.
 reveal a disguise, achieving security goal (1).
 
 \vspace{6pt}\noindent\textbf{\emph{(2/3) Secure Ownership and Secure Disguise Diffs.}}
-\lcapa{p\delta_i} is required to find the encrypted \dcapa{p\delta_i}---a symmetric key
+\lcapa{pd} is required to find the encrypted \dcapa{p}---a symmetric key
 specific to each disguise instance $\delta$ and principal $p$ encrypted with \pubk{p}.
-Because \sys encrypts \tdata{p\delta_i} diffs associated with $p$ with \dcapa{p\delta_i}, a client
-needs to first decrypt $\dcapa{p\delta_i}$ with \privk{p}, and then hand the pair \pcapa{p\delta_i}
-to \sys for \sys to decrypt of $p$'s diffs from $\delta_i$.
+Because \sys encrypts \tdata{pd} diffs associated with $p$ with \dcapa{p}, a client
+needs to first decrypt $\dcapa{p}$ with \privk{p}, and then hand the pair \pcapa{p}{d}
+to \sys for \sys to decrypt of $p$'s diffs from $d$.
 
-Thus, \sys ensures that only clients who can provide \lcapa{p\delta_i} and \dcapa{p\delta_i} (and,
+Thus, \sys ensures that only clients who can provide \lcapa{pd} and \dcapa{p} (and,
 by consequence, have \privk{p}) can access $p$'s disguise diffs, or learn what data objects $p$ and
 own. 
 
 \vspace{6pt}\noindent\textbf{\emph{(4) Privacy of Disguise History.}}
 We describe how \sys hides which disguises affect each principals' data by requiring a client to
-provide a locating capability \lcapa{p\delta_i} in order to find encrypted data from disguise $d$ applied
+provide a locating capability \lcapa{pd} in order to find encrypted data from disguise $d$ applied
 to (non-pseudoprincipal) $p$. Because \sys does not store these locations, and the locationsare per-disguise, \sys
 cannot link different disguises' encrypted data to the same principal.
 
 \begin{table}[t!]
 \centering
 \begin{tabular}{ c | c c }
-    & \multicolumn{2}{c}{\textbf{\tdata{p\delta_i} Token Access}}\\
+    & \multicolumn{2}{c}{\textbf{\tdata{pd} Token Access}}\\
 \textbf{Client Proof}& \textbf{Global} & \textbf{Private to $p$}\\
 \hline
     $\emptyset$ & plaintext & \\
     \privk{p} & plaintext & \\
-    \dcapa{p\delta_i} & plaintext & ciphertext \\
-    \privk{p}, \dcapa{p\delta_i} & plaintext & plaintext \\
+    \dcapa{p} & plaintext & ciphertext \\
+    \privk{p}, \dcapa{p} & plaintext & plaintext \\
 \end{tabular}
 \vspace{6pt}
 \caption{Client access to disguise $d$'s tokens, depending on what proof the client can provide and the state of the tokens.}
@@ -284,16 +290,16 @@ Table~\ref{tab:access} illustrates which clients can access a disguise $d$'s tok
 what the client presents as proof, and the state of the tokens.
 
 \sys ensures that private tokens are properly secured such that only a client with private key
-\privk{p} and capability \dcapa{p\delta_i} can access tokens produced by disguise $d$ associated with $p$.
+\privk{p} and capability \dcapa{p} can access tokens produced by disguise $d$ associated with $p$.
 %
-Furthermore, \sys ensures that only a client with capability \dcapa{p\delta_i} can learn if a disguise $d$
+Furthermore, \sys ensures that only a client with capability \dcapa{p} can learn if a disguise $d$
 applies to principal $p$.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Storing \tpriv{p}{q} Tokens.}
 \tpriv{p}{q} tokens are encrypted with \pubk{p} and the resulting ciphertexts stored in one array
 corresponding to the original principal $p$. These token ciphertexts are not separated by disguise
-as \tdata{p\delta_i} ciphertexts are, since \tpriv{p}{q} tokens grant the holder authorization to access
+as \tdata{pd} ciphertexts are, since \tpriv{p}{q} tokens grant the holder authorization to access
 tokens from any disguise for pseudoprincipal $q$.
 
 \sys (and equivalently an attacker) cannot learn which disguises applied to principal $p$ from

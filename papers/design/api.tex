@@ -12,19 +12,19 @@
     %\vspace{6pt}\\
     \fn{ApplyDisguise($p$, DisguiseSpec $d$,
         Vec<CapPair> caps)} $\rightarrow$\fn{(DisguiseInstance, Vec<CapPair>)} & Applies
-        disguise $d$ and returns the corresponding disguise instance $\delta_i$ and 
-        capability pair \pcapa{p\delta_i}. The provided capability pairs allow \sys to locate and access
+        disguise $d$ and returns the corresponding disguise instance $d$ and 
+        capability pair \pcapa{p}{d}. The provided capability pairs allow \sys to locate and access
         disguise diffs, which \sys uses to compose disguise $d$ on top of
     prior disguises.
         \vspace{6pt}\\
-    \fn{RevealDisguise($p$, DisguiseInstance $\delta_i$,
+    \fn{RevealDisguise($p$, DisguiseInstance $d$,
         Vec<CapPair> caps)} $\rightarrow$ ()& 
-    Reveals disguise instance $\delta_i$. The provided capability pairs grant \sys access to database
-    diffs from applying $\delta_i$, which allows \sys to reveal undisguised data.
+    Reveals disguise instance $d$. The provided capability pairs grant \sys access to database
+    diffs from applying $d$, which allows \sys to reveal undisguised data.
         %\vspace{6pt}\\
-    %\fn{GetEncryptedDataCap($p$, DisguiseInstance $\delta_i$,
-        %LocCap \lcapa{p\delta_i})} $\rightarrow$ \fn{EncryptedDataCap} & Returns the data capability \dcapa{p\delta_i} encrypted with
-        %\pubk{p}. \lcapa{p\delta_i} is required to retrieve the correct encrypted data capability.
+    %\fn{GetEncryptedDataCap($p$, DisguiseInstance $d$,
+        %LocCap \lcapa{pd})} $\rightarrow$ \fn{EncryptedDataCap} & Returns the data capability \dcapa{p} encrypted with
+        %\pubk{p}. \lcapa{pd} is required to retrieve the correct encrypted data capability.
 \end{tabular}
 \caption{Client-\sys API}
 \label{tab:client_api}
@@ -49,14 +49,14 @@
 \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-    \fn{CapPairEstablishesOwnership($p$, DatabaseObj $x$, CapPair \pcapa{p\delta_i})}
+    \fn{CapPairEstablishesOwnership($p$, DatabaseObj $x$, CapPair \pcapa{p}{d})}
     $\rightarrow$ \fn{bool} & Returns
     whether principal $p$ has ownership rights to the provided database object. The capability pair
     acts as proof that $p$ had been correlated with the object. 
     %\lyt{This would be a row, or the table + object primary key depending on what
     %we want to assume.}
     \vspace{6pt}\\
-    \fn{CapPairToDiffs}(\fn{CapPair \pcapa{p\delta_i}}) $\rightarrow$ \fn{Vec<Diff>} & Returns the
+    \fn{CapPairToDiffs}(\fn{CapPair \pcapa{p}{d}}) $\rightarrow$ \fn{Vec<Diff>} & Returns the
    disguise diffs accessible given the provided capability pair.
 \end{tabular}
 \caption{Server-Side API}
@@ -83,31 +83,31 @@ We next describe example usages of the API.
 %\head{Client-\sys: Retrieving Capabilities.}
 %%
 %Clients invoke API calls with capability \emph{pairs}. 
-%However, clients only ever receive and store locating capabilities \lcapa{p\delta_i} returned from
-%the application of $\delta_i$.
+%However, clients only ever receive and store locating capabilities \lcapa{pd} returned from
+%the application of $d$.
 %%
-%Thus, \sys provides a way for a client who has \lcapa{p\delta_i} to acquire the full capability pair
-%by retrieving an encrypted \dcapa{p\delta_i} via \fn{GetEncryptedDataCap} before invoking API calls.
+%Thus, \sys provides a way for a client who has \lcapa{pd} to acquire the full capability pair
+%by retrieving an encrypted \dcapa{p} via \fn{GetEncryptedDataCap} before invoking API calls.
 %
-%\sys stores \dcapa{p\delta_i} encrypted with \pubk{p}, so only a client who has both
-%\lcapa{p\delta_i} and \privk{p} can decrypt the respond with \privk{p} to get the necessary
-%\pcapa{p\delta_i} capability pair. 
+%\sys stores \dcapa{p} encrypted with \pubk{p}, so only a client who has both
+%\lcapa{pd} and \privk{p} can decrypt the respond with \privk{p} to get the necessary
+%\pcapa{p}{d} capability pair. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Client-\sys: Disguising and Revealing.}
 A client speaking for principal $p$ applies a disguise by providing the chosen disguise
 spec, and a set of locating and data capability pairs. These capability pairs allow \sys to access
 disguise diffs of the corresponding disguises to compose the new disguise on top of these disguises
-during application. Applying a disguise returns the instance identifier $\delta_i$ and the locating
-and data capability pair \pcapa{p\delta_i} that only the client stores. 
+during application. Applying a disguise returns the instance identifier $d$ and the locating
+and data capability pair \pcapa{p}{d} that only the client stores. 
 
 In order to reveal data disguised by $\delta$, a client speaking for $p$ invokes
-\fn{RevealDisguise}.  The client provides the capability pair (\lcapa{p\delta_i},\dcapa{p\delta{i}})
+\fn{RevealDisguise}.  The client provides the capability pair (\lcapa{pd},\dcapa{p\delta{i}})
 to allow \sys to access disguise diffs that it can use to restore the original, undisguised data.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Client-Application-\sys: Performing Application Actions with Permissions.}
-Imagine the scenario in which an invoked disguise $\delta_i$ for HotCRP anonymizes all reviewers and
+Imagine the scenario in which an invoked disguise $d$ for HotCRP anonymizes all reviewers and
 authors of a conference by decorrelating them from their papers and reviews respectively.
 
 The application normally ensures that only a client speaking for $p$ should have read-only access to
@@ -115,7 +115,7 @@ reviews for $p$'s authored papers, and read-write access to reviews $p$ wrote.
 
 If the client speaking for $p$ invokes application action $a$ such as ``edit review'' as it would
 normally, the application
-(post-$\delta_i)$ will not grant the client any read/write permissions to perform actions on 
+(post-$d)$ will not grant the client any read/write permissions to perform actions on 
 any reviews of the conference: any previously correlated paper or review is now associated with
 pseudoprincipal $q$.
 Instead, to allow the client speaking for $p$ to regain authorship or reviewership permissions, the client first invokes the
@@ -125,7 +125,7 @@ capability pairs.
 When the application attempts to perform $a$, the application code may check that the invoking
 principal $p$ owns object $x$ (\eg $p$ is the author of some paper or review). To work with
 disguises, the application developer augments these these checks with queries to \sys of
-\fn{CapPairEstablishesOwnership($p$, $x$, \pcapa{p\delta_i})} for all capability pairs provided by the
+\fn{CapPairEstablishesOwnership($p$, $x$, \pcapa{p}{d})} for all capability pairs provided by the
 client.
 
 If any query returns \fn{true}, the application can establish $p$'s ownership of $x$, even if $x$
