@@ -13,53 +13,50 @@ disguised data in a secure way, subject to the threat model we describe in \S\re
 \subsection{Use Cases \sys Should Support}
 
 \head{Example: HotCRP.}
-We imagine three useful disguises to support in HotCRP: 
+We imagine three useful disguises that aid privacy in HotCRP: 
 \begin{enumerate}
-    \item Per-user GDPR account deletion, which
+    \item Per-user GDPR Account Deletion, which
         removes all of a particular user's data such as reviews and papers.
-        \item Universal account pseudonymization, which replaces each user with an anonymous user
-            that has no personal identifiers (\eg no email address or identifying username).
-        \item Universal decorrelation, which decorrelates users from
-            their authored reviews and papers. Decorrelation of a paper or review (1) generates an
-            anonymous user in the user table, and (2) rewrites the foreign key from the paper or review
-            to the users table to point to the newly created anonymous user.
+    \item Universal Comment Removal, which removes all comments on papers.
+    \item Universal Decorrelation, which decorrelates users from
+        their authored reviews and papers. Decorrelation of a paper or review (1) generates an
+        anonymous user in the user table, and (2) rewrites the foreign key from the paper or review
+        to the users table to point to the newly created anonymous user.
 \end{enumerate}
 
 Users who invoke GDPR deletion are given the option to return by revealing their disguise; however,
 between disguising and revealing their account, no other entity learns the identity or existence of
 the user (ensuring that the disguise complies with the GDPR).
 
-Admins can apply universal account pseudonymization to provide a weak form of pseudonymization after a
-conference ends, erasing \eg identifying email accounts, usernames, and phone numbers. 
-After several years, the admin can decay identifiers in the conference data futher by decorrelating
-all users from their authored reviews and papers. Both disguises help protect reviewers and paper authors
-from being unblinded in the case of a data breach.
+After several years, the admin can decay identifiers in the conference data by decorrelating all
+users from their authored reviews and papers.  The admin may later decide that arbitrary text in
+paper comments also identifies their authors, and invoke universal comment removal.  Both disguises
+help protect reviewers and paper authors from being unblinded in the case of a data breach.
 
-Even after universal account pseudonymization or decorrelation, it would be nice if HotCRP allowed
-users to still apply GDPR account deletion to delete (even decorrelated) papers and reviews that they
-wrote: a disguise that applies to a user's data may, in some circumstances, apply to even decorrelated data.
+Account decorrelation should not prevent the application of universal comment removal
+or any other disguise on decorrelated data: disguises should be able to operate on top of
+already-disguised data, and if revealed, return the data to the previously disguised state. 
+In particular, if the initial disguise missed removing some identifying information, the
+application developer can simply write a new disguise to fix it.
 
-Furthermore, account pseudonymization should not prevent the application of a universal
-decorrelation disguise: disguises should be able to operate on top of already-disguised data, and if
-revealed, return the data to the previously disguised state. 
-%, and be
-%similarly revealable as if they applied to undisguised data.
+Even after universal decorrelation, it would be nice if HotCRP allowed users to still apply GDPR
+account deletion to delete (even decorrelated) papers and reviews that they wrote: a disguise that
+applies to a user's data may, in some circumstances, apply to data decorrelated from the user.
 
-Finally, HotCRP would retain much of its usefulness if users could be permitted to view
-reviews on their papers, or edit their reviews, even if these papers and reviews have been
-decorrelated and belong to anonymous users.
-However, this should be possible \emph{without} revealing to other users of the system which
-actual user authored these anonymized papers and reviews.
+Finally, HotCRP would retain much of its usefulness if users could be permitted to view reviews on
+their papers, or edit their reviews, even if these papers and reviews have been decorrelated and
+belong to anonymous users.  However, this should be possible \emph{without} revealing to other users
+of the system which actual user authored these anonymized papers and reviews.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Usability.} These disguising properties should be achieved with minimal burden on
 users. 
 
-When \sys disguises a user's paper or review for account pseudonymization or universal
-decorrelation, \sys emails a unique URL to the user corresponding to that a paper or review only
-known to the user. When the user wants to ask for permission to view (or edit, if permitted) the
-undisguised paper or review, the user simply has to click the URL link and log into the application.
-Thus, application of universal disguises should not require a user to be online in order to gain the
+When \sys disguises a user's data for universal decorrelation or comment removal, \sys emails a
+unique URL (a \emph{capability}) to the user corresponding to that a paper or review only known to
+the user. When the user wants to ask for permission to view (or edit, if permitted) the undisguised
+paper or review, the user simply has to click the URL link and log into the application. Thus,
+application of universal disguises should not require a user to be online in order to gain the
 capability to apply further disguises or view their disguised data.
 
 Similarly, when \sys disguises a user's data for GDPR deletion, the invoking user receives a URL
@@ -71,24 +68,24 @@ From the HotCRP example, we generalize a handful of the most beneficial and prac
 that \sys should support:
 
 \begin{itemize}
-    \item\textbf{Per-User, GDPR-Compliant Disguising and Revealing.}
-\sys should support user-invoked disguise(s) to modify, decorrelate and/or delete a user's data and
-        account that enable applications to meet the requirements of the GDPR's right to be
-        forgotten.
+    \item\textbf{1st-Party GDPR-Compliant Disguising and Revealing.}
+\sys should support user-invoked disguise(s) to modify, decorrelate and/or delete the user's data and
+account that enable applications to meet the requirements of the GDPR's right to be
+forgotten.
 %
 These disguises can optionally be revealable, which enables users to restore the original state of
         disguised data to \eg permanently restore their accounts and/or data ownership.
 
-\item\textbf{Universal Disguising.}
+\item\textbf{3rd-Party Disguising.}
 \sys should support universal, administrator-applied disguise to modify, decorrelate, and/or delete
         data of all users in the system.
 
 \item\textbf{Temporary Recorrelation without Database Changes.}
     \begin{itemize}
         \item \emph{For Disguising Decorrelated Data}: 
-            A disguise targeting a user's data can, if authorized, also operate on data decorrelated
-            from the user by prior disguises without modifying the database's persistent links between data and
-            owning users. For example, GDPR account deletion removes user $u$'s
+        A disguise targeting a user's data can, if authorized, also operate on data decorrelated
+            from the user by prior disguises without modifying the database's persistent links
+            between data and owning users. For example, GDPR account deletion removes user $u$'s
             reviews even if \sys has decorrelated these reviews from $u$.
 
     \item \emph{For Per-User Revealed Views and Permissions}:
@@ -101,14 +98,11 @@ These disguises can optionally be revealable, which enables users to restore the
             papers and reviews on their papers.
 \end{itemize}
 
-\item\textbf{Universal Disguising of Anonymized Users.}
-Data of anonymized users can be later disguised by a universal, administrator-applied disguise.
-For example, accounts can be
-pseudonymized, and then later decorrelated from all data belonging to the account.
-
-\lyt{I am not convinced about this use case anymore: In our example, why doesn't the admin
-just apply universal anonymization to begin with? Maybe we *should* only support
-a single decorrelation for each piece of data.}
+\item\textbf{Disguising of Anonymized Users.}
+Data of anonymized users can be later disguised.  For example, universal comment removal removes the
+        data of anonymized users.
+This allows disguises to be developed over time, and remove identifying data missed by prior
+        disguises..
 \end{itemize}
 
 \subsection{\sys Abstractions}
@@ -124,15 +118,15 @@ a single decorrelation for each piece of data.}
     person, and which are uniquely identifiable (\eg via a user ID).
         %
 	Pseudoprincipals are part of the set of application principals $p \in P$.
-        \lyt{I don't see why they should be a different set?}
+        %\lyt{I don't see why they should be a different set?}
 	%
-    \item A disguise specification that consists of one or more disguises, $d \in D$, which each specify
-	how \sys transforms the application database when $d$ is invoked by a principal $p$.
-	%
-	Each invocation of $d$ results in a unique \emph{disguise instance} $\delta_i$, identified by
-        a global disguise sequence number $i$.
-        \lyt{We can imagine the sequence number being split by disguise specification, but it
-        doesn't seem important here? All it needs to be is uniquely identifiable.}
+    \item A disguise $d \in D$ invoked by some principal $p$, which 
+        transforms the application database.
+        %specification that consists of one or more disguises, $d \in D$, which each specify how \sys 
+	%Each invocation of $d$ results in a unique \emph{disguise} $d$, identified by
+        %a global disguise sequence number $i$.
+        %\lyt{We can imagine the sequence number being split by disguise specification, but it
+        %doesn't seem important here? All it needs to be is uniquely identifiable.}
 	%
 \end{itemize}
 %
@@ -148,30 +142,27 @@ a single decorrelation for each piece of data.}
 \end{enumerate}
 
 \head{Data Access Control.}
-The application's normal permissions logic controls data access to database contents.  Only \sys
-ever accesses and needs to parse diff contents directly: \sys exposes an API (\S\ref{s:api})
-allowing the client or application to learn specific semantic information contained in diffs (\eg
-whether a particular principal used to own a now-decorrelated piece of data) if
-provided appropriate authorization. Clients can
-additionally request that \sys access and use diff information to reveal or apply disguises.
+The application's normal permissions logic controls data access to database contents. The
+application invokes \sys to access and needs to parse diff contents directly: \sys exposes an API
+(\S\ref{s:api}) allowing the client or application to learn specific semantic information contained
+in diffs (\eg whether a particular principal used to own a now-decorrelated piece of data) if
+provided appropriate authorization. Clients can additionally request via \sys to access and use diff
+information to reveal or apply disguises.
 
-\sys's access to diffs is controlled by a pair of capabilities: \lyt{(The application never directly
-accesses diffs, which is why I say \sys's access)}
+Access to diffs is controlled by a pair of capabilities: 
 \begin{enumerate}
-    \item \emph{\textbf{Data Capability \dcapa{p\delta_i}}}: Grants read access to disguise diff data
-        associated with principal $p$ produced from applying $\delta_i$.
-    \item \emph{\textbf{Locating Capability \lcapa{p\delta_i}}}: Allows locating the disguise
-        diffs associated with principal $p$ produced from applying $\delta_i$, but grants no 
+    \item \emph{\textbf{Data Capability \dcapa{pd}}}: Grants read access to disguise diff data
+        associated with principal $p$ produced from applying $d$.
+    \item \emph{\textbf{Locating Capability \lcapa{pd}}}: Allows locating the disguise
+        diffs associated with principal $p$ produced from applying $d$, but grants no 
         access to the diffs' data.
 \end{enumerate}
 
-\noindent Possession of the pair of data and locating capabilities \pcapa{p\delta_i} is required in
-practice to grant read access to disguise diff data.
-Each capability in the pair alone is insufficient: an attacker who can spoof
-\lcapa{p\delta_i} will not be able to access disguise diffs without
-\dcapa{p\delta_i}, although they can learn that $\delta_i$ disguised some of $p$'s data;
-and an attacker holding \dcapa{p\delta_i} cannot locate the disguise diffs to access without
-\lcapa{p\delta_i}.
+\noindent Possession of the pair of data and locating capabilities \pcapa{pd} is required in
+practice to grant read access to disguise diff data.  Each capability in the pair alone is
+insufficient: an attacker who can spoof \lcapa{pd} will not be able to access disguise diffs without
+\dcapa{pd}, although they can learn that $d$ disguised some of $p$'s data; and an attacker holding
+\dcapa{pd} cannot locate the disguise diffs to access without \lcapa{pd}.
 
 %-------------------------------------------------------------------------------
 \subsection{Threat Model}
@@ -220,33 +211,32 @@ With this threat model, \sys seeks to meet four security goals:
 %
 \vspace{6pt}\noindent\textbf{\emph{(1) Authorized Disguises.}}
 %
-Only a client properly authenticated as a principal $p$ who is authorized to invoke $d$ can apply (and
-later reveal) the corresponding disguise instance $\delta_i$.
+Only a client properly authenticated as a principal $p$ who is authorized to invoke $d$ can apply
+(and later reveal) the corresponding disguise $d$.
 %
 
 %
-\vspace{6pt}\noindent\textbf{\emph{(2) Secure Ownership.}}
-%
-Only a client who has both locating capability \lcapa{p\delta_i} and data capability
-\dcapa{p\delta_i} can reestablish ownership by $p$ of data previously owned by $p$ but decorrelated by $\delta_i$.
-Establishing ownership allows the application to grant permissions to $p$ to act upon data otherwise
-decorrelated from $p$.
+%\vspace{6pt}\noindent\textbf{\emph{(2) Secure Ownership.}}
+%%
+%Only a client who has both locating capability \lcapa{pd} and data capability
+%\dcapa{pd} can reestablish ownership by $p$ of data previously owned by $p$ but decorrelated by $d$.
+%Establishing ownership allows the application to grant permissions to $p$ to act upon data otherwise
+%decorrelated from $p$.
 %
 
-\vspace{6pt}\noindent\textbf{\emph{(3) Secure Disguise Diffs.}}
+\vspace{6pt}\noindent\textbf{\emph{(2) Secure Disguise Diffs.}}
 %
-Only a client who has both locating capability \lcapa{p\delta_i} and data capability
-\dcapa{p\delta_i} can grant \sys access to the disguise diffs from disguise instance $\delta_i$.
+Only an authenticated principal who provides both locating capability \lcapa{pd} and data capability
+\dcapa{pd} can authorize access to the disguise diffs from disguise $d$, as well as any information
+(\eg ownership permissions) derived from diffs.
 %
-\lyt{I put this as a separate goal because diffs are used to check ownership, but also potentially
-contain more information?}
 
-\vspace{6pt}\noindent\textbf{\emph{(4) Privacy of Disguise History.}}
+\vspace{6pt}\noindent\textbf{\emph{(3) Privacy of Disguise History.}}
 %
 An attacker cannot learn the set of disguises that have disguised a principal's data.
 %
-An attacker only learns a disguise instance $\delta_i$ exists if an authenticated principal $p$ provides
-locating capability \lcapa{p\delta_i} to \sys.
+An attacker only learns a disguise $d$ exists if an authenticated principal $p$ provides
+locating capability \lcapa{pd} to \sys.
 
 \vspace{6pt}\noindent\textbf{\emph{Non-Goals.}}
 %
@@ -256,12 +246,12 @@ Under \sys's threat model, the following properties are out of scope:
     \item Security of disguised data when an attacker has prior snapshots the system.
     %\item Authorized disguises if an attacker authenticates as a principal $p$. \ms{this seems trivial}
     %\item Security of disguise changes and disguise history applied to $p$ if $p$'s private key, \privk{p}, is compromised.
-    %\item Security of disguise changes and disguise history of $\delta_i$ applied to $p$ if an
-        %authorized client provides \lcapa{p\delta_i} and \dcapa{p\delta_i}. \ms{as above}
+    %\item Security of disguise changes and disguise history of $d$ applied to $p$ if an
+        %authorized client provides \lcapa{pd} and \dcapa{pd}. \ms{as above}
     \item Security of metadata such as the number of disguises applied to, or number of
 	disguise change records associated with, a particular principal $p$.
     \item Privacy guarantees about undisguised data: if identifying data about $p$ is not covered by
-        disguise specification $d$, it remains visible to attackers after corresponding instance $\delta_i$ applies.
+        disguise specification $d$, it remains visible to attackers after corresponding instance $d$ applies.
         For example, a disguise that leaves contents of posts unmodified does not hide identifying references
 	to users in that content.
     \item Hiding whether data is disguised or not. For example, if a post's author is anonymized as ``anonFox'',
