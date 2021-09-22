@@ -5,7 +5,7 @@ Our design considers typical database-backed applications that link a library im
 tool (\sys).
 %
 \sys provides an API that the application uses to specify disguises, apply them, and (in some
-cases), reveal disguised data with proper authorization (Table~\ref{tab:client_api}).
+cases), reveal disguised data with proper authorization (Table~\ref{tab:api}).
 %
 \sys executes the database transformations required as part of a disguise, and stores
 disguised data in a secure way, subject to the threat model we describe in \S\ref{s:threat}.
@@ -149,9 +149,9 @@ These disguises can optionally be revealable, which enables users to restore the
 \head{Data Access Control.}
 The application's normal permissions logic controls data access to database contents. The
 application invokes \sys to access and needs to parse diff contents directly: \sys exposes an API
-(\S\ref{s:api}) allowing the client or application to learn specific semantic information contained
-in diffs (\eg whether a particular principal used to own a now-decorrelated piece of data) if
-provided appropriate authorization. Clients can additionally request via \sys to access and use diff
+(\S\ref{s:api}) allowing the application to learn specific semantic information contained in diffs
+(\eg whether a particular principal used to own a now-decorrelated piece of data) if provided
+appropriate authorization. This authorization also allows the application to ask \sys to use diff
 information to reveal or apply disguises.
 
 \vspace{6pt}\noindent

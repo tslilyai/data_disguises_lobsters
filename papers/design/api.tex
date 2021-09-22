@@ -7,27 +7,25 @@
     \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-    %\fn{RegisterPrincipal($p$, Email email, PubKey $\pubk{p}$)} $\rightarrow$ () & Registers $p$ as
-        %a principal in \sys.\\
-    %\vspace{6pt}\\
-    \fn{ApplyDisguise($p$, DisguiseSpec $d$,
-        Vec<CapPair> caps)} $\rightarrow$\fn{(DisguiseInstance, Vec<CapPair>)} & Applies
-        disguise $d$ and returns the corresponding disguise instance $d$ and 
-        capability pair \pcapa{p}{d}. The provided capability pairs allow \sys to locate and access
-        disguise diffs, which \sys uses to compose disguise $d$ on top of
-    prior disguises.
+    \fn{ApplyDisguise($p$, Disguise $d$, Vec<CapPair> caps)} $\rightarrow$\fn{Vec<CapPair>} & 
+        Applies disguise $d$ and returns the corresponding disguise $d$ and capability pair
+        \pcapa{p}{d}. The provided capability pairs allow \sys to locate and access disguise diffs,
+        which \sys uses to compose disguise $d$ on top of prior disguises.
         \vspace{6pt}\\
-    \fn{RevealDisguise($p$, DisguiseInstance $d$,
+    \fn{RevealDisguise($p$, Disguise $d$,
         Vec<CapPair> caps)} $\rightarrow$ ()& 
-    Reveals disguise instance $d$. The provided capability pairs grant \sys access to database
+    Reveals disguise $d$. The provided capability pairs grant \sys access to database
     diffs from applying $d$, which allows \sys to reveal undisguised data.
-        %\vspace{6pt}\\
-    %\fn{GetEncryptedDataCap($p$, DisguiseInstance $d$,
-        %LocCap \lcapa{pd})} $\rightarrow$ \fn{EncryptedDataCap} & Returns the data capability \dcapa{p} encrypted with
-        %\pubk{p}. \lcapa{pd} is required to retrieve the correct encrypted data capability.
-\end{tabular}
-\caption{Client-\sys API}
-\label{tab:client_api}
+        \vspace{6pt}\\
+   \fn{CapPairEstablishesOwnership($p$, DatabaseObj $x$, CapPair \pcapa{p}{d})}
+    $\rightarrow$ \fn{bool} & Returns
+    whether principal $p$ has ownership rights to the provided database object. The capability pair
+    acts as proof that $p$ had been correlated with the object. 
+    %\fn{CapPairToDiffs}(\fn{CapPair \pcapa{p}{d}}) $\rightarrow$ \fn{Vec<Diff>} & Returns the
+   %disguise diffs accessible given the provided capability pair.
+    \end{tabular}
+\caption{The \sys Library API}
+\label{tab:api}
 \end{table*}
 
 \begin{table*}[t!]
@@ -35,49 +33,72 @@
     \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-\fn{ActWithCapPairs($p$, Action $a$, Vec<CapPair> caps)} $\rightarrow$ bool & Requests
-        a particular application action $a$ specific to the application's API (\eg read access to paper reviews) with the provided
-        capabilities.
+    \fn{ApplyDisguise($p$, Disguise $d$,
+        Vec<CapPair> caps)} $\rightarrow$\fn{Vec<CapPair>} & 
+        Wrapper around a call to \sys's \fn{ApplyDisguise}.
+        \vspace{6pt}\\
+    \fn{RevealDisguise($p$, Disguise $d$,
+        Vec<CapPair> caps)} $\rightarrow$ ()& 
+        Wrapper around a call to \sys's \fn{RevealDisguise}.
+        \vspace{6pt}\\
+\fn{ActWithCaps($p$, Action $a$, Vec<CapPair> caps)} $\rightarrow$ bool & Requests
+    a particular application action $a$ specific to the application's API (\eg read access to paper reviews) with the provided
+    capabilities.
 \end{tabular}
-\caption{Client-Application API}
+\caption{Modified Application API}
 \label{tab:app_api}
-\end{table*}
-
-
-\begin{table*}[t!]
-\centering
-\begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
-\textbf{API Call} & \textbf{Description} \\
-\hline
-    \fn{CapPairEstablishesOwnership($p$, DatabaseObj $x$, CapPair \pcapa{p}{d})}
-    $\rightarrow$ \fn{bool} & Returns
-    whether principal $p$ has ownership rights to the provided database object. The capability pair
-    acts as proof that $p$ had been correlated with the object. 
-    %\lyt{This would be a row, or the table + object primary key depending on what
-    %we want to assume.}
-    \vspace{6pt}\\
-    \fn{CapPairToDiffs}(\fn{CapPair \pcapa{p}{d}}) $\rightarrow$ \fn{Vec<Diff>} & Returns the
-   disguise diffs accessible given the provided capability pair.
-\end{tabular}
-\caption{Server-Side API}
-\label{tab:internal_api}
 \end{table*}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-At a high level, \sys's API is broken up into a client-side API (\ie calls made in Javascript from a
-client browser), and a server-side API (\ie calls made by the application to \sys, or by \sys 
-itself).
-
-The client-side API in Table~\ref{tab:client_api} allows the client to 
-%register a principal, 
-%retrieve relevant capabilities, and 
-apply and reveal disguises. The server-side API in Table~\ref{tab:internal_api} allows the
-application/\sys to gain access to data using capabilities.  Applications integrating with \sys may
-also expose an extra API call to the client shown in Table~\ref{tab:app_api} that allows the
-application to receive the capability along with the normal API call.
+\sys's API in Table~\ref{tab:api} enables the application to support disguise application and
+revealing.
+%
+The application also uses \sys to gain access to data or information granted by the provided capabilities. 
+Applications integrating with \sys may modify the application API invoked by clients, shown in
+Table~\ref{tab:app_api}, such that the client can pass capabilities to the application along with
+the action to perform.
 
 We next describe example usages of the API.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Disguising and Revealing.}
+A client speaking for principal $p$ applies a disguise by invoking the application wrapper around
+\fn{ApplyDisguise}; the application invokes \sys's library call, 
+with the provided disguise and a set of locating and data capability pairs. These capability pairs
+allow \sys to access disguise diffs of the corresponding disguises to compose the new disguise on
+top of these disguises during application. Applying a disguise returns the locating and data
+capability pair \pcapa{p}{d} that only the client stores. 
+
+In order to reveal data disguised by $d$, a client speaking for $p$ invokes \fn{RevealDisguise}.
+The client provides the capability pair (\lcapa{pd},\dcapa{p}). The application passes these to
+\sys to restore the original, undisguised data with access to the corresponding diffs.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Performing Permitted Application Actions.}
+Imagine that invoked disguise $d$ for HotCRP anonymizes all reviewers and authors of a conference by
+decorrelating them from their papers and reviews respectively.
+
+The application normally ensures that only a client speaking for $p$ should have read-only access to
+reviews for $p$'s authored papers, and read-write access to reviews $p$ wrote.
+
+If the client speaking for $p$ invokes application action $a$ such as ``edit review'' as it would
+normally, the application (post-$d)$ will not grant the client any read/write permissions to perform
+actions on any reviews of the conference: any previously correlated paper or review is now
+associated with pseudoprincipal $q$.  Instead, to allow the client speaking for $p$ to regain
+authorship or reviewership permissions, the client first invokes the \fn{ActWithCaps} API call to
+the application, passing in the action $a$ and a set of capability pairs.  
+
+When the application attempts to perform $a$, the application code may check that the invoking
+principal $p$ owns object $x$ (\eg $p$ is the author of some paper or review). To work with
+disguises, the application developer augments these these checks by invoking \sys's
+\fn{CapPairEstablishesOwnership($p$, $x$, \pcapa{p}{d})} call for all capability pairs provided by
+the client.
+
+If any call returns \fn{true}, the application can establish $p$'s ownership of $x$, even if $x$ is
+currently owned (in the application database) by pseudoprincipal $q$. The application can thus treat
+the client as if the client speaks for pseudoprincipal $q$, and permit the action $a$ (\eg read
+reviews on $q$'s authored papers, or read/write reviews belonging to $q$).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %\head{Client-\sys: Retrieving Capabilities.}
@@ -93,45 +114,6 @@ We next describe example usages of the API.
 %\lcapa{pd} and \privk{p} can decrypt the respond with \privk{p} to get the necessary
 %\pcapa{p}{d} capability pair. 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Client-\sys: Disguising and Revealing.}
-A client speaking for principal $p$ applies a disguise by providing the chosen disguise
-spec, and a set of locating and data capability pairs. These capability pairs allow \sys to access
-disguise diffs of the corresponding disguises to compose the new disguise on top of these disguises
-during application. Applying a disguise returns the instance identifier $d$ and the locating
-and data capability pair \pcapa{p}{d} that only the client stores. 
-
-In order to reveal data disguised by $\delta$, a client speaking for $p$ invokes
-\fn{RevealDisguise}.  The client provides the capability pair (\lcapa{pd},\dcapa{p\delta{i}})
-to allow \sys to access disguise diffs that it can use to restore the original, undisguised data.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Client-Application-\sys: Performing Application Actions with Permissions.}
-Imagine the scenario in which an invoked disguise $d$ for HotCRP anonymizes all reviewers and
-authors of a conference by decorrelating them from their papers and reviews respectively.
-
-The application normally ensures that only a client speaking for $p$ should have read-only access to
-reviews for $p$'s authored papers, and read-write access to reviews $p$ wrote.
-
-If the client speaking for $p$ invokes application action $a$ such as ``edit review'' as it would
-normally, the application
-(post-$d)$ will not grant the client any read/write permissions to perform actions on 
-any reviews of the conference: any previously correlated paper or review is now associated with
-pseudoprincipal $q$.
-Instead, to allow the client speaking for $p$ to regain authorship or reviewership permissions, the client first invokes the
-\fn{ActWithCapabilities} API call to the application, passing in the action $a$ and a set of
-capability pairs.  
-
-When the application attempts to perform $a$, the application code may check that the invoking
-principal $p$ owns object $x$ (\eg $p$ is the author of some paper or review). To work with
-disguises, the application developer augments these these checks with queries to \sys of
-\fn{CapPairEstablishesOwnership($p$, $x$, \pcapa{p}{d})} for all capability pairs provided by the
-client.
-
-If any query returns \fn{true}, the application can establish $p$'s ownership of $x$, even if $x$
-is currently owned (in the application database) by pseudoprincipal $q$. The application can thus
-treat the client as if the client speaks for pseudoprincipal $q$, and permit the action $a$ (\eg 
-read reviews on $q$'s authored papers, or read/write reviews belonging to $q$).
 
 
 \iffalse
@@ -143,7 +125,7 @@ read reviews on $q$'s authored papers, or read/write reviews belonging to $q$).
     \vspace{6pt}
     %\fn{RegisterPrincipal($p$, email, $\pubk{p}$) $\rightarrow ()$} & Registers $p$ as a principal whose data can be privately disguised.\\
     %\vspace{6pt}
-    \fn{GetGlobalAddresses($p$)} $\rightarrow$ \{\addr{p\delta}\} & Retrieves the (globally 
+    \fn{GetGlobalAddresses($p$)} $\rightarrow$ \{\addr{p\d}\} & Retrieves the (globally 
     available) addresses associated with principal $p$; nonempty only if $p$ is a pseudoprincipal.\\
     \vspace{6pt}
     \fn{AddressesToEncTokenKeys(\{\addr{}\}) $\rightarrow$ \{Enc(\symk{})\}} & Uses the provided
@@ -158,7 +140,7 @@ read reviews on $q$'s authored papers, or read/write reviews belonging to $q$).
     allow \sys to compose disguise $d$ on top of these previous disguises.  This function returns a
     set of addresses corresponding to the addresses of \tdata{} and \symk{} ciphertexts produced by this disguise.\\
     \vspace{6pt}
-    \fn{Reveal($d$, \{\symk{p\delta}\}) $\rightarrow ()$} & 
+    \fn{Reveal($d$, \{\symk{p\d}\}) $\rightarrow ()$} & 
     Reveals disguise $d$.  The provided set of symmetric keys corresponding to disguise $d$ and
     potentially several principals grant \sys access to tokens from disguise $d$ for these
     principals. \sys reveals the data stored in the tokens if possible.
@@ -250,25 +232,25 @@ the set of provided addresses; and decrypt and provide these \symk{}s to \sys to
 \vspace{6pt}\noindent\textbf{(2) \tdata{} Token Ciphertext Storage.}
 \sys must hide which token ciphertexts correspond to which principals.  Naively, \sys can store
 all ciphertexts in one bag; in order to determine which ciphertexts a client may access, the client
-provides the decrypted \symk{p\delta} and \sys tries to decrypt every ciphertext in the bag. This clearly
+provides the decrypted \symk{p\d} and \sys tries to decrypt every ciphertext in the bag. This clearly
 has poor performance and is unscalable.
 However, \sys cannot group the ciphertexts into bags indexed by principal ID: this leaks information
 about the number of private tokens associated with a principal.
 
-To provide metadata privacy while achieving better performance, \sys stores encrypted \tdata{p\delta} and
+To provide metadata privacy while achieving better performance, \sys stores encrypted \tdata{p\d} and
 \tpriv{pq} tokens in a linked list of encrypted tokens produced by $d$ associated with $p$, notated
-as \tokls{p\delta}. 
+as \tokls{p\d}. 
 Tokens store links to the next token in the list with in an additional \fn{nextEncToken} field: this
-field stores a pointer to the location of current tail of \tokls{p\delta} for $p$ and $d$.
-Thus, only by decrypting tokens in the list one by one can the entire \tokls{p\delta} be discovered and
+field stores a pointer to the location of current tail of \tokls{p\d} for $p$ and $d$.
+Thus, only by decrypting tokens in the list one by one can the entire \tokls{p\d} be discovered and
 the ciphertexts in the list decrypted.
 
-\sys stores current pointers to the tails of \tokls{p\delta} indexed by $p$ and $d$. This allows \sys to
+\sys stores current pointers to the tails of \tokls{p\d} indexed by $p$ and $d$. This allows \sys to
 know where to start decrypting the list of tokens given $p$ and $d$, and how to set
-\fn{nextEncToken} for a new token in \tokls{p\delta} produced when applying $d$. \sys generates dummy
+\fn{nextEncToken} for a new token in \tokls{p\d} produced when applying $d$. \sys generates dummy
 tail pointers for all principals not associated with disguise $d$ to hide metadata about which lists
 exist.
-Because \tokls{p\delta} tails point to (real or dummy) token ciphertexts, an adversary learns nothing
+Because \tokls{p\d} tails point to (real or dummy) token ciphertexts, an adversary learns nothing
 about the token contents or how many tokens are associated with a principal.
 
 \vspace{6pt}\noindent\textbf{(3) \tpriv{} Token Ciphertext Storage.}
@@ -298,10 +280,10 @@ time to the client because each token is encrypted with \pubk{p}}.
     \vspace{6pt}
     \fn{RequestTokenAccess(encSymKeys)} & Sent from \sys to a client authenticated as
     $p$, requesting the client decrypt all the encrypted symmetric keys in \fn{encSymKeys} with
-    \privk{p} and uncover the corresponding \symk{p\delta}s. \\
+    \privk{p} and uncover the corresponding \symk{p\d}s. \\
     \vspace{6pt}
-    \fn{GrantTokenAccess(\{\symk{p\delta}\})} & Grants \sys permission, for all \symk{p\delta} in the
-    argument, to decrypt any privately-stored \tdata{p\delta} and \tpriv{pdq} with \symk{p\delta}.
+    \fn{GrantTokenAccess(\{\symk{p\d}\})} & Grants \sys permission, for all \symk{p\delta} in the
+    argument, to decrypt any privately-stored \tdata{p\d} and \tpriv{pdq} with \symk{p\delta}.
 \end{tabular}
     \vspace{6px}
 \caption{API Calls for Client Authenticated as Principal $p$}
