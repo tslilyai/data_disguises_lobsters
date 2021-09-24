@@ -21,8 +21,9 @@ generate new user accounts in a manner that the application can handle (e.g., ps
 not have email addresses).
 
 Finally, developers specify which principals are authorized to apply the disguise: enforcing access
-control for disguising is left to the application.  \lyt{It seems most reasonable for the
-application to enforce AC for the disguising API the application exposes to the client?}
+control for disguising is left to the application.  
+%\lyt{It seems most reasonable for the
+%pplication to enforce AC for the disguising API the application exposes to the client?}
 
 \vspace{6pt}\noindent
 Operations come in three forms:
@@ -46,9 +47,9 @@ Operations come in three forms:
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Database Diffs.}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Every \op{d} produces a \emph{database diff} \tdata{pd} associated with the disguise instance $\delta$ and a principal $p$. 
+Every \op{d} produces a \emph{database diff} \tdata{pd} associated with the disguise $\delta$ and a principal $p$. 
 
-Each \tdata{pd} contains the ID of the disguise instance, the associated principal $p$'s ID,
+Each \tdata{pd} contains the ID of the disguise, the associated principal $p$'s ID,
 and a random nonce.
 %
 In addition to this data, a decorrelation \tdata{pd} contains the created pseudoprincipal's
@@ -59,27 +60,24 @@ ID; a removal \tdata{pd} contains the removed object's value; and a modification
 \subsection{Diff Access Control.} 
 
 \head{Securing Access to Database Diffs.} 
-\sys secures database diffs with data capabilities \dcapa{p}.
-\sys represents a data capability \dcapa{p} as a symmetric key specific to
-the disguise instance and principal.
+\sys's design assigns principal $p$'s private key \privk{p} as the data capability \dcapa{p}. \sys
+secures database diffs \tdata{pd} by encrypting them with \pubk{p}. The diff's nonce ensures safety
+against known-plaintext attacks. 
+
+%\sys represents a data capability \dcapa{p} as a symmetric key specific to
+%the disguise and principal.
 %
-\sys encrypts \tdata{pd} with the \dcapa{p}. The diff's nonce ensures safety against
-known-plaintext attacks. 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Securing Disguise History.}
-\sys's design may leak information that $d$ disguised principal $p$ 
-because an adversary may learn that ciphertexts for %\dcapa{p} and
-\tdata{pd} exist for a particular $p$ and $d$.
-This is a problem: for example, \sys should not store information that a principal $p$ has
-invoked GDPR deletion.
+\sys's design may leak information that $d$ disguised principal $p$ because an adversary may learn
+that ciphertexts for \tdata{pd} exist for a particular $p$ and $d$.  This is a problem: for example,
+\sys should not store information that a principal $p$ has invoked GDPR deletion.
 
-To avoid this problem, \sys stores 
-%(1) the \dcapa{p} ciphertext and (2) 
-an array of \tdata{pd} ciphertexts at random location pointed to by locating capability
-\lcapa{pd}.  This dissociates one disguise applied to a principal $p$ from all other
-disguises, so an adversary only ever learns about a single disguise instance if \sys gains
-permission to reveal or compose upon that disguise instance.
+To avoid this problem, \sys stores an array of \tdata{pd} ciphertexts at random location pointed to
+by locating capability \lcapa{pd}.  This dissociates one disguise applied to a principal $p$ from
+all other disguises, so an adversary only ever learns about a single disguise if \sys gains
+permission to reveal or compose upon that disguise.
 
 Note that an adversary without access to any \lcapa{pd} can learn that $n$ diffs exist for
 \emph{some} $p$ and $d$, but cannot directly identify which $p$ or $d$.  If an adversary has access
@@ -88,26 +86,30 @@ for that $p$ and $d$. This metadata is out of scope of our threat model.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Storage of \dcapa{p} and \lcapa{pd}.} 
-\sys should not store \dcapa{p} or \lcapa{pd}: an adversary could then
-learn that $d$ has applied to principal $p$. Thus, these capabilities must be stored externally,
-even when no client speaking for $p$ is currently online.
+\sys should not store \dcapa{p} or \lcapa{pd}: an adversary could then learn that $d$ has applied to
+principal $p$. Thus, these capabilities must be stored externally, even when no client speaking for
+$p$ is currently online.
 %
 %The only exception to this occurs when $p$ is a pseudoprincipal: in this case, \sys saves a
 %(globally accessible) mapping from $p$ to \lcapa{pd}. This leaks the disguise history of
 %pseudoprincipals, but is allowable because pseudoprincipals' data has already been decorrelated from their
 %original principal owner.
 %
-To communicate these capabilities to a client,
-\sys emails (or otherwise communicates) \pcapa{p}{d} to a party that can authenticate as $p$. 
-\lyt{This assumes that every real user must have an email; alternatively, this could be offloaded to
-the application.}
+
+Clients already hold \dcapa{p} for real principals: the client creates a user account for $p$ and registers
+a public key \pubk{p} for the principal. Only clients have persistent access to \privk{p}.
+
+However, \sys generates \lcapa{pd} during disguising, and must communicate \lcapa{pd} to clients.
+\sys emails \lcapa{pd} to the corresponding email address associated with $p$.  
+This allows \sys to disguise data of principals even when no client authenticated as $p$ has an
+active session open.
 %If no email is present (\eg $p$ is a pseudoprincipal), \sys can save a (globally accessible) mapping from $p$ to \lcapa{pd}; this leaks disguise-principal associations, but
 %only for pseudoprincipals whose data is already decorrelated from their original principal owner.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Which Use Cases and Security Properties Have We Achieved?}
-As the current design stands, \sys supports ``Per-User, GDPR-Compliant Disguising and
-Revealing'' and ``Universal Disguising''.
+As the current design stands, \sys supports 1st-person and 3rd-person disguising, as well as
+1st-eprson revealing.
 %
 Application developers can write GDPR-compliant and/or universal disguises with the primitives
 exposed by \sys to write disguise specifications.
@@ -117,23 +119,21 @@ revealing does not revert updates made to the data since the time of disguise ap
 
 %
 \sys also supports ``Temporary Recorrelation without Database Changes'' because \sys can determine
-the original owner of data as long as \sys has access to decorrelation diffs (which the client
-or the application provides via the appropriate capability pairs).
+the original owner of data as long as \sys has access to decorrelation diffs (which the client or
+the application provides via the appropriate capability pairs).
 %
 \sys can use information from decorrelation diffs to disguise decorrelated data as if it were owned
 by the original user; and 
 %
-\sys can support the API discussed in \S\ref{s:api}, which allows applications to query \sys to check
-ownership properties and grant authorized users personalized views and permissions to access data objects.
-
+\sys can support the API discussed in \S\ref{s:api}, which allows applications to query \sys to
+check ownership properties and grant authorized users personalized views and permissions to access
+data objects.
 
 Furthermore, \sys does this while meeting all security goals: \sys supports authorized disguises and
 ensures the security of ownership claims, disguise diffs, and disguise history.
 
-Our current design falls short, however, by failing to support ``Universal Disguising of Anonymized
-users'' which we explain next.
-
-
+Our current design falls short, however, by failing to support ``Disguising Anonymized
+Users'' which we explain next.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
@@ -254,7 +254,7 @@ reveal a disguise, achieving security goal (1).
 
 \vspace{6pt}\noindent\textbf{\emph{(2/3) Secure Ownership and Secure Disguise Diffs.}}
 \lcapa{pd} is required to find the encrypted \dcapa{p}---a symmetric key
-specific to each disguise instance $\delta$ and principal $p$ encrypted with \pubk{p}.
+specific to each disguise $\delta$ and principal $p$ encrypted with \pubk{p}.
 Because \sys encrypts \tdata{pd} diffs associated with $p$ with \dcapa{p}, a client
 needs to first decrypt $\dcapa{p}$ with \privk{p}, and then hand the pair \pcapa{p}{d}
 to \sys for \sys to decrypt of $p$'s diffs from $d$.

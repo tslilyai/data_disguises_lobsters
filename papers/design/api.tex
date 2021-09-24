@@ -7,6 +7,9 @@
     \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
+    \fn{RegisterPrincipal($p$, Email email, PubKey $\pubk{p}$)} $\rightarrow$ () & Registers $p$ as
+        a principal with public key \pubk{p}.\\
+    \vspace{6pt}\\
     \fn{ApplyDisguise($p$, Disguise $d$, Vec<CapPair> caps)} $\rightarrow$\fn{Vec<CapPair>} & 
         Applies disguise $d$ and returns the corresponding disguise $d$ and capability pair
         \pcapa{p}{d}. The provided capability pairs allow \sys to locate and access disguise diffs,
@@ -31,6 +34,9 @@
     \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
+\fn{RegisterPrincipal($p$, Email email, PubKey $\pubk{p}$)} $\rightarrow$ () & Wrapper to \sys's
+        \fn{RegisterPrincipal}.\\
+    \vspace{6pt}\\
     \fn{ApplyDisguise($p$, Disguise $d$,
         Vec<CapPair> caps)} $\rightarrow$\fn{Vec<CapPair>} & 
         Wrapper around a call to \sys's \fn{ApplyDisguise}.
@@ -52,12 +58,17 @@
 \sys's API in Table~\ref{tab:api} enables the application to support disguise application and
 revealing.
 %
-The application also uses \sys to gain access to data or information granted by the provided capabilities. 
-Applications integrating with \sys may modify the application API invoked by clients, shown in
-Table~\ref{tab:app_api}, such that the client can pass capabilities to the application along with
-the action to perform.
+The application also uses \sys to access and interpret diffs authorized by the provided
+capabilities.  Applications integrating with \sys may modify the application API invoked by clients,
+shown in Table~\ref{tab:app_api}, such that the client can pass capabilities to the application
+along with the action to perform.
 
 We next describe example usages of the API.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Principal Registration.}
+Every client who creates an application account for principal $p$ registers an email and public key with \sys.
+\sys remembers each public key \pubk{p} along with $p$'s ID.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Disguising and Revealing.}
@@ -69,7 +80,7 @@ top of these disguises during application. Applying a disguise returns the locat
 capability pair \pcapa{p}{d} that only the client stores. 
 
 In order to reveal data disguised by $d$, a client speaking for $p$ invokes \fn{RevealDisguise}.
-The client provides the capability pair (\lcapa{pd},\dcapa{p}). The application passes these to
+The client provides the capability pair \pcapa{p}{d}. The application passes these to
 \sys to restore the original, undisguised data with access to the corresponding diffs.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
