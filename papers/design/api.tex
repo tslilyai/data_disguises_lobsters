@@ -34,16 +34,16 @@
     \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-\fn{RegisterPrincipal($p$, Email email, PubKey $\pubk{p}$)} $\rightarrow$ () & Wrapper to \sys's
+\fn{RegisterPrincipal($p$, Email email, PubKey $\pubk{p}$)} $\rightarrow$ () & Wrapper around \sys's
         \fn{RegisterPrincipal}.\\
     \vspace{6pt}\\
     \fn{ApplyDisguise($p$, Disguise $d$,
         Vec<CapPair> caps)} $\rightarrow$\fn{Vec<CapPair>} & 
-        Wrapper around a call to \sys's \fn{ApplyDisguise}.
+        Wrapper around \sys's \fn{ApplyDisguise}.
         \vspace{6pt}\\
     \fn{RevealDisguise($p$, Disguise $d$,
         Vec<CapPair> caps)} $\rightarrow$ ()& 
-        Wrapper around a call to \sys's \fn{RevealDisguise}.
+        Wrapper around \sys's \fn{RevealDisguise}.
         \vspace{6pt}\\
 \fn{ActWithCaps($p$, Action $a$, Vec<CapPair> caps)} $\rightarrow$ bool & Requests
     a particular application action $a$ specific to the application's API (\eg read access to paper reviews) with the provided

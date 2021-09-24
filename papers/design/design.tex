@@ -60,9 +60,10 @@ ID; a removal \tdata{pd} contains the removed object's value; and a modification
 \subsection{Diff Access Control.} 
 
 \head{Securing Access to Database Diffs.} 
-\sys's design assigns principal $p$'s private key \privk{p} as the data capability \dcapa{p}. \sys
-secures database diffs \tdata{pd} by encrypting them with \pubk{p}. The diff's nonce ensures safety
+\sys's design uses principal $p$'s private key \privk{p} as the data capability \dcapa{p}. \sys
+secures $p$'s diffs \tdata{pd} by encrypting them with \pubk{p}. The diff's nonce ensures safety
 against known-plaintext attacks. 
+Only a client who knows \privk{p} can access diffs.
 
 %\sys represents a data capability \dcapa{p} as a symmetric key specific to
 %the disguise and principal.
@@ -85,8 +86,8 @@ to \lcapa{pd}, the adversary can learn that $d$ applied to $p$, and the number o
 for that $p$ and $d$. This metadata is out of scope of our threat model.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Storage of \dcapa{p} and \lcapa{pd}.} 
-\sys should not store \dcapa{p} or \lcapa{pd}: an adversary could then learn that $d$ has applied to
+\head{Storage of Capabilities.}
+\sys should not store \privk{p} or \lcapa{pd}: an adversary could then learn that $d$ has applied to
 principal $p$. Thus, these capabilities must be stored externally, even when no client speaking for
 $p$ is currently online.
 %
@@ -96,13 +97,13 @@ $p$ is currently online.
 %original principal owner.
 %
 
-Clients already hold \dcapa{p} for real principals: the client creates a user account for $p$ and registers
-a public key \pubk{p} for the principal. Only clients have persistent access to \privk{p}.
+Clients already hold \privk{p}. Only clients have persistent access to \privk{p}, and \sys only
+stores the corresponding \pubk{p} when the client creates a user account for $p$ and registers a
+public key \pubk{p} for the principal.
 
-However, \sys generates \lcapa{pd} during disguising, and must communicate \lcapa{pd} to clients.
-\sys emails \lcapa{pd} to the corresponding email address associated with $p$.  
-This allows \sys to disguise data of principals even when no client authenticated as $p$ has an
-active session open.
+Because \sys generates \lcapa{pd} during disguising, \sys must communicate \lcapa{pd} to clients.
+\sys emails \lcapa{pd} to the corresponding email address associated with $p$.  This allows \sys to
+disguise data of principals even when no client authenticated as $p$ has an active session open.
 %If no email is present (\eg $p$ is a pseudoprincipal), \sys can save a (globally accessible) mapping from $p$ to \lcapa{pd}; this leaks disguise-principal associations, but
 %only for pseudoprincipals whose data is already decorrelated from their original principal owner.
 
@@ -219,10 +220,10 @@ Because \tpriv{p}{q} is encrypted with \pubk{p}, only a client who has
 
 
 \head{Protecting \dcapa{p} when stored by \sys.}
-\lyt{We need public keys here so that \sys does not hold onto keys that can decrypt for pseudoprincipals!!}
+%\lyt{We need public keys here so that \sys does not hold onto keys that can decrypt for pseudoprincipals!!}
 \sys then encrypts \dcapa{p} with public key \pubk{p}.  
 %
-Thus, only a client who has \privk{p} can decrypt the data capability, and return in the capability pair the plaintext symmetric key that enables \sys to decrypt $p$'s database diffs produced from applying $d$.
+Thus, only a client who has \privk{p} can decrypt the private key, and return in the capability pair the plaintext symmetric key that enables \sys to decrypt $p$'s database diffs produced from applying $d$.
 
 %\sys stores all global \tdata{pd} tokens in plaintext, where any party can access it.
 
