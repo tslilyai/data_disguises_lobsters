@@ -84,6 +84,9 @@ Note that an adversary without access to any \lcapa{pd} can learn that $n$ diffs
 \emph{some} $p$ and $d$, but cannot directly identify which $p$ or $d$.  If an adversary has access
 to \lcapa{pd}, the adversary can learn that $d$ applied to $p$, and the number of \tdata{pd} diffs
 for that $p$ and $d$. This metadata is out of scope of our threat model.
+\lyt{An alternative design might remove the encrypted data completely (and email it to the client),
+so that an adversary doesn't even know of its existence. However, since we're allowing disguised
+data to be distinguished from undisguised data, this seems potentially unnecessary.}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Storage of Capabilities.}
@@ -121,7 +124,7 @@ revealing does not revert updates made to the data since the time of disguise ap
 %
 \sys also supports ``Temporary Recorrelation without Database Changes'' because \sys can determine
 the original owner of data as long as \sys has access to decorrelation diffs (which the client or
-the application provides via the appropriate capability pairs).
+the application provides via the appropriate capabilities).
 %
 \sys can use information from decorrelation diffs to disguise decorrelated data as if it were owned
 by the original user; and 

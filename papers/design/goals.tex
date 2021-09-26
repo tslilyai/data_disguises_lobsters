@@ -156,7 +156,7 @@ appropriate authorization. This authorization also allows the application to ask
 information to reveal or apply disguises.
 
 \vspace{6pt}\noindent
-Access to diffs is controlled by a pair of \emph{capabilities}:
+Two types of \emph{capabilities} control access to diffs:
 \begin{enumerate}
     \item \emph{\textbf{Data Capability \dcapa{p}}}: Grants read access to disguise diffs 
         associated with principal $p$.
@@ -165,8 +165,8 @@ Access to diffs is controlled by a pair of \emph{capabilities}:
         access to the diffs' data.
 \end{enumerate}
 
-\noindent \sys needs both parts of the pair of data and locating capabilities \pcapa{p}{d} to access
-disguise diffs.  Each capability in the pair alone is insufficient: an attacker who can spoof
+\noindent \sys needs both the data and locating capabilities \pcapa{p}{d} to access
+disguise diffs of disguise $d$. Each capability alone is insufficient: an attacker who can spoof
 \lcapa{pd} will not be able to access disguise diffs without \dcapa{p}, although they can learn
 that $d$ disguised some of $p$'s data; and an attacker holding \dcapa{p} cannot locate the disguise
 diffs to access without \lcapa{pd}.
