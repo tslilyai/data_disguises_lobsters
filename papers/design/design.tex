@@ -48,7 +48,7 @@ Operations come in three forms:
 \subsection{Database Diffs.}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Every \op{d} produces a \emph{database diff} \tdata{pd} associated with the disguise $\delta$ and a principal $p$. 
-
+%
 Each \tdata{pd} contains the ID of the disguise, the associated principal $p$'s ID,
 and a random nonce.
 %
@@ -90,7 +90,7 @@ data to be distinguished from undisguised data, this seems potentially unnecessa
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Storage of Capabilities.}
-\sys should not store \privk{p} or \lcapa{pd}: an adversary could then learn that $d$ has applied to
+\sys should not store \dcapa{p} or \lcapa{pd}: an adversary could then learn that $d$ has applied to
 principal $p$. Thus, these capabilities must be stored externally, even when no client speaking for
 $p$ is currently online.
 %
@@ -100,25 +100,22 @@ $p$ is currently online.
 %original principal owner.
 %
 
-Clients already hold \privk{p}. Only clients have persistent access to \privk{p}, and \sys only
-stores the corresponding \pubk{p} when the client creates a user account for $p$ and registers a
-public key \pubk{p} for the principal.
+Clients already hold \dcapa{p}: a client generates a keypair for a new principal $p$ and stores
+\privk{p}, while registering \pubk{p} with \sys. \sys only stores \pubk{p}.
 
 Because \sys generates \lcapa{pd} during disguising, \sys must communicate \lcapa{pd} to clients.
 \sys emails \lcapa{pd} to the corresponding email address associated with $p$.  This allows \sys to
 disguise data of principals even when no client authenticated as $p$ has an active session open.
-%If no email is present (\eg $p$ is a pseudoprincipal), \sys can save a (globally accessible) mapping from $p$ to \lcapa{pd}; this leaks disguise-principal associations, but
-%only for pseudoprincipals whose data is already decorrelated from their original principal owner.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Which Use Cases and Security Properties Have We Achieved?}
+\subsection{Current Design: Discussion}
 As the current design stands, \sys supports 1st-person and 3rd-person disguising, as well as
-1st-eprson revealing.
+1st-person revealing.
 %
 Application developers can write GDPR-compliant and/or universal disguises with the primitives
 exposed by \sys to write disguise specifications.
 %
-\sys can then use the produced disguise diffs to reveal data when authorized to do so, and when
+\sys uses diffs produced from disguising to reveal data when authorized to do so, and when
 revealing does not revert updates made to the data since the time of disguise application.
 
 %
