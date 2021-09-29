@@ -89,70 +89,31 @@ impl Disguiser {
         locked_diff_ctrler.register_principal(uid, email, pubkey);
     }
 
-    pub fn get_locked_pseudoprincipal_privkeys(
+    fn get_diffs_at_loc (
         &mut self,
-        uid: UID,
-    ) -> Vec<LockedPPPrivKey> {
-        let locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
-        let lked_pppks = locked_diff_ctrler.get_locked_ppprivkeys_of_user(uid);
-        drop(locked_diff_ctrler);
-        lked_pppks
-    }
-    
-    // XXX remove
-    pub fn get_capability(
-        &self,
         uid: UID,
         did: DID,
-    ) -> Option<Capability> {
-        let locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
-        let c = match locked_diff_ctrler.capabilities.get(&(uid,did)) {
-            Some(c) => Some(*c),
-            None => None,
-        };
-        drop(locked_diff_ctrler);
-        c
-    }
-
-    pub fn get_enc_diff_symkeys_with_capabilities_and_pseudoprincipals(
-        &self,
-        caps: Vec<u64>,
-        pseudo_uids: Vec<UID>,
-    ) -> Vec<(EncSymKey, Capability)> {
-        let mut encsymkeys = vec![];
-        let locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
-        for c in caps {
-            if let Some(esk) = locked_diff_ctrler.get_enc_symkey(c) {
-                encsymkeys.push((esk, c));
-            }
-        }
-        for puid in pseudo_uids {
-            locked_diff_ctrler.get_pseudouid_enc_diff_symkeys(puid);
-        }
-        encsymkeys
-    }
-
-    pub fn get_diffs_of_disguise_keys(
-        &mut self,
-        keys: Vec<(SymKey, Capability)>,
-        global_diffs_of: Vec<(DID, UID)>,
-        for_disguise_action: bool,
+        data_cap: DataCap,
+        loc_cap: LocCap,
     ) -> Vec<diffs::Diff> {
-        let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
-        let diffs = locked_diff_ctrler.get_diffs(&keys, global_diffs_of, for_disguise_action);
-        warn!("Got {} diffs for {} keys", diffs.len(),keys.len());
+        let locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
+        let diffs = locked_diff_ctrler.get_diffs(uid, did, &data_cap, loc_cap);
+        warn!("Got {} diffs", diffs.len());
         drop(locked_diff_ctrler);
         diffs
     }
 
     pub fn reverse(
         &mut self,
-        disguise: Arc<Disguise>,
-        diffs: Vec<Diff>,
+        uid: UID,
+        disguise: Arc<disguise::Disguise>,
+        data_cap: diffs::DataCap,
+        loc_cap: diffs::LocCap,
     ) -> Result<(), mysql::Error> {
         let mut conn = self.pool.get_conn()?;
         let mut diffs_to_mark_revealed: Vec<Diff> = vec![];
         let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
+        let diffs = locked_diff_ctrler.get_diffs(uid, disguise.did, &data_cap, loc_cap);
 
         for t in diffs {
             // only reverse diffs of disguise if not yet revealed
@@ -169,7 +130,7 @@ impl Disguiser {
 
         // mark all revealed diffs as revealed
         for t in &diffs_to_mark_revealed {
-            locked_diff_ctrler.mark_diff_revealed(t);
+            locked_diff_ctrler.mark_diff_revealed(t, &data_cap, loc_cap);
         }
         drop(locked_diff_ctrler);
         self.end_disguise_action();
@@ -178,12 +139,20 @@ impl Disguiser {
 
     pub fn apply(
         &mut self,
-        disguise: Arc<Disguise>,
-        diffs: Vec<Diff>,
+        uid: UID,
+        disguise: Arc<disguise::Disguise>,
+        data_cap: diffs::DataCap,
+        loc_caps: Vec<diffs::LocCap>
     ) -> Result<(), mysql::Error> {
         let mut conn = self.pool.get_conn()?;
         let mut threads = vec![];
         let did = disguise.did;
+        let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
+        let mut diffs = vec![];
+        for lc in loc_caps {
+            diffs.extend(locked_diff_ctrler.get_diffs(uid, did, &data_cap, lc).iter().cloned());
+        }
+        drop(locked_diff_ctrler);
 
         /*
          * PREDICATE AND REMOVE
@@ -333,7 +302,7 @@ impl Disguiser {
         warn!("Disguiser: Performed Inserts");
 
         // any capabilities generated during disguise should be emailed
-        self.diff_ctrler.lock().unwrap().save_capabilities();
+        self.diff_ctrler.lock().unwrap().save_loc_caps();
         self.end_disguise_action();
         Ok(())
     }

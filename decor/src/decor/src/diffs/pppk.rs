@@ -1,7 +1,6 @@
 use crate::{DID, UID};
 use serde::{Deserialize, Serialize};
 use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
-use crate::diffs::*;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PPPrivKey {
@@ -11,14 +10,8 @@ pub struct PPPrivKey {
     pub priv_key: Vec<u8>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LockedPPPrivKey {
-    pub enc_key: Vec<u8>,
-    pub enc_pppk: EncData,
-}
-
-pub fn ppprivkey_from_bytes(bytes: Vec<u8>) -> PPPrivKey {
-    serde_json::from_slice(&bytes).unwrap()
+pub fn ppprivkey_from_bytes(bytes: &Vec<u8>) -> PPPrivKey {
+    serde_json::from_slice(bytes).unwrap()
 }
 
 pub fn new_ppprivkey(uid: UID, did:DID, new_uid: UID, priv_key: &RsaPrivateKey) -> PPPrivKey {
@@ -29,4 +22,3 @@ pub fn new_ppprivkey(uid: UID, did:DID, new_uid: UID, priv_key: &RsaPrivateKey) 
     pppk.new_uid = new_uid;
     pppk
 }
-

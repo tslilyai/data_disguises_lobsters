@@ -7,50 +7,44 @@ use block_modes::{BlockMode, Cbc};
 use log::warn;
 use rand::{rngs::OsRng, RngCore};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
+use rsa::pkcs1::FromRsaPrivateKey;
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
-use std::hash::{Hash, Hasher};
 use std::iter::repeat;
 use std::sync::{Arc, RwLock};
 
-pub type Capability = u64;
+pub type LocCap = u64;
+pub type DataCap = Vec<u8>; // private key
 const RSA_BITS: usize = 2048;
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct EncSymKey {
-    pub enc_symkey: Vec<u8>,
-    pub uid: UID,
-    pub did: DID,
-}
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct SymKey {
-    pub symkey: Vec<u8>,
-    pub uid: UID,
-    pub did: DID,
-}
-
-impl Hash for SymKey {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.uid.hash(state);
-        self.did.hash(state);
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EncData {
-    pub data: Vec<u8>,
+    pub enc_key: Vec<u8>,
+    pub enc_data: Vec<u8>,
     pub iv: Vec<u8>,
+}
+
+impl EncData {
+    pub fn decrypt_encdata(&self, data_cap: &DataCap) -> (Vec<u8>, Vec<u8>) {
+        let priv_key = RsaPrivateKey::from_pkcs1_der(data_cap).unwrap();
+        let padding = PaddingScheme::new_pkcs1v15_encrypt();
+        let key = priv_key
+            .decrypt(padding, &self.enc_key)
+            .expect("failed to decrypt");
+        let cipher = Aes128Cbc::new_from_slices(&key, &self.iv).unwrap();
+        let mut edata = self.enc_data.clone();
+        let plaintext = cipher.decrypt_vec(&mut edata).unwrap();
+        (key.to_vec(), plaintext)
+    }
 }
 
 #[derive(Clone)]
 pub struct PrincipalData {
-    locked_pks: Vec<LockedPPPrivKey>,
     pubkey: RsaPublicKey,
     email: String,
     // only for pseudoprincipals!
-    capabilities: Vec<Capability>,
+    loc_caps: Vec<LocCap>,
 }
 
 #[derive(Clone)]
@@ -59,10 +53,10 @@ pub struct DiffCtrler {
     pub principal_data: HashMap<UID, PrincipalData>,
 
     // (p,d) capability -> set of diff ciphertext for principal+disguise
-    pub data_diffs_map: HashMap<Capability, Vec<EncData>>,
+    pub enc_diffs_map: HashMap<LocCap, Vec<EncData>>,
 
-    // (p,d) capability -> encrypted symkey for principal+disguise
-    pub enc_diff_symkeys_map: HashMap<Capability, EncSymKey>,
+    // (p,d) capability -> set of diff ciphertext for principal+disguise
+    pub enc_pks_map: HashMap<LocCap, Vec<EncData>>,
 
     pub global_diffs: HashMap<DID, HashMap<UID, Arc<RwLock<HashSet<Diff>>>>>,
 
@@ -71,54 +65,63 @@ pub struct DiffCtrler {
     pub hasher: Sha256,
 
     // used to temporarily store keys used during disguises
-    pub tmp_symkeys: HashMap<(UID, DID), SymKey>,
-    pub tmp_capabilities: HashMap<(UID, DID), Capability>,
-
-    // XXX get rid of this, just for testing
-    pub capabilities: HashMap<(UID, DID), Capability>,
+    pub tmp_loc_caps: HashMap<(UID, DID), LocCap>,
 }
 
 impl DiffCtrler {
     pub fn new() -> DiffCtrler {
         DiffCtrler {
             principal_data: HashMap::new(),
-            data_diffs_map: HashMap::new(),
-            enc_diff_symkeys_map: HashMap::new(),
+            enc_diffs_map: HashMap::new(),
+            enc_pks_map: HashMap::new(),
             global_diffs: HashMap::new(),
             rng: OsRng,
             hasher: Sha256::new(),
-            tmp_symkeys: HashMap::new(),
-            tmp_capabilities: HashMap::new(),
-
-            // XXX get rid of this
-            capabilities: HashMap::new(),
+            tmp_loc_caps: HashMap::new(),
         }
     }
 
     /*
      * TEMP STORAGE AND CLEARING
      */
-    pub fn get_tmp_capability(&self, uid: UID, did: DID) -> Option<&Capability> {
-        self.tmp_capabilities.get(&(uid, did))
+    pub fn get_tmp_capability(&self, uid: UID, did: DID) -> Option<&LocCap> {
+        self.tmp_loc_caps.get(&(uid, did))
     }
 
-    pub fn save_capabilities(&mut self) {
-        for ((uid, did), c) in self.tmp_capabilities.iter() {
+    pub fn save_loc_caps(&mut self) {
+        for ((uid, _), c) in self.tmp_loc_caps.iter() {
             let p = self.principal_data.get_mut(&uid).unwrap();
             // save to principal data if no email (pseudoprincipal)
             if p.email.is_empty() {
-                p.capabilities.push(*c);
+                p.loc_caps.push(*c);
             } else {
                 // TODO email capability to user if user has email
-                self.capabilities.insert((*uid, *did), *c);
+                //self.loc_caps.insert((*uid, *did), *c);
             }
         }
     }
 
     // XXX note this doesn't allow for concurrent disguising right now
     pub fn clear_tmp(&mut self) {
-        self.tmp_symkeys.clear();
-        self.tmp_capabilities.clear();
+        self.tmp_loc_caps.clear();
+    }
+
+    /* 
+     * LOCATING CAPABILITIES
+     */
+    fn get_loc_cap(&mut self, uid: u64, did: u64) -> LocCap {
+        // get the location capability being used for this disguise
+        match self.tmp_loc_caps.get(&(uid, did)) {
+            // if there's a loccap already, use it
+            Some(lc) => return *lc,
+            // otherwise generate it (and save it temporarily)
+            None => {
+                let cap = self.rng.next_u64();
+                // temporarily save cap for future use
+                assert_eq!(self.tmp_loc_caps.insert((uid, did), cap), None);
+                return cap;
+            }
+        }
     }
 
     /*
@@ -129,13 +132,13 @@ impl DiffCtrler {
         self.principal_data.insert(
             uid,
             PrincipalData {
-                locked_pks: vec![],
                 pubkey: pubkey.clone(),
                 email: email,
-                capabilities: vec![],
+                loc_caps: vec![],
             },
         );
     }
+
     pub fn register_anon_principal(&mut self, uid: UID, anon_uid: UID, did: DID) -> UID {
         let private_key =
             RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
@@ -149,19 +152,118 @@ impl DiffCtrler {
         anon_uid
     }
 
-    pub fn get_locked_ppprivkeys_of_user(&self, uid: UID) -> Vec<LockedPPPrivKey> {
-        match self.principal_data.get(&uid) {
-            Some(p) => p.locked_pks.clone(),
-            None => vec![],
-        }
-    }
-
     pub fn remove_anon_principal(&mut self, anon_uid: UID) {
         self.principal_data.remove(&anon_uid);
     }
 
     /*
-     * TOKEN INSERT
+     * PRINCIPAL DIFF INSERT
+     */
+    fn insert_ppprivkey(&mut self, pppk: &mut PPPrivKey) {
+        assert!(pppk.uid != 0);
+
+        let p = self
+            .principal_data
+            .get_mut(&pppk.uid)
+            .expect("no user with uid found?");
+
+        // generate key
+        let mut key: Vec<u8> = repeat(0u8).take(16).collect();
+        self.rng.fill_bytes(&mut key[..]);
+
+        // encrypt key with pubkey
+        let padding = PaddingScheme::new_pkcs1v15_encrypt();
+        let enc_key = p
+            .pubkey
+            .encrypt(&mut self.rng, padding, &key[..])
+            .expect("failed to encrypt");
+
+        // encrypt pppk with key
+        let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
+        self.rng.fill_bytes(&mut iv[..]);
+        let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
+        let plaintext = serialize_to_bytes(&pppk);
+        let encrypted = cipher.encrypt_vec(&plaintext);
+        let enc_pppk = EncData {
+            enc_key: enc_key,
+            enc_data: encrypted,
+            iv: iv,
+        };
+
+        // insert the encrypted pppk into locating capability
+        let lc = self.get_loc_cap(pppk.uid, pppk.did);
+        match self.enc_pks_map.get_mut(&lc) {
+            Some(ts) => {
+                ts.push(enc_pppk);
+            }
+            None => {
+                self.enc_pks_map.insert(lc, vec![enc_pppk]);
+            }
+        }
+    }
+
+    pub fn insert_user_data_diff(&mut self, diff: &mut Diff) {
+        assert!(diff.uid != 0);
+        diff.is_global = false;
+        let did = diff.did;
+        let uid = diff.uid;
+        warn!(
+            "inserting user diff {:?} with uid {} did {}",
+            diff, uid, did
+        );
+        
+        let cap = self.get_loc_cap(uid, did);
+
+        let p = self
+            .principal_data
+            .get_mut(&uid)
+            .expect("no user with uid found?");
+        
+        // give the diff a random nonce and some id
+        diff.nonce = self.rng.next_u64();
+        diff.diff_id = self.rng.next_u64();
+
+        // generate key
+        let mut key: Vec<u8> = repeat(0u8).take(16).collect();
+        self.rng.fill_bytes(&mut key[..]);
+
+        // encrypt key with pubkey
+        let padding = PaddingScheme::new_pkcs1v15_encrypt();
+        let enc_key = p
+            .pubkey
+            .encrypt(&mut self.rng, padding, &key[..])
+            .expect("failed to encrypt");
+
+        // encrypt and add the diff to the map of encrypted diffs
+        let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
+        self.rng.fill_bytes(&mut iv[..]);
+        let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
+        let plaintext = serialize_to_bytes(&diff);
+        let encrypted = cipher.encrypt_vec(&plaintext);
+        assert_eq!(encrypted.len() % 16, 0);
+        warn!(
+            "Encrypted diff data of len {} with key {:?}-{:?}",
+            encrypted.len(),
+            key,
+            iv
+        );
+        let encdiff = EncData {
+            enc_key: enc_key,
+            enc_data: encrypted,
+            iv: iv,
+        };
+        match self.enc_diffs_map.get_mut(&cap) {
+            Some(ts) => {
+                ts.push(encdiff);
+            }
+            None => {
+                self.enc_diffs_map.insert(cap, vec![encdiff]);
+            }
+        }
+    }
+
+    /*
+     * GLOBAL DIFF FUNCTIONS
      */
     pub fn insert_global_diff(&mut self, diff: &mut Diff) {
         diff.is_global = true;
@@ -188,146 +290,6 @@ impl DiffCtrler {
         }
     }
 
-    pub fn insert_ppprivkey(&mut self, pppk: &mut PPPrivKey) {
-        assert!(pppk.uid != 0);
-
-        let p = self
-            .principal_data
-            .get_mut(&pppk.uid)
-            .expect("no user with uid found?");
-
-        // generate key
-        let mut key: Vec<u8> = repeat(0u8).take(16).collect();
-        self.rng.fill_bytes(&mut key[..]);
-
-        // encrypt pppk with key
-        let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
-        self.rng.fill_bytes(&mut iv[..]);
-        let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
-        let plaintext = serialize_to_bytes(&pppk);
-        let encrypted = cipher.encrypt_vec(&plaintext);
-        let enc_pppk = EncData {
-            data: encrypted,
-            iv: iv,
-        };
-
-        // encrypt key with pubkey
-        let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        let enc_symkey = p
-            .pubkey
-            .encrypt(&mut self.rng, padding, &key[..])
-            .expect("failed to encrypt");
-
-        // save
-        p.locked_pks.push(LockedPPPrivKey{
-            enc_key: enc_symkey,
-            enc_pppk: enc_pppk,
-        });
-    }
-
-    pub fn insert_user_data_diff(&mut self, diff: &mut Diff) {
-        assert!(diff.uid != 0);
-        diff.is_global = false;
-        let did = diff.did;
-        let uid = diff.uid;
-        warn!(
-            "inserting user diff {:?} with uid {} did {}",
-            diff, uid, did
-        );
-        let p = self
-            .principal_data
-            .get_mut(&uid)
-            .expect("no user with uid found?");
-
-        // get the symmetric key being used for this disguise
-        let symkey = match self.tmp_symkeys.get(&(uid, did)) {
-            // if there's a symkey already, use it
-            Some(sk) => sk.symkey.clone(),
-            // otherwise generate it (and save it temporarily)
-            None => {
-                let mut key: Vec<u8> = repeat(0u8).take(16).collect();
-                self.rng.fill_bytes(&mut key[..]);
-
-                let padding = PaddingScheme::new_pkcs1v15_encrypt();
-                let enc_symkey = p
-                    .pubkey
-                    .encrypt(&mut self.rng, padding, &key[..])
-                    .expect("failed to encrypt");
-
-                // insert key into enc symkeys map
-                let cap = self.rng.next_u64();
-                assert_eq!(
-                    self.enc_diff_symkeys_map.insert(
-                        cap,
-                        EncSymKey {
-                            enc_symkey: enc_symkey,
-                            uid: uid,
-                            did: did,
-                        }
-                    ),
-                    None
-                );
-
-                // temporarily save symkey for future use
-                assert_eq!(
-                    self.tmp_symkeys.insert(
-                        (uid, did),
-                        SymKey {
-                            symkey: key.clone(),
-                            uid: uid,
-                            did: did,
-                        }
-                    ),
-                    None
-                );
-
-                // temporarily save cap for future use
-                assert_eq!(self.tmp_capabilities.insert((uid, did), cap), None);
-                key
-            }
-        };
-
-        let cap = match self.tmp_capabilities.get(&(uid, did)) {
-            Some(c) => c,
-            // otherwise generate it (and save it temporarily)
-            None => unimplemented!("Capability should have been generated with symkey?"),
-        };
-
-        // give the diff a random nonce and some id
-        diff.nonce = self.rng.next_u64();
-        diff.diff_id = self.rng.next_u64();
-
-        // encrypt and add the diff to the map of encrypted diffs corresponding to this
-        // capability
-        let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
-        self.rng.fill_bytes(&mut iv[..]);
-        let cipher = Aes128Cbc::new_from_slices(&symkey, &iv).unwrap();
-        let plaintext = serialize_to_bytes(&diff);
-        let encrypted = cipher.encrypt_vec(&plaintext);
-        assert_eq!(encrypted.len() % 16, 0);
-        warn!(
-            "Encrypted diff data of len {} with symkey {:?}-{:?}",
-            encrypted.len(),
-            symkey,
-            iv
-        );
-        let enctok = EncData {
-            data: encrypted,
-            iv: iv,
-        };
-        match self.data_diffs_map.get_mut(&cap) {
-            Some(ts) => {
-                ts.push(enctok);
-            }
-            None => {
-                self.data_diffs_map.insert(*cap, vec![enctok]);
-            }
-        }
-    }
-
-    /*
-     * GLOBAL TOKEN FUNCTIONS
-     */
     pub fn check_global_diff_for_match(&mut self, diff: &Diff) -> (bool, bool) {
         if let Some(global_diffs) = self.global_diffs.get(&diff.did) {
             if let Some(user_diffs) = global_diffs.get(&diff.uid) {
@@ -335,9 +297,9 @@ impl DiffCtrler {
                 for t in diffs.iter() {
                     if t.diff_id == diff.diff_id {
                         // XXX todo this is a bit inefficient
-                        let mut mytok = diff.clone();
-                        mytok.revealed = t.revealed;
-                        let eq = mytok == *t;
+                        let mut mydiff = diff.clone();
+                        mydiff.revealed = t.revealed;
+                        let eq = mydiff == *t;
                         if t.revealed {
                             return (true, eq);
                         }
@@ -392,9 +354,9 @@ impl DiffCtrler {
     }
 
     /*
-     * UPDATE TOKEN FUNCTIONS
+     * UPDATE DIFF FUNCTIONS
      */
-    pub fn mark_diff_revealed(&mut self, diff: &Diff) -> bool {
+    pub fn mark_diff_revealed(&mut self, diff: &Diff, data_cap: &DataCap, loc_cap: LocCap) -> bool {
         let mut found = false;
         if diff.is_global {
             if let Some(global_diffs) = self.global_diffs.get(&diff.did) {
@@ -411,57 +373,67 @@ impl DiffCtrler {
         }
 
         // otherwise search the user list
-        let symkey = match self.tmp_symkeys.get(&(diff.uid, diff.did)) {
-            Some(sk) => sk,
-            None => unimplemented!("Diff to update inaccessible!"),
-        };
-        let cap = match self.tmp_capabilities.get(&(diff.uid, diff.did)) {
+        let cap = match self.tmp_loc_caps.get(&(diff.uid, diff.did)) {
             Some(c) => c,
             None => unimplemented!("Diff to update inaccessible!"),
         };
 
         // iterate through user's encrypted datadiffs
-        if let Some(diffls) = self.data_diffs_map.get_mut(&cap) {
+        if let Some(diffls) = self.enc_diffs_map.get_mut(&cap) {
             for (i, enc_diff) in diffls.iter_mut().enumerate() {
-                // decrypt diff with symkey provided by client
                 warn!(
-                    "Got cd data of len {} with symkey {:?}-{:?}",
-                    enc_diff.data.len(),
-                    symkey.symkey,
+                    "Got cd data of len {} with iv {:?}",
+                    enc_diff.enc_data.len(),
                     enc_diff.iv
                 );
-                let cipher = Aes128Cbc::new_from_slices(&symkey.symkey, &enc_diff.iv).unwrap();
-                let plaintext = cipher.decrypt_vec(&mut enc_diff.data).unwrap();
-                let mut t = diff_from_bytes(plaintext);
-                if t.diff_id == diff.diff_id {
-                    t.revealed = true;
-                    // XXX do we need a new IV?
-                    let cipher = Aes128Cbc::new_from_slices(&symkey.symkey, &enc_diff.iv).unwrap();
-                    let plaintext = serialize_to_bytes(&t);
+                // decrypt data and compare
+                let (key, diffplaintext) = enc_diff.decrypt_encdata(data_cap);
+                let mut curdiff = diff_from_bytes(&diffplaintext);
+                if curdiff.diff_id == diff.diff_id {
+                    curdiff.revealed = true;
+                    let cipher = Aes128Cbc::new_from_slices(&key, &enc_diff.iv).unwrap();
+                    let plaintext = serialize_to_bytes(&curdiff);
                     let encrypted = cipher.encrypt_vec(&plaintext);
                     let iv = enc_diff.iv.clone();
                     assert_eq!(encrypted.len() % 16, 0);
                     // replace diff with updated diff
                     diffls[i] = EncData {
-                        data: encrypted,
+                        enc_key: enc_diff.enc_key.clone(),
+                        enc_data: encrypted,
                         iv: iv,
                     };
                     warn!(
                         "diff uid {} disguise {} revealed diff {}",
                         diff.uid, diff.did, diff.diff_id,
                     );
-                    found = true;
-                    break;
+                    return true;
                 }
             }
         }
-        found
+
+        // iterate through allowed pseudoprincipals' diffs as well
+        if let Some(pks) = self.enc_pks_map.get(&loc_cap) {
+            for enc_pk in &pks.clone() {
+                // decrypt with data_cap provided by client
+                let (_, plaintext) = enc_pk.decrypt_encdata(data_cap);
+                let pk = ppprivkey_from_bytes(&plaintext);
+                // get all diffs of pseudoprincipal
+
+                let pp = self.principal_data.get(&pk.new_uid).unwrap();
+                for lc in &pp.loc_caps.clone() {
+                    if self.mark_diff_revealed(diff, &pk.priv_key, *lc) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
     }
 
     /*
-     * GET TOKEN FUNCTIONS
+     * GET DIFF FUNCTIONS
      */
-    pub fn get_global_diffs(&self, uid: UID, did: DID) -> Vec<Diff> {
+    fn get_global_diffs(&self, uid: UID, did: DID) -> Vec<Diff> {
         if let Some(global_diffs) = self.global_diffs.get(&did) {
             if let Some(user_diffs) = global_diffs.get(&uid) {
                 let diffs = user_diffs.read().unwrap();
@@ -473,84 +445,52 @@ impl DiffCtrler {
     }
 
     pub fn get_diffs(
-        &mut self,
-        symkeys: &Vec<(SymKey, Capability)>,
-        global_diffs_of: Vec<(DID, UID)>,
-        for_disguise: bool,
+        &self,
+        uid: UID,
+        did: DID,
+        data_cap: &DataCap,
+        loc_cap: LocCap,
     ) -> Vec<Diff> {
-        let mut diffs = vec![];
-        for (did, uid) in global_diffs_of {
-            diffs.append(&mut self.get_global_diffs(uid, did));
-        }
+        let mut diffs = self.get_global_diffs(uid, did);
         warn!("cd diffs global pushed to len {}", diffs.len());
 
-        for (symkey, cap) in symkeys {
-            if for_disguise {
-                // save symkeys for later in the disguise
-                self.tmp_symkeys
-                    .insert((symkey.uid, symkey.did), symkey.clone());
-                self.tmp_capabilities.insert((symkey.uid, symkey.did), *cap);
+        if let Some(diffls) = self.enc_diffs_map.get(&loc_cap) {
+            for enc_diff in diffls {
+                // decrypt diff with data_cap provided by client
+                warn!(
+                    "Got cd data of len {}",
+                    enc_diff.enc_data.len(),
+                );
+                let (_, plaintext) = enc_diff.decrypt_encdata(data_cap);
+                let diff = diff_from_bytes(&plaintext);
+
+                // add diff to list only if it hasn't be revealed before
+                if !diff.revealed {
+                    diffs.push(diff.clone());
+                }
+                warn!(
+                    "diffs uid {} disguise {} pushed to len {}",
+                    diff.uid,
+                    diff.did,
+                    diffs.len()
+                );
             }
+        }
+        // get allowed pseudoprincipal diffs
+        if let Some(pks) = self.enc_pks_map.get(&loc_cap) {
+            for enc_pk in pks {
+                // decrypt with data_cap provided by client
+                let (_, plaintext) = enc_pk.decrypt_encdata(data_cap);
+                let pk = ppprivkey_from_bytes(&plaintext);
+                // get all diffs of pseudoprincipal
 
-            // get all of this user's globally accessible diffs
-            diffs.append(&mut self.get_global_diffs(symkey.uid, symkey.did));
-            warn!("cd diffs global pushed to len {}", diffs.len());
-
-            // get all of this user's encrypted correlation/datadiffs
-            if let Some(diffls) = self.data_diffs_map.get_mut(&cap) {
-                for enc_diff in diffls {
-                    // decrypt diff with symkey provided by client
-                    warn!(
-                        "Got cd data of len {} with symkey {:?}-{:?}",
-                        enc_diff.data.len(),
-                        symkey.symkey,
-                        enc_diff.iv
-                    );
-                    let cipher = Aes128Cbc::new_from_slices(&symkey.symkey, &enc_diff.iv).unwrap();
-                    let plaintext = cipher.decrypt_vec(&mut enc_diff.data).unwrap();
-                    let diff = diff_from_bytes(plaintext);
-
-                    // add diff to list only if it hasn't be revealed before
-                    if !diff.revealed {
-                        diffs.push(diff.clone());
-                    }
-                    warn!(
-                        "diffs uid {} disguise {} pushed to len {}",
-                        diff.uid,
-                        diff.did,
-                        diffs.len()
-                    );
+                let pp = self.principal_data.get(&pk.new_uid).unwrap();
+                for lc in &pp.loc_caps {
+                    diffs.extend(self.get_diffs(pk.new_uid, pk.did, &pk.priv_key, *lc).iter().cloned());
                 }
             }
         }
         diffs
-    }
-
-    /*
-     * GET ENC SYMKEYS FUNCTIONS
-     */
-    pub fn get_pseudouid_enc_diff_symkeys(&self, puid: UID) -> Vec<(EncSymKey, Capability)> {
-        let p = self
-            .principal_data
-            .get(&puid)
-            .expect("no user with uid found?");
-        assert!(p.email.is_empty());
-
-        let mut esks = vec![];
-        for c in &p.capabilities {
-            match self.enc_diff_symkeys_map.get(&c) {
-                Some(esk) => esks.push((esk.clone(), *c)),
-                None => (),
-            }
-        }
-        esks
-    }
-
-    pub fn get_enc_symkey(&self, cap: Capability) -> Option<EncSymKey> {
-        if let Some(esk) = self.enc_diff_symkeys_map.get(&cap) {
-            return Some(esk.clone());
-        }
-        None
     }
 }
 
@@ -657,27 +597,8 @@ mod tests {
             .expect("failed to get user?");
         assert_eq!(pub_key, p.pubkey);
         assert!(p.locked_pks.is_empty());
-        assert!(p.capabilities.is_empty());
-        assert!(ctrler.tmp_symkeys.is_empty());
-        assert!(ctrler.tmp_capabilities.is_empty());
-
-        // check symkey stored for principal lists
-        let encsymkey = ctrler
-            .enc_diff_symkeys_map
-            .get(&c)
-            .expect("failed to get disguise?");
-        let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        let symkey = private_key
-            .decrypt(padding, &encsymkey.enc_symkey)
-            .expect("failed to decrypt");
-        let keys = vec![(
-            SymKey {
-                uid: encsymkey.uid,
-                did: encsymkey.did,
-                symkey: symkey,
-            },
-            c,
-        )];
+        assert!(p.loc_caps.is_empty());
+        assert!(ctrler.tmp_loc_caps.is_empty());
 
         // get diffs
         let diffs = ctrler.get_diffs(&keys, vec![], true);
@@ -737,8 +658,7 @@ mod tests {
         }
         assert_eq!(ctrler.global_diffs.len(), 0);
         ctrler.clear_tmp();
-        assert!(ctrler.tmp_symkeys.is_empty());
-        assert!(ctrler.tmp_capabilities.is_empty());
+        assert!(ctrler.tmp_loc_caps.is_empty());
 
         for u in 1..iters {
             // check principal data
@@ -748,27 +668,10 @@ mod tests {
                 .expect("failed to get user?")
                 .clone();
             assert_eq!(pub_keys[u as usize - 1], p.pubkey);
-            assert!(p.locked_pks.is_empty());
-            assert!(p.capabilities.is_empty());
+            assert!(p.loc_caps.is_empty());
 
             for d in 1..iters {
                 let c = caps.get(&(u, d)).unwrap().clone();
-                let encsymkey = ctrler
-                    .enc_diff_symkeys_map
-                    .get(&c)
-                    .expect("failed to get disguise?");
-                let padding = PaddingScheme::new_pkcs1v15_encrypt();
-                let symkey = priv_keys[u as usize - 1]
-                    .decrypt(padding, &encsymkey.enc_symkey)
-                    .expect("failed to decrypt");
-                let keys = vec![(
-                    SymKey {
-                        uid: encsymkey.uid,
-                        did: encsymkey.did,
-                        symkey: symkey,
-                    },
-                    c,
-                )];
                 // get diffs
                 let diffs = ctrler.get_diffs(&keys, vec![], true);
                 assert_eq!(diffs.len(), (iters as usize));
@@ -850,26 +753,9 @@ mod tests {
                 .expect("failed to get user?")
                 .clone();
             assert_eq!(pub_keys[u as usize - 1], p.pubkey);
-            assert_eq!(p.locked_pks.len() as u64, iters - 1);
 
             for d in 1..iters {
                 let c = caps.get(&(u, d)).unwrap().clone();
-                let encsymkey = ctrler
-                    .enc_diff_symkeys_map
-                    .get(&c)
-                    .expect("failed to get disguise?");
-                let padding = PaddingScheme::new_pkcs1v15_encrypt();
-                let symkey = priv_keys[u as usize - 1]
-                    .decrypt(padding, &encsymkey.enc_symkey)
-                    .expect("failed to decrypt");
-                let keys = vec![(
-                    SymKey {
-                        uid: encsymkey.uid,
-                        did: encsymkey.did,
-                        symkey: symkey,
-                    },
-                    c,
-                )];
                 // get diffs
                 let diffs = ctrler.get_diffs(&keys, vec![], true);
                 assert_eq!(diffs.len(), 1);

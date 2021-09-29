@@ -14,6 +14,12 @@ pub const MODIFY_GUISE: u64 = 3;
 pub const REMOVE_TOKEN: u64 = 5;
 pub const MODIFY_TOKEN: u64 = 6;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EncDiff {
+    pub enc_key: Vec<u8>,
+    pub enc_diff: EncData,
+}
+
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct Diff {
     // metadata set by Edna
@@ -56,8 +62,8 @@ impl Hash for Diff {
     }
 }
 
-pub fn diff_from_bytes(bytes: Vec<u8>) -> Diff {
-    serde_json::from_slice(&bytes).unwrap()
+pub fn diff_from_bytes(bytes: &Vec<u8>) -> Diff {
+    serde_json::from_slice(bytes).unwrap()
 }
 
 impl Diff {

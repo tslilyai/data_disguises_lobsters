@@ -57,60 +57,36 @@ impl EdnaClient {
     pub fn register_principal(&mut self, uid: u64, email: String, pubkey: &RsaPublicKey) {
         self.disguiser.register_principal(uid, email, pubkey);
     }
-
-    pub fn get_locked_pseudoprincipal_privkeys(
-        &mut self,
-        uid: UID,
-    ) -> Vec<diffs::LockedPPPrivKey> {
-        self.disguiser.get_locked_pseudoprincipal_privkeys(uid)
-    }
     
-    // XXX get rid of this?
-    pub fn get_temp_capability(
-        &mut self,
+    pub fn has_ownership(&self,
         uid: UID,
-        did: DID,
-    ) -> Option<diffs::Capability> {
-        self.disguiser.get_capability(uid, did)
-    }
-
-    pub fn get_enc_diff_symkeys_of_capabilities_and_pseudoprincipals(
-        &mut self,
-        caps: Vec<diffs::Capability>,
-        pseudouids: Vec<UID>,
-    ) -> Vec<(diffs::EncSymKey, diffs::Capability)> {
-        self.disguiser.get_enc_diff_symkeys_with_capabilities_and_pseudoprincipals(caps, pseudouids)
-    }
-
-    pub fn get_diffs_of_disguise_keys(
-        &mut self,
-        keys: Vec<(diffs::SymKey, diffs::Capability)>,
-        global_diffs_of: Vec<(DID,UID)>,
-    ) -> Vec<diffs::Diff> {
-        self.disguiser.get_diffs_of_disguise_keys(keys, global_diffs_of, false)
+        data_cap: diffs::DataCap,
+        loc_caps: Vec<diffs::LocCap>,
+    ) -> bool {
+        // TODO
+        false
     }
 
     pub fn apply_disguise(
-        // TODO filter all global diffs?????
         &mut self,
+        uid: UID,
         disguise: Arc<disguise::Disguise>,
-        keys: Vec<(diffs::SymKey, diffs::Capability)>,
-        global_diffs_of: Vec<(DID,UID)>,
+        data_cap: diffs::DataCap,
+        loc_caps: Vec<diffs::LocCap>,
     ) -> Result<(), mysql::Error> {
-        let diffs = self.disguiser.get_diffs_of_disguise_keys(keys, global_diffs_of, true);
-        self.disguiser.apply(disguise.clone(), diffs)?;
+        self.disguiser.apply(uid, disguise.clone(), data_cap, loc_caps)?;
         warn!("EDNA: APPLIED Disguise {}", disguise.clone().did);
         Ok(())
     }
 
     pub fn reverse_disguise(
         &mut self,
+        uid: UID,
         disguise: Arc<disguise::Disguise>,
-        keys: Vec<(diffs::SymKey, diffs::Capability)>,
-        global_diffs_of: Vec<(DID,UID)>,
+        data_cap: diffs::DataCap,
+        loc_cap: diffs::LocCap,
     ) -> Result<(), mysql::Error> {
-        let diffs = self.disguiser.get_diffs_of_disguise_keys(keys, global_diffs_of, true);
-        self.disguiser.reverse(disguise.clone(), diffs)?;
+        self.disguiser.reverse(uid, disguise.clone(), data_cap, loc_cap)?;
         warn!("EDNA: REVERSED Disguise {}", disguise.clone().did);
         Ok(())
     }
