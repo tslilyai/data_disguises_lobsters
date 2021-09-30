@@ -2,7 +2,6 @@ use crate::datagen::*;
 use crate::*;
 use rand::{distributions::Alphanumeric, Rng};
 
-
 // Generates NUSERS_NONPC+NUSERS_PC users
 pub const NUSERS_NONPC: usize = 400;
 pub const NUSERS_PC: usize = 30;

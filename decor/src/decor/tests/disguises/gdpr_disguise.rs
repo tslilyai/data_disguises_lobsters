@@ -31,16 +31,14 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
     // REMOVE STORIES
     hm.insert(
         "stories".to_string(),
-        Arc::new(RwLock::new(vec![
-            Transform {
-                pred: get_eq_pred("user_id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Remove)),
-                global: false,
-            },
-        ])),
+        Arc::new(RwLock::new(vec![Transform {
+            pred: get_eq_pred("user_id", user_id.to_string()),
+            trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+            global: false,
+        }])),
     );
 
-    // DECOR MOD 
+    // DECOR MOD
     hm.insert(
         "moderations".to_string(),
         Arc::new(RwLock::new(vec![

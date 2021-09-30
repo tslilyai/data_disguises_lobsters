@@ -1,10 +1,10 @@
 use crate::datagen::*;
 use decor::helpers::*;
+use log::warn;
 use sql_parser::ast::*;
 use std::sync::atomic::{AtomicU64, Ordering};
-use log::warn;
-   
-static GUISE_ID : AtomicU64 = AtomicU64::new(1<<10);
+
+static GUISE_ID: AtomicU64 = AtomicU64::new(1 << 10);
 
 pub const ANON_PW: &'static str = "password123";
 

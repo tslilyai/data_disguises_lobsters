@@ -3,17 +3,17 @@ extern crate ordered_float;
 
 use log::{debug, warn};
 use mysql::prelude::*;
+use rsa::RsaPublicKey;
 use sql_parser::ast::*;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use rsa::{RsaPublicKey};
-use std::collections::{HashMap};
 use std::*;
 
+pub mod diffs;
 pub mod disguise;
 pub mod helpers;
 pub mod predicate;
 pub mod stats;
-pub mod diffs;
 
 pub type DID = u64;
 pub type UID = u64;
@@ -43,8 +43,8 @@ impl EdnaClient {
     }
 
     /********************************
-     * EDNA-APPLICATION API 
-    ********************************/
+     * EDNA-APPLICATION API
+     ********************************/
     pub fn new(prime: bool, dbname: &str, schema: &str, in_memory: bool) -> EdnaClient {
         init_db(prime, in_memory, dbname, schema);
         let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname);
@@ -54,12 +54,13 @@ impl EdnaClient {
             disguiser: disguise::Disguiser::new(&url),
         }
     }
-    
+
     pub fn register_principal(&mut self, uid: u64, email: String, pubkey: &RsaPublicKey) {
         self.disguiser.register_principal(uid, email, pubkey);
     }
-    
-    pub fn has_ownership(&self,
+
+    pub fn has_ownership(
+        &self,
         uid: UID,
         data_cap: diffs::DataCap,
         loc_caps: Vec<diffs::LocCap>,
@@ -76,7 +77,8 @@ impl EdnaClient {
         loc_caps: Vec<diffs::LocCap>,
     ) -> Result<HashMap<(UID, DID), diffs::LocCap>, mysql::Error> {
         warn!("EDNA: APPLYING Disguise {}", disguise.clone().did);
-        self.disguiser.apply(uid, disguise.clone(), data_cap, loc_caps)
+        self.disguiser
+            .apply(uid, disguise.clone(), data_cap, loc_caps)
     }
 
     pub fn reverse_disguise(
@@ -86,7 +88,8 @@ impl EdnaClient {
         data_cap: diffs::DataCap,
         loc_cap: diffs::LocCap,
     ) -> Result<(), mysql::Error> {
-        self.disguiser.reverse(uid, disguise.clone(), data_cap, loc_cap)?;
+        self.disguiser
+            .reverse(uid, disguise.clone(), data_cap, loc_cap)?;
         warn!("EDNA: REVERSED Disguise {}", disguise.clone().did);
         Ok(())
     }

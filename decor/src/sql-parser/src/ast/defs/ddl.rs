@@ -337,7 +337,7 @@ pub struct IndexDef {
     pub key_parts: Vec<Ident>,
 }
 
-impl AstDisplay for IndexDef{
+impl AstDisplay for IndexDef {
     fn fmt(&self, f: &mut AstFormatter) {
         if let Some(typ) = &self.index_type {
             f.write_node(typ);
@@ -357,7 +357,7 @@ pub enum IndexType {
     Fulltext,
     Unique,
 }
-impl AstDisplay for IndexType{
+impl AstDisplay for IndexType {
     fn fmt(&self, f: &mut AstFormatter) {
         use IndexType::*;
         match self {
@@ -376,7 +376,7 @@ pub enum Engine {
     TempTable,
 }
 
-impl AstDisplay for Engine{
+impl AstDisplay for Engine {
     fn fmt(&self, f: &mut AstFormatter) {
         use Engine::*;
         match self {
@@ -387,7 +387,6 @@ impl AstDisplay for Engine{
     }
 }
 impl_display!(Engine);
-
 
 /// SQL column definition
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

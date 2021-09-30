@@ -17,7 +17,7 @@ fn get_eq_pred(col: &str, val: String) -> Vec<Vec<PredClause>> {
 pub fn get_disguise(user_id: u64) -> Disguise {
     Disguise {
         did: GDPR_DISGUISE_ID,
-        user: Some(User{id: user_id}),
+        user: Some(User { id: user_id }),
         table_disguises: get_table_disguises(user_id),
         table_info: get_table_info(),
         guise_gen: get_guise_gen(),
@@ -223,54 +223,54 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
     hm.insert(
         "PaperReviewRefused".to_string(),
         Arc::new(RwLock::new(vec![
-                    // only modify if a PC member
-                    Transform {
-                        pred: get_eq_pred("requestedBy", user_id.to_string()),
-                        trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                            fk_name: "ContactInfo".to_string(),
-                            fk_col: "requestedBy".to_string(),
-                        })),
-                        global: false,
-                    },
-        Transform {
-                        pred: get_eq_pred("refusedBy", user_id.to_string()),
-                        trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                            fk_name: "ContactInfo".to_string(),
-                            fk_col: "refusedBy".to_string(),
-                        })),
-                        global: false,
-                    },
-                ])),
+            // only modify if a PC member
+            Transform {
+                pred: get_eq_pred("requestedBy", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "requestedBy".to_string(),
+                })),
+                global: false,
+            },
+            Transform {
+                pred: get_eq_pred("refusedBy", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "refusedBy".to_string(),
+                })),
+                global: false,
+            },
+        ])),
     );
     hm.insert(
         "ActionLog".to_string(),
         Arc::new(RwLock::new(vec![
-                    // only modify if a PC member
-                    Transform {
-                        pred: get_eq_pred("destContactId", user_id.to_string()),
-                        trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                            fk_name: "ContactInfo".to_string(),
-                            fk_col: "destContactId".to_string(),
-                        })),
-                        global: false,
-                    },
-        Transform {
-                        pred: get_eq_pred("contactId", user_id.to_string()),
-                        trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                            fk_name: "ContactInfo".to_string(),
-                            fk_col: "contactId".to_string(),
-                        })),
-                        global: false,
-                    },
-        Transform {
-                        pred: get_eq_pred("trueContactId", user_id.to_string()),
-                        trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                            fk_name: "ContactInfo".to_string(),
-                            fk_col: "trueContactId".to_string(),
-                        })),
-                        global: false,
-                    },
-                ])),
+            // only modify if a PC member
+            Transform {
+                pred: get_eq_pred("destContactId", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "destContactId".to_string(),
+                })),
+                global: false,
+            },
+            Transform {
+                pred: get_eq_pred("contactId", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "contactId".to_string(),
+                })),
+                global: false,
+            },
+            Transform {
+                pred: get_eq_pred("trueContactId", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "trueContactId".to_string(),
+                })),
+                global: false,
+            },
+        ])),
     );
     hm.insert(
         "ReviewRating".to_string(),
@@ -303,54 +303,54 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
     hm.insert(
         "PaperReview".to_string(),
         Arc::new(RwLock::new(vec![
-                    // only modify if a PC member
-                    Transform {
-                        pred: get_eq_pred("contactId", user_id.to_string()),
-                        trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                            fk_name: "ContactInfo".to_string(),
-                            fk_col: "contactId".to_string(),
-                        })),
-                        global: false,
-                    },
-        Transform {
-                        pred: get_eq_pred("requestedBy", user_id.to_string()),
-                        trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                            fk_name: "ContactInfo".to_string(),
-                            fk_col: "requestedBy".to_string(),
-                        })),
-                        global: false,
-                    },
-                ])),
+            // only modify if a PC member
+            Transform {
+                pred: get_eq_pred("contactId", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "contactId".to_string(),
+                })),
+                global: false,
+            },
+            Transform {
+                pred: get_eq_pred("requestedBy", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "requestedBy".to_string(),
+                })),
+                global: false,
+            },
+        ])),
     );
     hm.insert(
         "PaperReview".to_string(),
         Arc::new(RwLock::new(vec![
-                    // only modify if a PC member
-                    Transform {
-                        pred: get_eq_pred("leadContactId", user_id.to_string()),
-                        trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                            fk_name: "ContactInfo".to_string(),
-                            fk_col: "leadContactId".to_string(),
-                        })),
-                        global: false,
-                    },
-        Transform {
-                        pred: get_eq_pred("managerContactId", user_id.to_string()),
-                        trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                            fk_name: "ContactInfo".to_string(),
-                            fk_col: "managerContactId".to_string(),
-                        })),
-                        global: false,
-                    },
-         Transform {
-                        pred: get_eq_pred("shepherdContactId", user_id.to_string()),
-                        trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                            fk_name: "ContactInfo".to_string(),
-                            fk_col: "shepherdContactId".to_string(),
-                        })),
-                        global: false,
-                    },
-                ])),
+            // only modify if a PC member
+            Transform {
+                pred: get_eq_pred("leadContactId", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "leadContactId".to_string(),
+                })),
+                global: false,
+            },
+            Transform {
+                pred: get_eq_pred("managerContactId", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "managerContactId".to_string(),
+                })),
+                global: false,
+            },
+            Transform {
+                pred: get_eq_pred("shepherdContactId", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "ContactInfo".to_string(),
+                    fk_col: "shepherdContactId".to_string(),
+                })),
+                global: false,
+            },
+        ])),
     );
     hm
 }

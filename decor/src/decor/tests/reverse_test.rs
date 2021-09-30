@@ -5,12 +5,13 @@ mod disguises;
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
-use decor::helpers;
 use decor::diffs;
+use decor::helpers;
 use log::warn;
 use mysql::prelude::*;
 use rand::rngs::OsRng;
-use rsa::{pkcs1::FromRsaPrivateKey, PaddingScheme, RsaPrivateKey, RsaPublicKey};
+use rsa::pkcs1::{FromRsaPrivateKey, ToRsaPrivateKey};
+use rsa::{PaddingScheme, RsaPrivateKey, RsaPublicKey};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::*;
@@ -30,7 +31,7 @@ fn init_logger() {
         // Ignore errors initializing the logger if tests race to configure it
         .try_init();
 }
-/*
+
 #[test]
 fn test_app_rev_anon_disguise() {
     init_logger();
@@ -72,18 +73,21 @@ fn test_app_rev_anon_disguise() {
 
         // register user in Edna
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+        let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u, "email@email.com".to_string(), &pub_key);
+        edna.register_principal(u, "email@mail.com".to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
-        priv_keys.push(private_key.clone());
+        priv_keys.push(private_key_vec.clone());
     }
 
     // APPLY ANON DISGUISE
     let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
-    edna.apply_disguise(anon_disguise.clone(), vec![]).unwrap();
+    let lcs = edna
+        .apply_disguise(0, anon_disguise.clone(), vec![], vec![])
+        .unwrap();
 
-    // REVERSE ANON DISGUISE WITH NO USER TOKENS
-    edna.reverse_disguise(anon_disguise.clone(), vec![])
+    // REVERSE ANON DISGUISE WITH NO DIFFS
+    edna.reverse_disguise(0, anon_disguise.clone(), vec![], 0)
         .unwrap();
 
     // CHECK DISGUISE RESULTS: moderations have been restored
@@ -185,50 +189,20 @@ fn test_app_rev_anon_disguise() {
         }
     }
 
-    // REVERSE DISGUISE WITH USER TOKENS
-    let mut symkeys = vec![];
+    // REVERSE DISGUISE WITH USER DIFFS
     for u in 1..USER_ITERS {
-        let mut pp_privkeys = HashMap::new();
-        let mut pps = vec![];
-
         // get diffs
-        let cap = edna.get_capability(u, 1).unwrap();
-        let pps_enc_keys = edna.get_pseudoprincipal_enc_privkeys(u);
-        for mut pk in pps_enc_keys {
-            let padding = PaddingScheme::new_pkcs1v15_encrypt();
-            let symkey = priv_keys[u as usize - 1]
-                .decrypt(padding, &pk.enc_key)
-                .expect("failed to decrypt");
-            // decrypt diff with symkey
-            let cipher = Aes128Cbc::new_from_slices(&symkey, &pk.enc_diff.iv).unwrap();
-            let plaintext = cipher.decrypt_vec(&mut pk.enc_diff.diff_data).unwrap();
-            let pkdiff = diffs::privkeydiff_from_bytes(plaintext);
-            let privkey = RsaPrivateKey::from_pkcs1_der(&pkdiff.priv_key).unwrap();
-            pp_privkeys.insert(pkdiff.new_uid, privkey);
-            pps.push(pkdiff.new_uid);
-        }
-        let esymks =
-            edna.get_enc_diff_symkeys_of_capabilities_and_pseudoprincipals(vec![cap], pps);
-        assert_eq!(esymks.len(), 1);
-        let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        let symkey = priv_keys[u as usize - 1]
-            .decrypt(padding, &esymks[0].0.enc_symkey)
-            .expect("failed to decrypt");
-        symkeys.push((
-            diffs::SymKey {
-                uid: u,
-                did: 1,
-                symkey: symkey,
-            },
-            cap,
-        ));
-    }
-    edna.reverse_disguise(anon_disguise.clone(), symkeys)
+        let lc = lcs.get(&(u, 1)).unwrap();
+        edna.reverse_disguise(
+            u,
+            anon_disguise.clone(),
+            priv_keys[u as usize - 1].clone(),
+            *lc,
+        )
         .unwrap();
 
-    // CHECK DISGUISE RESULTS: stories have been restored too
-    // stories recorrelated
-    for u in 1..USER_ITERS {
+        // CHECK DISGUISE RESULTS: stories have been restored too
+        // stories recorrelated
         let mut results = vec![];
         let res = db
             .query_iter(format!(r"SELECT id FROM stories WHERE user_id={}", u))
@@ -240,10 +214,8 @@ fn test_app_rev_anon_disguise() {
             results.push(id);
         }
         assert_eq!(results.len(), 1);
-    }
 
-    // moderations recorrelated
-    for u in 1..USER_ITERS {
+        // moderations recorrelated
         let mut results = vec![];
         let res = db
             .query_iter(format!(
@@ -259,7 +231,7 @@ fn test_app_rev_anon_disguise() {
         }
         assert_eq!(results.len(), 1);
     }
-
+    // CHECK AFTER ALL USERS HAVE REVERSED
     // stories have no guises as owners
     let mut stories_results = vec![];
     let res = db
@@ -301,6 +273,7 @@ fn test_app_rev_anon_disguise() {
     drop(db);
 }
 
+/*
 #[test]
 fn test_app_rev_gdpr_disguise() {
     init_logger();

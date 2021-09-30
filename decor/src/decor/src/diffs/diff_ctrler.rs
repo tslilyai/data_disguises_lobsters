@@ -1,13 +1,13 @@
-use crate::helpers::*;
 use crate::diffs::*;
+use crate::helpers::*;
 use crate::{DID, UID};
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
 use log::warn;
 use rand::{rngs::OsRng, RngCore};
-use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use rsa::pkcs1::{FromRsaPrivateKey, ToRsaPrivateKey};
+use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::iter::repeat;
@@ -27,6 +27,10 @@ pub struct EncData {
 
 impl EncData {
     pub fn decrypt_encdata(&self, data_cap: &DataCap) -> (Vec<u8>, Vec<u8>) {
+        if data_cap.is_empty() {
+            return (vec![], vec![]);
+        }
+
         let priv_key = RsaPrivateKey::from_pkcs1_der(data_cap).unwrap();
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
         let key = priv_key
@@ -109,7 +113,7 @@ impl DiffCtrler {
         self.tmp_loc_caps.clear();
     }
 
-    /* 
+    /*
      * LOCATING CAPABILITIES
      */
     fn get_loc_cap(&mut self, uid: u64, did: u64) -> LocCap {
@@ -214,14 +218,14 @@ impl DiffCtrler {
             "inserting user diff {:?} with uid {} did {}",
             diff, uid, did
         );
-        
+
         let cap = self.get_loc_cap(uid, did);
 
         let p = self
             .principal_data
             .get_mut(&uid)
             .expect("no user with uid found?");
-        
+
         // give the diff a random nonce and some id
         diff.nonce = self.rng.next_u64();
         diff.diff_id = self.rng.next_u64();
@@ -349,9 +353,7 @@ impl DiffCtrler {
             }
         }
         if let Some((uid, did)) = record_diff_for_disguise {
-            self.insert_user_data_diff(&mut Diff::new_diff_modify(
-                uid, did, old_diff, new_diff,
-            ));
+            self.insert_user_data_diff(&mut Diff::new_diff_modify(uid, did, old_diff, new_diff));
         }
         found
     }
@@ -373,6 +375,11 @@ impl DiffCtrler {
                 // just return if the disguise was global
             }
             return found;
+        }
+
+        // return if no diffs accessible
+        if data_cap.is_empty() {
+            return false;
         }
 
         // otherwise search the user list
@@ -440,30 +447,29 @@ impl DiffCtrler {
         if let Some(global_diffs) = self.global_diffs.get(&did) {
             if let Some(user_diffs) = global_diffs.get(&uid) {
                 let diffs = user_diffs.read().unwrap();
-                warn!("Filtering {} global diffs of disg {} user {}", diffs.len(), did, uid);
+                warn!(
+                    "Filtering {} global diffs of disg {} user {}",
+                    diffs.len(),
+                    did,
+                    uid
+                );
                 return diffs.clone().into_iter().filter(|t| !t.revealed).collect();
             }
         }
         vec![]
     }
 
-    pub fn get_diffs(
-        &self,
-        uid: UID,
-        did: DID,
-        data_cap: &DataCap,
-        loc_cap: LocCap,
-    ) -> Vec<Diff> {
+    pub fn get_diffs(&self, uid: UID, did: DID, data_cap: &DataCap, loc_cap: LocCap) -> Vec<Diff> {
         let mut diffs = self.get_global_diffs(uid, did);
         warn!("cd diffs global pushed to len {}", diffs.len());
 
+        if data_cap.is_empty() {
+            return diffs;
+        }
         if let Some(diffls) = self.enc_diffs_map.get(&loc_cap) {
             for enc_diff in diffls {
                 // decrypt diff with data_cap provided by client
-                warn!(
-                    "Got cd data of len {}",
-                    enc_diff.enc_data.len(),
-                );
+                warn!("Got cd data of len {}", enc_diff.enc_data.len(),);
                 let (_, plaintext) = enc_diff.decrypt_encdata(data_cap);
                 let diff = diff_from_bytes(&plaintext);
 
@@ -489,7 +495,11 @@ impl DiffCtrler {
 
                 let pp = self.principal_data.get(&pk.new_uid).unwrap();
                 for lc in &pp.loc_caps {
-                    diffs.extend(self.get_diffs(pk.new_uid, pk.did, &pk.priv_key, *lc).iter().cloned());
+                    diffs.extend(
+                        self.get_diffs(pk.new_uid, pk.did, &pk.priv_key, *lc)
+                            .iter()
+                            .cloned(),
+                    );
                 }
             }
         }

@@ -1,7 +1,7 @@
+use crate::diffs::*;
 use crate::helpers::*;
 use crate::predicate::*;
 use crate::stats::*;
-use crate::diffs::*;
 use crate::*;
 use mysql::{Opts, Pool};
 use rsa::RsaPublicKey;
@@ -89,7 +89,7 @@ impl Disguiser {
         locked_diff_ctrler.register_principal(uid, email, pubkey);
     }
 
-    fn get_diffs_at_loc (
+    fn get_diffs_at_loc(
         &mut self,
         uid: UID,
         did: DID,
@@ -142,7 +142,7 @@ impl Disguiser {
         uid: UID,
         disguise: Arc<disguise::Disguise>,
         data_cap: diffs::DataCap,
-        loc_caps: Vec<diffs::LocCap>
+        loc_caps: Vec<diffs::LocCap>,
     ) -> Result<HashMap<(UID, DID), diffs::LocCap>, mysql::Error> {
         let mut conn = self.pool.get_conn()?;
         let mut threads = vec![];
@@ -150,7 +150,12 @@ impl Disguiser {
         let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
         let mut diffs = vec![];
         for lc in loc_caps {
-            diffs.extend(locked_diff_ctrler.get_diffs(uid, did, &data_cap, lc).iter().cloned());
+            diffs.extend(
+                locked_diff_ctrler
+                    .get_diffs(uid, did, &data_cap, lc)
+                    .iter()
+                    .cloned(),
+            );
         }
         drop(locked_diff_ctrler);
 
@@ -434,11 +439,7 @@ impl Disguiser {
         drop(locked_diff_ctrler);
     }
 
-    fn select_predicate_objs_and_execute_removes(
-        &self,
-        disguise: Arc<Disguise>,
-        diffs: Vec<Diff>,
-    ) {
+    fn select_predicate_objs_and_execute_removes(&self, disguise: Arc<Disguise>, diffs: Vec<Diff>) {
         let mut threads = vec![];
         for (table, transforms) in disguise.table_disguises.clone() {
             let my_table_info = disguise.table_info.clone();
@@ -521,8 +522,7 @@ impl Disguiser {
                                     if t.global {
                                         locked_diff_ctrler.insert_global_diff(&mut diff);
                                     } else {
-                                        locked_diff_ctrler
-                                            .insert_user_data_diff(&mut diff);
+                                        locked_diff_ctrler.insert_user_data_diff(&mut diff);
                                     }
                                     drop(locked_diff_ctrler);
                                 }
@@ -578,8 +578,7 @@ impl Disguiser {
                                 // save the transformation to perform on this diff
                                 let ts = diff_transforms.get_mut(&diff).unwrap();
                                 ts.push(t.clone());
-                                decorrelated_items
-                                    .insert((fk_col.clone(), diff.new_value.clone()));
+                                decorrelated_items.insert((fk_col.clone(), diff.new_value.clone()));
                             }
                         }
                         _ => {

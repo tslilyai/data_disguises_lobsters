@@ -20,8 +20,8 @@
 
 use crate::ast::display::{self, AstDisplay, AstFormatter};
 use crate::ast::{
-    ColumnDef, Connector, Envelope, Expr, Format, Ident, ObjectName, Query, TableConstraint, Value,
-    IndexDef, Engine,
+    ColumnDef, Connector, Engine, Envelope, Expr, Format, Ident, IndexDef, ObjectName, Query,
+    TableConstraint, Value,
 };
 
 /// A top-level statement (SELECT, INSERT, CREATE, etc.)

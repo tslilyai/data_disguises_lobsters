@@ -17,7 +17,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
     let mut hm = HashMap::new();
 
     // DECOR MOD AND STORIES
-    
+
     // anyone can restore moderations (public)
     hm.insert(
         "moderations".to_string(),

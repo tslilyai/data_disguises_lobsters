@@ -1,6 +1,6 @@
+use crate::diffs::*;
 use crate::helpers::*;
 use crate::stats::QueryStat;
-use crate::diffs::*;
 use crate::{DID, UID};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
@@ -67,7 +67,7 @@ pub fn diff_from_bytes(bytes: &Vec<u8>) -> Diff {
 }
 
 impl Diff {
-    pub fn new_diff_modify(uid: UID, did:DID, old_diff: &Diff, changed_diff: &Diff) -> Diff {
+    pub fn new_diff_modify(uid: UID, did: DID, old_diff: &Diff, changed_diff: &Diff) -> Diff {
         let mut diff: Diff = Default::default();
         diff.is_global = false;
         diff.uid = uid;

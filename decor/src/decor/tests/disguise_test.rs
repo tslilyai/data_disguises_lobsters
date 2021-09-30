@@ -3,13 +3,13 @@ extern crate mysql;
 
 mod disguises;
 use block_modes::block_padding::Pkcs7;
-use block_modes::{Cbc};
+use block_modes::Cbc;
 use decor::helpers;
 use mysql::prelude::*;
 use rand::rngs::OsRng;
-use rsa::{PaddingScheme, RsaPrivateKey, RsaPublicKey};
 use rsa::pkcs1::{FromRsaPrivateKey, ToRsaPrivateKey};
-use std::collections::{HashSet};
+use rsa::{PaddingScheme, RsaPrivateKey, RsaPublicKey};
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::*;
 
@@ -70,7 +70,8 @@ fn test_app_anon_disguise() {
 
     // APPLY ANON DISGUISE
     let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
-    edna.apply_disguise(0, anon_disguise.clone(), vec![], vec![]).unwrap();
+    edna.apply_disguise(0, anon_disguise.clone(), vec![], vec![])
+        .unwrap();
 
     // CHECK DISGUISE RESULTS
     // users exist
@@ -218,7 +219,8 @@ fn test_app_gdpr_disguise() {
     // APPLY GDPR DISGUISES
     for u in 1..USER_ITERS {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
-        edna.apply_disguise(u, Arc::new(gdpr_disguise), vec![], vec![]).unwrap();
+        edna.apply_disguise(u, Arc::new(gdpr_disguise), vec![], vec![])
+            .unwrap();
     }
 
     // CHECK DISGUISE RESULTS
@@ -345,15 +347,22 @@ fn test_compose_anon_gdpr_disguises() {
 
     // APPLY ANON DISGUISE
     let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
-    let lcs = edna.apply_disguise(0, anon_disguise.clone(), vec![], vec![]).unwrap();
+    let lcs = edna
+        .apply_disguise(0, anon_disguise.clone(), vec![], vec![])
+        .unwrap();
 
     // APPLY GDPR DISGUISES
     for u in 1..USER_ITERS {
         // get private key diffs
         let lc = lcs.get(&(u, 1)).unwrap();
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
-        edna.apply_disguise(u, Arc::new(gdpr_disguise), priv_keys[u as usize - 1].clone(), vec![*lc])
-            .unwrap();
+        edna.apply_disguise(
+            u,
+            Arc::new(gdpr_disguise),
+            priv_keys[u as usize - 1].clone(),
+            vec![*lc],
+        )
+        .unwrap();
     }
 
     // CHECK DISGUISE RESULTS

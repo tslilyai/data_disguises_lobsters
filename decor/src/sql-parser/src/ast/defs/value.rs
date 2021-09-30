@@ -226,7 +226,7 @@ pub enum DataType {
     Regclass,
     /// Text
     Text,
-    /// TinyText 
+    /// TinyText
     TinyText,
     /// Bytea
     Bytea,

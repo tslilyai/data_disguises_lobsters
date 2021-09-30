@@ -33,7 +33,8 @@ pub fn get_ids(id_cols: &Vec<String>, row: &Vec<RowVal>) -> Vec<RowVal> {
         .iter()
         .map(|id_col| RowVal {
             column: id_col.clone(),
-            value: get_value_of_col(row, &id_col).unwrap()})
+            value: get_value_of_col(row, &id_col).unwrap(),
+        })
         .collect()
 }
 

@@ -5,14 +5,14 @@ extern crate mysql;
 extern crate rand;
 
 use log::warn;
+use rand::rngs::OsRng;
+use rsa::{PaddingScheme, RsaPrivateKey, RsaPublicKey};
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
 use std::sync::Arc;
-use rsa::{PaddingScheme, RsaPrivateKey, RsaPublicKey};
 use std::*;
-use std::collections::{HashSet, HashMap};
 use structopt::StructOpt;
-use rand::{rngs::OsRng};
 
 mod conf_anon_disguise;
 mod datagen;
@@ -82,8 +82,7 @@ fn run_test(disguises: Vec<Arc<disguise::Disguise>>, users: &Vec<u64>, prime: bo
     let mut user_keys = HashMap::new();
     let mut rng = OsRng;
     for uid in users {
-        let private_key =
-            RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+        let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
         edna.register_principal(*uid, &pub_key);
         user_keys.insert(uid, private_key);
@@ -98,7 +97,7 @@ fn run_test(disguises: Vec<Arc<disguise::Disguise>>, users: &Vec<u64>, prime: bo
 
         for ek in enckeys {
             let padding = PaddingScheme::new_pkcs1v15_encrypt();
-            let symkey = user_keys[&ek.uid] 
+            let symkey = user_keys[&ek.uid]
                 .decrypt(padding, &ek.enc_symkey)
                 .expect("failed to decrypt");
             symkeys.insert(tokens::ListSymKey {
@@ -107,7 +106,7 @@ fn run_test(disguises: Vec<Arc<disguise::Disguise>>, users: &Vec<u64>, prime: bo
                 symkey: symkey,
             });
         }
-        
+
         let tokens = edna.get_tokens_of_disguise_keys(symkeys, true);
         edna.apply_disguise(disguise, tokens).unwrap();
         let dur = start.elapsed();

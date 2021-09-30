@@ -7,7 +7,6 @@ use std::sync::{Arc, RwLock};
 
 static GUISE_ID: AtomicU64 = AtomicU64::new(1 << 10);
 
-
 pub fn get_insert_guise_cols() -> Vec<String> {
     vec!["id".to_string(), "username".to_string()]
 }
@@ -72,5 +71,3 @@ pub fn get_table_info() -> Arc<RwLock<HashMap<String, TableInfo>>> {
     );
     Arc::new(RwLock::new(hm))
 }
-
-
