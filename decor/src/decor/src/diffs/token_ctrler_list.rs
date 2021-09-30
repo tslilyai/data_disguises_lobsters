@@ -6,7 +6,7 @@ use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
 use log::warn;
 use rand::{rngs::OsRng, RngCore};
-use rsa::pkcs1::FromRsaPrivateKey;
+use rsa::pkcs1::{FromRsaPrivateKey, ToRsaPrivateKey};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};

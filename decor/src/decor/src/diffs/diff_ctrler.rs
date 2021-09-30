@@ -7,7 +7,7 @@ use block_modes::{BlockMode, Cbc};
 use log::warn;
 use rand::{rngs::OsRng, RngCore};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
-use rsa::pkcs1::FromRsaPrivateKey;
+use rsa::pkcs1::{FromRsaPrivateKey, ToRsaPrivateKey};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::iter::repeat;
@@ -494,19 +494,19 @@ impl DiffCtrler {
     }
 }
 
-fn init_logger() {
-    let _ = env_logger::builder()
-        // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
-        // Ensure events are captured by `cargo test`
-        .is_test(true)
-        // Ignore errors initializing the logger if tests race to configure it
-        .try_init();
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn init_logger() {
+        let _ = env_logger::builder()
+            // Include all events in tests
+            .filter_level(log::LevelFilter::Warn)
+            // Ensure events are captured by `cargo test`
+            .is_test(true)
+            // Ignore errors initializing the logger if tests race to configure it
+            .try_init();
+    }
 
     #[test]
     fn test_insert_global_diff_single() {
@@ -566,6 +566,7 @@ mod tests {
 
         let mut rng = OsRng;
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+        let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
         ctrler.register_principal(uid, "email@mail.com".to_string(), &pub_key);
 
@@ -586,7 +587,7 @@ mod tests {
         );
         decor_diff.uid = uid;
         ctrler.insert_user_data_diff(&mut decor_diff);
-        let c = ctrler.get_tmp_capability(uid, did).unwrap().clone();
+        let lc = ctrler.get_tmp_capability(uid, did).unwrap().clone();
         ctrler.clear_tmp();
         assert_eq!(ctrler.global_diffs.len(), 0);
 
@@ -596,12 +597,11 @@ mod tests {
             .get(&uid)
             .expect("failed to get user?");
         assert_eq!(pub_key, p.pubkey);
-        assert!(p.locked_pks.is_empty());
         assert!(p.loc_caps.is_empty());
         assert!(ctrler.tmp_loc_caps.is_empty());
 
         // get diffs
-        let diffs = ctrler.get_diffs(&keys, vec![], true);
+        let diffs = ctrler.get_diffs(uid, did, &private_key_vec, lc);
         assert_eq!(diffs.len(), 1);
         assert_eq!(diffs[0], decor_diff);
     }
@@ -627,10 +627,11 @@ mod tests {
         for u in 1..iters {
             let private_key =
                 RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+            let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             let pub_key = RsaPublicKey::from(&private_key);
             ctrler.register_principal(u, "email@mail.com".to_string(), &pub_key);
             pub_keys.push(pub_key.clone());
-            priv_keys.push(private_key.clone());
+            priv_keys.push(private_key_vec.clone());
 
             for d in 1..iters {
                 for i in 0..iters {
@@ -671,9 +672,9 @@ mod tests {
             assert!(p.loc_caps.is_empty());
 
             for d in 1..iters {
-                let c = caps.get(&(u, d)).unwrap().clone();
+                let lc = caps.get(&(u, d)).unwrap().clone();
                 // get diffs
-                let diffs = ctrler.get_diffs(&keys, vec![], true);
+                let diffs = ctrler.get_diffs(u, d, &priv_keys[u as usize - 1], lc);
                 assert_eq!(diffs.len(), (iters as usize));
                 for i in 0..iters {
                     assert_eq!(
@@ -710,10 +711,11 @@ mod tests {
         for u in 1..iters {
             let private_key =
                 RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+            let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             let pub_key = RsaPublicKey::from(&private_key);
             ctrler.register_principal(u, "email@mail.com".to_string(), &pub_key);
             pub_keys.push(pub_key.clone());
-            priv_keys.push(private_key.clone());
+            priv_keys.push(private_key_vec.clone());
 
             for d in 1..iters {
                 let mut decor_diff = Diff::new_decor_diff(
@@ -738,8 +740,8 @@ mod tests {
                 // create an anonymous user
                 // and insert some diff for the anon user
                 ctrler.register_anon_principal(u, anon_uid, d);
-                let c = ctrler.get_tmp_capability(u, d).unwrap().clone();
-                caps.insert((u, d), c);
+                let lc = ctrler.get_tmp_capability(u, d).unwrap().clone();
+                caps.insert((u, d), lc);
             }
         }
         assert_eq!(ctrler.global_diffs.len(), 0);
@@ -757,7 +759,7 @@ mod tests {
             for d in 1..iters {
                 let c = caps.get(&(u, d)).unwrap().clone();
                 // get diffs
-                let diffs = ctrler.get_diffs(&keys, vec![], true);
+                let diffs = ctrler.get_diffs(u, d, &priv_keys[u as usize - 1], c);
                 assert_eq!(diffs.len(), 1);
                 assert_eq!(diffs[0].old_value[0].value, (old_fk_value + d).to_string());
                 assert_eq!(diffs[0].new_value[0].value, (new_fk_value + d).to_string());
