@@ -88,8 +88,9 @@ impl DiffCtrler {
         self.tmp_loc_caps.get(&(uid, did))
     }
 
-    pub fn save_loc_caps(&mut self) {
-        for ((uid, _), c) in self.tmp_loc_caps.iter() {
+    pub fn save_and_clear_loc_caps(&mut self) -> HashMap<(UID, DID), LocCap> {
+        let lcs = self.tmp_loc_caps.clone();
+        for ((uid, _), c) in lcs.iter() {
             let p = self.principal_data.get_mut(&uid).unwrap();
             // save to principal data if no email (pseudoprincipal)
             if p.email.is_empty() {
@@ -99,6 +100,8 @@ impl DiffCtrler {
                 //self.loc_caps.insert((*uid, *did), *c);
             }
         }
+        self.clear_tmp();
+        lcs
     }
 
     // XXX note this doesn't allow for concurrent disguising right now

@@ -143,7 +143,7 @@ impl Disguiser {
         disguise: Arc<disguise::Disguise>,
         data_cap: diffs::DataCap,
         loc_caps: Vec<diffs::LocCap>
-    ) -> Result<(), mysql::Error> {
+    ) -> Result<HashMap<(UID, DID), diffs::LocCap>, mysql::Error> {
         let mut conn = self.pool.get_conn()?;
         let mut threads = vec![];
         let did = disguise.did;
@@ -302,9 +302,11 @@ impl Disguiser {
         warn!("Disguiser: Performed Inserts");
 
         // any capabilities generated during disguise should be emailed
-        self.diff_ctrler.lock().unwrap().save_loc_caps();
+        let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
+        let loc_caps = locked_diff_ctrler.save_and_clear_loc_caps();
+        drop(locked_diff_ctrler);
         self.end_disguise_action();
-        Ok(())
+        Ok(loc_caps)
     }
 
     fn modify_global_diffs(&mut self, disguise: Arc<Disguise>) {
@@ -635,7 +637,6 @@ impl Disguiser {
     fn end_disguise_action(&self) {
         self.to_insert.lock().unwrap().clear();
         self.items.write().unwrap().clear();
-        self.diff_ctrler.lock().unwrap().clear_tmp();
         self.diffs_to_modify.write().unwrap().clear();
         warn!("Disguiser: clear disguise records");
     }

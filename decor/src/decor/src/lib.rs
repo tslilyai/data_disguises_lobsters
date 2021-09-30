@@ -6,6 +6,7 @@ use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::sync::{Arc, Mutex};
 use rsa::{RsaPublicKey};
+use std::collections::{HashMap};
 use std::*;
 
 pub mod disguise;
@@ -73,10 +74,9 @@ impl EdnaClient {
         disguise: Arc<disguise::Disguise>,
         data_cap: diffs::DataCap,
         loc_caps: Vec<diffs::LocCap>,
-    ) -> Result<(), mysql::Error> {
-        self.disguiser.apply(uid, disguise.clone(), data_cap, loc_caps)?;
-        warn!("EDNA: APPLIED Disguise {}", disguise.clone().did);
-        Ok(())
+    ) -> Result<HashMap<(UID, DID), diffs::LocCap>, mysql::Error> {
+        warn!("EDNA: APPLYING Disguise {}", disguise.clone().did);
+        self.disguiser.apply(uid, disguise.clone(), data_cap, loc_caps)
     }
 
     pub fn reverse_disguise(
