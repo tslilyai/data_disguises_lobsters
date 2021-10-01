@@ -2,8 +2,6 @@ extern crate log;
 extern crate mysql;
 
 mod disguises;
-use block_modes::block_padding::Pkcs7;
-use block_modes::Cbc;
 use decor::helpers;
 use mysql::prelude::*;
 use rand::rngs::OsRng;

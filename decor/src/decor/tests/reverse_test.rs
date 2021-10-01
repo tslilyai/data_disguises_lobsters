@@ -2,9 +2,6 @@ extern crate log;
 extern crate mysql;
 
 mod disguises;
-use aes::Aes128;
-use block_modes::block_padding::Pkcs7;
-use block_modes::{BlockMode, Cbc};
 use decor::diffs;
 use decor::helpers;
 use log::warn;
@@ -16,7 +13,6 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::*;
 
-type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 const SCHEMA: &'static str = include_str!("./schema.sql");
 const RSA_BITS: usize = 2048;
 const USER_ITERS: u64 = 2;
@@ -86,7 +82,7 @@ fn test_app_rev_anon_disguise() {
         .apply_disguise(0, anon_disguise.clone(), vec![], vec![])
         .unwrap();
 
-    // REVERSE ANON DISGUISE WITH NO DIFFS
+    // REVERSE ANON DISGUISE WITH NO PRIVATE DIFFS
     edna.reverse_disguise(0, anon_disguise.clone(), vec![], 0)
         .unwrap();
 
@@ -141,7 +137,7 @@ fn test_app_rev_anon_disguise() {
             let id = helpers::mysql_val_to_string(&vals[0]);
             results.push(id);
         }
-        assert_eq!(results.len(), 1);
+        assert_eq!(results.len(), NSTORIES as usize);
     }
 
     let mut guises = HashSet::new();
@@ -213,7 +209,7 @@ fn test_app_rev_anon_disguise() {
             let id = helpers::mysql_val_to_string(&vals[0]);
             results.push(id);
         }
-        assert_eq!(results.len(), 1);
+        assert_eq!(results.len(), NSTORIES as usize);
 
         // moderations recorrelated
         let mut results = vec![];
@@ -229,7 +225,7 @@ fn test_app_rev_anon_disguise() {
             let id = helpers::mysql_val_to_string(&vals[0]);
             results.push(id);
         }
-        assert_eq!(results.len(), 1);
+        assert_eq!(results.len(), NSTORIES as usize);
     }
     // CHECK AFTER ALL USERS HAVE REVERSED
     // stories have no guises as owners

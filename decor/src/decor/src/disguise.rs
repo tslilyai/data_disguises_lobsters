@@ -97,7 +97,7 @@ impl Disguiser {
         loc_cap: LocCap,
     ) -> Vec<diffs::Diff> {
         let locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
-        let diffs = locked_diff_ctrler.get_diffs(uid, did, &data_cap, loc_cap);
+        let diffs = locked_diff_ctrler.get_diffs(&data_cap, loc_cap);
         warn!("Got {} diffs", diffs.len());
         drop(locked_diff_ctrler);
         diffs
@@ -113,7 +113,10 @@ impl Disguiser {
         let mut conn = self.pool.get_conn()?;
         let mut diffs_to_mark_revealed: Vec<Diff> = vec![];
         let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
-        let diffs = locked_diff_ctrler.get_diffs(uid, disguise.did, &data_cap, loc_cap);
+       
+        // XXX revealing all global diffs when a disguise is reversed
+        let mut diffs = locked_diff_ctrler.get_global_diffs_of_disguise(disguise.did);
+        diffs.extend(locked_diff_ctrler.get_diffs(&data_cap, loc_cap).iter().cloned());
 
         for t in diffs {
             // only reverse diffs of disguise if not yet revealed
@@ -147,12 +150,12 @@ impl Disguiser {
         let mut conn = self.pool.get_conn()?;
         let mut threads = vec![];
         let did = disguise.did;
-        let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
+        let locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
         let mut diffs = vec![];
         for lc in loc_caps {
             diffs.extend(
                 locked_diff_ctrler
-                    .get_diffs(uid, did, &data_cap, lc)
+                    .get_diffs(&data_cap, lc)
                     .iter()
                     .cloned(),
             );
@@ -777,6 +780,10 @@ fn decor_item(
         })
         .collect();
     let child_ids = get_ids(&child_table_info.id_cols, &new_child);
+    // actually register the anon principal, including saving its privkey for the old uid
+    diff_ctrler.register_anon_principal(old_uid, guise_id, did);
+
+    // save diff
     let mut decor_diff = Diff::new_decor_diff(
         did,
         child_table.to_string(),
@@ -794,8 +801,6 @@ fn decor_item(
         } else {
             diff_ctrler.insert_global_diff(&mut decor_diff);
         }
-        // actually register the anon principal, including saving its privkey for the old uid
-        diff_ctrler.register_anon_principal(u64::from_str(&old_uid).unwrap(), guise_id, did);
     }
     stats.decor_dur += start.elapsed();
 }
