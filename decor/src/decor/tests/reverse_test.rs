@@ -269,7 +269,6 @@ fn test_app_rev_anon_disguise() {
     drop(db);
 }
 
-/*
 #[test]
 fn test_app_rev_gdpr_disguise() {
     init_logger();
@@ -304,59 +303,34 @@ fn test_app_rev_gdpr_disguise() {
 
         // register user in Edna
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+        let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u, "email@email.com".to_string(), &pub_key);
+        edna.register_principal(u, "email@mail.com".to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
-        priv_keys.push(private_key.clone());
+        priv_keys.push(private_key_vec.clone());
     }
 
     // APPLY GDPR DISGUISES
+    let mut lcs = vec![];
     for u in 1..USER_ITERS {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
-        edna.apply_disguise(Arc::new(gdpr_disguise), vec![])
+        let did = gdpr_disguise.did;
+        let lcs_map = edna
+            .apply_disguise(u, Arc::new(gdpr_disguise), vec![], vec![])
             .unwrap();
+        lcs.push(lcs_map.get(&(u, did)).unwrap().clone());
     }
 
     // REVERSE GDPR DISGUISES
     for u in 1..USER_ITERS {
-        let mut pp_privkeys = HashMap::new();
-        let mut pps = vec![];
-
-        // get private key diffs
-        let cap = edna.get_capability(u, 1).unwrap();
-        let pps_enc_keys = edna.get_pseudoprincipal_enc_privkeys(u);
-        for mut pk in pps_enc_keys {
-            let padding = PaddingScheme::new_pkcs1v15_encrypt();
-            let symkey = priv_keys[u as usize - 1]
-                .decrypt(padding, &pk.enc_key)
-                .expect("failed to decrypt");
-            // decrypt diff with symkey
-            let cipher = Aes128Cbc::new_from_slices(&symkey, &pk.enc_diff.iv).unwrap();
-            let plaintext = cipher.decrypt_vec(&mut pk.enc_diff.diff_data).unwrap();
-            let pkdiff = diffs::privkeydiff_from_bytes(plaintext);
-            let privkey = RsaPrivateKey::from_pkcs1_der(&pkdiff.priv_key).unwrap();
-            pp_privkeys.insert(pkdiff.new_uid, privkey);
-            pps.push(pkdiff.new_uid);
-        }
-
-        let esymks =
-            edna.get_enc_diff_symkeys_of_capabilities_and_pseudoprincipals(vec![cap], pps);
-        assert_eq!(esymks.len(), 1);
-        let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        let symkey = priv_keys[u as usize - 1]
-            .decrypt(padding, &esymks[0].0.enc_symkey)
-            .expect("failed to decrypt");
-        let symkeys = vec![(
-            diffs::SymKey {
-                uid: u,
-                did: 1,
-                symkey: symkey,
-            },
-            cap,
-        )];
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
-        edna.reverse_disguise(Arc::new(gdpr_disguise), symkeys)
-            .unwrap();
+        edna.reverse_disguise(
+            u,
+            Arc::new(gdpr_disguise),
+            priv_keys[u as usize - 1].clone(),
+            lcs[u as usize - 1],
+        )
+        .unwrap();
 
         // CHECK DISGUISE RESULTS
         let mut results = vec![];
@@ -391,7 +365,7 @@ fn test_app_rev_gdpr_disguise() {
             let id = helpers::mysql_val_to_string(&vals[0]);
             results.push(id);
         }
-        assert_eq!(results.len(), 1);
+        assert_eq!(results.len(), NSTORIES as usize);
 
         // stories present
         let mut stories_results = vec![];
@@ -412,10 +386,10 @@ fn test_app_rev_gdpr_disguise() {
         let id = helpers::mysql_val_to_u64(&vals[0]).unwrap();
         assert!(id < USER_ITERS);
     }
-
     drop(db);
 }
 
+/*
 #[test]
 fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     init_logger();

@@ -182,11 +182,21 @@ impl Diff {
                         self.old_value.iter().map(|rv| rv.column.clone()).collect();
                     let colstr = cols.join(",");
                     let vals: Vec<String> =
-                        self.old_value.iter().map(|rv| rv.value.clone()).collect();
+                        self.old_value.iter().map(|rv| 
+                            if rv.value.is_empty() {
+                                "\"\"".to_string()
+                            } else {
+                                for c in rv.value.chars() {
+                                    if !c.is_numeric() {
+                                        return format!("\"{}\"", rv.value.clone())
+                                    }
+                                }
+                                rv.value.clone()
+                            }).collect();
                     let valstr = vals.join(",");
                     query_drop(
                         format!(
-                            "INSERT INTO {} COLUMNS ({}) VALUES ({})",
+                            "INSERT INTO {} ({}) VALUES ({})",
                             self.guise_name, colstr, valstr
                         ),
                         conn,
