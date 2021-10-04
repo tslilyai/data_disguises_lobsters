@@ -249,12 +249,6 @@ impl DiffCtrler {
         let plaintext = serialize_to_bytes(&diff);
         let encrypted = cipher.encrypt_vec(&plaintext);
         assert_eq!(encrypted.len() % 16, 0);
-        warn!(
-            "Encrypted diff data of len {} with key {:?}-{:?}",
-            encrypted.len(),
-            key,
-            iv
-        );
         let encdiff = EncData {
             enc_key: enc_key,
             enc_data: encrypted,
@@ -386,11 +380,6 @@ impl DiffCtrler {
         // iterate through user's encrypted datadiffs
         if let Some(diffls) = self.enc_diffs_map.get_mut(&loc_cap) {
             for (i, enc_diff) in diffls.iter_mut().enumerate() {
-                warn!(
-                    "Got cd data of len {} with iv {:?}",
-                    enc_diff.enc_data.len(),
-                    enc_diff.iv
-                );
                 // decrypt data and compare
                 let (key, diffplaintext) = enc_diff.decrypt_encdata(data_cap);
                 let mut curdiff = diff_from_bytes(&diffplaintext);

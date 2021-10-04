@@ -443,6 +443,7 @@ impl Disguiser {
     }
 
     fn select_predicate_objs_and_execute_removes(&self, disguise: Arc<Disguise>, diffs: Vec<Diff>) {
+        warn!("ApplyPred: Selecting predicated objs for disguise {} with {} diffs", disguise.did, diffs.len());
         let mut threads = vec![];
         for (table, transforms) in disguise.table_disguises.clone() {
             let my_table_info = disguise.table_info.clone();
@@ -479,9 +480,11 @@ impl Disguiser {
                     .unwrap();
                     let mut pred_items: HashSet<&Vec<RowVal>> =
                         HashSet::from_iter(selected_rows.iter());
+                    warn!("ApplyPred: Got {} selected rows matching predicate {:?}", pred_items.len(), t.pred);
 
-                    // TOKENS RETRIEVAL: get diffs that match the predicate
+                    // DIFFS RETRIEVAL: get diffs that match the predicate
                     let pred_diffs = predicate::get_diffs_matching_pred(&t.pred, &table, &my_diffs);
+                    warn!("ApplyPred: Got {} diffs matching predicate {:?}", pred_diffs.len(), t.pred);
                     for pt in &pred_diffs {
                         // for diffs that decorrelated or updated a guise, we want to add the new
                         // value that should be transformed into the set of predicated items
@@ -511,7 +514,7 @@ impl Disguiser {
                                 debug!("Remove: Getting ids of table {} for {:?}", table, i);
                                 let ids = get_ids(&curtable_info.id_cols, i);
 
-                                // TOKEN INSERT
+                                // DIFF INSERT
                                 let mut diff = Diff::new_delete_diff(
                                     did,
                                     table.clone(),
@@ -564,7 +567,7 @@ impl Disguiser {
                                 decorrelated_items.insert((fk_col.clone(), i.clone()));
                             }
 
-                            // TOKENS modify any matching data diffs from prior disguises
+                            // DIFFS modify any matching data diffs from prior disguises
                             let diff_keys: Vec<Diff> =
                                 diff_transforms.keys().map(|k| k.clone()).collect();
                             for diff in diff_keys {
@@ -598,7 +601,7 @@ impl Disguiser {
                                 }
                             }
 
-                            // TOKENS modify any matching removed data diffs from prior disguises
+                            // DIFFS modify any matching removed data diffs from prior disguises
                             let diff_keys: Vec<Diff> =
                                 diff_transforms.keys().map(|k| k.clone()).collect();
                             for diff in diff_keys {
@@ -665,7 +668,7 @@ fn modify_item(
         value: Expr::Value(Value::String(new_val.clone())),
     });
 
-    // TOKEN INSERT
+    // DIFF INSERT
     let new_obj: Vec<RowVal> = i
         .iter()
         .map(|v| {
@@ -765,7 +768,7 @@ fn decor_item(
         value: Expr::Value(Value::Number(guise_id.to_string())),
     });
 
-    // TOKEN INSERT
+    // DIFF INSERT
     let new_child: Vec<RowVal> = i
         .iter()
         .map(|v| {

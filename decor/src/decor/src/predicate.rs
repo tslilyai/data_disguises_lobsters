@@ -91,6 +91,7 @@ pub fn get_diffs_matching_pred(
 ) -> Vec<Diff> {
     let mut matching = vec![];
     for t in diffs {
+        warn!("Pred: get_diffs_matching pred {:?}, checking diff {:?}", pred, t);
         if t.guise_name != name {
             continue;
         }

@@ -11,8 +11,8 @@ use std::sync::{Arc, Mutex};
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
 pub const MODIFY_GUISE: u64 = 3;
-pub const REMOVE_TOKEN: u64 = 5;
-pub const MODIFY_TOKEN: u64 = 6;
+pub const REMOVE_DIFF: u64 = 5;
+pub const MODIFY_DIFF: u64 = 6;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EncDiff {
@@ -46,7 +46,7 @@ pub struct Diff {
     // DECOR/MODIFY: store new blobs
     pub new_value: Vec<RowVal>,
 
-    // TOKEN REMOVE/MODIFY
+    // DIFF REMOVE/MODIFY
     pub old_diff_blob: String,
     pub new_diff_blob: String,
 
@@ -72,7 +72,7 @@ impl Diff {
         diff.is_global = false;
         diff.uid = uid;
         diff.did = did;
-        diff.update_type = MODIFY_TOKEN;
+        diff.update_type = MODIFY_DIFF;
         diff.revealed = false;
         diff.old_diff_blob = serde_json::to_string(old_diff).unwrap();
         diff.new_diff_blob = serde_json::to_string(changed_diff).unwrap();
@@ -84,7 +84,7 @@ impl Diff {
         diff.is_global = false;
         diff.uid = uid;
         diff.did = did;
-        diff.update_type = REMOVE_TOKEN;
+        diff.update_type = REMOVE_DIFF;
         diff.revealed = false;
         diff.old_diff_blob = serde_json::to_string(changed_diff).unwrap();
         diff
@@ -309,13 +309,13 @@ impl Diff {
                         stats.clone(),
                     )?;
                 }
-                REMOVE_TOKEN => {
+                REMOVE_DIFF => {
                     // restore global diff (may or may not have been revealed, but oh well!)
                     let mut diff: Diff = serde_json::from_str(&self.old_diff_blob).unwrap();
                     assert!(diff.is_global);
                     diff_ctrler.insert_global_diff(&mut diff);
                 }
-                MODIFY_TOKEN => {
+                MODIFY_DIFF => {
                     let new_diff: Diff = serde_json::from_str(&self.new_diff_blob).unwrap();
                     assert!(new_diff.is_global);
 

@@ -50,17 +50,17 @@ Every client who creates an application account for principal $p$ registers an e
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Disguising and Revealing.}
-When a client speaking for principal $p$ wants to apply a disguise 
-the application invokes \fn{ApplyDisguise} with the disguise, and the client-provided data
-capability and a set of locating capabilities. These capabilities allow \sys to access disguise
-diffs of the corresponding disguises to compose the new disguise on top of these disguises during
-application. Applying a disguise returns the locating capability \lcapa{pd} that the application
-sends to the client (via e.g., emailing the client a link).
+When a client speaking for principal $p$ wants to apply a disguise $d$,
+the application invokes \fn{ApplyDisguise} with the client-provided data
+capability and a set of locating capabilities. Each locating capability \lcapa{pd'} allows \sys to
+access $p$'s disguise diffs from disguise $d'$, and to compose the new disguise on top of these
+disguises during application. Applying a disguise returns the locating capability \lcapa{pd} that
+the application sends to the client (via e.g., emailing the client a link).
 
 In order to reveal data disguised by $d$ for principal $p$, the application invokes
 \fn{RevealDisguise} on behalf of a client speaking for $p$. The client provides its data capability
 \dcapa{p} and locating capability \lcapa{pd}. The application passes these to \sys to restore the
-original, undisguised data with access to diffs corresponding to $d$.
+original, undisguised data with access to $p$'s diffs corresponding to $d$.
 
 %\lyt{(ignore this) Why might we need multiple locating capabilities for reveal? This is because diffs may change
 %other diffs. But in this case, why don't we have the diff storing the diff change also store the
@@ -93,7 +93,7 @@ particular review or paper:
     \item The client then must log into HotCRP as principal $p$.
     \item HotCRP invokes \sys's \fn{CapEstablishesOwnership} for the data object in question,
         using the capabilities passed in by the client.
-    \item If \sys returns true, the application permits the client to view the object with ownership
+    \item If \sys returns \fn{true}, the application permits the client to view the object with ownership
         rights (\eg ability to see reviews on authored papers, or edit their review); otherwise, the
         application does not allow the client to perform privileged actions.
 \end{itemize}
