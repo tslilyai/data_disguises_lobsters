@@ -18,7 +18,7 @@ pub fn query_drop(
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<(), mysql::Error> {
     let mut locked_stats = stats.lock().unwrap();
-    debug!("query_drop: {}", q);
+    debug!("query_drop: {}\n", q);
     locked_stats.nqueries += 1;
     drop(locked_stats);
     conn.query_drop(q)
@@ -29,9 +29,8 @@ pub fn get_query_rows_str(
     conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
-    debug!("get_query_rows: {}", qstr);
+    debug!("get_query_rows: {}\n", qstr);
     let mut locked_stats = stats.lock().unwrap();
-    debug!("query_drop: {}", qstr);
     locked_stats.nqueries += 1;
     drop(locked_stats);
 

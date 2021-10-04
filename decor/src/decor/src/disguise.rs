@@ -163,11 +163,16 @@ impl Disguiser {
         drop(locked_diff_ctrler);
 
         /*
-         * PREDICATE AND REMOVE
+         * REMOVE
+         */
+        self.execute_removes(disguise.clone(), &diffs);
+
+        /*
+         * PREDICATE
          */
         // get all the objects, remove the objects to remove
         // integrate vault_transforms into disguise read + write phases
-        self.select_predicate_objs_and_execute_removes(disguise.clone(), diffs);
+        self.select_predicate_objs(disguise.clone(), &diffs);
 
         /*
          * UPDATE/DECOR
@@ -441,36 +446,23 @@ impl Disguiser {
         }
         drop(locked_diff_ctrler);
     }
-
-    fn select_predicate_objs_and_execute_removes(&self, disguise: Arc<Disguise>, diffs: Vec<Diff>) {
-        warn!("ApplyPred: Selecting predicated objs for disguise {} with {} diffs", disguise.did, diffs.len());
-        let mut threads = vec![];
+    
+    fn execute_removes(&self, disguise: Arc<Disguise>, diffs: &Vec<Diff>) {
+        warn!("ApplyRemoves: removing objs for disguise {} with {} diffs", disguise.did, diffs.len());
         for (table, transforms) in disguise.table_disguises.clone() {
-            let my_table_info = disguise.table_info.clone();
             let pool = self.pool.clone();
             let mystats = self.stats.clone();
             let did = disguise.did;
-            let my_items = self.items.clone();
-            let my_diffs_to_modify = self.diffs_to_modify.clone();
-            let my_diffs = diffs.clone();
-            let my_diff_ctrler = self.diff_ctrler.clone();
+            let mut conn = pool.get_conn().unwrap();
+            let mut locked_diffs = self.diffs_to_modify.write().unwrap();
 
-            // hashmap from item value --> transform
-            let mut items_of_table: HashMap<Vec<RowVal>, Vec<Transform>> = HashMap::new();
-            let mut diff_transforms: HashMap<Diff, Vec<Transform>> = HashMap::new();
+            let locked_table_info = disguise.table_info.read().unwrap();
+            let curtable_info = locked_table_info.get(&table).unwrap().clone();
+            drop(locked_table_info);
 
-            threads.push(thread::spawn(move || {
-                let mut conn = pool.get_conn().unwrap();
-                let mut removed_items: HashSet<Vec<RowVal>> = HashSet::new();
-                let mut decorrelated_items: HashSet<(String, Vec<RowVal>)> = HashSet::new();
-                let my_transforms = transforms.read().unwrap();
-                let locked_table_info = my_table_info.read().unwrap();
-                let curtable_info = locked_table_info.get(&table).unwrap().clone();
-                drop(locked_table_info);
-
-                // get transformations in order of disguise application
-                // (so vault transforms are always first)
-                for t in &*my_transforms {
+            // REMOVES: do one loop to handle removes
+            for t in &*transforms.read().unwrap() {
+                if let TransformArgs::Remove = *t.trans.read().unwrap() {
                     let selection = predicate::pred_to_sql_where(&t.pred);
                     let selected_rows = get_query_rows_str(
                         &str_select_statement(&table, &selection),
@@ -480,51 +472,64 @@ impl Disguiser {
                     .unwrap();
                     let mut pred_items: HashSet<&Vec<RowVal>> =
                         HashSet::from_iter(selected_rows.iter());
-                    warn!("ApplyPred: Got {} selected rows matching predicate {:?}", pred_items.len(), t.pred);
+                    warn!("ApplyPred: Got {} selected rows matching predicate {:?}\n", pred_items.len(), t.pred);
 
-                    // DIFFS RETRIEVAL: get diffs that match the predicate
-                    let pred_diffs = predicate::get_diffs_matching_pred(&t.pred, &table, &my_diffs);
-                    warn!("ApplyPred: Got {} diffs matching predicate {:?}", pred_diffs.len(), t.pred);
-                    for pt in &pred_diffs {
-                        // for diffs that decorrelated or updated a guise, we want to add the new
-                        // value that should be transformed into the set of predicated items
-                        match pt.update_type {
-                            DECOR_GUISE | MODIFY_GUISE => {
-                                pred_items.insert(&pt.new_value);
+                    // BATCH REMOVE ITEMS 
+                    let delstmt = format!("DELETE FROM {} WHERE {}", table, selection);
+                    helpers::query_drop(delstmt, &mut conn, mystats.clone()).unwrap();
+
+                    // ITEM REMOVAL DIFF RECORDS
+                    for i in &pred_items {
+                        let ids = get_ids(&curtable_info.id_cols, i);
+
+                        // DIFF INSERT FOR REMOVAL
+                        let mut diff = Diff::new_delete_diff(
+                            did,
+                            table.clone(),
+                            ids.clone(),
+                            i.to_vec(),
+                        );
+                        for owner_col in &curtable_info.owner_cols {
+                            let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
+                            diff.uid = u64::from_str(&owner_uid).unwrap();
+                            let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
+                            if t.global {
+                                locked_diff_ctrler.insert_global_diff(&mut diff);
+                            } else {
+                                locked_diff_ctrler.insert_user_data_diff(&mut diff);
                             }
-                            _ => (),
-                        }
-                        // for all global diffs, we want to update the
-                        // stored value of this diff so that we only ever restore the most
-                        // up-to-date disguised data and the diff doesn't leak any data
-                        // NOTE: during reversal, we'll have to reverse this diff update
-                        if pt.is_global {
-                            diff_transforms.insert(pt.clone(), vec![]);
+                            drop(locked_diff_ctrler);
                         }
                     }
 
-                    // just remove item if it's supposed to be removed
-                    match &*t.trans.read().unwrap() {
-                        TransformArgs::Remove => {
-                            for i in pred_items {
-                                // don't remove an item that's already removed
-                                if removed_items.contains(i) {
-                                    continue;
-                                }
-                                debug!("Remove: Getting ids of table {} for {:?}", table, i);
-                                let ids = get_ids(&curtable_info.id_cols, i);
+                    // DIFFS REMOVAL: get diffs that match the predicate
+                    let pred_diffs = predicate::get_diffs_matching_pred(&t.pred, &table, diffs);
+                    for pt in &pred_diffs {
+                        // for diffs that decorrelated or updated a guise, we want to
+                        // remove the new value (saving a diff that we're removing this
+                        // value) 
+                        match pt.update_type { 
+                            DECOR_GUISE | MODIFY_GUISE => {
+                                warn!("ApplyPred: Removing diff new value {:?}\n", pt.new_value);
+                                let ids = get_ids(&curtable_info.id_cols, &pt.new_value);
+                                let remove_select = get_select_of_ids(&ids);
 
-                                // DIFF INSERT
+                                // delete the item
+                                let delstmt = format!("DELETE FROM {} WHERE {}", table, remove_select.to_string());
+                                helpers::query_drop(delstmt, &mut conn, mystats.clone()).unwrap();
+                                        pred_items.insert(&pt.new_value);
+
+                                // DIFF INSERT FOR REMOVAL
                                 let mut diff = Diff::new_delete_diff(
                                     did,
                                     table.clone(),
                                     ids.clone(),
-                                    i.clone(),
+                                    pt.new_value.clone(),
                                 );
                                 for owner_col in &curtable_info.owner_cols {
-                                    let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
+                                    let owner_uid = get_value_of_col(&pt.new_value, &owner_col).unwrap();
                                     diff.uid = u64::from_str(&owner_uid).unwrap();
-                                    let mut locked_diff_ctrler = my_diff_ctrler.lock().unwrap();
+                                    let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
                                     if t.global {
                                         locked_diff_ctrler.insert_global_diff(&mut diff);
                                     } else {
@@ -532,98 +537,108 @@ impl Disguiser {
                                     }
                                     drop(locked_diff_ctrler);
                                 }
-
-                                // EXTRA: save in removed so we don't transform this item further
-                                items_of_table.remove(i);
-                                removed_items.insert(i.to_vec());
                             }
-                            // delete the item
-                            let delstmt = format!("DELETE FROM {} WHERE {}", table, selection);
-                            helpers::query_drop(delstmt, &mut conn, mystats.clone()).unwrap();
-
-                            // save that these diffs should be removed
-                            for (_, ts) in &mut diff_transforms {
-                                // save the transformation to perform on this diff
-                                ts.push(t.clone());
-                            }
+                            // if diff marks removal, we don't need to do anything
+                            _ => (),
                         }
-                        TransformArgs::Decor { fk_col, .. } => {
-                            for i in pred_items {
-                                // don't decorrelate if removed
-                                if removed_items.contains(i) {
-                                    // remove if we'd accidentally added it before
-                                    items_of_table.remove(i);
-                                    continue;
-                                }
-                                // don't decorrelate twice
-                                if decorrelated_items.contains(&(fk_col.clone(), i.clone())) {
-                                    continue;
-                                }
-                                if let Some(ts) = items_of_table.get_mut(i) {
-                                    ts.push(t.clone());
-                                } else {
-                                    items_of_table.insert(i.clone(), vec![t.clone()]);
-                                }
-                                decorrelated_items.insert((fk_col.clone(), i.clone()));
-                            }
-
-                            // DIFFS modify any matching data diffs from prior disguises
-                            let diff_keys: Vec<Diff> =
-                                diff_transforms.keys().map(|k| k.clone()).collect();
-                            for diff in diff_keys {
-                                // don't decorrelate diff if removed
-                                if removed_items.contains(&diff.new_value) {
-                                    continue;
-                                }
-                                // don't decorrelate twice
-                                if decorrelated_items
-                                    .contains(&(fk_col.clone(), diff.new_value.clone()))
-                                {
-                                    continue;
-                                }
-                                // save the transformation to perform on this diff
-                                let ts = diff_transforms.get_mut(&diff).unwrap();
-                                ts.push(t.clone());
-                                decorrelated_items.insert((fk_col.clone(), diff.new_value.clone()));
-                            }
-                        }
-                        _ => {
-                            for i in pred_items {
-                                // don't modify if removed
-                                if removed_items.contains(i) {
-                                    items_of_table.remove(i);
-                                    continue;
-                                }
-                                if let Some(ts) = items_of_table.get_mut(i) {
-                                    ts.push(t.clone());
-                                } else {
-                                    items_of_table.insert(i.clone(), vec![t.clone()]);
-                                }
-                            }
-
-                            // DIFFS modify any matching removed data diffs from prior disguises
-                            let diff_keys: Vec<Diff> =
-                                diff_transforms.keys().map(|k| k.clone()).collect();
-                            for diff in diff_keys {
-                                // don't modify diff if removed
-                                if removed_items.contains(&diff.new_value) {
-                                    continue;
-                                }
-                                // save the transformation to perform on this diff
-                                let ts = diff_transforms.get_mut(&diff).unwrap();
-                                ts.push(t.clone());
-                            }
+                        // for all global diffs, we want to update the
+                        // stored value of this diff so that we only ever restore the most
+                        // up-to-date disguised data and the diff doesn't leak any data
+                        // NOTE: during reversal, we'll have to reverse this diff update
+                        if pt.is_global {
+                            warn!("ApplyRemoves: Inserting global diff {:?} to update\n", pt);
+                            match locked_diffs.get_mut(&pt) {
+                                Some(vs) => vs.push(t.clone()),
+                                None => {
+                                    locked_diffs.insert(pt.clone(), vec![t.clone()]);
+                                }                 
+                            }                 
                         }
                     }
                 }
+            }
+        }
+    }
+
+    fn select_predicate_objs(&self, disguise: Arc<Disguise>, diffs: &Vec<Diff>) {
+        warn!("ApplyPred: Selecting predicated objs for disguise {} with {} diffs", disguise.did, diffs.len());
+        let mut threads = vec![];
+
+        for (table, transforms) in disguise.table_disguises.clone() {
+            let pool = self.pool.clone();
+            let mystats = self.stats.clone();
+            let my_items = self.items.clone();
+            let my_diffs_to_modify = self.diffs_to_modify.clone();
+            let my_diffs = diffs.clone();
+
+            // hashmap from item value --> transform
+            let mut items_of_table: HashMap<Vec<RowVal>, Vec<Transform>> = HashMap::new();
+            let mut diff_transforms: HashMap<Diff, Vec<Transform>> = HashMap::new(); 
+
+            threads.push(thread::spawn(move || {
+                // XXX note: not tracking if we remove or decorrelate twice
+                let mut conn = pool.get_conn().unwrap();
+                let my_transforms = transforms.read().unwrap();
+
+                // handle Decor and Modify
+                for t in &*my_transforms {
+                    // skip removes
+                    if let TransformArgs::Remove = *t.trans.read().unwrap() {
+                        continue;
+                    }
+                    let selection = predicate::pred_to_sql_where(&t.pred);
+                    let selected_rows = get_query_rows_str(
+                        &str_select_statement(&table, &selection),
+                        &mut conn,
+                        mystats.clone(),
+                    )
+                    .unwrap();
+                    let mut pred_items: HashSet<&Vec<RowVal>> =
+                        HashSet::from_iter(selected_rows.iter());
+                    warn!("ApplyPred: Got {} selected rows matching predicate {:?}\n", pred_items.len(), t.pred);
+
+                    // DIFFS: get diffs that match the predicate
+                    let pred_diffs = predicate::get_diffs_matching_pred(&t.pred, &table, &my_diffs);
+                    for pt in &pred_diffs {
+                        // for diffs that decorrelated or updated a guise, we want to add the new
+                        // value that should be transformed into the set of predicated items
+                        match pt.update_type {
+                            DECOR_GUISE | MODIFY_GUISE => {
+                                warn!("ApplyPred: Inserting diff new value {:?} to update\n", pt.new_value);
+                                pred_items.insert(&pt.new_value);
+                            }
+                            _ => (),
+                        }
+                        // for all global diffs, we want to update the stored value of this diff so
+                        // that we only ever restore the most up-to-date disguised data and the
+                        // diff doesn't leak any data 
+                        // During reversal, we'll have to reverse this diff update
+                        if pt.is_global {
+                            warn!("ApplyPred: Inserting global diff {:?} to update\n", pt);
+                            match diff_transforms.get_mut(&pt) {
+                                Some(vs) => vs.push(t.clone()),
+                                None => {
+                                    diff_transforms.insert(pt.clone(), vec![t.clone()]);
+                                }                            
+                            }
+                        }
+                    }
+
+                    // ADD TRANSFORMATIONS TO PERFORM ON PREDICATED ITEMS
+                    for i in pred_items {
+                        if let Some(ts) = items_of_table.get_mut(i) {
+                            ts.push(t.clone());
+                        } else {
+                            items_of_table.insert(i.clone(), vec![t.clone()]);
+                        }
+                    }
+                }
+                // there should only be one thread working on items from this table, so just insert
                 let mut locked_items = my_items.write().unwrap();
-                match locked_items.get_mut(&table) {
-                    Some(hm) => hm.extend(items_of_table),
-                    None => {
-                        locked_items.insert(table.clone(), items_of_table);
-                    }
-                }
+                assert!(!locked_items.insert(table.clone(), items_of_table).is_none());
                 drop(locked_items);
+                
+                // same thing for diff transforms
                 let mut locked_diffs = my_diffs_to_modify.write().unwrap();
                 locked_diffs.extend(diff_transforms);
                 drop(locked_diffs);

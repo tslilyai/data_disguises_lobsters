@@ -418,7 +418,13 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
                 u
             ))
             .unwrap();
-            db.query_drop(format!(r"INSERT INTO moderations (moderator_user_id, story_id, user_id, action) VALUES ({}, {}, {}, 'bad story!');", u, s*u + s, u)).unwrap();
+            db.query_drop(format!(
+                r"INSERT INTO moderations (moderator_user_id, story_id, user_id, action) VALUES ({}, {}, {}, 'bad story!');",
+                u,
+                s * u + s,
+                u
+            ))
+            .unwrap();
         }
 
         // register user in Edna
@@ -432,7 +438,9 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
 
     // APPLY ANON DISGUISE
     let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
-    let anon_lcs_map = edna.apply_disguise(0, anon_disguise.clone(), vec![], vec![]).unwrap();
+    let anon_lcs_map = edna
+        .apply_disguise(0, anon_disguise.clone(), vec![], vec![])
+        .unwrap();
 
     // APPLY GDPR DISGUISES
     let mut gdpr_lcs = vec![];
@@ -441,7 +449,12 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
         let did = gdpr_disguise.did;
         let anon_lc = *anon_lcs_map.get(&(u, anon_disguise.did)).unwrap();
         let lcs_map = edna
-            .apply_disguise(u, Arc::new(gdpr_disguise), priv_keys[u as usize - 1].clone(), vec![anon_lc])
+            .apply_disguise(
+                u,
+                Arc::new(gdpr_disguise),
+                priv_keys[u as usize - 1].clone(),
+                vec![anon_lc],
+            )
             .unwrap();
         gdpr_lcs.push(lcs_map.get(&(u, did)).unwrap().clone());
     }
@@ -701,7 +714,7 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
             let username = helpers::mysql_val_to_string(&vals[1]);
             assert_eq!(username, format!("{}", u));
         }
-    }    
+    }
 
     // REVERSE DISGUISE WITH USER DIFFS
     for u in 1..USER_ITERS {
