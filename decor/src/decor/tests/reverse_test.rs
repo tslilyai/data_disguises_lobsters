@@ -623,10 +623,11 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     // REVERSE GDPR DISGUISES
     for u in 1..USER_ITERS {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
+        let lcs = vec![gdpr_lcs[u as usize - 1], *anon_lcs_map.get(&(u, 1)).unwrap()];
         edna.reverse_disguise(
             Arc::new(gdpr_disguise),
             priv_keys[u as usize - 1].clone(),
-            gdpr_lcs[u as usize - 1],
+            lcs,
         )
         .unwrap();
     }

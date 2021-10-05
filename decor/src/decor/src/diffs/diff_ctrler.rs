@@ -356,7 +356,7 @@ impl DiffCtrler {
     /*
      * UPDATE DIFF FUNCTIONS
      */
-    pub fn mark_diff_revealed(&mut self, diff: &Diff, data_cap: &DataCap, loc_cap: LocCap) -> bool {
+    pub fn mark_diff_revealed(&mut self, did: DID, diff: &Diff, data_cap: &DataCap, loc_caps: &Vec<LocCap>) -> bool {
         let mut found = false;
         if diff.is_global {
             if let Some(global_diffs) = self.global_diffs.get(&diff.did) {
@@ -378,44 +378,49 @@ impl DiffCtrler {
         }
 
         // iterate through user's encrypted datadiffs
-        if let Some(diffls) = self.enc_diffs_map.get_mut(&loc_cap) {
-            for (i, enc_diff) in diffls.iter_mut().enumerate() {
-                // decrypt data and compare
-                let (key, diffplaintext) = enc_diff.decrypt_encdata(data_cap);
-                let mut curdiff = diff_from_bytes(&diffplaintext);
-                if curdiff.diff_id == diff.diff_id {
-                    curdiff.revealed = true;
-                    let cipher = Aes128Cbc::new_from_slices(&key, &enc_diff.iv).unwrap();
-                    let plaintext = serialize_to_bytes(&curdiff);
-                    let encrypted = cipher.encrypt_vec(&plaintext);
-                    let iv = enc_diff.iv.clone();
-                    assert_eq!(encrypted.len() % 16, 0);
-                    // replace diff with updated diff
-                    diffls[i] = EncData {
-                        enc_key: enc_diff.enc_key.clone(),
-                        enc_data: encrypted,
-                        iv: iv,
-                    };
-                    warn!(
-                        "diff uid {} disguise {} revealed diff {}",
-                        diff.uid, diff.did, diff.diff_id,
-                    );
-                    return true;
+        'lcloop: for lc in loc_caps {
+            if let Some(diffls) = self.enc_diffs_map.get_mut(&lc) {
+                for (i, enc_diff) in diffls.iter_mut().enumerate() {
+                    // decrypt data and compare
+                    let (key, diffplaintext) = enc_diff.decrypt_encdata(data_cap);
+                    let mut curdiff = diff_from_bytes(&diffplaintext);
+
+                    if curdiff.did != did {
+                        continue 'lcloop;
+                    }
+
+                    if curdiff.diff_id == diff.diff_id {
+                        curdiff.revealed = true;
+                        let cipher = Aes128Cbc::new_from_slices(&key, &enc_diff.iv).unwrap();
+                        let plaintext = serialize_to_bytes(&curdiff);
+                        let encrypted = cipher.encrypt_vec(&plaintext);
+                        let iv = enc_diff.iv.clone();
+                        assert_eq!(encrypted.len() % 16, 0);
+                        // replace diff with updated diff
+                        diffls[i] = EncData {
+                            enc_key: enc_diff.enc_key.clone(),
+                            enc_data: encrypted,
+                            iv: iv,
+                        };
+                        warn!(
+                            "diff uid {} disguise {} revealed diff {}",
+                            diff.uid, diff.did, diff.diff_id,
+                        );
+                        return true;
+                    }
                 }
             }
-        }
 
-        // iterate through allowed pseudoprincipals' diffs as well
-        if let Some(pks) = self.enc_pks_map.get(&loc_cap) {
-            for enc_pk in &pks.clone() {
-                // decrypt with data_cap provided by client
-                let (_, plaintext) = enc_pk.decrypt_encdata(data_cap);
-                let pk = ppprivkey_from_bytes(&plaintext);
-                
-                // get all diffs of pseudoprincipal
-                if let Some(pp) = self.principal_data.get(&pk.new_uid) {
-                    for lc in &pp.loc_caps.clone() {
-                        if self.mark_diff_revealed(diff, &pk.priv_key, *lc) {
+            // iterate through allowed pseudoprincipals' diffs as well
+            if let Some(pks) = self.enc_pks_map.get(&lc) {
+                for enc_pk in &pks.clone() {
+                    // decrypt with data_cap provided by client
+                    let (_, plaintext) = enc_pk.decrypt_encdata(data_cap);
+                    let pk = ppprivkey_from_bytes(&plaintext);
+                    
+                    // get all diffs of pseudoprincipal
+                    if let Some(pp) = self.principal_data.get(&pk.new_uid) {
+                        if self.mark_diff_revealed(did, diff, &pk.priv_key, &pp.loc_caps.clone()) {
                             return true;
                         }
                     }
@@ -458,7 +463,7 @@ impl DiffCtrler {
         vec![]
     }
 
-    pub fn get_diffs(&self, data_cap: &DataCap, loc_cap: LocCap) -> Vec<Diff> {
+    pub fn get_diffs(&self, did: DID, data_cap: &DataCap, loc_cap: LocCap) -> Vec<Diff> {
         let mut diffs = vec![];
         if data_cap.is_empty() {
             return diffs;
@@ -471,7 +476,7 @@ impl DiffCtrler {
                 let diff = diff_from_bytes(&plaintext);
 
                 // add diff to list only if it hasn't be revealed before
-                if !diff.revealed {
+                if !diff.revealed && diff.did == did {
                     diffs.push(diff.clone());
                 }
                 warn!(
@@ -494,7 +499,7 @@ impl DiffCtrler {
                 if let Some(pp) = self.principal_data.get(&pk.new_uid) {
                     for lc in &pp.loc_caps {
                         diffs.extend(
-                            self.get_diffs(&pk.priv_key, *lc)
+                            self.get_diffs(did, &pk.priv_key, *lc)
                                 .iter()
                                 .cloned(),
                         );
@@ -613,7 +618,7 @@ mod tests {
         assert!(ctrler.tmp_loc_caps.is_empty());
 
         // get diffs
-        let diffs = ctrler.get_diffs(&private_key_vec, lc);
+        let diffs = ctrler.get_diffs(did, &private_key_vec, lc);
         assert_eq!(diffs.len(), 1);
         assert_eq!(diffs[0], decor_diff);
     }
@@ -686,7 +691,7 @@ mod tests {
             for d in 1..iters {
                 let lc = caps.get(&(u, d)).unwrap().clone();
                 // get diffs
-                let diffs = ctrler.get_diffs(&priv_keys[u as usize - 1], lc);
+                let diffs = ctrler.get_diffs(d, &priv_keys[u as usize - 1], lc);
                 assert_eq!(diffs.len(), (iters as usize));
                 for i in 0..iters {
                     assert_eq!(
@@ -771,7 +776,7 @@ mod tests {
             for d in 1..iters {
                 let c = caps.get(&(u, d)).unwrap().clone();
                 // get diffs
-                let diffs = ctrler.get_diffs(&priv_keys[u as usize - 1], c);
+                let diffs = ctrler.get_diffs(d, &priv_keys[u as usize - 1], c);
                 assert_eq!(diffs.len(), 1);
                 assert_eq!(diffs[0].old_value[0].value, (old_fk_value + d).to_string());
                 assert_eq!(diffs[0].new_value[0].value, (new_fk_value + d).to_string());

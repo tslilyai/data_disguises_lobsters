@@ -97,7 +97,7 @@ impl Disguiser {
         loc_cap: LocCap,
     ) -> Vec<diffs::Diff> {
         let locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
-        let diffs = locked_diff_ctrler.get_diffs(&data_cap, loc_cap);
+        let diffs = locked_diff_ctrler.get_diffs(did, &data_cap, loc_cap);
         warn!("Got {} diffs", diffs.len());
         drop(locked_diff_ctrler);
         diffs
@@ -107,45 +107,41 @@ impl Disguiser {
         &mut self,
         disguise: Arc<disguise::Disguise>,
         data_cap: diffs::DataCap,
-        loc_cap: diffs::LocCap,
+        loc_caps: Vec<diffs::LocCap>,
     ) -> Result<(), mysql::Error> {
         let mut conn = self.pool.get_conn()?;
-        let mut diffs_to_mark_revealed: Vec<Diff> = vec![];
         let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
        
         // XXX revealing all global diffs when a disguise is reversed
         let mut diffs = locked_diff_ctrler.get_global_diffs_of_disguise(disguise.did);
-        diffs.extend(locked_diff_ctrler.get_diffs(&data_cap, loc_cap).iter().cloned());
+        for lc in &loc_caps {
+            diffs.extend(locked_diff_ctrler.get_diffs(disguise.did, &data_cap, *lc).iter().cloned());
+        }
 
-        for t in &diffs {
-            // only reverse diffs of disguise if not yet revealed
-            // reverse REMOVE diffs first
-            if t.did == disguise.did && !t.revealed && t.update_type == REMOVE_GUISE {
-                warn!("Reversing remove diff {:?}\n", t);
-                let revealed = t.reveal(&mut locked_diff_ctrler, &mut conn, self.stats.clone())?;
+        // reverse REMOVE diffs first
+        for d in &diffs {
+            if d.did == disguise.did && !d.revealed && d.update_type == REMOVE_GUISE {
+                warn!("Reversing remove diff {:?}\n", d);
+                let revealed = d.reveal(&mut locked_diff_ctrler, &mut conn, self.stats.clone())?;
                 if revealed {
                     warn!("Diff reversed!\n");
-                    diffs_to_mark_revealed.push(t.clone());
+                    locked_diff_ctrler.mark_diff_revealed(disguise.did, d, &data_cap, &loc_caps);
                 }
             }
         }
 
-        for t in &diffs {
+        for d in &diffs {
             // only reverse diffs of disguise if not yet revealed
-            if t.did == disguise.did && !t.revealed && t.update_type != REMOVE_GUISE {
-                warn!("Reversing diff {:?}\n", t);
-                let revealed = t.reveal(&mut locked_diff_ctrler, &mut conn, self.stats.clone())?;
+            if d.did == disguise.did && !d.revealed && d.update_type != REMOVE_GUISE {
+                warn!("Reversing diff {:?}\n", d);
+                let revealed = d.reveal(&mut locked_diff_ctrler, &mut conn, self.stats.clone())?;
                 if revealed {
                     warn!("Diff reversed!\n");
-                    diffs_to_mark_revealed.push(t.clone());
+                    locked_diff_ctrler.mark_diff_revealed(disguise.did, d, &data_cap, &loc_caps);
                 }
             } 
         }
 
-        // mark all revealed diffs as revealed
-        for t in &diffs_to_mark_revealed {
-            locked_diff_ctrler.mark_diff_revealed(t, &data_cap, loc_cap);
-        }
         drop(locked_diff_ctrler);
         self.end_disguise_action();
         Ok(())
@@ -165,7 +161,7 @@ impl Disguiser {
         for lc in loc_caps {
             diffs.extend(
                 locked_diff_ctrler
-                    .get_diffs(&data_cap, lc)
+                    .get_diffs(disguise.did, &data_cap, lc)
                     .iter()
                     .cloned(),
             );
