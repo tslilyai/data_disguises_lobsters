@@ -15,7 +15,6 @@ use std::sync::{Arc, RwLock};
 
 pub type LocCap = u64;
 pub type DataCap = Vec<u8>; // private key
-pub type HashedDataCap= Vec<u8>; // private key
 const RSA_BITS: usize = 2048;
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 
@@ -61,7 +60,7 @@ pub struct DiffCtrler {
     pub enc_diffs_map: HashMap<LocCap, Vec<EncData>>,
 
     // (p,d) capability -> set of diff ciphertext for principal+disguise
-    pub enc_pks_map: HashMap<HashedDataCap, Vec<EncData>>,
+    pub enc_pks_map: HashMap<LocCap, Vec<EncData>>,
 
     pub global_diffs: HashMap<DID, HashMap<UID, Arc<RwLock<HashSet<Diff>>>>>,
 
@@ -147,7 +146,7 @@ impl DiffCtrler {
         );
     }
 
-    pub fn register_anon_principal(&mut self, uid: UID, anon_uid: UID, did: DID, data_cap: &DataCap) -> UID {
+    pub fn register_anon_principal(&mut self, uid: UID, anon_uid: UID, did: DID) -> UID {
         let private_key =
             RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
@@ -156,7 +155,7 @@ impl DiffCtrler {
         // and initially empty diff vaults
         self.register_principal(anon_uid, String::new(), &pub_key);
         let mut pppk: PPPrivKey = new_ppprivkey(uid, did, anon_uid, &private_key);
-        self.insert_ppprivkey(&mut pppk, data_cap);
+        self.insert_ppprivkey(&mut pppk);
         anon_uid
     }
 
@@ -168,7 +167,7 @@ impl DiffCtrler {
     /*
      * PRINCIPAL DIFF INSERT
      */
-    fn insert_ppprivkey(&mut self, pppk: &mut PPPrivKey, data_cap: &DataCap) {
+    fn insert_ppprivkey(&mut self, pppk: &mut PPPrivKey) {
         assert!(pppk.uid != 0);
 
         let p = self
@@ -199,15 +198,14 @@ impl DiffCtrler {
             iv: iv,
         };
 
-        // insert the encrypted pppk into hash(data_cap)
-        self.hasher.update(data_cap);
-        let result = self.hasher.finalize_reset().to_vec();
-        match self.enc_pks_map.get_mut(&result) {
+        // insert the encrypted pppk into locating capability
+        let lc = self.get_loc_cap(pppk.uid, pppk.did);
+        match self.enc_pks_map.get_mut(&lc) {
             Some(ts) => {
                 ts.push(enc_pppk);
             }
             None => {
-                self.enc_pks_map.insert(result, vec![enc_pppk]);
+                self.enc_pks_map.insert(lc, vec![enc_pppk]);
             }
         }
     }
@@ -408,9 +406,7 @@ impl DiffCtrler {
         }
 
         // iterate through allowed pseudoprincipals' diffs as well
-        self.hasher.update(data_cap);
-        let result = self.hasher.finalize_reset().to_vec();
-        if let Some(pks) = self.enc_pks_map.get(&result) {
+        if let Some(pks) = self.enc_pks_map.get(&loc_cap) {
             for enc_pk in &pks.clone() {
                 // decrypt with data_cap provided by client
                 let (_, plaintext) = enc_pk.decrypt_encdata(data_cap);
@@ -462,7 +458,7 @@ impl DiffCtrler {
         vec![]
     }
 
-    pub fn get_diffs(&mut self, data_cap: &DataCap, loc_cap: LocCap) -> Vec<Diff> {
+    pub fn get_diffs(&self, data_cap: &DataCap, loc_cap: LocCap) -> Vec<Diff> {
         let mut diffs = vec![];
         if data_cap.is_empty() {
             return diffs;
@@ -487,10 +483,8 @@ impl DiffCtrler {
             }
         }
         // get allowed pseudoprincipal diffs
-        self.hasher.update(data_cap);
-        let result = self.hasher.finalize_reset().to_vec();
-        if let Some(pks) = self.enc_pks_map.get(&result) {
-            for enc_pk in pks.clone() {
+        if let Some(pks) = self.enc_pks_map.get(&loc_cap) {
+            for enc_pk in pks {
                 // decrypt with data_cap provided by client
                 let (_, plaintext) = enc_pk.decrypt_encdata(data_cap);
                 let pk = ppprivkey_from_bytes(&plaintext);
@@ -498,9 +492,9 @@ impl DiffCtrler {
                 // get all diffs of pseudoprincipal
                 warn!("Getting diffs of pseudoprincipal {}", pk.new_uid);
                 if let Some(pp) = self.principal_data.get(&pk.new_uid) {
-                    for lc in pp.loc_caps.clone() {
+                    for lc in &pp.loc_caps {
                         diffs.extend(
-                            self.get_diffs(&pk.priv_key, lc)
+                            self.get_diffs(&pk.priv_key, *lc)
                                 .iter()
                                 .cloned(),
                         );
@@ -757,7 +751,7 @@ mod tests {
                 let anon_uid: u64 = rng.next_u64();
                 // create an anonymous user
                 // and insert some diff for the anon user
-                ctrler.register_anon_principal(u, anon_uid, d, &priv_keys[u as usize - 1]);
+                ctrler.register_anon_principal(u, anon_uid, d);
                 let lc = ctrler.get_tmp_capability(u, d).unwrap().clone();
                 caps.insert((u, d), lc);
             }
