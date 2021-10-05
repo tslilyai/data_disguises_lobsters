@@ -86,9 +86,9 @@ impl EdnaClient {
         data_cap: diffs::DataCap,
         loc_cap: diffs::LocCap,
     ) -> Result<(), mysql::Error> {
+        warn!("EDNA: REVERSING Disguise {}", disguise.clone().did);
         self.disguiser
             .reverse(disguise.clone(), data_cap, loc_cap)?;
-        warn!("EDNA: REVERSED Disguise {}", disguise.clone().did);
         Ok(())
     }
 

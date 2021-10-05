@@ -269,7 +269,6 @@ pub fn get_single_parsed_stmt(stmt: &String) -> Result<Statement, mysql::Error> 
 
 // returns if the first value is larger than the second
 pub fn string_vals_cmp(v1: &str, v2: &str) -> cmp::Ordering {
-    debug!("comparing {:?} =? {:?}", v1, v2);
     let res = match (f64::from_str(v1), f64::from_str(v2)) {
         (Ok(v1), Ok(v2)) => v1.partial_cmp(&v2).unwrap(),
         (Ok(v1), Err(_)) => v1.partial_cmp(&f64::from_str(v2).unwrap()).unwrap(),
@@ -287,7 +286,6 @@ pub fn string_vals_cmp(v1: &str, v2: &str) -> cmp::Ordering {
 // returns if the first value is larger than the second
 pub fn parser_vals_cmp(v1: &sql_parser::ast::Value, v2: &sql_parser::ast::Value) -> cmp::Ordering {
     let res: cmp::Ordering;
-    debug!("comparing {:?} =? {:?}", v1, v2);
     match (v1, v2) {
         (Value::Number(i1), Value::Number(i2)) => {
             res = f64::from_str(i1)

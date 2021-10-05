@@ -96,7 +96,7 @@ impl Disguiser {
         data_cap: DataCap,
         loc_cap: LocCap,
     ) -> Vec<diffs::Diff> {
-        let locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
+        let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
         let diffs = locked_diff_ctrler.get_diffs(&data_cap, loc_cap);
         warn!("Got {} diffs", diffs.len());
         drop(locked_diff_ctrler);
@@ -121,14 +121,12 @@ impl Disguiser {
             // only reverse diffs of disguise if not yet revealed
             // reverse REMOVE diffs first
             if t.did == disguise.did && !t.revealed && t.update_type == REMOVE_GUISE {
-                warn!("Reversing diff {:?}\n", t);
+                warn!("Reversing remove diff {:?}\n", t);
                 let revealed = t.reveal(&mut locked_diff_ctrler, &mut conn, self.stats.clone())?;
                 if revealed {
                     warn!("Diff reversed!\n");
                     diffs_to_mark_revealed.push(t.clone());
                 }
-            } else {
-                warn!("Remove diff skipped {:?}", t);
             }
         }
 
@@ -141,9 +139,7 @@ impl Disguiser {
                     warn!("Diff reversed!\n");
                     diffs_to_mark_revealed.push(t.clone());
                 }
-            } else {
-                warn!("Skipping reversal of diff {:?}", t);
-            }
+            } 
         }
 
         // mark all revealed diffs as revealed
@@ -164,7 +160,7 @@ impl Disguiser {
         let mut conn = self.pool.get_conn()?;
         let mut threads = vec![];
         let did = disguise.did;
-        let locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
+        let mut locked_diff_ctrler = self.diff_ctrler.lock().unwrap();
         let mut diffs = vec![];
         for lc in loc_caps {
             diffs.extend(
@@ -198,6 +194,7 @@ impl Disguiser {
             let my_insert = self.to_insert.clone();
             let my_items = self.items.clone();
             let my_diff_ctrler = self.diff_ctrler.clone();
+            let my_data_cap = data_cap.clone();
 
             // clone disguise fields
             let my_table_info = disguise.table_info.clone();
@@ -242,6 +239,7 @@ impl Disguiser {
                                 decor_item(
                                     // disguise and per-thread state
                                     did,
+                                    &my_data_cap,
                                     t.global,
                                     &mut locked_insert,
                                     &mut locked_diff_ctrler,
@@ -306,7 +304,7 @@ impl Disguiser {
             }));
         }
 
-        self.modify_global_diffs(disguise);
+        self.modify_global_diffs(&data_cap, disguise);
 
         // wait until all mysql queries are done
         for jh in threads.into_iter() {
@@ -340,7 +338,7 @@ impl Disguiser {
         Ok(loc_caps)
     }
 
-    fn modify_global_diffs(&mut self, disguise: Arc<Disguise>) {
+    fn modify_global_diffs(&mut self, data_cap: &DataCap, disguise: Arc<Disguise>) {
         let did = disguise.did;
         let uid = match &disguise.user {
             Some(u) => u.id,
@@ -365,6 +363,7 @@ impl Disguiser {
                         decor_item(
                             // disguise and per-thread state
                             did,
+                            &data_cap,
                             t.global,
                             &mut self.to_insert.lock().unwrap(),
                             &mut locked_diff_ctrler,
@@ -544,6 +543,8 @@ impl Disguiser {
                                     ids.clone(),
                                     pt.new_value.clone(),
                                 );
+                                // NOTE: the original owner of the diff will have to get all diffs
+                                // of pseudoprincipals
                                 for owner_col in &curtable_info.owner_cols {
                                     let owner_uid = get_value_of_col(&pt.new_value, &owner_col).unwrap();
                                     diff.uid = u64::from_str(&owner_uid).unwrap();
@@ -733,6 +734,7 @@ fn modify_item(
 
 fn decor_item(
     did: DID,
+    data_cap: &DataCap,
     global: bool,
     to_insert: &mut HashMap<(String, Vec<String>), Vec<Vec<Expr>>>,
     diff_ctrler: &mut DiffCtrler,
@@ -817,7 +819,7 @@ fn decor_item(
         .collect();
     let child_ids = get_ids(&child_table_info.id_cols, &new_child);
     // actually register the anon principal, including saving its privkey for the old uid
-    diff_ctrler.register_anon_principal(old_uid, guise_id, did);
+    diff_ctrler.register_anon_principal(old_uid, guise_id, did, data_cap);
 
     // save diff
     let mut decor_diff = Diff::new_decor_diff(
