@@ -7,6 +7,7 @@ use sql_parser::ast::*;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use log::warn;
 
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
@@ -224,6 +225,7 @@ impl Diff {
                         assert_eq!(selected.len(), 1);
                         let curval = get_value_of_col(&selected[0], &owner_col).unwrap();
                         if curval != new_val {
+                            warn!("Diff Reveal: Foreign key col {} rewritten from {} to {}\n", owner_col, new_val, curval);
                             return Ok(false);
                         }
                     }
@@ -241,6 +243,7 @@ impl Diff {
                         stats.clone(),
                     )?;
                     if selected.is_empty() {
+                        warn!("Diff Reveal: Original entity col {} id {} does not exist\n", owner_col, old_val);
                         return Ok(false);
                     }
 
@@ -282,6 +285,7 @@ impl Diff {
                 MODIFY_GUISE => {
                     // if field hasn't been modified, return it to original
                     if selected.is_empty() || selected[0] != self.new_value {
+                        warn!("Diff Reveal: Modified value {:?} not equal to new value {:?}\n", selected[0], self.new_value);
                         return Ok(false);
                     }
 
