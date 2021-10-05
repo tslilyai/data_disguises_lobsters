@@ -68,7 +68,7 @@ fn test_app_anon_disguise() {
 
     // APPLY ANON DISGUISE
     let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
-    edna.apply_disguise(0, anon_disguise.clone(), vec![], vec![])
+    edna.apply_disguise(anon_disguise.clone(), vec![], vec![])
         .unwrap();
 
     // CHECK DISGUISE RESULTS
@@ -217,7 +217,7 @@ fn test_app_gdpr_disguise() {
     // APPLY GDPR DISGUISES
     for u in 1..USER_ITERS {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
-        edna.apply_disguise(u, Arc::new(gdpr_disguise), vec![], vec![])
+        edna.apply_disguise(Arc::new(gdpr_disguise), vec![], vec![])
             .unwrap();
     }
 
@@ -346,7 +346,7 @@ fn test_compose_anon_gdpr_disguises() {
     // APPLY ANON DISGUISE
     let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
     let lcs = edna
-        .apply_disguise(0, anon_disguise.clone(), vec![], vec![])
+        .apply_disguise(anon_disguise.clone(), vec![], vec![])
         .unwrap();
 
     // APPLY GDPR DISGUISES
@@ -355,7 +355,6 @@ fn test_compose_anon_gdpr_disguises() {
         let lc = lcs.get(&(u, 1)).unwrap();
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         edna.apply_disguise(
-            u,
             Arc::new(gdpr_disguise),
             priv_keys[u as usize - 1].clone(),
             vec![*lc],
@@ -400,7 +399,7 @@ fn test_compose_anon_gdpr_disguises() {
         }
         assert_eq!(results.len(), 0);
     }
-    // no correlated stories
+    // stories removed
     for u in 1..USER_ITERS {
         let mut results = vec![];
         let res = db
@@ -430,7 +429,7 @@ fn test_compose_anon_gdpr_disguises() {
         assert!(user_id >= USER_ITERS);
         stories_results.push(user_id);
     }
-    assert_eq!(stories_results.len() as u64, (USER_ITERS - 1) * NSTORIES);
+    assert_eq!(stories_results.len(), 0);
 
     // moderations have guises as owners
     let res = db

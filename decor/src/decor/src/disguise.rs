@@ -105,7 +105,6 @@ impl Disguiser {
 
     pub fn reverse(
         &mut self,
-        uid: UID,
         disguise: Arc<disguise::Disguise>,
         data_cap: diffs::DataCap,
         loc_cap: diffs::LocCap,
@@ -142,7 +141,6 @@ impl Disguiser {
 
     pub fn apply(
         &mut self,
-        uid: UID,
         disguise: Arc<disguise::Disguise>,
         data_cap: diffs::DataCap,
         loc_caps: Vec<diffs::LocCap>,
@@ -191,10 +189,13 @@ impl Disguiser {
 
             threads.push(thread::spawn(move || {
                 let mut conn = pool.get_conn().unwrap();
-                let locked_items = my_items.read().unwrap();
                 let locked_table_info = my_table_info.read().unwrap();
                 let curtable_info = locked_table_info.get(&table).unwrap();
-                let table_items = locked_items.get(&table).unwrap();
+                
+                let locked_items = my_items.read().unwrap();
+                let table_items = locked_items.get(&table).unwrap().clone();
+                drop(locked_items);
+
                 let locked_guise_gen = my_guise_gen.read().unwrap();
 
                 warn!(
@@ -205,7 +206,7 @@ impl Disguiser {
 
                 // get and apply the transformations for each object
                 let mut update_stmts = vec![];
-                for (i, ts) in (*table_items).iter() {
+                for (i, ts) in table_items.iter() {
                     let mut cols_to_update = vec![];
                     debug!(
                         "Get_Select_Of_Row: Getting ids of table {} for {:?}",
@@ -279,6 +280,7 @@ impl Disguiser {
                         );
                     }
                 }
+
                 // actually execute all updates
                 warn!("Thread {:?} updating", thread::current().id());
                 for stmt in update_stmts {
@@ -635,7 +637,7 @@ impl Disguiser {
                 }
                 // there should only be one thread working on items from this table, so just insert
                 let mut locked_items = my_items.write().unwrap();
-                assert!(!locked_items.insert(table.clone(), items_of_table).is_none());
+                assert!(locked_items.insert(table.clone(), items_of_table).is_none());
                 drop(locked_items);
                 
                 // same thing for diff transforms

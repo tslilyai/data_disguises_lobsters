@@ -79,11 +79,11 @@ fn test_app_rev_anon_disguise() {
     // APPLY ANON DISGUISE
     let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
     let lcs = edna
-        .apply_disguise(0, anon_disguise.clone(), vec![], vec![])
+        .apply_disguise(anon_disguise.clone(), vec![], vec![])
         .unwrap();
 
     // REVERSE ANON DISGUISE WITH NO PRIVATE DIFFS
-    edna.reverse_disguise(0, anon_disguise.clone(), vec![], 0)
+    edna.reverse_disguise(anon_disguise.clone(), vec![], 0)
         .unwrap();
 
     // CHECK DISGUISE RESULTS: moderations have been restored
@@ -190,7 +190,6 @@ fn test_app_rev_anon_disguise() {
         // get diffs
         let lc = lcs.get(&(u, 1)).unwrap();
         edna.reverse_disguise(
-            u,
             anon_disguise.clone(),
             priv_keys[u as usize - 1].clone(),
             *lc,
@@ -316,7 +315,7 @@ fn test_app_rev_gdpr_disguise() {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         let did = gdpr_disguise.did;
         let lcs_map = edna
-            .apply_disguise(u, Arc::new(gdpr_disguise), vec![], vec![])
+            .apply_disguise(Arc::new(gdpr_disguise), vec![], vec![])
             .unwrap();
         lcs.push(lcs_map.get(&(u, did)).unwrap().clone());
     }
@@ -325,7 +324,6 @@ fn test_app_rev_gdpr_disguise() {
     for u in 1..USER_ITERS {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         edna.reverse_disguise(
-            u,
             Arc::new(gdpr_disguise),
             priv_keys[u as usize - 1].clone(),
             lcs[u as usize - 1],
@@ -439,7 +437,7 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     // APPLY ANON DISGUISE
     let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
     let anon_lcs_map = edna
-        .apply_disguise(0, anon_disguise.clone(), vec![], vec![])
+        .apply_disguise(anon_disguise.clone(), vec![], vec![])
         .unwrap();
 
     // APPLY GDPR DISGUISES
@@ -450,7 +448,6 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
         let anon_lc = *anon_lcs_map.get(&(u, anon_disguise.did)).unwrap();
         let lcs_map = edna
             .apply_disguise(
-                u,
                 Arc::new(gdpr_disguise),
                 priv_keys[u as usize - 1].clone(),
                 vec![anon_lc],
@@ -540,7 +537,7 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     }
 
     // REVERSE ANON DISGUISE WITH NO DIFFS
-    edna.reverse_disguise(0, anon_disguise.clone(), vec![], 0)
+    edna.reverse_disguise(anon_disguise.clone(), vec![], 0)
         .unwrap();
 
     // CHECK DISGUISE RESULTS: nothing restored
@@ -627,7 +624,6 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     for u in 1..USER_ITERS {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         edna.reverse_disguise(
-            u,
             Arc::new(gdpr_disguise),
             priv_keys[u as usize - 1].clone(),
             gdpr_lcs[u as usize - 1],
@@ -721,7 +717,6 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
         // get diffs
         let lc = anon_lcs_map.get(&(u, 1)).unwrap();
         edna.reverse_disguise(
-            u,
             anon_disguise.clone(),
             priv_keys[u as usize - 1].clone(),
             *lc,

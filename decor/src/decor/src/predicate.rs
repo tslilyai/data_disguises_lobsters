@@ -1,6 +1,6 @@
 use crate::diffs::*;
 use crate::helpers::*;
-use log::warn;
+//use log::warn;
 use sql_parser::ast::*;
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -91,10 +91,10 @@ pub fn get_diffs_matching_pred(
 ) -> Vec<Diff> {
     let mut matching = vec![];
     for t in diffs {
-        warn!(
-            "Pred: get_diffs_matching_pred table {}, pred {:?}, checking diff {:?}\n",
-            name, pred, t
-        );
+        //warn!(
+        //   "Pred: get_diffs_matching_pred table {}, pred {:?}, checking diff {:?}\n",
+        //  name, pred, t
+        //);
         if t.guise_name != name {
             continue;
         }
@@ -105,7 +105,7 @@ pub fn get_diffs_matching_pred(
             }
             _ => false,
         } {
-            warn!("Pred: Diff matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
+            //warn!("Pred: Diff matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
             matching.push(t.clone());
         }
     }
@@ -159,7 +159,7 @@ pub fn clause_applies_to_row(p: &PredClause, row: &Vec<RowVal>) -> bool {
             match row.iter().find(|rv| &rv.column == col) {
                 Some(rv) => rv1 = rv.value.clone(),
                 None => {
-                    warn!("Didn't find column {} in row {:?}", col, row);
+                    //warn!("Didn't find column {} in row {:?}", col, row);
                     return false; // this can happen if the row just isn't of the right guise type?
                 }
             }
