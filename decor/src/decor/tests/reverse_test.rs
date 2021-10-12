@@ -83,7 +83,7 @@ fn test_app_rev_anon_disguise() {
         .unwrap();
 
     // REVERSE ANON DISGUISE WITH NO PRIVATE DIFFS
-    edna.reverse_disguise(anon_disguise.clone(), vec![], 0)
+    edna.reverse_disguise(anon_disguise.clone(), vec![], vec![0])
         .unwrap();
 
     // CHECK DISGUISE RESULTS: moderations have been restored
@@ -192,7 +192,7 @@ fn test_app_rev_anon_disguise() {
         edna.reverse_disguise(
             anon_disguise.clone(),
             priv_keys[u as usize - 1].clone(),
-            *lc,
+            vec![*lc],
         )
         .unwrap();
 
@@ -326,7 +326,7 @@ fn test_app_rev_gdpr_disguise() {
         edna.reverse_disguise(
             Arc::new(gdpr_disguise),
             priv_keys[u as usize - 1].clone(),
-            lcs[u as usize - 1],
+            vec![lcs[u as usize - 1]],
         )
         .unwrap();
 
@@ -537,7 +537,7 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     }
 
     // REVERSE ANON DISGUISE WITH NO DIFFS
-    edna.reverse_disguise(anon_disguise.clone(), vec![], 0)
+    edna.reverse_disguise(anon_disguise.clone(), vec![], vec![0])
         .unwrap();
 
     // CHECK DISGUISE RESULTS: nothing restored
@@ -720,7 +720,7 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
         edna.reverse_disguise(
             anon_disguise.clone(),
             priv_keys[u as usize - 1].clone(),
-            *lc,
+            vec![*lc],
         )
         .unwrap();
 

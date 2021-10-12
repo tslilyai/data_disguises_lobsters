@@ -1,5 +1,5 @@
-use crate::diffs::*;
 use crate::helpers::*;
+use crate::tokens::*;
 //use log::warn;
 use sql_parser::ast::*;
 use std::cmp::Ordering;
@@ -84,32 +84,90 @@ pub fn pred_to_sql_where(pred: &Vec<Vec<PredClause>>) -> String {
     ors.join(" OR ")
 }
 
-pub fn get_diffs_matching_pred(
+pub fn diff_token_matches_pred(
     pred: &Vec<Vec<PredClause>>,
     name: &str,
-    diffs: &Vec<Diff>,
-) -> Vec<Diff> {
+    t: &DiffToken,
+) -> bool {
+    if t.guise_name != name {
+        return false;
+    }
+    if predicate_applies_to_row(pred, &t.old_value)
+        || predicate_applies_to_row(pred, &t.new_value)
+    {
+        //warn!("Pred: OwnershipToken matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
+        return true;
+    }
+    false
+}
+
+pub fn get_ownership_tokens_matching_pred(
+    pred: &Vec<Vec<PredClause>>,
+    name: &str,
+    tokens: &Vec<OwnershipToken>,
+) -> Vec<OwnershipToken> {
     let mut matching = vec![];
-    for t in diffs {
+    for t in tokens {
         //warn!(
-        //   "Pred: get_diffs_matching_pred table {}, pred {:?}, checking diff {:?}\n",
+        //   "Pred: get_tokens_matching_pred table {}, pred {:?}, checking token {:?}\n",
         //  name, pred, t
         //);
         if t.guise_name != name {
             continue;
         }
-        if match t.update_type {
-            REMOVE_GUISE | DECOR_GUISE | MODIFY_GUISE => {
-                predicate_applies_to_row(pred, &t.old_value)
-                    || predicate_applies_to_row(pred, &t.new_value)
-            }
-            _ => false,
-        } {
-            //warn!("Pred: Diff matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
+        if predicate_applies_with_col(pred, &t.fk_col, t.uid)
+            || predicate_applies_with_col(pred, &t.fk_col, t.new_uid)
+        {
+            //warn!("Pred: OwnershipToken matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
             matching.push(t.clone());
         }
     }
     matching
+}
+
+pub fn predicate_applies_with_col(p: &Vec<Vec<PredClause>>, col: &str, val: u64) -> bool {
+    let mut found_true = false;
+    for and_clauses in p {
+        let mut all_true = true;
+        for clause in and_clauses {
+            if !clause_applies_to_col(clause, col, val) {
+                all_true = false;
+                break;
+            }
+        }
+        if all_true {
+            found_true = true;
+            break;
+        }
+    }
+    //warn!("Predicate {:?} applies to row {:?}? {}\n", p, row, found_true);
+    found_true
+}
+
+pub fn clause_applies_to_col(p: &PredClause, c: &str, v: u64) -> bool {
+    use PredClause::*;
+    let matches = match p {
+        ColInList { col, vals, neg } => {
+            let found = col == c
+                && vals
+                    .iter()
+                    .find(|v| v.to_string() == v.to_string())
+                    .is_some();
+            found != *neg
+        }
+        ColColCmp { col1, col2, op } => unimplemented!("No ownership comparison of cols"),
+        ColValCmp { col, val, op } => {
+            let rv1: String;
+            if c == col {
+                vals_satisfy_cmp(&v.to_string(), &val, &op)
+            } else {
+                false
+            }
+        }
+        Bool(b) => *b,
+    };
+    //warn!("PredClause {:?} matches {:?}: {}\n", p, row, matches);
+    matches
 }
 
 pub fn predicate_applies_to_row(p: &Vec<Vec<PredClause>>, row: &Vec<RowVal>) -> bool {

@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::*;
 
-pub mod diffs;
+pub mod tokens;
 pub mod disguise;
 pub mod helpers;
 pub mod predicate;
@@ -62,8 +62,8 @@ impl EdnaClient {
     pub fn has_ownership(
         &self,
         uid: UID,
-        data_cap: diffs::DataCap,
-        loc_caps: Vec<diffs::LocCap>,
+        data_cap: tokens::DataCap,
+        loc_caps: Vec<tokens::LocCap>,
     ) -> bool {
         // TODO
         false
@@ -72,9 +72,9 @@ impl EdnaClient {
     pub fn apply_disguise(
         &mut self,
         disguise: Arc<disguise::Disguise>,
-        data_cap: diffs::DataCap,
-        loc_caps: Vec<diffs::LocCap>,
-    ) -> Result<HashMap<(UID, DID), diffs::LocCap>, mysql::Error> {
+        data_cap: tokens::DataCap,
+        loc_caps: Vec<tokens::LocCap>,
+    ) -> Result<HashMap<(UID, DID), tokens::LocCap>, mysql::Error> {
         warn!("EDNA: APPLYING Disguise {}", disguise.clone().did);
         self.disguiser
             .apply(disguise.clone(), data_cap, loc_caps)
@@ -83,8 +83,8 @@ impl EdnaClient {
     pub fn reverse_disguise(
         &mut self,
         disguise: Arc<disguise::Disguise>,
-        data_cap: diffs::DataCap,
-        loc_caps: Vec<diffs::LocCap>,
+        data_cap: tokens::DataCap,
+        loc_caps: Vec<tokens::LocCap>,
     ) -> Result<(), mysql::Error> {
         warn!("EDNA: REVERSING Disguise {}", disguise.clone().did);
         self.disguiser
