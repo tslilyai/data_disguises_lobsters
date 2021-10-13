@@ -250,7 +250,6 @@ impl Disguiser {
                                 decor_item(
                                     // disguise and per-thread state
                                     did,
-                                    t.global,
                                     &mut locked_insert,
                                     &mut locked_token_ctrler,
                                     &mut cols_to_update,
@@ -536,7 +535,6 @@ impl Disguiser {
         }
     }
 
-    // TODO handle ownership tokens too!
     fn select_predicate_objs(
         &self,
         disguise: Arc<Disguise>,
@@ -695,7 +693,6 @@ fn modify_item(
 
 fn decor_item(
     did: DID,
-    global: bool,
     to_insert: &mut HashMap<(String, Vec<String>), Vec<Vec<Expr>>>,
     token_ctrler: &mut TokenCtrler,
     cols_to_update: &mut Vec<Assignment>,

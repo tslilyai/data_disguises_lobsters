@@ -85,14 +85,49 @@ pub fn pred_to_sql_where(pred: &Vec<Vec<PredClause>>) -> String {
 }
 
 pub fn modify_predicate_with_owner(pred: &Vec<Vec<PredClause>>, ownership_token: &OwnershipToken) -> (Vec<Vec<PredClause>>, bool) {
-    let mut new_pred = pred.clone();
+    use PredClause::*;
+    let mut new_pred = vec![];
     let mut changed = false;
-    for (i, and_clauses) in pred.iter().enumerate() {
-        let mut all_true = true;
+    for and_clauses in pred {
+        let mut new_and_clauses = vec![];
+        // change clause to reference new user instead of old
         for clause in and_clauses {
-            // TODO
-            // change clause to reference new user instead of old
+            match clause {
+                ColInList { col, vals, neg } => {
+                    for val in vals {
+                        if val == &ownership_token.uid.to_string() && col == &ownership_token.fk_col {
+                            let op = match neg {
+                                true => BinaryOperator::NotEq,
+                                false => BinaryOperator::Eq
+                            };
+                            new_and_clauses.push(ColValCmp {
+                                col: col.clone(),
+                                val: ownership_token.new_uid.to_string(),
+                                op: op,
+                            });
+                            changed = true;
+                        } else {
+                            new_and_clauses.push(clause.clone())
+                        }
+                    }
+                }
+                ColColCmp { .. } => unimplemented!("No ownership comparison of cols"),
+                ColValCmp { col, val, op } => {
+                    if val == &ownership_token.uid.to_string() && col == &ownership_token.fk_col {
+                        new_and_clauses.push(ColValCmp {
+                            col: col.clone(),
+                            val: ownership_token.new_uid.to_string(),
+                            op: op.clone(),
+                        });
+                        changed = true;
+                    } else {
+                        new_and_clauses.push(clause.clone())
+                    }
+                }
+                Bool(_) =>  new_and_clauses.push(clause.clone()), 
+            }
         }
+        new_pred.push(new_and_clauses);
     }
     (new_pred, changed)
 }
@@ -180,9 +215,8 @@ pub fn clause_applies_to_col(p: &PredClause, c: &str, v: u64) -> bool {
                     .is_some();
             found != *neg
         }
-        ColColCmp { col1, col2, op } => unimplemented!("No ownership comparison of cols"),
+        ColColCmp { .. } => unimplemented!("No ownership comparison of cols"),
         ColValCmp { col, val, op } => {
-            let rv1: String;
             if c == col {
                 vals_satisfy_cmp(&v.to_string(), &val, &op)
             } else {
