@@ -73,22 +73,23 @@ impl EdnaClient {
         &mut self,
         disguise: Arc<disguise::Disguise>,
         data_cap: tokens::DataCap,
-        loc_caps: Vec<tokens::LocCap>,
+        ownership_loc_caps: Vec<tokens::LocCap>,
     ) -> Result<HashMap<(UID, DID), tokens::LocCap>, mysql::Error> {
         warn!("EDNA: APPLYING Disguise {}", disguise.clone().did);
         self.disguiser
-            .apply(disguise.clone(), data_cap, loc_caps)
+            .apply(disguise.clone(), data_cap, ownership_loc_caps)
     }
 
     pub fn reverse_disguise(
         &mut self,
         disguise: Arc<disguise::Disguise>,
         data_cap: tokens::DataCap,
-        loc_caps: Vec<tokens::LocCap>,
+        diff_loc_caps: Vec<tokens::LocCap>,
+        ownership_loc_caps: Vec<tokens::LocCap>,
     ) -> Result<(), mysql::Error> {
         warn!("EDNA: REVERSING Disguise {}", disguise.clone().did);
         self.disguiser
-            .reverse(disguise.clone(), data_cap, loc_caps)?;
+            .reverse(disguise.clone(), data_cap, diff_loc_caps, ownership_loc_caps)?;
         Ok(())
     }
 

@@ -493,12 +493,13 @@ impl TokenCtrler {
 
                     // get all tokens of pseudoprincipal
                     if let Some(pp) = self.principal_data.get(&pk.new_uid) {
+                        let pp = pp.clone();
                         if self.mark_diff_token_revealed(
                             did,
                             token,
                             &pk.priv_key,
-                            &pp.diff_loc_caps.clone(),
-                            &pp.ownership_loc_caps.clone(),
+                            &pp.diff_loc_caps,
+                            &pp.ownership_loc_caps,
                         ) {
                             return true;
                         }
@@ -516,7 +517,6 @@ impl TokenCtrler {
         data_cap: &DataCap,
         ownership_loc_caps: &Vec<LocCap>,
     ) -> bool {
-        let mut found = false;
         // return if no tokens accessible
         if data_cap.is_empty() {
             return false;
@@ -524,11 +524,11 @@ impl TokenCtrler {
 
         // iterate through my ownership tokens
         for lc in ownership_loc_caps {
-            if let Some(pks) = self.enc_ownership_map.get(&lc) {
+            if let Some(pks) = self.enc_ownership_map.get_mut(&lc) {
                 for (i, enc_token) in pks.iter_mut().enumerate() {
                     // decrypt with data_cap provided by client
                     let (key, plaintext) = enc_token.decrypt_encdata(data_cap);
-                    let curtoken = ownership_token_from_bytes(&plaintext);
+                    let mut curtoken = ownership_token_from_bytes(&plaintext);
                     if curtoken.token_id == token.token_id {
                         curtoken.revealed = true;
                         let cipher = Aes128Cbc::new_from_slices(&key, &enc_token.iv).unwrap();
@@ -562,12 +562,12 @@ impl TokenCtrler {
 
                     // get all tokens of pseudoprincipal
                     if let Some(pp) = self.principal_data.get(&pk.new_uid) {
+                        let pp = pp.clone();
                         if self.mark_ownership_token_revealed(
                             did,
                             token,
                             &pk.priv_key,
-                            &pp.diff_loc_caps.clone(),
-                            &pp.ownership_loc_caps.clone(),
+                            &pp.ownership_loc_caps,
                         ) {
                             return true;
                         }
@@ -581,6 +581,24 @@ impl TokenCtrler {
     /*
      * GET TOKEN FUNCTIONS
      */
+    pub fn get_all_global_diff_tokens(&self) -> Vec<DiffToken> {
+        let mut tokens = vec![];
+        for (_, global_diff_tokens) in self.global_diff_tokens.iter() {
+            for (_, user_tokens) in global_diff_tokens.iter() {
+                let utokens = user_tokens.read().unwrap();
+                let nonrev_tokens: Vec<DiffToken> = utokens
+                    .clone()
+                    .into_iter()
+                    .filter(|t| !t.revealed)
+                    .collect();
+                for d in nonrev_tokens {
+                    tokens.push(d.clone());
+                }
+            }
+        }
+        tokens
+    }
+
     pub fn get_global_diff_tokens_of_disguise(&self, did: DID) -> Vec<DiffToken> {
         let mut tokens = vec![];
         if let Some(global_diff_tokens) = self.global_diff_tokens.get(&did) {
@@ -625,7 +643,7 @@ impl TokenCtrler {
         let mut diff_tokens = vec![];
         let mut own_tokens = vec![];
         if data_cap.is_empty() {
-            return tokens;
+            return (diff_tokens, own_tokens);
         }
         for loc_cap in diff_loc_caps {
             if let Some(tokenls) = self.enc_diffs_map.get(&loc_cap) {
@@ -655,7 +673,7 @@ impl TokenCtrler {
                     // decrypt with data_cap provided by client
                     let (_, plaintext) = enc_pk.decrypt_encdata(data_cap);
                     let pk = ownership_token_from_bytes(&plaintext);
-                    own_tokens.push(pk);
+                    own_tokens.push(pk.clone());
 
                     // get all tokens of pseudoprincipal
                     warn!("Getting tokens of pseudoprincipal {}", pk.new_uid);

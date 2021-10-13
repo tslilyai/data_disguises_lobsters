@@ -64,8 +64,8 @@ pub struct Disguiser {
     pub token_ctrler: Arc<Mutex<TokenCtrler>>,
 
     // table name to [(rows) -> transformations] map
-    items: Arc<RwLock<HashMap<String, HashMap<Vec<RowVal>, Vec<Transform>>>>>,
-    diff_tokens_to_modify: Arc<RwLock<HashMap<DiffToken, Vec<Transform>>>>,
+    items_to_modify: Arc<RwLock<HashMap<String, HashMap<Vec<RowVal>, Vec<Transform>>>>>,
+    global_diff_tokens_to_modify: Arc<RwLock<HashMap<DiffToken, Vec<Transform>>>>,
     to_insert: Arc<Mutex<HashMap<(String, Vec<String>), Vec<Vec<Expr>>>>>,
 }
 
@@ -78,9 +78,9 @@ impl Disguiser {
             pool: pool,
             stats: Arc::new(Mutex::new(stats::QueryStat::new())),
             token_ctrler: Arc::new(Mutex::new(TokenCtrler::new())),
-            diff_tokens_to_modify: Arc::new(RwLock::new(HashMap::new())),
+            global_diff_tokens_to_modify: Arc::new(RwLock::new(HashMap::new())),
             to_insert: Arc::new(Mutex::new(HashMap::new())),
-            items: Arc::new(RwLock::new(HashMap::new())),
+            items_to_modify: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -101,7 +101,12 @@ impl Disguiser {
 
         // XXX revealing all global tokens when a disguise is reversed
         let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(disguise.did);
-        let (dts, own_tokens) = locked_token_ctrler.get_user_tokens(disguise.did, &data_cap, &diff_loc_caps, &own_loc_caps);
+        let (dts, own_tokens) = locked_token_ctrler.get_user_tokens(
+            disguise.did,
+            &data_cap,
+            &diff_loc_caps,
+            &own_loc_caps,
+        );
         diff_tokens.extend(dts.iter().cloned());
 
         // reverse REMOVE tokens first
@@ -111,7 +116,13 @@ impl Disguiser {
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
                 if revealed {
                     warn!("Remove Token reversed!\n");
-                    locked_token_ctrler.mark_diff_token_revealed(disguise.did, d, &data_cap, &diff_loc_caps, &own_loc_caps);
+                    locked_token_ctrler.mark_diff_token_revealed(
+                        disguise.did,
+                        d,
+                        &data_cap,
+                        &diff_loc_caps,
+                        &own_loc_caps,
+                    );
                 }
             }
         }
@@ -123,17 +134,28 @@ impl Disguiser {
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
                 if revealed {
                     warn!("NonRemove Diff Token reversed!\n");
-                    locked_token_ctrler.mark_diff_token_revealed(disguise.did, d, &data_cap, &diff_loc_caps, &own_loc_caps);
+                    locked_token_ctrler.mark_diff_token_revealed(
+                        disguise.did,
+                        d,
+                        &data_cap,
+                        &diff_loc_caps,
+                        &own_loc_caps,
+                    );
                 }
             }
         }
 
-        for d in &own_tokens{
+        for d in &own_tokens {
             warn!("Reversing token {:?}\n", d);
             let revealed = d.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
             if revealed {
                 warn!("Decor Ownership Token reversed!\n");
-                locked_token_ctrler.mark_ownership_token_revealed(disguise.did, d, &data_cap, &own_loc_caps);
+                locked_token_ctrler.mark_ownership_token_revealed(
+                    disguise.did,
+                    d,
+                    &data_cap,
+                    &own_loc_caps,
+                );
             }
         }
 
@@ -152,20 +174,27 @@ impl Disguiser {
         let mut threads = vec![];
         let did = disguise.did;
         let locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        let (_, ownership_tokens) = locked_token_ctrler.get_user_tokens(disguise.did, &data_cap, &vec![], &ownership_loc_caps);
+        let global_diff_tokens = locked_token_ctrler.get_all_global_diff_tokens();
+        let (_, ownership_tokens) = locked_token_ctrler.get_user_tokens(
+            disguise.did,
+            &data_cap,
+            &vec![],
+            &ownership_loc_caps,
+        );
         drop(locked_token_ctrler);
 
         /*
          * REMOVE
          */
-        self.execute_removes(disguise.clone(), &ownership_tokens);
+        // WE ONLY NEED GLOBAL DIFF TOKENS because we need to potentially modify them
+        self.execute_removes(disguise.clone(), &global_diff_tokens, &ownership_tokens);
 
         /*
          * PREDICATE
          */
         // get all the objects, remove the objects to remove
         // integrate vault_transforms into disguise read + write phases
-        self.select_predicate_objs(disguise.clone(), &ownership_tokens);
+        self.select_predicate_objs(disguise.clone(), &global_diff_tokens, &ownership_tokens);
 
         /*
          * UPDATE/DECOR
@@ -175,7 +204,7 @@ impl Disguiser {
             let pool = self.pool.clone();
             let mystats = self.stats.clone();
             let my_insert = self.to_insert.clone();
-            let my_items = self.items.clone();
+            let my_items = self.items_to_modify.clone();
             let my_token_ctrler = self.token_ctrler.clone();
 
             // clone disguise fields
@@ -327,7 +356,7 @@ impl Disguiser {
         };
         // apply updates to each token (for now do sequentially)
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        for (token, ts) in self.diff_tokens_to_modify.write().unwrap().iter() {
+        for (token, ts) in self.global_diff_tokens_to_modify.write().unwrap().iter() {
             for t in ts {
                 // we don't update global tokens if they've been disguised by a global
                 // disguise---no information leakage here
@@ -336,7 +365,9 @@ impl Disguiser {
                 }
                 let mut cols_to_update = vec![];
                 match &*t.trans.read().unwrap() {
-                    TransformArgs::Decor { fk_col, fk_name } => unimplemented!("No global decor tokens allowed!"),
+                    TransformArgs::Decor { .. } => {
+                        unimplemented!("No global decor tokens allowed!")
+                    }
                     TransformArgs::Modify {
                         col,
                         generate_modified_value,
@@ -422,47 +453,12 @@ impl Disguiser {
         drop(locked_token_ctrler);
     }
 
-    fn remove_objs_matching_pred(&self, table: &str, pred: predicate::Predicate, curtable_info: TableInfo, conn: &mut mysql::PooledConn, stats: &QueryStat) {
-        let selection = predicate::pred_to_sql_where(&pred);
-        let selected_rows = get_query_rows_str(
-            &str_select_statement(&table, &selection),
-            &mut conn,
-            stats.clone(),
-        )
-        .unwrap();
-        let mut pred_items: HashSet<&Vec<RowVal>> =
-            HashSet::from_iter(selected_rows.iter());
-        warn!(
-            "ApplyPred: Got {} selected rows matching predicate {:?}\n",
-            pred_items.len(),
-            pred
-        );
-
-        // BATCH REMOVE ITEMS
-        let delstmt = format!("DELETE FROM {} WHERE {}", table, selection);
-        helpers::query_drop(delstmt, &mut conn, stats.clone()).unwrap();
-
-        // ITEM REMOVAL: ADD TOKEN RECORDS
-        for i in &pred_items {
-            let ids = get_ids(&curtable_info.id_cols, i);
-
-            // TOKEN INSERT FOR REMOVAL
-            let mut token = DiffToken::new_delete_token(did, table.clone(), ids.clone(), i.to_vec());
-            for owner_col in &curtable_info.owner_cols {
-                let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
-                token.uid = u64::from_str(&owner_uid).unwrap();
-                let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-                if t.global {
-                    locked_token_ctrler.insert_global_diff_token(&mut token);
-                } else {
-                    locked_token_ctrler.insert_user_diff_token(&mut token);
-                }
-                drop(locked_token_ctrler);
-            }
-        }
-    }
-
-    fn execute_removes(&self, disguise: Arc<Disguise>, diff_tokens: &Vec<DiffToken>, own_tokens: &Vec<OwnershipToken>) {
+    fn execute_removes(
+        &self,
+        disguise: Arc<Disguise>,
+        diff_tokens: &Vec<DiffToken>,
+        own_tokens: &Vec<OwnershipToken>,
+    ) {
         warn!(
             "ApplyRemoves: removing objs for disguise {} with {} own_tokens",
             disguise.did,
@@ -473,7 +469,7 @@ impl Disguiser {
             let mystats = self.stats.clone();
             let did = disguise.did;
             let mut conn = pool.get_conn().unwrap();
-            let mut locked_diff_tokens = self.diff_tokens_to_modify.write().unwrap();
+            let mut locked_diff_tokens = self.global_diff_tokens_to_modify.write().unwrap();
 
             let locked_table_info = disguise.table_info.read().unwrap();
             let curtable_info = locked_table_info.get(&table).unwrap().clone();
@@ -482,27 +478,55 @@ impl Disguiser {
             // REMOVES: do one loop to handle removes
             for t in &*transforms.read().unwrap() {
                 if let TransformArgs::Remove = *t.trans.read().unwrap() {
-                    self.remove_objs_matching_pred(table, &t.pred, curtable_info, &mut conn, mystats.clone());
+                    let preds = predicate::get_all_preds_with_owners(&t.pred, own_tokens);
+                    for p in &preds {
+                        let selection = predicate::pred_to_sql_where(p);
+                        let selected_rows = get_query_rows_str(
+                            &str_select_statement(&table, &selection),
+                            &mut conn,
+                            mystats.clone(),
+                        )
+                        .unwrap();
+                        let pred_items: HashSet<&Vec<RowVal>> = HashSet::from_iter(selected_rows.iter());
+                        warn!(
+                            "ApplyPred: Got {} selected rows matching predicate {:?}\n",
+                            pred_items.len(),
+                            p  
+                        );
 
-                    for ot in own_tokens {
-                        let (mut modified_pred, changed) = predicate::modify_predicate_with_owner(t.pred, ot);
-                        if !changed {
-                            continue;
+                        // BATCH REMOVE ITEMS
+                        let delstmt = format!("DELETE FROM {} WHERE {}", table, selection);
+                        helpers::query_drop(delstmt, &mut conn, mystats.clone()).unwrap();
+
+                        // ITEM REMOVAL: ADD TOKEN RECORDS
+                        for i in &pred_items {
+                            let ids = get_ids(&curtable_info.id_cols, i);
+
+                            // TOKEN INSERT FOR REMOVAL
+                            let mut token =
+                                DiffToken::new_delete_token(did, table.to_string(), ids.clone(), i.to_vec());
+                            for owner_col in &curtable_info.owner_cols {
+                                let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
+                                token.uid = u64::from_str(&owner_uid).unwrap();
+                                let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
+                                if t.global {
+                                    locked_token_ctrler.insert_global_diff_token(&mut token);
+                                } else {
+                                    locked_token_ctrler.insert_user_diff_token(&mut token);
+                                }
+                                drop(locked_token_ctrler);
+                            }
                         }
-                        self.remove_objs_matching_pred(table, &modified_pred, curtable_info, &mut conn, mystats.clone());
-                    }
-
-                    // Get all global tokens matching the predicate. Update the 
-                    // stored value of this token so that we only ever restore the most
-                    // up-to-date disguised data and the token doesn't leak any data
-                    // NOTE: during reversal, we'll have to reverse this token update
-                    for pt in diff_tokens {
-                        if pt.is_global && predicate::diff_token_matches_pred(&t.pred, &table, &pt) {
-                            warn!("ApplyRemoves: Inserting global token {:?} to update\n", pt);
-                            match locked_diff_tokens.get_mut(&pt) {
-                                Some(vs) => vs.push(t.clone()),
-                                None => {
-                                    locked_diff_tokens.insert(pt.clone(), vec![t.clone()]);
+                        
+                        // MARK MATCHING GLOBAL DIFF TOKENS FOR REMOVAL 
+                        for dt in diff_tokens {
+                            if dt.is_global && predicate::diff_token_matches_pred(&p, &table, &dt) {
+                                warn!("ApplyRemoves: Inserting global token {:?} to update\n", dt);
+                                match locked_diff_tokens.get_mut(&dt) {
+                                    Some(vs) => vs.push(t.clone()),
+                                    None => {
+                                        locked_diff_tokens.insert(dt.clone(), vec![t.clone()]);
+                                    }
                                 }
                             }
                         }
@@ -512,22 +536,27 @@ impl Disguiser {
         }
     }
 
-
     // TODO handle ownership tokens too!
-    fn select_predicate_objs(&self, disguise: Arc<Disguise>, tokens: &Vec<DiffToken>) {
+    fn select_predicate_objs(
+        &self,
+        disguise: Arc<Disguise>,
+        diff_tokens: &Vec<DiffToken>,
+        own_tokens: &Vec<OwnershipToken>,
+    ) {
         warn!(
             "ApplyPred: Selecting predicated objs for disguise {} with {} tokens",
             disguise.did,
-            tokens.len()
+            diff_tokens.len()
         );
         let mut threads = vec![];
 
         for (table, transforms) in disguise.table_disguises.clone() {
             let pool = self.pool.clone();
             let mystats = self.stats.clone();
-            let my_items = self.items.clone();
-            let my_diff_tokens_to_modify = self.diff_tokens_to_modify.clone();
-            let my_tokens = tokens.clone();
+            let my_items = self.items_to_modify.clone();
+            let my_global_diff_tokens_to_modify = self.global_diff_tokens_to_modify.clone();
+            let my_diff_tokens = diff_tokens.clone();
+            let my_own_tokens = own_tokens.clone();
 
             // hashmap from item value --> transform
             let mut items_of_table: HashMap<Vec<RowVal>, Vec<Transform>> = HashMap::new();
@@ -544,58 +573,42 @@ impl Disguiser {
                     if let TransformArgs::Remove = *t.trans.read().unwrap() {
                         continue;
                     }
-                    let selection = predicate::pred_to_sql_where(&t.pred);
-                    let selected_rows = get_query_rows_str(
-                        &str_select_statement(&table, &selection),
-                        &mut conn,
-                        mystats.clone(),
-                    )
-                    .unwrap();
-                    let mut pred_items: HashSet<&Vec<RowVal>> =
-                        HashSet::from_iter(selected_rows.iter());
-                    warn!(
-                        "ApplyPred: Got {} selected rows matching predicate {:?}\n",
-                        pred_items.len(),
-                        t.pred
-                    );
+                    let preds = predicate::get_all_preds_with_owners(&t.pred, &my_own_tokens);
+                    for p in &preds {
+                        let selection = predicate::pred_to_sql_where(p);
+                        let selected_rows = get_query_rows_str(
+                            &str_select_statement(&table, &selection),
+                            &mut conn,
+                            mystats.clone(),
+                        )
+                        .unwrap();
 
-                    // TOKENS: get tokens that match the predicate
-                    let pred_tokens =
-                        predicate::get_diff_tokens_matching_pred(&t.pred, &table, &my_tokens);
-                    for pt in &pred_tokens {
-                        // for tokens that decorrelated or updated a guise, we want to add the new
-                        // value that should be transformed into the set of predicated items
-                        match pt.update_type {
-                            DECOR_GUISE | MODIFY_GUISE => {
-                                warn!(
-                                    "ApplyPred: Inserting token new value {:?} to update\n",
-                                    pt.new_value
-                                );
-                                pred_items.insert(&pt.new_value);
+                        warn!(
+                            "ApplyPred: Got {} selected rows matching predicate {:?}\n",
+                            selected_rows.len(),
+                            p
+                        );
+                        // ADD TRANSFORMATIONS TO PERFORM ON PREDICATED ITEMS
+                        for i in &selected_rows {
+                            if let Some(ts) = items_of_table.get_mut(i) {
+                                ts.push(t.clone());
+                            } else {
+                                items_of_table.insert(i.clone(), vec![t.clone()]);
                             }
-                            _ => (),
                         }
-                        // for all global tokens, we want to update the stored value of this token so
-                        // that we only ever restore the most up-to-date disguised data and the
-                        // token doesn't leak any data
-                        // During reversal, we'll have to reverse this token update
-                        if pt.is_global {
-                            warn!("ApplyPred: Inserting global token {:?} to update\n", pt);
-                            match token_transforms.get_mut(&pt) {
-                                Some(vs) => vs.push(t.clone()),
-                                None => {
-                                    token_transforms.insert(pt.clone(), vec![t.clone()]);
+
+                        // ensure that matching diff tokens are updated
+                        // TODO separate out predicating on global diff tokens completely?
+                        for dt in &my_diff_tokens {
+                            if dt.is_global && predicate::diff_token_matches_pred(p, &table, dt) {
+                                warn!("ApplyRemoves: Inserting global token {:?} to update\n", dt);
+                                match token_transforms.get_mut(&dt) {
+                                    Some(vs) => vs.push(t.clone()),
+                                    None => {
+                                        token_transforms.insert(dt.clone(), vec![t.clone()]);
+                                    }
                                 }
                             }
-                        }
-                    }
-
-                    // ADD TRANSFORMATIONS TO PERFORM ON PREDICATED ITEMS
-                    for i in pred_items {
-                        if let Some(ts) = items_of_table.get_mut(i) {
-                            ts.push(t.clone());
-                        } else {
-                            items_of_table.insert(i.clone(), vec![t.clone()]);
                         }
                     }
                 }
@@ -605,7 +618,7 @@ impl Disguiser {
                 drop(locked_items);
 
                 // same thing for token transforms
-                let mut locked_tokens = my_diff_tokens_to_modify.write().unwrap();
+                let mut locked_tokens = my_global_diff_tokens_to_modify.write().unwrap();
                 locked_tokens.extend(token_transforms);
                 drop(locked_tokens);
             }));
@@ -622,8 +635,8 @@ impl Disguiser {
 
     fn end_disguise_action(&self) {
         self.to_insert.lock().unwrap().clear();
-        self.items.write().unwrap().clear();
-        self.diff_tokens_to_modify.write().unwrap().clear();
+        self.items_to_modify.write().unwrap().clear();
+        self.global_diff_tokens_to_modify.write().unwrap().clear();
         warn!("Disguiser: clear disguise records");
     }
 }
@@ -664,7 +677,8 @@ fn modify_item(
         })
         .collect();
     let ids = get_ids(&table_info.id_cols, &i);
-    let mut update_token = DiffToken::new_modify_token(did, table.to_string(), ids, i.clone(), new_obj);
+    let mut update_token =
+        DiffToken::new_modify_token(did, table.to_string(), ids, i.clone(), new_obj);
     for owner_col in &table_info.owner_cols {
         let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
         update_token.uid = u64::from_str(&owner_uid).unwrap();

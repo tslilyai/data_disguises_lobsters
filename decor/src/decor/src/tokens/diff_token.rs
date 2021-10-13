@@ -5,7 +5,6 @@ use crate::{DID, UID};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::hash::{Hash, Hasher};
-use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 use log::warn;
 
@@ -206,13 +205,13 @@ impl DiffToken {
                     // restore global token (may or may not have been revealed, but oh well!)
                     let mut token: DiffToken = serde_json::from_str(&self.old_token_blob).unwrap();
                     assert!(token.is_global);
-                    token_ctrler.insert_global_token(&mut token);
+                    token_ctrler.insert_global_diff_token(&mut token);
                 }
                 MODIFY_TOKEN => {
                     let new_token: DiffToken = serde_json::from_str(&self.new_token_blob).unwrap();
                     assert!(new_token.is_global);
 
-                    let (revealed, eq) = token_ctrler.check_global_token_for_match(&new_token);
+                    let (revealed, eq) = token_ctrler.check_global_diff_token_for_match(&new_token);
 
                     // don't reveal if token has been modified
                     if !eq {
@@ -221,7 +220,7 @@ impl DiffToken {
 
                     // actually update token
                     let old_token: DiffToken = serde_json::from_str(&self.old_token_blob).unwrap();
-                    token_ctrler.update_global_token_from_old_to(&new_token, &old_token, None);
+                    token_ctrler.update_global_diff_token_from_old_to(&new_token, &old_token, None);
 
                     // if token has been revealed, attempt to reveal old value of token
                     if revealed {

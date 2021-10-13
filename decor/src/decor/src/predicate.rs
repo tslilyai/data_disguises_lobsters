@@ -84,6 +84,19 @@ pub fn pred_to_sql_where(pred: &Vec<Vec<PredClause>>) -> String {
     ors.join(" OR ")
 }
 
+pub fn modify_predicate_with_owner(pred: &Vec<Vec<PredClause>>, ownership_token: &OwnershipToken) -> (Vec<Vec<PredClause>>, bool) {
+    let mut new_pred = pred.clone();
+    let mut changed = false;
+    for (i, and_clauses) in pred.iter().enumerate() {
+        let mut all_true = true;
+        for clause in and_clauses {
+            // TODO
+            // change clause to reference new user instead of old
+        }
+    }
+    (new_pred, changed)
+}
+
 pub fn diff_token_matches_pred(
     pred: &Vec<Vec<PredClause>>,
     name: &str,
@@ -99,6 +112,18 @@ pub fn diff_token_matches_pred(
         return true;
     }
     false
+}
+
+pub fn get_all_preds_with_owners(pred: &Vec<Vec<PredClause>>, own_tokens: &Vec<OwnershipToken>) -> Vec<Vec<Vec<PredClause>>> {
+    let mut preds = vec![pred.clone()];
+    for ot in own_tokens {
+        let (modified_pred, changed) = modify_predicate_with_owner(pred, ot);
+        if !changed {
+            continue;
+        }
+        preds.push(modified_pred);
+    }
+    preds
 }
 
 pub fn get_ownership_tokens_matching_pred(
