@@ -422,7 +422,7 @@ impl Disguiser {
         drop(locked_token_ctrler);
     }
 
-    fn remove_objs_matching_pred(&self, table: &str, pred: predicate::Predicate, conn: &mut mysql::PooledConn, stats: &QueryStat) {
+    fn remove_objs_matching_pred(&self, table: &str, pred: predicate::Predicate, curtable_info: TableInfo, conn: &mut mysql::PooledConn, stats: &QueryStat) {
         let selection = predicate::pred_to_sql_where(&pred);
         let selected_rows = get_query_rows_str(
             &str_select_statement(&table, &selection),
@@ -482,14 +482,14 @@ impl Disguiser {
             // REMOVES: do one loop to handle removes
             for t in &*transforms.read().unwrap() {
                 if let TransformArgs::Remove = *t.trans.read().unwrap() {
-                    self.remove_objs_matching_pred(table, &t.pred, &mut conn, mystats.clone());
+                    self.remove_objs_matching_pred(table, &t.pred, curtable_info, &mut conn, mystats.clone());
 
                     for ot in own_tokens {
-                        let (mut modified_pred, changed) = predicate::predicate_modified_with_owner(t.pred, ot);
+                        let (mut modified_pred, changed) = predicate::modify_predicate_with_owner(t.pred, ot);
                         if !changed {
                             continue;
                         }
-                        self.remove_objs_matching_pred(table, &modified_pred, &mut conn, mystats.clone());
+                        self.remove_objs_matching_pred(table, &modified_pred, curtable_info, &mut conn, mystats.clone());
                     }
 
                     // Get all global tokens matching the predicate. Update the 
