@@ -146,16 +146,18 @@ impl Disguiser {
         }
 
         for d in &own_tokens {
-            warn!("Reversing token {:?}\n", d);
-            let revealed = d.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
-            if revealed {
-                warn!("Decor Ownership Token reversed!\n");
-                locked_token_ctrler.mark_ownership_token_revealed(
-                    disguise.did,
-                    d,
-                    &data_cap,
-                    &own_loc_caps,
-                );
+            if d.did == disguise.did {
+                warn!("Reversing token {:?}\n", d);
+                let revealed = d.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
+                if revealed {
+                    warn!("Decor Ownership Token reversed!\n");
+                    locked_token_ctrler.mark_ownership_token_revealed(
+                        disguise.did,
+                        d,
+                        &data_cap,
+                        &own_loc_caps,
+                    );
+                }
             }
         }
 
