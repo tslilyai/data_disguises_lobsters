@@ -186,10 +186,10 @@ impl TokenCtrler {
         uid: UID,
         anon_uid: UID,
         did: DID,
-        guise_name: String,
-        guise_ids: Vec<RowVal>,
-        referenced_name: String,
-        referenced_id_col: String,
+        child_name: String,
+        child_ids: Vec<RowVal>,
+        pprincipal_name: String,
+        pprincipal_id_col: String,
         fk_col: String,
     ) -> UID {
         let private_key =
@@ -201,10 +201,10 @@ impl TokenCtrler {
         self.register_principal(anon_uid, String::new(), &pub_key);
         let mut pppk: OwnershipToken = new_ownership_token(
             did,
-            guise_name,
-            guise_ids,
-            referenced_name,
-            referenced_id_col,
+            child_name,
+            child_ids,
+            pprincipal_name,
+            pprincipal_id_col,
             fk_col,
             uid,
             anon_uid,
@@ -215,7 +215,7 @@ impl TokenCtrler {
     }
 
     pub fn remove_anon_principal(&mut self, anon_uid: UID) {
-        warn!("Removing principal {}", anon_uid);
+        warn!("Removing principal {}\n", anon_uid);
         self.principal_data.remove(&anon_uid);
     }
 

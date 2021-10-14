@@ -1,6 +1,6 @@
 use crate::helpers::*;
 use crate::tokens::*;
-//use log::warn;
+use log::warn;
 use sql_parser::ast::*;
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -110,6 +110,7 @@ pub fn modify_predicate_with_owner(
                                 op: op,
                             });
                             changed = true;
+                            warn!("Modified pred val cmp to {:?}\n", new_and_clauses);
                         } else {
                             new_and_clauses.push(clause.clone())
                         }
@@ -124,6 +125,7 @@ pub fn modify_predicate_with_owner(
                             op: op.clone(),
                         });
                         changed = true;
+                        warn!("Modified pred val cmp to {:?}\n", new_and_clauses);
                     } else {
                         new_and_clauses.push(clause.clone())
                     }
@@ -133,6 +135,7 @@ pub fn modify_predicate_with_owner(
         }
         new_pred.push(new_and_clauses);
     }
+    warn!("Modified pred {:?} to {:?} with ot {:?}\n", pred, new_pred, ownership_token);
     (new_pred, changed)
 }
 
@@ -170,11 +173,7 @@ pub fn get_ownership_tokens_matching_pred(
 ) -> Vec<OwnershipToken> {
     let mut matching = vec![];
     for t in tokens {
-        //warn!(
-        //   "Pred: get_tokens_matching_pred table {}, pred {:?}, checking token {:?}\n",
-        //  name, pred, t
-        //);
-        if t.guise_name != name {
+        if t.child_name != name {
             continue;
         }
         if predicate_applies_with_col(pred, &t.fk_col, t.uid)

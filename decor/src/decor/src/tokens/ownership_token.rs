@@ -16,10 +16,10 @@ pub struct OwnershipToken {
     pub new_uid: UID,
     pub priv_key: Vec<u8>,
 
-    pub guise_name: String,
-    pub guise_ids: Vec<RowVal>,
-    pub referenced_name: String,
-    pub referenced_id_col: String,
+    pub child_name: String,
+    pub child_ids: Vec<RowVal>,
+    pub pprincipal_name: String,
+    pub pprincipal_id_col: String,
     pub fk_col: String,
 
     pub revealed: bool,
@@ -31,10 +31,10 @@ pub fn ownership_token_from_bytes(bytes: &Vec<u8>) -> OwnershipToken {
 
 pub fn new_ownership_token(
     did: DID,
-    guise_name: String,
-    guise_ids: Vec<RowVal>,
-    referenced_name: String,
-    referenced_id_col: String,
+    child_name: String,
+    child_ids: Vec<RowVal>,
+    pprincipal_name: String,
+    pprincipal_id_col: String,
     fk_col: String,
     cur_uid: UID,
     new_uid: UID,
@@ -46,11 +46,11 @@ pub fn new_ownership_token(
     token.priv_key = priv_key.to_pkcs1_der().unwrap().as_der().to_vec();
     token.new_uid = new_uid;
     token.revealed = false;
-    token.guise_name = guise_name;
-    token.guise_ids = guise_ids;
+    token.child_name = child_name;
+    token.child_ids = child_ids;
     token.fk_col = fk_col;
-    token.referenced_name = referenced_name;
-    token.referenced_id_col = referenced_id_col;
+    token.pprincipal_name = pprincipal_name;
+    token.pprincipal_id_col = pprincipal_id_col;
     token
 }
 
@@ -64,28 +64,28 @@ impl OwnershipToken {
         // if original entity does not exist, do not recorrelate
         let selection = Expr::BinaryOp {
             left: Box::new(Expr::Identifier(vec![Ident::new(
-                self.referenced_id_col.clone(),
+                self.pprincipal_id_col.clone(),
             )])),
             op: BinaryOperator::Eq,
             right: Box::new(Expr::Value(Value::Number(self.uid.to_string()))),
         };
         let selected = get_query_rows_str(
-            &str_select_statement(&self.referenced_name, &selection.to_string()),
+            &str_select_statement(&self.pprincipal_name, &selection.to_string()),
             conn,
             stats.clone(),
         )?;
         if selected.is_empty() {
             warn!(
                 "DiffToken Reveal: Original entity col {} id {} does not exist\n",
-                self.referenced_id_col, self.uid
+                self.pprincipal_id_col, self.uid
             );
             return Ok(false);
         }
 
         // if foreign key is rewritten, don't reverse anything
-        let token_guise_selection = get_select_of_ids(&self.guise_ids);
+        let token_guise_selection = get_select_of_ids(&self.child_ids);
         let selected = get_query_rows_str(
-            &str_select_statement(&self.guise_name, &token_guise_selection.to_string()),
+            &str_select_statement(&self.child_name, &token_guise_selection.to_string()),
             conn,
             stats.clone(),
         )?;
@@ -109,7 +109,7 @@ impl OwnershipToken {
         }];
         query_drop(
             Statement::Update(UpdateStatement {
-                table_name: string_to_objname(&self.guise_name),
+                table_name: string_to_objname(&self.child_name),
                 assignments: updates,
                 selection: Some(token_guise_selection),
             })
@@ -121,10 +121,10 @@ impl OwnershipToken {
         // remove the pseudoprincipal
         query_drop(
             Statement::Delete(DeleteStatement {
-                table_name: string_to_objname(&self.referenced_name),
+                table_name: string_to_objname(&self.pprincipal_name),
                 selection: Some(Expr::BinaryOp {
                     left: Box::new(Expr::Identifier(vec![Ident::new(
-                        self.referenced_id_col.to_string(),
+                        self.pprincipal_id_col.to_string(),
                     )])),
                     op: BinaryOperator::Eq,
                     right: Box::new(Expr::Value(Value::Number(self.new_uid.to_string()))),

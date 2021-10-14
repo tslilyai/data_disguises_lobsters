@@ -223,7 +223,7 @@ impl Disguiser {
                 let locked_guise_gen = my_guise_gen.read().unwrap();
 
                 warn!(
-                    "Thread {:?} starting for table {}",
+                    "Thread {:?} starting for table {}\n",
                     thread::current().id(),
                     table
                 );
@@ -246,7 +246,7 @@ impl Disguiser {
                                 let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
                                 let mut locked_stats = mystats.lock().unwrap();
 
-                                warn!("Decor item of table {} in apply disguise: {:?}", table, i);
+                                warn!("Decor item of table {} in apply disguise: {:?}\n", table, i);
                                 decor_item(
                                     // disguise and per-thread state
                                     did,
@@ -459,7 +459,7 @@ impl Disguiser {
         own_tokens: &Vec<OwnershipToken>,
     ) {
         warn!(
-            "ApplyRemoves: removing objs for disguise {} with {} own_tokens",
+            "ApplyRemoves: removing objs for disguise {} with {} own_tokens\n",
             disguise.did,
             own_tokens.len()
         );
@@ -478,6 +478,7 @@ impl Disguiser {
             for t in &*transforms.read().unwrap() {
                 if let TransformArgs::Remove = *t.trans.read().unwrap() {
                     let preds = predicate::get_all_preds_with_owners(&t.pred, own_tokens);
+                    warn!("Got preds {:?} with own_tokens {:?}\n", preds, own_tokens);
                     for p in &preds {
                         let selection = predicate::pred_to_sql_where(p);
                         let selected_rows = get_query_rows_str(
@@ -785,8 +786,8 @@ fn decor_item(
         child_table.to_string(),
         child_ids,
         fk_name.to_string(),
-        new_parent_ids[0].column.to_string(),
-        guise_id.to_string(),
+        new_parent_ids[0].column.clone(),
+        fk_col.to_string(),
     );
 
     stats.decor_dur += start.elapsed();
