@@ -169,7 +169,7 @@ impl Disguiser {
         disguise: Arc<disguise::Disguise>,
         data_cap: tokens::DataCap,
         ownership_loc_caps: Vec<tokens::LocCap>,
-    ) -> Result<HashMap<(UID, DID), tokens::LocCap>, mysql::Error> {
+    ) -> Result<(HashMap<(UID, DID), tokens::LocCap>, HashMap<(UID, DID), tokens::LocCap>), mysql::Error> {
         let mut conn = self.pool.get_conn()?;
         let mut threads = vec![];
         let did = disguise.did;

@@ -102,9 +102,10 @@ impl TokenCtrler {
         self.tmp_diff_loc_caps.get(&(uid, did))
     }
 
-    pub fn save_and_clear_loc_caps(&mut self) -> HashMap<(UID, DID), LocCap> {
-        let lcs = self.tmp_diff_loc_caps.clone();
-        for ((uid, _), c) in lcs.iter() {
+    pub fn save_and_clear_loc_caps(&mut self) -> (HashMap<(UID, DID), LocCap>, HashMap<(UID, DID), LocCap>) {
+        let dlcs = self.tmp_diff_loc_caps.clone();
+        let olcs = self.tmp_ownership_loc_caps.clone();
+        for ((uid, _), c) in dlcs.iter() {
             let p = self.principal_data.get_mut(&uid).unwrap();
             // save to principal data if no email (pseudoprincipal)
             if p.email.is_empty() {
@@ -114,8 +115,7 @@ impl TokenCtrler {
                 //self.loc_caps.insert((*uid, *did), *c);
             }
         }
-        let lcs = self.tmp_ownership_loc_caps.clone();
-        for ((uid, _), c) in lcs.iter() {
+        for ((uid, _), c) in olcs.iter() {
             let p = self.principal_data.get_mut(&uid).unwrap();
             // save to principal data if no email (pseudoprincipal)
             if p.email.is_empty() {
@@ -126,7 +126,7 @@ impl TokenCtrler {
             }
         }
         self.clear_tmp();
-        lcs
+        (dlcs, olcs)
     }
 
     // XXX note this doesn't allow for concurrent disguising right now

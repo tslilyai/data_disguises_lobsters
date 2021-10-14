@@ -18,7 +18,6 @@ const RSA_BITS: usize = 2048;
 const USER_ITERS: u64 = 2;
 const NSTORIES: u64 = 2;
 
-/*
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
@@ -79,12 +78,12 @@ fn test_app_rev_anon_disguise() {
 
     // APPLY ANON DISGUISE
     let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
-    let lcs = edna
+    let (dlcs, olcs) = edna
         .apply_disguise(anon_disguise.clone(), vec![], vec![])
         .unwrap();
 
     // REVERSE ANON DISGUISE WITH NO PRIVATE DIFFS
-    edna.reverse_disguise(anon_disguise.clone(), vec![], vec![0])
+    edna.reverse_disguise(anon_disguise.clone(), vec![], vec![], vec![])
         .unwrap();
 
     // CHECK DISGUISE RESULTS: moderations have been restored
@@ -189,11 +188,13 @@ fn test_app_rev_anon_disguise() {
     // REVERSE DISGUISE WITH USER DIFFS
     for u in 1..USER_ITERS {
         // get diffs
-        let lc = lcs.get(&(u, 1)).unwrap();
+        let dlc = dlcs.get(&(u, 1)).unwrap();
+        let olc = olcs.get(&(u, 1)).unwrap();
         edna.reverse_disguise(
             anon_disguise.clone(),
             priv_keys[u as usize - 1].clone(),
-            vec![*lc],
+            vec![*dlc],
+            vec![*olc],
         )
         .unwrap();
 
@@ -269,6 +270,7 @@ fn test_app_rev_anon_disguise() {
     drop(db);
 }
 
+/*
 #[test]
 fn test_app_rev_gdpr_disguise() {
     init_logger();
