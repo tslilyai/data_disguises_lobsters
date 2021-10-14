@@ -6,7 +6,7 @@ use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
 use log::warn;
 use rand::{rngs::OsRng, RngCore};
-use rsa::pkcs1::FromRsaPrivateKey;
+use rsa::pkcs1::{FromRsaPrivateKey, ToRsaPrivateKey};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -713,9 +713,7 @@ mod tests {
         let uid = 11;
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
-        let referenced_name = "referenced".to_string();
         let old_fk_value = 5;
-        let new_fk_value = 55;
         let fk_col = "fk_col".to_string();
 
         let mut rng = OsRng;
@@ -749,9 +747,7 @@ mod tests {
         let uid = 11;
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
-        let referenced_name = "referenced".to_string();
         let old_fk_value = 5;
-        let new_fk_value = 55;
         let fk_col = "fk_col".to_string();
 
         let mut rng = OsRng;
@@ -771,7 +767,7 @@ mod tests {
         );
         remove_token.uid = uid;
         ctrler.insert_user_diff_token(&mut remove_token);
-        let lc = ctrler.get_tmp_capability(uid, did).unwrap().clone();
+        let lc = ctrler.get_tmp_reveal_capability(uid, did).unwrap().clone();
         ctrler.clear_tmp();
         assert_eq!(ctrler.global_diff_tokens.len(), 0);
 
@@ -781,12 +777,12 @@ mod tests {
             .get(&uid)
             .expect("failed to get user?");
         assert_eq!(pub_key, p.pubkey);
-        assert!(p.loc_caps.is_empty());
+        assert!(p.ownership_loc_caps.is_empty());
+        assert!(p.diff_loc_caps.is_empty());
         assert!(ctrler.tmp_diff_loc_caps.is_empty());
 
         // get tokens
-        let (diff_tokens, ownership_tokens) =
-            ctrler.get_user_tokens(did, &private_key_vec, &vec![lc], &vec![]);
+        let (diff_tokens, _) = ctrler.get_user_tokens(did, &private_key_vec, &vec![lc], &vec![]);
         assert_eq!(diff_tokens.len(), 1);
         assert_eq!(diff_tokens[0], remove_token);
     }
@@ -798,9 +794,7 @@ mod tests {
 
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
-        let referenced_name = "referenced".to_string();
         let old_fk_value = 5;
-        let new_fk_value = 55;
         let fk_col = "fk_col".to_string();
 
         let mut rng = OsRng;
@@ -822,8 +816,8 @@ mod tests {
                 for i in 0..iters {
                     let mut remove_token = DiffToken::new_delete_token(
                         d,
-                        guise_name,
-                        guise_ids,
+                        guise_name.clone(),
+                        guise_ids.clone(),
                         vec![RowVal {
                             column: fk_col.clone(),
                             value: (old_fk_value + i).to_string(),
@@ -832,7 +826,7 @@ mod tests {
                     remove_token.uid = u;
                     ctrler.insert_user_diff_token(&mut remove_token);
                 }
-                let c = ctrler.get_tmp_capability(u, d).unwrap().clone();
+                let c = ctrler.get_tmp_reveal_capability(u, d).unwrap().clone();
                 caps.insert((u, d), c);
             }
         }
@@ -848,13 +842,13 @@ mod tests {
                 .expect("failed to get user?")
                 .clone();
             assert_eq!(pub_keys[u as usize - 1], p.pubkey);
-            assert!(p.loc_caps.is_empty());
+            assert!(p.ownership_loc_caps.is_empty());
+            assert!(p.diff_loc_caps.is_empty());
 
             for d in 1..iters {
                 let lc = caps.get(&(u, d)).unwrap().clone();
                 // get tokens
-                let (diff_tokens, ownership_tokens) =
-                    ctrler.get_user_tokens(did, &private_key_vec, &vec![lc], &vec![]);
+                let (diff_tokens, _) = ctrler.get_user_tokens(d, &priv_keys[u as usize - 1], &vec![lc], &vec![]);
                 assert_eq!(diff_tokens.len(), (iters as usize));
                 for i in 0..iters {
                     assert_eq!(
@@ -875,7 +869,6 @@ mod tests {
         let guise_ids = vec![];
         let referenced_name = "referenced".to_string();
         let old_fk_value = 5;
-        let new_fk_value = 55;
         let fk_col = "fk_col".to_string();
 
         let mut rng = OsRng;
@@ -896,8 +889,8 @@ mod tests {
             for d in 1..iters {
                 let mut remove_token = DiffToken::new_delete_token(
                     d,
-                    guise_name,
-                    guise_ids,
+                    guise_name.clone(),
+                    guise_ids.clone(),
                     vec![RowVal {
                         column: fk_col.clone(),
                         value: (old_fk_value + d).to_string(),
@@ -914,12 +907,13 @@ mod tests {
                     u,
                     anon_uid,
                     d,
-                    guise_name,
+                    guise_name.clone(),
+                    guise_ids.clone(),
                     referenced_name.clone(),
                     fk_col.clone(),
                     fk_col.clone(),
                 );
-                let lc = ctrler.get_tmp_capability(u, d).unwrap().clone();
+                let lc = ctrler.get_tmp_reveal_capability(u, d).unwrap().clone();
                 caps.insert((u, d), lc);
             }
         }
@@ -941,6 +935,7 @@ mod tests {
                 let (diff_tokens, own_tokens) =
                     ctrler.get_user_tokens(d, &priv_keys[u as usize - 1], &vec![c], &vec![]);
                 assert_eq!(diff_tokens.len(), 1);
+                assert_eq!(own_tokens.len(), 0);
                 assert_eq!(
                     diff_tokens[0].old_value[0].value,
                     (old_fk_value + d).to_string()

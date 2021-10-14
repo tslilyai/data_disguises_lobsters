@@ -2,7 +2,7 @@ extern crate log;
 extern crate mysql;
 
 mod disguises;
-use decor::diffs;
+use decor::tokens;
 use decor::helpers;
 use log::warn;
 use mysql::prelude::*;
@@ -18,6 +18,7 @@ const RSA_BITS: usize = 2048;
 const USER_ITERS: u64 = 2;
 const NSTORIES: u64 = 2;
 
+/*
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
@@ -859,7 +860,7 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
             // decrypt diff with symkey
             let cipher = Aes128Cbc::new_from_slices(&symkey, &pk.enc_diff.iv).unwrap();
             let plaintext = cipher.decrypt_vec(&mut pk.enc_diff.diff_data).unwrap();
-            let pkdiff = diffs::privkeydiff_from_bytes(plaintext);
+            let pkdiff = tokens::privkeydiff_from_bytes(plaintext);
             let privkey = RsaPrivateKey::from_pkcs1_der(&pkdiff.priv_key).unwrap();
             pp_privkeys.insert(pkdiff.new_uid, privkey);
             pps.push(pkdiff.new_uid);
@@ -873,7 +874,7 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
             .decrypt(padding, &esymks[0].0.enc_symkey)
             .expect("failed to decrypt");
         let symkeys = vec![(
-            diffs::SymKey {
+            tokens::SymKey {
                 uid: u,
                 did: 1,
                 symkey: symkey,
@@ -985,7 +986,7 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
             // decrypt diff with symkey
             let cipher = Aes128Cbc::new_from_slices(&symkey, &pk.enc_diff.iv).unwrap();
             let plaintext = cipher.decrypt_vec(&mut pk.enc_diff.diff_data).unwrap();
-            let pkdiff = diffs::privkeydiff_from_bytes(plaintext);
+            let pkdiff = tokens::privkeydiff_from_bytes(plaintext);
             let privkey = RsaPrivateKey::from_pkcs1_der(&pkdiff.priv_key).unwrap();
             pp_privkeys.insert(pkdiff.new_uid, privkey);
             pps.push(pkdiff.new_uid);
@@ -999,7 +1000,7 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
             .decrypt(padding, &esymks[0].0.enc_symkey)
             .expect("failed to decrypt");
         let symkeys = vec![(
-            diffs::SymKey {
+            tokens::SymKey {
                 uid: u,
                 did: 1,
                 symkey: symkey,
@@ -1067,3 +1068,4 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
 
     drop(db);
 }*/
+*/
