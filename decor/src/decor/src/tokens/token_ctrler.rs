@@ -610,6 +610,7 @@ impl TokenCtrler {
                 }
             }
         }
+        warn!("Got {} global diff tokens for disguise {}\n", tokens.len(), did);
         tokens
     }
 

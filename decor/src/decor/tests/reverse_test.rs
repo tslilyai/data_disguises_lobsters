@@ -9,7 +9,7 @@ use mysql::prelude::*;
 use rand::rngs::OsRng;
 use rsa::pkcs1::{FromRsaPrivateKey, ToRsaPrivateKey};
 use rsa::{PaddingScheme, RsaPrivateKey, RsaPublicKey};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::*;
 
@@ -122,7 +122,7 @@ fn test_app_rev_anon_disguise() {
         assert_eq!(results.len(), 0);
     }
 
-    // moderations recorrelated
+    // no correlated moderations (ALL DECOR OPERATIONS ARE PRIVATE)
     for u in 1..USER_ITERS {
         let mut results = vec![];
         let res = db
@@ -137,7 +137,7 @@ fn test_app_rev_anon_disguise() {
             let id = helpers::mysql_val_to_string(&vals[0]);
             results.push(id);
         }
-        assert_eq!(results.len(), NSTORIES as usize);
+        assert_eq!(results.len(), 0);
     }
 
     let mut guises = HashSet::new();
@@ -157,21 +157,6 @@ fn test_app_rev_anon_disguise() {
     }
     assert_eq!(stories_results.len() as u64, (USER_ITERS - 1) * NSTORIES);
 
-    // moderations have no guises as owners
-    let res = db
-        .query_iter(format!(
-            r"SELECT moderator_user_id, user_id FROM moderations"
-        ))
-        .unwrap();
-    for row in res {
-        let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 2);
-        let moderator_user_id = helpers::mysql_val_to_u64(&vals[0]).unwrap();
-        let user_id = helpers::mysql_val_to_u64(&vals[1]).unwrap();
-        assert!(user_id < USER_ITERS);
-        assert!(moderator_user_id < USER_ITERS);
-    }
-
     // check that all guises exist
     for u in guises {
         let res = db
@@ -188,13 +173,19 @@ fn test_app_rev_anon_disguise() {
     // REVERSE DISGUISE WITH USER DIFFS
     for u in 1..USER_ITERS {
         // get diffs
-        let dlc = dlcs.get(&(u, 1)).unwrap();
-        let olc = olcs.get(&(u, 1)).unwrap();
+        let dlc = match dlcs.get(&(u, 1)){
+            Some(dlc) => vec![*dlc],
+            None => vec![],
+        };
+        let olc = match olcs.get(&(u, 1)){
+            Some(olc) => vec![*olc],
+            None => vec![],
+        };
         edna.reverse_disguise(
             anon_disguise.clone(),
             priv_keys[u as usize - 1].clone(),
-            vec![*dlc],
-            vec![*olc],
+            dlc,
+            olc,
         )
         .unwrap();
 
@@ -270,7 +261,6 @@ fn test_app_rev_anon_disguise() {
     drop(db);
 }
 
-/*
 #[test]
 fn test_app_rev_gdpr_disguise() {
     init_logger();
@@ -313,14 +303,22 @@ fn test_app_rev_gdpr_disguise() {
     }
 
     // APPLY GDPR DISGUISES
-    let mut lcs = vec![];
+    let mut dlcs = vec![];
+    let mut olcs = vec![];
     for u in 1..USER_ITERS {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         let did = gdpr_disguise.did;
-        let lcs_map = edna
+        let (dlcs_map, olcs_map) = edna
             .apply_disguise(Arc::new(gdpr_disguise), vec![], vec![])
             .unwrap();
-        lcs.push(lcs_map.get(&(u, did)).unwrap().clone());
+        match dlcs_map.get(&(u, did)){
+            Some(dlc) => dlcs.push(*dlc),
+            None => dlcs.push(0),
+        }
+        match olcs_map.get(&(u, did)){
+            Some(olc) => olcs.push(*olc),
+            None => olcs.push(0)
+        }
     }
 
     // REVERSE GDPR DISGUISES
@@ -329,7 +327,8 @@ fn test_app_rev_gdpr_disguise() {
         edna.reverse_disguise(
             Arc::new(gdpr_disguise),
             priv_keys[u as usize - 1].clone(),
-            vec![lcs[u as usize - 1]],
+            vec![dlcs[u as usize - 1]],
+            vec![olcs[u as usize - 1]],
         )
         .unwrap();
 
@@ -390,6 +389,7 @@ fn test_app_rev_gdpr_disguise() {
     drop(db);
 }
 
+/*
 #[test]
 fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     init_logger();

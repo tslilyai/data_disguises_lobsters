@@ -18,7 +18,6 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
 
     // DECOR MOD AND STORIES
 
-    // anyone can restore moderations (public)
     hm.insert(
         "moderations".to_string(),
         Arc::new(RwLock::new(vec![
@@ -29,7 +28,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
                     fk_name: "users".to_string(),
                     fk_col: "moderator_user_id".to_string(),
                 })),
-                global: true,
+                global: false,
             },
             Transform {
                 pred: get_true_pred(),
@@ -37,7 +36,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
                     fk_name: "users".to_string(),
                     fk_col: "user_id".to_string(),
                 })),
-                global: true,
+                global: false,
             },
         ])),
     );
