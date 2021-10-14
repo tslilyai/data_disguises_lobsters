@@ -191,8 +191,6 @@ impl TokenCtrler {
         referenced_name: String,
         referenced_id_col: String,
         fk_col: String,
-        old_value: Vec<RowVal>,
-        new_value: Vec<RowVal>,
     ) -> UID {
         let private_key =
             RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
@@ -211,8 +209,6 @@ impl TokenCtrler {
             uid,
             anon_uid,
             &private_key,
-            old_value,
-            new_value,
         );
         self.insert_ownership_token(&mut pppk);
         anon_uid
@@ -922,14 +918,6 @@ mod tests {
                     referenced_name.clone(),
                     fk_col.clone(),
                     fk_col.clone(),
-                    vec![RowVal {
-                        column: fk_col.clone(),
-                        value: (old_fk_value + d).to_string(),
-                    }],
-                    vec![RowVal {
-                        column: fk_col.clone(),
-                        value: (new_fk_value + d).to_string(),
-                    }],
                 );
                 let lc = ctrler.get_tmp_capability(u, d).unwrap().clone();
                 caps.insert((u, d), lc);

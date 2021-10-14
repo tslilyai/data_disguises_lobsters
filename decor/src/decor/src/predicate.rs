@@ -84,7 +84,10 @@ pub fn pred_to_sql_where(pred: &Vec<Vec<PredClause>>) -> String {
     ors.join(" OR ")
 }
 
-pub fn modify_predicate_with_owner(pred: &Vec<Vec<PredClause>>, ownership_token: &OwnershipToken) -> (Vec<Vec<PredClause>>, bool) {
+pub fn modify_predicate_with_owner(
+    pred: &Vec<Vec<PredClause>>,
+    ownership_token: &OwnershipToken,
+) -> (Vec<Vec<PredClause>>, bool) {
     use PredClause::*;
     let mut new_pred = vec![];
     let mut changed = false;
@@ -95,10 +98,11 @@ pub fn modify_predicate_with_owner(pred: &Vec<Vec<PredClause>>, ownership_token:
             match clause {
                 ColInList { col, vals, neg } => {
                     for val in vals {
-                        if val == &ownership_token.uid.to_string() && col == &ownership_token.fk_col {
+                        if val == &ownership_token.uid.to_string() && col == &ownership_token.fk_col
+                        {
                             let op = match neg {
                                 true => BinaryOperator::NotEq,
-                                false => BinaryOperator::Eq
+                                false => BinaryOperator::Eq,
                             };
                             new_and_clauses.push(ColValCmp {
                                 col: col.clone(),
@@ -124,7 +128,7 @@ pub fn modify_predicate_with_owner(pred: &Vec<Vec<PredClause>>, ownership_token:
                         new_and_clauses.push(clause.clone())
                     }
                 }
-                Bool(_) =>  new_and_clauses.push(clause.clone()), 
+                Bool(_) => new_and_clauses.push(clause.clone()),
             }
         }
         new_pred.push(new_and_clauses);
@@ -132,16 +136,11 @@ pub fn modify_predicate_with_owner(pred: &Vec<Vec<PredClause>>, ownership_token:
     (new_pred, changed)
 }
 
-pub fn diff_token_matches_pred(
-    pred: &Vec<Vec<PredClause>>,
-    name: &str,
-    t: &DiffToken,
-) -> bool {
+pub fn diff_token_matches_pred(pred: &Vec<Vec<PredClause>>, name: &str, t: &DiffToken) -> bool {
     if t.guise_name != name {
         return false;
     }
-    if predicate_applies_to_row(pred, &t.old_value)
-        || predicate_applies_to_row(pred, &t.new_value)
+    if predicate_applies_to_row(pred, &t.old_value) || predicate_applies_to_row(pred, &t.new_value)
     {
         //warn!("Pred: OwnershipToken matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
         return true;
@@ -149,7 +148,10 @@ pub fn diff_token_matches_pred(
     false
 }
 
-pub fn get_all_preds_with_owners(pred: &Vec<Vec<PredClause>>, own_tokens: &Vec<OwnershipToken>) -> Vec<Vec<Vec<PredClause>>> {
+pub fn get_all_preds_with_owners(
+    pred: &Vec<Vec<PredClause>>,
+    own_tokens: &Vec<OwnershipToken>,
+) -> Vec<Vec<Vec<PredClause>>> {
     let mut preds = vec![pred.clone()];
     for ot in own_tokens {
         let (modified_pred, changed) = modify_predicate_with_owner(pred, ot);

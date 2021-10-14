@@ -1,12 +1,12 @@
-use crate::tokens::*;
 use crate::helpers::*;
 use crate::stats::QueryStat;
+use crate::tokens::*;
 use crate::{DID, UID};
+use log::warn;
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
-use log::warn;
 
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
@@ -55,7 +55,12 @@ pub fn diff_token_from_bytes(bytes: &Vec<u8>) -> DiffToken {
 
 impl DiffToken {
     // create diff tokens about diff tokens
-    pub fn new_token_modify(uid: UID, did: DID, old_token: &DiffToken, changed_token: &DiffToken) -> DiffToken {
+    pub fn new_token_modify(
+        uid: UID,
+        did: DID,
+        old_token: &DiffToken,
+        changed_token: &DiffToken,
+    ) -> DiffToken {
         let mut token: DiffToken = Default::default();
         token.is_global = false;
         token.uid = uid;
@@ -148,18 +153,22 @@ impl DiffToken {
                     let cols: Vec<String> =
                         self.old_value.iter().map(|rv| rv.column.clone()).collect();
                     let colstr = cols.join(",");
-                    let vals: Vec<String> =
-                        self.old_value.iter().map(|rv| 
+                    let vals: Vec<String> = self
+                        .old_value
+                        .iter()
+                        .map(|rv| {
                             if rv.value.is_empty() {
                                 "\"\"".to_string()
                             } else {
                                 for c in rv.value.chars() {
                                     if !c.is_numeric() {
-                                        return format!("\"{}\"", rv.value.clone())
+                                        return format!("\"{}\"", rv.value.clone());
                                     }
                                 }
                                 rv.value.clone()
-                            }).collect();
+                            }
+                        })
+                        .collect();
                     let valstr = vals.join(",");
                     query_drop(
                         format!(
@@ -173,7 +182,10 @@ impl DiffToken {
                 MODIFY_GUISE => {
                     // if field hasn't been modified, return it to original
                     if selected.is_empty() || selected[0] != self.new_value {
-                        warn!("DiffToken Reveal: Modified value {:?} not equal to new value {:?}\n", selected[0], self.new_value);
+                        warn!(
+                            "DiffToken Reveal: Modified value {:?} not equal to new value {:?}\n",
+                            selected[0], self.new_value
+                        );
                         return Ok(false);
                     }
 

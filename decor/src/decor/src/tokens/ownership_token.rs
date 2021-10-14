@@ -22,9 +22,6 @@ pub struct OwnershipToken {
     pub referenced_id_col: String,
     pub fk_col: String,
 
-    pub new_value: Vec<RowVal>,
-    pub old_value: Vec<RowVal>,
-
     pub revealed: bool,
 }
 
@@ -42,8 +39,6 @@ pub fn new_ownership_token(
     cur_uid: UID,
     new_uid: UID,
     priv_key: &RsaPrivateKey,
-    old_value: Vec<RowVal>,
-    new_value: Vec<RowVal>,
 ) -> OwnershipToken {
     let mut token: OwnershipToken = Default::default();
     token.uid = cur_uid;
@@ -56,8 +51,6 @@ pub fn new_ownership_token(
     token.fk_col = fk_col;
     token.referenced_name = referenced_name;
     token.referenced_id_col = referenced_id_col;
-    token.old_value = old_value;
-    token.new_value = new_value;
     token
 }
 

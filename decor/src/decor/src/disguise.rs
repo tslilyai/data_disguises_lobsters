@@ -787,8 +787,6 @@ fn decor_item(
         fk_name.to_string(),
         new_parent_ids[0].column.to_string(),
         guise_id.to_string(),
-        i.clone(),
-        new_child,
     );
 
     stats.decor_dur += start.elapsed();
