@@ -1,0 +1,117 @@
+\begin{figure*}
+\procb{\texttt{ApplyDisguise}($d$,\texttt{tokens})}{
+\< \\
+\t[0]\pcforeach \op{d}:\\
+\t[1]\fn{opTokenPrincipalPairs} \gets \texttt{\op{d}.execute(tokens)}\\
+\t[1]\pcforeach (\fn{token}, p) \in \fn{opTokenPrincipalPairs}:\\
+\t[2]\pcif \texttt{d.isPrivate()}:\\
+\t[3]\pcif \texttt{LoadEncSymKey($p,d$) = NULL}:\\
+\t[4] \symk{pd} \sample \kgen() \\
+\t[4] \pubk{p} \gets \texttt{LoadPubKey}(c) \\
+\t[4] \texttt{encSymKey} \gets \enc(\pubk{p}, \symk{pd}) \\
+\t[4] \texttt{StoreEncSymKey($p$,$d$,encSymKey)} \\
+\t[3]\pcfi\\
+\t[3]\symk{pk} \gets \texttt{LoadEncSymKey($p,d$)}\\
+\t[3]\texttt{token.nextEncToken} \gets \texttt{LoadListTail}(p,d)\\
+\t[3]\texttt{token.nonce} \gets \texttt{RandomU64}()\\
+\t[3]\texttt{encToken} \gets \enc(\symk{pd}, \texttt{token})\\
+\t[3]\texttt{StoreListTail}(p,d,\texttt{encToken})\\
+\t[2]\pcelse\\
+\t[3]\fn{StoreGlobalToken}(p,d,\texttt{token})\\
+\t[2]\pcfi\\
+\t[1]\pcendforeach\\
+\pcendforeach\\
+\t[0]\pcforeach p \in \fn{application principals}:\\
+\t[1]\pcif \texttt{LoadEncSymKey($p,d$) = NULL}:\\
+\t[2] \texttt{($p$,$d$,dummyEncSymKey)} \\
+\t[2] \texttt{StoreListTail}(p,d,\texttt{dummyToken})\\
+\t[1]\pcfi\\
+\t[0]\pcendforeach\\
+\t[0]\fn{\sys.DisguiseHistory.append(Apply($d$))}
+}{}
+\caption{\textbf{ApplyDisguise Pseudocode.} \sys applies a disguise given the disguise
+specification and available tokens for composition.\\
+    Every operation produces a set of (token, principal) pairs.
+    For each such pair of token and principal $p$, if the disguise is private, then the token should be
+    private and \sys generates symmetric key \symk{pd} if it does not yet exist, encrypts it with
+    \pubk{p}, and stores the resulting ciphertext.  This ensures that only a client with \privk{p}
+    can decrypt and access \symk{pd}. \\
+\sys then encrypts the private token with \symk{pd} and stores the ciphertext as the tail of
+    \tokls{pd}s.\\
+    If the disguise operation is global, \sys simply stores the token plaintext indexed by principal and
+    disguise.\\
+    After performing all operations, \sys stores a dummy encrypted symmetric key and token list tail pointer for all
+    principals whose data was not disguised by $d$.\\
+    Finally, \sys logs the completed disguise application in the disguise history.
+\label{fig:appdisg}
+}
+\end{figure*}
+
+\begin{figure*}
+\procb{\texttt{\op{d}.execute(tokens)}}{
+    \< \\
+    %Apply updates to tokens of disguise $d$\\
+    %Migrate tokens
+    %Generate the appropriate tokens for decor/remove/modify\\
+}{}
+\caption{\textbf{Operation Execution Pseudocode.}}
+    \label{fig:opexec}
+\end{figure*}
+
+\begin{figure*}
+\procb{\texttt{ReverseDisguise}($d$,\texttt{tokens})}{
+\< \\
+\t[0]\pcforeach \tdata{pd'} \in \fn{tokens}:\\
+\t[1]\pcif d' == d:\\
+\t[2] \fn{ReverseTokenOp(\tdata{pd'})}\\
+\t[1]\pcfi\\
+\t[0]\pcendforeach\\
+\t[0]\fn{\sys.DisguiseHistory.append(Reverse($d$))}
+}{}
+\caption{\textbf{ReverseDisguise Pseudocode.}}
+\label{fig:revdisg}
+\end{figure*}
+
+\begin{figure*}
+\procb{\texttt{ReverseTokenOp(token)}}{
+    \< \\
+    %\texttt{Apply missed updates from disguise log to tokens of disguise $d$}\\
+}{}
+\caption{\textbf{ReverseTokenOp Pseudocode.}}
+    \label{fig:revtoken}
+\end{figure*}
+
+\begin{figure*}
+\procb{\texttt{ReadPrivateTokens(\symk{pd})}}{
+    \< \\
+\texttt{tokens} \gets []\\
+\t[0]\texttt{encToken} \gets \texttt{LoadListTail}(p,d)\\
+\t[0]\pcwhile \texttt{encToken != NULL:}\\
+\t[1]\texttt{token} \gets \dec(\symk{pd}, \texttt{encToken})\\
+\t[1]\pcif \texttt{token.isPrivateKeyToken():}\\
+\t[2]p' \gets \texttt{token.anon\_uid}\\
+\t[2]\privk{p'} \gets \texttt{token.priv\_key}\\
+\t[2]\fn{encSymKeys} \gets \texttt{LoadEncSymKeys}(p')\\
+\t[2]\pcforeach \fn{encSymKey} \in \fn{encSymKeys}:\\
+\t[3]\symk{p'd'} \gets \dec(\privk{p'}, \fn{encSymKey})\\
+\t[3]\texttt{tokens.extend(ReadPrivateTokens(\symk{p'd'}}))\\
+\t[2]\pcendforeach\\
+\t[1]\pcelse:\\
+\t[2]\texttt{tokens.append(token)}\\
+\t[1]\pcfi\\
+\t[1]\texttt{encToken} \gets \texttt{token.nextEncToken}\\
+\t[0]\pcendwhile\\
+\pcreturn \texttt{tokens}\\
+}{}
+\caption{\textbf{ReadPrivateTokens Pseudocode.} Using \symk{pd}, \sys decrypts all tokens produced by the application of $d$ to $p$'s data by iterating through a linked list encoded in the token contents.\\
+If the decrypted token is a \tdata{pd}, \sys simply adds the token to the set of tokens to return. 
+Otherwise, if the token is a \tpriv{pdp'}, then \sys learns the
+private key \privk{p'} of pseudoprincipal $p'$ generated during $d$'s application. \sys uses
+\privk{p'} to decrypt all \symk{p'd'},  namely any symmetric keys used to encrypt
+$p'$'s private tokens during application of any prior disguise $d'$.\\
+    \sys then recursively reads all of $p'$'s private tokens by invoking \fn{ReadPrivateTokens}
+    with \symk{p'd'}, and appends the result to the set of data tokens to return.\\
+}
+    \label{fig:rpt}
+\end{figure*}
+

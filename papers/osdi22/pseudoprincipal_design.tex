@@ -1,0 +1,106 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{Disguising Anonymized Users}
+
+%\begin{table*}[t!]
+%\centering
+    %\begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
+%\textbf{API Call} & \textbf{Description} \\
+%\hline
+    %\fn{GetEncryptedPseudoPrincipalPrivateKeys($p$, \lcapa{pd}) $\rightarrow$
+        %\fn{Vec<Enc(\pubk{p},\privk{q})>}} & Returns the set of encrypted pseudoprincipals and their
+        %private keys created when decorrelating $p$'s data for disguise $d$.
+    %\vspace{6pt}\\
+        %\fn{GetEncryptedLocatingCaps($q$) $\rightarrow$ \fn{Vec<Enc(\pubk{q}, \lcapa{qd})>}} & 
+        %Returns the set of \lcapa{qd} encrypted with
+        %\pubk{q} for all $d$ that applied to $q$. Nonempty only if $q$ is a pseudoprincipal.\\
+    %\end{tabular}
+%\caption{Additional Client-\sys API Calls for Asymmetric Encryption}
+%\label{tab:client_api_ext}
+%\end{table*}
+
+To apply one disguise on top of another in a way that supports, \eg comment removal after universal
+decorrelation, \sys must support \emph{pseudoprincipal diffs}, namely diffs associated with
+pseudoprincipals. 
+
+These diffs can occur after at least one disguise has been applied: subsequent disguises may
+associate diffs with pseudoprincipals. For example, after universal decorrelation, every paper or
+review correlates with a pseudoprincipal user. When \sys applies universal decorrelation,
+decorrelation of all papers and reviews generates correlation diffs for these pseudoprincipals.
+
+However, we now have a problem. Diffs are encrypted with \dcapa{p} ($p$'s private key) and stored at
+\lcapa{pd}, and \sys emails \lcapa{pd} to (potentially offline) clients and does not retain
+\lcapa{pd}.  However, pseudoprincipals have no corresponding real user (and, for unlinkability, \sys
+cannot store which pseudoprincipal-user correspondences). Thus, \sys has no way to communicate
+\lcapa{pd} to a user who speaks for pseudoprincipal $p$!
+%, so pseudoprincipals' capabilities can either be insecurely stored by \sys, or lost forever!
+
+We have three potential approaches to solve this problem. Two we see as strawmen because they fail
+to meet our secury and use case goals respectively:
+\begin{enumerate}
+    \item \emph{Weak Security:} \sys can store \lcapa{pd} for pseudoprincipal $p$. This means
+        an adversary will be able to learn $p$'s undisguised data, even if it had been disguised by
+        $d$.
+
+    \item \emph{Permanent Disguises:} \sys throws away \lcapa{pd} for pseudoprincipal $p$. This means that the
+        disguise modifications are permanent, and no links (to determine ownership) between
+        $p$ and other pseudoprincipals can be made. This affects temporary recorrelation, because
+        decorrelation links between principals cannot be derived from discarded diffs.
+\end{enumerate}
+
+We next describe a third option, which meets our security and use case goals while trading off
+efficiency and usability.
+
+\head{Pseudoprincipal Private Keys.}
+When a pseudoprincipal $q$ is generated to decorrelate data from $p$: 
+\begin{enumerate}
+    \item \sys generates keypair (\pubk{q}, \privk{q}) for $q$
+    \item encrypts the private key of $q$ with \pubk{p} to produce $\enc(\pubk{p}, \privk{q})$
+    \item stores $\enc(\pubk{p}, \privk{q})$ at location \lcapa{pd} along with $p$'s encrypted diffs from disguise $d$
+\end{enumerate}
+This ensures that a client with \lcapa{pd} and \dcapa{p} (\privk{p}) can access \privk{q}, the data
+capability of pseudoprincipal $q$.  Furthermore, only a client who holds \lcapa{pd} can learn
+that $p$ has decorrelated data because associated pseudoprincipal private keys are not stored
+publically with $p$'s ID.
+
+When \sys applies disguise $d'$ to further disguise pseudoprincipal $q$'s data, \sys:
+\begin{enumerate}
+    \item stores disguise diffs \tdata{qd'} at location \lcapa{qd}
+    \item encrypts \lcapa{qd} with \pubk{p} to produce $\enc(\pubk{p}, \lcapa{qd})$
+    \item stores $\enc(\pubk{p}, \lcapa{qd})$ mapped to by principal $q$'s ID
+\end{enumerate}
+Note that \sys stores \lcapa{qd} ciphertexts associated with $q$'s ID, whereas for a real principal
+$p$, \sys does not store any similar metadata indicating how many disguises have applied to $p$. 
+This means that an adversary can learn that \emph{some} disguise has applied to and
+decorrelated data from $q$. However, this falls out of scope in our threat model: $q$ is a
+pseudoprincipal created from a decorrelation operation, and therefore any disguise metadata regarding $q$ has already been dissociated from
+the original principal $p$'s identity.  
+
+\head{Extending capabilities to authorize pseudoprincipal diffs access.}
+With this extended design, a client speaking for $p$ that provides data and locating capabilities
+\pcapa{p}{d}
+authorizes access to \emph{both} $p$'s diffs for disguise $d$, \emph{and}
+diffs of a pseudoprincipal $q$ created by
+decorrelating $p$'s data. \lyt{I don't think we're necessarily allowing clients to speak for $q$,
+but rather to perform actions using $q$'s diffs.}
+
+Given a data capability \privk{p}, \sys can can access \privk{q} by decrypting \enc(\pubk{p},
+\privk{q}).
+%
+With \privk{q}, \sys can decrypt all \enc(\pubk{q}, \lcapa{qd}) so that \sys has both the data and
+location capabilities for all of $q$'s disguise diffs. This allows the application to reveal,
+disguise, or perform application actions with access to diffs from all disguises applying to $q$.
+
+While clearly more expensive for \sys to execute, this protocol allows \sys to recursively disguise
+pseudoprincipals, yet still require only the top-level original principal capabilities to support the
+desired use cases. Furthermore, this design still meets our security goals: data capabilities secure
+all disguise diffs, and an adversary learns no disguise metadata for real users.
+
+%This introduces another round-trip for any client using the API: a client speaking for $p$ that
+%wants to reveal or compose on top of pseudoprincipal diffs must (1) query for all pseudoprincipal
+%\privk{q} ciphertexts associated with $p$ for all \lcapa{qd} (for all $d$); (2) recursively
+%query for all nested pseudoprincipal \privk{q} ciphertexts associated with $q$ for all \lcapa{qd};
+%and (3) actually invoke the action with the decrypted capability pairs.
+%
+%This makes it difficult to implement a userflow where the user can click on a single URL to grant
+%\sys diff access: in this design, the user has to first retrieve all possible URLs, and make several
+%more round-trips to the application/\sys.
