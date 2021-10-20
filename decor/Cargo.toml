@@ -1,9 +1,0 @@
-[workspace]
-members = [
-    "src/ore",
-    "src/repr",
-    "src/decor",
-    "src/sql-parser",
-    "applications",
-    #"demo-app"
-]

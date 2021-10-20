@@ -1,9 +1,0 @@
-\begin{thebibliography}{1}
-
-\bibitem{positiongdpr}
-Malte Schwarzkopf, Eddie Kohler, M~Frans Kaashoek, and Robert Morris.
-\newblock Position: Gdpr compliance by construction.
-\newblock In {\em Heterogeneous Data Management, Polystores, and Analytics for
-  Healthcare}, pages 39--53. Springer, 2019.
-
-\end{thebibliography}

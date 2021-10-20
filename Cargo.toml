@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "ore",
+    "repr",
+    "sql-parser",
+    "edna",
+    "websubmit-rs",
+]
