@@ -1,0 +1,57 @@
+%-------------------------------------------------------------------------------
+\section{Prototype}
+%-------------------------------------------------------------------------------
+\label{sec:proto}
+%
+Our prototype disguising tool, \sys, is written in Rust and
+provides data disguising for applications that use relational databases.
+%
+Disguises in \sys associate each table in the application schema with a set of
+predicate-transformation pairs.
+%
+Predicates are arbitrary SQL \texttt{WHERE} clauses, which \sys uses
+to select table rows to transform; a transformation is either a removal, a
+decorrelation of a particular foreign key, or a modification of a particular
+column.
+%
+A modification takes a closure over the original column value that returns the
+updated value.
+%
+For tables that are decorrelated, developers describe how to find placeholders
+by providing per-column closures over the original column value that return the
+placeholder column value.
+%
+
+%
+\sys represents vaults as (currently unencrypted) per-user database tables.
+%
+Reveal functions stored in vaults use the original and updated states of objects
+touched by a reversible disguise to generate the necessary operations to restore the
+original state.
+%
+\sys also keeps a disguise history table that logs all disguises performed.
+%While \sys
+%currently has no per-user encryption of vaults and can read and write vaults at any point, we plan
+%to add per-user encryption keys that are not stored by \sys.
+%Currently, the tool uses the heuristic that if a user invokes the disguise (\eg GDPR deletion),
+%modifications to data records will be stored only to that user's vault; however, if the application
+%invokes a general disguise, then any users connected to modified data records will store the
+%modification in their vault.
+
+\iffalse
+\sys also provides a specification of the end-state after it applies a sequence of
+disguises; this allows developers to double-check that their disguises achieve their privacy
+transformation goals.
+%
+To do so, \sys automatically generates a sequence of materialized view filters that, when applied on top of each
+other, correspond to the state achieved by composing the disguises.
+Developers specify assertions (\eg all objects belonging to departing user Bob have
+been removed) that \sys ensures holds on the materialized view specification.
+
+\sys's composition technique may reorder filters from one disguise with those from a subsequent disguise in order to achieve the
+correct result.
+%
+\sys maps these filters directly to physical database operations (where reordering filters corresponds to
+temporarily undoing vault entries). Thus, the developer can use the materialized view filters as a way to
+test the correctness of \sys and their disguises prior to permanently altering the application database.
+\fi

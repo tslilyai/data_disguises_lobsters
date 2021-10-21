@@ -1,0 +1,74 @@
+%-------------------------------------------------------------------------------
+\section{A Nuanced Policy}
+%-------------------------------------------------------------------------------
+\label{design:eg}
+
+
+To make this more concrete, we describe \emph{user scrubbing}, a specific nuanced privacy
+transformation that the HotCRP paper review application should support.
+%
+When a user deletes their account in HotCRP today, the HotCRP code transitively deletes all of the
+user's data, including their reviews.
+%
+However, the scientific review process generally requires that the text of
+reviews be retained for some time (for reference by authors and to justify
+decisions).
+%
+Preserving reviews while deleting their owner requires a nuanced policy
+that combines anonymization with deletion.
+
+
+Specifically, user scrubbing for a user Bea should:
+%
+(1)~Delete Bea's user account.
+%
+(2)~Delete information that's only relevant to Bea, such as Bea's review
+preferences.
+%
+(3)~Delete Bea's contact author relationships to any submissions.
+%
+(4)~Select or create a set of \emph{placeholder users}.
+%
+(5)~Modify Bea's other retained data, such as reviews, to refer to the
+placeholder users instead of Bea, thereby \emph{decorrelating} the reviews from Bea's identity.
+
+
+After the scrubbing completes, Bea's review texts are still in the system, but
+they are linked to different anonymous placeholders, making them difficult to
+reassociate with one another or with Bea.
+%
+Placeholder users have suitable default values; for example, placeholder
+users should be disabled,
+ensuring they have no permissions and cannot log in.
+%
+This policy removes Bea's relationship to submissions, but does not remove the
+submissions themselves; a different policy might go even further and
+automatically delete a submission whose last author is scrubbed.
+%
+
+Already, this policy is better than policies implemented in HotCRP or other systems.
+%
+However, we hope to improve user experience further by making such policies
+\emph{reversible}.
+%
+For example, a scrubbed user loses the ability to edit their reviews; a
+scrubbed user might decide to temporarily reveal their identity to HotCRP in
+order to fix a typo.
+%
+Furthermore, it is easy to imagine automatically applying such policies
+after some time (\eg two years after the conference), perhaps to hide youthful
+reviewing sins.
+%
+
+%The tool disguises Bob when he invokes HotCRP account deletion.
+%%
+%Bob provides his secret key to decrypt and read from his vault, allowing the tool
+%to retrieve and temporarily reverse any conflicting, reversible transformations
+%that would make Bob's deletion fail: in particular, it recorrelates any
+%of Bob's decorrelated paper conflicts and then properly removes them.
+%%
+%(Because the conflicts are removed, the decorrelation is not reapplied).
+%%
+%Bob wants his account deletion disguise to be reversible, so after performing the
+%specified disguise updates, the tool records each transformation in the vault,
+%re-encrypts the vault, and forgets the key.

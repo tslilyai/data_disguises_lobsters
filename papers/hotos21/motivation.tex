@@ -1,0 +1,217 @@
+\section{Challenges of Privacy Transformations}
+\label{sec:motivation}
+%
+%We investigate the potential of privacy transformations as a first-class
+%citizen in application design, and the challenges to support these
+%transformations.
+%%
+%These challenges argue for a systematic approach to privacy transformations.
+%%
+
+%
+Privacy transformations have two key challenges: the broad
+range of possible policy choices for transformations, and the difficulty of
+implementing those policies.
+%
+The first challenge can be appreciated by surveying current applications' policies
+around account deletion.
+%
+Though many applications support deletion,
+some retain
+data for legal or necessary business purposes (\eg Spotify fraud detection~\cite{spotify:privacy},
+Amazon orders~\cite{amazon:privacy}); some delete public contributions, but keep private
+messages unanonymized and visible to their recipients, reflecting the
+shared nature of such messages~\cite{facebook:privacy, twitter:privacy};
+and yet others keep public contributions visible but anonymize them, reattributing the contribution
+to a placeholder user (\eg GitHub's ``@ghost''~\cite{github:privacy}, Reddit/Lobsters'
+``[deleted]''~\cite{reddit:privacy, lobsters:privacy}).
+%
+A system aiming to simplify privacy transformations must thus support a range
+of operations, and implement application-defined policy.
+
+
+The second challenge arises because privacy transformations are
+inherently difficult (they require extensive tracing of user identities through
+application data schemas), but are also secondary to normal application
+functionality.
+%
+Modifying or deleting data must not compromise application functionality and preserve, for example,
+referential integrity of an application's relational database and other application invariants.
+%
+Furthermore, one application may support several interacting privacy
+transformations.
+
+
+The complexity of implementing basic transformations may have discouraged
+developers from supporting more nuanced policies.
+%
+This is too bad, because where privacy is concerned, nuance often benefits
+users.
+%
+For example, consider these useful policies that few applications
+support:
+%
+
+\textbf{Reversible account deletion.}
+%
+GDPR and related laws focus on irrevocable account deletion, which permanently deletes a user's
+information when they depart a platform.
+%
+Users may be more likely to proactively protect their privacy if they
+can return, \ie if they can reverse their account deletion.
+%
+Facilitating easy return is also in the web service's commercial interest.
+%
+A weak form of reversible transformation might preserve user data in the
+application's database; though this hides the data from external view,
+it leaves it at risk to breaches and does not satisfy most legal requirements
+(\eg GDPR).
+%
+Stronger forms are possible, however: the records required to reverse account
+deletion might be in offline storage, or even encrypted and passed to the
+user themselves or to their authorized third-party cloud storage.
+%
+
+%Furthermore, many applications might wish to employ \textbf{reversible}
+%transformations to, for example, support account reactivation instead of
+%permanent and irrevocable account deletion.
+
+\textbf{Expiration.}
+%
+Inactive users' accounts and data can make a data breach much worse.
+%
+Data expiration policies could proactively anonymize or sanitize user
+contributions for long-inactive users.
+%
+Expiration policies should likely be reversible to support user return.
+%
+
+\textbf{Data decay.}
+%
+Gradual loss of fidelity in old data might strike a balance between the need
+to preserve historic information and its inherent dangers.
+%
+Gradual data decay policies could apply increasingly strict privacy
+transformations over time, aging out sensitive but outdated user data.
+%
+
+%
+These policies, and especially reversible transformations, were central to our
+thinking as we developed the data disguise paradigm.
+%
+But they come with serious technical challenges. Once applications support multiple, potentially
+reversible privacy trans\-form\-ations---which may be triggered explicitly by users (\eg account
+deletion), or happen automatically and apply across users (\eg data decay)---applications must
+correctly handle different interleaving of transformations that touch the same data.
+%
+
+
+\begin{comment}
+
+\eddie{END SECTION HERE?}
+
+%
+%
+%Finally, practical privacy transformations should require minimal application changes.
+%
+
+%
+To make these challenges concrete, consider implementing two privacy
+transformations in HotCRP~\cite{hotcrp}:
+%
+(1) \gdpr implements GDPR's ``right-to-be-forgotten'' removal of user
+data; and
+%
+(2) \ca anonymizes reviewers in the database some time after the
+reviewing concludes, preventing reviewer identification in case of a data breach.
+%
+\ca needs to decorrelate reviews and review metadata (\eg review preferences)
+from reviewers by ensuring that nothing associated with a review references a real user's
+account by foreign key.
+%
+To maintain referential integrity, the developer must take care to generate fake user profiles
+and update foreign key attributes to reference them.
+%
+The \gdpr transformation, by contrast, must identify all data related to a user and
+remove it.%, though taking care to leave behind shared data such as review text.
+%
+
+%
+In isolation, each transformation may seem simple; however, composing them is tricky.
+%
+\ca destroys information that links a user's data to their account by changing
+that data to reference anonymous, fake users (\eg rewriting the foreign key for a review's
+author to point to a fake user profile).
+%
+If this reviewer user later invokes \gdpr, the transformation needs to know which
+data to remove, which is impossible without the original foreign keys.
+%
+%Due to data dependencies between these transformations, \texttt{GDPR} fails to achieve its desired
+%privacy properties, namely the complete removal of the user's data.
+%
+When applied the other way around (\gdpr, then \ca) the transformations
+compose more easily, as there is no need to anonymize deleted data.
+%
+But it falls to the application developer to write privacy transformation code that handles
+both sequences of disguises correctly.
+%
+
+%\subsection{Utility of Privacy Transformations}
+%If we can address these challenges, privacy transformations have the potential to provide many
+%privacy benefits to web applications and their users.
+%Widely-used web applications today~\cite{spotify:privacy, amazon:privacy,
+%strava:privacy, hotcrp:privacy, wikipedia:privacy, facebook:privacy, twitter:privacy,
+%reddit:privacy, github:privacy, lobsters:privacy} mainly support variants of an account
+%deletion privacy transformation, as requried by, \eg the GDPR~\cite[Art.\ 17]{eu:gdpr}.
+%
+These challenges only become more urgent if we consider other desirable privacy transformations.
+%
+%But many applications would benefit from support for other privacy transformations.
+%
+%Users and application developers can both benefit from \textbf{more nuanced} privacy policies:
+%for example, a confidential paper review system like HotCRP~\cite{hotcrp} keeps users'
+%contributions (papers, reviews) after they delete their account to preserve utility for others, but
+%could additionally associate each review with a different placeholder to avoid revealing the deleted
+%reviewer's identity.
+%
+%Likewise, contributions with a shared property (\eg Reddit posts with a common tag)
+%might be removed entirely to avoid inference attacks, or retained and decorrelated from the
+%property (\ie keeping the user's Reddit posts, but removing their tags).
+%\eddie{Would like more explanation of that}
+%In some cases, a policy could preserve utility while reducing the efficacy of later inference
+%attacks by \eg modifying sensitive metadata (\eg tags, creation times).
+%
+%Some transformations should be performed only on sensitive metadata:
+%Similar policies could apply \emph{only if} the property was created by the user (\eg keeping
+%the user's Reddit posts, but removing any user-created tags),
+% tag like “\#cat” is likely insensitive and useful to preserve, whereas one naming a person is not.
+%
+%(\eg remove the user's posts on Reddit with tag $t$ if these posts comprise more than 10\%
+%of all posts with tag $t$).
+%
+%Individual users could even specify different preferences for their data.
+%
+%% A privacy transformation framework is necessary to turn these preferences into concrete
+%% operations without undue developer burden.
+%
+%
+Applications could go beyond simple account deletion and support \textbf{data
+expiration} policies, which anonymize a user's contributions after the user has been inactive for a
+period of time, possibly restoring the user's profile and contributions if the user ever logs back
+in.
+%
+Or the application could support gradual \textbf{data decay} policies that ``decay'' sensitive data
+by applying incremental privacy transformations over time.
+
+Furthermore, many applications might wish to employ \textbf{reversible} transformations to, for
+example, support account reactivation instead of permanent and irrevocable account deletion.
+%
+After all, if services must allow users to remove their data on request, it is in the operator's
+interest as well as the user's to make it easy for a user to change their mind and return, bringing
+their data along.
+
+We envision that a systematic approach to privacy transformations can help address the challenges
+identified; if we can overcome these challenges, privacy transformations have the potential to enhance application
+privacy beyond what we have discussed here.
+
+\end{comment}

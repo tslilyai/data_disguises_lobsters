@@ -1,0 +1,179 @@
+%-------------------------------------------------------------------------------
+\section{Discussion}
+\label{s:disc}
+%-------------------------------------------------------------------------------
+%
+Data disguising simplifies implementing privacy transformations.
+%
+However, our proposed data disguising framework still leaves open questions.
+%
+
+%
+For instance, we provide \emph{mechanisms} for a disguising tool
+to handle disguise composition, but do not yet answer how the disguise specification
+communicates an application's privacy goals and how the tool decides \emph{when} to
+utilize vaults and reveal functions.
+%
+%
+If only one disguise is ever applied (\eg \gdpr), the disguise specification's operations
+may completely state the application's privacy goals (\eg de-identify the user).
+%
+However, with multiple, co-dependent disguises, the tool may reach an end-state that
+fails to achieve the application's privacy goals if it merely applies the disguise
+operations.
+%
+How to convey the application's privacy goals to the disguising tool is a challenging
+research problem.
+%
+One possibility might be to ask developers to write assertions over the end-state of
+application data after a disguise has been applied (\eg ``user no longer has any reviews'').
+%
+If these assertions were amenable to static analysis, the tool could, before applying any
+disguises, determine which mechanisms need to be utilized to appropriately apply each
+disguise.
+%
+Or perhaps assertions could be arbitrary predicates over the end-state, which the
+tool would check after disguise application to ensure the state adheres to the
+application's privacy goals; if these checks fail, the tool would revert the disguise
+and try again with a different mechanism until it passes the checks, or notify the developer
+of an error.
+%
+
+%
+Furthermore, our framework does not answer how disguises compose with normal application
+changes to disguised data.
+%
+Application updates may alter the scope of a disguise (\ie changing the set of
+objects satisfying a disguise predicate).
+%; this may especially affect eventually %consistent disguises.
+%
+In addition, data introduced by a reveal function may lack application updates that
+occurred since the original disguise.
+%
+One possible solution is to make such updates themselves disguises, and store metadata
+about them in vaults, but this would be expensive.
+%
+Another solution would prohibit updates to disguised data (which limits the application).
+%
+%reason about how these updates should compose with disguises
+%However, a tool incurs heavy performance costs to perform each disguise, making it
+%impractical to instrument every update of the application.
+%\sys also runs each disguise in a transaction to ensure that no concurrent application updates are
+%performed; we imagine that an eventually consistent disguised state would be acceptable, so long as
+%no two disguises run in parallel.  , since \sys cannot restore data removed using the old policy
+%upon resubscription.
+
+%
+Finally, more research is required to handle updates to the application schema or
+disguise specifications in a system that has already applied disguises.
+%
+Database schema evolution research~\cite{schema:evo} may offer insights
+into supporting disguises and disguise reversals after such updates.
+%
+
+%
+Data disguising also has some clear limitations.
+%
+It assumes that application objects capture all data that needs
+transforming; application snapshots, backups, or external data copies are out of scope,
+and require \eg taint tracking techniques.
+%
+Data disguising also importantly does not provide privacy \emph{guarantees} beyond the
+specification.
+%
+Privacy goals are necessarily application-specific, and data disguising is only as good
+as the developer-written specification.
+%
+%We assume that developers capture application-specific needs to retain, remove, and
+%decorrelate data in their policies.
+%Without removing all application data, even the best-intentioned developer may write policies that
+%still retain sensitive information or correlations.
+We imagine that data analysis tools and heuristics can help developers improve or catch
+errors in disguise specifications, similar to \eg techniques for detecting incorrect
+deletion~\cite{delf}.
+%
+%Users of applications that use data disguises cannot blindly assume that the disguises provide
+%complete privacy, although they can perhaps vet application privacy properties via the disguise
+%specification.
+%
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\iffalse
+\subsection{Limitations}
+%
+%Data disguising also goes beyond privacy, and can help developers moderate harmful
+%content~\cite{contentmod, sasb}, for which they may soon be held legally
+%liable~\cite{nytimes:230}.
+%
+%Instead of targeting users, disguises would target harmful entities (\eg misinformation posts).
+%
+Like all applications that provide some type of post-unsubscription privacy guarantees, \name assumes
+that an adversary who aims to relink decorrelated entities to unsubscribed users, is limited in the
+following ways:
+\begin{itemize}
+    \item An adversary can perform only those queries allowed by the application API,
+i.e.,\ can access the application only via its public interface.
+%\lyt{Alternatively, an adversary could perform arbitrary queries on some public subset of the
+%application schema (e.g., all tables other than the mapping table, or all tables marked with some
+%compliance policy); arbitrary queries over the
+%entirety of the table are out of scope, unless ``private'' tables are removed and stored by
+%unsubscribing users.}
+
+    \item An adversary cannot perform application queries to the past or search web archives:
+    information from prior application snapshots may reveal
+    exactly how data records were decorrelated from unsubscribed users.
+
+    \item An adversary cannot gain identifying information from re-shared or arbitrary
+        user-generated content (for example, a reposted screenshot, or text in user stories or
+        comments) that developers have left unghosted.
+        \name gives developers the option to specify that unsubscription removes or replaces
+        user-generated data and application metadata (e.g., date of postings, database ID columns),
+        at the cost of losing this data.
+\end{itemize}
+
+User key / encrypted data storage scheme relies on application wanting to store user data (wanting
+users to return). Also requires user to have some trusted third party.
+
+Other limitations:
+single-threaded;
+recovery / eventual consistency during un/resubscribe;
+subset of MySql;
+no support for schema updates / updates to policy
+
+\subsection{Future work.}
+\paragraph{Maintaining Aggregate Accuracy.}
+As future work, \sys can optionally allow for entities to be decorrelated without affecting queries which
+specifically return aggregation results.
+
+Queries that specifically perform aggregations and return statistical measures (e.g.,
+the count of number of users in the system, or the number of stories per user), can return
+significantly different results. This affects the utility of the data for the application: for
+example, if the application relies on the number of stories per tag to determine hot topics, these
+would be heavily changed if ghost tags were created.  In addition, the adversary may learn which
+entities are ghosts: for example, an abnormally low count of stories per tag might indicate to an
+adversary that these tags are ghost tags.  \lyt{But perhaps it's ok if an adversary can tell what's
+a ghost, as long as it can't tell which user each ghost is correlated with.}
+
+\sys stores and separately updates answers to aggregation queries;
+these answers are updated when queries update the data tables, and these queries do not read from
+the application tables (which may contain ghost records).
+
+An alternate solution might analyze the aggregations performed by application queries, and then
+introduce ghosts that lead to the same (or close-enough) aggregation result. For example, if a tag
+is split into ghost tags, one per story associated with the tag, but the application still would
+like the count of stories for this tag to be high, one of the ghost tags can be populated with many
+ghost stories to retain the count of stories per tag.  \sys would remove any ghost stories that
+were created upon recorrelation. Note that this solution 1) requires that generating ghosts is
+admissible, and 2) may be impossible for certain combinations of aggregations (e.g., queries that
+return both the average stories per tag and also the total number of stories).
+
+\lyt{I don't *think* differential privacy really should be applied here, because we'd also face the
+issue of running out of privacy budget. Adding noise might ensure that the impact of any one
+(real/ghost) user is very little, but it has its own noise/utility tradeoff. Furthermore, the amount
+of noise necessary if many ghost users are created might be too large.}
+
+\lyt{Note that the application can also store this information if it wants...}
+\fi
