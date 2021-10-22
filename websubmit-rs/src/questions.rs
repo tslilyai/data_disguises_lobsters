@@ -1,21 +1,22 @@
 use crate::admin::Admin;
 use crate::apikey::ApiKey;
-use crate::backend::{DataType, MySqlBackend};
+use crate::backend::{Value, MySqlBackend};
 use crate::config::Config;
 use crate::email;
 use chrono::naive::NaiveDateTime;
 use chrono::Local;
-use rocket::form::{Form, FormItems, FromForm};
+use rocket::form::{Form, FromForm};
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
 use std::sync::{Arc, Mutex};
+use mysql::from_value;
 
 pub(crate) enum LectureQuestionFormError {
     Invalid,
 }
 
-#[derive(Debug)]
+#[derive(Debug, FromForm)]
 pub(crate) struct LectureQuestionSubmission {
     answers: Vec<(u64, String)>,
 }
@@ -67,31 +68,22 @@ struct LectureListContext {
 #[get("/")]
 pub(crate) fn leclist(
     apikey: ApiKey,
-    backend: State<Arc<Mutex<MySqlBackend>>>,
-    config: State<Config>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    config: &State<Config>,
 ) -> Template {
     let mut bg = backend.lock().unwrap();
 
     let user = apikey.user.clone();
     let admin = config.admins.contains(&user);
 
-    let res = bg.handle.view_lookup("leclist", [(0 as u64).into()]);
+    let res = bg.view_lookup("leclist", vec![(0 as u64).into()]);
     let lecs: Vec<_> = res
         .into_iter()
-        .filter(|r| !r[2].is_none())
-        /*.map(|mut r| {
-            if let DataType::None = r[3] {
-                r[3] = DataType::UnsignedInt(0);
-            }
-            if let DataType::None = r[4] {
-                r[4] = DataType::UnsignedInt(0);
-            }
-            r
-        })*/
+        .filter(|r| r[2] != Value::NULL)
         .map(|r| LectureListEntry {
-            id: r[0].clone().into(),
-            label: r[1].clone().into(),
-            num_qs: r[2].clone().into(),
+            id: from_value(r[0]),
+            label: from_value(r[1]),
+            num_qs: from_value(r[2]),
             num_answered: /*r[4].clone().into()*/ 0u64,
         })
         .collect();
@@ -109,19 +101,19 @@ pub(crate) fn leclist(
 pub(crate) fn answers(
     _admin: Admin,
     num: u8,
-    backend: State<Arc<Mutex<MySqlBackend>>>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Template {
     let mut bg = backend.lock().unwrap();
-    let key: DataType = (num as u64).into();
+    let key: Value = (num as u64).into();
 
-    let res = bg.handle.view_lookup("answers_by_lec", [key]);
+    let res = bg.view_lookup("answers_by_lec", vec![key]);
     let answers: Vec<_> = res
         .into_iter()
         .map(|r| LectureAnswer {
-            id: r[2].clone().into(),
-            user: r[0].clone().into(),
-            answer: r[3].clone().into(),
-            time: if let DataType::Timestamp(ts) = r[4] {
+            id: from_value(r[2]),
+            user: from_value(r[0]),
+            answer: from_value(r[3]),
+            time: if let Value::Time(ts) = r[4] {
                 Some(ts)
             } else {
                 None
@@ -141,31 +133,31 @@ pub(crate) fn answers(
 pub(crate) fn questions(
     apikey: ApiKey,
     num: u8,
-    backend: State<Arc<Mutex<MySqlBackend>>>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Template {
     use std::collections::HashMap;
 
     let mut bg = backend.lock().unwrap();
-    let key: DataType = (num as u64).into();
+    let key: Value = (num as u64).into();
 
-    let answers_res = bg.handle.view_lookup("my_answers_for_lec", [(num as u64).into(), apikey.user.clone().into()]);
+    let answers_res = bg.view_lookup("my_answers_for_lec", vec![(num as u64).into(), apikey.user.clone().into()]);
     let mut answers = HashMap::new();
 
     for r in answers_res {
-        let id: u64 = r[2].clone().into();
-        let atext: String = r[3].clone().into();
+        let id: u64 = from_value(r[2]);
+        let atext: String = from_value(r[3]);
         answers.insert(id, atext);
     }
 
-    let res = bg.handle.view_lookup("qs_by_lec", [key]);
+    let res = bg.view_lookup("qs_by_lec", vec![key]);
     let mut qs: Vec<_> = res
         .into_iter()
         .map(|r| {
-            let id: u64 = r[1].clone().into();
+            let id: u64 = from_value(r[1]);
             let answer = answers.get(&id).map(|s| s.to_owned());
             LectureQuestion {
                 id: id,
-                prompt: r[2].clone().into(),
+                prompt: from_value(r[2]),
                 answer: answer,
             }
         })
@@ -180,7 +172,7 @@ pub(crate) fn questions(
     Template::render("questions", &ctx)
 }
 
-impl<'f> FromForm<'f> for LectureQuestionSubmission {
+/*impl<'f> FromForm<'f> for LectureQuestionSubmission {
     // In practice, we'd use a more descriptive error type.
     type Error = LectureQuestionFormError;
 
@@ -207,31 +199,31 @@ impl<'f> FromForm<'f> for LectureQuestionSubmission {
 
         Ok(LectureQuestionSubmission { answers })
     }
-}
+}*/
 
 #[post("/<num>", data = "<data>")]
 pub(crate) fn questions_submit(
     apikey: ApiKey,
     num: u8,
     data: Form<LectureQuestionSubmission>,
-    backend: State<Arc<Mutex<MySqlBackend>>>,
-    config: State<Config>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    config: &State<Config>,
 ) -> Redirect {
 
     let mut bg = backend.lock().unwrap();
 
-    let num: DataType = (num as u64).into();
-    let ts: DataType = DataType::Timestamp(Local::now().naive_local());
+    let vnum: Value = (num as u64).into();
+    let ts: Value = Local::now().naive_local().into();
 
     for (id, answer) in &data.answers {
-        let rec: Vec<DataType> = vec![
+        let rec: Vec<Value> = vec![
             apikey.user.clone().into(),
-            num.clone(),
+            vnum.clone(),
             (*id).into(),
             answer.clone().into(),
             ts.clone(),
         ];
-        bg.handle.insert_or_update(
+        bg.insert_or_update(
             "answers",
             rec,
             vec![
@@ -242,7 +234,7 @@ pub(crate) fn questions_submit(
     }
 
     if config.send_emails {
-        let recipients = if num < 90.into() {
+        let recipients = if num < 90 {
             config.staff.clone()
         } else {
             config.admins.clone()

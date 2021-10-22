@@ -13,6 +13,7 @@ use rocket::State;
 use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use mysql::from_value;
 
 /// (username, apikey)
 pub(crate) struct ApiKey {
@@ -41,7 +42,7 @@ impl<'r> FromRequest<'r> for ApiKey {
     type Error = ApiKeyError;
 
     fn from_request(request: &Request<'r>) -> request::Outcome<ApiKey, Self::Error> {
-        let be = request.guard::<State<Arc<Mutex<MySqlBackend>>>>().unwrap();
+        let be = request.guard::<&State<Arc<Mutex<MySqlBackend>>>>().unwrap();
         request
             .cookies()
             .get("apikey")
@@ -57,8 +58,8 @@ impl<'r> FromRequest<'r> for ApiKey {
 #[post("/", data = "<data>")]
 pub(crate) fn generate(
     data: Form<ApiKeyRequest>,
-    backend: State<Arc<Mutex<MySqlBackend>>>,
-    config: State<Config>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    config: &State<Config>,
 ) -> Template {
     // generate an API key from email address
     let mut hasher = Sha256::new();
@@ -75,7 +76,7 @@ pub(crate) fn generate(
 
     // insert into MySql if not exists
     let mut bg = backend.lock().unwrap();
-    bg.handle.insert("users",vec![
+    bg.insert("users",vec![
             data.email.as_str().into(),
             hash.as_str().into(),
             is_admin,
@@ -103,14 +104,14 @@ pub(crate) fn check_api_key(
     key: &str,
 ) -> Result<String, ApiKeyError> {
     let mut bg = backend.lock().unwrap();
-    let rs = bg.handle.view_lookup("users_by_apikey", [key.into()]);
+    let rs = bg.view_lookup("users_by_apikey", vec![key.into()]);
     if rs.len() < 1 {
         Err(ApiKeyError::Missing)
     } else if rs.len() > 1 {
         Err(ApiKeyError::Ambiguous)
-    } else if rs.len >= 1 {
+    } else if rs.len() >= 1 {
         // user email
-        Ok((&rs[0][0]).into())
+        Ok(from_value::<String>(rs[0][0]))
     } else {
         Err(ApiKeyError::BackendFailure)
     }
@@ -120,7 +121,7 @@ pub(crate) fn check_api_key(
 pub(crate) fn check(
     data: Form<ApiKeySubmit>,
     mut cookies: CookieJar,
-    backend: State<Arc<Mutex<MySqlBackend>>>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Redirect {
     // check that the API key exists and set cookie
     let res = check_api_key(&*backend, &data.key);

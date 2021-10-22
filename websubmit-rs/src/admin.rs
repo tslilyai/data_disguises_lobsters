@@ -3,7 +3,6 @@ use crate::backend::MySqlBackend;
 use crate::config::Config;
 use crate::questions::{LectureQuestion, LectureQuestionsContext};
 use rocket::http::Status;
-use rocket::outcome::IntoOutcome;
 use rocket::form::Form;
 use rocket::request::{self, FromRequest, Request};
 use rocket::response::Redirect;
@@ -11,6 +10,7 @@ use rocket::State;
 use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use mysql::from_value;
 
 pub(crate) struct Admin;
 
@@ -23,8 +23,8 @@ impl<'r> FromRequest<'r> for Admin {
     type Error = AdminError;
 
     fn from_request(request: &Request<'r>) -> request::Outcome<Admin, Self::Error> {
-        let apikey = request.guard::<ApiKey>().unwrap();
-        let cfg = request.guard::<State<Config>>().unwrap();
+        let apikey = request.guard::<ApiKey>()?;
+        let cfg = request.guard::<&State<Config>>()?;
 
         let res = if cfg.admins.contains(&apikey.user) {
             Some(Admin)
@@ -72,7 +72,7 @@ pub(crate) fn lec_add(_adm: Admin) -> Template {
 pub(crate) fn lec_add_submit(
     _adm: Admin,
     data: Form<AdminLecAdd>,
-    backend: State<Arc<Mutex<MySqlBackend>>>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Redirect {
     // insert into MySql if not exists
     let mut bg = backend.lock().unwrap();
@@ -86,16 +86,16 @@ pub(crate) fn lec_add_submit(
 }
 
 #[get("/<num>")]
-pub(crate) fn lec(_adm: Admin, num: u8, backend: State<Arc<Mutex<MySqlBackend>>>) -> Template {
+pub(crate) fn lec(_adm: Admin, num: u8, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Template {
     let mut bg = backend.lock().unwrap();
-    let mut res = bg.handle.view_lookup("qs_by_lec", [(num as u64).into()]);
+    let mut res = bg.view_lookup("qs_by_lec", vec![(num as u64).into()]);
     let mut qs: Vec<_> = res
         .into_iter()
         .map(|r| {
-            let id: u64 = r[1].clone().into();
+            let id: u64 = from_value(r[1]);
             LectureQuestion {
                 id: id,
-                prompt: r[2].clone().into(),
+                prompt: from_value(r[2]),
                 answer: None,
             }
         })
@@ -115,7 +115,7 @@ pub(crate) fn addq(
     _adm: Admin,
     num: u8,
     data: Form<AddLectureQuestionForm>,
-    backend: State<Arc<Mutex<MySqlBackend>>>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
     bg.insert("questions", 
@@ -133,15 +133,15 @@ pub(crate) fn editq(
     _adm: Admin,
     num: u8,
     qnum: u8,
-    backend: State<Arc<Mutex<MySqlBackend>>>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Template {
     let mut bg = backend.lock().unwrap();
-    let mut res = bg.handle.view_lookup("qs_by_lec", [(num as u64).into()]);
+    let mut res = bg.view_lookup("qs_by_lec", vec![(num as u64).into()]);
 
     let mut ctx = HashMap::new();
     for r in res {
         if r[1] == (qnum as u64).into() {
-            ctx.insert("lec_qprompt", r[2].clone().into());
+            ctx.insert("lec_qprompt", from_value(r[2]));
         }
     }
     ctx.insert("lec_id", format!("{}", num));
@@ -155,7 +155,7 @@ pub(crate) fn editq_submit(
     _adm: Admin,
     num: u8,
     data: Form<AddLectureQuestionForm>,
-    backend: State<Arc<Mutex<MySqlBackend>>>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
     bg.update("questions", 
@@ -169,18 +169,18 @@ pub(crate) fn editq_submit(
 #[get("/")]
 pub(crate) fn get_registered_users(
     _adm: Admin,
-    backend: State<Arc<Mutex<MySqlBackend>>>,
-    config: State<Config>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    config: &State<Config>,
 ) -> Template {
     let mut bg = backend.lock().unwrap();
-    let mut res = bg.handle.view("all_users", [(0 as u64).into()]);
+    let mut res = bg.view_lookup("all_users", vec![(0 as u64).into()]);
 
     let users: Vec<_> = res
         .into_iter()
         .map(|r| User {
-            email: r[0].clone().into(),
-            apikey: r[2].clone().into(),
-            is_admin: if config.admins.contains(&r[0].clone().into()) {
+            email: from_value(r[0]),
+            apikey: from_value(r[2]),
+            is_admin: if config.admins.contains(&from_value(r[0])) {
                 1
             } else {
                 0

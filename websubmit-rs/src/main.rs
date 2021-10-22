@@ -1,10 +1,9 @@
-//#![feature(proc_macro_hygiene, decl_macro)]
-
 extern crate clap;
 extern crate crypto;
 extern crate mysql;
 #[macro_use]
 extern crate rocket;
+extern crate rocket_sync_db_pools;
 extern crate lettre;
 extern crate lettre_email;
 #[macro_use]
@@ -21,7 +20,6 @@ mod config;
 mod email;
 mod login;
 mod questions;
-mod datatype;
 
 use backend::MySqlBackend;
 use rocket::http::CookieJar;
@@ -39,7 +37,7 @@ pub fn new_logger() -> slog::Logger {
 }
 
 #[get("/")]
-fn index(cookies: CookieJar, backend: State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
+fn index(cookies: CookieJar, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
     if let Some(cookie) = cookies.get("apikey") {
         let apikey: String = cookie.value().parse().ok().unwrap();
         // TODO validate API key
@@ -75,7 +73,7 @@ fn main() {
         .attach(Template::custom(move |engines: &mut Engines| {
             engines
                 .handlebars
-                .register_templates_directory(".hbs", Path::new(&template_dir))
+                .register_template_file(".hbs", Path::new(&template_dir))
                 .expect("failed to set template path!");
         }))
         .manage(backend)

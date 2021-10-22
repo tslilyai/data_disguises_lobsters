@@ -15,9 +15,12 @@ log_*
 *.bcf
 *.vi
 *.xml
+*.mp4
+*.ppt
 papers/osdi21/paper.pdf
 papers/hotos21/paper.pdf
 papers/sosp21/paper.pdf
+papers/osdi22/paper.pdf
 target
 miri-target
 .mtrlz.log

@@ -1,4 +1,5 @@
-pub use crate::datatype::DataType;
+pub use mysql::Value;
+use mysql::*;
 use mysql::prelude::*;
 use mysql::Opts;
 use edna::EdnaClient;
@@ -7,20 +8,15 @@ use sql_parser::ast::*;
 
 pub struct MySqlBackend {
     pub handle: mysql::Conn,
-    _rt: tokio::runtime::Runtime,
     _log: slog::Logger,
-
     _schema: String,
 
     // table name --> (keys, columns)
     tables: HashMap<String, (Vec<String>, Vec<String>)>,
-
-    // view name --> query
-    views: HashMap<String, String>,
 }
 
 impl MySqlBackend {
-    pub fn new(dbname: &str, log: Option<slog::Logger>) -> Result<Self, std::io::Error> {
+    pub fn new(dbname: &str, log: Option<slog::Logger>) -> Result<Self> {
         let log = match log {
             None => slog::Logger::root(slog::Discard, o!()),
             Some(l) => l,
@@ -29,8 +25,8 @@ impl MySqlBackend {
         let schema = std::fs::read_to_string("src/schema.sql")?;
 
         debug!(log, "Connecting to MySql DB and initializing schema {}...", dbname);
-        EdnaClient::new(true /*prime*/, dbname, schema, true /*in-mem*/);
-        let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname))).unwrap();
+        EdnaClient::new(true /*prime*/, dbname, &schema, true /*in-mem*/);
+        let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
         assert_eq!(db.ping(), true);
 
         // save table and view information
@@ -54,15 +50,15 @@ impl MySqlBackend {
                     let end_bytes = t.find(":").unwrap_or(t.len()); 
                     let name = &t[..end_bytes];
                     let query = &t[(end_bytes+1)..];
-                    db.query_drop("CREATE VIEW {} AS {}", name, query).expected("could not create view {} as {}", name, query);
+                    db.query_drop(&format!("CREATE VIEW {} AS {}", name, query)).expect(&format!("could not create view {} as {}", name, query));
                 } else {
-                    let asts = sql_parser::parser::parse_statements(stmt.to_string()).expect("could not parse stmt {}!", stmt);
+                    let asts = sql_parser::parser::parse_statements(stmt.to_string()).expect(&format!("could not parse stmt {}!", stmt));
                     if asts.len() != 1 {
                         panic!("More than one stmt {:?}", asts);
                     }
                     let parsed = asts[0];
                     
-                    if let Statement::CreateTable(CreateTableStatement{
+                    if let sql_parser::ast::Statement::CreateTable(CreateTableStatement{
                         name,
                         columns,
                         constraints,
@@ -73,13 +69,13 @@ impl MySqlBackend {
                         for constraint in constraints {
                             match constraint {
                                 TableConstraint::Unique{columns, is_primary, ..} =>  {
-                                    if *is_primary {
-                                        tab_keys.push(columns.iter().map(|c| c.to_string()));
+                                    if is_primary {
+                                        tab_keys.push(columns.iter().map(|c| c.to_string()).collect());
                                     }
                                 }
                             }
                         }
-                        tables.push(name, (tab_keys, tab_cols))
+                        tables.insert(name.to_string(), (tab_keys, tab_cols));
                     }
                 }
                 stmt = String::new();
@@ -95,17 +91,18 @@ impl MySqlBackend {
         })
     }
 
-    pub fn view_lookup<T: FromRow>(&mut self, view: &str, keys: Vec<DataType>) -> Vec<Vec<DataType>> {
-        let mut conds = vec![];
+    pub fn view_lookup(&mut self, view: &str, keys: Vec<Value>) -> Vec<Vec<Value>> {
+        //let mut conds = vec![];
         for (i, value) in keys.iter().enumerate() {
-            conds.push(format!("{} = {}", key_cols[i], value));
+            // XXX TODO use diesel...
+            //conds.push(format!("{} = {}", key_cols[i], value));
         }
         let q = format!(r"SELECT FROM {} WHERE {};", view, conds.join(","));
-        let res = self.handle.query_iter(q).expect("failed to select from {}, query {}!", view, q);
+        let res = self.handle.query_iter(q).expect(&format!("failed to select from {}, query {}!", view, q));
         let mut rows = vec![];
         for row in res {
-            let rowvals = res.unwrap().unwrap();
-            let vals: Vec<DataType> = rowvals 
+            let rowvals = row.unwrap().unwrap();
+            let vals: Vec<Value> = rowvals 
                 .iter()
                 .map(|v| v.clone().into())
                 .collect();
@@ -114,37 +111,40 @@ impl MySqlBackend {
         return rows;
     }
 
-    pub fn insert(&mut self, table: &str, vals: Vec<DataType>) {
-        let q = format!(r"INSERT INTO {} VALUES ({});", table, vals.join(","));
-        self.handle.query_drop(q).expect("failed to insert into {}, query {}!", table, q);
+    pub fn insert(&mut self, table: &str, vals: Vec<Value>) {
+        let valstrs :Vec<String> = vals.iter().map(|v| from_value::<String>(*v)).collect();
+        let q = format!(r"INSERT INTO {} VALUES ({});", table, valstrs.join(","));
+        self.handle.query_drop(q).expect(&format!("failed to insert into {}, query {}!", table, q));
     }
 
-    pub fn update(&mut self, table: &str, keys: Vec<DataType>, vals: Vec<(usize, DataType)>) {
-        let (key_cols, cols) = self.tables.get(table).expect("Incorrect table in update? {}", table);
+    pub fn update(&mut self, table: &str, keys: Vec<Value>, vals: Vec<(usize, Value)>) {
+        let (key_cols, cols) = self.tables.get(table).expect(&format!("Incorrect table in update? {}", table));
         let mut assignments = vec![];
         for (index, value) in vals {
-            assignments.push(format!("{} = {}", cols[index], value));
+            assignments.push(format!("{} = {}", cols[index], from_value::<String>(value)));
         }
         let mut conds = vec![];
         for (i, value) in keys.iter().enumerate() {
-            conds.push(format!("{} = {}", key_cols[i], value));
+            conds.push(format!("{} = {}", key_cols[i], from_value::<String>(*value)));
         }
         let q = format!(r"UPDATE {} SET {} WHERE {};", table, assignments.join(","), conds.join(" AND "));
-        self.handle.query_drop(q).expect("failed to update {}, query {}!", table, q);
+        self.handle.query_drop(q).expect(&format!("failed to update {}, query {}!", table, q));
     }
 
-    pub fn insert_or_update(&mut self, table: &str, rec: Vec<DataType>, update_vals: Vec<(usize,DataType)>) {
-        let (key_cols, cols) = self.tables.get(table).expect("Incorrect table in update? {}", table);
+    pub fn insert_or_update(&mut self, table: &str, rec: Vec<Value>, update_vals: Vec<(u64,Value)>) {
+        let (key_cols, cols) = self.tables.get(table).expect(&format!("Incorrect table in update? {}", table));
         let mut assignments = vec![];
         for (index, value) in update_vals {
-            assignments.push(format!("{} = {}", cols[index], value));
+            assignments.push(format!("{} = {}", cols[index as usize], from_value::<String>(value)));
         }
         let mut conds = vec![];
         for (i, value) in rec.iter().enumerate() {
-            conds.push(format!("{} = {}", key_cols[i], value));
+            conds.push(format!("{} = {}", key_cols[i], from_value::<String>(*value)));
         }
+        let recstrs :Vec<String> = rec.iter().map(|v| from_value::<String>(*v)).collect();
         let q = format!(r"UPDATE {} SET {} WHERE {} IF @@ROWCOUNT=0 INSERT INTO {} VALUES ({});",
-            table, assignments.join(","), conds.join(" AND "), table, rec.join(","));
-        self.handle.query_drop(q).expect("failed to insert-update {}, query {}!", table, q);
+            table, assignments.join(","), conds.join(" AND "), table, recstrs.join(","));
+        self.handle.query_drop(q).expect(&format!("failed to insert-update {}, query {}!", table, q));
     }
 }
+
