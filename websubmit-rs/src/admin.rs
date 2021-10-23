@@ -2,15 +2,16 @@ use crate::apikey::ApiKey;
 use crate::backend::MySqlBackend;
 use crate::config::Config;
 use crate::questions::{LectureQuestion, LectureQuestionsContext};
-use rocket::http::Status;
+use mysql::from_value;
 use rocket::form::Form;
+use rocket::http::Status;
+use rocket::outcome::IntoOutcome;
 use rocket::request::{self, FromRequest, Request};
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use mysql::from_value;
 
 pub(crate) struct Admin;
 
@@ -19,12 +20,13 @@ pub(crate) enum AdminError {
     Unauthorized,
 }
 
+#[rocket::async_trait]
 impl<'r> FromRequest<'r> for Admin {
     type Error = AdminError;
 
-    fn from_request(request: &Request<'r>) -> request::Outcome<Admin, Self::Error> {
-        let apikey = request.guard::<ApiKey>()?;
-        let cfg = request.guard::<&State<Config>>()?;
+    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
+        let apikey = request.guard::<ApiKey>().await.unwrap();
+        let cfg = request.guard::<&State<Config>>().await.unwrap();
 
         let res = if cfg.admins.contains(&apikey.user) {
             Some(Admin)
@@ -76,11 +78,13 @@ pub(crate) fn lec_add_submit(
 ) -> Redirect {
     // insert into MySql if not exists
     let mut bg = backend.lock().unwrap();
-    bg.insert("lectures", 
+    bg.insert(
+        "lectures",
         vec![
             (data.lec_id as u64).into(),
             data.lec_label.to_string().into(),
-        ]);
+        ],
+    );
 
     Redirect::to("/leclist")
 }
@@ -88,14 +92,14 @@ pub(crate) fn lec_add_submit(
 #[get("/<num>")]
 pub(crate) fn lec(_adm: Admin, num: u8, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Template {
     let mut bg = backend.lock().unwrap();
-    let mut res = bg.view_lookup("qs_by_lec", vec![(num as u64).into()]);
+    let res = bg.view_lookup("qs_by_lec", vec![(num as u64).into()]);
     let mut qs: Vec<_> = res
         .into_iter()
         .map(|r| {
-            let id: u64 = from_value(r[1]);
+            let id: u64 = from_value(r[1].clone());
             LectureQuestion {
                 id: id,
-                prompt: from_value(r[2]),
+                prompt: from_value(r[2].clone()),
                 answer: None,
             }
         })
@@ -118,12 +122,14 @@ pub(crate) fn addq(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    bg.insert("questions", 
+    bg.insert(
+        "questions",
         vec![
             (num as u64).into(),
             (data.q_id as u64).into(),
             data.q_prompt.to_string().into(),
-        ]);
+        ],
+    );
 
     Redirect::to(format!("/admin/lec/{}", num))
 }
@@ -136,12 +142,12 @@ pub(crate) fn editq(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Template {
     let mut bg = backend.lock().unwrap();
-    let mut res = bg.view_lookup("qs_by_lec", vec![(num as u64).into()]);
+    let res = bg.view_lookup("qs_by_lec", vec![(num as u64).into()]);
 
     let mut ctx = HashMap::new();
     for r in res {
         if r[1] == (qnum as u64).into() {
-            ctx.insert("lec_qprompt", from_value(r[2]));
+            ctx.insert("lec_qprompt", from_value(r[2].clone()));
         }
     }
     ctx.insert("lec_id", format!("{}", num));
@@ -158,9 +164,10 @@ pub(crate) fn editq_submit(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    bg.update("questions", 
+    bg.update(
+        "questions",
         vec![(num as u64).into(), (data.q_id as u64).into()],
-        vec![(2, data.q_prompt.to_string().into())]
+        vec![(2, data.q_prompt.to_string().into())],
     );
 
     Redirect::to(format!("/admin/lec/{}", num))
@@ -173,14 +180,14 @@ pub(crate) fn get_registered_users(
     config: &State<Config>,
 ) -> Template {
     let mut bg = backend.lock().unwrap();
-    let mut res = bg.view_lookup("all_users", vec![(0 as u64).into()]);
+    let res = bg.view_lookup("all_users", vec![(0 as u64).into()]);
 
     let users: Vec<_> = res
         .into_iter()
         .map(|r| User {
-            email: from_value(r[0]),
-            apikey: from_value(r[2]),
-            is_admin: if config.admins.contains(&from_value(r[0])) {
+            email: from_value(r[0].clone()),
+            apikey: from_value(r[2].clone()),
+            is_admin: if config.admins.contains(&from_value(r[0].clone())) {
                 1
             } else {
                 0

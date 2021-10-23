@@ -3,9 +3,9 @@ extern crate crypto;
 extern crate mysql;
 #[macro_use]
 extern crate rocket;
-extern crate rocket_sync_db_pools;
 extern crate lettre;
 extern crate lettre_email;
+extern crate rocket_sync_db_pools;
 #[macro_use]
 extern crate slog;
 extern crate slog_term;
@@ -22,10 +22,10 @@ mod login;
 mod questions;
 
 use backend::MySqlBackend;
+use rocket::fs::FileServer;
 use rocket::http::CookieJar;
 use rocket::response::Redirect;
 use rocket::State;
-use rocket::fs::FileServer;
 use rocket_dyn_templates::Template;
 use std::sync::{Arc, Mutex};
 
@@ -37,7 +37,7 @@ pub fn new_logger() -> slog::Logger {
 }
 
 #[get("/")]
-fn index(cookies: CookieJar, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
+fn index(cookies: &CookieJar<'_>, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
     if let Some(cookie) = cookies.get("apikey") {
         let apikey: String = cookie.value().parse().ok().unwrap();
         // TODO validate API key
@@ -50,18 +50,15 @@ fn index(cookies: CookieJar, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redir
     }
 }
 
-fn main() {
+#[rocket::main]
+async fn main() {
     use rocket_dyn_templates::Engines;
     use std::path::Path;
 
     let args = args::parse_args();
 
     let backend = Arc::new(Mutex::new(
-        MySqlBackend::new(
-            &format!("{}", args.class),
-            Some(new_logger()),
-        )
-        .unwrap(),
+        MySqlBackend::new(&format!("{}", args.class), Some(new_logger())).unwrap(),
     ));
 
     let config = args.config;
@@ -69,7 +66,7 @@ fn main() {
     let template_dir = config.template_dir.clone();
     let resource_dir = config.resource_dir.clone();
 
-    rocket::build()
+    if let Err(e) = rocket::build()
         .attach(Template::custom(move |engines: &mut Engines| {
             engines
                 .handlebars
@@ -99,5 +96,10 @@ fn main() {
             "/admin/lec",
             routes![admin::lec, admin::addq, admin::editq, admin::editq_submit],
         )
-        .launch();
+        .launch()
+        .await
+    {
+        println!("Whoops, didn't launch!");
+        drop(e);
+    };
 }

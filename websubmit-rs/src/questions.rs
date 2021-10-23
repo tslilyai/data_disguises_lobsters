@@ -1,16 +1,16 @@
 use crate::admin::Admin;
 use crate::apikey::ApiKey;
-use crate::backend::{Value, MySqlBackend};
+use crate::backend::{MySqlBackend, Value};
 use crate::config::Config;
 use crate::email;
 use chrono::naive::NaiveDateTime;
 use chrono::Local;
+use mysql::from_value;
 use rocket::form::{Form, FromForm};
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
 use std::sync::{Arc, Mutex};
-use mysql::from_value;
 
 pub(crate) enum LectureQuestionFormError {
     Invalid,
@@ -81,9 +81,9 @@ pub(crate) fn leclist(
         .into_iter()
         .filter(|r| r[2] != Value::NULL)
         .map(|r| LectureListEntry {
-            id: from_value(r[0]),
-            label: from_value(r[1]),
-            num_qs: from_value(r[2]),
+            id: from_value(r[0].clone()),
+            label: from_value(r[1].clone()),
+            num_qs: from_value(r[2].clone()),
             num_answered: /*r[4].clone().into()*/ 0u64,
         })
         .collect();
@@ -110,11 +110,11 @@ pub(crate) fn answers(
     let answers: Vec<_> = res
         .into_iter()
         .map(|r| LectureAnswer {
-            id: from_value(r[2]),
-            user: from_value(r[0]),
-            answer: from_value(r[3]),
-            time: if let Value::Time(ts) = r[4] {
-                Some(ts)
+            id: from_value(r[2].clone()),
+            user: from_value(r[0].clone()),
+            answer: from_value(r[3].clone()),
+            time: if let Value::Time(..) = r[4] {
+                Some(from_value::<NaiveDateTime>(r[4].clone()))
             } else {
                 None
             },
@@ -140,12 +140,15 @@ pub(crate) fn questions(
     let mut bg = backend.lock().unwrap();
     let key: Value = (num as u64).into();
 
-    let answers_res = bg.view_lookup("my_answers_for_lec", vec![(num as u64).into(), apikey.user.clone().into()]);
+    let answers_res = bg.view_lookup(
+        "my_answers_for_lec",
+        vec![(num as u64).into(), apikey.user.clone().into()],
+    );
     let mut answers = HashMap::new();
 
     for r in answers_res {
-        let id: u64 = from_value(r[2]);
-        let atext: String = from_value(r[3]);
+        let id: u64 = from_value(r[2].clone());
+        let atext: String = from_value(r[3].clone());
         answers.insert(id, atext);
     }
 
@@ -153,11 +156,11 @@ pub(crate) fn questions(
     let mut qs: Vec<_> = res
         .into_iter()
         .map(|r| {
-            let id: u64 = from_value(r[1]);
+            let id: u64 = from_value(r[1].clone());
             let answer = answers.get(&id).map(|s| s.to_owned());
             LectureQuestion {
                 id: id,
-                prompt: from_value(r[2]),
+                prompt: from_value(r[2].clone()),
                 answer: answer,
             }
         })
@@ -209,7 +212,6 @@ pub(crate) fn questions_submit(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
     config: &State<Config>,
 ) -> Redirect {
-
     let mut bg = backend.lock().unwrap();
 
     let vnum: Value = (num as u64).into();
@@ -226,10 +228,7 @@ pub(crate) fn questions_submit(
         bg.insert_or_update(
             "answers",
             rec,
-            vec![
-                (3, answer.clone().into()),
-                (4, ts.clone()),
-            ],
+            vec![(3, answer.clone().into()), (4, ts.clone())],
         );
     }
 

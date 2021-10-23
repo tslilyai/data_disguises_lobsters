@@ -3,17 +3,17 @@ use crate::config::Config;
 use crate::email;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
+use mysql::from_value;
+use rocket::form::Form;
 use rocket::http::Status;
 use rocket::http::{Cookie, CookieJar};
 use rocket::outcome::IntoOutcome;
-use rocket::form::Form;
 use rocket::request::{self, FromRequest, Request};
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use mysql::from_value;
 
 /// (username, apikey)
 pub(crate) struct ApiKey {
@@ -38,11 +38,15 @@ pub(crate) enum ApiKeyError {
     BackendFailure,
 }
 
+#[rocket::async_trait]
 impl<'r> FromRequest<'r> for ApiKey {
     type Error = ApiKeyError;
 
-    fn from_request(request: &Request<'r>) -> request::Outcome<ApiKey, Self::Error> {
-        let be = request.guard::<&State<Arc<Mutex<MySqlBackend>>>>().unwrap();
+    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
+        let be = request
+            .guard::<&State<Arc<Mutex<MySqlBackend>>>>()
+            .await
+            .unwrap();
         request
             .cookies()
             .get("apikey")
@@ -76,11 +80,10 @@ pub(crate) fn generate(
 
     // insert into MySql if not exists
     let mut bg = backend.lock().unwrap();
-    bg.insert("users",vec![
-            data.email.as_str().into(),
-            hash.as_str().into(),
-            is_admin,
-    ]);
+    bg.insert(
+        "users",
+        vec![data.email.as_str().into(), hash.as_str().into(), is_admin],
+    );
 
     if config.send_emails {
         email::send(
@@ -111,7 +114,7 @@ pub(crate) fn check_api_key(
         Err(ApiKeyError::Ambiguous)
     } else if rs.len() >= 1 {
         // user email
-        Ok(from_value::<String>(rs[0][0]))
+        Ok(from_value::<String>(rs[0][0].clone()))
     } else {
         Err(ApiKeyError::BackendFailure)
     }
@@ -120,7 +123,7 @@ pub(crate) fn check_api_key(
 #[post("/", data = "<data>")]
 pub(crate) fn check(
     data: Form<ApiKeySubmit>,
-    mut cookies: CookieJar,
+    cookies: &CookieJar<'_>,
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Redirect {
     // check that the API key exists and set cookie
