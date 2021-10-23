@@ -136,13 +136,13 @@ impl MySqlBackend {
     }
 
     pub fn insert(&mut self, table: &str, vals: Vec<Value>) {
-        let valstrs: Vec<String> = vals
+        let valstrs: Vec<&str> = vals
             .iter()
-            .map(|v| from_value::<String>(v.clone()))
+            .map(|_| "?")
             .collect();
         let q = format!(r"INSERT INTO {} VALUES ({});", table, valstrs.join(","));
         self.handle
-            .query_drop(q.clone())
+            .exec_drop(q.clone(), vals)
             .expect(&format!("failed to insert into {}, query {}!", table, q));
     }
 
@@ -152,20 +152,21 @@ impl MySqlBackend {
             .get(table)
             .expect(&format!("Incorrect table in update? {}", table));
         let mut assignments = vec![];
+        let mut args = vec![];
         for (index, value) in vals {
             assignments.push(format!(
-                "{} = {}",
+                "{} = ?",
                 cols[index],
-                from_value::<String>(value.clone())
             ));
+            args.push(value.clone());
         }
         let mut conds = vec![];
         for (i, value) in keys.iter().enumerate() {
             conds.push(format!(
-                "{} = {}",
+                "{} = ?",
                 key_cols[i],
-                from_value::<String>(value.clone())
             ));
+            args.push(value.clone());
         }
         let q = format!(
             r"UPDATE {} SET {} WHERE {};",
@@ -174,7 +175,7 @@ impl MySqlBackend {
             conds.join(" AND ")
         );
         self.handle
-            .query_drop(q.clone())
+            .exec_drop(q.clone(), args)
             .expect(&format!("failed to update {}, query {}!", table, q));
     }
 
@@ -188,25 +189,26 @@ impl MySqlBackend {
             .tables
             .get(table)
             .expect(&format!("Incorrect table in update? {}", table));
+        let mut args = vec![];
         let mut assignments = vec![];
         for (index, value) in update_vals {
             assignments.push(format!(
-                "{} = {}",
+                "{} = ?",
                 cols[index as usize],
-                from_value::<String>(value.clone())
             ));
+            args.push(value.clone());
         }
         let mut conds = vec![];
         for (i, value) in rec.iter().enumerate() {
             conds.push(format!(
-                "{} = {}",
+                "{} = ?",
                 key_cols[i],
-                from_value::<String>(value.clone())
             ));
+            args.push(value.clone());
         }
-        let recstrs: Vec<String> = rec
+        let recstrs: Vec<&str> = rec
             .iter()
-            .map(|v| from_value::<String>(v.clone()))
+            .map(|v| {args.push(v.clone()); "?"})
             .collect();
         let q = format!(
             r"UPDATE {} SET {} WHERE {} IF @@ROWCOUNT=0 INSERT INTO {} VALUES ({});",
@@ -217,7 +219,7 @@ impl MySqlBackend {
             recstrs.join(",")
         );
         self.handle
-            .query_drop(q.clone())
+            .exec_drop(q.clone(), args)
             .expect(&format!("failed to insert-update {}, query {}!", table, q));
     }
 }
