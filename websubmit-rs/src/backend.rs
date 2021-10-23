@@ -106,7 +106,7 @@ impl MySqlBackend {
         })
     }
 
-    pub fn view_lookup(&mut self, view: &str, keys: Vec<Value>) -> Vec<Vec<Value>> {
+    pub fn view_lookup(&mut self, view: &str, _keys: Vec<Value>) -> Vec<Vec<Value>> {
         //let mut conds = vec![];
         //for (i, value) in keys.iter().enumerate() {
         // XXX TODO use diesel...

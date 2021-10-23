@@ -12,9 +12,9 @@ use rocket::State;
 use rocket_dyn_templates::Template;
 use std::sync::{Arc, Mutex};
 
-pub(crate) enum LectureQuestionFormError {
-    Invalid,
-}
+//pub(crate) enum LectureQuestionFormError {
+//   Invalid,
+//}
 
 #[derive(Debug, FromForm)]
 pub(crate) struct LectureQuestionSubmission {
