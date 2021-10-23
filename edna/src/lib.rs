@@ -118,6 +118,10 @@ fn create_schema(db: &mut mysql::Conn, in_memory: bool, schema: &str) -> Result<
         }
         stmt.push_str(line);
         if stmt.ends_with(';') {
+            // ignore query statements in schema
+            if !stmt.to_lowercase().contains("create table") {
+                continue;
+            }
             let new_stmt = helpers::process_schema_stmt(&stmt, in_memory);
             warn!("create_schema issuing new_stmt {}", new_stmt);
             db.query_drop(new_stmt.to_string())?;
@@ -128,8 +132,8 @@ fn create_schema(db: &mut mysql::Conn, in_memory: bool, schema: &str) -> Result<
 }
 
 pub fn init_db(prime: bool, in_memory: bool, dbname: &str, schema: &str) {
-    warn!("EDNA: Init db!");
-    let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname);
+    warn!("EDNA: Init db {}!", dbname);
+    let url = format!("mysql://tslilyai:pass@127.0.0.1");
     let mut db = mysql::Conn::new(Opts::from_url(&url).unwrap()).unwrap();
     if prime {
         warn!("Priming database");

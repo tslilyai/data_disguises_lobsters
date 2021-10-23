@@ -22,7 +22,7 @@ mod login;
 mod questions;
 
 use backend::MySqlBackend;
-use rocket::fs::FileServer;
+//use rocket::fs::FileServer;
 use rocket::http::CookieJar;
 use rocket::response::Redirect;
 use rocket::State;
@@ -52,8 +52,8 @@ fn index(cookies: &CookieJar<'_>, backend: &State<Arc<Mutex<MySqlBackend>>>) -> 
 
 #[rocket::main]
 async fn main() {
-    use rocket_dyn_templates::Engines;
-    use std::path::Path;
+    //use rocket_dyn_templates::Engines;
+    //use std::path::Path;
 
     let args = args::parse_args();
 
@@ -63,20 +63,21 @@ async fn main() {
 
     let config = args.config;
 
-    let template_dir = config.template_dir.clone();
-    let resource_dir = config.resource_dir.clone();
+    //let template_dir = config.template_dir.clone();
+    //let resource_dir = config.resource_dir.clone();
 
     if let Err(e) = rocket::build()
-        .attach(Template::custom(move |engines: &mut Engines| {
+        .attach(Template::fairing())
+            /*custom(move |engines: &mut Engines| {
             engines
                 .handlebars
                 .register_template_file(".hbs", Path::new(&template_dir))
                 .expect("failed to set template path!");
-        }))
+        }))*/
         .manage(backend)
         .manage(config)
-        .mount("/css", FileServer::from(format!("{}/css", resource_dir)))
-        .mount("/js", FileServer::from(format!("{}/js", resource_dir)))
+        //.mount("/css", FileServer::from(format!("{}/css", resource_dir)))
+        //.mount("/js", FileServer::from(format!("{}/js", resource_dir)))
         .mount("/", routes![index])
         .mount(
             "/questions",

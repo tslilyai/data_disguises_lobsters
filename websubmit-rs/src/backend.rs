@@ -14,6 +14,7 @@ pub struct MySqlBackend {
     // table name --> (keys, columns)
     tables: HashMap<String, (Vec<String>, Vec<String>)>,
     queries: HashMap<String, mysql::Statement>,
+    edna: EdnaClient,
 }
 
 impl MySqlBackend {
@@ -30,7 +31,7 @@ impl MySqlBackend {
             log,
             "Connecting to MySql DB and initializing schema {}...", dbname
         );
-        EdnaClient::new(true /*prime*/, dbname, &schema, true /*in-mem*/);
+        let edna = EdnaClient::new(true /*prime*/, dbname, &schema, true /*in-mem*/);
         let mut db = mysql::Conn::new(
             Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
         )
@@ -42,6 +43,7 @@ impl MySqlBackend {
         let mut queries = HashMap::new();
         let mut stmt = String::new();
         let mut is_query = false;
+        let mut is_view = false;
         for line in schema.lines() {
             if line.starts_with("--") || line.is_empty() {
                 continue;
@@ -49,12 +51,18 @@ impl MySqlBackend {
             if line.starts_with("QUERY") {
                 is_query = true;
             }
+            if line.starts_with("CREATE VIEW") {
+                is_view = true;
+            }
             if !stmt.is_empty() {
                 stmt.push_str(" ");
             }
             stmt.push_str(line);
             if stmt.ends_with(';') {
-                if is_query {
+                if is_view {
+                    db.query_drop(stmt).unwrap();
+                }
+                else if is_query {
                     let t = stmt.trim_start_matches("QUERY ");
                     let end_bytes = t.find(":").unwrap_or(t.len());
                     let name = &t[..end_bytes];
@@ -98,6 +106,7 @@ impl MySqlBackend {
                 }
                 stmt = String::new();
                 is_query = false;
+                is_view = false;
             }
         }
         Ok(MySqlBackend {
@@ -107,6 +116,7 @@ impl MySqlBackend {
 
             tables: tables,
             queries: queries,
+            edna: edna,
         })
     }
 
