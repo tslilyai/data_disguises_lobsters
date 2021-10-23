@@ -72,11 +72,12 @@ pub(crate) fn leclist(
     config: &State<Config>,
 ) -> Template {
     let mut bg = backend.lock().unwrap();
+    let res = bg.query_exec("leclist", vec![(0 as u64).into()]);
+    drop(bg);
 
     let user = apikey.user.clone();
     let admin = config.admins.contains(&user);
 
-    let res = bg.query_exec("leclist", vec![(0 as u64).into()]);
     let lecs: Vec<_> = res
         .into_iter()
         .filter(|r| r[2] != Value::NULL)
@@ -105,8 +106,8 @@ pub(crate) fn answers(
 ) -> Template {
     let mut bg = backend.lock().unwrap();
     let key: Value = (num as u64).into();
-
     let res = bg.query_exec("answers_by_lec", vec![key]);
+    drop(bg);
     let answers: Vec<_> = res
         .into_iter()
         .map(|r| LectureAnswer {
@@ -151,8 +152,8 @@ pub(crate) fn questions(
         let atext: String = from_value(r[3].clone());
         answers.insert(id, atext);
     }
-
     let res = bg.query_exec("qs_by_lec", vec![key]);
+    drop(bg);
     let mut qs: Vec<_> = res
         .into_iter()
         .map(|r| {
@@ -231,6 +232,7 @@ pub(crate) fn questions_submit(
             vec![(3, answer.clone().into()), (4, ts.clone())],
         );
     }
+    drop(bg);
 
     if config.send_emails {
         let recipients = if num < 90 {

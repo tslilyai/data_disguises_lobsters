@@ -85,6 +85,7 @@ pub(crate) fn lec_add_submit(
             data.lec_label.to_string().into(),
         ],
     );
+    drop(bg);
 
     Redirect::to("/leclist")
 }
@@ -93,6 +94,7 @@ pub(crate) fn lec_add_submit(
 pub(crate) fn lec(_adm: Admin, num: u8, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Template {
     let mut bg = backend.lock().unwrap();
     let res = bg.query_exec("qs_by_lec", vec![(num as u64).into()]);
+    drop(bg);
     let mut qs: Vec<_> = res
         .into_iter()
         .map(|r| {
@@ -130,6 +132,7 @@ pub(crate) fn addq(
             data.q_prompt.to_string().into(),
         ],
     );
+    drop(bg);
 
     Redirect::to(format!("/admin/lec/{}", num))
 }
@@ -143,6 +146,7 @@ pub(crate) fn editq(
 ) -> Template {
     let mut bg = backend.lock().unwrap();
     let res = bg.query_exec("qs_by_lec", vec![(num as u64).into()]);
+    drop(bg);
 
     let mut ctx = HashMap::new();
     for r in res {
@@ -169,6 +173,7 @@ pub(crate) fn editq_submit(
         vec![(num as u64).into(), (data.q_id as u64).into()],
         vec![(2, data.q_prompt.to_string().into())],
     );
+    drop(bg);
 
     Redirect::to(format!("/admin/lec/{}", num))
 }
@@ -181,6 +186,7 @@ pub(crate) fn get_registered_users(
 ) -> Template {
     let mut bg = backend.lock().unwrap();
     let res = bg.query_exec("all_users", vec![(0 as u64).into()]);
+    drop(bg);
 
     let users: Vec<_> = res
         .into_iter()

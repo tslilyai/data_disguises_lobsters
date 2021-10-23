@@ -84,6 +84,7 @@ pub(crate) fn generate(
         "users",
         vec![data.email.as_str().into(), hash.as_str().into(), is_admin],
     );
+    drop(bg);
 
     if config.send_emails {
         email::send(
@@ -108,6 +109,7 @@ pub(crate) fn check_api_key(
 ) -> Result<String, ApiKeyError> {
     let mut bg = backend.lock().unwrap();
     let rs = bg.query_exec("users_by_apikey", vec![key.into()]);
+    drop(bg);
     if rs.len() < 1 {
         Err(ApiKeyError::Missing)
     } else if rs.len() > 1 {
