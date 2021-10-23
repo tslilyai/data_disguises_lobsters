@@ -76,7 +76,7 @@ pub(crate) fn leclist(
     let user = apikey.user.clone();
     let admin = config.admins.contains(&user);
 
-    let res = bg.view_lookup("leclist", vec![(0 as u64).into()]);
+    let res = bg.query_exec("leclist", vec![(0 as u64).into()]);
     let lecs: Vec<_> = res
         .into_iter()
         .filter(|r| r[2] != Value::NULL)
@@ -106,7 +106,7 @@ pub(crate) fn answers(
     let mut bg = backend.lock().unwrap();
     let key: Value = (num as u64).into();
 
-    let res = bg.view_lookup("answers_by_lec", vec![key]);
+    let res = bg.query_exec("answers_by_lec", vec![key]);
     let answers: Vec<_> = res
         .into_iter()
         .map(|r| LectureAnswer {
@@ -140,7 +140,7 @@ pub(crate) fn questions(
     let mut bg = backend.lock().unwrap();
     let key: Value = (num as u64).into();
 
-    let answers_res = bg.view_lookup(
+    let answers_res = bg.query_exec(
         "my_answers_for_lec",
         vec![(num as u64).into(), apikey.user.clone().into()],
     );
@@ -152,7 +152,7 @@ pub(crate) fn questions(
         answers.insert(id, atext);
     }
 
-    let res = bg.view_lookup("qs_by_lec", vec![key]);
+    let res = bg.query_exec("qs_by_lec", vec![key]);
     let mut qs: Vec<_> = res
         .into_iter()
         .map(|r| {

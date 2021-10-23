@@ -92,7 +92,7 @@ pub(crate) fn lec_add_submit(
 #[get("/<num>")]
 pub(crate) fn lec(_adm: Admin, num: u8, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Template {
     let mut bg = backend.lock().unwrap();
-    let res = bg.view_lookup("qs_by_lec", vec![(num as u64).into()]);
+    let res = bg.query_exec("qs_by_lec", vec![(num as u64).into()]);
     let mut qs: Vec<_> = res
         .into_iter()
         .map(|r| {
@@ -142,7 +142,7 @@ pub(crate) fn editq(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Template {
     let mut bg = backend.lock().unwrap();
-    let res = bg.view_lookup("qs_by_lec", vec![(num as u64).into()]);
+    let res = bg.query_exec("qs_by_lec", vec![(num as u64).into()]);
 
     let mut ctx = HashMap::new();
     for r in res {
@@ -180,7 +180,7 @@ pub(crate) fn get_registered_users(
     config: &State<Config>,
 ) -> Template {
     let mut bg = backend.lock().unwrap();
-    let res = bg.view_lookup("all_users", vec![(0 as u64).into()]);
+    let res = bg.query_exec("all_users", vec![(0 as u64).into()]);
 
     let users: Vec<_> = res
         .into_iter()

@@ -13,6 +13,7 @@ pub struct MySqlBackend {
 
     // table name --> (keys, columns)
     tables: HashMap<String, (Vec<String>, Vec<String>)>,
+    queries: HashMap<String, mysql::Statement>,
 }
 
 impl MySqlBackend {
@@ -24,6 +25,7 @@ impl MySqlBackend {
 
         let schema = std::fs::read_to_string("src/schema.sql")?;
 
+        // connect to everything
         debug!(
             log,
             "Connecting to MySql DB and initializing schema {}...", dbname
@@ -35,29 +37,30 @@ impl MySqlBackend {
         .unwrap();
         assert_eq!(db.ping(), true);
 
-        // save table and view information
+        // save table and query information
         let mut tables = HashMap::new();
+        let mut queries = HashMap::new();
         let mut stmt = String::new();
-        let mut is_view = false;
+        let mut is_query = false;
         for line in schema.lines() {
             if line.starts_with("--") || line.is_empty() {
                 continue;
             }
             if line.starts_with("QUERY") {
-                is_view = true;
+                is_query = true;
             }
             if !stmt.is_empty() {
                 stmt.push_str(" ");
             }
             stmt.push_str(line);
             if stmt.ends_with(';') {
-                if is_view {
+                if is_query {
                     let t = stmt.trim_start_matches("QUERY ");
                     let end_bytes = t.find(":").unwrap_or(t.len());
                     let name = &t[..end_bytes];
                     let query = &t[(end_bytes + 1)..];
-                    db.query_drop(&format!("CREATE VIEW {} AS {}", name, query))
-                        .expect(&format!("could not create view {} as {}", name, query));
+                    let prepstmt = db.prep(query).unwrap();
+                    queries.insert(name.to_string(), prepstmt);
                 } else {
                     let asts = sql_parser::parser::parse_statements(stmt.to_string())
                         .expect(&format!("could not parse stmt {}!", stmt));
@@ -94,7 +97,7 @@ impl MySqlBackend {
                     }
                 }
                 stmt = String::new();
-                is_view = false;
+                is_query = false;
             }
         }
         Ok(MySqlBackend {
@@ -103,20 +106,16 @@ impl MySqlBackend {
             _schema: schema.to_owned(),
 
             tables: tables,
+            queries: queries,
         })
     }
 
-    pub fn view_lookup(&mut self, view: &str, _keys: Vec<Value>) -> Vec<Vec<Value>> {
-        //let mut conds = vec![];
-        //for (i, value) in keys.iter().enumerate() {
-        // XXX TODO use diesel...
-        //conds.push(format!("{} = {}", key_cols[i], value));
-        //}
-        let q = format!(r"SELECT FROM {} WHERE {};", view, ""); //conds.join(","));
+    pub fn query_exec(&mut self, qname: &str, keys: Vec<Value>) -> Vec<Vec<Value>> {
+        let q = self.queries.get(qname).unwrap();
         let res = self
             .handle
-            .query_iter(q.clone())
-            .expect(&format!("failed to select from {}, query {}!", view, q));
+            .exec_iter(q, keys)
+            .expect(&format!("failed to select from {}", qname));
         let mut rows = vec![];
         for row in res {
             let rowvals = row.unwrap().unwrap();
