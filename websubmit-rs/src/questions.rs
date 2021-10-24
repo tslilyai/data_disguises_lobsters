@@ -11,6 +11,7 @@ use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 
 //pub(crate) enum LectureQuestionFormError {
 //   Invalid,
@@ -18,7 +19,7 @@ use std::sync::{Arc, Mutex};
 
 #[derive(Debug, FromForm)]
 pub(crate) struct LectureQuestionSubmission {
-    answers: Vec<(u64, String)>,
+    answers: HashMap<u64, String>,
 }
 
 #[derive(Serialize)]
@@ -188,6 +189,7 @@ pub(crate) fn questions_submit(
     config: &State<Config>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
+    debug!(bg.log, "LectureQuestionSubmission for {} has {} entries", num, data.answers.len());
 
     let vnum: Value = (num as u64).into();
     let ts: Value = Local::now().naive_local().into();

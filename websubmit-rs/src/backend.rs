@@ -101,7 +101,10 @@ impl MySqlBackend {
                         }
                         debug!(
                             log,
-                            "Inserting table {} with keys {:?} and cols {:?}", name, tab_keys, tab_cols
+                            "Inserting table {} with keys {:?} and cols {:?}",
+                            name,
+                            tab_keys,
+                            tab_cols
                         );
 
                         tables.insert(name.to_string(), (tab_keys, tab_cols));
@@ -135,7 +138,12 @@ impl MySqlBackend {
             let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
             rows.push(vals);
         }
-        debug!(self.log, "executed query {}, got {} rows", qname, rows.len());
+        debug!(
+            self.log,
+            "executed query {}, got {} rows",
+            qname,
+            rows.len()
+        );
         return rows;
     }
 
@@ -180,21 +188,11 @@ impl MySqlBackend {
         rec: Vec<Value>,
         update_vals: Vec<(u64, Value)>,
     ) {
-        let (key_cols, cols) = self
+        let (_, cols) = self
             .tables
             .get(table)
             .expect(&format!("Incorrect table in update? {}", table));
         let mut args = vec![];
-        let mut assignments = vec![];
-        for (index, value) in update_vals {
-            assignments.push(format!("{} = ?", cols[index as usize],));
-            args.push(value.clone());
-        }
-        let mut conds = vec![];
-        for (i, value) in rec.iter().enumerate() {
-            conds.push(format!("{} = ?", key_cols[i],));
-            args.push(value.clone());
-        }
         let recstrs: Vec<&str> = rec
             .iter()
             .map(|v| {
@@ -202,13 +200,17 @@ impl MySqlBackend {
                 "?"
             })
             .collect();
+        let mut assignments = vec![];
+        for (index, value) in update_vals {
+            assignments.push(format!("{} = ?", cols[index as usize],));
+            args.push(value.clone());
+        }
+
         let q = format!(
-            r"UPDATE {} SET {} WHERE {} IF @@ROWCOUNT=0 INSERT INTO {} VALUES ({});",
+            r"INSERT INTO {} VALUES ({}) ON DUPLICATE KEY UPDATE {};",
             table,
+            recstrs.join(","),
             assignments.join(","),
-            conds.join(" AND "),
-            table,
-            recstrs.join(",")
         );
         self.handle
             .exec_drop(q.clone(), args)
