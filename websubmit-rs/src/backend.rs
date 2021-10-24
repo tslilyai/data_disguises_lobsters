@@ -14,7 +14,7 @@ pub struct MySqlBackend {
     // table name --> (keys, columns)
     tables: HashMap<String, (Vec<String>, Vec<String>)>,
     queries: HashMap<String, mysql::Statement>,
-    _edna: EdnaClient,
+    edna: EdnaClient,
 }
 
 impl MySqlBackend {
@@ -122,7 +122,7 @@ impl MySqlBackend {
 
             tables: tables,
             queries: queries,
-            _edna: edna,
+            edna: edna,
         })
     }
 

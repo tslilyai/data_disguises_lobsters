@@ -17,6 +17,7 @@ mod apikey;
 mod args;
 mod backend;
 mod config;
+mod disguises;
 mod email;
 mod login;
 mod questions;
