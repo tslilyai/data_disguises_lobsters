@@ -72,7 +72,7 @@ pub(crate) fn leclist(
     config: &State<Config>,
 ) -> Template {
     let mut bg = backend.lock().unwrap();
-    let res = bg.query_exec("leclist", vec![(0 as u64).into()]);
+    let res = bg.query_exec("leclist", vec![]);//vec![(0 as u64).into()]);
     drop(bg);
 
     let user = apikey.user.clone();
@@ -80,12 +80,15 @@ pub(crate) fn leclist(
 
     let lecs: Vec<_> = res
         .into_iter()
-        .filter(|r| r[2] != Value::NULL)
         .map(|r| LectureListEntry {
             id: from_value(r[0].clone()),
             label: from_value(r[1].clone()),
-            num_qs: from_value(r[2].clone()),
-            num_answered: /*r[4].clone().into()*/ 0u64,
+            num_qs: if r[2] == Value::NULL {
+                0u64 
+            } else {
+                from_value(r[2].clone())
+            },
+            num_answered: 0u64,
         })
         .collect();
 
@@ -176,35 +179,6 @@ pub(crate) fn questions(
     Template::render("questions", &ctx)
 }
 
-/*impl<'f> FromForm<'f> for LectureQuestionSubmission {
-    // In practice, we'd use a more descriptive error type.
-    type Error = LectureQuestionFormError;
-
-    fn from_form(
-        items: &mut FormItems<'f>,
-        strict: bool,
-    ) -> Result<LectureQuestionSubmission, Self::Error> {
-        let mut answers: Vec<(u64, String)> = vec![];
-
-        for item in items {
-            let (key, value) = item.key_value_decoded();
-            if key.as_str().starts_with("q_") {
-                let num = u64::from_str_radix(&key.as_str()[2..], 10)
-                    .map_err(|_| LectureQuestionFormError::Invalid)?;
-                answers.push((num, value));
-            } else {
-                if strict {
-                    return Err(LectureQuestionFormError::Invalid);
-                } else {
-                    /* allow extra value when not strict */
-                }
-            }
-        }
-
-        Ok(LectureQuestionSubmission { answers })
-    }
-}*/
-
 #[post("/<num>", data = "<data>")]
 pub(crate) fn questions_submit(
     apikey: ApiKey,
@@ -232,6 +206,17 @@ pub(crate) fn questions_submit(
             vec![(3, answer.clone().into()), (4, ts.clone())],
         );
     }
+
+    let answer_log = format!(
+        "{}",
+        data.answers
+            .iter()
+            .map(|(i, t)| format!("Question {}:\n{}", i, t))
+            .collect::<Vec<_>>()
+            .join("\n-----\n")
+    );
+
+    debug!(bg.log, "Questions {} Submit: {}", num, answer_log);
     drop(bg);
 
     if config.send_emails {
@@ -245,14 +230,7 @@ pub(crate) fn questions_submit(
             apikey.user.clone(),
             recipients,
             format!("{} meeting {} questions", config.class, num),
-            format!(
-                "{}",
-                data.answers
-                    .iter()
-                    .map(|(i, t)| format!("Question {}:\n{}", i, t))
-                    .collect::<Vec<_>>()
-                    .join("\n-----\n")
-            ),
+            answer_log,
         )
         .expect("failed to send email");
     }

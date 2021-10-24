@@ -157,7 +157,7 @@ pub(crate) fn editq(
     ctx.insert("lec_id", format!("{}", num));
     ctx.insert("lec_qnum", format!("{}", qnum));
     ctx.insert("parent", String::from("layout"));
-    Template::render("admin/lec_edit", &ctx)
+    Template::render("admin/lecedit", &ctx)
 }
 
 #[post("/editq/<num>", data = "<data>")]
@@ -185,7 +185,7 @@ pub(crate) fn get_registered_users(
     config: &State<Config>,
 ) -> Template {
     let mut bg = backend.lock().unwrap();
-    let res = bg.query_exec("all_users", vec![(0 as u64).into()]);
+    let res = bg.query_exec("all_users", vec![]);
     drop(bg);
 
     let users: Vec<_> = res

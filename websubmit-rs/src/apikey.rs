@@ -84,6 +84,7 @@ pub(crate) fn generate(
         "users",
         vec![data.email.as_str().into(), hash.as_str().into(), is_admin],
     );
+    debug!(bg.log, "New api key for {} is {}", data.email.as_str(), hash.as_str());
     drop(bg);
 
     if config.send_emails {

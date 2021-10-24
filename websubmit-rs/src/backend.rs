@@ -8,17 +8,17 @@ use std::collections::HashMap;
 
 pub struct MySqlBackend {
     pub handle: mysql::Conn,
-    _log: slog::Logger,
+    pub log: slog::Logger,
     _schema: String,
 
     // table name --> (keys, columns)
     tables: HashMap<String, (Vec<String>, Vec<String>)>,
     queries: HashMap<String, mysql::Statement>,
-    edna: EdnaClient,
+    _edna: EdnaClient,
 }
 
 impl MySqlBackend {
-    pub fn new(dbname: &str, log: Option<slog::Logger>) -> Result<Self> {
+    pub fn new(dbname: &str, log: Option<slog::Logger>, prime: bool) -> Result<Self> {
         let log = match log {
             None => slog::Logger::root(slog::Discard, o!()),
             Some(l) => l,
@@ -31,7 +31,7 @@ impl MySqlBackend {
             log,
             "Connecting to MySql DB and initializing schema {}...", dbname
         );
-        let edna = EdnaClient::new(true /*prime*/, dbname, &schema, true /*in-mem*/);
+        let edna = EdnaClient::new(prime, dbname, &schema, true /*in-mem*/);
         let mut db = mysql::Conn::new(
             Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
         )
@@ -59,10 +59,9 @@ impl MySqlBackend {
             }
             stmt.push_str(line);
             if stmt.ends_with(';') {
-                if is_view {
+                if is_view && prime {
                     db.query_drop(stmt).unwrap();
-                }
-                else if is_query {
+                } else if is_query {
                     let t = stmt.trim_start_matches("QUERY ");
                     let end_bytes = t.find(":").unwrap_or(t.len());
                     let name = &t[..end_bytes];
@@ -94,13 +93,17 @@ impl MySqlBackend {
                                     ..
                                 } => {
                                     if *is_primary {
-                                        tab_keys
-                                            .push(columns.iter().map(|c| c.to_string()).collect());
+                                        columns.iter().for_each(|c| tab_keys.push(c.to_string()));
                                     }
                                 }
                                 _ => (),
                             }
                         }
+                        debug!(
+                            log,
+                            "Inserting table {} with keys {:?} and cols {:?}", name, tab_keys, tab_cols
+                        );
+
                         tables.insert(name.to_string(), (tab_keys, tab_cols));
                     }
                 }
@@ -111,12 +114,12 @@ impl MySqlBackend {
         }
         Ok(MySqlBackend {
             handle: db,
-            _log: log,
+            log: log,
             _schema: schema.to_owned(),
 
             tables: tables,
             queries: queries,
-            edna: edna,
+            _edna: edna,
         })
     }
 
@@ -132,14 +135,12 @@ impl MySqlBackend {
             let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
             rows.push(vals);
         }
+        debug!(self.log, "executed query {}, got {} rows", qname, rows.len());
         return rows;
     }
 
     pub fn insert(&mut self, table: &str, vals: Vec<Value>) {
-        let valstrs: Vec<&str> = vals
-            .iter()
-            .map(|_| "?")
-            .collect();
+        let valstrs: Vec<&str> = vals.iter().map(|_| "?").collect();
         let q = format!(r"INSERT INTO {} VALUES ({});", table, valstrs.join(","));
         self.handle
             .exec_drop(q.clone(), vals)
@@ -154,18 +155,12 @@ impl MySqlBackend {
         let mut assignments = vec![];
         let mut args = vec![];
         for (index, value) in vals {
-            assignments.push(format!(
-                "{} = ?",
-                cols[index],
-            ));
+            assignments.push(format!("{} = ?", cols[index],));
             args.push(value.clone());
         }
         let mut conds = vec![];
         for (i, value) in keys.iter().enumerate() {
-            conds.push(format!(
-                "{} = ?",
-                key_cols[i],
-            ));
+            conds.push(format!("{} = ?", key_cols[i],));
             args.push(value.clone());
         }
         let q = format!(
@@ -192,23 +187,20 @@ impl MySqlBackend {
         let mut args = vec![];
         let mut assignments = vec![];
         for (index, value) in update_vals {
-            assignments.push(format!(
-                "{} = ?",
-                cols[index as usize],
-            ));
+            assignments.push(format!("{} = ?", cols[index as usize],));
             args.push(value.clone());
         }
         let mut conds = vec![];
         for (i, value) in rec.iter().enumerate() {
-            conds.push(format!(
-                "{} = ?",
-                key_cols[i],
-            ));
+            conds.push(format!("{} = ?", key_cols[i],));
             args.push(value.clone());
         }
         let recstrs: Vec<&str> = rec
             .iter()
-            .map(|v| {args.push(v.clone()); "?"})
+            .map(|v| {
+                args.push(v.clone());
+                "?"
+            })
             .collect();
         let q = format!(
             r"UPDATE {} SET {} WHERE {} IF @@ROWCOUNT=0 INSERT INTO {} VALUES ({});",

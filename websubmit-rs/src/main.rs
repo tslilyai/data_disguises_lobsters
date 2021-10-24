@@ -52,28 +52,18 @@ fn index(cookies: &CookieJar<'_>, backend: &State<Arc<Mutex<MySqlBackend>>>) -> 
 
 #[rocket::main]
 async fn main() {
-    //use rocket_dyn_templates::Engines;
-    //use std::path::Path;
-
     let args = args::parse_args();
+    let config = args.config;
 
     let backend = Arc::new(Mutex::new(
-        MySqlBackend::new(&format!("{}", args.class), Some(new_logger())).unwrap(),
+        MySqlBackend::new(&format!("{}", args.class), Some(new_logger()), config.prime).unwrap(),
     ));
-
-    let config = args.config;
 
     //let template_dir = config.template_dir.clone();
     //let resource_dir = config.resource_dir.clone();
 
     if let Err(e) = rocket::build()
         .attach(Template::fairing())
-            /*custom(move |engines: &mut Engines| {
-            engines
-                .handlebars
-                .register_template_file(".hbs", Path::new(&template_dir))
-                .expect("failed to set template path!");
-        }))*/
         .manage(backend)
         .manage(config)
         //.mount("/css", FileServer::from(format!("{}/css", resource_dir)))
