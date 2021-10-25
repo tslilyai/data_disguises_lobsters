@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 pub fn get_disguise() -> Disguise {
     Disguise {
         did: 1,
-        user: None,
+        user: String::new(),
         table_disguises: get_table_disguises(),
         table_info: get_table_info(),
         guise_gen: get_guise_gen(),
