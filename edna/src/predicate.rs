@@ -176,8 +176,8 @@ pub fn get_ownership_tokens_matching_pred(
         if t.child_name != name {
             continue;
         }
-        if predicate_applies_with_col(pred, &t.fk_col, t.uid)
-            || predicate_applies_with_col(pred, &t.fk_col, t.new_uid)
+        if predicate_applies_with_col(pred, &t.fk_col, &t.uid)
+            || predicate_applies_with_col(pred, &t.fk_col, &t.new_uid)
         {
             //warn!("Pred: OwnershipToken matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
             matching.push(t.clone());
@@ -186,12 +186,12 @@ pub fn get_ownership_tokens_matching_pred(
     matching
 }
 
-pub fn predicate_applies_with_col(p: &Vec<Vec<PredClause>>, col: &str, val: u64) -> bool {
+pub fn predicate_applies_with_col(p: &Vec<Vec<PredClause>>, col: &str, val: &str) -> bool {
     let mut found_true = false;
     for and_clauses in p {
         let mut all_true = true;
         for clause in and_clauses {
-            if !clause_applies_to_col(clause, col, val) {
+            if !clause_applies_to_col(clause, col, &val) {
                 all_true = false;
                 break;
             }
@@ -205,14 +205,14 @@ pub fn predicate_applies_with_col(p: &Vec<Vec<PredClause>>, col: &str, val: u64)
     found_true
 }
 
-pub fn clause_applies_to_col(p: &PredClause, c: &str, v: u64) -> bool {
+pub fn clause_applies_to_col(p: &PredClause, c: &str, v: &str) -> bool {
     use PredClause::*;
     let matches = match p {
         ColInList { col, vals, neg } => {
             let found = col == c
                 && vals
                     .iter()
-                    .find(|v| v.to_string() == v.to_string())
+                    .find(|v2| v2.to_string() == v)
                     .is_some();
             found != *neg
         }

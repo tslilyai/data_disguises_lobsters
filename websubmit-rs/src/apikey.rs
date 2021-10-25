@@ -84,11 +84,10 @@ pub(crate) fn generate(
         "users",
         vec![data.email.as_str().into(), hash.as_str().into(), is_admin],
     );
-    debug!(bg.log, "New api key for {} is {}", data.email.as_str(), hash.as_str());
-    drop(bg);
 
     if config.send_emails {
         email::send(
+            bg.log.clone(),
             "no-reply@csci2390-submit.cs.brown.edu".into(),
             vec![data.email.clone()],
             format!("{} API key", config.class),
@@ -96,6 +95,7 @@ pub(crate) fn generate(
         )
         .expect("failed to send API key email");
     }
+    drop(bg);
 
     // return to user
     let mut ctx = HashMap::new();

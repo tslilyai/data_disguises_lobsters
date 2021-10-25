@@ -88,6 +88,10 @@ async fn main() {
             "/admin/lec",
             routes![admin::lec, admin::addq, admin::editq, admin::editq_submit],
         )
+        .mount(
+            "/admin/anonymize",
+            routes![admin::anonymize, admin::anonymize_answers],
+        )
         .launch()
         .await
     {

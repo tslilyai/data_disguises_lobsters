@@ -94,19 +94,19 @@ impl TokenCtrler {
     /*
      * LOCATING CAPABILITIES
      */
-    pub fn get_tmp_reveal_capability(&self, uid: UID, did: DID) -> Option<&LocCap> {
-        self.tmp_diff_loc_caps.get(&(uid, did))
+    pub fn get_tmp_reveal_capability(&self, uid: &UID, did: DID) -> Option<&LocCap> {
+        self.tmp_diff_loc_caps.get(&(uid.to_string(), did))
     }
 
-    pub fn get_tmp_ownership_capability(&self, uid: UID, did: DID) -> Option<&LocCap> {
-        self.tmp_diff_loc_caps.get(&(uid, did))
+    pub fn get_tmp_ownership_capability(&self, uid: &UID, did: DID) -> Option<&LocCap> {
+        self.tmp_diff_loc_caps.get(&(uid.to_string(), did))
     }
 
     pub fn save_and_clear_loc_caps(&mut self) -> (HashMap<(UID, DID), LocCap>, HashMap<(UID, DID), LocCap>) {
         let dlcs = self.tmp_diff_loc_caps.clone();
         let olcs = self.tmp_ownership_loc_caps.clone();
         for ((uid, _), c) in dlcs.iter() {
-            let p = self.principal_data.get_mut(&uid).unwrap();
+            let p = self.principal_data.get_mut(uid).unwrap();
             // save to principal data if no email (pseudoprincipal)
             if p.email.is_empty() {
                 p.diff_loc_caps.push(*c);
@@ -116,7 +116,7 @@ impl TokenCtrler {
             }
         }
         for ((uid, _), c) in olcs.iter() {
-            let p = self.principal_data.get_mut(&uid).unwrap();
+            let p = self.principal_data.get_mut(uid).unwrap();
             // save to principal data if no email (pseudoprincipal)
             if p.email.is_empty() {
                 p.ownership_loc_caps.push(*c);
@@ -135,31 +135,31 @@ impl TokenCtrler {
         self.tmp_ownership_loc_caps.clear();
     }
 
-    fn get_ownership_loc_cap(&mut self, uid: u64, did: u64) -> LocCap {
+    fn get_ownership_loc_cap(&mut self, uid: &UID, did: DID) -> LocCap {
         // get the location capability being used for this disguise
-        match self.tmp_ownership_loc_caps.get(&(uid, did)) {
+        match self.tmp_ownership_loc_caps.get(&(uid.clone(), did)) {
             // if there's a loccap already, use it
             Some(lc) => return *lc,
             // otherwise generate it (and save it temporarily)
             None => {
                 let cap = self.rng.next_u64();
                 // temporarily save cap for future use
-                assert_eq!(self.tmp_ownership_loc_caps.insert((uid, did), cap), None);
+                assert_eq!(self.tmp_ownership_loc_caps.insert((uid.clone(), did), cap), None);
                 return cap;
             }
         }
     }
 
-    fn get_diff_loc_cap(&mut self, uid: u64, did: u64) -> LocCap {
+    fn get_diff_loc_cap(&mut self, uid: &UID, did: u64) -> LocCap {
         // get the location capability being used for this disguise
-        match self.tmp_diff_loc_caps.get(&(uid, did)) {
+        match self.tmp_diff_loc_caps.get(&(uid.clone(), did)) {
             // if there's a loccap already, use it
             Some(lc) => return *lc,
             // otherwise generate it (and save it temporarily)
             None => {
                 let cap = self.rng.next_u64();
                 // temporarily save cap for future use
-                assert_eq!(self.tmp_diff_loc_caps.insert((uid, did), cap), None);
+                assert_eq!(self.tmp_diff_loc_caps.insert((uid.clone(), did), cap), None);
                 return cap;
             }
         }
@@ -168,10 +168,10 @@ impl TokenCtrler {
     /*
      * REGISTRATION
      */
-    pub fn register_principal(&mut self, uid: UID, email: String, pubkey: &RsaPublicKey) {
+    pub fn register_principal(&mut self, uid: &UID, email: String, pubkey: &RsaPublicKey) {
         warn!("Registering principal {}", uid);
         self.principal_data.insert(
-            uid,
+            uid.clone(),
             PrincipalData {
                 pubkey: pubkey.clone(),
                 email: email,
@@ -183,15 +183,15 @@ impl TokenCtrler {
 
     pub fn register_anon_principal(
         &mut self,
-        uid: UID,
-        anon_uid: UID,
+        uid: &UID,
+        anon_uid: &UID,
         did: DID,
         child_name: String,
         child_ids: Vec<RowVal>,
         pprincipal_name: String,
         pprincipal_id_col: String,
         fk_col: String,
-    ) -> UID {
+    ) {
         let private_key =
             RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
@@ -206,25 +206,22 @@ impl TokenCtrler {
             pprincipal_name,
             pprincipal_id_col,
             fk_col,
-            uid,
-            anon_uid,
+            uid.to_string(),
+            anon_uid.to_string(),
             &private_key,
         );
         self.insert_ownership_token(&mut pppk);
-        anon_uid
     }
 
-    pub fn remove_anon_principal(&mut self, anon_uid: UID) {
+    pub fn remove_anon_principal(&mut self, anon_uid: &UID) {
         warn!("Removing principal {}\n", anon_uid);
-        self.principal_data.remove(&anon_uid);
+        self.principal_data.remove(anon_uid);
     }
 
     /*
      * PRINCIPAL TOKEN INSERT
      */
     fn insert_ownership_token(&mut self, pppk: &mut OwnershipToken) {
-        assert!(pppk.uid != 0);
-
         // give token a unique id
         pppk.token_id = self.rng.next_u64();
 
@@ -257,7 +254,7 @@ impl TokenCtrler {
         };
 
         // insert the encrypted pppk into locating capability
-        let lc = self.get_ownership_loc_cap(pppk.uid, pppk.did);
+        let lc = self.get_ownership_loc_cap(&pppk.uid, pppk.did);
         match self.enc_ownership_map.get_mut(&lc) {
             Some(ts) => {
                 ts.push(enc_pppk);
@@ -269,20 +266,19 @@ impl TokenCtrler {
     }
 
     pub fn insert_user_diff_token(&mut self, token: &mut DiffToken) {
-        assert!(token.uid != 0);
         token.is_global = false;
         let did = token.did;
-        let uid = token.uid;
+        let uid = &token.uid;
         warn!(
             "inserting user token {:?} with uid {} did {}",
             token, uid, did
         );
 
-        let cap = self.get_diff_loc_cap(uid, did);
+        let cap = self.get_diff_loc_cap(&uid, did);
 
         let p = self
             .principal_data
-            .get_mut(&uid)
+            .get_mut(uid)
             .expect("no user with uid found?");
 
         // give the token a random nonce and some id
@@ -339,13 +335,13 @@ impl TokenCtrler {
             } else {
                 let mut hs = HashSet::new();
                 hs.insert(token.clone());
-                hm.insert(token.uid, Arc::new(RwLock::new(hs)));
+                hm.insert(token.uid.clone(), Arc::new(RwLock::new(hs)));
             }
         } else {
             let mut user_hm = HashMap::new();
             let mut hs = HashSet::new();
             hs.insert(token.clone());
-            user_hm.insert(token.uid, Arc::new(RwLock::new(hs)));
+            user_hm.insert(token.uid.clone(), Arc::new(RwLock::new(hs)));
             self.global_diff_tokens.insert(token.did, user_hm);
         }
     }
@@ -371,9 +367,8 @@ impl TokenCtrler {
         return (false, false);
     }
 
-    pub fn remove_global_diff_token(&mut self, uid: UID, did: DID, token: &DiffToken) -> bool {
+    pub fn remove_global_diff_token(&mut self, uid: &UID, did: DID, token: &DiffToken) -> bool {
         assert!(token.is_global);
-        assert!(uid != 0);
         let mut found = false;
 
         // delete token
@@ -385,7 +380,7 @@ impl TokenCtrler {
             }
         }
         // log token for disguise that marks removal
-        self.insert_user_diff_token(&mut DiffToken::new_token_remove(uid, did, token));
+        self.insert_user_diff_token(&mut DiffToken::new_token_remove(uid.to_string(), did, token));
         return found;
     }
 
@@ -614,9 +609,9 @@ impl TokenCtrler {
         tokens
     }
 
-    pub fn get_global_diff_tokens(&self, uid: UID, did: DID) -> Vec<DiffToken> {
+    pub fn get_global_diff_tokens(&self, uid: &UID, did: DID) -> Vec<DiffToken> {
         if let Some(global_diff_tokens) = self.global_diff_tokens.get(&did) {
-            if let Some(user_tokens) = global_diff_tokens.get(&uid) {
+            if let Some(user_tokens) = global_diff_tokens.get(uid) {
                 let tokens = user_tokens.read().unwrap();
                 warn!(
                     "Filtering {} global tokens of disg {} user {}",

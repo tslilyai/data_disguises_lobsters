@@ -50,8 +50,8 @@ pub fn get_table_info() -> Arc<RwLock<HashMap<String, TableInfo>>> {
         "users".to_string(),
         TableInfo {
             name: "users".to_string(),
-            id_cols: vec!["apikey".to_string()],
-            owner_cols: vec!["apikey".to_string()],
+            id_cols: vec!["email".to_string()],
+            owner_cols: vec!["email".to_string()],
         },
     );
     hm.insert(

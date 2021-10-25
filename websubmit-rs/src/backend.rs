@@ -9,12 +9,12 @@ use std::collections::HashMap;
 pub struct MySqlBackend {
     pub handle: mysql::Conn,
     pub log: slog::Logger,
+    pub edna: EdnaClient,
     _schema: String,
 
     // table name --> (keys, columns)
     tables: HashMap<String, (Vec<String>, Vec<String>)>,
     queries: HashMap<String, mysql::Statement>,
-    edna: EdnaClient,
 }
 
 impl MySqlBackend {

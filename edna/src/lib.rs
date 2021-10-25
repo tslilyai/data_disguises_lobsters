@@ -17,7 +17,7 @@ pub mod predicate;
 pub mod stats;
 
 pub type DID = u64;
-pub type UID = u64;
+pub type UID = String;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
@@ -56,8 +56,8 @@ impl EdnaClient {
         }
     }
 
-    pub fn register_principal(&mut self, uid: u64, email: String, pubkey: &RsaPublicKey) {
-        self.disguiser.register_principal(uid, email, pubkey);
+    pub fn register_principal(&mut self, uid: UID, email: String, pubkey: &RsaPublicKey) {
+        self.disguiser.register_principal(&uid, email, pubkey);
     }
 
     pub fn has_ownership(

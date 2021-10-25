@@ -92,7 +92,7 @@ impl OwnershipToken {
         if selected.len() > 0 {
             assert_eq!(selected.len(), 1);
             let curval = get_value_of_col(&selected[0], &self.fk_col).unwrap();
-            if curval != self.new_uid.to_string() {
+            if curval != self.new_uid {
                 warn!(
                     "DiffToken Reveal: Foreign key col {} rewritten from {} to {}\n",
                     self.fk_col, self.new_uid, curval
@@ -127,7 +127,7 @@ impl OwnershipToken {
                         self.pprincipal_id_col.to_string(),
                     )])),
                     op: BinaryOperator::Eq,
-                    right: Box::new(Expr::Value(Value::Number(self.new_uid.to_string()))),
+                    right: Box::new(Expr::Value(Value::Number(self.new_uid.clone()))),
                 }),
             })
             .to_string(),
@@ -135,7 +135,7 @@ impl OwnershipToken {
             stats.clone(),
         )?;
         // remove the principal from being registered by the token ctrler
-        token_ctrler.remove_anon_principal(self.new_uid);
+        token_ctrler.remove_anon_principal(&self.new_uid);
         Ok(true)
     }
 }

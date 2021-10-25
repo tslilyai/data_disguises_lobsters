@@ -217,10 +217,6 @@ pub(crate) fn questions_submit(
             .collect::<Vec<_>>()
             .join("\n-----\n")
     );
-
-    debug!(bg.log, "Questions {} Submit: {}", num, answer_log);
-    drop(bg);
-
     if config.send_emails {
         let recipients = if num < 90 {
             config.staff.clone()
@@ -229,6 +225,7 @@ pub(crate) fn questions_submit(
         };
 
         email::send(
+            bg.log.clone(),
             apikey.user.clone(),
             recipients,
             format!("{} meeting {} questions", config.class, num),
@@ -236,6 +233,7 @@ pub(crate) fn questions_submit(
         )
         .expect("failed to send email");
     }
+    drop(bg);
 
     Redirect::to("/leclist")
 }

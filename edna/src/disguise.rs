@@ -7,7 +7,6 @@ use mysql::{Opts, Pool};
 use rsa::RsaPublicKey;
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
-use std::str::FromStr;
 use std::sync::{Arc, Mutex, RwLock};
 
 pub enum TransformArgs {
@@ -45,14 +44,9 @@ pub struct GuiseGen {
     pub val_generation: Box<dyn Fn() -> Vec<Expr> + Send + Sync>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct User {
-    pub id: u64,
-}
-
 pub struct Disguise {
     pub did: u64,
-    pub user: Option<User>,
+    pub user: String,
     pub table_disguises: HashMap<String, Arc<RwLock<Vec<Transform>>>>,
     pub table_info: Arc<RwLock<HashMap<String, TableInfo>>>,
     pub guise_gen: Arc<RwLock<HashMap<String, GuiseGen>>>,
@@ -84,7 +78,7 @@ impl Disguiser {
         }
     }
 
-    pub fn register_principal(&mut self, uid: u64, email: String, pubkey: &RsaPublicKey) {
+    pub fn register_principal(&mut self, uid: &UID, email: String, pubkey: &RsaPublicKey) {
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
         locked_token_ctrler.register_principal(uid, email, pubkey);
     }
@@ -351,10 +345,8 @@ impl Disguiser {
 
     fn modify_global_diff_tokens(&mut self, disguise: Arc<Disguise>) {
         let did = disguise.did;
-        let uid = match &disguise.user {
-            Some(u) => u.id,
-            None => 0,
-        };
+        let uid = disguise.user.clone();
+        
         // apply updates to each token (for now do sequentially)
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
         for (token, ts) in self.global_diff_tokens_to_modify.write().unwrap().iter() {
@@ -394,8 +386,7 @@ impl Disguiser {
                         // remove token from vault if token is global, and the new transformation is
                         // private (although we already check this above)
                         if token.is_global && !t.global {
-                            assert!(uid != 0);
-                            if !locked_token_ctrler.remove_global_diff_token(uid, did, &token) {
+                            if !locked_token_ctrler.remove_global_diff_token(&uid, did, &token) {
                                 warn!("Could not remove old disguise token!! {:?}", token);
                             }
                             // continue onto the next token, don't modify it!
@@ -440,11 +431,10 @@ impl Disguiser {
                             new_rv
                         })
                         .collect();
-                    assert!(uid != 0);
                     if !locked_token_ctrler.update_global_diff_token_from_old_to(
                         &token,
                         &new_token,
-                        Some((uid, did)),
+                        Some((uid.clone(), did)),
                     ) {
                         warn!("Could not update old disguise token!! {:?}", token);
                     }
@@ -508,8 +498,7 @@ impl Disguiser {
                             let mut token =
                                 DiffToken::new_delete_token(did, table.to_string(), ids.clone(), i.to_vec());
                             for owner_col in &curtable_info.owner_cols {
-                                let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
-                                token.uid = u64::from_str(&owner_uid).unwrap();
+                                token.uid = get_value_of_col(&i, &owner_col).unwrap();
                                 let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
                                 if t.global {
                                     locked_token_ctrler.insert_global_diff_token(&mut token);
@@ -682,7 +671,7 @@ fn modify_item(
         DiffToken::new_modify_token(did, table.to_string(), ids, i.clone(), new_obj);
     for owner_col in &table_info.owner_cols {
         let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
-        update_token.uid = u64::from_str(&owner_uid).unwrap();
+        update_token.uid = owner_uid.clone();
         if !global {
             token_ctrler.insert_user_diff_token(&mut update_token);
         } else {
@@ -722,7 +711,7 @@ fn decor_item(
      * */
 
     // get ID of old parent
-    let old_uid = u64::from_str(&get_value_of_col(&i, &fk_col).unwrap()).unwrap();
+    let old_uid = get_value_of_col(&i, &fk_col).unwrap();
     warn!(
         "decor_obj {}: Creating guises for fkids {:?} {:?}",
         child_table, fk_name, old_uid,
@@ -744,7 +733,7 @@ fn decor_item(
         })
         .collect();
     let new_parent_ids = get_ids(&fk_table_info.id_cols, &new_parent_rowvals);
-    let guise_id = u64::from_str(&new_parent_ids[0].value).unwrap();
+    let guise_id = new_parent_ids[0].value.to_string();
     warn!("decor_obj: inserted guise {}.{}", fk_name, guise_id);
 
     // save guise to insert
@@ -760,7 +749,7 @@ fn decor_item(
     // B. UPDATE CHILD FOREIGN KEY
     cols_to_update.push(Assignment {
         id: Ident::new(fk_col.clone()),
-        value: Expr::Value(Value::Number(guise_id.to_string())),
+        value: Expr::Value(Value::Number(guise_id.clone())),
     });
 
     // TOKEN INSERT
@@ -770,7 +759,7 @@ fn decor_item(
             if &v.column == fk_col {
                 RowVal {
                     column: v.column.clone(),
-                    value: guise_id.to_string(),
+                    value: guise_id.clone(),
                 }
             } else {
                 v.clone()
@@ -782,8 +771,8 @@ fn decor_item(
     // actually register the anon principal, including saving an ownership token for the old uid
     // token is always inserted ``privately''
     token_ctrler.register_anon_principal(
-        old_uid,
-        guise_id,
+        &old_uid,
+        &guise_id,
         did,
         child_table.to_string(),
         child_ids,
