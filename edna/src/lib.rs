@@ -62,9 +62,9 @@ impl EdnaClient {
 
     pub fn has_ownership(
         &self,
-        uid: UID,
-        data_cap: tokens::DataCap,
-        loc_caps: Vec<tokens::LocCap>,
+        _uid: UID,
+        _data_cap: tokens::DataCap,
+        _loc_caps: Vec<tokens::LocCap>,
     ) -> bool {
         // TODO
         false

@@ -2,7 +2,8 @@ extern crate log;
 extern crate mysql;
 
 mod disguises;
-use decor::helpers;
+use edna::helpers;
+use mysql::Opts;
 use mysql::prelude::*;
 use rand::rngs::OsRng;
 use rsa::pkcs1::{ToRsaPrivateKey};
@@ -30,8 +31,8 @@ fn init_logger() {
 fn test_app_rev_anon_disguise() {
     init_logger();
     let dbname = "testRevAnon".to_string();
-    let mut edna = decor::EdnaClient::new(true, &dbname, SCHEMA, true);
-    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", &dbname)).unwrap();
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true);
+    let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 
     let mut rng = OsRng;
@@ -69,7 +70,7 @@ fn test_app_rev_anon_disguise() {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u, "email@mail.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), "email@mail.com".to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }
@@ -171,11 +172,11 @@ fn test_app_rev_anon_disguise() {
     // REVERSE DISGUISE WITH USER DIFFS
     for u in 1..USER_ITERS {
         // get diffs
-        let dlc = match dlcs.get(&(u, 1)){
+        let dlc = match dlcs.get(&(u.to_string(), 1)){
             Some(dlc) => vec![*dlc],
             None => vec![],
         };
-        let olc = match olcs.get(&(u, 1)){
+        let olc = match olcs.get(&(u.to_string(), 1)){
             Some(olc) => vec![*olc],
             None => vec![],
         };
@@ -263,8 +264,8 @@ fn test_app_rev_anon_disguise() {
 fn test_app_rev_gdpr_disguise() {
     init_logger();
     let dbname = "testRevGDPR".to_string();
-    let mut edna = decor::EdnaClient::new(true, &dbname, SCHEMA, true);
-    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", &dbname)).unwrap();
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true);
+    let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 
     let mut rng = OsRng;
@@ -295,7 +296,7 @@ fn test_app_rev_gdpr_disguise() {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u, "email@mail.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), "email@mail.com".to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }
@@ -309,11 +310,11 @@ fn test_app_rev_gdpr_disguise() {
         let (dlcs_map, olcs_map) = edna
             .apply_disguise(Arc::new(gdpr_disguise), vec![], vec![])
             .unwrap();
-        match dlcs_map.get(&(u, did)){
+        match dlcs_map.get(&(u.to_string(), did)){
             Some(dlc) => dlcs.push(*dlc),
             None => dlcs.push(0),
         }
-        match olcs_map.get(&(u, did)){
+        match olcs_map.get(&(u.to_string(), did)){
             Some(olc) => olcs.push(*olc),
             None => olcs.push(0),
         }
@@ -391,8 +392,8 @@ fn test_app_rev_gdpr_disguise() {
 fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     init_logger();
     let dbname = "testRevCompose".to_string();
-    let mut edna = decor::EdnaClient::new(true, &dbname, SCHEMA, true);
-    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", &dbname)).unwrap();
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true);
+    let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 
     let mut rng = OsRng;
@@ -429,7 +430,7 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u, "email@email.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), "email@email.com".to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }
@@ -446,7 +447,7 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     for u in 1..USER_ITERS {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         let did = gdpr_disguise.did;
-        let anon_olc = match anon_olcs_map.get(&(u, anon_disguise.did)) {
+        let anon_olc = match anon_olcs_map.get(&(u.to_string(), anon_disguise.did)) {
             Some(olc) => vec![*olc],
             None => vec![],
         };
@@ -457,11 +458,11 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
                 anon_olc
             )
             .unwrap();
-        match dlcs_map.get(&(u, did)){
+        match dlcs_map.get(&(u.to_string(), did)){
             Some(dlc) => gdpr_dlcs.push(*dlc),
             None => gdpr_dlcs.push(0),
         }
-        match olcs_map.get(&(u, did)){
+        match olcs_map.get(&(u.to_string(), did)){
             Some(olc) => gdpr_olcs.push(*olc),
             None => gdpr_olcs.push(0)
         }
@@ -636,11 +637,11 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         let mut dlcs = vec![gdpr_dlcs[u as usize - 1]];
         let mut olcs = vec![gdpr_olcs[u as usize - 1]];
-        match anon_dlcs_map.get(&(u, anon_disguise.did)) {
+        match anon_dlcs_map.get(&(u.to_string(), anon_disguise.did)) {
             Some(dlc) => dlcs.push(*dlc),
             None => (), 
         }
-        match anon_olcs_map.get(&(u, anon_disguise.did)) {
+        match anon_olcs_map.get(&(u.to_string(), anon_disguise.did)) {
             Some(olc) => olcs.push(*olc),
             None => (), 
         }
@@ -737,11 +738,11 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     // REVERSE DISGUISE WITH USER DIFFS
     for u in 1..USER_ITERS {
         // get diffs
-        let anon_dlc = match anon_dlcs_map.get(&(u, anon_disguise.did)) {
+        let anon_dlc = match anon_dlcs_map.get(&(u.to_string(), anon_disguise.did)) {
             Some(dlc) => vec![*dlc],
             None => vec![],
         };
-        let anon_olc = match anon_olcs_map.get(&(u, anon_disguise.did)) {
+        let anon_olc = match anon_olcs_map.get(&(u.to_string(), anon_disguise.did)) {
             Some(olc) => vec![*olc],
             None => vec![],
         };  
@@ -830,8 +831,8 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
 fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
     init_logger();
     let dbname = "testRevComposeTwo".to_string();
-    let mut edna = decor::EdnaClient::new(true, &dbname, SCHEMA, true);
-    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", &dbname)).unwrap();
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true);
+    let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 
     let mut rng = OsRng;
@@ -868,7 +869,7 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u, "email@email.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), "email@email.com".to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }
@@ -885,7 +886,7 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
     for u in 1..USER_ITERS {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         let did = gdpr_disguise.did;
-        let anon_olc = match anon_olcs_map.get(&(u, anon_disguise.did)) {
+        let anon_olc = match anon_olcs_map.get(&(u.to_string(), anon_disguise.did)) {
             Some(olc) => vec![*olc],
             None => vec![],
         };
@@ -896,11 +897,11 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
                 anon_olc
             )
             .unwrap();
-        match dlcs_map.get(&(u, did)){
+        match dlcs_map.get(&(u.to_string(), did)){
             Some(dlc) => gdpr_dlcs.push(*dlc),
             None => gdpr_dlcs.push(0),
         }
-        match olcs_map.get(&(u, did)){
+        match olcs_map.get(&(u.to_string().to_string(), did)){
             Some(olc) => gdpr_olcs.push(*olc),
             None => gdpr_olcs.push(0)
         }
@@ -909,11 +910,11 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
     // REVERSE ANON DISGUISE WITH DIFFS
     for u in 1..USER_ITERS {
         // get diffs
-        let anon_dlc = match anon_dlcs_map.get(&(u, anon_disguise.did)) {
+        let anon_dlc = match anon_dlcs_map.get(&(u.to_string(), anon_disguise.did)) {
             Some(dlc) => vec![*dlc],
             None => vec![],
         };
-        let anon_olc = match anon_olcs_map.get(&(u, anon_disguise.did)) {
+        let anon_olc = match anon_olcs_map.get(&(u.to_string(), anon_disguise.did)) {
             Some(olc) => vec![*olc],
             None => vec![],
         };  
@@ -1011,11 +1012,11 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         let mut dlcs = vec![gdpr_dlcs[u as usize - 1]];
         let mut olcs = vec![gdpr_olcs[u as usize - 1]];
-        match anon_dlcs_map.get(&(u, anon_disguise.did)) {
+        match anon_dlcs_map.get(&(u.to_string(), anon_disguise.did)) {
             Some(dlc) => dlcs.push(*dlc),
             None => (), 
         }
-        match anon_olcs_map.get(&(u, anon_disguise.did)) {
+        match anon_olcs_map.get(&(u.to_string(), anon_disguise.did)) {
             Some(olc) => olcs.push(*olc),
             None => (), 
         }

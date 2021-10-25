@@ -1,5 +1,5 @@
-use decor::disguise::*;
-use decor::predicate::*;
+use edna::disguise::*;
+use edna::predicate::*;
 use sql_parser::ast::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};

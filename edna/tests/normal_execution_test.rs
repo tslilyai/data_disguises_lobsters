@@ -1,7 +1,8 @@
 extern crate log;
 extern crate mysql;
 
-use decor::helpers;
+use edna::helpers;
+use mysql::Opts;
 use mysql::prelude::*;
 use std::*;
 
@@ -23,8 +24,8 @@ fn test_normal_execution() {
     init_logger();
 
     // init schema, etc.
-    decor::EdnaClient::new(true, DBNAME, SCHEMA, true);
-    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME)).unwrap();
+    edna::EdnaClient::new(true, DBNAME, SCHEMA, true);
+    let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 
     /*

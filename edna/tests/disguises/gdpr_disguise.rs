@@ -1,12 +1,12 @@
 use crate::disguises::*;
-use decor::disguise::*;
+use edna::disguise::*;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 pub fn get_disguise(user_id: u64) -> Disguise {
     Disguise {
         did: 0,
-        user: Some(User { id: user_id }),
+        user: user_id.to_string(),
         table_disguises: get_table_disguises(user_id),
         table_info: get_table_info(),
         guise_gen: get_guise_gen(),

@@ -2,11 +2,12 @@ extern crate log;
 extern crate mysql;
 
 mod disguises;
-use decor::helpers;
+use edna::helpers;
 use mysql::prelude::*;
+use mysql::Opts;
 use rand::rngs::OsRng;
-use rsa::pkcs1::{FromRsaPrivateKey, ToRsaPrivateKey};
-use rsa::{PaddingScheme, RsaPrivateKey, RsaPublicKey};
+use rsa::pkcs1::ToRsaPrivateKey;
+use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::*;
@@ -30,8 +31,12 @@ fn init_logger() {
 fn test_app_anon_disguise() {
     init_logger();
     let dbname = "testAppAnonDisguise".to_string();
-    let mut edna = decor::EdnaClient::new(true, &dbname, SCHEMA, true);
-    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", &dbname)).unwrap();
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true);
+
+    let mut db = mysql::Conn::new(
+        Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
+    )
+    .unwrap();
     assert_eq!(db.ping(), true);
 
     let mut rng = OsRng;
@@ -61,7 +66,7 @@ fn test_app_anon_disguise() {
         // register user in Edna
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u, "email@email.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), "email@email.com".to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key.clone());
     }
@@ -178,8 +183,11 @@ fn test_app_anon_disguise() {
 fn test_app_gdpr_disguise() {
     init_logger();
     let dbname = "testAppGDPR".to_string();
-    let mut edna = decor::EdnaClient::new(true, &dbname, SCHEMA, true);
-    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", &dbname)).unwrap();
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true);
+    let mut db = mysql::Conn::new(
+        Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
+    )
+    .unwrap();
     assert_eq!(db.ping(), true);
 
     let mut rng = OsRng;
@@ -209,7 +217,7 @@ fn test_app_gdpr_disguise() {
         // register user in Edna
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u, "email@email.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), "email@email.com".to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key.clone());
     }
@@ -305,8 +313,12 @@ fn test_app_gdpr_disguise() {
 fn test_compose_anon_gdpr_disguises() {
     init_logger();
     let dbname = "testAppComposeDisguise".to_string();
-    let mut edna = decor::EdnaClient::new(true, &dbname, SCHEMA, true);
-    let mut db = mysql::Conn::new(&format!("mysql://tslilyai:pass@127.0.0.1/{}", &dbname)).unwrap();
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true);
+
+    let mut db = mysql::Conn::new(
+        Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
+    )
+    .unwrap();
     assert_eq!(db.ping(), true);
 
     let mut rng = OsRng;
@@ -338,21 +350,21 @@ fn test_compose_anon_gdpr_disguises() {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u, "email@mail.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), "email@mail.com".to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }
 
     // APPLY ANON DISGUISE
     let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
-    let (dlcs, olcs) = edna
+    let (_dlcs, olcs) = edna
         .apply_disguise(anon_disguise.clone(), vec![], vec![])
         .unwrap();
 
     // APPLY GDPR DISGUISES
     for u in 1..USER_ITERS {
         // get private key diffs
-        let olc = olcs.get(&(u, 1)).unwrap();
+        let olc = olcs.get(&(u.to_string(), 1)).unwrap();
         let gdpr_disguise = disguises::gdpr_disguise::get_disguise(u);
         edna.apply_disguise(
             Arc::new(gdpr_disguise),

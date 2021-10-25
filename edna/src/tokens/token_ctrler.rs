@@ -198,7 +198,7 @@ impl TokenCtrler {
 
         // save the anon principal as a new principal with a public key
         // and initially empty token vaults
-        self.register_principal(anon_uid, String::new(), &pub_key);
+        self.register_principal(&anon_uid.to_string(), String::new(), &pub_key);
         let mut pppk: OwnershipToken = new_ownership_token(
             did,
             child_name,
@@ -228,7 +228,7 @@ impl TokenCtrler {
         let p = self
             .principal_data
             .get_mut(&pppk.uid)
-            .expect("no user with uid found?");
+            .expect(&format!("no user with uid {} found?", pppk.uid));
 
         // generate key
         let mut key: Vec<u8> = repeat(0u8).take(16).collect();
@@ -716,7 +716,7 @@ mod tests {
         let mut rng = OsRng;
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
-        ctrler.register_principal(uid, "email@mail.com".to_string(), &pub_key);
+        ctrler.register_principal(&uid.to_string(), "email@mail.com".to_string(), &pub_key);
 
         let mut remove_token = DiffToken::new_delete_token(
             did,
@@ -727,10 +727,10 @@ mod tests {
                 value: old_fk_value.to_string(),
             }],
         );
-        remove_token.uid = uid;
+        remove_token.uid = uid.to_string();
         ctrler.insert_global_diff_token(&mut remove_token);
         assert_eq!(ctrler.global_diff_tokens.len(), 1);
-        let tokens = ctrler.get_global_diff_tokens(uid, did);
+        let tokens = ctrler.get_global_diff_tokens(&uid.to_string(), did);
         assert_eq!(tokens.len(), 1);
         assert_eq!(tokens[0], remove_token);
     }
@@ -751,7 +751,7 @@ mod tests {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        ctrler.register_principal(uid, "email@mail.com".to_string(), &pub_key);
+        ctrler.register_principal(&uid.to_string(), "email@mail.com".to_string(), &pub_key);
 
         let mut remove_token = DiffToken::new_delete_token(
             did,
@@ -762,16 +762,16 @@ mod tests {
                 value: old_fk_value.to_string(),
             }],
         );
-        remove_token.uid = uid;
+        remove_token.uid = uid.to_string();
         ctrler.insert_user_diff_token(&mut remove_token);
-        let lc = ctrler.get_tmp_reveal_capability(uid, did).unwrap().clone();
+        let lc = ctrler.get_tmp_reveal_capability(&uid.to_string(), did).unwrap().clone();
         ctrler.clear_tmp();
         assert_eq!(ctrler.global_diff_tokens.len(), 0);
 
         // check principal data
         let p = ctrler
             .principal_data
-            .get(&uid)
+            .get(&uid.to_string())
             .expect("failed to get user?");
         assert_eq!(pub_key, p.pubkey);
         assert!(p.ownership_loc_caps.is_empty());
@@ -805,7 +805,7 @@ mod tests {
                 RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             let pub_key = RsaPublicKey::from(&private_key);
-            ctrler.register_principal(u, "email@mail.com".to_string(), &pub_key);
+            ctrler.register_principal(&u.to_string(), "email@mail.com".to_string(), &pub_key);
             pub_keys.push(pub_key.clone());
             priv_keys.push(private_key_vec.clone());
 
@@ -820,10 +820,10 @@ mod tests {
                             value: (old_fk_value + i).to_string(),
                         }],
                     );
-                    remove_token.uid = u;
+                    remove_token.uid = u.to_string();
                     ctrler.insert_user_diff_token(&mut remove_token);
                 }
-                let c = ctrler.get_tmp_reveal_capability(u, d).unwrap().clone();
+                let c = ctrler.get_tmp_reveal_capability(&u.to_string(), d).unwrap().clone();
                 caps.insert((u, d), c);
             }
         }
@@ -835,7 +835,7 @@ mod tests {
             // check principal data
             let p = ctrler
                 .principal_data
-                .get(&(u))
+                .get(&u.to_string())
                 .expect("failed to get user?")
                 .clone();
             assert_eq!(pub_keys[u as usize - 1], p.pubkey);
@@ -879,7 +879,7 @@ mod tests {
                 RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             let pub_key = RsaPublicKey::from(&private_key);
-            ctrler.register_principal(u, "email@mail.com".to_string(), &pub_key);
+            ctrler.register_principal(&u.to_string(), "email@mail.com".to_string(), &pub_key);
             pub_keys.push(pub_key.clone());
             priv_keys.push(private_key_vec.clone());
 
@@ -893,7 +893,7 @@ mod tests {
                         value: (old_fk_value + d).to_string(),
                     }],
                 );
-                remove_token.uid = u;
+                remove_token.uid = u.to_string();
                 ctrler.insert_user_diff_token(&mut remove_token);
 
                 let anon_uid: u64 = rng.next_u64();
@@ -901,8 +901,8 @@ mod tests {
                 // and insert some token for the anon user
                 //&mut self,
                 ctrler.register_anon_principal(
-                    u,
-                    anon_uid,
+                    &u.to_string(),
+                    &anon_uid.to_string(),
                     d,
                     guise_name.clone(),
                     guise_ids.clone(),
@@ -910,7 +910,7 @@ mod tests {
                     fk_col.clone(),
                     fk_col.clone(),
                 );
-                let lc = ctrler.get_tmp_reveal_capability(u, d).unwrap().clone();
+                let lc = ctrler.get_tmp_reveal_capability(&u.to_string(), d).unwrap().clone();
                 caps.insert((u, d), lc);
             }
         }
@@ -921,7 +921,7 @@ mod tests {
             // check principal data
             let p = ctrler
                 .principal_data
-                .get(&(u))
+                .get(&u.to_string())
                 .expect("failed to get user?")
                 .clone();
             assert_eq!(pub_keys[u as usize - 1], p.pubkey);
