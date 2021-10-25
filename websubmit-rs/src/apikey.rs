@@ -4,6 +4,7 @@ use crate::email;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use mysql::from_value;
+use rand;
 use rocket::form::Form;
 use rocket::http::Status;
 use rocket::http::{Cookie, CookieJar};
@@ -12,8 +13,12 @@ use rocket::request::{self, FromRequest, Request};
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
+use rsa::pkcs1::{ToRsaPrivateKey};
+use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+
+const RSA_BITS: usize = 2048;
 
 /// (username, apikey)
 pub(crate) struct ApiKey {
@@ -85,13 +90,28 @@ pub(crate) fn generate(
         vec![data.email.as_str().into(), hash.as_str().into(), is_admin],
     );
 
+    let private_key =
+        RsaPrivateKey::new(&mut rand::thread_rng(), RSA_BITS).expect("failed to generate a key");
+    let privkey_str = format!("{:?}", private_key.to_pkcs1_der().unwrap().as_der().to_vec());
+
+    let pub_key = RsaPublicKey::from(&private_key);
+
+    // register user if not exists
+    bg.edna
+        .register_principal(data.email.as_str().into(), data.email.as_str().into(), &pub_key);
+
     if config.send_emails {
         email::send(
             bg.log.clone(),
             "no-reply@csci2390-submit.cs.brown.edu".into(),
             vec![data.email.clone()],
             format!("{} API key", config.class),
-            format!("Your {} API key is: {}", config.class, hash.as_str()),
+            format!(
+                "Your {} API key is: {}\nYour decryption capability is {}\n",
+                config.class,
+                hash.as_str(),
+                privkey_str,
+            ),
         )
         .expect("failed to send API key email");
     }

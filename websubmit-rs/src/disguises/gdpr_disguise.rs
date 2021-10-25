@@ -3,17 +3,17 @@ use edna::disguise::*;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-pub fn get_disguise(user_apikey: String) -> Disguise {
+pub fn get_disguise(user_email: String) -> Disguise {
     Disguise {
         did: 0,
-        user: user_apikey.clone(),
-        table_disguises: get_table_disguises(user_apikey),
+        user: user_email.clone(),
+        table_disguises: get_table_disguises(user_email),
         table_info: get_table_info(),
         guise_gen: get_guise_gen(),
     }
 }
 
-fn get_table_disguises(user_apikey: String) -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
+fn get_table_disguises(user_email: String) -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
     let mut hm = HashMap::new();
 
     // REMOVE USER
@@ -22,7 +22,7 @@ fn get_table_disguises(user_apikey: String) -> HashMap<String, Arc<RwLock<Vec<Tr
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
             Transform {
-                pred: get_eq_pred("apikey", user_apikey.clone()),
+                pred: get_eq_pred("email", user_email.clone()),
                 trans: Arc::new(RwLock::new(TransformArgs::Remove)),
                 global: false,
             },
@@ -32,7 +32,7 @@ fn get_table_disguises(user_apikey: String) -> HashMap<String, Arc<RwLock<Vec<Tr
     hm.insert(
         "answers".to_string(),
         Arc::new(RwLock::new(vec![Transform {
-            pred: get_eq_pred("user", user_apikey),
+            pred: get_eq_pred("user", user_email),
             trans: Arc::new(RwLock::new(TransformArgs::Remove)),
             global: false,
         }])),
