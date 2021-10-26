@@ -18,6 +18,7 @@ mod args;
 mod backend;
 mod config;
 mod disguises;
+mod privacy;
 mod email;
 mod login;
 mod questions;
@@ -88,9 +89,10 @@ async fn main() {
             "/admin/lec",
             routes![admin::lec, admin::addq, admin::editq, admin::editq_submit],
         )
+        .mount("/delete", routes![privacy::delete])
         .mount(
             "/admin/anonymize",
-            routes![admin::anonymize, admin::anonymize_answers],
+            routes![privacy::anonymize, privacy::anonymize_answers],
         )
         .launch()
         .await

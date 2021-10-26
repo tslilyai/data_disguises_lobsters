@@ -135,7 +135,7 @@ impl OwnershipToken {
             stats.clone(),
         )?;
         // remove the principal from being registered by the token ctrler
-        token_ctrler.remove_anon_principal(&self.new_uid);
+        token_ctrler.remove_principal(&self.new_uid, self.did, conn);
         Ok(true)
     }
 }

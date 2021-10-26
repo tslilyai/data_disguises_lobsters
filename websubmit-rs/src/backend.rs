@@ -99,13 +99,13 @@ impl MySqlBackend {
                                 _ => (),
                             }
                         }
-                        debug!(
+                        /*debug!(
                             log,
                             "Inserting table {} with keys {:?} and cols {:?}",
                             name,
                             tab_keys,
                             tab_cols
-                        );
+                        );*/
 
                         tables.insert(name.to_string(), (tab_keys, tab_cols));
                     }
@@ -138,12 +138,12 @@ impl MySqlBackend {
             let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
             rows.push(vals);
         }
-        debug!(
+        /*debug!(
             self.log,
             "executed query {}, got {} rows",
             qname,
             rows.len()
-        );
+        );*/
         return rows;
     }
 

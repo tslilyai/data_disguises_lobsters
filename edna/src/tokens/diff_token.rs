@@ -13,6 +13,7 @@ pub const DECOR_GUISE: u64 = 2;
 pub const MODIFY_GUISE: u64 = 3;
 pub const REMOVE_TOKEN: u64 = 5;
 pub const MODIFY_TOKEN: u64 = 6;
+pub const REMOVE_PRINCIPAL : u64 = 7;
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct DiffToken {
@@ -37,6 +38,8 @@ pub struct DiffToken {
     // REMOVE/MODIFY
     pub old_token_blob: String,
     pub new_token_blob: String,
+    
+    // REMOVE PRINCIPAL
 
     // FOR SECURITY DESIGN
     // for randomness
@@ -54,6 +57,22 @@ pub fn diff_token_from_bytes(bytes: &Vec<u8>) -> DiffToken {
 }
 
 impl DiffToken {
+    // create diff token for removing a principal
+    pub fn new_remove_principal_token(
+        uid: &UID,
+        did: DID,
+        pdata: &PrincipalData,
+    ) -> DiffToken {
+        let mut token: DiffToken = Default::default();
+        token.is_global = false;
+        token.uid = uid.to_string();
+        token.did = did;
+        token.update_type = REMOVE_PRINCIPAL;
+        token.revealed = false;
+        token.old_token_blob = serde_json::to_string(pdata).unwrap();
+        token
+    }
+
     // create diff tokens about diff tokens
     pub fn new_token_modify(
         uid: UID,
@@ -139,9 +158,13 @@ impl DiffToken {
             )?;
 
             match self.update_type {
+                REMOVE_PRINCIPAL => {
+                    let pdata : PrincipalData = serde_json::from_str(&self.old_token_blob).unwrap();
+                    token_ctrler.register_principal(&self.uid, pdata.email, &pdata.pubkey, conn);
+                }
+
                 REMOVE_GUISE => {
-                    // XXX problematic case: data can be revealed even if it should've been
-                    // disguised?
+                    // XXX data can be revealed even if it should've been disguised in the interim
 
                     // item has been re-inserted, ignore
                     if !selected.is_empty() {
@@ -178,6 +201,8 @@ impl DiffToken {
                         conn,
                         stats.clone(),
                     )?;
+
+                    // TODO re-add principal if this is a user
                 }
                 MODIFY_GUISE => {
                     // if field hasn't been modified, return it to original

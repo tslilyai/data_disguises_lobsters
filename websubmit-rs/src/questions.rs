@@ -189,8 +189,6 @@ pub(crate) fn questions_submit(
     config: &State<Config>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    debug!(bg.log, "LectureQuestionSubmission for {} has {} entries", num, data.answers.len());
-
     let vnum: Value = (num as u64).into();
     let ts: Value = Local::now().naive_local().into();
 

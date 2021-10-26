@@ -1,22 +1,30 @@
 use crate::helpers::*;
+use crate::stats::QueryStat;
 use crate::tokens::*;
 use crate::{DID, UID};
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
 use log::warn;
+use mysql::prelude::*;
 use rand::{rngs::OsRng, RngCore};
-use rsa::pkcs1::{FromRsaPrivateKey};
+use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
+use serde::de::{self, Deserialize, Deserializer, SeqAccess, Visitor};
+use serde::{ser::SerializeStruct, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::iter::repeat;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, Mutex};
 
 pub type LocCap = u64;
 pub type DataCap = Vec<u8>; // private key
 const RSA_BITS: usize = 2048;
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
+
+const PRINCIPAL_TABLE: &'static str = "EdnaPrincipals";
+const UID_COL: &'static str = "uid";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EncData {
@@ -45,12 +53,74 @@ impl EncData {
 
 #[derive(Clone)]
 pub struct PrincipalData {
-    pubkey: RsaPublicKey,
-    email: String,
+    pub pubkey: RsaPublicKey,
+    pub email: String,
 
     // only nonempty for pseudoprincipals!
-    ownership_loc_caps: Vec<LocCap>,
-    diff_loc_caps: Vec<LocCap>,
+    pub ownership_loc_caps: Vec<LocCap>,
+    pub diff_loc_caps: Vec<LocCap>,
+}
+
+impl Serialize for PrincipalData {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // 3 is the number of fields in the struct.
+        let mut state = serializer.serialize_struct("PrincipalData", 4)?;
+        let pubkey_vec = self.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
+        state.serialize_field("pubkey", &pubkey_vec)?;
+        state.serialize_field("email", &self.email)?;
+        state.serialize_field("ownership_loc_caps", &self.ownership_loc_caps)?;
+        state.serialize_field("diff_loc_caps", &self.diff_loc_caps)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for PrincipalData {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct PrincipalDataVisitor;
+
+        impl<'de> Visitor<'de> for PrincipalDataVisitor {
+            type Value = PrincipalData;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct PrincipalData")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<PrincipalData, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let pubkey_vec = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let pub_key = RsaPublicKey::from_pkcs1_der(pubkey_vec).unwrap();
+                let email = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let ownership_loc_caps = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let diff_loc_caps = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                Ok(PrincipalData {
+                    pubkey: pub_key,
+                    email: email,
+                    ownership_loc_caps: ownership_loc_caps,
+                    diff_loc_caps: diff_loc_caps,
+                })
+            }
+        }
+
+        const FIELDS: &'static [&'static str] =
+            &["pubkey", "email", "ownership_loc_caps", "diff_loc_caps"];
+        deserializer.deserialize_struct("PrincipalData", FIELDS, PrincipalDataVisitor)
+    }
 }
 
 #[derive(Clone)]
@@ -78,8 +148,8 @@ pub struct TokenCtrler {
 }
 
 impl TokenCtrler {
-    pub fn new() -> TokenCtrler {
-        TokenCtrler {
+    pub fn new(conn: &mut mysql::PooledConn, stats: Arc<Mutex<QueryStat>>) -> TokenCtrler {
+        let mut tctrler = TokenCtrler {
             principal_data: HashMap::new(),
             enc_diffs_map: HashMap::new(),
             enc_ownership_map: HashMap::new(),
@@ -88,7 +158,26 @@ impl TokenCtrler {
             hasher: Sha256::new(),
             tmp_ownership_loc_caps: HashMap::new(),
             tmp_diff_loc_caps: HashMap::new(),
+        };
+
+        conn.query_drop(&format!(
+            "CREATE TABLE IF NOT EXISTS {} \
+                ({} varchar(255), email varchar(255), pubkey blob \
+                 ownershipToks blob, diffToks blob, PRIMARY KEY {});",
+            PRINCIPAL_TABLE, UID_COL, UID_COL
+        ))
+        .unwrap();
+        let selected = get_query_rows_str(&format!("SELECT * FROM {}", PRINCIPAL_TABLE),
+            conn,
+            stats.clone(),
+        ).unwrap();
+        for row in selected {
+            let pubkey = RsaPublicKey::from_pkcs1_der(&(row[2].value).as_bytes()).unwrap();
+            let ownership_toks = serde_json::from_str(&row[3].value).unwrap();
+            let diff_toks = serde_json::from_str(&row[4].value).unwrap();
+            tctrler.register_saved_principal(&row[0].value, &row[1].value, &pubkey, ownership_toks, diff_toks);
         }
+        tctrler
     }
 
     /*
@@ -102,7 +191,9 @@ impl TokenCtrler {
         self.tmp_diff_loc_caps.get(&(uid.to_string(), did))
     }
 
-    pub fn save_and_clear_loc_caps(&mut self) -> (HashMap<(UID, DID), LocCap>, HashMap<(UID, DID), LocCap>) {
+    pub fn save_and_clear_loc_caps(
+        &mut self,
+    ) -> (HashMap<(UID, DID), LocCap>, HashMap<(UID, DID), LocCap>) {
         let dlcs = self.tmp_diff_loc_caps.clone();
         let olcs = self.tmp_ownership_loc_caps.clone();
         for ((uid, _), c) in dlcs.iter() {
@@ -144,7 +235,10 @@ impl TokenCtrler {
             None => {
                 let cap = self.rng.next_u64();
                 // temporarily save cap for future use
-                assert_eq!(self.tmp_ownership_loc_caps.insert((uid.clone(), did), cap), None);
+                assert_eq!(
+                    self.tmp_ownership_loc_caps.insert((uid.clone(), did), cap),
+                    None
+                );
                 return cap;
             }
         }
@@ -165,19 +259,65 @@ impl TokenCtrler {
         }
     }
 
+    fn persist_principal(&self, uid: &UID, pdata: &PrincipalData, conn: &mut mysql::PooledConn) {
+        let pubkey_vec = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
+        let v: Vec<String> = vec![];
+        let empty_vec = serde_json::to_string(&v).unwrap();
+        conn.query_drop(format!(
+            "INSERT INTO {} VALUES ({}, {}, {}, {}, {})",
+            PRINCIPAL_TABLE,
+            uid,
+            pdata.email,
+            std::str::from_utf8(&pubkey_vec).unwrap(),
+            empty_vec,
+            empty_vec,
+        ))
+        .unwrap();
+    }
+
     /*
      * REGISTRATION
      */
-    pub fn register_principal(&mut self, uid: &UID, email: String, pubkey: &RsaPublicKey) {
-        warn!("Registering principal {}", uid);
+    pub fn register_saved_principal(
+        &mut self,
+        uid: &UID,
+        email: &str,
+        pubkey: &RsaPublicKey,
+        ot: Vec<LocCap>,
+        dt: Vec<LocCap>,
+    ) {
+        warn!("Re-registering saved principal {}", uid);
+        let pdata = PrincipalData {
+            pubkey: pubkey.clone(),
+            email: email.to_string(),
+            ownership_loc_caps: ot,
+            diff_loc_caps: dt,
+        };
         self.principal_data.insert(
             uid.clone(),
-            PrincipalData {
+            pdata,
+        );
+    }
+
+    pub fn register_principal(
+        &mut self,
+        uid: &UID,
+        email: String,
+        pubkey: &RsaPublicKey,
+        conn: &mut mysql::PooledConn,
+    ) {
+        warn!("Registering principal {}", uid);
+        let pdata = PrincipalData {
                 pubkey: pubkey.clone(),
-                email: email,
+                email: email.clone(),
                 ownership_loc_caps: vec![],
                 diff_loc_caps: vec![],
-            },
+            };
+
+        self.persist_principal(uid, &pdata, conn);
+        self.principal_data.insert(
+            uid.clone(),
+            pdata,
         );
     }
 
@@ -191,6 +331,7 @@ impl TokenCtrler {
         pprincipal_name: String,
         pprincipal_id_col: String,
         fk_col: String,
+        conn: &mut mysql::PooledConn,
     ) {
         let private_key =
             RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
@@ -198,7 +339,7 @@ impl TokenCtrler {
 
         // save the anon principal as a new principal with a public key
         // and initially empty token vaults
-        self.register_principal(&anon_uid.to_string(), String::new(), &pub_key);
+        self.register_principal(&anon_uid.to_string(), String::new(), &pub_key, conn);
         let mut pppk: OwnershipToken = new_ownership_token(
             did,
             child_name,
@@ -213,9 +354,26 @@ impl TokenCtrler {
         self.insert_ownership_token(&mut pppk);
     }
 
-    pub fn remove_anon_principal(&mut self, anon_uid: &UID) {
-        warn!("Removing principal {}\n", anon_uid);
-        self.principal_data.remove(anon_uid);
+    pub fn remove_principal(&mut self, uid: &UID, did: DID, conn: &mut mysql::PooledConn) {
+        warn!("Removing principal {}\n", uid);
+        let pdata = self
+            .principal_data
+            .get(uid);
+        if pdata.is_none() {
+            return;
+        } else {
+            let pdata = pdata.unwrap();
+            let mut ptoken = DiffToken::new_remove_principal_token(uid, did, &pdata);
+            self.insert_user_diff_token(&mut ptoken);
+
+            // actually remove
+            self.principal_data.remove(uid);
+            conn.query_drop(format!(
+                "DELETE FROM {} WHERE {} = {}",
+                PRINCIPAL_TABLE, UID_COL, uid
+            ))
+            .unwrap();
+        }
     }
 
     /*
@@ -380,7 +538,11 @@ impl TokenCtrler {
             }
         }
         // log token for disguise that marks removal
-        self.insert_user_diff_token(&mut DiffToken::new_token_remove(uid.to_string(), did, token));
+        self.insert_user_diff_token(&mut DiffToken::new_token_remove(
+            uid.to_string(),
+            did,
+            token,
+        ));
         return found;
     }
 
@@ -605,7 +767,11 @@ impl TokenCtrler {
                 }
             }
         }
-        warn!("Got {} global diff tokens for disguise {}\n", tokens.len(), did);
+        warn!(
+            "Got {} global diff tokens for disguise {}\n",
+            tokens.len(),
+            did
+        );
         tokens
     }
 
@@ -764,7 +930,10 @@ mod tests {
         );
         remove_token.uid = uid.to_string();
         ctrler.insert_user_diff_token(&mut remove_token);
-        let lc = ctrler.get_tmp_reveal_capability(&uid.to_string(), did).unwrap().clone();
+        let lc = ctrler
+            .get_tmp_reveal_capability(&uid.to_string(), did)
+            .unwrap()
+            .clone();
         ctrler.clear_tmp();
         assert_eq!(ctrler.global_diff_tokens.len(), 0);
 
@@ -823,7 +992,10 @@ mod tests {
                     remove_token.uid = u.to_string();
                     ctrler.insert_user_diff_token(&mut remove_token);
                 }
-                let c = ctrler.get_tmp_reveal_capability(&u.to_string(), d).unwrap().clone();
+                let c = ctrler
+                    .get_tmp_reveal_capability(&u.to_string(), d)
+                    .unwrap()
+                    .clone();
                 caps.insert((u, d), c);
             }
         }
@@ -845,7 +1017,8 @@ mod tests {
             for d in 1..iters {
                 let lc = caps.get(&(u, d)).unwrap().clone();
                 // get tokens
-                let (diff_tokens, _) = ctrler.get_user_tokens(d, &priv_keys[u as usize - 1], &vec![lc], &vec![]);
+                let (diff_tokens, _) =
+                    ctrler.get_user_tokens(d, &priv_keys[u as usize - 1], &vec![lc], &vec![]);
                 assert_eq!(diff_tokens.len(), (iters as usize));
                 for i in 0..iters {
                     assert_eq!(
@@ -910,7 +1083,10 @@ mod tests {
                     fk_col.clone(),
                     fk_col.clone(),
                 );
-                let lc = ctrler.get_tmp_reveal_capability(&u.to_string(), d).unwrap().clone();
+                let lc = ctrler
+                    .get_tmp_reveal_capability(&u.to_string(), d)
+                    .unwrap()
+                    .clone();
                 caps.insert((u, d), lc);
             }
         }

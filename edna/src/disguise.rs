@@ -67,11 +67,12 @@ impl Disguiser {
     pub fn new(url: &str) -> Disguiser {
         let opts = Opts::from_url(&url).unwrap();
         let pool = Pool::new(opts).unwrap();
+        let stats = Arc::new(Mutex::new(stats::QueryStat::new()));
 
         Disguiser {
-            pool: pool,
-            stats: Arc::new(Mutex::new(stats::QueryStat::new())),
-            token_ctrler: Arc::new(Mutex::new(TokenCtrler::new())),
+            pool: pool.clone(),
+            stats: stats.clone(),
+            token_ctrler: Arc::new(Mutex::new(TokenCtrler::new(&mut pool.get_conn().unwrap(), stats.clone()))),
             global_diff_tokens_to_modify: Arc::new(RwLock::new(HashMap::new())),
             to_insert: Arc::new(Mutex::new(HashMap::new())),
             items_to_modify: Arc::new(RwLock::new(HashMap::new())),
@@ -79,8 +80,9 @@ impl Disguiser {
     }
 
     pub fn register_principal(&mut self, uid: &UID, email: String, pubkey: &RsaPublicKey) {
+        let mut conn = self.pool.get_conn().unwrap();
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        locked_token_ctrler.register_principal(uid, email, pubkey);
+        locked_token_ctrler.register_principal(uid, email, pubkey, &mut conn);
     }
 
     pub fn reverse(
@@ -258,6 +260,7 @@ impl Disguiser {
                                     fk_table_info,
                                     locked_fk_gen,
                                     i,
+                                    &mut conn
                                 );
                             }
 
@@ -491,6 +494,8 @@ impl Disguiser {
                         helpers::query_drop(delstmt, &mut conn, mystats.clone()).unwrap();
 
                         // ITEM REMOVAL: ADD TOKEN RECORDS
+                        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
+                        let locked_guise_gen = disguise.guise_gen.read().unwrap();
                         for i in &pred_items {
                             let ids = get_ids(&curtable_info.id_cols, i);
 
@@ -499,15 +504,20 @@ impl Disguiser {
                                 DiffToken::new_delete_token(did, table.to_string(), ids.clone(), i.to_vec());
                             for owner_col in &curtable_info.owner_cols {
                                 token.uid = get_value_of_col(&i, &owner_col).unwrap();
-                                let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
                                 if t.global {
                                     locked_token_ctrler.insert_global_diff_token(&mut token);
                                 } else {
                                     locked_token_ctrler.insert_user_diff_token(&mut token);
                                 }
-                                drop(locked_token_ctrler);
+                                // if we're working on a guise table (e.g., a users table)
+                                // remove the user
+                                if locked_guise_gen.contains_key(&table) {
+                                    locked_token_ctrler.remove_principal(&token.uid, did, &mut conn);
+                                }
                             }
                         }
+                        drop(locked_guise_gen);
+                        drop(locked_token_ctrler);
                         
                         // MARK MATCHING GLOBAL DIFF TOKENS FOR REMOVAL 
                         for dt in diff_tokens {
@@ -521,6 +531,7 @@ impl Disguiser {
                                 }
                             }
                         }
+                        // we already removed the actual user/principal for any global tokens
                     }
                 }
             }
@@ -696,6 +707,7 @@ fn decor_item(
     fk_table_info: &TableInfo,
     fk_gen: &GuiseGen,
     i: &Vec<RowVal>,
+    conn: &mut mysql::PooledConn,
 ) {
     warn!(
         "Thread {:?} starting decor {}",
@@ -779,6 +791,7 @@ fn decor_item(
         fk_name.to_string(),
         new_parent_ids[0].column.clone(),
         fk_col.to_string(),
+        conn
     );
 
     stats.decor_dur += start.elapsed();
