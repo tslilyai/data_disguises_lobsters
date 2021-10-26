@@ -59,9 +59,17 @@ impl ToString for PredClause {
                     Lt => format!("{} < {}", col, val),
                     GtEq => format!("{} >= {}", col, val),
                     LtEq => format!("{} <= {}", col, val),
-                    Eq => format!("{} = {}", col, val),
-                    NotEq => format!("{} != {}", col, val),
-                    And => format!("{} AND {}", col, val),
+                    // escape strings
+                    Eq => if val.chars().all(char::is_numeric) {
+                        format!("{} = {}", col, val)
+                    } else {
+                        format!("{} = '{}'", col, val)
+                    },
+                    NotEq => if val.chars().all(char::is_numeric) {
+                        format!("{} != {}", col, val)
+                    } else {
+                        format!("{} != '{}'", col, val)
+                    },                    And => format!("{} AND {}", col, val),
                     Or => format!("{} OR {}", col, val),
                     BitwiseAnd => format!("{} & {}", col, val),
                     _ => unimplemented!("No support for op {}", op),

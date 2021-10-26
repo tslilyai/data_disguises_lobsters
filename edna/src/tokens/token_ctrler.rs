@@ -16,7 +16,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::iter::repeat;
-use std::sync::{Arc, RwLock, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 pub type LocCap = u64;
 pub type DataCap = Vec<u8>; // private key
@@ -143,8 +143,8 @@ pub struct TokenCtrler {
     // used to temporarily store keys used during disguises
     // TODO have separate caps for pseudoprincipals?
     pub tmp_ownership_loc_caps: HashMap<(UID, DID), LocCap>,
-
     pub tmp_diff_loc_caps: HashMap<(UID, DID), LocCap>,
+    pub tmp_remove_principals: HashSet<UID>,
 }
 
 impl TokenCtrler {
@@ -158,22 +158,31 @@ impl TokenCtrler {
             hasher: Sha256::new(),
             tmp_ownership_loc_caps: HashMap::new(),
             tmp_diff_loc_caps: HashMap::new(),
+            tmp_remove_principals: HashSet::new(),
         };
 
         let createq = format!(
             "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), email varchar(255), pubkey blob, ownershipToks blob, diffToks blob, PRIMARY KEY ({}));",
             PRINCIPAL_TABLE, UID_COL, UID_COL);
         conn.query_drop(&createq).unwrap();
-        let selected = get_query_rows_str(&format!("SELECT * FROM {}", PRINCIPAL_TABLE),
+        let selected = get_query_rows_str(
+            &format!("SELECT * FROM {}", PRINCIPAL_TABLE),
             conn,
             stats.clone(),
-        ).unwrap();
+        )
+        .unwrap();
         for row in selected {
-            let pubkey_bytes : Vec<u8> = serde_json::from_str(&row[2].value).unwrap();
+            let pubkey_bytes: Vec<u8> = serde_json::from_str(&row[2].value).unwrap();
             let pubkey = RsaPublicKey::from_pkcs1_der(&pubkey_bytes).unwrap();
             let ownership_toks = serde_json::from_str(&row[3].value).unwrap();
             let diff_toks = serde_json::from_str(&row[4].value).unwrap();
-            tctrler.register_saved_principal(&row[0].value, &row[1].value, &pubkey, ownership_toks, diff_toks);
+            tctrler.register_saved_principal(
+                &row[0].value,
+                &row[1].value,
+                &pubkey,
+                ownership_toks,
+                diff_toks,
+            );
         }
         tctrler
     }
@@ -189,31 +198,58 @@ impl TokenCtrler {
         self.tmp_diff_loc_caps.get(&(uid.to_string(), did))
     }
 
-    pub fn save_and_clear_loc_caps(
+    pub fn save_and_clear(
         &mut self,
+        did: DID,
+        conn: &mut mysql::PooledConn,
     ) -> (HashMap<(UID, DID), LocCap>, HashMap<(UID, DID), LocCap>) {
         let dlcs = self.tmp_diff_loc_caps.clone();
         let olcs = self.tmp_ownership_loc_caps.clone();
+
         for ((uid, _), c) in dlcs.iter() {
             let p = self.principal_data.get_mut(uid).unwrap();
             // save to principal data if no email (pseudoprincipal)
             if p.email.is_empty() {
                 p.diff_loc_caps.push(*c);
-            } else {
-                // TODO email capability to user if user has email
-                //self.loc_caps.insert((*uid, *did), *c);
+                
+                // update persistence
+                let uidstr = uid.trim_matches('\'');
+                conn.query_drop(&format!(
+                    "UPDATE {} SET {} = \'{}\' WHERE {} = \'{}\'",
+                    PRINCIPAL_TABLE,
+                    "diffToks",
+                    serde_json::to_string(&p.diff_loc_caps).unwrap(),
+                    UID_COL,
+                    uidstr
+                )).unwrap();
             }
         }
+
         for ((uid, _), c) in olcs.iter() {
             let p = self.principal_data.get_mut(uid).unwrap();
             // save to principal data if no email (pseudoprincipal)
             if p.email.is_empty() {
                 p.ownership_loc_caps.push(*c);
-            } else {
-                // TODO email capability to user if user has email
-                //self.loc_caps.insert((*uid, *did), *c);
+                
+                // update persistence
+                let uidstr = uid.trim_matches('\'');
+                conn.query_drop(&format!(
+                    "UPDATE {} SET {} = \'{}\' WHERE {} = \'{}\'",
+                    PRINCIPAL_TABLE,
+                    "ownershipToks",
+                    serde_json::to_string(&p.ownership_loc_caps).unwrap(),
+                    UID_COL,
+                    uidstr
+                ))
+                .unwrap();
             }
         }
+
+        // actually remove the principals supposed to be removed
+        for uid in self.tmp_remove_principals.clone().iter() {
+            self.remove_principal(&uid, did, conn);
+        }
+
         self.clear_tmp();
         (dlcs, olcs)
     }
@@ -222,6 +258,7 @@ impl TokenCtrler {
     pub fn clear_tmp(&mut self) {
         self.tmp_diff_loc_caps.clear();
         self.tmp_ownership_loc_caps.clear();
+        self.tmp_remove_principals.clear();
     }
 
     fn get_ownership_loc_cap(&mut self, uid: &UID, did: DID) -> LocCap {
@@ -261,16 +298,18 @@ impl TokenCtrler {
         let pubkey_vec = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
         let v: Vec<String> = vec![];
         let empty_vec = serde_json::to_string(&v).unwrap();
-        conn.query_drop(format!(
-            "INSERT INTO {} VALUES (\'{}\', \'{}\', \'{}\', \'{}\', \'{}\')",
+        let uid = uid.trim_matches('\'');
+        let insert_q = format!(
+            "INSERT INTO {} VALUES (\'{}\', \'{}\', \'{}\', \'{}\', \'{}\');",
             PRINCIPAL_TABLE,
             uid,
             pdata.email,
             serde_json::to_string(&pubkey_vec).unwrap(),
             empty_vec,
-            empty_vec,
-        ))
-        .unwrap();
+            empty_vec
+        );
+        warn!("Insert q {}", insert_q);
+        conn.query_drop(&insert_q).unwrap();
     }
 
     /*
@@ -291,10 +330,7 @@ impl TokenCtrler {
             ownership_loc_caps: ot,
             diff_loc_caps: dt,
         };
-        self.principal_data.insert(
-            uid.clone(),
-            pdata,
-        );
+        self.principal_data.insert(uid.clone(), pdata);
     }
 
     pub fn register_principal(
@@ -306,17 +342,14 @@ impl TokenCtrler {
     ) {
         warn!("Registering principal {}", uid);
         let pdata = PrincipalData {
-                pubkey: pubkey.clone(),
-                email: email.clone(),
-                ownership_loc_caps: vec![],
-                diff_loc_caps: vec![],
-            };
+            pubkey: pubkey.clone(),
+            email: email.clone(),
+            ownership_loc_caps: vec![],
+            diff_loc_caps: vec![],
+        };
 
         self.persist_principal(uid, &pdata, conn);
-        self.principal_data.insert(
-            uid.clone(),
-            pdata,
-        );
+        self.principal_data.insert(uid.clone(), pdata);
     }
 
     pub fn register_anon_principal(
@@ -352,11 +385,13 @@ impl TokenCtrler {
         self.insert_ownership_token(&mut pppk);
     }
 
+    pub fn mark_remove_principal(&mut self, uid: &UID) {
+        self.tmp_remove_principals.insert(uid.to_string());
+    }
+
     pub fn remove_principal(&mut self, uid: &UID, did: DID, conn: &mut mysql::PooledConn) {
         warn!("Removing principal {}\n", uid);
-        let pdata = self
-            .principal_data
-            .get(uid);
+        let pdata = self.principal_data.get(uid);
         if pdata.is_none() {
             return;
         } else {
@@ -367,8 +402,10 @@ impl TokenCtrler {
             // actually remove
             self.principal_data.remove(uid);
             conn.query_drop(format!(
-                "DELETE FROM {} WHERE {} = {}",
-                PRINCIPAL_TABLE, UID_COL, uid
+                "DELETE FROM {} WHERE {} = \'{}\'",
+                PRINCIPAL_TABLE,
+                UID_COL,
+                uid.trim_matches('\'')
             ))
             .unwrap();
         }
@@ -853,8 +890,8 @@ impl TokenCtrler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rsa::pkcs1::ToRsaPrivateKey;
     use crate::EdnaClient;
+    use rsa::pkcs1::ToRsaPrivateKey;
 
     fn init_logger() {
         let _ = env_logger::builder()
@@ -886,7 +923,12 @@ mod tests {
         let mut rng = OsRng;
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
-        ctrler.register_principal(&uid.to_string(), "email@mail.com".to_string(), &pub_key, &mut conn);
+        ctrler.register_principal(
+            &uid.to_string(),
+            "email@mail.com".to_string(),
+            &pub_key,
+            &mut conn,
+        );
 
         let mut remove_token = DiffToken::new_delete_token(
             did,
@@ -926,7 +968,12 @@ mod tests {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        ctrler.register_principal(&uid.to_string(), "email@mail.com".to_string(), &pub_key, &mut conn);
+        ctrler.register_principal(
+            &uid.to_string(),
+            "email@mail.com".to_string(),
+            &pub_key,
+            &mut conn,
+        );
 
         let mut remove_token = DiffToken::new_delete_token(
             did,
@@ -988,7 +1035,12 @@ mod tests {
                 RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             let pub_key = RsaPublicKey::from(&private_key);
-            ctrler.register_principal(&u.to_string(), "email@mail.com".to_string(), &pub_key, &mut conn);
+            ctrler.register_principal(
+                &u.to_string(),
+                "email@mail.com".to_string(),
+                &pub_key,
+                &mut conn,
+            );
             pub_keys.push(pub_key.clone());
             priv_keys.push(private_key_vec.clone());
 
@@ -1071,7 +1123,12 @@ mod tests {
                 RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             let pub_key = RsaPublicKey::from(&private_key);
-            ctrler.register_principal(&u.to_string(), "email@mail.com".to_string(), &pub_key, &mut conn);
+            ctrler.register_principal(
+                &u.to_string(),
+                "email@mail.com".to_string(),
+                &pub_key,
+                &mut conn,
+            );
             pub_keys.push(pub_key.clone());
             priv_keys.push(private_key_vec.clone());
 

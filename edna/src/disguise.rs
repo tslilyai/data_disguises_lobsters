@@ -340,7 +340,7 @@ impl Disguiser {
 
         // any capabilities generated during disguise should be emailed
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        let loc_caps = locked_token_ctrler.save_and_clear_loc_caps();
+        let loc_caps = locked_token_ctrler.save_and_clear(did, &mut conn);
         drop(locked_token_ctrler);
         self.end_disguise_action();
         Ok(loc_caps)
@@ -512,7 +512,7 @@ impl Disguiser {
                                 // if we're working on a guise table (e.g., a users table)
                                 // remove the user
                                 if locked_guise_gen.contains_key(&table) {
-                                    locked_token_ctrler.remove_principal(&token.uid, did, &mut conn);
+                                    locked_token_ctrler.mark_remove_principal(&token.uid);
                                 }
                             }
                         }

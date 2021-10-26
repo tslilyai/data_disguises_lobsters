@@ -20,7 +20,7 @@ pub(crate) fn send(
         builder = builder.to(recipient);
     }
     
-    debug!(log, "Sending email subject {} text {}!", subject, text);
+    debug!(log, "Email: Subject {}\nText: {}!", subject, text);
     
     /*let email = builder.build();
     match email {

@@ -13,7 +13,7 @@ use rocket::request::{self, FromRequest, Request};
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
-use rsa::pkcs1::{ToRsaPrivateKey};
+use rsa::pkcs1::ToRsaPrivateKey;
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -92,13 +92,19 @@ pub(crate) fn generate(
 
     let private_key =
         RsaPrivateKey::new(&mut rand::thread_rng(), RSA_BITS).expect("failed to generate a key");
-    let privkey_str = format!("{:?}", private_key.to_pkcs1_der().unwrap().as_der().to_vec());
+    let privkey_str = format!(
+        "{:?}",
+        private_key.to_pkcs1_der().unwrap().as_der().to_vec()
+    );
 
     let pub_key = RsaPublicKey::from(&private_key);
 
     // register user if not exists
-    bg.edna
-        .register_principal(data.email.as_str().into(), data.email.as_str().into(), &pub_key);
+    bg.edna.register_principal(
+        data.email.as_str().into(),
+        data.email.as_str().into(),
+        &pub_key,
+    );
 
     if config.send_emails {
         email::send(
