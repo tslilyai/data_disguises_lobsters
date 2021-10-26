@@ -160,19 +160,17 @@ impl TokenCtrler {
             tmp_diff_loc_caps: HashMap::new(),
         };
 
-        conn.query_drop(&format!(
-            "CREATE TABLE IF NOT EXISTS {} \
-                ({} varchar(255), email varchar(255), pubkey blob \
-                 ownershipToks blob, diffToks blob, PRIMARY KEY {});",
-            PRINCIPAL_TABLE, UID_COL, UID_COL
-        ))
-        .unwrap();
+        let createq = format!(
+            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), email varchar(255), pubkey blob, ownershipToks blob, diffToks blob, PRIMARY KEY ({}));",
+            PRINCIPAL_TABLE, UID_COL, UID_COL);
+        conn.query_drop(&createq).unwrap();
         let selected = get_query_rows_str(&format!("SELECT * FROM {}", PRINCIPAL_TABLE),
             conn,
             stats.clone(),
         ).unwrap();
         for row in selected {
-            let pubkey = RsaPublicKey::from_pkcs1_der(&(row[2].value).as_bytes()).unwrap();
+            let pubkey_bytes : Vec<u8> = serde_json::from_str(&row[2].value).unwrap();
+            let pubkey = RsaPublicKey::from_pkcs1_der(&pubkey_bytes).unwrap();
             let ownership_toks = serde_json::from_str(&row[3].value).unwrap();
             let diff_toks = serde_json::from_str(&row[4].value).unwrap();
             tctrler.register_saved_principal(&row[0].value, &row[1].value, &pubkey, ownership_toks, diff_toks);
@@ -264,11 +262,11 @@ impl TokenCtrler {
         let v: Vec<String> = vec![];
         let empty_vec = serde_json::to_string(&v).unwrap();
         conn.query_drop(format!(
-            "INSERT INTO {} VALUES ({}, {}, {}, {}, {})",
+            "INSERT INTO {} VALUES (\'{}\', \'{}\', \'{}\', \'{}\', \'{}\')",
             PRINCIPAL_TABLE,
             uid,
             pdata.email,
-            std::str::from_utf8(&pubkey_vec).unwrap(),
+            serde_json::to_string(&pubkey_vec).unwrap(),
             empty_vec,
             empty_vec,
         ))
@@ -856,6 +854,7 @@ impl TokenCtrler {
 mod tests {
     use super::*;
     use rsa::pkcs1::ToRsaPrivateKey;
+    use crate::EdnaClient;
 
     fn init_logger() {
         let _ = env_logger::builder()
@@ -870,7 +869,12 @@ mod tests {
     #[test]
     fn test_insert_global_diff_token_single() {
         init_logger();
-        let mut ctrler = TokenCtrler::new();
+        let dbname = "testTokenCtrlerGlobal".to_string();
+        let mut edna = EdnaClient::new(true, &dbname, "", true);
+        let mut conn = edna.get_conn().unwrap();
+        let stats = edna.get_stats();
+
+        let mut ctrler = TokenCtrler::new(&mut conn, stats);
 
         let did = 1;
         let uid = 11;
@@ -882,7 +886,7 @@ mod tests {
         let mut rng = OsRng;
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
-        ctrler.register_principal(&uid.to_string(), "email@mail.com".to_string(), &pub_key);
+        ctrler.register_principal(&uid.to_string(), "email@mail.com".to_string(), &pub_key, &mut conn);
 
         let mut remove_token = DiffToken::new_delete_token(
             did,
@@ -904,7 +908,12 @@ mod tests {
     #[test]
     fn test_insert_user_token_single() {
         init_logger();
-        let mut ctrler = TokenCtrler::new();
+        let dbname = "testTokenCtrlerUser".to_string();
+        let mut edna = EdnaClient::new(true, &dbname, "", true);
+        let mut conn = edna.get_conn().unwrap();
+        let stats = edna.get_stats();
+
+        let mut ctrler = TokenCtrler::new(&mut conn, stats);
 
         let did = 1;
         let uid = 11;
@@ -917,7 +926,7 @@ mod tests {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        ctrler.register_principal(&uid.to_string(), "email@mail.com".to_string(), &pub_key);
+        ctrler.register_principal(&uid.to_string(), "email@mail.com".to_string(), &pub_key, &mut conn);
 
         let mut remove_token = DiffToken::new_delete_token(
             did,
@@ -956,7 +965,12 @@ mod tests {
     #[test]
     fn test_insert_user_diff_token_multi() {
         init_logger();
-        let mut ctrler = TokenCtrler::new();
+        let dbname = "testTokenCtrlerUserMulti".to_string();
+        let mut edna = EdnaClient::new(true, &dbname, "", true);
+        let mut conn = edna.get_conn().unwrap();
+        let stats = edna.get_stats();
+
+        let mut ctrler = TokenCtrler::new(&mut conn, stats);
 
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
@@ -974,7 +988,7 @@ mod tests {
                 RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             let pub_key = RsaPublicKey::from(&private_key);
-            ctrler.register_principal(&u.to_string(), "email@mail.com".to_string(), &pub_key);
+            ctrler.register_principal(&u.to_string(), "email@mail.com".to_string(), &pub_key, &mut conn);
             pub_keys.push(pub_key.clone());
             priv_keys.push(private_key_vec.clone());
 
@@ -1033,7 +1047,12 @@ mod tests {
     #[test]
     fn test_insert_user_token_privkey() {
         init_logger();
-        let mut ctrler = TokenCtrler::new();
+        let dbname = "testTokenCtrlerUserPK".to_string();
+        let mut edna = EdnaClient::new(true, &dbname, "", true);
+        let mut conn = edna.get_conn().unwrap();
+        let stats = edna.get_stats();
+
+        let mut ctrler = TokenCtrler::new(&mut conn, stats);
 
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
@@ -1052,7 +1071,7 @@ mod tests {
                 RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             let pub_key = RsaPublicKey::from(&private_key);
-            ctrler.register_principal(&u.to_string(), "email@mail.com".to_string(), &pub_key);
+            ctrler.register_principal(&u.to_string(), "email@mail.com".to_string(), &pub_key, &mut conn);
             pub_keys.push(pub_key.clone());
             priv_keys.push(private_key_vec.clone());
 
@@ -1082,6 +1101,7 @@ mod tests {
                     referenced_name.clone(),
                     fk_col.clone(),
                     fk_col.clone(),
+                    &mut conn,
                 );
                 let lc = ctrler
                     .get_tmp_reveal_capability(&u.to_string(), d)
