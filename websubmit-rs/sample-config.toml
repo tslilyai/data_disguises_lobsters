@@ -13,4 +13,4 @@ secret = "SECRET"
 # whether to send emails (set to false for development)
 send_emails = true
 # whether to reset the db (set to false for production)
-prime = false 
+prime = true

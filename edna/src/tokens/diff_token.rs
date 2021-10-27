@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
+use rsa::pkcs1::{FromRsaPublicKey, ToRsaPublicKey};
 
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
@@ -40,6 +41,10 @@ pub struct DiffToken {
     pub new_token_blob: String,
     
     // REMOVE PRINCIPAL
+    pub pubkey: Vec<u8>,
+    pub email: String,
+    pub ownership_loc_caps: Vec<LocCap>,
+    pub diff_loc_caps: Vec<LocCap>,
 
     // FOR SECURITY DESIGN
     // for randomness
@@ -67,9 +72,12 @@ impl DiffToken {
         token.is_global = false;
         token.uid = uid.to_string();
         token.did = did;
+        token.pubkey = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
+        token.email = pdata.email.clone();
+        token.ownership_loc_caps = pdata.ownership_loc_caps.clone();
+        token.diff_loc_caps = pdata.diff_loc_caps.clone();
         token.update_type = REMOVE_PRINCIPAL;
         token.revealed = false;
-        token.old_token_blob = serde_json::to_string(pdata).unwrap();
         token
     }
 
@@ -149,21 +157,26 @@ impl DiffToken {
         stats: Arc<Mutex<QueryStat>>,
     ) -> Result<bool, mysql::Error> {
         if !self.revealed {
-            // get current guise in db
-            let token_guise_selection = get_select_of_ids(&self.guise_ids);
-            let selected = get_query_rows_str(
-                &str_select_statement(&self.guise_name, &token_guise_selection.to_string()),
-                conn,
-                stats.clone(),
-            )?;
-
             match self.update_type {
                 REMOVE_PRINCIPAL => {
-                    let pdata : PrincipalData = serde_json::from_str(&self.old_token_blob).unwrap();
+                    let pdata = PrincipalData {
+                        pubkey: FromRsaPublicKey::from_pkcs1_der(&self.pubkey).unwrap(),
+                        email: self.email.clone(),
+                        ownership_loc_caps: self.ownership_loc_caps.clone(),
+                        diff_loc_caps: self.diff_loc_caps.clone(),
+                    };
                     token_ctrler.register_principal(&self.uid, pdata.email, &pdata.pubkey, conn);
                 }
 
                 REMOVE_GUISE => {
+                    // get current guise in db
+                    let token_guise_selection = get_select_of_ids(&self.guise_ids);
+                    let selected = get_query_rows_str(
+                        &str_select_statement(&self.guise_name, &token_guise_selection.to_string()),
+                        conn,
+                        stats.clone(),
+                    )?;
+
                     // XXX data can be revealed even if it should've been disguised in the interim
 
                     // item has been re-inserted, ignore
@@ -201,10 +214,16 @@ impl DiffToken {
                         conn,
                         stats.clone(),
                     )?;
-
-                    // TODO re-add principal if this is a user
                 }
                 MODIFY_GUISE => {
+                    // get current guise in db
+                    let token_guise_selection = get_select_of_ids(&self.guise_ids);
+                    let selected = get_query_rows_str(
+                        &str_select_statement(&self.guise_name, &token_guise_selection.to_string()),
+                        conn,
+                        stats.clone(),
+                    )?;
+
                     // if field hasn't been modified, return it to original
                     if selected.is_empty() || selected[0] != self.new_value {
                         warn!(

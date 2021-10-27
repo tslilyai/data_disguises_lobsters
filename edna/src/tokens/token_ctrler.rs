@@ -10,11 +10,8 @@ use mysql::prelude::*;
 use rand::{rngs::OsRng, RngCore};
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
-use serde::de::{self, Deserialize, Deserializer, SeqAccess, Visitor};
-use serde::{ser::SerializeStruct, Serialize, Serializer};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
-use std::fmt;
 use std::iter::repeat;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -59,68 +56,6 @@ pub struct PrincipalData {
     // only nonempty for pseudoprincipals!
     pub ownership_loc_caps: Vec<LocCap>,
     pub diff_loc_caps: Vec<LocCap>,
-}
-
-impl Serialize for PrincipalData {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        // 3 is the number of fields in the struct.
-        let mut state = serializer.serialize_struct("PrincipalData", 4)?;
-        let pubkey_vec = self.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
-        state.serialize_field("pubkey", &pubkey_vec)?;
-        state.serialize_field("email", &self.email)?;
-        state.serialize_field("ownership_loc_caps", &self.ownership_loc_caps)?;
-        state.serialize_field("diff_loc_caps", &self.diff_loc_caps)?;
-        state.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for PrincipalData {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct PrincipalDataVisitor;
-
-        impl<'de> Visitor<'de> for PrincipalDataVisitor {
-            type Value = PrincipalData;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct PrincipalData")
-            }
-
-            fn visit_seq<V>(self, mut seq: V) -> Result<PrincipalData, V::Error>
-            where
-                V: SeqAccess<'de>,
-            {
-                let pubkey_vec = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                let pub_key = RsaPublicKey::from_pkcs1_der(pubkey_vec).unwrap();
-                let email = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                let ownership_loc_caps = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                let diff_loc_caps = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                Ok(PrincipalData {
-                    pubkey: pub_key,
-                    email: email,
-                    ownership_loc_caps: ownership_loc_caps,
-                    diff_loc_caps: diff_loc_caps,
-                })
-            }
-        }
-
-        const FIELDS: &'static [&'static str] =
-            &["pubkey", "email", "ownership_loc_caps", "diff_loc_caps"];
-        deserializer.deserialize_struct("PrincipalData", FIELDS, PrincipalDataVisitor)
-    }
 }
 
 #[derive(Clone)]

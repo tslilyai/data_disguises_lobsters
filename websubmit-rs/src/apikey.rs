@@ -92,10 +92,8 @@ pub(crate) fn generate(
 
     let private_key =
         RsaPrivateKey::new(&mut rand::thread_rng(), RSA_BITS).expect("failed to generate a key");
-    let privkey_str = format!(
-        "{:?}",
-        private_key.to_pkcs1_der().unwrap().as_der().to_vec()
-    );
+    let privkey_str =
+        serde_json::to_string(&private_key.to_pkcs1_der().unwrap().as_der().to_vec()).unwrap();
 
     let pub_key = RsaPublicKey::from(&private_key);
 

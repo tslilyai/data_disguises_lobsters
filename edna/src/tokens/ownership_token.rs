@@ -3,7 +3,7 @@ use crate::stats::QueryStat;
 use crate::tokens::*;
 use crate::{DID, UID};
 use log::warn;
-use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
+use rsa::{pkcs1::{ToRsaPrivateKey}, RsaPrivateKey};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::sync::{Arc, Mutex};

@@ -1,0 +1,16 @@
+{{#*inline "page"}}
+  <h1>Restore Your Account</h1>
+
+  <h5>Log in with API key</h5>
+  <form action="/restore" method="post" accept-charset="utf-8">
+    <label>Your Decryption Capability:
+      <p>
+      <input name="decryption_cap" />
+      </p>
+    </label>
+    <input type=hidden name="diff_loc_cap" value="{{{ DIFFLC  }}}"/>
+    <input type=hidden name="ownership_loc_cap" value="{{{ OWNLC }}}"/>
+    <input type="submit" value="Submit">
+  </form>
+{{/inline}}
+{{~> (parent)~}}

@@ -1,6 +1,6 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
-use log::debug;
+use log::{warn};//, debug};
 use mysql::prelude::*;
 use sql_parser::ast::*;
 use std::str::FromStr;
@@ -18,7 +18,7 @@ pub fn query_drop(
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<(), mysql::Error> {
     let mut locked_stats = stats.lock().unwrap();
-    debug!("query_drop: {}\n", q);
+    warn!("query_drop: {}\n", q);
     locked_stats.nqueries += 1;
     drop(locked_stats);
     conn.query_drop(q)
@@ -29,7 +29,7 @@ pub fn get_query_rows_str(
     conn: &mut mysql::PooledConn,
     stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
-    debug!("get_query_rows: {}\n", qstr);
+    warn!("get_query_rows: {}\n", qstr);
     let mut locked_stats = stats.lock().unwrap();
     locked_stats.nqueries += 1;
     drop(locked_stats);
@@ -77,7 +77,7 @@ pub fn get_query_rows_prime(
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     let mut rows = vec![];
 
-    debug!("get_query_rows_prime: {}", q);
+    warn!("get_query_rows_prime: {}", q);
     let res = db.query_iter(q.to_string())?;
     let cols: Vec<String> = res
         .columns()

@@ -3,6 +3,10 @@ use edna::disguise::*;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
+pub fn get_disguise_id() -> u64 {
+    return 1;
+}
+
 pub fn get_disguise() -> Disguise {
     Disguise {
         did: 1,
