@@ -2,11 +2,25 @@ use crate::admin::Admin;
 use crate::apikey::ApiKey;
 use crate::backend::MySqlBackend;
 use crate::disguises;
+use rocket::form::{Form, FromForm};
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+
+#[derive(Debug, FromForm)]
+pub(crate) struct RestoreRequest {
+    decryptionCap: String,
+    diffLocCap: String,
+    ownershipLocCap: String,
+}
+
+#[derive(Debug, FromForm)]
+pub(crate) struct EditAnswerRequest {
+    decryptionCap: String,
+    ownershipLocCap: String,
+}
 
 /*
  * ANONYMIZATION
@@ -35,6 +49,18 @@ pub(crate) fn anonymize(_adm: Admin) -> Template {
     Template::render("admin/anonymize", &ctx)
 }
 
+#[post("/<lecnum>", data = "<data>")]
+pub(crate) fn edit_decor_answer(
+    lecnum: u8,
+    data: Form<EditAnswerRequest>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
+) -> Redirect {
+    let mut bg = backend.lock().unwrap();
+    drop(bg);
+
+    Redirect::to(format!("/login"))
+}
+
 /*
  * GDPR deletion
  */
@@ -47,6 +73,18 @@ pub(crate) fn delete(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) 
         .apply_disguise(gdpr_disguise.clone(), vec![], vec![])
         .unwrap();
     // TODO email stuff
+    drop(bg);
+
+    Redirect::to(format!("/login"))
+}
+
+#[post("/", data = "<data>")]
+pub(crate) fn restore(
+    data: Form<RestoreRequest>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
+) -> Redirect {
+    let mut bg = backend.lock().unwrap();
+    bg.reverse_disguise();
     drop(bg);
 
     Redirect::to(format!("/login"))

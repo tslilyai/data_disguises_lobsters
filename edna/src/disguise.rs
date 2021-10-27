@@ -87,7 +87,7 @@ impl Disguiser {
 
     pub fn reverse(
         &mut self,
-        disguise: Arc<disguise::Disguise>,
+        did: DID,
         data_cap: tokens::DataCap,
         diff_loc_caps: Vec<tokens::LocCap>,
         own_loc_caps: Vec<tokens::LocCap>,
@@ -96,9 +96,9 @@ impl Disguiser {
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
 
         // XXX revealing all global tokens when a disguise is reversed
-        let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(disguise.did);
+        let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
         let (dts, own_tokens) = locked_token_ctrler.get_user_tokens(
-            disguise.did,
+            did,
             &data_cap,
             &diff_loc_caps,
             &own_loc_caps,
@@ -107,13 +107,13 @@ impl Disguiser {
 
         // reverse REMOVE tokens first
         for d in &diff_tokens {
-            if d.did == disguise.did && !d.revealed && d.update_type == REMOVE_GUISE {
+            if d.did == did && !d.revealed && d.update_type == REMOVE_GUISE {
                 warn!("Reversing remove token {:?}\n", d);
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
                 if revealed {
                     warn!("Remove Token reversed!\n");
                     locked_token_ctrler.mark_diff_token_revealed(
-                        disguise.did,
+                        did,
                         d,
                         &data_cap,
                         &diff_loc_caps,
@@ -125,13 +125,13 @@ impl Disguiser {
 
         for d in &diff_tokens {
             // only reverse tokens of disguise if not yet revealed
-            if d.did == disguise.did && !d.revealed && d.update_type != REMOVE_GUISE {
+            if d.did == did && !d.revealed && d.update_type != REMOVE_GUISE {
                 warn!("Reversing token {:?}\n", d);
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
                 if revealed {
                     warn!("NonRemove Diff Token reversed!\n");
                     locked_token_ctrler.mark_diff_token_revealed(
-                        disguise.did,
+                        did,
                         d,
                         &data_cap,
                         &diff_loc_caps,
@@ -142,13 +142,13 @@ impl Disguiser {
         }
 
         for d in &own_tokens {
-            if d.did == disguise.did {
+            if d.did == did {
                 warn!("Reversing token {:?}\n", d);
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
                 if revealed {
                     warn!("Decor Ownership Token reversed!\n");
                     locked_token_ctrler.mark_ownership_token_revealed(
-                        disguise.did,
+                        did,
                         d,
                         &data_cap,
                         &own_loc_caps,
