@@ -32,6 +32,7 @@ pub(crate) struct LectureQuestionsContext {
 #[derive(Serialize)]
 pub struct LectureListEntry {
     id: u64,
+    olc: String,
     label: String,
     num_qs: u64,
     num_answered: u64,
@@ -39,7 +40,6 @@ pub struct LectureListEntry {
 
 #[derive(Serialize)]
 pub struct LectureListContext {
-    olc: u64,
     lectures: Vec<LectureListEntry>,
     parent: &'static str,
 }
@@ -116,6 +116,7 @@ pub(crate) fn edit_decor(
     let lecs: Vec<_> = res
         .into_iter()
         .map(|r| LectureListEntry {
+            olc: olc.to_string(),
             id: from_value(r[0].clone()),
             label: from_value(r[1].clone()),
             num_qs: if r[2] == mysql::Value::NULL {
@@ -128,7 +129,6 @@ pub(crate) fn edit_decor(
         .collect();
 
     let ctx = LectureListContext {
-        olc: olc,
         lectures: lecs,
         parent: "layout",
     };
@@ -138,23 +138,23 @@ pub(crate) fn edit_decor(
 #[post("/<num>", data = "<data>")]
 pub(crate) fn edit_decor_lec(
     cookies: &CookieJar<'_>,
-    apikey: ApiKey,
     num: u8,
     data: Form<EditAnswerRequest>,
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Template {
+    // TODO this doesn't let the original user edit their answer?
+    
     let mut bg = backend.lock().unwrap();
     // get all the UIDs that this user can access
-    let mut pps = bg.edna.get_pseudoprincipals(
+    let pps = bg.edna.get_pseudoprincipals(
         serde_json::from_str(&data.decryption_cap).unwrap(),
         vec![u64::from_str(&data.ownership_loc_cap).unwrap()],
     );
-    pps.push(apikey.user.clone());
 
     // query for all answers (for all pps), choose the last updated one
     let key: Value = (num as u64).into();
     let mut soonest_date = chrono::naive::MIN_DATE;
-    let mut latest_user = apikey.user.clone();
+    let mut latest_user = String::new();
     let mut final_answers = HashMap::new();
     for pp in pps {
         let answers_res = bg.query_exec("my_answers_for_lec", vec![(num as u64).into(), pp.clone().into()]);
@@ -174,7 +174,8 @@ pub(crate) fn edit_decor_lec(
         }
     }
     let res = bg.query_exec("qs_by_lec", vec![key]);
-    let apikey_res = bg.query_exec("apikey_by_user", vec![latest_user.into()]);
+    debug!(bg.log, "Getting ApiKey of User {}",  latest_user.clone());
+    let apikey_res = bg.query_exec("apikey_by_user", vec![latest_user.clone().into()]);
     let apikey: String = from_value(apikey_res[0][0].clone());
     drop(bg);
 

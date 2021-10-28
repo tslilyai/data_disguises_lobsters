@@ -837,6 +837,10 @@ impl TokenCtrler {
                     // decrypt with data_cap provided by client
                     let (_, plaintext) = enc_pk.decrypt_encdata(data_cap);
                     let pk = ownership_token_from_bytes(&plaintext);
+                    if uids.is_empty() {
+                        // save the original user too
+                        uids.push(pk.uid.clone());
+                    }
                     uids.push(pk.new_uid.clone());
 
                     // get all tokens of pseudoprincipal
