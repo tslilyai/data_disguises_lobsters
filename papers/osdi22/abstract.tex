@@ -1,0 +1,33 @@
+\begin{abstract}
+% What is the problem?
+Modern web services are legally and morally called upon to provide better
+data privacy for their users, but developers face high burdens in manually
+realizing the necessary privacy features.
+% Why does it matter?
+As a result, privacy features are sparse, sloppily implemented,
+or---worse---buggy or non-existent.
+
+% What is our solution?
+\emph{Data disguises} are a new structured framework that helps
+developers specify, implement, and execute privacy transformations over
+user data in a databased-backed web application.
+%
+When applied to user data, disguises anonymize or remove data, but retain
+key application functionality with the aid of cryptographically-protected
+server-side state.
+%
+Using this state, the user(s) originally associated with the data can still
+operate on it via the capability-based authorization our framework provides,
+even when disguises have removed identifying information from the database.
+%
+
+% How well does it work?
+We implemented \sys, a prototype data disguising library, and used \sys to
+add data disguises to \note{three} real-world web applications.
+%
+Our evaluation shows that adding data disguises to existing applications
+is feasible with incremental changes, and that \sys has low overheads
+while providing users with privacy assurances and control over their stored
+data.
+%
+\end{abstract}

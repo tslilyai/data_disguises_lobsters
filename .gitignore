@@ -32,3 +32,4 @@ __pycache__
 venv
 node_modules
 tags
+.DS_Store
