@@ -1,0 +1,21 @@
+{{#*inline "page"}}
+  <ol>
+  {{#each lectures}}
+    <li>
+        <h5>Edit Lecture {{{ this.id }}} questions:</h5>
+        <form action="/edit/{{{ this.id }}}" method="post" accept-charset="utf-8">
+            <input name="email" />
+            <label>Your Decryption Capability:
+              <p>
+              <input name="decryption_cap" />
+              </p>
+            </label>
+            <input type=hidden name="ownership_loc_cap" value="{{{ olc }}}"/>
+            <input type="submit" value="Submit">
+        </form>
+    </li>
+  {{/each}}
+  </ol>
+    
+{{/inline}}
+{{~> (parent)~}}

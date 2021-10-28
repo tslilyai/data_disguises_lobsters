@@ -94,7 +94,8 @@ async fn main() {
             "/admin/anonymize",
             routes![privacy::anonymize, privacy::anonymize_answers],
         )
-        .mount("/restore", routes![privacy::restore_account, privacy::restore_all, privacy::restore_diff_only])
+        .mount("/restore", routes![privacy::restore_account, privacy::restore])
+        .mount("/edit", routes![privacy::edit_decor, privacy::edit_decor_lec])
         .launch()
         .await
     {

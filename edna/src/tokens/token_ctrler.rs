@@ -146,7 +146,7 @@ impl TokenCtrler {
             // save to principal data if no email (pseudoprincipal)
             if p.email.is_empty() {
                 p.diff_loc_caps.push(*c);
-                
+
                 // update persistence
                 let uidstr = uid.trim_matches('\'');
                 conn.query_drop(&format!(
@@ -156,7 +156,8 @@ impl TokenCtrler {
                     serde_json::to_string(&p.diff_loc_caps).unwrap(),
                     UID_COL,
                     uidstr
-                )).unwrap();
+                ))
+                .unwrap();
             }
         }
 
@@ -165,7 +166,7 @@ impl TokenCtrler {
             // save to principal data if no email (pseudoprincipal)
             if p.email.is_empty() {
                 p.ownership_loc_caps.push(*c);
-                
+
                 // update persistence
                 let uidstr = uid.trim_matches('\'');
                 conn.query_drop(&format!(
@@ -227,24 +228,6 @@ impl TokenCtrler {
                 return cap;
             }
         }
-    }
-
-    fn persist_principal(&self, uid: &UID, pdata: &PrincipalData, conn: &mut mysql::PooledConn) {
-        let pubkey_vec = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
-        let v: Vec<String> = vec![];
-        let empty_vec = serde_json::to_string(&v).unwrap();
-        let uid = uid.trim_matches('\'');
-        let insert_q = format!(
-            "INSERT INTO {} VALUES (\'{}\', \'{}\', \'{}\', \'{}\', \'{}\');",
-            PRINCIPAL_TABLE,
-            uid,
-            pdata.email,
-            serde_json::to_string(&pubkey_vec).unwrap(),
-            empty_vec,
-            empty_vec
-        );
-        warn!("Insert q {}", insert_q);
-        conn.query_drop(&insert_q).unwrap();
     }
 
     /*
@@ -318,6 +301,24 @@ impl TokenCtrler {
             &private_key,
         );
         self.insert_ownership_token(&mut pppk);
+    }
+
+    fn persist_principal(&self, uid: &UID, pdata: &PrincipalData, conn: &mut mysql::PooledConn) {
+        let pubkey_vec = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
+        let v: Vec<String> = vec![];
+        let empty_vec = serde_json::to_string(&v).unwrap();
+        let uid = uid.trim_matches('\'');
+        let insert_q = format!(
+            "INSERT INTO {} VALUES (\'{}\', \'{}\', \'{}\', \'{}\', \'{}\');",
+            PRINCIPAL_TABLE,
+            uid,
+            pdata.email,
+            serde_json::to_string(&pubkey_vec).unwrap(),
+            empty_vec,
+            empty_vec
+        );
+        warn!("Insert q {}", insert_q);
+        conn.query_drop(&insert_q).unwrap();
     }
 
     pub fn mark_remove_principal(&mut self, uid: &UID) {
@@ -819,6 +820,36 @@ impl TokenCtrler {
             }
         }
         (diff_tokens, own_tokens)
+    }
+
+    pub fn get_user_pseudoprincipals(
+        &self,
+        data_cap: &DataCap,
+        ownership_loc_caps: &Vec<LocCap>,
+    ) -> Vec<UID> {
+        let mut uids = vec![];
+        if data_cap.is_empty() {
+            return vec![];
+        }
+        for lc in ownership_loc_caps {
+            if let Some(pks) = self.enc_ownership_map.get(&lc) {
+                for enc_pk in &pks.clone() {
+                    // decrypt with data_cap provided by client
+                    let (_, plaintext) = enc_pk.decrypt_encdata(data_cap);
+                    let pk = ownership_token_from_bytes(&plaintext);
+                    uids.push(pk.new_uid.clone());
+
+                    // get all tokens of pseudoprincipal
+                    warn!("Getting tokens of pseudoprincipal {}", pk.new_uid);
+                    if let Some(pp) = self.principal_data.get(&pk.new_uid) {
+                        let ppuids =
+                            self.get_user_pseudoprincipals(&pk.priv_key, &pp.ownership_loc_caps);
+                        uids.extend(ppuids.iter().cloned());
+                    }
+                }
+            }
+        }
+        uids
     }
 }
 

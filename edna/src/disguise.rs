@@ -85,6 +85,17 @@ impl Disguiser {
         locked_token_ctrler.register_principal(uid, email, pubkey, &mut conn);
     }
 
+    pub fn get_pseudoprincipals(
+        &self,
+        data_cap: &DataCap,
+        ownership_loc_caps: &Vec<LocCap>,
+    ) -> Vec<UID> {
+        let locked_token_ctrler = self.token_ctrler.lock().unwrap();
+        let uids = locked_token_ctrler.get_user_pseudoprincipals(data_cap, ownership_loc_caps);
+        drop(locked_token_ctrler);
+        uids
+    }
+
     pub fn reverse(
         &mut self,
         did: DID,

@@ -60,14 +60,12 @@ impl EdnaClient {
         self.disguiser.register_principal(&uid, email, pubkey);
     }
 
-    pub fn has_ownership(
+    pub fn get_pseudoprincipals(
         &self,
-        _uid: UID,
-        _data_cap: tokens::DataCap,
-        _loc_caps: Vec<tokens::LocCap>,
-    ) -> bool {
-        // TODO
-        false
+        data_cap: tokens::DataCap,
+        ownership_loc_caps: Vec<tokens::LocCap>,
+    ) -> Vec<UID> {
+        self.disguiser.get_pseudoprincipals(&data_cap, &ownership_loc_caps)
     }
 
     pub fn apply_disguise(
