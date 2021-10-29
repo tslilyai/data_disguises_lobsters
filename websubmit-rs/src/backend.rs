@@ -37,6 +37,22 @@ impl MySqlBackend {
         )
         .unwrap();
         assert_eq!(db.ping(), true);
+        
+        // initialize for testing
+        if prime {
+            let init = std::fs::read_to_string("src/init.sql")?;
+            let mut stmt = String::new();
+            for line in init.lines() {
+                if line.starts_with("--") || line.is_empty() {
+                    continue;
+                }
+                stmt.push_str(line);
+                if stmt.ends_with(';') {
+                    db.query_drop(stmt).unwrap();
+                    stmt = String::new();
+                }
+            }
+        }
 
         // save table and query information
         let mut tables = HashMap::new();
