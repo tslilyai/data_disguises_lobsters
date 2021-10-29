@@ -288,7 +288,6 @@ impl TokenCtrler {
         let uidstr = uid.trim_matches('\'');
         let anon_uidstr = anon_uid.trim_matches('\'');
 
-
         // save the anon principal as a new principal with a public key
         // and initially empty token vaults
         self.register_principal(&anon_uidstr.to_string(), String::new(), &pub_key, conn);

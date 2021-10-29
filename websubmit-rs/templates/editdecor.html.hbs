@@ -1,9 +1,10 @@
 {{#*inline "page"}}
   <ol>
   {{#each lectures}}
+  {{#each this.questions}}
     <li>
-        <h5>Edit Lecture {{{ this.id }}} questions:</h5>
-        <form action="/edit/{{{ this.id }}}" method="post" accept-charset="utf-8">
+        <h5>Edit Lecture {{{ this.lid }}} Question {{{ this.qid }}}:</h5>
+        <form action="/edit/{{{ this.lid }}}/{{{ this.qid }}}" method="post" accept-charset="utf-8">
             <label>Your Decryption Capability:
               <p>
               <input name="decryption_cap" />

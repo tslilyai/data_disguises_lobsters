@@ -135,10 +135,11 @@ pub(crate) fn edit_decor(
     Template::render("editdecor", &ctx)
 }
 
-#[post("/<num>", data = "<data>")]
+#[post("/<lnum>/<qnum>", data = "<data>")]
 pub(crate) fn edit_decor_lec(
     cookies: &CookieJar<'_>,
-    num: u8,
+    lnum: u8,
+    qnum: u8,
     data: Form<EditAnswerRequest>,
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Template {
@@ -152,13 +153,13 @@ pub(crate) fn edit_decor_lec(
     );
     debug!(bg.log, "Got pps {:?}", pps); 
     // query for all answers (for all pps), choose the last updated one
-    let key: Value = (num as u64).into();
+    let key: Value = (lnum as u64).into();
     let now = Utc::now().naive_utc();
     let mut days_since = i64::MAX;
     let mut latest_user = String::new();
     let mut final_answers = HashMap::new();
     for pp in pps {
-        let answers_res = bg.query_exec("my_answers_for_lec", vec![(num as u64).into(), pp.clone().into()]);
+        let answers_res = bg.query_exec("my_answers_for_lec", vec![(lnum as u64).into(), pp.clone().into()]);
         let mut answers = HashMap::new();
         for r in answers_res {
             let id: u64 = from_value(r[2].clone());
@@ -185,6 +186,9 @@ pub(crate) fn edit_decor_lec(
     let mut qs: Vec<LectureQuestion> = vec![];
     for r in res {
         let id: u64 = from_value(r[1].clone());
+        if id != qnum as u64 {
+            continue;
+        }
         let answer = final_answers.get(&id).map(|s| s.to_owned());
         if answer == None {
             continue;
@@ -198,7 +202,7 @@ pub(crate) fn edit_decor_lec(
     qs.sort_by(|a, b| a.id.cmp(&b.id));
 
     let ctx = LectureQuestionsContext {
-        lec_id: num,
+        lec_id: lnum,
         questions: qs,
         parent: "layout",
     };
@@ -207,6 +211,7 @@ pub(crate) fn edit_decor_lec(
     let cookie = Cookie::build("apikey", apikey.clone()).path("/").finish();
     cookies.add(cookie);
 
+    // TODO redirect to submit page and then to edit decorrelated answers page 
     Template::render("questions", &ctx)
 }
 
