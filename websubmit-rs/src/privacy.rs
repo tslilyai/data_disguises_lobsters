@@ -147,7 +147,7 @@ pub(crate) fn edit_decor_lec(
     let mut bg = backend.lock().unwrap();
     // get all the UIDs that this user can access
     let pps = bg.edna.get_pseudoprincipals(
-        serde_json::from_str(&data.decryption_cap).unwrap(),
+        base64::decode(&data.decryption_cap).unwrap(),
         vec![u64::from_str(&data.ownership_loc_cap).unwrap()],
     );
     debug!(bg.log, "Got pps {:?}", pps); 
@@ -202,6 +202,7 @@ pub(crate) fn edit_decor_lec(
         questions: qs,
         parent: "layout",
     };
+
     // this just lets the user act as the latest pseudoprincipal
     // but it won't reset afterward.... so the user won't be able to do anything else
     let cookie = Cookie::build("apikey", apikey.clone()).path("/").finish();
@@ -262,7 +263,7 @@ pub(crate) fn restore_account(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    let decryption_cap: Vec<u8> = serde_json::from_str(&data.decryption_cap)
+    let decryption_cap: Vec<u8> = base64::decode(&data.decryption_cap)
         .expect("Bad decryption capability in post request");
     let olcs = if data.ownership_loc_cap != 0 {
         vec![data.ownership_loc_cap]
