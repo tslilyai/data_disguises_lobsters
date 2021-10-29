@@ -40,14 +40,11 @@ pub fn new_ownership_token(
     new_uid: UID,
     priv_key: &RsaPrivateKey,
 ) -> OwnershipToken {
-    let uidstr = cur_uid.trim_matches('\'');
-    let new_uidstr = new_uid.trim_matches('\'');
-
     let mut token: OwnershipToken = Default::default();
-    token.uid = uidstr.to_string();
+    token.uid = cur_uid;
     token.did = did;
     token.priv_key = priv_key.to_pkcs1_der().unwrap().as_der().to_vec();
-    token.new_uid = new_uidstr.to_string();
+    token.new_uid = new_uid;
     token.revealed = false;
     token.child_name = child_name;
     token.child_ids = child_ids;
