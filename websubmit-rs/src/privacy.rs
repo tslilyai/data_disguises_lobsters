@@ -150,12 +150,11 @@ pub(crate) fn edit_decor_lec(
         serde_json::from_str(&data.decryption_cap).unwrap(),
         vec![u64::from_str(&data.ownership_loc_cap).unwrap()],
     );
-
+    debug!(bg.log, "Got pps {:?}", pps); 
     // query for all answers (for all pps), choose the last updated one
     let key: Value = (num as u64).into();
-    let min_date = NaiveDate::MIN_DATE;
+    let now = Utc::now().naive_utc();
     let mut days_since = i64::MAX;
-    let since = NaiveDate::signed_duration_since;
     let mut latest_user = String::new();
     let mut final_answers = HashMap::new();
     for pp in pps {
@@ -164,10 +163,10 @@ pub(crate) fn edit_decor_lec(
         for r in answers_res {
             let id: u64 = from_value(r[2].clone());
             let atext: String = from_value(r[3].clone());
-            let date: NaiveDate = from_value(r[4].clone());
-            let my_days_since = since(date, min_date).num_days();
-            debug!(bg.log, "Got date of {}, {} days after min_date", date, my_days_since);
-            if my_days_since > days_since {
+            let date: NaiveDateTime = from_value(r[4].clone());
+            let my_days_since = now.signed_duration_since(date).num_days();
+            debug!(bg.log, "Got date of {}, {} days before now", date, my_days_since);
+            if my_days_since < days_since {
                 days_since = my_days_since;
                 latest_user = pp.clone();
             }
@@ -183,18 +182,19 @@ pub(crate) fn edit_decor_lec(
     let apikey: String = from_value(apikey_res[0][0].clone());
     drop(bg);
 
-    let mut qs: Vec<_> = res
-        .into_iter()
-        .map(|r| {
-            let id: u64 = from_value(r[1].clone());
-            let answer = final_answers.get(&id).map(|s| s.to_owned());
-            LectureQuestion {
-                id: id,
-                prompt: from_value(r[2].clone()),
-                answer: answer,
-            }
-        })
-        .collect();
+    let mut qs: Vec<LectureQuestion> = vec![];
+    for r in res {
+        let id: u64 = from_value(r[1].clone());
+        let answer = final_answers.get(&id).map(|s| s.to_owned());
+        if answer == None {
+            continue;
+        } 
+        qs.push(LectureQuestion {
+            id: id,
+            prompt: from_value(r[2].clone()),
+            answer: answer,
+        });
+    }
     qs.sort_by(|a, b| a.id.cmp(&b.id));
 
     let ctx = LectureQuestionsContext {

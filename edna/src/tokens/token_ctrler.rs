@@ -285,10 +285,13 @@ impl TokenCtrler {
         let private_key =
             RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
+        let uidstr = uid.trim_matches('\'');
+        let anon_uidstr = anon_uid.trim_matches('\'');
+
 
         // save the anon principal as a new principal with a public key
         // and initially empty token vaults
-        self.register_principal(&anon_uid.to_string(), String::new(), &pub_key, conn);
+        self.register_principal(&anon_uidstr.to_string(), String::new(), &pub_key, conn);
         let mut pppk: OwnershipToken = new_ownership_token(
             did,
             child_name,
@@ -296,8 +299,8 @@ impl TokenCtrler {
             pprincipal_name,
             pprincipal_id_col,
             fk_col,
-            uid.to_string(),
-            anon_uid.to_string(),
+            uidstr.to_string(),
+            anon_uidstr.to_string(),
             &private_key,
         );
         self.insert_ownership_token(&mut pppk);

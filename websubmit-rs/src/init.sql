@@ -8,3 +8,4 @@ INSERT INTO answers VALUES ("tslilyai@mit.edu", 1, 1, "lec1q1answer", "1000-01-0
 INSERT INTO answers VALUES ("tslilyai@mit.edu", 1, 2, "lec1q2answer", "1000-01-01 00:00:00");
 INSERT INTO answers VALUES ("tslilyai@mit.edu", 2, 1, "lec2q1answer", "1000-01-01 00:00:00");
 INSERT INTO answers VALUES ("tslilyai@mit.edu", 2, 2, "lec2q2answer", "1000-01-01 00:00:00");
+INSERT INTO users VALUES ("malte@cs.brown.edu", "b4bc3cef020eb6dd20defa1a7a8340dee889bc2164612e310766e69e45a1d5a7", 1);
