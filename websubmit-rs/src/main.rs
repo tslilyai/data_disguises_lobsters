@@ -11,6 +11,7 @@ extern crate slog;
 extern crate slog_term;
 #[macro_use]
 extern crate serde_derive;
+extern crate base64;
 
 mod admin;
 mod apikey;
