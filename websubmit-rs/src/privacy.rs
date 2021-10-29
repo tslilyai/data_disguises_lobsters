@@ -153,7 +153,9 @@ pub(crate) fn edit_decor_lec(
 
     // query for all answers (for all pps), choose the last updated one
     let key: Value = (num as u64).into();
-    let mut soonest_date = chrono::naive::MIN_DATE;
+    let min_date = NaiveDate::MIN_DATE;
+    let mut days_since = i64::MAX;
+    let since = NaiveDate::signed_duration_since;
     let mut latest_user = String::new();
     let mut final_answers = HashMap::new();
     for pp in pps {
@@ -163,8 +165,10 @@ pub(crate) fn edit_decor_lec(
             let id: u64 = from_value(r[2].clone());
             let atext: String = from_value(r[3].clone());
             let date: NaiveDate = from_value(r[4].clone());
-            if date > soonest_date {
-                soonest_date = date;
+            let my_days_since = since(date, min_date).num_days();
+            debug!(bg.log, "Got date of {}, {} days after min_date", date, my_days_since);
+            if my_days_since > days_since {
+                days_since = my_days_since;
                 latest_user = pp.clone();
             }
             answers.insert(id, atext);
