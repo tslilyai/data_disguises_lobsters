@@ -135,11 +135,9 @@ pub(crate) fn edit_decor(
     Template::render("editdecor", &ctx)
 }
 
-#[post("/<lnum>/<qnum>", data = "<data>")]
+#[post("/", data = "<data>")]
 pub(crate) fn edit_decor_lec(
     cookies: &CookieJar<'_>,
-    lnum: u8,
-    qnum: u8,
     data: Form<EditAnswerRequest>,
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Template {
@@ -153,16 +151,19 @@ pub(crate) fn edit_decor_lec(
     );
     debug!(bg.log, "Got pps {:?}", pps); 
     // query for all answers (for all pps), choose the last updated one
-    let key: Value = (lnum as u64).into();
     let now = Utc::now().naive_utc();
     let mut days_since = i64::MAX;
-    let mut latest_user = String::new();
     let mut final_answers = HashMap::new();
     for pp in pps {
-        let answers_res = bg.query_exec("my_answers_for_lec", vec![(lnum as u64).into(), pp.clone().into()]);
+        debug!(bg.log, "Getting ApiKey of User {}",  pp.clone());
+        let apikey_res = bg.query_exec("apikey_by_user", vec![pp.clone().into()]);
+        let apikey: String = from_value(apikey_res[0][0].clone());
+
+        let answers_res = bg.query_exec("answers_for_user", vec![pp.clone().into()]);
         let mut answers = HashMap::new();
         for r in answers_res {
-            let id: u64 = from_value(r[2].clone());
+            let lid: u64 = from_value(r[1].clone());
+            let qid: u64 = from_value(r[2].clone());
             let atext: String = from_value(r[3].clone());
             let date: NaiveDateTime = from_value(r[4].clone());
             let my_days_since = now.signed_duration_since(date).num_days();
@@ -171,46 +172,15 @@ pub(crate) fn edit_decor_lec(
                 days_since = my_days_since;
                 latest_user = pp.clone();
             }
-            answers.insert(id, atext);
+            answers.insert((lid, qid), atext);
         }
         if latest_user == pp {
             final_answers = answers;
         }
     }
-    let res = bg.query_exec("qs_by_lec", vec![key]);
-    debug!(bg.log, "Getting ApiKey of User {}",  latest_user.clone());
-    let apikey_res = bg.query_exec("apikey_by_user", vec![latest_user.clone().into()]);
-    let apikey: String = from_value(apikey_res[0][0].clone());
     drop(bg);
-
-    let mut qs: Vec<LectureQuestion> = vec![];
-    for r in res {
-        let id: u64 = from_value(r[1].clone());
-        if id != qnum as u64 {
-            continue;
-        }
-        let answer = final_answers.get(&id).map(|s| s.to_owned());
-        if answer == None {
-            continue;
-        } 
-        qs.push(LectureQuestion {
-            id: id,
-            prompt: from_value(r[2].clone()),
-            answer: answer,
-        });
-    }
-    qs.sort_by(|a, b| a.id.cmp(&b.id));
-
-    let ctx = LectureQuestionsContext {
-        lec_id: lnum,
-        questions: qs,
-        parent: "layout",
-    };
-
-    // this just lets the user act as the latest pseudoprincipal
-    // but it won't reset afterward.... so the user won't be able to do anything else
-    let cookie = Cookie::build("apikey", apikey.clone()).path("/").finish();
-    cookies.add(cookie);
+    
+    // TODO set cookies with all allowed principal IDs
 
     // TODO redirect to submit page and then to edit decorrelated answers page 
     Template::render("questions", &ctx)

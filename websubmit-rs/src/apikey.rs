@@ -87,7 +87,7 @@ pub(crate) fn generate(
     let mut bg = backend.lock().unwrap();
     bg.insert(
         "users",
-        vec![data.email.as_str().into(), hash.as_str().into(), is_admin],
+        vec![data.email.as_str().into(), hash.as_str().into(), is_admin, false.into()],
     );
 
     let private_key =
