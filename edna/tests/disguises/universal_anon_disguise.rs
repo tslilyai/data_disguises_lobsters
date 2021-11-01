@@ -13,7 +13,7 @@ pub fn get_disguise() -> Disguise {
     }
 }
 
-fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
+fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<ObjectTransformation>>>> {
     let mut hm = HashMap::new();
 
     // DECOR MOD AND STORIES
@@ -22,17 +22,19 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
         "moderations".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_true_pred(),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    group_by_cols: vec![],
                     fk_name: "users".to_string(),
                     fk_col: "moderator_user_id".to_string(),
                 })),
                 global: false,
             },
-            Transform {
+            ObjectTransformation {
                 pred: get_true_pred(),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    group_by_cols: vec![],
                     fk_name: "users".to_string(),
                     fk_col: "user_id".to_string(),
                 })),
@@ -45,9 +47,10 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
         "stories".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_true_pred(),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    group_by_cols: vec![],
                     fk_name: "users".to_string(),
                     fk_col: "user_id".to_string(),
                 })),

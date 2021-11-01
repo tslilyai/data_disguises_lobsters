@@ -17,7 +17,7 @@ pub fn get_disguise(user_email: String) -> Disguise {
     }
 }
 
-fn get_table_disguises(user_email: String) -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
+fn get_table_disguises(user_email: String) -> HashMap<String, Arc<RwLock<Vec<ObjectTransformation>>>> {
     let mut hm = HashMap::new();
 
     // REMOVE USER
@@ -25,7 +25,7 @@ fn get_table_disguises(user_email: String) -> HashMap<String, Arc<RwLock<Vec<Tra
         "users".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("email", user_email.clone()),
                 trans: Arc::new(RwLock::new(TransformArgs::Remove)),
                 global: false,
@@ -35,7 +35,7 @@ fn get_table_disguises(user_email: String) -> HashMap<String, Arc<RwLock<Vec<Tra
     // REMOVE ANSWERS 
     hm.insert(
         "answers".to_string(),
-        Arc::new(RwLock::new(vec![Transform {
+        Arc::new(RwLock::new(vec![ObjectTransformation {
             pred: get_eq_pred("user", user_email),
             trans: Arc::new(RwLock::new(TransformArgs::Remove)),
             global: false,

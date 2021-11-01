@@ -85,6 +85,7 @@ impl Disguiser {
         let mut conn = self.pool.get_conn().unwrap();
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
         locked_token_ctrler.register_principal(uid, email, pubkey, &mut conn);
+        drop(locked_token_ctrler);
     }
 
     pub fn get_pseudoprincipals(
@@ -211,8 +212,8 @@ impl Disguiser {
             let my_global_diff_tokens_to_modify = self.global_diff_tokens_to_modify.clone();
             let my_diff_tokens = global_diff_tokens.clone();
             let my_own_tokens = ownership_tokens.clone();
-            let my_insert = self.to_insert.clone();
             let my_token_ctrler = self.token_ctrler.clone();
+            let my_insert = self.to_insert.clone();
 
             // clone disguise fields
             let my_table_info = disguise.table_info.clone();
@@ -229,6 +230,7 @@ impl Disguiser {
                 let curtable_info = locked_table_info.get(&table).unwrap();
                 let locked_guise_gen = my_guise_gen.read().unwrap();
                 let my_transforms = transforms.read().unwrap();
+                let mut to_insert = HashMap::new();
 
                 // handle Decor and Modify
                 for t in &*my_transforms {
@@ -259,13 +261,12 @@ impl Disguiser {
                             } => {
                                 let fk_table_info = locked_table_info.get(fk_name).unwrap();
                                 let locked_fk_gen = locked_guise_gen.get(fk_name).unwrap();
-                                let mut locked_insert = my_insert.lock().unwrap();
                                 let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
 
                                 decor_items(
                                     // disguise and per-thread state
                                     did,
-                                    &mut locked_insert,
+                                    &mut to_insert,
                                     &mut locked_token_ctrler,
                                     mystats.clone(),
                                     // info needed for decorrelation
@@ -279,6 +280,7 @@ impl Disguiser {
                                     &selected_rows,
                                     &mut conn,
                                 );
+                                drop(locked_token_ctrler);
                             }
 
                             TransformArgs::Modify {
@@ -286,8 +288,8 @@ impl Disguiser {
                                 generate_modified_value,
                                 ..
                             } => {
+                                let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
                                 for i in &selected_rows {
-                                    let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
                                     let old_val = get_value_of_col(&i, &col).unwrap();
 
                                     modify_item(
@@ -303,6 +305,7 @@ impl Disguiser {
                                         &mut conn,
                                     );
                                 }
+                                drop(locked_token_ctrler);
                             }
                             _ => (),
                         }
@@ -322,17 +325,19 @@ impl Disguiser {
                         }
                     }
                 }
-                warn!("Thread {:?} exiting", thread::current().id());
-
                 // save token transforms to perform
                 let mut locked_tokens = my_global_diff_tokens_to_modify.write().unwrap();
                 locked_tokens.extend(token_transforms);
                 drop(locked_tokens);
+
+                // save guises to insert
+                let mut locked_insert = my_insert.lock().unwrap();
+                locked_insert.extend(to_insert);
+                drop(locked_insert);
+
+                warn!("Thread {:?} exiting", thread::current().id());
             }));
         }
-
-        // modify global diff tokens all at once
-        self.modify_global_diff_tokens(disguise);
 
         // wait until all mysql queries are done
         for jh in threads.into_iter() {
@@ -342,6 +347,10 @@ impl Disguiser {
             }
         }
 
+        // modify global diff tokens all at once
+        self.modify_global_diff_tokens(disguise);
+
+        // actually insert things
         let locked_insert = self.to_insert.lock().unwrap();
         for ((table, cols), vals) in locked_insert.iter() {
             query_drop(
@@ -582,11 +591,10 @@ fn modify_item(
     query_drop(
         Statement::Update(UpdateStatement {
             table_name: string_to_objname(&table),
-            assignments: vec![
-                Assignment {
-                        id: Ident::new(col.clone()),
-                        value: Expr::Value(Value::String(new_val.clone())),
-                }],
+            assignments: vec![Assignment {
+                id: Ident::new(col.clone()),
+                value: Expr::Value(Value::String(new_val.clone())),
+            }],
             selection: Some(i_select),
         })
         .to_string(),
@@ -594,7 +602,6 @@ fn modify_item(
         stats.clone(),
     )
     .unwrap();
-
 
     // TOKEN INSERT
     let new_obj: Vec<RowVal> = i

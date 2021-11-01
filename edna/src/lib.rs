@@ -1,7 +1,7 @@
 extern crate mysql;
 extern crate ordered_float;
 
-use log::{debug, warn};
+use log::warn;
 use mysql::prelude::*;
 use mysql::Opts;
 use rsa::RsaPublicKey;

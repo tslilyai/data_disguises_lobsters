@@ -105,6 +105,7 @@ pub(crate) fn anonymize(_adm: Admin) -> Template {
 
 #[get("/<olc>")]
 pub(crate) fn edit_decor(
+    cookies: &CookieJar<'_>,
     olc: u64,
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Template {
@@ -112,7 +113,6 @@ pub(crate) fn edit_decor(
     let mut bg = backend.lock().unwrap();
     let res = bg.query_exec("leclist", vec![]);
     drop(bg);
-
     let lecs: Vec<_> = res
         .into_iter()
         .map(|r| LectureListEntry {
@@ -132,7 +132,7 @@ pub(crate) fn edit_decor(
         lectures: lecs,
         parent: "layout",
     };
-    Template::render("editdecor", &ctx)
+    Template::render("edit_as_pseudoprincipal/get_decryption_cap.html", &ctx)
 }
 
 #[post("/", data = "<data>")]

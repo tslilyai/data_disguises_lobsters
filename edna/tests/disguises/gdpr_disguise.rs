@@ -13,7 +13,7 @@ pub fn get_disguise(user_id: u64) -> Disguise {
     }
 }
 
-fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
+fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<ObjectTransformation>>>> {
     let mut hm = HashMap::new();
 
     // REMOVE USER
@@ -21,7 +21,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "users".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("id", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Remove)),
                 global: false,
@@ -31,7 +31,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
     // REMOVE STORIES
     hm.insert(
         "stories".to_string(),
-        Arc::new(RwLock::new(vec![Transform {
+        Arc::new(RwLock::new(vec![ObjectTransformation {
             pred: get_eq_pred("user_id", user_id.to_string()),
             trans: Arc::new(RwLock::new(TransformArgs::Remove)),
             global: false,
@@ -43,17 +43,19 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "moderations".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("moderator_user_id", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    group_by_cols: vec![],
                     fk_name: "users".to_string(),
                     fk_col: "moderator_user_id".to_string(),
                 })),
                 global: false,
             },
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("user_id", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    group_by_cols: vec![],
                     fk_name: "users".to_string(),
                     fk_col: "user_id".to_string(),
                 })),

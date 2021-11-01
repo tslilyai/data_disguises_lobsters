@@ -17,16 +17,17 @@ pub fn get_disguise() -> Disguise {
     }
 }
 
-fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
+fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<ObjectTransformation>>>> {
     let mut hm = HashMap::new();
 
     // DECOR ANSWERS 
     hm.insert(
         "answers".to_string(),
         Arc::new(RwLock::new(vec![
-            Transform {
+            ObjectTransformation {
                 pred: get_true_pred(),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    group_by_cols: vec!["lec".to_string()],
                     fk_name: "users".to_string(),
                     fk_col: "user".to_string(),
                 })),
