@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 use rand::prelude::*;
 
 pub fn get_insert_guise_cols() -> Vec<String> {
-    vec!["email".to_string(), "apikey".to_string(), "is_admin".to_string()]
+    vec!["email".to_string(), "apikey".to_string(), "is_admin".to_string(), "is_anon".to_string()]
 }
 
 pub fn get_insert_guise_vals() -> Vec<Expr> {

@@ -50,7 +50,6 @@ pub(crate) struct RestoreRequest {
 #[derive(Debug, FromForm)]
 pub(crate) struct EditCapabilitiesRequest{
     decryption_cap: String,
-    ownership_loc_cap: String,
 }
 
 /*
@@ -167,8 +166,6 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     let mut answers = HashMap::new();
     let mut apikey = String::new();
     for pp in pps {
-        debug!(bg.log, "Getting ApiKey of User {}",  pp.clone());
-        
         let answers_res = bg.query_exec("answers_by_user", vec![pp.clone().into()]);
         if !answers_res.is_empty() {
             for r in answers_res {
@@ -176,10 +173,11 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
                 let atext: String = from_value(r[3].clone());
                 answers.insert(qid, atext);
             }
+            debug!(bg.log, "Getting ApiKey of User {}",  pp.clone());
             let apikey_res = bg.query_exec("apikey_by_user", vec![pp.clone().into()]);
             apikey = from_value(apikey_res[0][0].clone());
+            break;
         }
-        break;
     }
 
     let res = bg.query_exec("qs_by_lec", vec![lid.into()]);

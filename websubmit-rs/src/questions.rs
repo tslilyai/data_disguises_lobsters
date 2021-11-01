@@ -145,19 +145,23 @@ pub(crate) fn questions(
     let mut bg = backend.lock().unwrap();
     
     // check if user can edit these answers
-    let user_res = bg.query_exec("users_by_apikey", vec![apikey.user.clone().into()]);
+    let user_res = bg.query_exec("is_anon", vec![apikey.user.clone().into()]);
     if user_res.len() < 1 {
-        debug!(bg.log, "User {} unauthorized to edit or submit answers for lec {}", apikey.user, num);
-        Redirect::to("/leclist");
+        debug!(bg.log, "User {} unauthorized to edit or submit answers for lec {} (no user found)", apikey.user, num);
+        let mut ctx = HashMap::new();
+        ctx.insert("parent", String::from("layout"));
+        return Template::render("login", ctx);
     } 
     let answers_res = bg.query_exec(
         "my_answers_for_lec",
         vec![(num as u64).into(), apikey.user.clone().into()],
     );
     // if anon and doesn't have an answer, don't let submit
-    if user_res[0][3] == 1.into() && answers_res.len() == 0 {
-        debug!(bg.log, "User {} unauthorized to edit or submit answers for lec {}", apikey.user, num);
-        Redirect::to("/leclist");
+    if user_res[0][0] == 1.into() && answers_res.len() == 0 {
+        debug!(bg.log, "User {} unauthorized to edit or submit answers for lec {} (no answers for pseudoprincipal)", apikey.user, num);
+        let mut ctx = HashMap::new();
+        ctx.insert("parent", String::from("layout"));
+        return Template::render("login", ctx);
     }
 
     let key: Value = (num as u64).into();
