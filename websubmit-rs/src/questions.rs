@@ -143,14 +143,25 @@ pub(crate) fn questions(
     use std::collections::HashMap;
 
     let mut bg = backend.lock().unwrap();
-    let key: Value = (num as u64).into();
-
+    
+    // check if user can edit these answers
+    let user_res = bg.query_exec("users_by_apikey", vec![apikey.user.clone().into()]);
+    if user_res.len() < 1 {
+        debug!(bg.log, "User {} unauthorized to edit or submit answers for lec {}", apikey.user, num);
+        Redirect::to("/leclist");
+    } 
     let answers_res = bg.query_exec(
         "my_answers_for_lec",
         vec![(num as u64).into(), apikey.user.clone().into()],
     );
-    let mut answers = HashMap::new();
+    // if anon and doesn't have an answer, don't let submit
+    if user_res[0][3] == 1.into() && answers_res.len() == 0 {
+        debug!(bg.log, "User {} unauthorized to edit or submit answers for lec {}", apikey.user, num);
+        Redirect::to("/leclist");
+    }
 
+    let key: Value = (num as u64).into();
+    let mut answers = HashMap::new();
     for r in answers_res {
         let id: u64 = from_value(r[2].clone());
         let atext: String = from_value(r[3].clone());

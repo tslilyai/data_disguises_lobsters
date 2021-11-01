@@ -5,7 +5,6 @@ use crate::disguises;
 use crate::email;
 use chrono::prelude::*;
 use mysql::from_value;
-use mysql::Value;
 use rocket::form::{Form, FromForm};
 use rocket::http::{Cookie, CookieJar};
 use rocket::response::Redirect;
@@ -32,10 +31,7 @@ pub(crate) struct LectureQuestionsContext {
 #[derive(Serialize)]
 pub struct LectureListEntry {
     id: u64,
-    olc: String,
     label: String,
-    num_qs: u64,
-    num_answered: u64,
 }
 
 #[derive(Serialize)]
@@ -52,7 +48,7 @@ pub(crate) struct RestoreRequest {
 }
 
 #[derive(Debug, FromForm)]
-pub(crate) struct EditAnswerRequest {
+pub(crate) struct EditCapabilitiesRequest{
     decryption_cap: String,
     ownership_loc_cap: String,
 }
@@ -104,27 +100,40 @@ pub(crate) fn anonymize(_adm: Admin) -> Template {
 }
 
 #[get("/<olc>")]
-pub(crate) fn edit_decor(
+pub(crate) fn edit_as_pseudoprincipal(
     cookies: &CookieJar<'_>,
     olc: u64,
+) -> Template {
+    let mut ctx = HashMap::new();
+    ctx.insert("parent", String::from("layout"));
+   
+    // save olc
+    let cookie = Cookie::new("olc", olc.to_string());
+    //cookies.add_private(cookie);
+    cookies.add(cookie);
+
+    Template::render("edit_as_pseudoprincipal/get_decryption_cap", &ctx)
+}
+
+#[post("/", data = "<data>")]
+pub(crate) fn edit_as_pseudoprincipal_lecs(
+    cookies: &CookieJar<'_>,
+    data: Form<EditCapabilitiesRequest>,
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Template {
-    // get all lectures that potentially have answers
+    let cookie = Cookie::new("decryptioncap", data.decryption_cap.to_string());
+    //cookies.add_private(cookie);
+    cookies.add(cookie);
+
     let mut bg = backend.lock().unwrap();
     let res = bg.query_exec("leclist", vec![]);
     drop(bg);
+    
     let lecs: Vec<_> = res
         .into_iter()
         .map(|r| LectureListEntry {
-            olc: olc.to_string(),
             id: from_value(r[0].clone()),
             label: from_value(r[1].clone()),
-            num_qs: if r[2] == mysql::Value::NULL {
-                0u64
-            } else {
-                from_value(r[2].clone())
-            },
-            num_answered: 0u64,
         })
         .collect();
 
@@ -132,57 +141,74 @@ pub(crate) fn edit_decor(
         lectures: lecs,
         parent: "layout",
     };
-    Template::render("edit_as_pseudoprincipal/get_decryption_cap.html", &ctx)
+    Template::render("edit_as_pseudoprincipal/lectures", &ctx)
 }
 
-#[post("/", data = "<data>")]
-pub(crate) fn edit_decor_lec(
+
+#[get("/<lid>")]
+pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     cookies: &CookieJar<'_>,
-    data: Form<EditAnswerRequest>,
+    lid: u64,
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Template {
-    // TODO this doesn't let the original user edit their answer?
-    
+
+    let decryption_cap = cookies.get("decryptioncap").unwrap().value();
+    let olc : u64 = u64::from_str(cookies.get("olc").unwrap().value()).unwrap();
+
     let mut bg = backend.lock().unwrap();
     // get all the UIDs that this user can access
     let pps = bg.edna.get_pseudoprincipals(
-        base64::decode(&data.decryption_cap).unwrap(),
-        vec![u64::from_str(&data.ownership_loc_cap).unwrap()],
+        base64::decode(decryption_cap).unwrap(),
+        vec![olc],
     );
     debug!(bg.log, "Got pps {:?}", pps); 
-    // query for all answers (for all pps), choose the last updated one
-    let now = Utc::now().naive_utc();
-    let mut days_since = i64::MAX;
-    let mut final_answers = HashMap::new();
+
+    // get all answers for lectures
+    let mut answers = HashMap::new();
+    let mut apikey = String::new();
     for pp in pps {
         debug!(bg.log, "Getting ApiKey of User {}",  pp.clone());
-        let apikey_res = bg.query_exec("apikey_by_user", vec![pp.clone().into()]);
-        let apikey: String = from_value(apikey_res[0][0].clone());
-
-        let answers_res = bg.query_exec("answers_for_user", vec![pp.clone().into()]);
-        let mut answers = HashMap::new();
-        for r in answers_res {
-            let lid: u64 = from_value(r[1].clone());
-            let qid: u64 = from_value(r[2].clone());
-            let atext: String = from_value(r[3].clone());
-            let date: NaiveDateTime = from_value(r[4].clone());
-            let my_days_since = now.signed_duration_since(date).num_days();
-            debug!(bg.log, "Got date of {}, {} days before now", date, my_days_since);
-            if my_days_since < days_since {
-                days_since = my_days_since;
-                latest_user = pp.clone();
+        
+        let answers_res = bg.query_exec("answers_by_user", vec![pp.clone().into()]);
+        if !answers_res.is_empty() {
+            for r in answers_res {
+                let qid: u64 = from_value(r[2].clone());
+                let atext: String = from_value(r[3].clone());
+                answers.insert(qid, atext);
             }
-            answers.insert((lid, qid), atext);
+            let apikey_res = bg.query_exec("apikey_by_user", vec![pp.clone().into()]);
+            apikey = from_value(apikey_res[0][0].clone());
         }
-        if latest_user == pp {
-            final_answers = answers;
-        }
+        break;
     }
-    drop(bg);
-    
-    // TODO set cookies with all allowed principal IDs
 
-    // TODO redirect to submit page and then to edit decorrelated answers page 
+    let res = bg.query_exec("qs_by_lec", vec![lid.into()]);
+    drop(bg);
+    let mut qs: Vec<LectureQuestion> = vec![];
+    for r in res {
+        let qid: u64 = from_value(r[1].clone());
+        let answer = answers.get(&qid).map(|s| s.to_owned());
+        if answer == None {
+            continue;
+        }
+        qs.push(LectureQuestion {
+            id: qid,
+            prompt: from_value(r[2].clone()),
+            answer: answer,
+        });
+    }
+    qs.sort_by(|a, b| a.id.cmp(&b.id));
+
+    let ctx = LectureQuestionsContext {
+        lec_id: lid as u8,
+        questions: qs,
+        parent: "layout",
+    };
+    // this just lets the user act as the latest pseudoprincipal
+    // but it won't reset afterward.... so the user won't be able to do anything else
+    let cookie = Cookie::build("apikey", apikey.clone()).path("/").finish();
+    cookies.add(cookie);
+    
     Template::render("questions", &ctx)
 }
 
