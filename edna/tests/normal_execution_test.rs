@@ -45,7 +45,7 @@ fn test_normal_execution() {
         let name = helpers::mysql_val_to_string(&vals[0]);
         results.push(name);
     }
-    let tables = vec!["stories", "users", "moderations"];
+    let tables = vec!["stories", "users", "moderations", "EdnaPrincipals"];
     assert_eq!(results.len(), tables.len());
     for tab in results {
         assert!(tables.iter().any(|tt| &tab == *tt));
