@@ -843,7 +843,7 @@ impl TokenCtrler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::EdnaClient;
+    use crate::{EdnaClient, RowVal, GuiseGen};
     use rsa::pkcs1::ToRsaPrivateKey;
 
     fn init_logger() {
@@ -856,11 +856,28 @@ mod tests {
             .try_init();
     }
 
+    fn get_insert_guise_cols() -> Vec<String> {
+        vec![]
+    }
+
+    fn get_insert_guise_vals() -> Vec<sql_parser::ast::Expr> {
+        vec![]
+    }
+
+    fn get_guise_gen() -> Arc<RwLock<GuiseGen>> {
+        Arc::new(RwLock::new(GuiseGen {
+            guise_name: "blah".to_string(),
+            guise_id_col: "blah".to_string(),
+            col_generation: Box::new(get_insert_guise_cols),
+            val_generation: Box::new(get_insert_guise_vals),
+        }))
+    }
+
     #[test]
     fn test_insert_global_diff_token_single() {
         init_logger();
         let dbname = "testTokenCtrlerGlobal".to_string();
-        let mut edna = EdnaClient::new(true, &dbname, "", true);
+        let edna = EdnaClient::new(true, &dbname, "", true, get_guise_gen());
         let mut conn = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
@@ -883,7 +900,7 @@ mod tests {
             &mut conn,
         );
 
-        let mut remove_token = DiffTokenWrapper::new_delete_token_wrapper(
+        let mut remove_token = new_delete_token_wrapper(
             did,
             guise_name,
             guise_ids,
@@ -891,6 +908,7 @@ mod tests {
                 column: fk_col.clone(),
                 value: old_fk_value.to_string(),
             }],
+            true,
         );
         remove_token.uid = uid.to_string();
         ctrler.insert_global_diff_token_wrapper(&mut remove_token);
@@ -904,7 +922,7 @@ mod tests {
     fn test_insert_user_token_single() {
         init_logger();
         let dbname = "testTokenCtrlerUser".to_string();
-        let mut edna = EdnaClient::new(true, &dbname, "", true);
+        let edna = EdnaClient::new(true, &dbname, "", true, get_guise_gen());
         let mut conn = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
@@ -928,7 +946,7 @@ mod tests {
             &mut conn,
         );
 
-        let mut remove_token = DiffTokenWrapper::new_delete_token_wrapper(
+        let mut remove_token = new_delete_token_wrapper(
             did,
             guise_name,
             guise_ids,
@@ -936,6 +954,7 @@ mod tests {
                 column: fk_col.clone(),
                 value: old_fk_value.to_string(),
             }],
+            false,
         );
         remove_token.uid = uid.to_string();
         ctrler.insert_user_diff_token_wrapper(&mut remove_token);
@@ -966,7 +985,7 @@ mod tests {
     fn test_insert_user_diff_token_multi() {
         init_logger();
         let dbname = "testTokenCtrlerUserMulti".to_string();
-        let mut edna = EdnaClient::new(true, &dbname, "", true);
+        let edna = EdnaClient::new(true, &dbname, "", true, get_guise_gen());
         let mut conn = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
@@ -999,7 +1018,7 @@ mod tests {
 
             for d in 1..iters {
                 for i in 0..iters {
-                    let mut remove_token = DiffTokenWrapper::new_delete_token_wrapper(
+                    let mut remove_token = new_delete_token_wrapper(
                         d,
                         guise_name.clone(),
                         guise_ids.clone(),
@@ -1007,6 +1026,7 @@ mod tests {
                             column: fk_col.clone(),
                             value: (old_fk_value + i).to_string(),
                         }],
+                        false,
                     );
                     remove_token.uid = u.to_string();
                     ctrler.insert_user_diff_token_wrapper(&mut remove_token);
@@ -1040,10 +1060,8 @@ mod tests {
                     ctrler.get_user_tokens(d, &priv_keys[u as usize - 1], &vec![lc], &vec![]);
                 assert_eq!(diff_tokens.len(), (iters as usize));
                 for i in 0..iters {
-                    assert_eq!(
-                        diff_tokens[i as usize].old_value[0].value,
-                        (old_fk_value + i as u64).to_string()
-                    );
+                    let dt = edna_diff_token_from_bytes(&diff_tokens[i as usize].token_data);
+                    assert_eq!(dt.old_value[0].value, (old_fk_value + i as u64).to_string());
                 }
             }
         }
@@ -1053,7 +1071,7 @@ mod tests {
     fn test_insert_user_token_privkey() {
         init_logger();
         let dbname = "testTokenCtrlerUserPK".to_string();
-        let mut edna = EdnaClient::new(true, &dbname, "", true);
+        let edna = EdnaClient::new(true, &dbname, "", true, get_guise_gen());
         let mut conn = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
@@ -1086,7 +1104,7 @@ mod tests {
             priv_keys.push(private_key_vec.clone());
 
             for d in 1..iters {
-                let mut remove_token = DiffTokenWrapper::new_delete_token_wrapper(
+                let mut remove_token = new_delete_token_wrapper(
                     d,
                     guise_name.clone(),
                     guise_ids.clone(),
@@ -1094,6 +1112,7 @@ mod tests {
                         column: fk_col.clone(),
                         value: (old_fk_value + d).to_string(),
                     }],
+                    false,
                 );
                 remove_token.uid = u.to_string();
                 ctrler.insert_user_diff_token_wrapper(&mut remove_token);
@@ -1101,16 +1120,21 @@ mod tests {
                 let anon_uid: u64 = rng.next_u64();
                 // create an anonymous user
                 // and insert some token for the anon user
-                //&mut self,
+                let own_token_bytes = edna_own_token_to_bytes(&new_edna_ownership_token(
+                    d,
+                    guise_name.to_string(),
+                    vec![],
+                    referenced_name.to_string(),
+                    referenced_name.to_string(),
+                    fk_col.to_string(),
+                    u.to_string(),
+                    anon_uid.to_string(),
+                ));
                 ctrler.register_anon_principal(
                     &u.to_string(),
                     &anon_uid.to_string(),
                     d,
-                    guise_name.clone(),
-                    guise_ids.clone(),
-                    referenced_name.clone(),
-                    fk_col.clone(),
-                    fk_col.clone(),
+                    own_token_bytes,
                     &mut conn,
                 );
                 let lc = ctrler
@@ -1139,10 +1163,8 @@ mod tests {
                     ctrler.get_user_tokens(d, &priv_keys[u as usize - 1], &vec![c], &vec![]);
                 assert_eq!(diff_tokens.len(), 1);
                 assert_eq!(own_tokens.len(), 0);
-                assert_eq!(
-                    diff_tokens[0].old_value[0].value,
-                    (old_fk_value + d).to_string()
-                );
+                let dt = edna_diff_token_from_bytes(&diff_tokens[0].token_data);
+                assert_eq!(dt.old_value[0].value, (old_fk_value + d).to_string());
             }
         }
     }

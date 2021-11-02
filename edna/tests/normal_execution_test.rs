@@ -1,6 +1,7 @@
 extern crate log;
 extern crate mysql;
 
+mod disguises;
 use edna::helpers;
 use mysql::Opts;
 use mysql::prelude::*;
@@ -24,7 +25,8 @@ fn test_normal_execution() {
     init_logger();
 
     // init schema, etc.
-    edna::EdnaClient::new(true, DBNAME, SCHEMA, true);
+    let guise_gen = disguises::get_guise_gen();
+    edna::EdnaClient::new(true, DBNAME, SCHEMA, true, guise_gen);
     let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 

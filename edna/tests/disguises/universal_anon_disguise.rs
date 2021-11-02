@@ -1,5 +1,5 @@
 use crate::disguises::*;
-use edna::disguise::*;
+use edna::spec::*;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -9,7 +9,6 @@ pub fn get_disguise() -> Disguise {
         user: String::new(),
         table_disguises: get_table_disguises(),
         table_info: get_table_info(),
-        guise_gen: get_guise_gen(),
     }
 }
 
@@ -25,7 +24,6 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<ObjectTransformation>
             ObjectTransformation {
                 pred: get_true_pred(),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                    group_by_cols: vec![],
                     fk_name: "users".to_string(),
                     fk_col: "moderator_user_id".to_string(),
                 })),
@@ -34,7 +32,6 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<ObjectTransformation>
             ObjectTransformation {
                 pred: get_true_pred(),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                    group_by_cols: vec![],
                     fk_name: "users".to_string(),
                     fk_col: "user_id".to_string(),
                 })),
@@ -50,7 +47,6 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<ObjectTransformation>
             ObjectTransformation {
                 pred: get_true_pred(),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                    group_by_cols: vec![],
                     fk_name: "users".to_string(),
                     fk_col: "user_id".to_string(),
                 })),

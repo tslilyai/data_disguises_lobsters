@@ -92,7 +92,7 @@ impl EdnaClient {
     pub fn create_new_pseudoprincipal(&self) -> (UID, Vec<RowVal>) {
         // ignore other metadata when application is handling the blobs being stored in tokens
         disguise::create_new_pseudoprincipal(
-            &self.disguiser.get_guise_gen().read().unwrap(),
+            &self.disguiser.guise_gen.read().unwrap(),
             &mut self.get_conn().unwrap(),
             self.get_stats(),
         )

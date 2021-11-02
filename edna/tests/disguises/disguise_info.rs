@@ -1,4 +1,5 @@
-use edna::disguise::*;
+use edna::GuiseGen;
+use edna::spec::*;
 use edna::predicate::*;
 use sql_parser::ast::*;
 use std::collections::HashMap;
@@ -31,16 +32,13 @@ pub fn get_eq_pred(col: &str, val: String) -> Vec<Vec<PredClause>> {
     }]]
 }
 
-pub fn get_guise_gen() -> Arc<RwLock<HashMap<String, GuiseGen>>> {
-    let mut hm = HashMap::new();
-    hm.insert(
-        "users".to_string(),
-        GuiseGen {
-            col_generation: Box::new(get_insert_guise_cols),
-            val_generation: Box::new(get_insert_guise_vals),
-        },
-    );
-    Arc::new(RwLock::new(hm))
+pub fn get_guise_gen() -> Arc<RwLock<GuiseGen>> {
+    Arc::new(RwLock::new(GuiseGen {
+        guise_name: "users".to_string(),
+        guise_id_col: "id".to_string(),
+        col_generation: Box::new(get_insert_guise_cols),
+        val_generation: Box::new(get_insert_guise_vals),
+    }))
 }
 
 pub fn get_table_info() -> Arc<RwLock<HashMap<String, TableInfo>>> {

@@ -17,17 +17,18 @@ pub fn create_new_pseudoprincipal(guise_gen: &GuiseGen, conn: &mut mysql::Pooled
     let rowvals = new_parent_cols
         .iter()
         .map(|c| {
-            ix += 1;
             if c == &guise_gen.guise_id_col {
                 uid_ix = ix;
             }
-            RowVal {
+            let rv = RowVal {
                 value: new_parent_vals[ix].to_string(),
                 column: c.to_string(),
-            }
+            };
+            ix += 1;
+            rv
         })
         .collect();
-    let new_uid = new_parent_vals[ix].to_string();
+    let new_uid = new_parent_vals[uid_ix].to_string();
 
     // actually insert pseudoprincipal
     query_drop(
@@ -51,12 +52,14 @@ pub struct Disguiser {
     pub pool: mysql::Pool,
     pub stats: Arc<Mutex<QueryStat>>,
     pub token_ctrler: Arc<Mutex<TokenCtrler>>,
-
-    guise_gen: Arc<RwLock<GuiseGen>>,
+    pub guise_gen: Arc<RwLock<GuiseGen>>,
     global_diff_tokens_to_modify: Arc<RwLock<HashMap<DiffTokenWrapper, Vec<ObjectTransformation>>>>,
 }
 
 impl Disguiser {
+    /**************************************************
+     * Functions for lower-level disguising 
+     *************************************************/
     pub fn new(url: &str, guise_gen: Arc<RwLock<GuiseGen>>) -> Disguiser {
         let opts = Opts::from_url(&url).unwrap();
         let pool = Pool::new(opts).unwrap();
@@ -69,13 +72,9 @@ impl Disguiser {
                 &mut pool.get_conn().unwrap(),
                 stats.clone(),
             ))),
-            global_diff_tokens_to_modify: Arc::new(RwLock::new(HashMap::new())),
             guise_gen: guise_gen.clone(),
+            global_diff_tokens_to_modify: Arc::new(RwLock::new(HashMap::new())),
         }
-    }
-
-    pub fn get_guise_gen(&self) -> Arc<RwLock<GuiseGen>> {
-        self.guise_gen.clone()
     }
 
     pub fn register_principal(&mut self, uid: &UID, email: String, pubkey: &RsaPublicKey) {
@@ -263,7 +262,6 @@ impl Disguiser {
                         match transargs {
                             TransformArgs::Decor { fk_col, fk_name } => {
                                 let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
-
                                 decor_items(
                                     // disguise and per-thread state
                                     did,
@@ -289,7 +287,6 @@ impl Disguiser {
                                 let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
                                 for i in &selected_rows {
                                     let old_val = get_value_of_col(&i, &col).unwrap();
-
                                     modify_item(
                                         did,
                                         t.global,
@@ -552,9 +549,11 @@ impl Disguiser {
         self.global_diff_tokens_to_modify.write().unwrap().clear();
         warn!("Disguiser: clear disguise records");
     }
-
 }
 
+/*
+ * Also only used by higher-level disguise specs 
+ */
 fn decor_items(
     did: DID,
     token_ctrler: &mut TokenCtrler,

@@ -31,7 +31,8 @@ fn init_logger() {
 fn test_app_anon_disguise() {
     init_logger();
     let dbname = "testAppAnonDisguise".to_string();
-    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true);
+    let guise_gen = disguises::get_guise_gen();
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true, guise_gen);
 
     let mut db = mysql::Conn::new(
         Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
@@ -183,7 +184,8 @@ fn test_app_anon_disguise() {
 fn test_app_gdpr_disguise() {
     init_logger();
     let dbname = "testAppGDPR".to_string();
-    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true);
+    let guise_gen = disguises::get_guise_gen();
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true, guise_gen);
     let mut db = mysql::Conn::new(
         Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
     )
@@ -313,7 +315,8 @@ fn test_app_gdpr_disguise() {
 fn test_compose_anon_gdpr_disguises() {
     init_logger();
     let dbname = "testAppComposeDisguise".to_string();
-    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true);
+    let guise_gen = disguises::get_guise_gen();
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true, guise_gen);
 
     let mut db = mysql::Conn::new(
         Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
