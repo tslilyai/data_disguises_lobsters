@@ -6,11 +6,7 @@ pub enum ColFormat {
     NonQuoted,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
-pub struct RowVal {
-    pub column: String,
-    pub value: String,
-}
+
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TableColumns {

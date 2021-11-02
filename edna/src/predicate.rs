@@ -1,4 +1,5 @@
 use crate::helpers::*;
+use crate::RowVal;
 use crate::tokens::*;
 use log::warn;
 use sql_parser::ast::*;
@@ -94,7 +95,7 @@ pub fn pred_to_sql_where(pred: &Vec<Vec<PredClause>>) -> String {
 
 pub fn modify_predicate_with_owner(
     pred: &Vec<Vec<PredClause>>,
-    ownership_token: &OwnershipToken,
+    ownership_token: &EdnaOwnershipToken,
 ) -> (Vec<Vec<PredClause>>, bool) {
     use PredClause::*;
     let mut new_pred = vec![];
@@ -147,7 +148,7 @@ pub fn modify_predicate_with_owner(
     (new_pred, changed)
 }
 
-pub fn diff_token_matches_pred(pred: &Vec<Vec<PredClause>>, name: &str, t: &DiffToken) -> bool {
+pub fn diff_token_matches_pred(pred: &Vec<Vec<PredClause>>, name: &str, t: &EdnaDiffToken) -> bool {
     if t.guise_name != name {
         return false;
     }
@@ -161,7 +162,7 @@ pub fn diff_token_matches_pred(pred: &Vec<Vec<PredClause>>, name: &str, t: &Diff
 
 pub fn get_all_preds_with_owners(
     pred: &Vec<Vec<PredClause>>,
-    own_tokens: &Vec<OwnershipToken>,
+    own_tokens: &Vec<EdnaOwnershipToken>,
 ) -> Vec<Vec<Vec<PredClause>>> {
     let mut preds = vec![pred.clone()];
     for ot in own_tokens {
@@ -177,8 +178,8 @@ pub fn get_all_preds_with_owners(
 pub fn get_ownership_tokens_matching_pred(
     pred: &Vec<Vec<PredClause>>,
     name: &str,
-    tokens: &Vec<OwnershipToken>,
-) -> Vec<OwnershipToken> {
+    tokens: &Vec<EdnaOwnershipToken>,
+) -> Vec<EdnaOwnershipToken> {
     let mut matching = vec![];
     for t in tokens {
         if t.child_name != name {

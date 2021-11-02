@@ -69,7 +69,7 @@ pub struct TokenCtrler {
     // (p,d) capability -> set of token ciphertext for principal+disguise
     pub enc_ownership_map: HashMap<LocCap, Vec<EncData>>,
 
-    pub global_diff_tokens: HashMap<DID, HashMap<UID, Arc<RwLock<HashSet<DiffToken>>>>>,
+    pub global_diff_tokens: HashMap<DID, HashMap<UID, Arc<RwLock<HashSet<DiffTokenWrapper>>>>>,
 
     // used for randomness stuff
     pub rng: OsRng,
@@ -275,11 +275,7 @@ impl TokenCtrler {
         uid: &UID,
         anon_uid: &UID,
         did: DID,
-        child_name: String,
-        child_ids: Vec<RowVal>,
-        pprincipal_name: String,
-        pprincipal_id_col: String,
-        fk_col: String,
+        ownership_token_data: Vec<u8>,
         conn: &mut mysql::PooledConn,
     ) {
         let private_key =
@@ -291,18 +287,14 @@ impl TokenCtrler {
         // save the anon principal as a new principal with a public key
         // and initially empty token vaults
         self.register_principal(&anon_uidstr.to_string(), String::new(), &pub_key, conn);
-        let mut pppk: OwnershipToken = new_ownership_token(
-            did,
-            child_name,
-            child_ids,
-            pprincipal_name,
-            pprincipal_id_col,
-            fk_col,
+        let own_token_wrapped = new_generic_ownership_token_wrapper(
             uidstr.to_string(),
             anon_uidstr.to_string(),
+            did,
+            ownership_token_data,
             &private_key,
         );
-        self.insert_ownership_token(&mut pppk);
+        self.insert_ownership_token_wrapper(&own_token_wrapped);
     }
 
     fn persist_principal(&self, uid: &UID, pdata: &PrincipalData, conn: &mut mysql::PooledConn) {
@@ -323,7 +315,7 @@ impl TokenCtrler {
         conn.query_drop(&insert_q).unwrap();
     }
 
-    pub fn mark_remove_principal(&mut self, uid: &UID) {
+    pub fn mark_principal_to_be_removed(&mut self, uid: &UID) {
         self.tmp_remove_principals.insert(uid.to_string());
     }
 
@@ -334,8 +326,8 @@ impl TokenCtrler {
             return;
         } else {
             let pdata = pdata.unwrap();
-            let mut ptoken = DiffToken::new_remove_principal_token(uid, did, &pdata);
-            self.insert_user_diff_token(&mut ptoken);
+            let mut ptoken = new_remove_principal_token_wrapper(uid, did, &pdata);
+            self.insert_user_diff_token_wrapper(&mut ptoken);
 
             // actually remove
             self.principal_data.remove(uid);
@@ -352,14 +344,11 @@ impl TokenCtrler {
     /*
      * PRINCIPAL TOKEN INSERT
      */
-    fn insert_ownership_token(&mut self, pppk: &mut OwnershipToken) {
-        // give token a unique id
-        pppk.token_id = self.rng.next_u64();
-
+    fn insert_ownership_token_wrapper(&mut self, pppk: &OwnershipTokenWrapper) {
         let p = self
             .principal_data
-            .get_mut(&pppk.uid)
-            .expect(&format!("no user with uid {} found?", pppk.uid));
+            .get_mut(&pppk.old_uid)
+            .expect(&format!("no user with uid {} found?", pppk.old_uid));
 
         // generate key
         let mut key: Vec<u8> = repeat(0u8).take(16).collect();
@@ -385,7 +374,7 @@ impl TokenCtrler {
         };
 
         // insert the encrypted pppk into locating capability
-        let lc = self.get_ownership_loc_cap(&pppk.uid, pppk.did);
+        let lc = self.get_ownership_loc_cap(&pppk.old_uid, pppk.did);
         match self.enc_ownership_map.get_mut(&lc) {
             Some(ts) => {
                 ts.push(enc_pppk);
@@ -396,8 +385,7 @@ impl TokenCtrler {
         }
     }
 
-    pub fn insert_user_diff_token(&mut self, token: &mut DiffToken) {
-        token.is_global = false;
+    pub fn insert_user_diff_token_wrapper(&mut self, token: &DiffTokenWrapper) {
         let did = token.did;
         let uid = &token.uid;
         warn!(
@@ -411,10 +399,6 @@ impl TokenCtrler {
             .principal_data
             .get_mut(uid)
             .expect("no user with uid found?");
-
-        // give the token a random nonce and some id
-        token.nonce = self.rng.next_u64();
-        token.token_id = self.rng.next_u64();
 
         // generate key
         let mut key: Vec<u8> = repeat(0u8).take(16).collect();
@@ -452,9 +436,7 @@ impl TokenCtrler {
     /*
      * GLOBAL TOKEN FUNCTIONS
      */
-    pub fn insert_global_diff_token(&mut self, token: &mut DiffToken) {
-        token.is_global = true;
-        token.token_id = self.rng.next_u64();
+    pub fn insert_global_diff_token_wrapper(&mut self, token: &DiffTokenWrapper) {
         warn!(
             "Inserting global token disguise {} user {}",
             token.did, token.uid
@@ -477,7 +459,7 @@ impl TokenCtrler {
         }
     }
 
-    pub fn check_global_diff_token_for_match(&mut self, token: &DiffToken) -> (bool, bool) {
+    pub fn check_global_diff_token_for_match(&mut self, token: &DiffTokenWrapper) -> (bool, bool) {
         if let Some(global_diff_tokens) = self.global_diff_tokens.get(&token.did) {
             if let Some(user_tokens) = global_diff_tokens.get(&token.uid) {
                 let tokens = user_tokens.read().unwrap();
@@ -498,7 +480,12 @@ impl TokenCtrler {
         return (false, false);
     }
 
-    pub fn remove_global_diff_token(&mut self, uid: &UID, did: DID, token: &DiffToken) -> bool {
+    pub fn remove_global_diff_token_wrapper(
+        &mut self,
+        uid: &UID,
+        did: DID,
+        token: &DiffTokenWrapper,
+    ) -> bool {
         assert!(token.is_global);
         let mut found = false;
 
@@ -511,18 +498,14 @@ impl TokenCtrler {
             }
         }
         // log token for disguise that marks removal
-        self.insert_user_diff_token(&mut DiffToken::new_token_remove(
-            uid.to_string(),
-            did,
-            token,
-        ));
+        self.insert_user_diff_token_wrapper(&new_token_remove(uid.to_string(), did, token));
         return found;
     }
 
     pub fn update_global_diff_token_from_old_to(
         &mut self,
-        old_token: &DiffToken,
-        new_token: &DiffToken,
+        old_token: &DiffTokenWrapper,
+        new_token: &DiffTokenWrapper,
         record_token_for_disguise: Option<(UID, DID)>,
     ) -> bool {
         assert!(new_token.is_global);
@@ -536,9 +519,7 @@ impl TokenCtrler {
             }
         }
         if let Some((uid, did)) = record_token_for_disguise {
-            self.insert_user_diff_token(&mut DiffToken::new_token_modify(
-                uid, did, old_token, new_token,
-            ));
+            self.insert_user_diff_token_wrapper(&new_token_modify(uid, did, old_token, new_token));
         }
         found
     }
@@ -549,7 +530,7 @@ impl TokenCtrler {
     pub fn mark_diff_token_revealed(
         &mut self,
         did: DID,
-        token: &DiffToken,
+        token: &DiffTokenWrapper,
         data_cap: &DataCap,
         diff_loc_caps: &Vec<LocCap>,
         ownership_loc_caps: &Vec<LocCap>,
@@ -639,7 +620,7 @@ impl TokenCtrler {
     pub fn mark_ownership_token_revealed(
         &mut self,
         did: DID,
-        token: &OwnershipToken,
+        token: &OwnershipTokenWrapper,
         data_cap: &DataCap,
         ownership_loc_caps: &Vec<LocCap>,
     ) -> bool {
@@ -670,7 +651,7 @@ impl TokenCtrler {
                         };
                         warn!(
                             "token uid {} disguise {} revealed token {}",
-                            token.uid, token.did, token.token_id,
+                            token.old_uid, token.did, token.token_id,
                         );
                         return true;
                     }
@@ -707,12 +688,12 @@ impl TokenCtrler {
     /*
      * GET TOKEN FUNCTIONS
      */
-    pub fn get_all_global_diff_tokens(&self) -> Vec<DiffToken> {
+    pub fn get_all_global_diff_tokens(&self) -> Vec<DiffTokenWrapper> {
         let mut tokens = vec![];
         for (_, global_diff_tokens) in self.global_diff_tokens.iter() {
             for (_, user_tokens) in global_diff_tokens.iter() {
                 let utokens = user_tokens.read().unwrap();
-                let nonrev_tokens: Vec<DiffToken> = utokens
+                let nonrev_tokens: Vec<DiffTokenWrapper> = utokens
                     .clone()
                     .into_iter()
                     .filter(|t| !t.revealed)
@@ -725,12 +706,12 @@ impl TokenCtrler {
         tokens
     }
 
-    pub fn get_global_diff_tokens_of_disguise(&self, did: DID) -> Vec<DiffToken> {
+    pub fn get_global_diff_tokens_of_disguise(&self, did: DID) -> Vec<DiffTokenWrapper> {
         let mut tokens = vec![];
         if let Some(global_diff_tokens) = self.global_diff_tokens.get(&did) {
             for (_, user_tokens) in global_diff_tokens.iter() {
                 let utokens = user_tokens.read().unwrap();
-                let nonrev_tokens: Vec<DiffToken> = utokens
+                let nonrev_tokens: Vec<DiffTokenWrapper> = utokens
                     .clone()
                     .into_iter()
                     .filter(|t| !t.revealed)
@@ -748,7 +729,7 @@ impl TokenCtrler {
         tokens
     }
 
-    pub fn get_global_diff_tokens(&self, uid: &UID, did: DID) -> Vec<DiffToken> {
+    pub fn get_global_diff_tokens(&self, uid: &UID, did: DID) -> Vec<DiffTokenWrapper> {
         if let Some(global_diff_tokens) = self.global_diff_tokens.get(&did) {
             if let Some(user_tokens) = global_diff_tokens.get(uid) {
                 let tokens = user_tokens.read().unwrap();
@@ -770,7 +751,7 @@ impl TokenCtrler {
         data_cap: &DataCap,
         diff_loc_caps: &Vec<LocCap>,
         ownership_loc_caps: &Vec<LocCap>,
-    ) -> (Vec<DiffToken>, Vec<OwnershipToken>) {
+    ) -> (Vec<DiffTokenWrapper>, Vec<OwnershipTokenWrapper>) {
         let mut diff_tokens = vec![];
         let mut own_tokens = vec![];
         if data_cap.is_empty() {
@@ -841,7 +822,7 @@ impl TokenCtrler {
                     let pk = ownership_token_from_bytes(&plaintext);
                     if uids.is_empty() {
                         // save the original user too
-                        uids.push(pk.uid.clone());
+                        uids.push(pk.old_uid.clone());
                     }
                     uids.push(pk.new_uid.clone());
 
@@ -902,7 +883,7 @@ mod tests {
             &mut conn,
         );
 
-        let mut remove_token = DiffToken::new_delete_token(
+        let mut remove_token = DiffTokenWrapper::new_delete_token_wrapper(
             did,
             guise_name,
             guise_ids,
@@ -912,7 +893,7 @@ mod tests {
             }],
         );
         remove_token.uid = uid.to_string();
-        ctrler.insert_global_diff_token(&mut remove_token);
+        ctrler.insert_global_diff_token_wrapper(&mut remove_token);
         assert_eq!(ctrler.global_diff_tokens.len(), 1);
         let tokens = ctrler.get_global_diff_tokens(&uid.to_string(), did);
         assert_eq!(tokens.len(), 1);
@@ -947,7 +928,7 @@ mod tests {
             &mut conn,
         );
 
-        let mut remove_token = DiffToken::new_delete_token(
+        let mut remove_token = DiffTokenWrapper::new_delete_token_wrapper(
             did,
             guise_name,
             guise_ids,
@@ -957,7 +938,7 @@ mod tests {
             }],
         );
         remove_token.uid = uid.to_string();
-        ctrler.insert_user_diff_token(&mut remove_token);
+        ctrler.insert_user_diff_token_wrapper(&mut remove_token);
         let lc = ctrler
             .get_tmp_reveal_capability(&uid.to_string(), did)
             .unwrap()
@@ -1018,7 +999,7 @@ mod tests {
 
             for d in 1..iters {
                 for i in 0..iters {
-                    let mut remove_token = DiffToken::new_delete_token(
+                    let mut remove_token = DiffTokenWrapper::new_delete_token_wrapper(
                         d,
                         guise_name.clone(),
                         guise_ids.clone(),
@@ -1028,7 +1009,7 @@ mod tests {
                         }],
                     );
                     remove_token.uid = u.to_string();
-                    ctrler.insert_user_diff_token(&mut remove_token);
+                    ctrler.insert_user_diff_token_wrapper(&mut remove_token);
                 }
                 let c = ctrler
                     .get_tmp_reveal_capability(&u.to_string(), d)
@@ -1105,7 +1086,7 @@ mod tests {
             priv_keys.push(private_key_vec.clone());
 
             for d in 1..iters {
-                let mut remove_token = DiffToken::new_delete_token(
+                let mut remove_token = DiffTokenWrapper::new_delete_token_wrapper(
                     d,
                     guise_name.clone(),
                     guise_ids.clone(),
@@ -1115,7 +1096,7 @@ mod tests {
                     }],
                 );
                 remove_token.uid = u.to_string();
-                ctrler.insert_user_diff_token(&mut remove_token);
+                ctrler.insert_user_diff_token_wrapper(&mut remove_token);
 
                 let anon_uid: u64 = rng.next_u64();
                 // create an anonymous user

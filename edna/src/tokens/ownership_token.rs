@@ -1,35 +1,73 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
 use crate::tokens::*;
-use crate::{DID, UID};
+use crate::{DID, UID, RowVal};
 use log::warn;
-use rsa::{pkcs1::{ToRsaPrivateKey}, RsaPrivateKey};
+use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::sync::{Arc, Mutex};
+use rand::{thread_rng, Rng};
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
-pub struct OwnershipToken {
+pub struct OwnershipTokenWrapper {
     pub token_id: u64,
+    pub revealed: bool,
+    pub old_uid: UID,
+    pub new_uid: UID,
+    pub did: DID,
+    pub priv_key: Vec<u8>,
+    pub nonce: u64,
+    pub token_data: Vec<u8>,
+}
+
+
+#[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct EdnaOwnershipToken {
     pub did: DID,
     pub uid: UID,
     pub new_uid: UID,
-    pub priv_key: Vec<u8>,
 
     pub child_name: String,
     pub child_ids: Vec<RowVal>,
     pub pprincipal_name: String,
     pub pprincipal_id_col: String,
     pub fk_col: String,
-
-    pub revealed: bool,
 }
 
-pub fn ownership_token_from_bytes(bytes: &Vec<u8>) -> OwnershipToken {
+pub fn edna_own_token_from_bytes(bytes: &Vec<u8>) -> EdnaOwnershipToken{
     serde_json::from_slice(bytes).unwrap()
 }
 
-pub fn new_ownership_token(
+pub fn edna_own_token_to_bytes(token: &EdnaOwnershipToken) -> Vec<u8> {
+    let s = serde_json::to_string(token).unwrap();
+    s.as_bytes().to_vec()
+}
+
+pub fn ownership_token_from_bytes(bytes: &Vec<u8>) -> OwnershipTokenWrapper {
+    serde_json::from_slice(bytes).unwrap()
+}
+
+pub fn new_generic_ownership_token_wrapper(
+    old_uid: UID,
+    new_uid: UID,
+    did: DID,
+    data: Vec<u8>,
+    priv_key: &RsaPrivateKey,
+) -> OwnershipTokenWrapper {
+    let mut token: OwnershipTokenWrapper = Default::default();
+    token.token_id = thread_rng().gen();
+    token.revealed = false;
+    token.new_uid = new_uid;
+    token.old_uid = old_uid;
+    token.did = did;
+    token.priv_key = priv_key.to_pkcs1_der().unwrap().as_der().to_vec();
+    token.nonce = thread_rng().gen();
+    token.token_data = data;
+    token
+}
+
+pub fn new_edna_ownership_token(
     did: DID,
     child_name: String,
     child_ids: Vec<RowVal>,
@@ -38,23 +76,20 @@ pub fn new_ownership_token(
     fk_col: String,
     cur_uid: UID,
     new_uid: UID,
-    priv_key: &RsaPrivateKey,
-) -> OwnershipToken {
-    let mut token: OwnershipToken = Default::default();
-    token.uid = cur_uid;
-    token.did = did;
-    token.priv_key = priv_key.to_pkcs1_der().unwrap().as_der().to_vec();
-    token.new_uid = new_uid;
-    token.revealed = false;
-    token.child_name = child_name;
-    token.child_ids = child_ids;
-    token.fk_col = fk_col;
-    token.pprincipal_name = pprincipal_name;
-    token.pprincipal_id_col = pprincipal_id_col;
-    token
+) -> EdnaOwnershipToken {
+    let mut edna_token: EdnaOwnershipToken = Default::default();
+    edna_token.uid = cur_uid;
+    edna_token.did = did;
+    edna_token.new_uid = new_uid;
+    edna_token.child_name = child_name;
+    edna_token.child_ids = child_ids;
+    edna_token.fk_col = fk_col;
+    edna_token.pprincipal_name = pprincipal_name;
+    edna_token.pprincipal_id_col = pprincipal_id_col;
+    edna_token
 }
 
-impl OwnershipToken {
+impl EdnaOwnershipToken {
     pub fn reveal(
         &self,
         token_ctrler: &mut TokenCtrler,

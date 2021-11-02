@@ -5,6 +5,7 @@ use log::warn;
 use mysql::prelude::*;
 use mysql::Opts;
 use rsa::RsaPublicKey;
+use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
@@ -19,6 +20,18 @@ pub mod tokens;
 
 pub type DID = u64;
 pub type UID = String;
+
+#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
+pub struct RowVal {
+    pub column: String,
+    pub value: String,
+}
+pub struct GuiseGen {
+    pub guise_name: String,
+    pub guise_id_col: String,
+    pub col_generation: Box<dyn Fn() -> Vec<String> + Send + Sync>,
+    pub val_generation: Box<dyn Fn() -> Vec<Expr> + Send + Sync>,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct TestParams {
@@ -52,7 +65,7 @@ impl EdnaClient {
         dbname: &str,
         schema: &str,
         in_memory: bool,
-        guise_gen: Arc<RwLock<disguise::GuiseGen>>,
+        guise_gen: Arc<RwLock<GuiseGen>>,
     ) -> EdnaClient {
         init_db(prime, in_memory, dbname, schema);
         let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname);
@@ -76,9 +89,13 @@ impl EdnaClient {
             .get_pseudoprincipals(&data_cap, &ownership_loc_caps)
     }
 
-    pub fn get_new_pseudoprincipal_id_for(&self, child_name: String, old_uid: UID, did: DID) -> UID {
+    pub fn create_new_pseudoprincipal(&self) -> (UID, Vec<RowVal>) {
         // ignore other metadata when application is handling the blobs being stored in tokens
-        self.disguiser.get_new_pseudoprincipal_id_for(old_uid, did, child_name, vec![], String::new())
+        disguise::create_new_pseudoprincipal(
+            &self.disguiser.get_guise_gen().read().unwrap(),
+            &mut self.get_conn().unwrap(),
+            self.get_stats(),
+        )
     }
 
     // high-level spec API where Edna performs DB statements
@@ -112,11 +129,11 @@ impl EdnaClient {
         Ok(())
     }
 
-    pub fn get_conn(&mut self) -> Result<mysql::PooledConn, mysql::Error> {
+    pub fn get_conn(&self) -> Result<mysql::PooledConn, mysql::Error> {
         self.disguiser.pool.get_conn()
     }
 
-    pub fn get_stats(&mut self) -> Arc<Mutex<stats::QueryStat>> {
+    pub fn get_stats(&self) -> Arc<Mutex<stats::QueryStat>> {
         self.disguiser.stats.clone()
     }
 }
