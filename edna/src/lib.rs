@@ -7,14 +7,15 @@ use mysql::Opts;
 use rsa::RsaPublicKey;
 use sql_parser::ast::*;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::*;
 
-pub mod tokens;
 pub mod disguise;
 pub mod helpers;
 pub mod predicate;
+pub mod spec;
 pub mod stats;
+pub mod tokens;
 
 pub type DID = u64;
 pub type UID = String;
@@ -46,13 +47,19 @@ impl EdnaClient {
     /********************************
      * EDNA-APPLICATION API
      ********************************/
-    pub fn new(prime: bool, dbname: &str, schema: &str, in_memory: bool) -> EdnaClient {
+    pub fn new(
+        prime: bool,
+        dbname: &str,
+        schema: &str,
+        in_memory: bool,
+        guise_gen: Arc<RwLock<disguise::GuiseGen>>,
+    ) -> EdnaClient {
         init_db(prime, in_memory, dbname, schema);
         let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname);
         EdnaClient {
             schema: schema.to_string(),
             in_memory: in_memory,
-            disguiser: disguise::Disguiser::new(&url),
+            disguiser: disguise::Disguiser::new(&url, guise_gen),
         }
     }
 
@@ -65,17 +72,31 @@ impl EdnaClient {
         data_cap: tokens::DataCap,
         ownership_loc_caps: Vec<tokens::LocCap>,
     ) -> Vec<UID> {
-        self.disguiser.get_pseudoprincipals(&data_cap, &ownership_loc_caps)
+        self.disguiser
+            .get_pseudoprincipals(&data_cap, &ownership_loc_caps)
     }
 
+    pub fn get_new_pseudoprincipal_id_for(&self, child_name: String, old_uid: UID, did: DID) -> UID {
+        // ignore other metadata when application is handling the blobs being stored in tokens
+        self.disguiser.get_new_pseudoprincipal_id_for(old_uid, did, child_name, vec![], String::new())
+    }
+
+    // high-level spec API where Edna performs DB statements
     pub fn apply_disguise(
         &mut self,
-        disguise: Arc<disguise::Disguise>,
+        disguise: Arc<spec::Disguise>,
         data_cap: tokens::DataCap,
         ownership_loc_caps: Vec<tokens::LocCap>,
-    ) -> Result<(HashMap<(UID, DID), tokens::LocCap>, HashMap<(UID, DID), tokens::LocCap>), mysql::Error> {
+    ) -> Result<
+        (
+            HashMap<(UID, DID), tokens::LocCap>,
+            HashMap<(UID, DID), tokens::LocCap>,
+        ),
+        mysql::Error,
+    > {
         warn!("EDNA: APPLYING Disguise {}", disguise.clone().did);
-        self.disguiser.apply(disguise.clone(), data_cap, ownership_loc_caps)
+        self.disguiser
+            .apply(disguise.clone(), data_cap, ownership_loc_caps)
     }
 
     pub fn reverse_disguise(
