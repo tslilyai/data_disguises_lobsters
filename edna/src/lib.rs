@@ -106,11 +106,13 @@ impl EdnaClient {
     //-----------------------------------------------------------------------------
     // Get all tokens of a particular disguise
     // returns all the diff tokens and all the ownership token blobs
+    // Additional function to get and mark tokens revealed (if tokens are retrieved for the
+    // purpose of reversal)
     //-----------------------------------------------------------------------------
     pub fn get_tokens_of_disguise(
         &self,
         did: DID,
-        decrypt_cap: tokens::DataCap,
+        decrypt_cap: tokens::DecryptCap,
         diff_loc_caps: Vec<tokens::LocCap>,
         own_loc_caps: Vec<tokens::LocCap>,
     ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
@@ -119,6 +121,51 @@ impl EdnaClient {
         let (dts, own_tokens) =
             locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps);
         diff_tokens.extend(dts.iter().cloned());
+        drop(locked_token_ctrler);
+        (
+            diff_tokens
+                .iter()
+                .map(|wrapper| wrapper.token_data.clone())
+                .collect(),
+            own_tokens
+                .iter()
+                .map(|wrapper| wrapper.token_data.clone())
+                .collect(),
+        )
+    }
+
+    pub fn get_tokens_of_disguise_and_mark_revealed(
+        &self,
+        did: DID,
+        decrypt_cap: tokens::DecryptCap,
+        diff_loc_caps: Vec<tokens::LocCap>,
+        own_loc_caps: Vec<tokens::LocCap>,
+    ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
+        let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
+        let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
+        let (dts, own_tokens) =
+            locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps);
+        diff_tokens.extend(dts.iter().cloned());
+
+        for dwrapper in &diff_tokens {
+            locked_token_ctrler.mark_diff_token_revealed(
+                did,
+                dwrapper,
+                &decrypt_cap,
+                &diff_loc_caps,
+                &own_loc_caps,
+            );
+        }
+
+        for owrapper in &own_tokens {
+            locked_token_ctrler.mark_ownership_token_revealed(
+                did,
+                owrapper,
+                &decrypt_cap,
+                &own_loc_caps,
+            );
+        }
+
         drop(locked_token_ctrler);
         (
             diff_tokens
@@ -190,11 +237,11 @@ impl EdnaClient {
 
     pub fn get_pseudoprincipals(
         &self,
-        data_cap: tokens::DataCap,
+        decrypt_cap: tokens::DecryptCap,
         ownership_loc_caps: Vec<tokens::LocCap>,
     ) -> Vec<UID> {
         self.disguiser
-            .get_pseudoprincipals(&data_cap, &ownership_loc_caps)
+            .get_pseudoprincipals(&decrypt_cap, &ownership_loc_caps)
     }
 
     /**********************************************************************
@@ -203,7 +250,7 @@ impl EdnaClient {
     pub fn apply_disguise(
         &mut self,
         disguise: Arc<spec::Disguise>,
-        data_cap: tokens::DataCap,
+        decrypt_cap: tokens::DecryptCap,
         ownership_loc_caps: Vec<tokens::LocCap>,
     ) -> Result<
         (
@@ -214,19 +261,19 @@ impl EdnaClient {
     > {
         warn!("EDNA: APPLYING Disguise {}", disguise.clone().did);
         self.disguiser
-            .apply(disguise.clone(), data_cap, ownership_loc_caps)
+            .apply(disguise.clone(), decrypt_cap, ownership_loc_caps)
     }
 
     pub fn reverse_disguise(
         &mut self,
         did: DID,
-        data_cap: tokens::DataCap,
+        decrypt_cap: tokens::DecryptCap,
         diff_loc_caps: Vec<tokens::LocCap>,
         ownership_loc_caps: Vec<tokens::LocCap>,
     ) -> Result<(), mysql::Error> {
         warn!("EDNA: REVERSING Disguise {}", did);
         self.disguiser
-            .reverse(did, data_cap, diff_loc_caps, ownership_loc_caps)?;
+            .reverse(did, decrypt_cap, diff_loc_caps, ownership_loc_caps)?;
         Ok(())
     }
 

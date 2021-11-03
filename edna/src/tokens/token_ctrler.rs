@@ -16,7 +16,7 @@ use std::iter::repeat;
 use std::sync::{Arc, Mutex, RwLock};
 
 pub type LocCap = u64;
-pub type DataCap = Vec<u8>; // private key
+pub type DecryptCap = Vec<u8>; // private key
 const RSA_BITS: usize = 2048;
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 
@@ -31,7 +31,7 @@ pub struct EncData {
 }
 
 impl EncData {
-    pub fn decrypt_encdata(&self, data_cap: &DataCap) -> (Vec<u8>, Vec<u8>) {
+    pub fn decrypt_encdata(&self, data_cap: &DecryptCap) -> (Vec<u8>, Vec<u8>) {
         if data_cap.is_empty() {
             return (vec![], vec![]);
         }
@@ -531,7 +531,7 @@ impl TokenCtrler {
         &mut self,
         did: DID,
         token: &DiffTokenWrapper,
-        data_cap: &DataCap,
+        data_cap: &DecryptCap,
         diff_loc_caps: &Vec<LocCap>,
         ownership_loc_caps: &Vec<LocCap>,
     ) -> bool {
@@ -621,7 +621,7 @@ impl TokenCtrler {
         &mut self,
         did: DID,
         token: &OwnershipTokenWrapper,
-        data_cap: &DataCap,
+        data_cap: &DecryptCap,
         ownership_loc_caps: &Vec<LocCap>,
     ) -> bool {
         // return if no tokens accessible
@@ -748,7 +748,7 @@ impl TokenCtrler {
     pub fn get_user_tokens(
         &self,
         did: DID,
-        data_cap: &DataCap,
+        data_cap: &DecryptCap,
         diff_loc_caps: &Vec<LocCap>,
         ownership_loc_caps: &Vec<LocCap>,
     ) -> (Vec<DiffTokenWrapper>, Vec<OwnershipTokenWrapper>) {
@@ -807,7 +807,7 @@ impl TokenCtrler {
 
     pub fn get_user_pseudoprincipals(
         &self,
-        data_cap: &DataCap,
+        data_cap: &DecryptCap,
         ownership_loc_caps: &Vec<LocCap>,
     ) -> Vec<UID> {
         let mut uids = vec![];

@@ -72,11 +72,11 @@ impl Disguiser {
 
     pub fn get_pseudoprincipals(
         &self,
-        data_cap: &DataCap,
+        decrypt_cap: &DecryptCap,
         ownership_loc_caps: &Vec<LocCap>,
     ) -> Vec<UID> {
         let locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        let uids = locked_token_ctrler.get_user_pseudoprincipals(data_cap, ownership_loc_caps);
+        let uids = locked_token_ctrler.get_user_pseudoprincipals(decrypt_cap, ownership_loc_caps);
         drop(locked_token_ctrler);
         uids
     }
@@ -87,7 +87,7 @@ impl Disguiser {
     pub fn reverse(
         &mut self,
         did: DID,
-        data_cap: tokens::DataCap,
+        decrypt_cap: tokens::DecryptCap,
         diff_loc_caps: Vec<tokens::LocCap>,
         own_loc_caps: Vec<tokens::LocCap>,
     ) -> Result<(), mysql::Error> {
@@ -97,7 +97,7 @@ impl Disguiser {
         // XXX revealing all global tokens when a disguise is reversed
         let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
         let (dts, own_tokens) =
-            locked_token_ctrler.get_user_tokens(did, &data_cap, &diff_loc_caps, &own_loc_caps);
+            locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps);
         diff_tokens.extend(dts.iter().cloned());
 
         // reverse REMOVE tokens first
@@ -111,7 +111,7 @@ impl Disguiser {
                     locked_token_ctrler.mark_diff_token_revealed(
                         did,
                         dwrapper,
-                        &data_cap,
+                        &decrypt_cap,
                         &diff_loc_caps,
                         &own_loc_caps,
                     );
@@ -130,7 +130,7 @@ impl Disguiser {
                     locked_token_ctrler.mark_diff_token_revealed(
                         did,
                         dwrapper,
-                        &data_cap,
+                        &decrypt_cap,
                         &diff_loc_caps,
                         &own_loc_caps,
                     );
@@ -148,7 +148,7 @@ impl Disguiser {
                     locked_token_ctrler.mark_ownership_token_revealed(
                         did,
                         owrapper,
-                        &data_cap,
+                        &decrypt_cap,
                         &own_loc_caps,
                     );
                 }
@@ -163,7 +163,7 @@ impl Disguiser {
     pub fn apply(
         &mut self,
         disguise: Arc<disguise::Disguise>,
-        data_cap: tokens::DataCap,
+        decrypt_cap: tokens::DecryptCap,
         ownership_loc_caps: Vec<tokens::LocCap>,
     ) -> Result<
         (
@@ -179,7 +179,7 @@ impl Disguiser {
         let global_diff_tokens = locked_token_ctrler.get_all_global_diff_tokens();
         let (_, ownership_tokens) = locked_token_ctrler.get_user_tokens(
             disguise.did,
-            &data_cap,
+            &decrypt_cap,
             &vec![],
             &ownership_loc_caps,
         );
