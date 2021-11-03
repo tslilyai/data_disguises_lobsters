@@ -76,6 +76,16 @@ impl EdnaClient {
         }
     }
 
+    pub fn query_drop(&self, q: String) -> Result<(), mysql::Error> {
+        let mut conn = self.get_conn()?;
+        helpers::query_drop(q, &mut conn, self.disguiser.stats.clone())
+    }
+
+    pub fn query_iter(&self, q: String) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
+        let mut conn = self.get_conn()?;
+        helpers::get_query_rows_str(&q, &mut conn, self.disguiser.stats.clone())
+    }
+
     //-----------------------------------------------------------------------------
     // Necessary to make Edna aware of all principals in the system
     // so Edna can link these to pseudoprincipals/do crypto stuff

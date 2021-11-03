@@ -62,7 +62,7 @@ pub(crate) fn anonymize_answers(
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
     let (dlcs, olcs) =
-        disguises::universal_anon_disguise::apply(&mut bg.edna, vec![], vec![]).unwrap();
+        disguises::universal_anon_disguise::apply(&mut bg).unwrap();
     assert!(dlcs.len() == 0);
     let local: DateTime<Local> = Local::now();
     for ((uid, _did), olc) in olcs {
@@ -209,7 +209,7 @@ pub(crate) fn delete(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) 
     let mut bg = backend.lock().unwrap();
     // TODO composition
     let (dlcs, olcs) =
-        disguises::gdpr_disguise::apply(&mut bg.edna, apikey.user.clone(), vec![], vec![])
+        disguises::gdpr_disguise::apply(&mut bg, apikey.user.clone(), vec![], vec![])
             .unwrap();
     assert!(dlcs.len() <= 1);
     assert!(olcs.len() <= 1);
@@ -259,7 +259,7 @@ pub(crate) fn restore_account(
     } else {
         vec![]
     };
-    disguises::gdpr_disguise::reveal(&mut bg.edna, decryption_cap, vec![data.diff_loc_cap], olcs)
+    disguises::gdpr_disguise::reveal(&mut bg, decryption_cap, vec![data.diff_loc_cap], olcs)
         .expect("Failed to reverse GDPR deletion disguise");
     drop(bg);
 
