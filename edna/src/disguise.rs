@@ -9,7 +9,9 @@ use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 use std::sync::{Arc, Mutex, RwLock};
 
-pub fn create_new_pseudoprincipal(guise_gen: &GuiseGen, conn: &mut mysql::PooledConn, stats: Arc<Mutex<QueryStat>>) -> (UID, Vec<RowVal>) {
+pub fn create_new_pseudoprincipal(
+    guise_gen: &GuiseGen,
+) -> (UID, Vec<RowVal>) {
     let new_parent_vals = (guise_gen.val_generation)();
     let new_parent_cols = (guise_gen.col_generation)();
     let mut ix = 0;
@@ -29,22 +31,6 @@ pub fn create_new_pseudoprincipal(guise_gen: &GuiseGen, conn: &mut mysql::Pooled
         })
         .collect();
     let new_uid = new_parent_vals[uid_ix].to_string();
-
-    // actually insert pseudoprincipal
-    query_drop(
-        Statement::Insert(InsertStatement {
-            table_name: string_to_objname(&guise_gen.guise_name),
-            columns: new_parent_cols
-                .iter()
-                .map(|c| Ident::new(c.to_string()))
-                .collect(),
-            source: InsertSource::Query(Box::new(values_query(vec![new_parent_vals.clone()]))),
-        })
-        .to_string(),
-        conn,
-        stats.clone(),
-    )
-    .unwrap();
     (new_uid, rowvals)
 }
 
@@ -58,7 +44,7 @@ pub struct Disguiser {
 
 impl Disguiser {
     /**************************************************
-     * Functions for lower-level disguising 
+     * Functions for lower-level disguising
      *************************************************/
     pub fn new(url: &str, guise_gen: Arc<RwLock<GuiseGen>>) -> Disguiser {
         let opts = Opts::from_url(&url).unwrap();
@@ -472,7 +458,8 @@ impl Disguiser {
                         &own_tokens
                             .iter()
                             .map(|ot| edna_own_token_from_bytes(&ot.token_data))
-                            .collect());
+                            .collect(),
+                    );
                     warn!("Got preds {:?} with own_tokens {:?}\n", preds, own_tokens);
                     for p in &preds {
                         let selection = predicate::pred_to_sql_where(p);
@@ -528,12 +515,15 @@ impl Disguiser {
                         // MARK MATCHING GLOBAL DIFF TOKENS FOR REMOVAL
                         for dwrapper in diff_tokens {
                             let dt = edna_diff_token_from_bytes(&dwrapper.token_data);
-                            if dwrapper.is_global && predicate::diff_token_matches_pred(&p, &table, &dt) {
+                            if dwrapper.is_global
+                                && predicate::diff_token_matches_pred(&p, &table, &dt)
+                            {
                                 warn!("ApplyRemoves: Inserting global token {:?} to update\n", dt);
                                 match locked_diff_tokens.get_mut(&dwrapper) {
                                     Some(vs) => vs.push(t.clone()),
                                     None => {
-                                        locked_diff_tokens.insert(dwrapper.clone(), vec![t.clone()]);
+                                        locked_diff_tokens
+                                            .insert(dwrapper.clone(), vec![t.clone()]);
                                     }
                                 }
                             }
@@ -552,7 +542,7 @@ impl Disguiser {
 }
 
 /*
- * Also only used by higher-level disguise specs 
+ * Also only used by higher-level disguise specs
  */
 fn decor_items(
     did: DID,
@@ -594,7 +584,20 @@ fn decor_items(
         let child_ids = get_ids(&child_name_info.id_cols, &i);
 
         // A. CREATE NEW PARENT
-        let (new_uid, _new_parent) = create_new_pseudoprincipal(guise_gen, conn, stats.clone());
+        let (new_uid, new_parent) = create_new_pseudoprincipal(guise_gen);
+
+        // actually insert pseudoprincipal
+        query_drop(
+            format!(
+                "INSERT INTO {} ({}) VALUES ({});",
+                guise_gen.guise_name,
+                new_parent.iter().map(|rv| rv.column.clone()).collect::<Vec<String>>().join(","),
+                new_parent.iter().map(|rv| rv.value.clone()).collect::<Vec<String>>().join(","),
+            ),
+            conn,
+            stats.clone(),
+        )
+        .unwrap();
 
         // actually register the anon principal, including saving an ownership token for the old uid
         // token is always inserted ``privately''

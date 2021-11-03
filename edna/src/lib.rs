@@ -185,8 +185,6 @@ impl EdnaClient {
         // ignore other metadata when application is handling the blobs being stored in tokens
         disguise::create_new_pseudoprincipal(
             &self.disguiser.guise_gen.read().unwrap(),
-            &mut self.get_conn().unwrap(),
-            self.get_stats(),
         )
     }
 
