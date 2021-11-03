@@ -48,7 +48,7 @@ pub(crate) struct RestoreRequest {
 }
 
 #[derive(Debug, FromForm)]
-pub(crate) struct EditCapabilitiesRequest{
+pub(crate) struct EditCapabilitiesRequest {
     decryption_cap: String,
 }
 
@@ -61,11 +61,8 @@ pub(crate) fn anonymize_answers(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    let anon_disguise = Arc::new(disguises::universal_anon_disguise::get_disguise());
-    let (dlcs, olcs) = bg
-        .edna
-        .apply_disguise(anon_disguise.clone(), vec![], vec![])
-        .unwrap();
+    let (dlcs, olcs) =
+        disguises::universal_anon_disguise::apply(&mut bg.edna, vec![], vec![]).unwrap();
     assert!(dlcs.len() == 0);
     let local: DateTime<Local> = Local::now();
     for ((uid, _did), olc) in olcs {
@@ -99,13 +96,10 @@ pub(crate) fn anonymize(_adm: Admin) -> Template {
 }
 
 #[get("/<olc>")]
-pub(crate) fn edit_as_pseudoprincipal(
-    cookies: &CookieJar<'_>,
-    olc: u64,
-) -> Template {
+pub(crate) fn edit_as_pseudoprincipal(cookies: &CookieJar<'_>, olc: u64) -> Template {
     let mut ctx = HashMap::new();
     ctx.insert("parent", String::from("layout"));
-   
+
     // save olc
     let cookie = Cookie::new("olc", olc.to_string());
     //cookies.add_private(cookie);
@@ -127,7 +121,7 @@ pub(crate) fn edit_as_pseudoprincipal_lecs(
     let mut bg = backend.lock().unwrap();
     let res = bg.query_exec("leclist", vec![]);
     drop(bg);
-    
+
     let lecs: Vec<_> = res
         .into_iter()
         .map(|r| LectureListEntry {
@@ -143,24 +137,21 @@ pub(crate) fn edit_as_pseudoprincipal_lecs(
     Template::render("edit_as_pseudoprincipal/lectures", &ctx)
 }
 
-
 #[get("/<lid>")]
 pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     cookies: &CookieJar<'_>,
     lid: u64,
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Template {
-
     let decryption_cap = cookies.get("decryptioncap").unwrap().value();
-    let olc : u64 = u64::from_str(cookies.get("olc").unwrap().value()).unwrap();
+    let olc: u64 = u64::from_str(cookies.get("olc").unwrap().value()).unwrap();
 
     let mut bg = backend.lock().unwrap();
     // get all the UIDs that this user can access
-    let pps = bg.edna.get_pseudoprincipals(
-        base64::decode(decryption_cap).unwrap(),
-        vec![olc],
-    );
-    debug!(bg.log, "Got pps {:?}", pps); 
+    let pps = bg
+        .edna
+        .get_pseudoprincipals(base64::decode(decryption_cap).unwrap(), vec![olc]);
+    debug!(bg.log, "Got pps {:?}", pps);
 
     // get all answers for lectures
     let mut answers = HashMap::new();
@@ -173,7 +164,7 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
                 let atext: String = from_value(r[3].clone());
                 answers.insert(qid, atext);
             }
-            debug!(bg.log, "Getting ApiKey of User {}",  pp.clone());
+            debug!(bg.log, "Getting ApiKey of User {}", pp.clone());
             let apikey_res = bg.query_exec("apikey_by_user", vec![pp.clone().into()]);
             apikey = from_value(apikey_res[0][0].clone());
             break;
@@ -206,7 +197,7 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     // but it won't reset afterward.... so the user won't be able to do anything else
     let cookie = Cookie::build("apikey", apikey.clone()).path("/").finish();
     cookies.add(cookie);
-    
+
     Template::render("questions", &ctx)
 }
 
@@ -216,19 +207,18 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
 #[post("/")]
 pub(crate) fn delete(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    let gdpr_disguise = Arc::new(disguises::gdpr_disguise::get_disguise(apikey.user.clone()));
-    let (dlcs, olcs) = bg
-        .edna
-        .apply_disguise(gdpr_disguise.clone(), vec![], vec![])
-        .unwrap();
+    // TODO composition
+    let (dlcs, olcs) =
+        disguises::gdpr_disguise::apply(&mut bg.edna, apikey.user.clone(), vec![], vec![])
+            .unwrap();
     assert!(dlcs.len() <= 1);
     assert!(olcs.len() <= 1);
     debug!(bg.log, "Got DLCs {:?} and OLCS {:?}", dlcs, olcs);
-    let dlc_str = match dlcs.get(&(apikey.user.clone(), gdpr_disguise.did)) {
+    let dlc_str = match dlcs.get(&(apikey.user.clone(), disguises::gdpr_disguise::get_did())) {
         Some(dlc) => dlc.to_string(),
         None => 0.to_string(),
     };
-    let olc_str = match olcs.get(&(apikey.key.clone(), gdpr_disguise.did)) {
+    let olc_str = match olcs.get(&(apikey.key.clone(), disguises::gdpr_disguise::get_did())) {
         Some(olc) => olc.to_string(),
         None => 0.to_string(),
     };
@@ -262,20 +252,14 @@ pub(crate) fn restore_account(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    let decryption_cap: Vec<u8> = base64::decode(&data.decryption_cap)
-        .expect("Bad decryption capability in post request");
+    let decryption_cap: Vec<u8> =
+        base64::decode(&data.decryption_cap).expect("Bad decryption capability in post request");
     let olcs = if data.ownership_loc_cap != 0 {
         vec![data.ownership_loc_cap]
     } else {
         vec![]
     };
-    bg.edna
-        .reverse_disguise(
-            disguises::gdpr_disguise::get_disguise_id(),
-            decryption_cap,
-            vec![data.diff_loc_cap],
-            olcs,
-        )
+    disguises::gdpr_disguise::reveal(&mut bg.edna, decryption_cap, vec![data.diff_loc_cap], olcs)
         .expect("Failed to reverse GDPR deletion disguise");
     drop(bg);
 

@@ -1,3 +1,4 @@
+use crate::disguises;
 use edna::EdnaClient;
 use mysql::prelude::*;
 use mysql::Opts;
@@ -31,7 +32,7 @@ impl MySqlBackend {
             log,
             "Connecting to MySql DB and initializing schema {}...", dbname
         );
-        let edna = EdnaClient::new(prime, dbname, &schema, true /*in-mem*/);
+        let edna = EdnaClient::new(prime, dbname, &schema, true, disguises::get_guise_gen() /*in-mem*/);
         let mut db = mysql::Conn::new(
             Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
         )

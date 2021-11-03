@@ -1,40 +1,34 @@
-use crate::disguises::*;
-use edna::disguise::*;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use edna::*;
 
-pub fn get_disguise_id() -> u64 {
-    return 1;
+pub fn get_did() -> DID {
+    1
 }
 
-pub fn get_disguise() -> Disguise {
-    Disguise {
-        did: 1,
-        user: String::new(),
-        table_disguises: get_table_disguises(),
-        table_info: get_table_info(),
-        guise_gen: get_guise_gen(),
-    }
-}
-
-fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<ObjectTransformation>>>> {
-    let mut hm = HashMap::new();
-
+pub fn apply(
+    edna: &mut EdnaClient,
+    decryption_cap: tokens::DataCap,
+    loc_caps: Vec<tokens::LocCap>,
+) -> Result<
+    (
+        HashMap<(UID, DID), tokens::LocCap>,
+        HashMap<(UID, DID), tokens::LocCap>,
+    ),
+    mysql::Error,
+> {
     // DECOR ANSWERS 
-    hm.insert(
-        "answers".to_string(),
-        Arc::new(RwLock::new(vec![
-            ObjectTransformation {
-                pred: get_true_pred(),
-                trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                    group_by_cols: vec!["lec".to_string()],
-                    fk_name: "users".to_string(),
-                    fk_col: "user".to_string(),
-                })),
-                global: false,
-            },
-        ])),
-    );
+    edna.start_disguise(get_did());
+    Ok(edna.end_disguise(get_did()))
+}
 
-    hm
+// REMOVE USER
+// REMOVE ANSWERS
+
+pub fn reveal(
+    edna: &mut EdnaClient,
+    decryption_cap: tokens::DataCap,
+    diff_loc_caps: Vec<tokens::LocCap>,
+    ownership_loc_caps: Vec<tokens::LocCap>,
+) -> Result<(), mysql::Error> {
+    Ok(())
 }
