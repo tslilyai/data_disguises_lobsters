@@ -158,6 +158,7 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     let mut apikey = String::new();
     for pp in pps {
         let answers_res = bg.query_exec("answers_by_user", vec![pp.clone().into()]);
+        debug!(bg.log, "Got answers of user {}: {:?}", pp, answers_res);
         if !answers_res.is_empty() {
             for r in answers_res {
                 let qid: u64 = from_value(r[2].clone());

@@ -8,7 +8,7 @@ QUERY leclist: SELECT lectures.id, lectures.label, lec_qcount.qcount FROM lectur
 -- WHERE lectures.id = ?;
 QUERY lecture: SELECT * FROM lectures WHERE id = ?;
 QUERY qs_by_lec: SELECT * FROM questions WHERE lec = ?;
-QUERY answers_by_user: SELECT * FROM answers WHERE user = ?;
+QUERY answers_by_user: SELECT * FROM answers WHERE `user` = ?;
 QUERY answers_by_lec: SELECT * FROM answers WHERE lec = ?;
 QUERY users_by_apikey: SELECT * FROM users WHERE apikey = ?;
 QUERY is_anon: SELECT is_anon FROM users WHERE email = ?;

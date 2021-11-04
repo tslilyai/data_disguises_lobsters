@@ -1,6 +1,7 @@
 use crate::backend::MySqlBackend;
 use edna::*;
 use mysql::from_value;
+use mysql::prelude::*;
 use std::collections::HashMap;
 
 pub fn get_did() -> DID {
@@ -23,8 +24,9 @@ pub fn apply(
     let mut user_lec_answers: HashMap<(String, u64), Vec<u64>> = HashMap::new();
     let res = bg.query_exec("all_answers", vec![]);
     for r in res {
-        //debug!(&bg.log, "Got result for all answers {:?}", r);
-        let key: (String, u64) = (from_value(r[0].clone()), from_value(r[1].clone()));
+        let uid: String = from_value(r[0].clone());
+        let uidstr = uid.trim_matches('\'');
+        let key: (String, u64) = (uidstr.to_string(), from_value(r[1].clone()));
         let val: u64 = from_value(r[2].clone());
         match user_lec_answers.get_mut(&key) {
             Some(qs) => qs.push(val),
@@ -37,26 +39,35 @@ pub fn apply(
     for ((user, lecture), qs) in user_lec_answers {
         // insert a new pseudoprincipal
         let (new_uid, rowvals) = bg.edna.create_new_pseudoprincipal();
-        bg.insert(
+        
+        // XXX issue where using bg adds quotes everywhere...
+        let q = format!(
+            r"INSERT INTO {} VALUES ({});",
             "users",
-            rowvals.iter().map(|rv| rv.value.clone().into()).collect(),
+            rowvals
+                .iter()
+                .map(|rv| rv.value.clone())
+                .collect::<Vec<String>>()
+                .join(",")
         );
+        bg.handle.query_drop(q).unwrap();
 
         // rewrite answers for all qs to point from user to new pseudoprincipal
         for q in qs {
-            bg.update(
+             let q = format!(
+                r"UPDATE {} SET `user` = {} WHERE `user` = '{}' AND lec = {} AND q = {};",
                 "answers",
-                vec![
-                    user.clone().into(),
-                    lecture.clone().into(),
-                    q.clone().into(),
-                ],
-                vec![(0, new_uid.clone().into())],
+                new_uid,
+                user,
+                lecture,
+                q
             );
+            bg.handle.query_drop(q).unwrap();
         }
 
         // register new ownershiptoken for pseudoprincipal
-        bg.edna.save_pseudoprincipal_token(get_did(), user, new_uid, vec![]);
+        bg.edna
+            .save_pseudoprincipal_token(get_did(), user, new_uid, vec![]);
     }
 
     Ok(bg.edna.end_disguise(get_did()))
