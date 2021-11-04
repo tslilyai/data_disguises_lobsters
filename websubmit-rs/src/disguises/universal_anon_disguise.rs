@@ -20,11 +20,12 @@ pub fn apply(
     bg.edna.start_disguise(get_did());
 
     // get all answers sorted by user and lecture
-    let mut user_lec_answers: HashMap<(String, String), Vec<String>> = HashMap::new();
+    let mut user_lec_answers: HashMap<(String, u64), Vec<u64>> = HashMap::new();
     let res = bg.query_exec("all_answers", vec![]);
     for r in res {
-        let key: (String, String) = (from_value(r[0].clone()), from_value(r[1].clone()));
-        let val: String = from_value(r[2].clone());
+        //debug!(&bg.log, "Got result for all answers {:?}", r);
+        let key: (String, u64) = (from_value(r[0].clone()), from_value(r[1].clone()));
+        let val: u64 = from_value(r[2].clone());
         match user_lec_answers.get_mut(&key) {
             Some(qs) => qs.push(val),
             None => {

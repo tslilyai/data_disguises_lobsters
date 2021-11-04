@@ -15,4 +15,4 @@ QUERY is_anon: SELECT is_anon FROM users WHERE email = ?;
 QUERY apikey_by_user: SELECT users.apikey FROM users WHERE email = ?;
 QUERY my_answers_for_lec: SELECT answers.* FROM answers WHERE answers.lec = ? AND answers.`user` = ?;
 QUERY all_users: SELECT email, is_admin, apikey FROM users;
-QUERY all_answers: SELECT user, lec, q FROM answers;
+QUERY all_answers: SELECT `user`, lec, q FROM answers;
