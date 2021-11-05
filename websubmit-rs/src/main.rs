@@ -90,7 +90,7 @@ async fn main() {
             "/admin/lec",
             routes![admin::lec, admin::addq, admin::editq, admin::editq_submit],
         )
-        .mount("/delete", routes![privacy::delete])
+        .mount("/delete", routes![privacy::delete, privacy::delete_submit])
         .mount(
             "/admin/anonymize",
             routes![privacy::anonymize, privacy::anonymize_answers],

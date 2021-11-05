@@ -20,7 +20,7 @@ fn get_insert_guise_vals() -> Vec<Expr> {
         Expr::Value(Value::String(format!("{}@anon.com", email.to_string()))),
         Expr::Value(Value::String(gid.to_string())),
         Expr::Value(Value::Number(0.to_string())),
-        Expr::Value(Value::Number(0.to_string())),
+        Expr::Value(Value::Number(1.to_string())),
     ]
 }
 

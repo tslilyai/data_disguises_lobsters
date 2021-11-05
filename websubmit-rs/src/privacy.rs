@@ -48,6 +48,12 @@ pub(crate) struct RestoreRequest {
 }
 
 #[derive(Debug, FromForm)]
+pub(crate) struct DeleteRequest {
+    decryption_cap: String,
+    ownership_loc_caps: String,
+}
+
+#[derive(Debug, FromForm)]
 pub(crate) struct EditCapabilitiesRequest {
     decryption_cap: String,
 }
@@ -61,8 +67,7 @@ pub(crate) fn anonymize_answers(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    let (dlcs, olcs) =
-        disguises::universal_anon_disguise::apply(&mut bg).unwrap();
+    let (dlcs, olcs) = disguises::universal_anon_disguise::apply(&mut bg).unwrap();
     assert!(dlcs.len() == 0);
     let local: DateTime<Local> = Local::now();
     for ((uid, _did), olc) in olcs {
@@ -205,12 +210,34 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
 /*
  * GDPR deletion
  */
-#[post("/")]
-pub(crate) fn delete(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
+#[get("/")]
+pub(crate) fn delete() -> Template {
+    let mut ctx = HashMap::new();
+    ctx.insert("parent", String::from("layout"));
+    Template::render("delete", &ctx)
+}
+
+#[post("/", data = "<data>")]
+pub(crate) fn delete_submit(
+    apikey: ApiKey,
+    data: Form<DeleteRequest>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
+) -> Redirect {
     let mut bg = backend.lock().unwrap();
     // TODO composition
+    let decryption_cap: Vec<u8> =
+        base64::decode(&data.decryption_cap).expect("Bad decryption capability in post request");
+    let own_loc_caps: Vec<u64> = if data.ownership_loc_caps.is_empty() {
+        vec![]
+    } else {
+        data.ownership_loc_caps
+            .split(',')
+            .into_iter()
+            .map(|olc| u64::from_str(olc).unwrap())
+            .collect()
+    };
     let (dlcs, olcs) =
-        disguises::gdpr_disguise::apply(&mut bg, apikey.user.clone(), vec![], vec![])
+        disguises::gdpr_disguise::apply(&mut bg, apikey.user.clone(), decryption_cap, own_loc_caps)
             .unwrap();
     assert!(dlcs.len() <= 1);
     assert!(olcs.len() <= 1);

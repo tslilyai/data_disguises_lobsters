@@ -151,7 +151,7 @@ pub(crate) fn questions(
         let mut ctx = HashMap::new();
         ctx.insert("parent", String::from("layout"));
         return Template::render("login", ctx);
-    } 
+    }  
     let answers_res = bg.query_exec(
         "my_answers_for_lec",
         vec![(num as u64).into(), apikey.user.clone().into()],
@@ -163,6 +163,7 @@ pub(crate) fn questions(
         ctx.insert("parent", String::from("layout"));
         return Template::render("login", ctx);
     }
+    debug!(bg.log, "User {} authorized to edit or submit {} answers for lec {}", apikey.user, answers_res.len(), num);
 
     let key: Value = (num as u64).into();
     let mut answers = HashMap::new();
