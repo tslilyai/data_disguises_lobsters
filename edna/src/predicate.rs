@@ -95,7 +95,8 @@ pub fn pred_to_sql_where(pred: &Vec<Vec<PredClause>>) -> String {
 
 pub fn modify_predicate_with_owner(
     pred: &Vec<Vec<PredClause>>,
-    ownership_token: &EdnaOwnershipToken,
+    fk_col: &str,
+    ownership_token: &OwnershipTokenWrapper,
 ) -> (Vec<Vec<PredClause>>, bool) {
     use PredClause::*;
     let mut new_pred = vec![];
@@ -107,7 +108,7 @@ pub fn modify_predicate_with_owner(
             match clause {
                 ColInList { col, vals, neg } => {
                     for val in vals {
-                        if val == &ownership_token.uid.to_string() && col == &ownership_token.fk_col
+                        if val == &ownership_token.old_uid.to_string() && col == &fk_col
                         {
                             let op = match neg {
                                 true => BinaryOperator::NotEq,
@@ -127,7 +128,7 @@ pub fn modify_predicate_with_owner(
                 }
                 ColColCmp { .. } => unimplemented!("No ownership comparison of cols"),
                 ColValCmp { col, val, op } => {
-                    if val == &ownership_token.uid.to_string() && col == &ownership_token.fk_col {
+                    if val == &ownership_token.old_uid.to_string() && col == &fk_col {
                         new_and_clauses.push(ColValCmp {
                             col: col.clone(),
                             val: ownership_token.new_uid.to_string(),
@@ -162,11 +163,12 @@ pub fn diff_token_matches_pred(pred: &Vec<Vec<PredClause>>, name: &str, t: &Edna
 
 pub fn get_all_preds_with_owners(
     pred: &Vec<Vec<PredClause>>,
-    own_tokens: &Vec<EdnaOwnershipToken>,
+    fk_col: &str,
+    own_tokens: &Vec<OwnershipTokenWrapper>,
 ) -> Vec<Vec<Vec<PredClause>>> {
     let mut preds = vec![pred.clone()];
     for ot in own_tokens {
-        let (modified_pred, changed) = modify_predicate_with_owner(pred, ot);
+        let (modified_pred, changed) = modify_predicate_with_owner(pred, fk_col, ot);
         if !changed {
             continue;
         }
@@ -177,16 +179,13 @@ pub fn get_all_preds_with_owners(
 
 pub fn get_ownership_tokens_matching_pred(
     pred: &Vec<Vec<PredClause>>,
-    name: &str,
-    tokens: &Vec<EdnaOwnershipToken>,
-) -> Vec<EdnaOwnershipToken> {
+    fk_col: &str,
+    tokens: &Vec<OwnershipTokenWrapper>,
+) -> Vec<OwnershipTokenWrapper> {
     let mut matching = vec![];
     for t in tokens {
-        if t.child_name != name {
-            continue;
-        }
-        if predicate_applies_with_col(pred, &t.fk_col, &t.uid)
-            || predicate_applies_with_col(pred, &t.fk_col, &t.new_uid)
+        if predicate_applies_with_col(pred, fk_col, &t.old_uid)
+            || predicate_applies_with_col(pred, fk_col, &t.new_uid)
         {
             //warn!("Pred: OwnershipToken matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
             matching.push(t.clone());

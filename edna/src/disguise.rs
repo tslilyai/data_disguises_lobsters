@@ -9,9 +9,7 @@ use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 use std::sync::{Arc, Mutex, RwLock};
 
-pub fn create_new_pseudoprincipal(
-    guise_gen: &GuiseGen,
-) -> (UID, Vec<RowVal>) {
+pub fn create_new_pseudoprincipal(guise_gen: &GuiseGen) -> (UID, Vec<RowVal>) {
     let new_parent_vals = (guise_gen.val_generation)();
     let new_parent_cols = (guise_gen.col_generation)();
     let mut ix = 0;
@@ -226,10 +224,8 @@ impl Disguiser {
                     }
                     let preds = predicate::get_all_preds_with_owners(
                         &t.pred,
-                        &my_own_tokens
-                            .iter()
-                            .map(|ot| edna_own_token_from_bytes(&ot.token_data))
-                            .collect(),
+                        &curtable_info.owner_cols[0], // assume only one fk
+                        &my_own_tokens,
                     );
                     for p in &preds {
                         let selection = predicate::pred_to_sql_where(p);
@@ -455,10 +451,8 @@ impl Disguiser {
                 if let TransformArgs::Remove = *t.trans.read().unwrap() {
                     let preds = predicate::get_all_preds_with_owners(
                         &t.pred,
-                        &own_tokens
-                            .iter()
-                            .map(|ot| edna_own_token_from_bytes(&ot.token_data))
-                            .collect(),
+                        &curtable_info.owner_cols[0], // assume only one fk
+                        &own_tokens,
                     );
                     warn!("Got preds {:?} with own_tokens {:?}\n", preds, own_tokens);
                     for p in &preds {
@@ -591,8 +585,16 @@ fn decor_items(
             format!(
                 "INSERT INTO {} ({}) VALUES ({});",
                 guise_gen.guise_name,
-                new_parent.iter().map(|rv| rv.column.clone()).collect::<Vec<String>>().join(","),
-                new_parent.iter().map(|rv| rv.value.clone()).collect::<Vec<String>>().join(","),
+                new_parent
+                    .iter()
+                    .map(|rv| rv.column.clone())
+                    .collect::<Vec<String>>()
+                    .join(","),
+                new_parent
+                    .iter()
+                    .map(|rv| rv.value.clone())
+                    .collect::<Vec<String>>()
+                    .join(","),
             ),
             conn,
             stats.clone(),
