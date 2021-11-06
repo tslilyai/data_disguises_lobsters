@@ -304,7 +304,7 @@ impl TokenCtrler {
         let empty_vec = serde_json::to_string(&v).unwrap();
         let uid = uid.trim_matches('\'');
         let insert_q = format!(
-            "INSERT INTO {} VALUES (\'{}\', \'{}\', {}, \'{}\', \'{}\');",
+            "INSERT INTO {} VALUES (\'{}\', {}, \'{}\', \'{}\', \'{}\');",
             PRINCIPAL_TABLE,
             uid,
             if pdata.is_anon {
