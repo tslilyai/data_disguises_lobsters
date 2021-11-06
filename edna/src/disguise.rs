@@ -61,10 +61,10 @@ impl Disguiser {
         }
     }
 
-    pub fn register_principal(&mut self, uid: &UID, email: String, pubkey: &RsaPublicKey) {
+    pub fn register_principal(&mut self, uid: &UID, pubkey: &RsaPublicKey) {
         let mut conn = self.pool.get_conn().unwrap();
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        locked_token_ctrler.register_principal(uid, email, pubkey, &mut conn);
+        locked_token_ctrler.register_principal(uid, false, pubkey, &mut conn);
         drop(locked_token_ctrler);
     }
 
@@ -224,7 +224,7 @@ impl Disguiser {
                     }
                     let preds = predicate::get_all_preds_with_owners(
                         &t.pred,
-                        &curtable_info.owner_cols[0], // assume only one fk
+                        &curtable_info.owner_cols, // assume only one fk
                         &my_own_tokens,
                     );
                     for p in &preds {
@@ -451,7 +451,7 @@ impl Disguiser {
                 if let TransformArgs::Remove = *t.trans.read().unwrap() {
                     let preds = predicate::get_all_preds_with_owners(
                         &t.pred,
-                        &curtable_info.owner_cols[0], // assume only one fk
+                        &curtable_info.owner_cols, 
                         &own_tokens,
                     );
                     warn!("Got preds {:?} with own_tokens {:?}\n", preds, own_tokens);

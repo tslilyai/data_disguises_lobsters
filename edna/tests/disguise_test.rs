@@ -67,7 +67,7 @@ fn test_app_anon_disguise() {
         // register user in Edna
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u.to_string(), "email@email.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key.clone());
     }
@@ -219,7 +219,7 @@ fn test_app_gdpr_disguise() {
         // register user in Edna
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u.to_string(), "email@email.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key.clone());
     }
@@ -353,7 +353,7 @@ fn test_compose_anon_gdpr_disguises() {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u.to_string(), "email@mail.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }

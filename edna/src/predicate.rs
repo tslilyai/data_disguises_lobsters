@@ -163,16 +163,18 @@ pub fn diff_token_matches_pred(pred: &Vec<Vec<PredClause>>, name: &str, t: &Edna
 
 pub fn get_all_preds_with_owners(
     pred: &Vec<Vec<PredClause>>,
-    fk_col: &str,
+    fk_cols: &Vec<String>,
     own_tokens: &Vec<OwnershipTokenWrapper>,
 ) -> Vec<Vec<Vec<PredClause>>> {
     let mut preds = vec![pred.clone()];
     for ot in own_tokens {
-        let (modified_pred, changed) = modify_predicate_with_owner(pred, fk_col, ot);
-        if !changed {
-            continue;
+        for col in fk_cols {
+            let (modified_pred, changed) = modify_predicate_with_owner(pred, col, ot);
+            if !changed {
+                continue;
+            }
+            preds.push(modified_pred);
         }
-        preds.push(modified_pred);
     }
     preds
 }
@@ -187,7 +189,7 @@ pub fn get_ownership_tokens_matching_pred(
         if predicate_applies_with_col(pred, fk_col, &t.old_uid)
             || predicate_applies_with_col(pred, fk_col, &t.new_uid)
         {
-            //warn!("Pred: OwnershipToken matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
+            warn!("Pred: OwnershipToken matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
             matching.push(t.clone());
         }
     }
@@ -209,7 +211,7 @@ pub fn predicate_applies_with_col(p: &Vec<Vec<PredClause>>, col: &str, val: &str
             break;
         }
     }
-    //warn!("Predicate {:?} applies to row {:?}? {}\n", p, row, found_true);
+    warn!("Predicate {:?} applies with col {} and val {}? {}\n", p, col, val, found_true);
     found_true
 }
 
@@ -253,7 +255,7 @@ pub fn predicate_applies_to_row(p: &Vec<Vec<PredClause>>, row: &Vec<RowVal>) -> 
             break;
         }
     }
-    //warn!("Predicate {:?} applies to row {:?}? {}\n", p, row, found_true);
+    warn!("Predicate {:?} applies to row {:?}? {}\n", p, row, found_true);
     found_true
 }
 
@@ -285,7 +287,7 @@ pub fn clause_applies_to_row(p: &PredClause, row: &Vec<RowVal>) -> bool {
             match row.iter().find(|rv| &rv.column == col) {
                 Some(rv) => rv1 = rv.value.clone(),
                 None => {
-                    //warn!("Didn't find column {} in row {:?}", col, row);
+                    warn!("Didn't find column {} in row {:?}", col, row);
                     return false; // this can happen if the row just isn't of the right guise type?
                 }
             }
@@ -294,7 +296,7 @@ pub fn clause_applies_to_row(p: &PredClause, row: &Vec<RowVal>) -> bool {
         }
         Bool(b) => *b,
     };
-    //warn!("PredClause {:?} matches {:?}: {}\n", p, row, matches);
+    warn!("PredClause {:?} matches {:?}: {}\n", p, row, matches);
     matches
 }
 

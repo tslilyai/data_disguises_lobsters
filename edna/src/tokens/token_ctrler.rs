@@ -31,12 +31,12 @@ pub struct EncData {
 }
 
 impl EncData {
-    pub fn decrypt_encdata(&self, data_cap: &DecryptCap) -> (Vec<u8>, Vec<u8>) {
-        if data_cap.is_empty() {
+    pub fn decrypt_encdata(&self, decrypt_cap: &DecryptCap) -> (Vec<u8>, Vec<u8>) {
+        if decrypt_cap.is_empty() {
             return (vec![], vec![]);
         }
 
-        let priv_key = RsaPrivateKey::from_pkcs1_der(data_cap).unwrap();
+        let priv_key = RsaPrivateKey::from_pkcs1_der(decrypt_cap).unwrap();
         let padding = PaddingScheme::new_pkcs1v15_encrypt();
         let key = priv_key
             .decrypt(padding, &self.enc_key)
@@ -51,7 +51,7 @@ impl EncData {
 #[derive(Clone)]
 pub struct PrincipalData {
     pub pubkey: RsaPublicKey,
-    pub email: String,
+    pub is_anon: bool,
 
     // only nonempty for pseudoprincipals!
     pub ownership_loc_caps: Vec<LocCap>,
@@ -97,7 +97,7 @@ impl TokenCtrler {
         };
 
         let createq = format!(
-            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), email varchar(255), pubkey blob, ownershipToks blob, diffToks blob, PRIMARY KEY ({}));",
+            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, pubkey blob, ownershipToks blob, diffToks blob, PRIMARY KEY ({}));",
             PRINCIPAL_TABLE, UID_COL, UID_COL);
         conn.query_drop(&createq).unwrap();
         let selected = get_query_rows_str(
@@ -107,13 +107,14 @@ impl TokenCtrler {
         )
         .unwrap();
         for row in selected {
+            let is_anon: bool = row[1].value == "1";
             let pubkey_bytes: Vec<u8> = serde_json::from_str(&row[2].value).unwrap();
             let pubkey = RsaPublicKey::from_pkcs1_der(&pubkey_bytes).unwrap();
             let ownership_toks = serde_json::from_str(&row[3].value).unwrap();
             let diff_toks = serde_json::from_str(&row[4].value).unwrap();
             tctrler.register_saved_principal(
                 &row[0].value,
-                &row[1].value,
+                is_anon,
                 &pubkey,
                 ownership_toks,
                 diff_toks,
@@ -144,7 +145,7 @@ impl TokenCtrler {
         for ((uid, _), c) in dlcs.iter() {
             let p = self.principal_data.get_mut(uid).unwrap();
             // save to principal data if no email (pseudoprincipal)
-            if p.email.is_empty() {
+            if p.is_anon {
                 p.diff_loc_caps.push(*c);
 
                 // update persistence
@@ -163,8 +164,8 @@ impl TokenCtrler {
 
         for ((uid, _), c) in olcs.iter() {
             let p = self.principal_data.get_mut(uid).unwrap();
-            // save to principal data if no email (pseudoprincipal)
-            if p.email.is_empty() {
+            // save to principal data if anon (pseudoprincipal)
+            if p.is_anon {
                 p.ownership_loc_caps.push(*c);
 
                 // update persistence
@@ -236,7 +237,7 @@ impl TokenCtrler {
     pub fn register_saved_principal(
         &mut self,
         uid: &UID,
-        email: &str,
+        is_anon: bool,
         pubkey: &RsaPublicKey,
         ot: Vec<LocCap>,
         dt: Vec<LocCap>,
@@ -244,7 +245,7 @@ impl TokenCtrler {
         warn!("Re-registering saved principal {}", uid);
         let pdata = PrincipalData {
             pubkey: pubkey.clone(),
-            email: email.to_string(),
+            is_anon: is_anon,
             ownership_loc_caps: ot,
             diff_loc_caps: dt,
         };
@@ -254,14 +255,14 @@ impl TokenCtrler {
     pub fn register_principal(
         &mut self,
         uid: &UID,
-        email: String,
+        is_anon: bool,
         pubkey: &RsaPublicKey,
         conn: &mut mysql::PooledConn,
     ) {
         warn!("Registering principal {}", uid);
         let pdata = PrincipalData {
             pubkey: pubkey.clone(),
-            email: email.clone(),
+            is_anon: is_anon,
             ownership_loc_caps: vec![],
             diff_loc_caps: vec![],
         };
@@ -286,7 +287,7 @@ impl TokenCtrler {
 
         // save the anon principal as a new principal with a public key
         // and initially empty token vaults
-        self.register_principal(&anon_uidstr.to_string(), String::new(), &pub_key, conn);
+        self.register_principal(&anon_uidstr.to_string(), true, &pub_key, conn);
         let own_token_wrapped = new_generic_ownership_token_wrapper(
             uidstr.to_string(),
             anon_uidstr.to_string(),
@@ -303,10 +304,14 @@ impl TokenCtrler {
         let empty_vec = serde_json::to_string(&v).unwrap();
         let uid = uid.trim_matches('\'');
         let insert_q = format!(
-            "INSERT INTO {} VALUES (\'{}\', \'{}\', \'{}\', \'{}\', \'{}\');",
+            "INSERT INTO {} VALUES (\'{}\', \'{}\', {}, \'{}\', \'{}\');",
             PRINCIPAL_TABLE,
             uid,
-            pdata.email,
+            if pdata.is_anon {
+                1
+            } else {
+                0
+            },
             serde_json::to_string(&pubkey_vec).unwrap(),
             empty_vec,
             empty_vec
@@ -531,7 +536,7 @@ impl TokenCtrler {
         &mut self,
         did: DID,
         token: &DiffTokenWrapper,
-        data_cap: &DecryptCap,
+        decrypt_cap: &DecryptCap,
         diff_loc_caps: &Vec<LocCap>,
         ownership_loc_caps: &Vec<LocCap>,
     ) -> bool {
@@ -551,7 +556,7 @@ impl TokenCtrler {
         }
 
         // return if no tokens accessible
-        if data_cap.is_empty() {
+        if decrypt_cap.is_empty() {
             return false;
         }
 
@@ -560,7 +565,7 @@ impl TokenCtrler {
             if let Some(tokenls) = self.enc_diffs_map.get_mut(&lc) {
                 for (i, enc_token) in tokenls.iter_mut().enumerate() {
                     // decrypt data and compare
-                    let (key, tokenplaintext) = enc_token.decrypt_encdata(data_cap);
+                    let (key, tokenplaintext) = enc_token.decrypt_encdata(decrypt_cap);
                     let mut curtoken = diff_token_from_bytes(&tokenplaintext);
 
                     if curtoken.did != did {
@@ -594,8 +599,8 @@ impl TokenCtrler {
         for lc in ownership_loc_caps {
             if let Some(pks) = self.enc_ownership_map.get(&lc) {
                 for enc_pk in &pks.clone() {
-                    // decrypt with data_cap provided by client
-                    let (_, plaintext) = enc_pk.decrypt_encdata(data_cap);
+                    // decrypt with decrypt_cap provided by client
+                    let (_, plaintext) = enc_pk.decrypt_encdata(decrypt_cap);
                     let pk = ownership_token_from_bytes(&plaintext);
 
                     // get all tokens of pseudoprincipal
@@ -621,11 +626,11 @@ impl TokenCtrler {
         &mut self,
         did: DID,
         token: &OwnershipTokenWrapper,
-        data_cap: &DecryptCap,
+        decrypt_cap: &DecryptCap,
         ownership_loc_caps: &Vec<LocCap>,
     ) -> bool {
         // return if no tokens accessible
-        if data_cap.is_empty() {
+        if decrypt_cap.is_empty() {
             return false;
         }
 
@@ -633,8 +638,8 @@ impl TokenCtrler {
         for lc in ownership_loc_caps {
             if let Some(pks) = self.enc_ownership_map.get_mut(&lc) {
                 for (i, enc_token) in pks.iter_mut().enumerate() {
-                    // decrypt with data_cap provided by client
-                    let (key, plaintext) = enc_token.decrypt_encdata(data_cap);
+                    // decrypt with decrypt_cap provided by client
+                    let (key, plaintext) = enc_token.decrypt_encdata(decrypt_cap);
                     let mut curtoken = ownership_token_from_bytes(&plaintext);
                     if curtoken.token_id == token.token_id {
                         curtoken.revealed = true;
@@ -663,8 +668,8 @@ impl TokenCtrler {
         for lc in ownership_loc_caps {
             if let Some(pks) = self.enc_ownership_map.get(&lc) {
                 for enc_pk in &pks.clone() {
-                    // decrypt with data_cap provided by client
-                    let (_, plaintext) = enc_pk.decrypt_encdata(data_cap);
+                    // decrypt with decrypt_cap provided by client
+                    let (_, plaintext) = enc_pk.decrypt_encdata(decrypt_cap);
                     let pk = ownership_token_from_bytes(&plaintext);
 
                     // get all tokens of pseudoprincipal
@@ -748,21 +753,21 @@ impl TokenCtrler {
     pub fn get_user_tokens(
         &self,
         did: DID,
-        data_cap: &DecryptCap,
+        decrypt_cap: &DecryptCap,
         diff_loc_caps: &Vec<LocCap>,
         ownership_loc_caps: &Vec<LocCap>,
     ) -> (Vec<DiffTokenWrapper>, Vec<OwnershipTokenWrapper>) {
         let mut diff_tokens = vec![];
         let mut own_tokens = vec![];
-        if data_cap.is_empty() {
+        if decrypt_cap.is_empty() {
             return (diff_tokens, own_tokens);
         }
         for loc_cap in diff_loc_caps {
             if let Some(tokenls) = self.enc_diffs_map.get(&loc_cap) {
                 warn!("Getting tokens of user from ls len {}", tokenls.len());
                 for enc_token in tokenls {
-                    // decrypt token with data_cap provided by client
-                    let (_, plaintext) = enc_token.decrypt_encdata(data_cap);
+                    // decrypt token with decrypt_cap provided by client
+                    let (_, plaintext) = enc_token.decrypt_encdata(decrypt_cap);
                     let token = diff_token_from_bytes(&plaintext);
 
                     // add token to list only if it hasn't be revealed before
@@ -782,8 +787,8 @@ impl TokenCtrler {
         for lc in ownership_loc_caps {
             if let Some(pks) = self.enc_ownership_map.get(&lc) {
                 for enc_pk in &pks.clone() {
-                    // decrypt with data_cap provided by client
-                    let (_, plaintext) = enc_pk.decrypt_encdata(data_cap);
+                    // decrypt with decrypt_cap provided by client
+                    let (_, plaintext) = enc_pk.decrypt_encdata(decrypt_cap);
                     let pk = ownership_token_from_bytes(&plaintext);
                     own_tokens.push(pk.clone());
 
@@ -807,18 +812,18 @@ impl TokenCtrler {
 
     pub fn get_user_pseudoprincipals(
         &self,
-        data_cap: &DecryptCap,
+        decrypt_cap: &DecryptCap,
         ownership_loc_caps: &Vec<LocCap>,
     ) -> Vec<UID> {
         let mut uids = vec![];
-        if data_cap.is_empty() {
+        if decrypt_cap.is_empty() {
             return vec![];
         }
         for lc in ownership_loc_caps {
             if let Some(pks) = self.enc_ownership_map.get(&lc) {
                 for enc_pk in &pks.clone() {
-                    // decrypt with data_cap provided by client
-                    let (_, plaintext) = enc_pk.decrypt_encdata(data_cap);
+                    // decrypt with decrypt_cap provided by client
+                    let (_, plaintext) = enc_pk.decrypt_encdata(decrypt_cap);
                     let pk = ownership_token_from_bytes(&plaintext);
                     if uids.is_empty() {
                         // save the original user too
@@ -895,7 +900,7 @@ mod tests {
         let pub_key = RsaPublicKey::from(&private_key);
         ctrler.register_principal(
             &uid.to_string(),
-            "email@mail.com".to_string(),
+            false,
             &pub_key,
             &mut conn,
         );
@@ -941,7 +946,7 @@ mod tests {
         let pub_key = RsaPublicKey::from(&private_key);
         ctrler.register_principal(
             &uid.to_string(),
-            "email@mail.com".to_string(),
+            false,
             &pub_key,
             &mut conn,
         );
@@ -1009,7 +1014,7 @@ mod tests {
             let pub_key = RsaPublicKey::from(&private_key);
             ctrler.register_principal(
                 &u.to_string(),
-                "email@mail.com".to_string(),
+                false,
                 &pub_key,
                 &mut conn,
             );
@@ -1096,7 +1101,7 @@ mod tests {
             let pub_key = RsaPublicKey::from(&private_key);
             ctrler.register_principal(
                 &u.to_string(),
-                "email@mail.com".to_string(),
+                false,
                 &pub_key,
                 &mut conn,
             );

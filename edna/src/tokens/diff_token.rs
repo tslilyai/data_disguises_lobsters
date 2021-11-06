@@ -56,7 +56,7 @@ pub struct EdnaDiffToken {
     // REMOVE PRINCIPAL
     pub uid: UID,
     pub pubkey: Vec<u8>,
-    pub email: String,
+    pub is_anon: bool,
     pub ownership_loc_caps: Vec<LocCap>,
     pub diff_loc_caps: Vec<LocCap>,
 }
@@ -127,7 +127,7 @@ pub fn new_remove_principal_token_wrapper(
     edna_token.token_id = token.token_id;
     edna_token.uid = uid.clone();
     edna_token.pubkey = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
-    edna_token.email = pdata.email.clone();
+    edna_token.is_anon = pdata.is_anon.clone();
     edna_token.ownership_loc_caps = pdata.ownership_loc_caps.clone();
     edna_token.diff_loc_caps = pdata.diff_loc_caps.clone();
     edna_token.update_type = REMOVE_PRINCIPAL;
@@ -243,11 +243,11 @@ impl EdnaDiffToken {
             REMOVE_PRINCIPAL => {
                 let pdata = PrincipalData {
                     pubkey: FromRsaPublicKey::from_pkcs1_der(&self.pubkey).unwrap(),
-                    email: self.email.clone(),
+                    is_anon: self.is_anon,
                     ownership_loc_caps: self.ownership_loc_caps.clone(),
                     diff_loc_caps: self.diff_loc_caps.clone(),
                 };
-                token_ctrler.register_principal(&self.uid, pdata.email, &pdata.pubkey, conn);
+                token_ctrler.register_principal(&self.uid, pdata.is_anon, &pdata.pubkey, conn);
             }
 
             REMOVE_GUISE => {

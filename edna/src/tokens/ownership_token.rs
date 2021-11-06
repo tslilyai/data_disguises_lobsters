@@ -111,7 +111,7 @@ impl EdnaOwnershipToken {
         )?;
         if selected.is_empty() {
             warn!(
-                "DiffToken Reveal: Original entity col {} id {} does not exist\n",
+                "OwnToken Reveal: Original entity col {} = {} does not exist\n",
                 self.pprincipal_id_col, self.uid
             );
             return Ok(false);
@@ -129,7 +129,7 @@ impl EdnaOwnershipToken {
             let curval = get_value_of_col(&selected[0], &self.fk_col).unwrap();
             if curval != self.new_uid {
                 warn!(
-                    "DiffToken Reveal: Foreign key col {} rewritten from {} to {}\n",
+                    "OwnToken Reveal: Foreign key col {} rewritten from {} to {}\n",
                     self.fk_col, self.new_uid, curval
                 );
                 return Ok(false);

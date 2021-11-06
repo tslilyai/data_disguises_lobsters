@@ -90,8 +90,8 @@ impl EdnaClient {
     // Necessary to make Edna aware of all principals in the system
     // so Edna can link these to pseudoprincipals/do crypto stuff
     //-----------------------------------------------------------------------------
-    pub fn register_principal(&mut self, uid: UID, email: String, pubkey: &RsaPublicKey) {
-        self.disguiser.register_principal(&uid, email, pubkey);
+    pub fn register_principal(&mut self, uid: UID, pubkey: &RsaPublicKey) {
+        self.disguiser.register_principal(&uid, pubkey);
     }
 
     //-----------------------------------------------------------------------------

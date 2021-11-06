@@ -71,7 +71,7 @@ fn test_app_rev_anon_disguise() {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u.to_string(), "email@mail.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }
@@ -298,7 +298,7 @@ fn test_app_rev_gdpr_disguise() {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u.to_string(), "email@mail.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }
@@ -433,7 +433,7 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u.to_string(), "email@email.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }
@@ -659,82 +659,84 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
 
     // CHECK DISGUISE RESULTS: everything restored but still anon
     // users exist
-    for u in 1..USER_ITERS {
-        let mut results = vec![];
+    {
+        for u in 1..USER_ITERS {
+            let mut results = vec![];
+            let res = db
+                .query_iter(format!(r"SELECT id FROM stories WHERE user_id={}", u))
+                .unwrap();
+            for row in res {
+                let vals = row.unwrap().unwrap();
+                assert_eq!(vals.len(), 1);
+                let id = helpers::mysql_val_to_string(&vals[0]);
+                results.push(id);
+            }
+            assert_eq!(results.len(), 0);
+        }
+
+        // no correlated moderations
+        for u in 1..USER_ITERS {
+            let mut results = vec![];
+            let res = db
+                .query_iter(format!(
+                    r"SELECT id FROM moderations WHERE moderator_user_id={} OR user_id={}",
+                    u, u
+                ))
+                .unwrap();
+            for row in res {
+                let vals = row.unwrap().unwrap();
+                assert_eq!(vals.len(), 1);
+                let id = helpers::mysql_val_to_string(&vals[0]);
+                results.push(id);
+            }
+            assert_eq!(results.len(), 0);
+        }
+
+        let mut guises = HashSet::new();
+
+        // stories have guises as owners
+        let mut stories_results = vec![];
         let res = db
-            .query_iter(format!(r"SELECT id FROM stories WHERE user_id={}", u))
+            .query_iter(format!(r"SELECT user_id FROM stories"))
             .unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
             assert_eq!(vals.len(), 1);
-            let id = helpers::mysql_val_to_string(&vals[0]);
-            results.push(id);
+            let user_id = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+            assert!(guises.insert(user_id));
+            assert!(user_id >= USER_ITERS);
+            stories_results.push(user_id);
         }
-        assert_eq!(results.len(), 0);
-    }
+        assert_eq!(stories_results.len() as u64, (USER_ITERS - 1) * NSTORIES);
 
-    // no correlated moderations
-    for u in 1..USER_ITERS {
-        let mut results = vec![];
+        // moderations have guises as owners
         let res = db
             .query_iter(format!(
-                r"SELECT id FROM moderations WHERE moderator_user_id={} OR user_id={}",
-                u, u
+                r"SELECT moderator_user_id, user_id FROM moderations"
             ))
             .unwrap();
         for row in res {
             let vals = row.unwrap().unwrap();
-            assert_eq!(vals.len(), 1);
-            let id = helpers::mysql_val_to_string(&vals[0]);
-            results.push(id);
+            assert_eq!(vals.len(), 2);
+            let moderator_user_id = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+            let user_id = helpers::mysql_val_to_u64(&vals[1]).unwrap();
+            assert!(guises.insert(user_id));
+            assert!(guises.insert(moderator_user_id));
+            assert!(user_id >= USER_ITERS);
+            assert!(moderator_user_id >= USER_ITERS);
         }
-        assert_eq!(results.len(), 0);
-    }
 
-    let mut guises = HashSet::new();
-
-    // stories have guises as owners
-    let mut stories_results = vec![];
-    let res = db
-        .query_iter(format!(r"SELECT user_id FROM stories"))
-        .unwrap();
-    for row in res {
-        let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 1);
-        let user_id = helpers::mysql_val_to_u64(&vals[0]).unwrap();
-        assert!(guises.insert(user_id));
-        assert!(user_id >= USER_ITERS);
-        stories_results.push(user_id);
-    }
-    assert_eq!(stories_results.len() as u64, (USER_ITERS - 1) * NSTORIES);
-
-    // moderations have guises as owners
-    let res = db
-        .query_iter(format!(
-            r"SELECT moderator_user_id, user_id FROM moderations"
-        ))
-        .unwrap();
-    for row in res {
-        let vals = row.unwrap().unwrap();
-        assert_eq!(vals.len(), 2);
-        let moderator_user_id = helpers::mysql_val_to_u64(&vals[0]).unwrap();
-        let user_id = helpers::mysql_val_to_u64(&vals[1]).unwrap();
-        assert!(guises.insert(user_id));
-        assert!(guises.insert(moderator_user_id));
-        assert!(user_id >= USER_ITERS);
-        assert!(moderator_user_id >= USER_ITERS);
-    }
-
-    // check that all guises exist
-    for u in guises {
-        let res = db
-            .query_iter(format!(r"SELECT * FROM users WHERE id={}", u))
-            .unwrap();
-        for row in res {
-            let vals = row.unwrap().unwrap();
-            assert_eq!(vals.len(), 3);
-            let username = helpers::mysql_val_to_string(&vals[1]);
-            assert_eq!(username, format!("{}", u));
+        // check that all guises exist
+        for u in guises {
+            let res = db
+                .query_iter(format!(r"SELECT * FROM users WHERE id={}", u))
+                .unwrap();
+            for row in res {
+                let vals = row.unwrap().unwrap();
+                assert_eq!(vals.len(), 3);
+                let username = helpers::mysql_val_to_string(&vals[1]);
+                assert_eq!(username, format!("{}", u));
+            }
         }
     }
 
@@ -873,7 +875,7 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u.to_string(), "email@email.com".to_string(), &pub_key);
+        edna.register_principal(u.to_string(), &pub_key);
         pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }
