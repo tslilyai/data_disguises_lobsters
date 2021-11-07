@@ -143,6 +143,7 @@ impl TokenCtrler {
         let olcs = self.tmp_ownership_loc_caps.clone();
 
         for ((uid, _), c) in dlcs.iter() {
+            
             let p = self.principal_data.get_mut(uid).unwrap();
             // save to principal data if no email (pseudoprincipal)
             if p.is_anon {
@@ -307,11 +308,7 @@ impl TokenCtrler {
             "INSERT INTO {} VALUES (\'{}\', {}, \'{}\', \'{}\', \'{}\');",
             PRINCIPAL_TABLE,
             uid,
-            if pdata.is_anon {
-                1
-            } else {
-                0
-            },
+            if pdata.is_anon { 1 } else { 0 },
             serde_json::to_string(&pubkey_vec).unwrap(),
             empty_vec,
             empty_vec
@@ -320,7 +317,13 @@ impl TokenCtrler {
         conn.query_drop(&insert_q).unwrap();
     }
 
+    // Note: pseudoprincipals cannot be removed (they're essentially like ``tokens'')
     pub fn mark_principal_to_be_removed(&mut self, uid: &UID) {
+        let p = self.principal_data.get_mut(uid).unwrap();
+        // save to principal data if anon (pseudoprincipal)
+        if p.is_anon {
+            return;
+        }
         self.tmp_remove_principals.insert(uid.to_string());
     }
 
@@ -793,8 +796,14 @@ impl TokenCtrler {
                     own_tokens.push(pk.clone());
 
                     // get all tokens of pseudoprincipal
-                    warn!("Getting tokens of pseudoprincipal {}", pk.new_uid);
                     if let Some(pp) = self.principal_data.get(&pk.new_uid) {
+                        warn!(
+                            "Getting tokens of pseudoprincipal {} with data {}, {:?}, {:?}",
+                            pk.new_uid,
+                            pk.priv_key.len(),
+                            pp.diff_loc_caps,
+                            pp.ownership_loc_caps
+                        );
                         let (pp_diff_tokens, pp_own_tokens) = self.get_user_tokens(
                             did,
                             &pk.priv_key,
@@ -848,7 +857,7 @@ impl TokenCtrler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{EdnaClient, RowVal, GuiseGen};
+    use crate::{EdnaClient, GuiseGen, RowVal};
     use rsa::pkcs1::ToRsaPrivateKey;
 
     fn init_logger() {
@@ -898,12 +907,7 @@ mod tests {
         let mut rng = OsRng;
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let pub_key = RsaPublicKey::from(&private_key);
-        ctrler.register_principal(
-            &uid.to_string(),
-            false,
-            &pub_key,
-            &mut conn,
-        );
+        ctrler.register_principal(&uid.to_string(), false, &pub_key, &mut conn);
 
         let mut remove_token = new_delete_token_wrapper(
             did,
@@ -944,12 +948,7 @@ mod tests {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         let pub_key = RsaPublicKey::from(&private_key);
-        ctrler.register_principal(
-            &uid.to_string(),
-            false,
-            &pub_key,
-            &mut conn,
-        );
+        ctrler.register_principal(&uid.to_string(), false, &pub_key, &mut conn);
 
         let mut remove_token = new_delete_token_wrapper(
             did,
@@ -1012,12 +1011,7 @@ mod tests {
                 RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             let pub_key = RsaPublicKey::from(&private_key);
-            ctrler.register_principal(
-                &u.to_string(),
-                false,
-                &pub_key,
-                &mut conn,
-            );
+            ctrler.register_principal(&u.to_string(), false, &pub_key, &mut conn);
             pub_keys.push(pub_key.clone());
             priv_keys.push(private_key_vec.clone());
 
@@ -1099,12 +1093,7 @@ mod tests {
                 RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             let pub_key = RsaPublicKey::from(&private_key);
-            ctrler.register_principal(
-                &u.to_string(),
-                false,
-                &pub_key,
-                &mut conn,
-            );
+            ctrler.register_principal(&u.to_string(), false, &pub_key, &mut conn);
             pub_keys.push(pub_key.clone());
             priv_keys.push(private_key_vec.clone());
 

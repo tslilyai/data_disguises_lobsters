@@ -461,6 +461,10 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
                 anon_olc
             )
             .unwrap();
+        // the problem here is that dlcs_map may have pseudoprincipal tokens
+        // but the pseudoprincipal data in edna may have been removed (because the item was deleted)
+        // we need to pass in the pseudoprincipal private keys, but those are stored ownership
+        // tokens of the original user
         match dlcs_map.get(&(u.to_string(), did)){
             Some(dlc) => gdpr_dlcs.push(*dlc),
             None => gdpr_dlcs.push(0),

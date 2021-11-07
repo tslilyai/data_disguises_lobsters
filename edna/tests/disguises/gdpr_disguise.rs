@@ -19,7 +19,6 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<ObjectTra
     hm.insert(
         "users".to_string(),
         Arc::new(RwLock::new(vec![
-            // only modify if a PC member
             ObjectTransformation {
                 pred: get_eq_pred("id", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Remove)),
