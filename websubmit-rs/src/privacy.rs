@@ -44,7 +44,7 @@ pub struct LectureListContext {
 pub(crate) struct RestoreRequest {
     decryption_cap: String,
     diff_loc_cap: u64,
-    ownership_loc_cap: u64,
+    ownership_loc_caps: String,
 }
 
 #[derive(Debug, FromForm)]
@@ -79,10 +79,11 @@ pub(crate) fn anonymize_answers(
             format!(
                 "Your data has been
                 anonymized! To edit your answers submitted before {}.{}.{}, and after prior
-                anonymizations, please click http://localhost:8000/edit/{}",
+                anonymizations, please click http://localhost:8000/edit/{}\nTo remove or disguise anonymized data in future disguises, provide the token {}.",
                 local.year(),
                 local.month(),
                 local.day(),
+                olc,
                 olc
             ),
         )
@@ -162,7 +163,7 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     let mut answers = HashMap::new();
     let mut apikey = String::new();
     for pp in pps {
-        let answers_res = bg.query_exec("answers_by_user", vec![pp.clone().into()]);
+        let answers_res = bg.query_exec("my_answers_for_lec", vec![lid.into(), pp.clone().into()]);
         debug!(bg.log, "Got answers of user {}: {:?}", pp, answers_res);
         if !answers_res.is_empty() {
             for r in answers_res {
@@ -224,12 +225,12 @@ pub(crate) fn delete_submit(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    // TODO composition
     let decryption_cap: Vec<u8> =
         base64::decode(&data.decryption_cap).expect("Bad decryption capability in post request");
     let own_loc_caps: Vec<u64> = if data.ownership_loc_caps.is_empty() {
         vec![]
     } else {
+        // get ownership caps from data for composition of GDPR on top of anonymization
         data.ownership_loc_caps
             .split(',')
             .into_iter()
@@ -239,16 +240,18 @@ pub(crate) fn delete_submit(
     let (dlcs, olcs) =
         disguises::gdpr_disguise::apply(&mut bg, apikey.user.clone(), decryption_cap, own_loc_caps)
             .unwrap();
-    assert!(dlcs.len() <= 1);
-    assert!(olcs.len() <= 1);
+    // Note: we can return the dlc and olc for pseudoprincipals here, but since the user is already
+    // linked to these pseudoprincipals and they remain in Edna, we don't need to deal with them
+    //assert!(dlcs.len() <= 1);
+    //assert!(olcs.len() <= 1);
     debug!(bg.log, "Got DLCs {:?} and OLCS {:?}", dlcs, olcs);
     let dlc_str = match dlcs.get(&(apikey.user.clone(), disguises::gdpr_disguise::get_did())) {
         Some(dlc) => dlc.to_string(),
         None => 0.to_string(),
     };
     let olc_str = match olcs.get(&(apikey.key.clone(), disguises::gdpr_disguise::get_did())) {
-        Some(olc) => olc.to_string(),
-        None => 0.to_string(),
+        Some(olc) => format!("{},{}", data.ownership_loc_caps, olc),
+        None => data.ownership_loc_caps.clone(),
     };
 
     email::send(
@@ -282,12 +285,17 @@ pub(crate) fn restore_account(
     let mut bg = backend.lock().unwrap();
     let decryption_cap: Vec<u8> =
         base64::decode(&data.decryption_cap).expect("Bad decryption capability in post request");
-    let olcs = if data.ownership_loc_cap != 0 {
-        vec![data.ownership_loc_cap]
-    } else {
-        vec![]
-    };
-    disguises::gdpr_disguise::reveal(&mut bg, decryption_cap, vec![data.diff_loc_cap], olcs)
+    let mut own_loc_caps: Vec<u64> = vec![];
+    if !data.ownership_loc_caps.is_empty() {
+        // get ownership caps from data for composition of GDPR on top of anonymization
+        own_loc_caps = data.ownership_loc_caps
+            .split(',')
+            .into_iter()
+            .map(|olc| u64::from_str(olc).unwrap())
+            .collect();
+    }
+    
+    disguises::gdpr_disguise::reveal(&mut bg, decryption_cap, vec![data.diff_loc_cap], own_loc_caps)
         .expect("Failed to reverse GDPR deletion disguise");
     drop(bg);
 

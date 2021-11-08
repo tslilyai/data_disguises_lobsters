@@ -100,7 +100,6 @@ pub(crate) fn generate(
     // register user if not exists
     bg.edna.register_principal(
         data.email.as_str().into(),
-        data.email.as_str().into(),
         &pub_key,
     );
 

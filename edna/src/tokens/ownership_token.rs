@@ -35,8 +35,8 @@ pub struct EdnaOwnershipToken {
     pub fk_col: String,
 }
 
-pub fn edna_own_token_from_bytes(bytes: &Vec<u8>) -> EdnaOwnershipToken{
-    serde_json::from_slice(bytes).unwrap()
+pub fn edna_own_token_from_bytes(bytes: &Vec<u8>) -> Result<EdnaOwnershipToken, serde_json::Error>{
+    serde_json::from_slice(bytes)
 }
 
 pub fn edna_own_token_to_bytes(token: &EdnaOwnershipToken) -> Vec<u8> {

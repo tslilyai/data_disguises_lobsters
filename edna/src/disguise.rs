@@ -82,6 +82,7 @@ impl Disguiser {
     /**************************************************
      * Functions that use higher-level disguise specs
      *************************************************/
+    // Note: Decorrelations are not reversed if not using EdnaOwnershipTokens
     pub fn reverse(
         &mut self,
         did: DID,
@@ -137,18 +138,25 @@ impl Disguiser {
         }
 
         for owrapper in &own_tokens {
-            let d = edna_own_token_from_bytes(&owrapper.token_data);
-            if d.did == did {
-                warn!("Reversing token {:?}\n", d);
-                let revealed = d.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
-                if revealed {
-                    warn!("Decor Ownership Token reversed!\n");
-                    locked_token_ctrler.mark_ownership_token_revealed(
-                        did,
-                        owrapper,
-                        &decrypt_cap,
-                        &own_loc_caps,
-                    );
+            // XXX if we're not using ownership tokens from edna, then ignore reversal of ownership
+            // links...
+            match edna_own_token_from_bytes(&owrapper.token_data) {
+                Err(_) => continue,
+                Ok(d) => {
+                    if d.did == did {
+                        warn!("Reversing token {:?}\n", d);
+                        let revealed =
+                            d.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
+                        if revealed {
+                            warn!("Decor Ownership Token reversed!\n");
+                            locked_token_ctrler.mark_ownership_token_revealed(
+                                did,
+                                owrapper,
+                                &decrypt_cap,
+                                &own_loc_caps,
+                            );
+                        }
+                    }
                 }
             }
         }
@@ -451,7 +459,7 @@ impl Disguiser {
                 if let TransformArgs::Remove = *t.trans.read().unwrap() {
                     let preds = predicate::get_all_preds_with_owners(
                         &t.pred,
-                        &curtable_info.owner_cols, 
+                        &curtable_info.owner_cols,
                         &own_tokens,
                     );
                     warn!("Got preds {:?} with own_tokens {:?}\n", preds, own_tokens);
