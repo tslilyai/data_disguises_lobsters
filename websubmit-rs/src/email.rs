@@ -42,10 +42,10 @@ pub(crate) fn send(
                 filename = format!("{}.{}", recipients[0], APIKEY_FILE);
             }
             "DECRYPTCAP" => {
-                filename = format!("{},{}", recipients[0], DECRYPT_FILE);
+                filename = format!("{}.{}", recipients[0], DECRYPT_FILE);
             }
             "DIFFCAP" => {
-                filename = format!("{},{}", recipients[0], DIFFCAP_FILE);
+                filename = format!("{}.{}", recipients[0], DIFFCAP_FILE);
             }
             "OWNCAP" => {
                 filename = format!("{}.{}", recipients[0], OWNCAP_FILE);
@@ -53,7 +53,7 @@ pub(crate) fn send(
             _ => unimplemented!("Badly formatted email text"),
         };
         let mut f = OpenOptions::new()
-            .create_new(true)
+            .create(true)
             .write(true)
             .append(true)
             .open(filename)

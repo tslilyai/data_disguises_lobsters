@@ -15,6 +15,6 @@ send_emails = true
 # whether to reset the db (set to false for production)
 prime = true
 # init
-nlec = 24
-nusers = 20
-nqs = 5
+nlec = 2
+nusers = 2
+nqs = 2

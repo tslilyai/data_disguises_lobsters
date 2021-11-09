@@ -1,10 +1,11 @@
 use super::rocket;
+use crate::*;
+use rocket::http::ContentType;
 use rocket::http::Status;
 use rocket::local::blocking::Client;
 use std::collections::HashMap;
-use crate::*;
-use std::io::{BufReader, Read};
 use std::fs::File;
+use std::io::{BufReader, Read};
 
 /*.mount("/js", FileServer::from(format!("{}/js", resource_dir)))
         .mount("/", routes![index])
@@ -42,24 +43,42 @@ fn test_disguise() {
     let args = args::parse_args();
     let config = args.config;
     let mut user2apikey = HashMap::new();
+    let mut user2decryptcap = HashMap::new();
     let log = new_logger();
 
     // create all users
     for u in 0..config.nusers {
-        let email = format!("{}@mail.edu", u); 
-        let postdata = serde_urlencoded::to_string(("email", email.clone())).unwrap();
+        let email = format!("{}@mail.edu", u);
+        let postdata = serde_urlencoded::to_string(&vec![("email", email.clone())]).unwrap();
         let response = client
-            .post(format!("/apikey/generate?{}", postdata))
+            .post("/apikey/generate")
+            .body(postdata)
+            .header(ContentType::Form)
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
+
+        // get api key
         let file = File::open(format!("{}.{}", email, APIKEY_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
         let mut apikey = String::new();
         buf_reader.read_to_string(&mut apikey).unwrap();
-        debug!(
-            log,
-            "Got email {} with apikey {}", &email, apikey
-        );
-        user2apikey.insert(email, apikey);
+        debug!(log, "Got email {} with apikey {}", &email, apikey);
+        user2apikey.insert(email.clone(), apikey);
+
+        // get decryption cap
+        let file = File::open(format!("{}.{}", email, DECRYPT_FILE)).unwrap();
+        let mut buf_reader = BufReader::new(file);
+        let mut decryptcap = String::new();
+        buf_reader.read_to_string(&mut decryptcap).unwrap();
+        debug!(log, "Got email {} with decryptcap {}", &email, decryptcap);
+        user2decryptcap.insert(email, decryptcap);
     }
+
+    // anonymization
+    
+    // editing anonymized data
+    
+    // gdpr deletion (with composition)
+    
+    // gdpr restore (with composition)
 }
