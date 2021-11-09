@@ -20,6 +20,10 @@ pub struct Config {
     pub send_emails: bool,
     /// Whether to reset and prime db 
     pub prime: bool,
+    /// Initialization
+    pub nlec: i64,
+    pub nusers: i64,
+    pub nqs: i64,
 }
 
 pub(crate) fn parse(path: &str) -> Result<Config, Error> {
@@ -60,5 +64,8 @@ pub(crate) fn parse(path: &str) -> Result<Config, Error> {
         secret: value.get("secret").unwrap().as_str().unwrap().into(),
         send_emails: value.get("send_emails").unwrap().as_bool().unwrap().into(),
         prime: value.get("prime").unwrap().as_bool().unwrap().into(),
+        nlec: value.get("nlec").unwrap().as_integer().unwrap().into(),
+        nusers: value.get("nusers").unwrap().as_integer().unwrap().into(),
+        nqs: value.get("nqs").unwrap().as_integer().unwrap().into(),
     })
 }

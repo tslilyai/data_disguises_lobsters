@@ -32,7 +32,8 @@ pub fn parse_args() -> Args {
                 .long("class-id")
                 .takes_value(true)
                 .value_name("CLASS_ID")
-                .required(true)
+                .default_value("myclass")
+                //XXX.required(true)
                 .help("Short textual identifier for the class hosted (used as Noria deployment name)."),
         )
         .after_help(WEBSUBMIT_USAGE)

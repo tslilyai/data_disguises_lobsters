@@ -23,6 +23,7 @@ mod privacy;
 mod email;
 mod login;
 mod questions;
+#[cfg(test)] mod tests;
 
 use backend::MySqlBackend;
 //use rocket::fs::FileServer;
@@ -31,6 +32,11 @@ use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
 use std::sync::{Arc, Mutex};
+
+pub const APIKEY_FILE : &'static str = "apikey.txt";
+pub const DECRYPT_FILE : &'static str = "decrypt.txt";
+pub const DIFFCAP_FILE : &'static str = "diffcap.txt";
+pub const OWNCAP_FILE : &'static str = "owncap.txt";
 
 pub fn new_logger() -> slog::Logger {
     use slog::Drain;
@@ -53,19 +59,19 @@ fn index(cookies: &CookieJar<'_>, backend: &State<Arc<Mutex<MySqlBackend>>>) -> 
     }
 }
 
-#[rocket::main]
-async fn main() {
+#[launch]
+fn rocket() -> _ {
     let args = args::parse_args();
     let config = args.config;
 
     let backend = Arc::new(Mutex::new(
-        MySqlBackend::new(&format!("{}", args.class), Some(new_logger()), config.prime).unwrap(),
+        MySqlBackend::new(&format!("{}", args.class), Some(new_logger()), &config).unwrap(),
     ));
 
     //let template_dir = config.template_dir.clone();
     //let resource_dir = config.resource_dir.clone();
 
-    if let Err(e) = rocket::build()
+    rocket::build()
         .attach(Template::fairing())
         .manage(backend)
         .manage(config)
@@ -98,10 +104,4 @@ async fn main() {
         .mount("/restore", routes![privacy::restore_account, privacy::restore])
         .mount("/edit", routes![privacy::edit_as_pseudoprincipal, privacy::edit_as_pseudoprincipal_lecs])
         .mount("/edit/lec", routes![privacy::edit_lec_answers_as_pseudoprincipal])
-        .launch()
-        .await
-    {
-        println!("Whoops, didn't launch!");
-        drop(e);
-    };
 }

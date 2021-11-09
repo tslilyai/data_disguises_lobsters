@@ -1,3 +1,4 @@
+use crate::config;
 use crate::disguises;
 use edna::EdnaClient;
 use mysql::prelude::*;
@@ -6,6 +7,8 @@ pub use mysql::Value;
 use mysql::*;
 use sql_parser::ast::*;
 use std::collections::HashMap;
+
+const ADMIN_INSERT : &'static str = "INSERT INTO users VALUES ('malte@cs.brown.edu', 'b4bc3cef020eb6dd20defa1a7a8340dee889bc2164612e310766e69e45a1d5a7', 1, 0);";
 
 pub struct MySqlBackend {
     pub handle: mysql::Conn,
@@ -19,7 +22,11 @@ pub struct MySqlBackend {
 }
 
 impl MySqlBackend {
-    pub fn new(dbname: &str, log: Option<slog::Logger>, prime: bool) -> Result<Self> {
+    pub fn new(
+        dbname: &str,
+        log: Option<slog::Logger>,
+        config: &config::Config,
+    ) -> Result<Self> {
         let log = match log {
             None => slog::Logger::root(slog::Discard, o!()),
             Some(l) => l,
@@ -32,25 +39,35 @@ impl MySqlBackend {
             log,
             "Connecting to MySql DB and initializing schema {}...", dbname
         );
-        let edna = EdnaClient::new(prime, dbname, &schema, true, disguises::get_guise_gen() /*in-mem*/);
+        let edna = EdnaClient::new(
+            config.prime,
+            dbname,
+            &schema,
+            true,
+            disguises::get_guise_gen(), /*in-mem*/
+        );
         let mut db = mysql::Conn::new(
             Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
         )
         .unwrap();
         assert_eq!(db.ping(), true);
-        
+
         // initialize for testing
-        if prime {
-            let init = std::fs::read_to_string("src/init.sql")?;
-            let mut stmt = String::new();
-            for line in init.lines() {
-                if line.starts_with("--") || line.is_empty() {
-                    continue;
-                }
-                stmt.push_str(line);
-                if stmt.ends_with(';') {
-                    db.query_drop(stmt).unwrap();
-                    stmt = String::new();
+        if config.prime {
+            db.query_drop(ADMIN_INSERT).unwrap();
+            for l in 0..config.nlec {
+                db.query_drop(&format!("INSERT INTO lectures VALUES ({}, 'lec{}');", l, l))
+                    .unwrap();
+                for q in 0..config.nqs {
+                    db.query_drop(&format!(
+                        "INSERT INTO questions VALUES ({}, {}, 'lec{}question{}');",
+                        l, q, l, q
+                    ))
+                    .unwrap();
+                    for u in 0..config.nusers {
+                        db.query_drop(&format!("INSERT INTO answers VALUES ('{}@mit.edu', {}, {}, 'lec{}q{}answer{}', '1000-01-01 00:00:00');", 
+                                u, l, q, l, q, u)).unwrap();
+                    }
                 }
             }
         }
@@ -76,7 +93,7 @@ impl MySqlBackend {
             }
             stmt.push_str(line);
             if stmt.ends_with(';') {
-                if is_view && prime {
+                if is_view && config.prime {
                     db.query_drop(stmt).unwrap();
                 } else if is_query {
                     let t = stmt.trim_start_matches("QUERY ");

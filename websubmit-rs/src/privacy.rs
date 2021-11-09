@@ -69,7 +69,7 @@ pub(crate) fn anonymize_answers(
     let mut bg = backend.lock().unwrap();
     let (dlcs, olcs) = disguises::universal_anon_disguise::apply(&mut bg).unwrap();
     assert!(dlcs.len() == 0);
-    let local: DateTime<Local> = Local::now();
+    //let local: DateTime<Local> = Local::now();
     for ((uid, _did), olc) in olcs {
         email::send(
             bg.log.clone(),
@@ -77,13 +77,14 @@ pub(crate) fn anonymize_answers(
             vec![uid],
             "Your Websubmit Answers Have Been Anonymized".into(),
             format!(
-                "Your data has been
-                anonymized! To edit your answers submitted before {}.{}.{}, and after prior
-                anonymizations, please click http://localhost:8000/edit/{}\nTo remove or disguise anonymized data in future disguises, provide the token {}.",
-                local.year(),
-                local.month(),
-                local.day(),
-                olc,
+                "OWNCAP:{}",
+                //"Your data has been anonymized! To edit your answers submitted before {}.{}.{}, and after prior
+                //anonymizations, please click http://localhost:8000/edit/{}\n
+                //To remove or disguise anonymized data in future disguises, provide the token {}.",
+                //local.year(),
+                //local.month(),
+                //local.day(),
+                //olc,
                 olc
             ),
         )
@@ -259,8 +260,8 @@ pub(crate) fn delete_submit(
         "no-reply@csci2390-submit.cs.brown.edu".into(),
         vec![apikey.user.clone()],
         "You Have Deleted Your Websubmit Account".into(),
-        format!("You have successfully deleted your account! To restore your account, please click http://localhost:8000/restore/{}/{}", 
-            dlc_str, olc_str)
+        format!("OWNCAP:{}\nDIFFCAP:{}", olc_str, dlc_str)
+            //"You have successfully deleted your account! To restore your account, please click http://localhost:8000/restore/{}/{}", 
     )
     .expect("failed to send email");
     drop(bg);

@@ -14,3 +14,7 @@ secret = "SECRET"
 send_emails = true
 # whether to reset the db (set to false for production)
 prime = true
+# init
+nlec = 24
+nusers = 20
+nqs = 5

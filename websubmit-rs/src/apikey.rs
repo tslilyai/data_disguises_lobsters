@@ -110,8 +110,7 @@ pub(crate) fn generate(
             vec![data.email.clone()],
             format!("{} API key", config.class),
             format!(
-                "Your {} API key is: {}\nYour decryption capability is {}\n",
-                config.class,
+                "APIKEY:{}\nDECRYPTCAP:{}",
                 hash.as_str(),
                 privkey_str,
             ),

@@ -96,6 +96,9 @@ impl EdnaOwnershipToken {
         conn: &mut mysql::PooledConn,
         stats: Arc<Mutex<QueryStat>>,
     ) -> Result<bool, mysql::Error> {
+        // TODO we need to transfer the principal's tokens to the original principal's bag, and
+        // reencrypt
+
         // if original entity does not exist, do not recorrelate
         let selection = Expr::BinaryOp {
             left: Box::new(Expr::Identifier(vec![Ident::new(
