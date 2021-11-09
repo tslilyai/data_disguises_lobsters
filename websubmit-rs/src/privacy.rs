@@ -203,6 +203,8 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     };
     // this just lets the user act as the latest pseudoprincipal
     // but it won't reset afterward.... so the user won't be able to do anything else
+    cookies.remove(Cookie::named("decryptioncap"));
+    cookies.remove(Cookie::named("olc"));
     let cookie = Cookie::build("apikey", apikey.clone()).path("/").finish();
     cookies.add(cookie);
 

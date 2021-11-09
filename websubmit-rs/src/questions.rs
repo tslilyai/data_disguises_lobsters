@@ -7,7 +7,7 @@ use chrono::naive::NaiveDateTime;
 use chrono::Local;
 use mysql::from_value;
 use rocket::form::{Form, FromForm};
-use rocket::http::{Cookie, CookieJar};
+use rocket::http::{CookieJar};
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
@@ -270,7 +270,9 @@ pub(crate) fn questions_submit(
             "Anon User {} edited an answer, logging out", apikey.user
         );
         drop(bg);
-        cookies.remove(Cookie::named("apikey"));
+        if let Some(cookie) = cookies.get("apikey") {
+            cookies.remove(cookie.clone());
+        }
         Redirect::to("/login")
     } else {
         drop(bg);
