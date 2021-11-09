@@ -50,7 +50,10 @@ pub(crate) fn send(
             "OWNCAP" => {
                 filename = format!("{}.{}", recipients[0], OWNCAP_FILE);
             }
-            _ => unimplemented!("Badly formatted email text"),
+            _ => {
+                debug!(log, "Badly formatted email text {}", part);
+                return Ok(())
+            }
         };
         let mut f = OpenOptions::new()
             .create(true)
@@ -58,7 +61,7 @@ pub(crate) fn send(
             .truncate(true)
             .open(filename)
             .unwrap();
-        if let Err(e) = writeln!(f, "{}", format!("{}", subparts[1].trim())) {
+        if let Err(e) = write!(f, "{}", format!("{}", subparts[1].trim())) {
             eprintln!("Couldn't write to file: {}", e);
         }
     }

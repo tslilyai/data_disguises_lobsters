@@ -7,11 +7,12 @@ use chrono::naive::NaiveDateTime;
 use chrono::Local;
 use mysql::from_value;
 use rocket::form::{Form, FromForm};
+use rocket::http::{Cookie, CookieJar};
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
-use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 //pub(crate) enum LectureQuestionFormError {
 //   Invalid,
@@ -73,7 +74,7 @@ pub(crate) fn leclist(
     config: &State<Config>,
 ) -> Template {
     let mut bg = backend.lock().unwrap();
-    let res = bg.query_exec("leclist", vec![]);//vec![(0 as u64).into()]);
+    let res = bg.query_exec("leclist", vec![]); //vec![(0 as u64).into()]);
     drop(bg);
 
     let user = apikey.user.clone();
@@ -85,7 +86,7 @@ pub(crate) fn leclist(
             id: from_value(r[0].clone()),
             label: from_value(r[1].clone()),
             num_qs: if r[2] == Value::NULL {
-                0u64 
+                0u64
             } else {
                 from_value(r[2].clone())
             },
@@ -143,15 +144,20 @@ pub(crate) fn questions(
     use std::collections::HashMap;
 
     let mut bg = backend.lock().unwrap();
-    
+
     // check if user can edit these answers
     let user_res = bg.query_exec("is_anon", vec![apikey.user.clone().into()]);
     if user_res.len() < 1 {
-        debug!(bg.log, "User {} unauthorized to edit or submit answers for lec {} (no user found)", apikey.user, num);
+        debug!(
+            bg.log,
+            "User {} unauthorized to edit or submit answers for lec {} (no user found)",
+            apikey.user,
+            num
+        );
         let mut ctx = HashMap::new();
         ctx.insert("parent", String::from("layout"));
         return Template::render("login", ctx);
-    }  
+    }
     let answers_res = bg.query_exec(
         "my_answers_for_lec",
         vec![(num as u64).into(), apikey.user.clone().into()],
@@ -163,7 +169,13 @@ pub(crate) fn questions(
         ctx.insert("parent", String::from("layout"));
         return Template::render("login", ctx);
     }
-    debug!(bg.log, "User {} authorized to edit or submit {} answers for lec {}", apikey.user, answers_res.len(), num);
+    debug!(
+        bg.log,
+        "User {} authorized to edit or submit {} answers for lec {}",
+        apikey.user,
+        answers_res.len(),
+        num
+    );
 
     let key: Value = (num as u64).into();
     let mut answers = HashMap::new();
@@ -193,12 +205,14 @@ pub(crate) fn questions(
         questions: qs,
         parent: "layout",
     };
+
     Template::render("questions", &ctx)
 }
 
 #[post("/<num>", data = "<data>")]
 pub(crate) fn questions_submit(
     apikey: ApiKey,
+    cookies: &CookieJar<'_>,
     num: u8,
     data: Form<LectureQuestionSubmission>,
     backend: &State<Arc<Mutex<MySqlBackend>>>,
@@ -247,7 +261,19 @@ pub(crate) fn questions_submit(
         )
         .expect("failed to send email");
     }
-    drop(bg);
 
-    Redirect::to("/leclist")
+    // logout if user is anon
+    let user_res = bg.query_exec("is_anon", vec![apikey.user.clone().into()]);
+    if user_res.len() < 1 || user_res[0][0] == 1.into() {
+        debug!(
+            bg.log,
+            "Anon User {} edited an answer, logging out", apikey.user
+        );
+        drop(bg);
+        cookies.remove(Cookie::named("apikey"));
+        Redirect::to("/login")
+    } else {
+        drop(bg);
+        Redirect::to("/leclist")
+    }
 }

@@ -1,43 +1,14 @@
 use super::rocket;
 use crate::*;
-use mysql::prelude::*;
 use mysql::from_value;
-use mysql::{Value, Opts};
+use mysql::prelude::*;
+use mysql::{Opts, Value};
 use rocket::http::ContentType;
 use rocket::http::Status;
 use rocket::local::blocking::Client;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, Read};
-
-/*
-         .mount(
-            "/questions",
-            routes![questions::questions, questions::questions_submit],
-        )
-        .mount("/apikey/check", routes![apikey::check])
-        .mount("/apikey/generate", routes![apikey::generate])
-        .mount("/answers", routes![questions::answers])
-        .mount("/leclist", routes![questions::leclist])
-        .mount("/login", routes![login::login])
-        .mount(
-            "/admin/lec/add",
-            routes![admin::lec_add, admin::lec_add_submit],
-        )
-        .mount("/admin/users", routes![admin::get_registered_users])
-        .mount(
-            "/admin/lec",
-            routes![admin::lec, admin::addq, admin::editq, admin::editq_submit],
-        )
-        .mount("/delete", routes![privacy::delete, privacy::delete_submit])
-        .mount(
-            "/admin/anonymize",
-            routes![privacy::anonymize, privacy::anonymize_answers],
-        )
-        .mount("/restore", routes![privacy::restore_account, privacy::restore])
-        .mount("/edit", routes![privacy::edit_as_pseudoprincipal, privacy::edit_as_pseudoprincipal_lecs])
-        .mount("/edit/lec", routes![privacy::edit_lec_answers_as_pseudoprincipal])
-*/
 
 const ADMIN: (&'static str, &'static str) = (
     "malte@cs.brown.edu",
@@ -59,6 +30,7 @@ fn test_disguise() {
     let mut user2apikey = HashMap::new();
     let mut user2decryptcap = HashMap::new();
     let mut user2owncap = HashMap::new();
+    let mut user2diffcap = HashMap::new();
     let log = new_logger();
 
     // create all users
@@ -91,7 +63,7 @@ fn test_disguise() {
 
     /**********************************
      * anonymization
-    ***********************************/
+     ***********************************/
     // login as the admin
     let postdata = serde_urlencoded::to_string(&vec![("key", ADMIN.1)]).unwrap();
     let response = client
@@ -100,7 +72,7 @@ fn test_disguise() {
         .header(ContentType::Form)
         .dispatch();
     assert_eq!(response.status(), Status::SeeOther);
-    
+
     // anonymize
     let response = client.post("/admin/anonymize").dispatch();
     assert_eq!(response.status(), Status::SeeOther);
@@ -108,6 +80,7 @@ fn test_disguise() {
     // get tokens
     for u in 0..config.nusers {
         let email = format!("{}@mail.edu", u);
+
         // get ownership location capability
         let file = File::open(format!("{}.{}", email, OWNCAP_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
@@ -118,8 +91,13 @@ fn test_disguise() {
 
         // check results of anonymization: user has no answers
         for l in 0..config.nlec {
-            let keys : Vec<Value> = vec![l.into(), email.clone().into()];
-            let res = db.exec_iter("SELECT answers.* FROM answers WHERE answers.lec = ? AND answers.`user` = ?;", keys).unwrap();
+            let keys: Vec<Value> = vec![l.into(), email.clone().into()];
+            let res = db
+                .exec_iter(
+                    "SELECT answers.* FROM answers WHERE answers.lec = ? AND answers.`user` = ?;",
+                    keys,
+                )
+                .unwrap();
             let mut rows = vec![];
             for row in res {
                 let rowvals = row.unwrap().unwrap();
@@ -132,10 +110,12 @@ fn test_disguise() {
 
     // all answers belong to anonymous principals
     for l in 0..config.nlec {
-        let keys : Vec<Value> = vec![l.into()];
-        let res = db.exec_iter("SELECT * FROM answers WHERE lec = ?;", keys).unwrap();
+        let keys: Vec<Value> = vec![l.into()];
+        let res = db
+            .exec_iter("SELECT * FROM answers WHERE lec = ?;", keys)
+            .unwrap();
         let mut rows = vec![];
-        let mut users : HashSet<String> = HashSet::new();
+        let mut users: HashSet<String> = HashSet::new();
         for row in res {
             let rowvals = row.unwrap().unwrap();
             let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
@@ -146,17 +126,141 @@ fn test_disguise() {
         assert_eq!(rows.len(), config.nusers as usize * config.nqs as usize);
         assert_eq!(users.len(), config.nusers as usize);
     }
-    
+
     /***********************************
      * editing anonymized data
-    ***********************************/
+     ***********************************/
+    for u in 0..config.nusers {
+        let email = format!("{}@mail.edu", u);
+        let owncap = user2owncap.get(&email).unwrap();
+        let decryptcap = user2decryptcap.get(&email).unwrap();
+        let response = client.get(format!("/edit/{}", owncap)).dispatch();
+        assert_eq!(response.status(), Status::Ok);
 
+        let postdata = serde_urlencoded::to_string(&vec![("decryption_cap", decryptcap)]).unwrap();
+        let response = client
+            .post("/edit")
+            .body(postdata)
+            .header(ContentType::Form)
+            .dispatch();
+        assert_eq!(response.status(), Status::Ok);
+
+        // update answers to lecture 0
+        let mut answers = HashMap::new();
+        for q in 0..config.nqs {
+            answers.insert(q, format!("new_answer_user_{}_lec_{}", u, 0));
+        }
+        let postdata = serde_urlencoded::to_string(&answers).unwrap();
+        let response = client
+            .post(format!("/questions/{}", 0)) // testing lecture 0 for now
+            .body(postdata)
+            .header(ContentType::Form)
+            .dispatch();
+        assert_eq!(response.status(), Status::SeeOther);
+
+        // logged out
+        let response = client.get(format!("/leclist")).dispatch();
+        assert_eq!(response.status(), Status::Unauthorized);
+    }
+    // check answers for users for lecture 0
+    let res = db
+        .query_iter("SELECT answer FROM answers WHERE lec = 0;")
+        .unwrap();
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let answer: String = from_value(rowvals[0].clone());
+        assert!(answer.contains("new_answer"));
+    }
 
     /***********************************
      * gdpr deletion (with composition)
-    ***********************************/
+     ***********************************/
+    for u in 0..config.nusers {
+        let email = format!("{}@mail.edu", u);
+        let owncap = user2owncap.get(&email).unwrap();
+        let decryptcap = user2decryptcap.get(&email).unwrap();
+        let postdata = serde_urlencoded::to_string(&vec![
+            ("decryption_cap", decryptcap),
+            ("ownership_loc_caps", &format!("{}", owncap)),
+        ])
+        .unwrap();
+        let response = client
+            .post("/delete")
+            .body(postdata)
+            .header(ContentType::Form)
+            .dispatch();
+        assert_eq!(response.status(), Status::SeeOther);
+
+        // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
+        let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
+        let mut buf_reader = BufReader::new(file);
+        let mut diffcap = String::new();
+        buf_reader.read_to_string(&mut diffcap).unwrap();
+        debug!(log, "Got email {} with diffcap {}", &email, diffcap);
+        user2diffcap.insert(email.clone(), diffcap);
+    }
+    // check results of delete: no answers or users exist
+    let res = db.query_iter("SELECT * FROM answers;").unwrap();
+    let mut rows = vec![];
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let answer: String = from_value(rowvals[0].clone());
+        rows.push(answer);
+    }
+    assert_eq!(rows.len(), 0);
+    let res = db.query_iter("SELECT * FROM users;").unwrap();
+    let mut rows = vec![];
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let answer: String = from_value(rowvals[0].clone());
+        rows.push(answer);
+    }
+    assert_eq!(rows.len(), 1); // the admin
 
     /***********************************
      * gdpr restore (with composition)
-    ***********************************/
+     ***********************************/
+    for u in 0..config.nusers {
+        let email = format!("{}@mail.edu", u);
+        let owncap = user2owncap.get(&email).unwrap();
+        let decryptcap = user2decryptcap.get(&email).unwrap();
+        let diffcap = user2diffcap.get(&email).unwrap();
+        let postdata = serde_urlencoded::to_string(&vec![
+            ("diffcap", diffcap),
+            ("decryption_cap", decryptcap),
+            ("ownership_loc_caps", &format!("{}", owncap)),
+        ])
+        .unwrap();
+        let response = client
+            .post("/restore")
+            .body(postdata)
+            .header(ContentType::Form)
+            .dispatch();
+        assert_eq!(response.status(), Status::SeeOther);
+    }
+    // database is back in anonymized form
+    // check answers for lecture 0
+    let res = db
+        .query_iter("SELECT answer FROM answers WHERE lec = 0;")
+        .unwrap();
+    let mut rows = vec![];
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let answer: String = from_value(rowvals[0].clone());
+        assert!(answer.contains("new_answer"));
+        rows.push(answer);
+    }
+    assert_eq!(rows.len(), config.nqs as usize);
+
+    let res = db.query_iter("SELECT * FROM users;").unwrap();
+    let mut rows = vec![];
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let answer: String = from_value(rowvals[0].clone());
+        rows.push(answer);
+    }
+    assert_eq!(
+        rows.len(),
+        1 + config.nusers as usize * (config.nlec as usize + 1)
+    );
 }
