@@ -7,9 +7,8 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, Read};
 
-/*.mount("/js", FileServer::from(format!("{}/js", resource_dir)))
-        .mount("/", routes![index])
-        .mount(
+/*
+         .mount(
             "/questions",
             routes![questions::questions, questions::questions_submit],
         )
@@ -36,6 +35,11 @@ use std::io::{BufReader, Read};
         .mount("/edit", routes![privacy::edit_as_pseudoprincipal, privacy::edit_as_pseudoprincipal_lecs])
         .mount("/edit/lec", routes![privacy::edit_lec_answers_as_pseudoprincipal])
 */
+
+const ADMIN: (&'static str, &'static str) = (
+    "malte@cs.brown.edu",
+    "b4bc3cef020eb6dd20defa1a7a8340dee889bc2164612e310766e69e45a1d5a7",
+);
 
 #[test]
 fn test_disguise() {
@@ -74,11 +78,33 @@ fn test_disguise() {
         user2decryptcap.insert(email, decryptcap);
     }
 
-    // anonymization
-    
-    // editing anonymized data
-    
-    // gdpr deletion (with composition)
-    
-    // gdpr restore (with composition)
+    /*
+     * anonymization
+     */
+    // login as the admin
+    let postdata = serde_urlencoded::to_string(&vec![("key", ADMIN.1)]).unwrap();
+    let response = client
+        .post("/apikey/check")
+        .body(postdata)
+        .header(ContentType::Form)
+        .dispatch();
+    assert_eq!(response.status(), Status::SeeOther);
+    // anonymize
+    let response = client.post("/admin/anonymize").dispatch();
+    assert_eq!(response.status(), Status::SeeOther);
+
+    // TODO get tokens
+    // TODO check results of anonymization...
+
+    /* 
+     * editing anonymized data
+     */
+
+    /* 
+     * gdpr deletion (with composition)
+     */
+
+    /* 
+     * gdpr restore (with composition)
+     */
 }

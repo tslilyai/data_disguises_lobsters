@@ -22,11 +22,7 @@ pub struct MySqlBackend {
 }
 
 impl MySqlBackend {
-    pub fn new(
-        dbname: &str,
-        log: Option<slog::Logger>,
-        config: &config::Config,
-    ) -> Result<Self> {
+    pub fn new(dbname: &str, log: Option<slog::Logger>, config: &config::Config) -> Result<Self> {
         let log = match log {
             None => slog::Logger::root(slog::Discard, o!()),
             Some(l) => l,
@@ -65,7 +61,7 @@ impl MySqlBackend {
                     ))
                     .unwrap();
                     for u in 0..config.nusers {
-                        db.query_drop(&format!("INSERT INTO answers VALUES ('{}@mit.edu', {}, {}, 'lec{}q{}answer{}', '1000-01-01 00:00:00');", 
+                        db.query_drop(&format!("INSERT INTO answers VALUES ('{}@mail.edu', {}, {}, 'lec{}q{}answer{}', '1000-01-01 00:00:00');", 
                                 u, l, q, l, q, u)).unwrap();
                     }
                 }

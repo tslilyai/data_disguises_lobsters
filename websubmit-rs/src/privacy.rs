@@ -3,7 +3,7 @@ use crate::apikey::ApiKey;
 use crate::backend::MySqlBackend;
 use crate::disguises;
 use crate::email;
-use chrono::prelude::*;
+//use chrono::prelude::*;
 use mysql::from_value;
 use rocket::form::{Form, FromForm};
 use rocket::http::{Cookie, CookieJar};
@@ -260,8 +260,7 @@ pub(crate) fn delete_submit(
         "no-reply@csci2390-submit.cs.brown.edu".into(),
         vec![apikey.user.clone()],
         "You Have Deleted Your Websubmit Account".into(),
-        format!("OWNCAP:{}\nDIFFCAP:{}", olc_str, dlc_str)
-            //"You have successfully deleted your account! To restore your account, please click http://localhost:8000/restore/{}/{}", 
+        format!("OWNCAP:{}\nDIFFCAP:{}", olc_str, dlc_str), //"You have successfully deleted your account! To restore your account, please click http://localhost:8000/restore/{}/{}",
     )
     .expect("failed to send email");
     drop(bg);
@@ -289,15 +288,21 @@ pub(crate) fn restore_account(
     let mut own_loc_caps: Vec<u64> = vec![];
     if !data.ownership_loc_caps.is_empty() {
         // get ownership caps from data for composition of GDPR on top of anonymization
-        own_loc_caps = data.ownership_loc_caps
+        own_loc_caps = data
+            .ownership_loc_caps
             .split(',')
             .into_iter()
             .map(|olc| u64::from_str(olc).unwrap())
             .collect();
     }
-    
-    disguises::gdpr_disguise::reveal(&mut bg, decryption_cap, vec![data.diff_loc_cap], own_loc_caps)
-        .expect("Failed to reverse GDPR deletion disguise");
+
+    disguises::gdpr_disguise::reveal(
+        &mut bg,
+        decryption_cap,
+        vec![data.diff_loc_cap],
+        own_loc_caps,
+    )
+    .expect("Failed to reverse GDPR deletion disguise");
     drop(bg);
 
     Redirect::to(format!("/login"))
