@@ -55,7 +55,7 @@ pub(crate) fn send(
         let mut f = OpenOptions::new()
             .create(true)
             .write(true)
-            .append(true)
+            .truncate(true)
             .open(filename)
             .unwrap();
         if let Err(e) = writeln!(f, "{}", format!("{}", subparts[1].trim())) {
