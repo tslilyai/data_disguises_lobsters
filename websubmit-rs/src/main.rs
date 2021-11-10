@@ -335,7 +335,7 @@ fn run_benchmark(args: &args::Args) {
         .create(true)
         .write(true)
         .truncate(true)
-        .open(&format!("disguise_stats_{}lec_{}users.csv", args.nlec, args.nusers)
+        .open(&format!("disguise_stats_{}lec_{}users.csv", args.nlec, args.nusers))
         .unwrap();
     writeln!(
         f,
