@@ -1,4 +1,3 @@
-use crate::config;
 use crate::disguises;
 use edna::EdnaClient;
 use mysql::prelude::*;
@@ -22,7 +21,7 @@ pub struct MySqlBackend {
 }
 
 impl MySqlBackend {
-    pub fn new(dbname: &str, log: Option<slog::Logger>, config: &config::Config) -> Result<Self> {
+    pub fn new(dbname: &str, log: Option<slog::Logger>, prime: bool, nusers: usize, nlec: usize, nqs: usize) -> Result<Self> {
         let log = match log {
             None => slog::Logger::root(slog::Discard, o!()),
             Some(l) => l,
@@ -36,11 +35,11 @@ impl MySqlBackend {
             "Connecting to MySql DB and initializing schema {}...", dbname
         );
         let edna = EdnaClient::new(
-            config.prime,
+            prime,
             dbname,
             &schema,
             true,
-            config.nguises as usize,
+            nusers * nlec,
             disguises::get_guise_gen(), /*in-mem*/
         );
         let mut db = mysql::Conn::new(
@@ -50,18 +49,18 @@ impl MySqlBackend {
         assert_eq!(db.ping(), true);
 
         // initialize for testing
-        if config.prime {
+        if prime {
             db.query_drop(ADMIN_INSERT).unwrap();
-            for l in 0..config.nlec {
+            for l in 0..nlec {
                 db.query_drop(&format!("INSERT INTO lectures VALUES ({}, 'lec{}');", l, l))
                     .unwrap();
-                for q in 0..config.nqs {
+                for q in 0..nqs {
                     db.query_drop(&format!(
                         "INSERT INTO questions VALUES ({}, {}, 'lec{}question{}');",
                         l, q, l, q
                     ))
                     .unwrap();
-                    for u in 0..config.nusers {
+                    for u in 0..nusers {
                         db.query_drop(&format!("INSERT INTO answers VALUES ('{}@mail.edu', {}, {}, 'lec{}q{}answer{}', '1000-01-01 00:00:00');", 
                                 u, l, q, l, q, u)).unwrap();
                     }
@@ -90,7 +89,7 @@ impl MySqlBackend {
             }
             stmt.push_str(line);
             if stmt.ends_with(';') {
-                if is_view && config.prime {
+                if is_view && prime {
                     db.query_drop(stmt).unwrap();
                 } else if is_query {
                     let t = stmt.trim_start_matches("QUERY ");

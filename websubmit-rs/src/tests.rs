@@ -36,7 +36,7 @@ fn test_disguise() {
     let log = new_logger();
 
     // create all users
-    for u in 0..config.nusers {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let postdata = serde_urlencoded::to_string(&vec![("email", email.clone())]).unwrap();
         let start = time::Instant::now();
@@ -84,7 +84,7 @@ fn test_disguise() {
     assert_eq!(response.status(), Status::SeeOther);
 
     // get tokens
-    for u in 0..config.nusers {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
 
         // get ownership location capability
@@ -96,7 +96,7 @@ fn test_disguise() {
         user2owncap.insert(email.clone(), owncap);
 
         // check results of anonymization: user has no answers
-        for l in 0..config.nlec {
+        for l in 0..args.nlec {
             let keys: Vec<Value> = vec![l.into(), email.clone().into()];
             let res = db
                 .exec_iter(
@@ -115,7 +115,7 @@ fn test_disguise() {
     }
 
     // all answers belong to anonymous principals
-    for l in 0..config.nlec {
+    for l in 0..args.nlec {
         let keys: Vec<Value> = vec![l.into()];
         let res = db
             .exec_iter("SELECT * FROM answers WHERE lec = ?;", keys)
@@ -129,14 +129,14 @@ fn test_disguise() {
             rows.push(vals);
         }
         // a pseudoprincipal has an answer for every question for each lecture
-        assert_eq!(rows.len(), config.nusers as usize * config.nqs as usize);
-        assert_eq!(users.len(), config.nusers as usize);
+        assert_eq!(rows.len(), args.nusers as usize * args.nqs as usize);
+        assert_eq!(users.len(), args.nusers as usize);
     }
 
     /***********************************
      * editing anonymized data
      ***********************************/
-    for u in 0..config.nusers {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
@@ -162,7 +162,7 @@ fn test_disguise() {
 
         // update answers to lecture 0
         let mut answers = vec![];
-        for q in 0..config.nqs {
+        for q in 0..args.nqs {
             answers.push((format!("answers.{}", q), format!("new_answer_user_{}_lec_{}", u, 0)));
         }
         let postdata = serde_urlencoded::to_string(&answers).unwrap();
@@ -193,7 +193,7 @@ fn test_disguise() {
     /***********************************
      * gdpr deletion (with composition)
      ***********************************/
-    for u in 0..config.nusers {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
         let apikey = user2apikey.get(&email).unwrap();
@@ -252,7 +252,7 @@ fn test_disguise() {
     /***********************************
      * gdpr restore (with composition)
      ***********************************/
-    for u in 0..config.nusers {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
@@ -285,7 +285,7 @@ fn test_disguise() {
         assert!(answer.contains("new_answer"));
         rows.push(answer);
     }
-    assert_eq!(rows.len(), config.nqs as usize * config.nusers as usize);
+    assert_eq!(rows.len(), args.nqs as usize * args.nusers as usize);
 
     let res = db.query_iter("SELECT * FROM users;").unwrap();
     let mut rows = vec![];
@@ -296,7 +296,7 @@ fn test_disguise() {
     }
     assert_eq!(
         rows.len(),
-        1 + config.nusers as usize * (config.nlec as usize + 1)
+        1 + args.nusers as usize * (args``.nlec as usize + 1)
     );
 
     // print out stats
@@ -309,7 +309,7 @@ fn test_disguise() {
         .create(true)
         .write(true)
         .truncate(true)
-        .open("disguise_stats.csv")
+        .open(&format!("disguise_stats_{}lec_{}users.csv", args.nlec, args.nusers)
         .unwrap();
     writeln!(f, "{}", account_durations.iter().map(|d| d.as_millis().to_string()).collect::<Vec<String>>().join(",")).unwrap();
     writeln!(f, "{}", anon_durations.iter().map(|d| d.as_millis().to_string()).collect::<Vec<String>>().join(",")).unwrap();

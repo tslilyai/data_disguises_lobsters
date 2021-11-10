@@ -1,5 +1,6 @@
 use crate::config;
 use clap::{App, Arg};
+use std::str::FromStr;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 const WEBSUBMIT_USAGE: &'static str = "\
@@ -14,6 +15,7 @@ pub struct Args {
     pub nlec: usize,
     pub nqs: usize,
     pub prime: bool,
+    pub benchmark: bool,
     pub config: config::Config,
 }
 
@@ -37,7 +39,6 @@ pub fn parse_args() -> Args {
                 .takes_value(true)
                 .value_name("CLASS_ID")
                 .default_value("myclass")
-                //XXX.required(true)
                 .help("Short textual identifier for the class hosted (used as Noria deployment name)."),
         )
         .arg(
@@ -69,16 +70,24 @@ pub fn parse_args() -> Args {
                 .takes_value(true)
                 .value_name("PRIME")
                 .default_value("true")
+        ).arg(
+            Arg::with_name("benchmark")
+                .short("b")
+                .long("benchmark")
+                .takes_value(true)
+                .value_name("BENCHMARK")
+                .default_value("true")
         )
         .after_help(WEBSUBMIT_USAGE)
         .get_matches();
 
     Args {
         class: String::from(args.value_of("class").unwrap()),
-        nusers: usize::from_str(args.value_of("nusers").unwrap()),
-        nlec: usize::from_str(args.value_of("nlec").unwrap()),
-        nqs: usize::from_str(args.value_of("nqs").unwrap()),
-        prime: bool::from_str(args.value_of("prime").unwrap()),
+        nusers: usize::from_str(args.value_of("nusers").unwrap()).unwrap(),
+        nlec: usize::from_str(args.value_of("nlec").unwrap()).unwrap(),
+        nqs: usize::from_str(args.value_of("nqs").unwrap()).unwrap(),
+        prime: bool::from_str(args.value_of("prime").unwrap()).unwrap(),
+        benchmark: bool::from_str(args.value_of("benchmark").unwrap()).unwrap(),
         config: config::parse(args.value_of("config").expect("Failed to parse config!"))
             .expect("failed to parse config"),
     }

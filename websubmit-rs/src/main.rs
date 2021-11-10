@@ -32,6 +32,7 @@ use rocket::local::blocking::Client;
 use std::collections::{HashMap};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Read, Write};
+use std::thread;
 use std::time;
 
 use backend::MySqlBackend;
@@ -67,9 +68,9 @@ fn index(cookies: &CookieJar<'_>, backend: &State<Arc<Mutex<MySqlBackend>>>) -> 
     }
 }
 
-fn rocket(config: &config::Config) -> Rocket<Build> {
+fn rocket(args: &args::Args) -> Rocket<Build> {
     let backend = Arc::new(Mutex::new(
-        MySqlBackend::new(&format!("{}", args.class), Some(new_logger()), config).unwrap(),
+        MySqlBackend::new(&format!("{}", args.class), Some(new_logger()), args.prime, args.nusers, args.nlec, args.nqs).unwrap(),
     ));
 
     //let template_dir = config.template_dir.clone();
@@ -78,7 +79,7 @@ fn rocket(config: &config::Config) -> Rocket<Build> {
     rocket::build()
         .attach(Template::fairing())
         .manage(backend)
-        .manage(config)
+        .manage(args.config.clone())
         //.mount("/css", FileServer::from(format!("{}/css", resource_dir)))
         //.mount("/js", FileServer::from(format!("{}/js", resource_dir)))
         .mount("/", routes![index])
@@ -124,18 +125,25 @@ fn rocket(config: &config::Config) -> Rocket<Build> {
 
 #[rocket::main]
 async fn main() {
+    let args = args::parse_args();
+    
+    if args.benchmark {
+        thread::spawn(move || {
+            run_benchmark(&args);
+        }).join().expect("Thread panicked")
+    } else {
+        rocket(&args).launch().await.expect("Failed to launch rocket");
+    }
 } 
 
-fn run_benchmark(config: &config::Config) {
+fn run_benchmark(args: &args::Args) {
     let mut account_durations = vec![];
     let mut edit_durations = vec![];
     let mut delete_durations = vec![];
     let mut restore_durations = vec![];
     let mut anon_durations = vec![];
 
-    let args = args::parse_args();
-    let config = args.config;
-    let client = Client::tracked(rocket(&config)).expect("valid rocket instance");
+    let client = Client::tracked(rocket(args)).expect("valid rocket instance");
 
     let mut user2apikey = HashMap::new();
     let mut user2decryptcap = HashMap::new();
@@ -144,7 +152,7 @@ fn run_benchmark(config: &config::Config) {
     let log = new_logger();
 
     // create all users
-    for u in 0..config.nusers {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let postdata = serde_urlencoded::to_string(&vec![("email", email.clone())]).unwrap();
         let start = time::Instant::now();
@@ -192,7 +200,7 @@ fn run_benchmark(config: &config::Config) {
     assert_eq!(response.status(), Status::SeeOther);
 
     // get tokens
-    for u in 0..config.nusers {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
 
         // get ownership location capability
@@ -207,7 +215,7 @@ fn run_benchmark(config: &config::Config) {
     /***********************************
      * editing anonymized data
      ***********************************/
-    for u in 0..config.nusers {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
@@ -233,7 +241,7 @@ fn run_benchmark(config: &config::Config) {
 
         // update answers to lecture 0
         let mut answers = vec![];
-        for q in 0..config.nqs {
+        for q in 0..args.nqs {
             answers.push((
                 format!("answers.{}", q),
                 format!("new_answer_user_{}_lec_{}", u, 0),
@@ -258,7 +266,7 @@ fn run_benchmark(config: &config::Config) {
     /***********************************
      * gdpr deletion (with composition)
      ***********************************/
-    for u in 0..config.nusers {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
         let apikey = user2apikey.get(&email).unwrap();
@@ -300,7 +308,7 @@ fn run_benchmark(config: &config::Config) {
     /***********************************
      * gdpr restore (with composition)
      ***********************************/
-    for u in 0..config.nusers {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
@@ -327,7 +335,7 @@ fn run_benchmark(config: &config::Config) {
         .create(true)
         .write(true)
         .truncate(true)
-        .open("disguise_stats.csv")
+        .open(&format!("disguise_stats_{}lec_{}users.csv", args.nlec, args.nusers)
         .unwrap();
     writeln!(
         f,
