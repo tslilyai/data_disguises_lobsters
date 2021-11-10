@@ -239,11 +239,9 @@ impl EdnaClient {
         drop(locked_token_ctrler);
     }
 
-    pub fn create_new_pseudoprincipal(&self) -> (UID, Vec<RowVal>) {
+    pub fn create_new_pseudoprincipal(&mut self) -> (UID, Vec<RowVal>) {
         // ignore other metadata when application is handling the blobs being stored in tokens
-        disguise::create_new_pseudoprincipal(
-            &self.disguiser.guise_gen.read().unwrap(),
-        )
+        self.disguiser.create_new_pseudoprincipal()
     }
 
     pub fn get_pseudoprincipals(

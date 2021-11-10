@@ -39,8 +39,8 @@ impl MySqlBackend {
             config.prime,
             dbname,
             &schema,
-            config.nguises,
             true,
+            config.nguises as usize,
             disguises::get_guise_gen(), /*in-mem*/
         );
         let mut db = mysql::Conn::new(

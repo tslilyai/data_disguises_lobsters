@@ -7,8 +7,9 @@ use rocket::http::ContentType;
 use rocket::http::Status;
 use rocket::local::blocking::Client;
 use std::collections::{HashMap, HashSet};
-use std::fs::File;
-use std::io::{BufReader, Read};
+use std::fs::{OpenOptions, File};
+use std::io::{BufReader, Read, Write};
+use std::time;
 
 const ADMIN: (&'static str, &'static str) = (
     "malte@cs.brown.edu",
@@ -178,7 +179,7 @@ fn test_disguise() {
             .dispatch();
         assert_eq!(response.status(), Status::SeeOther);
 
-        edit_duration.push(start.elapsed());
+        edit_durations.push(start.elapsed());
 
         // logged out
         let response = client.get(format!("/leclist")).dispatch();
@@ -313,21 +314,11 @@ fn test_disguise() {
         .create(true)
         .write(true)
         .truncate(true)
-        .open("disguise_stats.dsv")
+        .open("disguise_stats.csv")
         .unwrap();
-    if let Err(e) = writeln!(f, "{}", format!("{}", account_durations.iter(|d| d.as_millis().to_string()).collect().join(","))) {
-        eprintln!("Couldn't write to file: {}", e);
-    }
-    if let Err(e) = writeln!(f, "{}", format!("{}", anon_durations.iter(|d| d.as_millis().to_string()).collect().join(","))) {
-        eprintln!("Couldn't write to file: {}", e);
-    }
-    if let Err(e) = writeln!(f, "{}", format!("{}", edit_durations.iter(|d| d.as_millis().to_string()).collect().join(","))) {
-        eprintln!("Couldn't write to file: {}", e);
-    }
-    if let Err(e) = writeln!(f, "{}", format!("{}", delete_durations.iter(|d| d.as_millis().to_string()).collect().join(","))) {
-        eprintln!("Couldn't write to file: {}", e);
-    }
-    if let Err(e) = writeln!(f, "{}", format!("{}", restore_durations.iter(|d| d.as_millis().to_string()).collect().join(","))) {
-        eprintln!("Couldn't write to file: {}", e);
-    }
+    writeln!(f, "{}", account_durations.iter().map(|d| d.as_millis().to_string()).collect::<Vec<String>>().join(",")).unwrap();
+    writeln!(f, "{}", anon_durations.iter().map(|d| d.as_millis().to_string()).collect::<Vec<String>>().join(",")).unwrap();
+    writeln!(f, "{}", edit_durations.iter().map(|d| d.as_millis().to_string()).collect::<Vec<String>>().join(",")).unwrap();
+    writeln!(f, "{}", delete_durations.iter().map(|d| d.as_millis().to_string()).collect::<Vec<String>>().join(",")).unwrap();
+    writeln!(f, "{}", restore_durations.iter().map(|d| d.as_millis().to_string()).collect::<Vec<String>>().join(",")).unwrap();
 }

@@ -9,35 +9,14 @@ use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 use std::sync::{Arc, Mutex, RwLock};
 
-pub fn create_new_pseudoprincipal(guise_gen: &GuiseGen) -> (UID, Vec<RowVal>) {
-    let new_parent_vals = (guise_gen.val_generation)();
-    let new_parent_cols = (guise_gen.col_generation)();
-    let mut ix = 0;
-    let mut uid_ix = 0;
-    let rowvals = new_parent_cols
-        .iter()
-        .map(|c| {
-            if c == &guise_gen.guise_id_col {
-                uid_ix = ix;
-            }
-            let rv = RowVal {
-                value: new_parent_vals[ix].to_string(),
-                column: c.to_string(),
-            };
-            ix += 1;
-            rv
-        })
-        .collect();
-    let new_uid = new_parent_vals[uid_ix].to_string();
-    (new_uid, rowvals)
-}
-
 pub struct Disguiser {
     pub pool: mysql::Pool,
     pub stats: Arc<Mutex<QueryStat>>,
     pub token_ctrler: Arc<Mutex<TokenCtrler>>,
     pub guise_gen: Arc<RwLock<GuiseGen>>,
     global_diff_tokens_to_modify: Arc<RwLock<HashMap<DiffTokenWrapper, Vec<ObjectTransformation>>>>,
+    pseudoprincipal_data_pool: Vec<(UID, Vec<RowVal>)>,
+    poolsize: usize,
 }
 
 impl Disguiser {
@@ -49,7 +28,7 @@ impl Disguiser {
         let pool = Pool::new(opts).unwrap();
         let stats = Arc::new(Mutex::new(stats::QueryStat::new()));
 
-        Disguiser {
+        let mut d = Disguiser {
             pool: pool.clone(),
             stats: stats.clone(),
             token_ctrler: Arc::new(Mutex::new(TokenCtrler::new(
@@ -59,7 +38,48 @@ impl Disguiser {
             ))),
             guise_gen: guise_gen.clone(),
             global_diff_tokens_to_modify: Arc::new(RwLock::new(HashMap::new())),
+            pseudoprincipal_data_pool: vec![],
+            poolsize: keypool_size,
+        };
+        d.repopulate_pseudoprincipals_pool();
+        d
+    }
+
+    pub fn repopulate_pseudoprincipals_pool(&mut self) {
+        let guise_gen = self.guise_gen.read().unwrap();
+        for _ in 0..self.poolsize {
+            let new_parent_vals = (guise_gen.val_generation)();
+            let new_parent_cols = (guise_gen.col_generation)();
+            let mut ix = 0;
+            let mut uid_ix = 0;
+            let rowvals = new_parent_cols
+                .iter()
+                .map(|c| {
+                    if c == &guise_gen.guise_id_col {
+                        uid_ix = ix;
+                    }
+                    let rv = RowVal {
+                        value: new_parent_vals[ix].to_string(),
+                        column: c.to_string(),
+                    };
+                    ix += 1;
+                    rv
+                })
+                .collect();
+            let new_uid = new_parent_vals[uid_ix].to_string();
+            self.pseudoprincipal_data_pool.push((new_uid, rowvals));
         }
+    }
+
+    pub fn create_new_pseudoprincipal(&mut self) -> (UID, Vec<RowVal>) {
+        match self.pseudoprincipal_data_pool.pop() {
+            Some(vs) => vs,
+            None => {
+                // XXX todo queue up to run later, but just generate one key first
+                self.repopulate_pseudoprincipals_pool();
+                self.pseudoprincipal_data_pool.pop().unwrap()
+            } 
+        }        
     }
 
     pub fn register_principal(&mut self, uid: &UID, pubkey: &RsaPublicKey) {
@@ -180,7 +200,7 @@ impl Disguiser {
         mysql::Error,
     > {
         let mut conn = self.pool.get_conn()?;
-        let mut threads = vec![];
+        //let mut threads = vec![];
         let did = disguise.did;
         let locked_token_ctrler = self.token_ctrler.lock().unwrap();
         let global_diff_tokens = locked_token_ctrler.get_all_global_diff_tokens();
@@ -217,7 +237,7 @@ impl Disguiser {
             let mut token_transforms: HashMap<DiffTokenWrapper, Vec<ObjectTransformation>> =
                 HashMap::new();
 
-            threads.push(thread::spawn(move || {
+            //threads.push(thread::spawn(move || {
                 // XXX note: not tracking if we remove or decorrelate twice
                 let mut conn = pool.get_conn().unwrap();
                 let locked_table_info = my_table_info.read().unwrap();
@@ -252,6 +272,10 @@ impl Disguiser {
                         );
                         match transargs {
                             TransformArgs::Decor { fk_col, fk_name } => {
+                                let mut new_parents = vec![];
+                                for _ in 0..selected_rows.len() {
+                                    new_parents.push(self.create_new_pseudoprincipal());
+                                }
                                 let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
                                 decor_items(
                                     // disguise and per-thread state
@@ -264,8 +288,9 @@ impl Disguiser {
                                     &fk_name,
                                     &fk_col,
                                     &selected_rows,
-                                    &mut conn,
+                                    new_parents,
                                     &locked_guise_gen,
+                                    &mut conn,
                                 );
                                 drop(locked_token_ctrler);
                             }
@@ -320,16 +345,16 @@ impl Disguiser {
                 drop(locked_tokens);
 
                 warn!("Thread {:?} exiting", thread::current().id());
-            }));
+            //}));
         }
 
         // wait until all mysql queries are done
-        for jh in threads.into_iter() {
+        /*for jh in threads.into_iter() {
             match jh.join() {
                 Ok(_) => (),
                 Err(_) => warn!("Join failed?"),
             }
-        }
+        }*/
 
         // modify global diff tokens all at once
         self.modify_global_diff_tokens(disguise);
@@ -556,8 +581,9 @@ fn decor_items(
     fk_name: &str,
     fk_col: &str,
     items: &Vec<Vec<RowVal>>,
-    conn: &mut mysql::PooledConn,
+    pseudoprincipals: Vec<(UID, Vec<RowVal>)>,
     guise_gen: &GuiseGen,
+    conn: &mut mysql::PooledConn,
 ) {
     warn!(
         "Thread {:?} starting decor {}",
@@ -566,7 +592,7 @@ fn decor_items(
     );
     let start = time::Instant::now();
 
-    for i in items {
+    for (index, i) in items.iter().enumerate() {
         // TODO sort items by shared parent
         // then group by group-by-cols
         // for each group, create new PP and rewrite FKs
@@ -587,7 +613,7 @@ fn decor_items(
         let child_ids = get_ids(&child_name_info.id_cols, &i);
 
         // A. CREATE NEW PARENT
-        let (new_uid, new_parent) = create_new_pseudoprincipal(guise_gen);
+        let (new_uid, new_parent) = &pseudoprincipals[index];
 
         // actually insert pseudoprincipal
         query_drop(
