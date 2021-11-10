@@ -180,6 +180,7 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     }
 
     let res = bg.query_exec("qs_by_lec", vec![lid.into()]);
+    debug!(bg.log, "Setting API key to user key {}", apikey);
     drop(bg);
     let mut qs: Vec<LectureQuestion> = vec![];
     for r in res {

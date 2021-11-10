@@ -57,7 +57,10 @@ impl<'r> FromRequest<'r> for ApiKey {
             .get("apikey")
             .and_then(|cookie| cookie.value().parse().ok())
             .and_then(|key: String| match check_api_key(&be, &key) {
-                Ok(user) => Some(ApiKey { user, key }),
+                Ok(user) => {
+                    //println!("API key in cookie for user {}", user);
+                    Some(ApiKey { user, key })
+                },
                 Err(_) => None,
             })
             .into_outcome((Status::Unauthorized, ApiKeyError::Missing))

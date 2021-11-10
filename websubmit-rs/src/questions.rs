@@ -222,7 +222,22 @@ pub(crate) fn questions_submit(
     let vnum: Value = (num as u64).into();
     let ts: Value = Local::now().naive_local().into();
 
+    debug!(
+            bg.log,
+            "User {} updating {} answers",
+            apikey.user,
+            data.answers.len()
+        );
+
     for (id, answer) in &data.answers {
+        debug!(
+            bg.log,
+            "User {} edited q {} to answer {}",
+            apikey.user,
+            id, 
+            answer
+        );
+
         let rec: Vec<Value> = vec![
             apikey.user.clone().into(),
             vnum.clone(),
@@ -275,6 +290,10 @@ pub(crate) fn questions_submit(
         }
         Redirect::to("/login")
     } else {
+        debug!(
+            bg.log,
+            "Real User {} edited an answer, continuing to leclist", apikey.user
+        );
         drop(bg);
         Redirect::to("/leclist")
     }

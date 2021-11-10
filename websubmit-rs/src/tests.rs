@@ -134,9 +134,12 @@ fn test_disguise() {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
+       
+        // set ownership capability as cookie
         let response = client.get(format!("/edit/{}", owncap)).dispatch();
         assert_eq!(response.status(), Status::Ok);
 
+        // set decryption capability as cookie
         let postdata = serde_urlencoded::to_string(&vec![("decryption_cap", decryptcap)]).unwrap();
         let response = client
             .post("/edit")
@@ -144,13 +147,18 @@ fn test_disguise() {
             .header(ContentType::Form)
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
+ 
+        // get lecture to edit as pseudoprincipal (lecture 0 for now)
+        let response = client.get(format!("/edit/lec/{}", 0)).dispatch();
+        assert_eq!(response.status(), Status::Ok);
 
         // update answers to lecture 0
-        let mut answers = HashMap::new();
+        let mut answers = vec![];
         for q in 0..config.nqs {
-            answers.insert(q, format!("new_answer_user_{}_lec_{}", u, 0));
+            answers.push((format!("answers.{}", q), format!("new_answer_user_{}_lec_{}", u, 0)));
         }
         let postdata = serde_urlencoded::to_string(&answers).unwrap();
+        debug!(log, "Posting to questions for lec 0 answers {}", postdata);
         let response = client
             .post(format!("/questions/{}", 0)) // testing lecture 0 for now
             .body(postdata)
@@ -178,7 +186,18 @@ fn test_disguise() {
     for u in 0..config.nusers {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
+        let apikey = user2apikey.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
+                
+        // login as the user
+        let postdata = serde_urlencoded::to_string(&vec![("key", apikey)]).unwrap();
+        let response = client
+            .post("/apikey/check")
+            .body(postdata)
+            .header(ContentType::Form)
+            .dispatch();
+        assert_eq!(response.status(), Status::SeeOther);
+
         let postdata = serde_urlencoded::to_string(&vec![
             ("decryption_cap", decryptcap),
             ("ownership_loc_caps", &format!("{}", owncap)),
@@ -226,7 +245,7 @@ fn test_disguise() {
         let decryptcap = user2decryptcap.get(&email).unwrap();
         let diffcap = user2diffcap.get(&email).unwrap();
         let postdata = serde_urlencoded::to_string(&vec![
-            ("diffcap", diffcap),
+            ("diff_loc_cap", diffcap),
             ("decryption_cap", decryptcap),
             ("ownership_loc_caps", &format!("{}", owncap)),
         ])
@@ -250,7 +269,7 @@ fn test_disguise() {
         assert!(answer.contains("new_answer"));
         rows.push(answer);
     }
-    assert_eq!(rows.len(), config.nqs as usize);
+    assert_eq!(rows.len(), config.nqs as usize * config.nusers as usize);
 
     let res = db.query_iter("SELECT * FROM users;").unwrap();
     let mut rows = vec![];
