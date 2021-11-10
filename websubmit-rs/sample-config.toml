@@ -12,10 +12,3 @@ resource_dir = "/path/to/resources"
 secret = "SECRET"
 # whether to send emails (set to false for development)
 send_emails = true
-# whether to reset the db (set to false for production)
-prime = true
-# init
-nlec = 2
-nusers = 2
-nqs = 2
-nguises = 10

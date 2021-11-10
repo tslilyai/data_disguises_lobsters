@@ -67,12 +67,9 @@ fn index(cookies: &CookieJar<'_>, backend: &State<Arc<Mutex<MySqlBackend>>>) -> 
     }
 }
 
-fn rocket() -> Rocket<Build> {
-    let args = args::parse_args();
-    let config = args.config;
-
+fn rocket(config: &config::Config) -> Rocket<Build> {
     let backend = Arc::new(Mutex::new(
-        MySqlBackend::new(&format!("{}", args.class), Some(new_logger()), &config).unwrap(),
+        MySqlBackend::new(&format!("{}", args.class), Some(new_logger()), config).unwrap(),
     ));
 
     //let template_dir = config.template_dir.clone();
@@ -127,15 +124,18 @@ fn rocket() -> Rocket<Build> {
 
 #[rocket::main]
 async fn main() {
+} 
+
+fn run_benchmark(config: &config::Config) {
     let mut account_durations = vec![];
     let mut edit_durations = vec![];
     let mut delete_durations = vec![];
     let mut restore_durations = vec![];
     let mut anon_durations = vec![];
 
-    let client = Client::tracked(rocket()).expect("valid rocket instance");
     let args = args::parse_args();
     let config = args.config;
+    let client = Client::tracked(rocket(&config)).expect("valid rocket instance");
 
     let mut user2apikey = HashMap::new();
     let mut user2decryptcap = HashMap::new();

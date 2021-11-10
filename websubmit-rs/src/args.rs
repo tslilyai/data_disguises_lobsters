@@ -10,6 +10,10 @@ EXAMPLES:
 #[derive(Clone, Debug)]
 pub struct Args {
     pub class: String,
+    pub nusers: usize,
+    pub nlec: usize,
+    pub nqs: usize,
+    pub prime: bool,
     pub config: config::Config,
 }
 
@@ -36,11 +40,45 @@ pub fn parse_args() -> Args {
                 //XXX.required(true)
                 .help("Short textual identifier for the class hosted (used as Noria deployment name)."),
         )
+        .arg(
+            Arg::with_name("nusers")
+                .short("u")
+                .long("nusers")
+                .takes_value(true)
+                .value_name("NUSERS")
+                .default_value("2")
+        )
+        .arg(
+            Arg::with_name("nlec")
+                .short("l")
+                .long("nlec")
+                .takes_value(true)
+                .value_name("NLEC")
+                .default_value("2")
+        ).arg(
+            Arg::with_name("nqs")
+                .short("q")
+                .long("nqs")
+                .takes_value(true)
+                .value_name("NQS")
+                .default_value("2")
+        ).arg(
+            Arg::with_name("prime")
+                .short("p")
+                .long("prime")
+                .takes_value(true)
+                .value_name("PRIME")
+                .default_value("true")
+        )
         .after_help(WEBSUBMIT_USAGE)
         .get_matches();
 
     Args {
         class: String::from(args.value_of("class").unwrap()),
+        nusers: usize::from_str(args.value_of("nusers").unwrap()),
+        nlec: usize::from_str(args.value_of("nlec").unwrap()),
+        nqs: usize::from_str(args.value_of("nqs").unwrap()),
+        prime: bool::from_str(args.value_of("prime").unwrap()),
         config: config::parse(args.value_of("config").expect("Failed to parse config!"))
             .expect("failed to parse config"),
     }
