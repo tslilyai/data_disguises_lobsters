@@ -62,6 +62,9 @@ pub struct PrincipalData {
 pub struct TokenCtrler {
     // principal tokens are stored indexed by some large random num
     pub principal_data: HashMap<UID, PrincipalData>,
+    
+    pub pseudoprincipal_keys_pool: Vec<(RsaPrivateKey, RsaPublicKey)>,
+    poolsize: usize,
 
     // (p,d) capability -> set of token ciphertext for principal+disguise
     pub enc_diffs_map: HashMap<LocCap, Vec<EncData>>,
@@ -83,9 +86,11 @@ pub struct TokenCtrler {
 }
 
 impl TokenCtrler {
-    pub fn new(conn: &mut mysql::PooledConn, stats: Arc<Mutex<QueryStat>>) -> TokenCtrler {
+    pub fn new(poolsize: usize, conn: &mut mysql::PooledConn, stats: Arc<Mutex<QueryStat>>) -> TokenCtrler {
         let mut tctrler = TokenCtrler {
             principal_data: HashMap::new(),
+            pseudoprincipal_keys_pool: vec![],
+            poolsize: poolsize,
             enc_diffs_map: HashMap::new(),
             enc_ownership_map: HashMap::new(),
             global_diff_tokens: HashMap::new(),
@@ -120,7 +125,29 @@ impl TokenCtrler {
                 diff_toks,
             );
         }
+        tctrler.repopulate_pseudoprincipal_keys_pool();
         tctrler
+    }
+
+    pub fn repopulate_pseudoprincipal_keys_pool(&mut self) {
+        let curlen = self.pseudoprincipal_keys_pool.len();
+        for _ in curlen..self.poolsize {
+            let private_key =
+                RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
+            let pub_key = RsaPublicKey::from(&private_key);
+            self.pseudoprincipal_keys_pool.push((private_key, pub_key));
+        }
+    }
+
+    pub fn get_pseudoprincipal_key_from_pool(&mut self) -> (RsaPrivateKey, RsaPublicKey) {
+        match self.pseudoprincipal_keys_pool.pop() {
+            Some(key) => key,
+            None => {
+                // XXX todo queue up to run later, but just generate one key first
+                self.repopulate_pseudoprincipal_keys_pool();
+                self.pseudoprincipal_keys_pool.pop().unwrap()
+            } 
+        }
     }
 
     /*
@@ -280,9 +307,7 @@ impl TokenCtrler {
         ownership_token_data: Vec<u8>,
         conn: &mut mysql::PooledConn,
     ) {
-        let private_key =
-            RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
-        let pub_key = RsaPublicKey::from(&private_key);
+        let (private_key, pub_key) = self.get_pseudoprincipal_key_from_pool();
         let uidstr = uid.trim_matches('\'');
         let anon_uidstr = anon_uid.trim_matches('\'');
 
@@ -891,11 +916,11 @@ mod tests {
     fn test_insert_global_diff_token_single() {
         init_logger();
         let dbname = "testTokenCtrlerGlobal".to_string();
-        let edna = EdnaClient::new(true, &dbname, "", true, get_guise_gen());
+        let edna = EdnaClient::new(true, &dbname, "", true, 2, get_guise_gen());
         let mut conn = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(&mut conn, stats);
+        let mut ctrler = TokenCtrler::new(2, &mut conn, stats);
 
         let did = 1;
         let uid = 11;
@@ -931,11 +956,11 @@ mod tests {
     fn test_insert_user_token_single() {
         init_logger();
         let dbname = "testTokenCtrlerUser".to_string();
-        let edna = EdnaClient::new(true, &dbname, "", true, get_guise_gen());
+        let edna = EdnaClient::new(true, &dbname, "", true, 2, get_guise_gen());
         let mut conn = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(&mut conn, stats);
+        let mut ctrler = TokenCtrler::new(2, &mut conn, stats);
 
         let did = 1;
         let uid = 11;
@@ -988,12 +1013,13 @@ mod tests {
     #[test]
     fn test_insert_user_diff_token_multi() {
         init_logger();
+        let iters = 5;
         let dbname = "testTokenCtrlerUserMulti".to_string();
-        let edna = EdnaClient::new(true, &dbname, "", true, get_guise_gen());
+        let edna = EdnaClient::new(true, &dbname, "", true, iters, get_guise_gen());
         let mut conn = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(&mut conn, stats);
+        let mut ctrler = TokenCtrler::new(iters, &mut conn, stats);
 
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
@@ -1004,7 +1030,6 @@ mod tests {
         let mut priv_keys = vec![];
         let mut pub_keys = vec![];
 
-        let iters = 5;
         let mut caps = HashMap::new();
         for u in 1..iters {
             let private_key =
@@ -1018,12 +1043,12 @@ mod tests {
             for d in 1..iters {
                 for i in 0..iters {
                     let mut remove_token = new_delete_token_wrapper(
-                        d,
+                        d as u64,
                         guise_name.clone(),
                         guise_ids.clone(),
                         vec![RowVal {
                             column: fk_col.clone(),
-                            value: (old_fk_value + i).to_string(),
+                            value: (old_fk_value + (i as u64)).to_string(),
                         }],
                         false,
                     );
@@ -1031,7 +1056,7 @@ mod tests {
                     ctrler.insert_user_diff_token_wrapper(&mut remove_token);
                 }
                 let c = ctrler
-                    .get_tmp_reveal_capability(&u.to_string(), d)
+                    .get_tmp_reveal_capability(&u.to_string(), d as u64)
                     .unwrap()
                     .clone();
                 caps.insert((u, d), c);
@@ -1056,11 +1081,11 @@ mod tests {
                 let lc = caps.get(&(u, d)).unwrap().clone();
                 // get tokens
                 let (diff_tokens, _) =
-                    ctrler.get_user_tokens(d, &priv_keys[u as usize - 1], &vec![lc], &vec![]);
+                    ctrler.get_user_tokens(d as u64, &priv_keys[u - 1], &vec![lc], &vec![]);
                 assert_eq!(diff_tokens.len(), (iters as usize));
                 for i in 0..iters {
-                    let dt = edna_diff_token_from_bytes(&diff_tokens[i as usize].token_data);
-                    assert_eq!(dt.old_value[0].value, (old_fk_value + i as u64).to_string());
+                    let dt = edna_diff_token_from_bytes(&diff_tokens[i].token_data);
+                    assert_eq!(dt.old_value[0].value, (old_fk_value + (i as u64)).to_string());
                 }
             }
         }
@@ -1069,12 +1094,13 @@ mod tests {
     #[test]
     fn test_insert_user_token_privkey() {
         init_logger();
+        let iters = 5;
         let dbname = "testTokenCtrlerUserPK".to_string();
-        let edna = EdnaClient::new(true, &dbname, "", true, get_guise_gen());
+        let edna = EdnaClient::new(true, &dbname, "", true, iters, get_guise_gen());
         let mut conn = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(&mut conn, stats);
+        let mut ctrler = TokenCtrler::new(iters, &mut conn, stats);
 
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
@@ -1086,7 +1112,6 @@ mod tests {
         let mut priv_keys = vec![];
         let mut pub_keys = vec![];
 
-        let iters = 5;
         let mut caps = HashMap::new();
         for u in 1..iters {
             let private_key =
@@ -1099,12 +1124,12 @@ mod tests {
 
             for d in 1..iters {
                 let mut remove_token = new_delete_token_wrapper(
-                    d,
+                    d as u64,
                     guise_name.clone(),
                     guise_ids.clone(),
                     vec![RowVal {
                         column: fk_col.clone(),
-                        value: (old_fk_value + d).to_string(),
+                        value: (old_fk_value + (d as u64)).to_string(),
                     }],
                     false,
                 );
@@ -1115,7 +1140,7 @@ mod tests {
                 // create an anonymous user
                 // and insert some token for the anon user
                 let own_token_bytes = edna_own_token_to_bytes(&new_edna_ownership_token(
-                    d,
+                    d as u64,
                     guise_name.to_string(),
                     vec![],
                     referenced_name.to_string(),
@@ -1127,12 +1152,12 @@ mod tests {
                 ctrler.register_anon_principal(
                     &u.to_string(),
                     &anon_uid.to_string(),
-                    d,
+                    d as u64,
                     own_token_bytes,
                     &mut conn,
                 );
                 let lc = ctrler
-                    .get_tmp_reveal_capability(&u.to_string(), d)
+                    .get_tmp_reveal_capability(&u.to_string(), d as u64)
                     .unwrap()
                     .clone();
                 caps.insert((u, d), lc);
@@ -1154,11 +1179,11 @@ mod tests {
                 let c = caps.get(&(u, d)).unwrap().clone();
                 // get tokens
                 let (diff_tokens, own_tokens) =
-                    ctrler.get_user_tokens(d, &priv_keys[u as usize - 1], &vec![c], &vec![]);
+                    ctrler.get_user_tokens(d as u64, &priv_keys[u as usize - 1], &vec![c], &vec![]);
                 assert_eq!(diff_tokens.len(), 1);
                 assert_eq!(own_tokens.len(), 0);
                 let dt = edna_diff_token_from_bytes(&diff_tokens[0].token_data);
-                assert_eq!(dt.old_value[0].value, (old_fk_value + d).to_string());
+                assert_eq!(dt.old_value[0].value, (old_fk_value + (d as u64)).to_string());
             }
         }
     }

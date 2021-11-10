@@ -65,6 +65,7 @@ impl EdnaClient {
         dbname: &str,
         schema: &str,
         in_memory: bool,
+        keypool_size: usize,
         guise_gen: Arc<RwLock<GuiseGen>>,
     ) -> EdnaClient {
         init_db(prime, in_memory, dbname, schema);
@@ -72,7 +73,7 @@ impl EdnaClient {
         EdnaClient {
             schema: schema.to_string(),
             in_memory: in_memory,
-            disguiser: disguise::Disguiser::new(&url, guise_gen),
+            disguiser: disguise::Disguiser::new(&url, keypool_size, guise_gen),
         }
     }
 

@@ -32,7 +32,7 @@ fn test_app_rev_anon_disguise() {
     init_logger();
     let dbname = "testRevAnon".to_string();
     let guise_gen = disguises::get_guise_gen();
-    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true, guise_gen);
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
     let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 
@@ -266,7 +266,7 @@ fn test_app_rev_gdpr_disguise() {
     init_logger();
     let dbname = "testRevGDPR".to_string();
     let guise_gen = disguises::get_guise_gen();
-    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true, guise_gen);
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
     let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 
@@ -395,7 +395,7 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     init_logger();
     let dbname = "testRevCompose".to_string();
     let guise_gen = disguises::get_guise_gen();
-    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true, guise_gen);
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
     let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 
@@ -841,7 +841,7 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
     init_logger();
     let dbname = "testRevComposeTwo".to_string();
     let guise_gen = disguises::get_guise_gen();
-    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true, guise_gen);
+    let mut edna = edna::EdnaClient::new(true, &dbname, SCHEMA, true, USER_ITERS as usize, guise_gen);
     let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 

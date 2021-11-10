@@ -24,6 +24,7 @@ pub struct Config {
     pub nlec: i64,
     pub nusers: i64,
     pub nqs: i64,
+    pub nguises: i64,
 }
 
 pub(crate) fn parse(path: &str) -> Result<Config, Error> {
@@ -67,5 +68,6 @@ pub(crate) fn parse(path: &str) -> Result<Config, Error> {
         nlec: value.get("nlec").unwrap().as_integer().unwrap().into(),
         nusers: value.get("nusers").unwrap().as_integer().unwrap().into(),
         nqs: value.get("nqs").unwrap().as_integer().unwrap().into(),
+        nguises: value.get("nguises").unwrap().as_integer().unwrap().into(),
     })
 }

@@ -39,6 +39,7 @@ impl MySqlBackend {
             config.prime,
             dbname,
             &schema,
+            config.nguises,
             true,
             disguises::get_guise_gen(), /*in-mem*/
         );
