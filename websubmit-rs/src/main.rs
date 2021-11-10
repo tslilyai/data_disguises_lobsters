@@ -9,6 +9,7 @@ extern crate rocket_sync_db_pools;
 #[macro_use]
 extern crate slog;
 extern crate slog_term;
+extern crate log;
 #[macro_use]
 extern crate serde_derive;
 extern crate base64;
@@ -125,6 +126,7 @@ fn rocket(args: &args::Args) -> Rocket<Build> {
 
 #[rocket::main]
 async fn main() {
+    env_logger::init();
     let args = args::parse_args();
     
     if args.benchmark {
