@@ -11,11 +11,6 @@ use std::fs::{OpenOptions, File};
 use std::io::{BufReader, Read, Write};
 use std::time;
 
-const ADMIN: (&'static str, &'static str) = (
-    "malte@cs.brown.edu",
-    "b4bc3cef020eb6dd20defa1a7a8340dee889bc2164612e310766e69e45a1d5a7",
-);
-
 #[test]
 fn test_disguise() {
     let mut account_durations = vec![];
@@ -74,7 +69,7 @@ fn test_disguise() {
      * anonymization
      ***********************************/
     // login as the admin
-    let postdata = serde_urlencoded::to_string(&vec![("key", ADMIN.1)]).unwrap();
+    let postdata = serde_urlencoded::to_string(&vec![("key", config::ADMIN.1)]).unwrap();
     let response = client
         .post("/apikey/check")
         .body(postdata)

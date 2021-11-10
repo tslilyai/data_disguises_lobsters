@@ -2,6 +2,11 @@ use std::fs;
 use std::io::{Error, ErrorKind, Read};
 use toml;
 
+pub const ADMIN: (&'static str, &'static str) = (
+    "malte@cs.brown.edu",
+    "b4bc3cef020eb6dd20defa1a7a8340dee889bc2164612e310766e69e45a1d5a7",
+);
+
 #[derive(Debug, Clone)]
 pub struct Config {
     /// Textual identifier for class
