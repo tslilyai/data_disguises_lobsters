@@ -13,6 +13,7 @@ extern crate slog_term;
 #[macro_use]
 extern crate serde_derive;
 extern crate base64;
+#[cfg(feature = "flame_it")]
 extern crate flame;
 
 mod admin;
@@ -165,6 +166,7 @@ fn run_benchmark(args: &args::Args) {
     let log = new_logger();
 
     // create all users
+    #[cfg(feature = "flame_it")]
     flame::start("create_users");
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
@@ -179,6 +181,7 @@ fn run_benchmark(args: &args::Args) {
         assert_eq!(response.status(), Status::Ok);
 
         // get api key
+        #[cfg(feature = "flame_it")]
         flame::start("read_user_files");
         let file = File::open(format!("{}.{}", email, APIKEY_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
@@ -194,8 +197,10 @@ fn run_benchmark(args: &args::Args) {
         buf_reader.read_to_string(&mut decryptcap).unwrap();
         debug!(log, "Got email {} with decryptcap {}", &email, decryptcap);
         user2decryptcap.insert(email, decryptcap);
+        #[cfg(feature = "flame_it")]
         flame::end("read_user_files");
     }
+    #[cfg(feature = "flame_it")]
     flame::end("create_users");
 
     /**********************************
@@ -211,10 +216,12 @@ fn run_benchmark(args: &args::Args) {
     assert_eq!(response.status(), Status::SeeOther);
 
     // anonymize
+    #[cfg(feature = "flame_it")]
     flame::start("anonymize");
     let start = time::Instant::now();
     let response = client.post("/admin/anonymize").dispatch();
     anon_durations.push(start.elapsed());
+    #[cfg(feature = "flame_it")]
     flame::end("anonymize");
     assert_eq!(response.status(), Status::SeeOther);
 
@@ -234,6 +241,7 @@ fn run_benchmark(args: &args::Args) {
     /***********************************
      * editing anonymized data
      ***********************************/
+    #[cfg(feature = "flame_it")]
     flame::start("edit");
     for u in 0..min(5, args.nusers) {
         let email = format!("{}@mail.edu", u);
@@ -243,12 +251,15 @@ fn run_benchmark(args: &args::Args) {
         let start = time::Instant::now();
 
         // set ownership capability as cookie
+        #[cfg(feature = "flame_it")]
         flame::start("edit_owncap");
         let response = client.get(format!("/edit/{}", owncap)).dispatch();
         assert_eq!(response.status(), Status::Ok);
+        #[cfg(feature = "flame_it")]
         flame::end("edit_owncap");
 
         // set decryption capability as cookie
+        #[cfg(feature = "flame_it")]
         flame::start("edit_decryptcap");
         let postdata = serde_urlencoded::to_string(&vec![("decryption_cap", decryptcap)]).unwrap();
         let response = client
@@ -257,12 +268,15 @@ fn run_benchmark(args: &args::Args) {
             .header(ContentType::Form)
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
+        #[cfg(feature = "flame_it")]
         flame::end("edit_decryptcap");
 
         // get lecture to edit as pseudoprincipal (lecture 0 for now)
+        #[cfg(feature = "flame_it")]
         flame::start("edit_lec");
         let response = client.get(format!("/edit/lec/{}", 0)).dispatch();
         assert_eq!(response.status(), Status::Ok);
+        #[cfg(feature = "flame_it")]
         flame::end("edit_lec");
 
         // update answers to lecture 0
@@ -275,6 +289,7 @@ fn run_benchmark(args: &args::Args) {
         }
         let postdata = serde_urlencoded::to_string(&answers).unwrap();
         debug!(log, "Posting to questions for lec 0 answers {}", postdata);
+        #[cfg(feature = "flame_it")]
         flame::start("edit_post_new_answers");
         let response = client
             .post(format!("/questions/{}", 0)) // testing lecture 0 for now
@@ -282,6 +297,7 @@ fn run_benchmark(args: &args::Args) {
             .header(ContentType::Form)
             .dispatch();
         assert_eq!(response.status(), Status::SeeOther);
+        #[cfg(feature = "flame_it")]
         flame::end("edit_post_new_answers");
 
         edit_durations.push(start.elapsed());
@@ -290,11 +306,13 @@ fn run_benchmark(args: &args::Args) {
         let response = client.get(format!("/leclist")).dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
     }
+    #[cfg(feature = "flame_it")]
     flame::end("edit");
 
     /***********************************
      * gdpr deletion (with composition)
      ***********************************/
+    #[cfg(feature = "flame_it")]
     flame::start("delete");
     for u in 0..min(5, args.nusers) {
         let email = format!("{}@mail.edu", u);
@@ -334,11 +352,13 @@ fn run_benchmark(args: &args::Args) {
         debug!(log, "Got email {} with diffcap {}", &email, diffcap);
         user2diffcap.insert(email.clone(), diffcap);
     }
+    #[cfg(feature = "flame_it")]
     flame::end("delete");
 
     /***********************************
      * gdpr restore (with composition)
      ***********************************/
+    #[cfg(feature = "flame_it")]
     flame::start("restore");
     for u in 0..min(5, args.nusers) {
         let email = format!("{}@mail.edu", u);
@@ -361,6 +381,7 @@ fn run_benchmark(args: &args::Args) {
         assert_eq!(response.status(), Status::SeeOther);
         restore_durations.push(start.elapsed());
     }
+    #[cfg(feature = "flame_it")]
     flame::end("restore");
 
     // print out stats
@@ -423,5 +444,6 @@ fn run_benchmark(args: &args::Args) {
             .join(",")
     )
     .unwrap();
+    #[cfg(feature = "flame_it")]
     flame::dump_html(&mut File::create("flamegraph.html").unwrap()).unwrap();
 }

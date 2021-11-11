@@ -1,5 +1,7 @@
 extern crate mysql;
+#[cfg(feature = "flame_it")]
 extern crate flame;
+#[cfg(feature = "flame_it")]
 extern crate flamer;
 extern crate ordered_float;
 

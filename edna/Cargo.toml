@@ -25,8 +25,13 @@ ordered-float = "2.0"
 time = "0.2.7"
 tokio = { version = "1.6.1", features = ["full"] }
 hex-literal = "0.3.3"
-flame = "0.2.2"
-flamer = "0.3"
+flame = { version = "0.2.2", optional=true }
+flamer = { version = "0.3", optional=true }
 
 [dev-dependencies]
 datadriven = "0.1.0"
+
+[features]
+default = []
+flame_it = ["flame", "flamer"]
+

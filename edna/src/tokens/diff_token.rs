@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
+#[cfg(feature = "flame_it")]
 use flamer::flame;
 
 pub const REMOVE_GUISE: u64 = 1;
@@ -234,7 +235,7 @@ pub fn new_modify_token_wrapper(
 }
 
 impl EdnaDiffToken {
-    #[flame]
+    #[cfg_attr(feature = "flame_it", flame)]
     pub fn reveal(
         &self,
         token_ctrler: &mut TokenCtrler,

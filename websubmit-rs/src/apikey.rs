@@ -70,12 +70,14 @@ pub(crate) fn generate(
     config: &State<Config>,
 ) -> Template {
     // generate an API key from email address
+    #[cfg(feature = "flame_it")]
     flame::start("generate_apikey");
     let mut hasher = Sha256::new();
     hasher.input_str(&data.email);
     // add a secret to make API keys unforgeable without access to the server
     hasher.input_str(&config.secret);
     let hash = hasher.result_str();
+    #[cfg(feature = "flame_it")]
     flame::end("generate_apikey");
 
     let is_admin = if config.admins.contains(&data.email) {
@@ -85,6 +87,7 @@ pub(crate) fn generate(
     };
 
     // insert into MySql if not exists
+    #[cfg(feature = "flame_it")]
     flame::start("insert_user");
     let mut bg = backend.lock().unwrap();
     bg.insert(
@@ -96,13 +99,17 @@ pub(crate) fn generate(
             false.into(),
         ],
     );
+    #[cfg(feature = "flame_it")]
     flame::end("insert_user");
 
     // register user if not exists
+    #[cfg(feature = "flame_it")]
     flame::start("register_principal");
     let private_key = bg.edna.register_principal(data.email.as_str().into());
+    #[cfg(feature = "flame_it")]
     flame::end("register_principal");
 
+    #[cfg(feature = "flame_it")]
     flame::start("send_apikey_email");
     let privkey_str = base64::encode(&private_key.to_pkcs1_der().unwrap().as_der().to_vec());
     if config.send_emails {
@@ -115,6 +122,7 @@ pub(crate) fn generate(
         )
         .expect("failed to send API key email");
     }
+    #[cfg(feature = "flame_it")]
     flame::end("send_apikey_email");
     drop(bg);
 

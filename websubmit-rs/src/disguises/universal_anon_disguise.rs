@@ -27,6 +27,7 @@ pub fn apply(
 
     // get all answers sorted by user and lecture
     let mut user_lec_answers: HashMap<(String, u64), Vec<u64>> = HashMap::new();
+    #[cfg(feature = "flame_it")]
     flame::start("DB: get_answers");
     let res = bg.query_exec("all_answers", vec![]);
     for r in res {
@@ -41,14 +42,17 @@ pub fn apply(
             }
         };
     }
+    #[cfg(feature = "flame_it")]
     flame::end("DB: get_answers");
 
     let mut users = vec![];
     let mut updates = vec![];
     for ((user, lecture), qs) in user_lec_answers {
         // insert a new pseudoprincipal
+        #[cfg(feature = "flame_it")]
         flame::start("EDNA: create_pseudoprincipal");
         let (new_uid, rowvals) = bg.edna.create_new_pseudoprincipal();
+        #[cfg(feature = "flame_it")]
         flame::end("EDNA: create_pseudoprincipal");
 
         // XXX issue where using bg adds quotes everywhere...
@@ -70,12 +74,15 @@ pub fn apply(
         }
 
         // register new ownershiptoken for pseudoprincipal
+        #[cfg(feature = "flame_it")]
         flame::start("ENDA: save_pseudoprincipal");
         bg.edna
             .save_pseudoprincipal_token(get_did(), user, new_uid, vec![]);
+        #[cfg(feature = "flame_it")]
         flame::end("ENDA: save_pseudoprincipal");
     }
 
+    #[cfg(feature = "flame_it")]
     flame::start("DB: insert pseudos");
     bg.handle.exec_batch(
         r"INSERT INTO `users` VALUES (:email, :apikey, :is_admin, :is_anon);",
@@ -88,8 +95,10 @@ pub fn apply(
             }
         }),
     )?;
+    #[cfg(feature = "flame_it")]
     flame::end("DB: insert pseudos");
 
+    #[cfg(feature = "flame_it")]
     flame::start("DB: update_answers");
     bg.handle.exec_batch(
         r"UPDATE answers SET `user` = :newuid WHERE `user` = :user AND lec = :lec AND q = :q;",
@@ -102,6 +111,7 @@ pub fn apply(
             }
         }),
     )?;
+    #[cfg(feature = "flame_it")]
     flame::end("DB: update_answers");
 
     Ok(bg.edna.end_disguise(get_did()))
