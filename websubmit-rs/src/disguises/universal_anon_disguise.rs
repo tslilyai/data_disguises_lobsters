@@ -60,7 +60,7 @@ pub fn apply(
             "({})",
             rowvals
                 .iter()
-                .map(|rv| rv.value.trim_matches('\'').to_string())
+                .map(|rv| rv.value)
                 .collect::<Vec<String>>()
                 .join(",")
         ));
