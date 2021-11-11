@@ -445,5 +445,5 @@ fn run_benchmark(args: &args::Args) {
     )
     .unwrap();
     #[cfg(feature = "flame_it")]
-    flame::dump_html(&mut File::create("flamegraph.html").unwrap()).unwrap();
+    flame::dump_html(&mut File::create(&format!("flamegraph_{}lec_{}users.html", args.nlec, args.nusers)).unwrap()).unwrap();
 }
