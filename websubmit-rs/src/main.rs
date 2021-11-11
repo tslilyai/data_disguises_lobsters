@@ -13,6 +13,7 @@ extern crate log;
 #[macro_use]
 extern crate serde_derive;
 extern crate base64;
+extern crate flame;
 
 mod admin;
 mod apikey;
@@ -35,7 +36,6 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Read, Write};
 use std::thread;
 use std::time;
-
 use backend::MySqlBackend;
 use rocket::http::CookieJar;
 use rocket::response::Redirect;
@@ -73,9 +73,6 @@ fn rocket(args: &args::Args) -> Rocket<Build> {
     let backend = Arc::new(Mutex::new(
         MySqlBackend::new(&format!("{}", args.class), Some(new_logger()), args.prime, args.nusers, args.nlec, args.nqs).unwrap(),
     ));
-
-    //let template_dir = config.template_dir.clone();
-    //let resource_dir = config.resource_dir.clone();
 
     rocket::build()
         .attach(Template::fairing())
@@ -154,6 +151,7 @@ fn run_benchmark(args: &args::Args) {
     let log = new_logger();
 
     // create all users
+    flame::start("create_users");
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let postdata = serde_urlencoded::to_string(&vec![("email", email.clone())]).unwrap();
@@ -167,6 +165,7 @@ fn run_benchmark(args: &args::Args) {
         assert_eq!(response.status(), Status::Ok);
 
         // get api key
+        flame::start("read_user_files");
         let file = File::open(format!("{}.{}", email, APIKEY_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
         let mut apikey = String::new();
@@ -181,7 +180,9 @@ fn run_benchmark(args: &args::Args) {
         buf_reader.read_to_string(&mut decryptcap).unwrap();
         debug!(log, "Got email {} with decryptcap {}", &email, decryptcap);
         user2decryptcap.insert(email, decryptcap);
+        flame::end("read_user_files");
     }
+    flame::end("create_users");
 
     /**********************************
      * anonymization
@@ -196,9 +197,11 @@ fn run_benchmark(args: &args::Args) {
     assert_eq!(response.status(), Status::SeeOther);
 
     // anonymize
+    flame::start("anonymize");
     let start = time::Instant::now();
     let response = client.post("/admin/anonymize").dispatch();
     anon_durations.push(start.elapsed());
+    flame::end("anonymize");
     assert_eq!(response.status(), Status::SeeOther);
 
     // get tokens
@@ -217,6 +220,7 @@ fn run_benchmark(args: &args::Args) {
     /***********************************
      * editing anonymized data
      ***********************************/
+    flame::start("edit");
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
@@ -264,10 +268,12 @@ fn run_benchmark(args: &args::Args) {
         let response = client.get(format!("/leclist")).dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
     }
+    flame::end("edit");
 
     /***********************************
      * gdpr deletion (with composition)
      ***********************************/
+    flame::start("delete");
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
@@ -306,10 +312,12 @@ fn run_benchmark(args: &args::Args) {
         debug!(log, "Got email {} with diffcap {}", &email, diffcap);
         user2diffcap.insert(email.clone(), diffcap);
     }
+    flame::end("delete");
 
     /***********************************
      * gdpr restore (with composition)
      ***********************************/
+    flame::start("restore");
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
@@ -331,6 +339,7 @@ fn run_benchmark(args: &args::Args) {
         assert_eq!(response.status(), Status::SeeOther);
         restore_durations.push(start.elapsed());
     }
+    flame::end("restore");
 
     // print out stats
     let mut f = OpenOptions::new()
@@ -389,4 +398,5 @@ fn run_benchmark(args: &args::Args) {
             .join(",")
     )
     .unwrap();
+    flame::dump_html(&mut File::create("flamegraph.html").unwrap()).unwrap();
 }

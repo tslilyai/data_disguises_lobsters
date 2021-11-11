@@ -22,6 +22,7 @@ pub fn apply(
 
     // get all answers sorted by user and lecture
     let mut user_lec_answers: HashMap<(String, u64), Vec<u64>> = HashMap::new();
+    flame::start("get_answers");
     let res = bg.query_exec("all_answers", vec![]);
     for r in res {
         let uid: String = from_value(r[0].clone());
@@ -35,12 +36,16 @@ pub fn apply(
             }
         };
     }
+    flame::end("get_answers");
 
     for ((user, lecture), qs) in user_lec_answers {
         // insert a new pseudoprincipal
+        flame::start("create_pseudoprincipal");
         let (new_uid, rowvals) = bg.edna.create_new_pseudoprincipal();
-        
+        flame::end("create_pseudoprincipal");
+
         // XXX issue where using bg adds quotes everywhere...
+        flame::start("insert_pseudoprincipal");
         let q = format!(
             r"INSERT INTO {} VALUES ({});",
             "users",
@@ -51,23 +56,24 @@ pub fn apply(
                 .join(",")
         );
         bg.handle.query_drop(q).unwrap();
+        flame::end("insert_pseudoprincipal");
 
         // rewrite answers for all qs to point from user to new pseudoprincipal
+        flame::start("update_answers");
         for q in qs {
-             let q = format!(
+            let q = format!(
                 r"UPDATE {} SET `user` = {} WHERE `user` = '{}' AND lec = {} AND q = {};",
-                "answers",
-                new_uid,
-                user,
-                lecture,
-                q
+                "answers", new_uid, user, lecture, q
             );
             bg.handle.query_drop(q).unwrap();
         }
+        flame::end("update_answers");
 
         // register new ownershiptoken for pseudoprincipal
+        flame::start("save_pseudoprincipal");
         bg.edna
             .save_pseudoprincipal_token(get_did(), user, new_uid, vec![]);
+        flame::end("save_pseudoprincipal");
     }
 
     Ok(bg.edna.end_disguise(get_did()))

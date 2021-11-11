@@ -247,7 +247,15 @@ impl EdnaDiffToken {
                     ownership_loc_caps: self.ownership_loc_caps.clone(),
                     diff_loc_caps: self.diff_loc_caps.clone(),
                 };
-                token_ctrler.register_principal(&self.uid, pdata.is_anon, &pdata.pubkey, conn);
+                token_ctrler.register_saved_principal(
+                    &self.uid,
+                    pdata.is_anon,
+                    &pdata.pubkey,
+                    pdata.ownership_loc_caps,
+                    pdata.diff_loc_caps,
+                    true,
+                    conn,
+                );
             }
 
             REMOVE_GUISE => {

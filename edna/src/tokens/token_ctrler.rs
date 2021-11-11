@@ -123,6 +123,8 @@ impl TokenCtrler {
                 &pubkey,
                 ownership_toks,
                 diff_toks,
+                false,
+                conn
             );
         }
         tctrler.repopulate_pseudoprincipal_keys_pool();
@@ -269,6 +271,8 @@ impl TokenCtrler {
         pubkey: &RsaPublicKey,
         ot: Vec<LocCap>,
         dt: Vec<LocCap>,
+        persist: bool,
+        conn: &mut mysql::PooledConn,
     ) {
         warn!("Re-registering saved principal {}", uid);
         let pdata = PrincipalData {
@@ -277,6 +281,9 @@ impl TokenCtrler {
             ownership_loc_caps: ot,
             diff_loc_caps: dt,
         };
+        if persist{
+            self.persist_principal(uid, &pdata, conn);
+        }
         self.principal_data.insert(uid.clone(), pdata);
     }
 
@@ -284,12 +291,12 @@ impl TokenCtrler {
         &mut self,
         uid: &UID,
         is_anon: bool,
-        pubkey: &RsaPublicKey,
         conn: &mut mysql::PooledConn,
-    ) {
+    ) -> RsaPrivateKey {
         warn!("Registering principal {}", uid);
+        let (private_key, pubkey) = self.get_pseudoprincipal_key_from_pool();
         let pdata = PrincipalData {
-            pubkey: pubkey.clone(),
+            pubkey: pubkey,
             is_anon: is_anon,
             ownership_loc_caps: vec![],
             diff_loc_caps: vec![],
@@ -297,6 +304,7 @@ impl TokenCtrler {
 
         self.persist_principal(uid, &pdata, conn);
         self.principal_data.insert(uid.clone(), pdata);
+        private_key
     }
 
     pub fn register_anon_principal(
@@ -307,13 +315,12 @@ impl TokenCtrler {
         ownership_token_data: Vec<u8>,
         conn: &mut mysql::PooledConn,
     ) {
-        let (private_key, pub_key) = self.get_pseudoprincipal_key_from_pool();
         let uidstr = uid.trim_matches('\'');
         let anon_uidstr = anon_uid.trim_matches('\'');
 
         // save the anon principal as a new principal with a public key
         // and initially empty token vaults
-        self.register_principal(&anon_uidstr.to_string(), true, &pub_key, conn);
+        let private_key = self.register_principal(&anon_uidstr.to_string(), true, conn);
         let own_token_wrapped = new_generic_ownership_token_wrapper(
             uidstr.to_string(),
             anon_uidstr.to_string(),
@@ -930,9 +937,7 @@ mod tests {
         let fk_col = "fk_col".to_string();
 
         let mut rng = OsRng;
-        let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
-        let pub_key = RsaPublicKey::from(&private_key);
-        ctrler.register_principal(&uid.to_string(), false, &pub_key, &mut conn);
+        let private_key = ctrler.register_principal(&uid.to_string(), false, &mut conn);
 
         let mut remove_token = new_delete_token_wrapper(
             did,
@@ -970,10 +975,8 @@ mod tests {
         let fk_col = "fk_col".to_string();
 
         let mut rng = OsRng;
-        let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+        let private_key = ctrler.register_principal(&uid.to_string(), false, &mut conn);
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
-        let pub_key = RsaPublicKey::from(&private_key);
-        ctrler.register_principal(&uid.to_string(), false, &pub_key, &mut conn);
 
         let mut remove_token = new_delete_token_wrapper(
             did,
@@ -1032,12 +1035,8 @@ mod tests {
 
         let mut caps = HashMap::new();
         for u in 1..iters {
-            let private_key =
-                RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+            let private_key = ctrler.register_principal(&uid.to_string(), false, &mut conn);
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
-            let pub_key = RsaPublicKey::from(&private_key);
-            ctrler.register_principal(&u.to_string(), false, &pub_key, &mut conn);
-            pub_keys.push(pub_key.clone());
             priv_keys.push(private_key_vec.clone());
 
             for d in 1..iters {
@@ -1114,12 +1113,8 @@ mod tests {
 
         let mut caps = HashMap::new();
         for u in 1..iters {
-            let private_key =
-                RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+            let private_key = ctrler.register_principal(&uid.to_string(), false, &mut conn);
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
-            let pub_key = RsaPublicKey::from(&private_key);
-            ctrler.register_principal(&u.to_string(), false, &pub_key, &mut conn);
-            pub_keys.push(pub_key.clone());
             priv_keys.push(private_key_vec.clone());
 
             for d in 1..iters {

@@ -60,7 +60,7 @@ impl<'r> FromRequest<'r> for ApiKey {
                 Ok(user) => {
                     //println!("API key in cookie for user {}", user);
                     Some(ApiKey { user, key })
-                },
+                }
                 Err(_) => None,
             })
             .into_outcome((Status::Unauthorized, ApiKeyError::Missing))
@@ -90,33 +90,27 @@ pub(crate) fn generate(
     let mut bg = backend.lock().unwrap();
     bg.insert(
         "users",
-        vec![data.email.as_str().into(), hash.as_str().into(), is_admin, false.into()],
+        vec![
+            data.email.as_str().into(),
+            hash.as_str().into(),
+            is_admin,
+            false.into(),
+        ],
     );
-
-    let private_key =
-        RsaPrivateKey::new(&mut rand::thread_rng(), RSA_BITS).expect("failed to generate a key");
-    let privkey_str =
-        base64::encode(&private_key.to_pkcs1_der().unwrap().as_der().to_vec());
-
-    let pub_key = RsaPublicKey::from(&private_key);
 
     // register user if not exists
-    bg.edna.register_principal(
-        data.email.as_str().into(),
-        &pub_key,
-    );
+    flame::start("register_principal");
+    let private_key = bg.edna.register_principal(data.email.as_str().into());
+    flame::end("register_principal");
 
+    let privkey_str = base64::encode(&private_key.to_pkcs1_der().unwrap().as_der().to_vec());
     if config.send_emails {
         email::send(
             bg.log.clone(),
             "no-reply@csci2390-submit.cs.brown.edu".into(),
             vec![data.email.clone()],
             format!("{} API key", config.class),
-            format!(
-                "APIKEY:{}\nDECRYPTCAP:{}",
-                hash.as_str(),
-                privkey_str,
-            ),
+            format!("APIKEY:{}\nDECRYPTCAP:{}", hash.as_str(), privkey_str,),
         )
         .expect("failed to send API key email");
     }

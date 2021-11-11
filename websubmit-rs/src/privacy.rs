@@ -76,17 +76,7 @@ pub(crate) fn anonymize_answers(
             "no-reply@csci2390-submit.cs.brown.edu".into(),
             vec![uid],
             "Your Websubmit Answers Have Been Anonymized".into(),
-            format!(
-                "OWNCAP:{}",
-                //"Your data has been anonymized! To edit your answers submitted before {}.{}.{}, and after prior
-                //anonymizations, please click http://localhost:8000/edit/{}\n
-                //To remove or disguise anonymized data in future disguises, provide the token {}.",
-                //local.year(),
-                //local.month(),
-                //local.day(),
-                //olc,
-                olc
-            ),
+            format!("OWNCAP:{}", olc),
         )
         .expect("failed to send email");
     }

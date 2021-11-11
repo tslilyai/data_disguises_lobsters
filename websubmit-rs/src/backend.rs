@@ -21,7 +21,14 @@ pub struct MySqlBackend {
 }
 
 impl MySqlBackend {
-    pub fn new(dbname: &str, log: Option<slog::Logger>, prime: bool, nusers: usize, nlec: usize, nqs: usize) -> Result<Self> {
+    pub fn new(
+        dbname: &str,
+        log: Option<slog::Logger>,
+        prime: bool,
+        nusers: usize,
+        nlec: usize,
+        nqs: usize,
+    ) -> Result<Self> {
         let log = match log {
             None => slog::Logger::root(slog::Discard, o!()),
             Some(l) => l,
@@ -39,7 +46,7 @@ impl MySqlBackend {
             dbname,
             &schema,
             true,
-            nusers * nlec,
+            (nusers * 2) * nlec, // generate twice as many guises as we probably need
             disguises::get_guise_gen(), /*in-mem*/
         );
         let mut db = mysql::Conn::new(

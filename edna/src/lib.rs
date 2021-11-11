@@ -4,7 +4,7 @@ extern crate ordered_float;
 use log::warn;
 use mysql::prelude::*;
 use mysql::Opts;
-use rsa::RsaPublicKey;
+use rsa::{RsaPrivateKey};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::collections::HashMap;
@@ -91,8 +91,8 @@ impl EdnaClient {
     // Necessary to make Edna aware of all principals in the system
     // so Edna can link these to pseudoprincipals/do crypto stuff
     //-----------------------------------------------------------------------------
-    pub fn register_principal(&mut self, uid: UID, pubkey: &RsaPublicKey) {
-        self.disguiser.register_principal(&uid, pubkey);
+    pub fn register_principal(&mut self, uid: UID) -> RsaPrivateKey {
+        self.disguiser.register_principal(&uid)
     }
 
     //-----------------------------------------------------------------------------

@@ -4,7 +4,7 @@ use crate::stats::*;
 use crate::tokens::*;
 use crate::*;
 use mysql::{Opts, Pool};
-use rsa::RsaPublicKey;
+use rsa::RsaPrivateKey;
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 use std::sync::{Arc, Mutex, RwLock};
@@ -82,11 +82,12 @@ impl Disguiser {
         }        
     }
 
-    pub fn register_principal(&mut self, uid: &UID, pubkey: &RsaPublicKey) {
+    pub fn register_principal(&mut self, uid: &UID) -> RsaPrivateKey {
         let mut conn = self.pool.get_conn().unwrap();
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        locked_token_ctrler.register_principal(uid, false, pubkey, &mut conn);
+        let priv_key = locked_token_ctrler.register_principal(uid, false, &mut conn);
         drop(locked_token_ctrler);
+        priv_key
     }
 
     pub fn get_pseudoprincipals(
