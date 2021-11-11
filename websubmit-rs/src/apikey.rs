@@ -4,7 +4,6 @@ use crate::email;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use mysql::from_value;
-use rand;
 use rocket::form::Form;
 use rocket::http::Status;
 use rocket::http::{Cookie, CookieJar};
@@ -14,11 +13,8 @@ use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
 use rsa::pkcs1::ToRsaPrivateKey;
-use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-
-const RSA_BITS: usize = 2048;
 
 /// (username, apikey)
 pub(crate) struct ApiKey {
@@ -74,11 +70,13 @@ pub(crate) fn generate(
     config: &State<Config>,
 ) -> Template {
     // generate an API key from email address
+    flame::start("generate_apikey");
     let mut hasher = Sha256::new();
     hasher.input_str(&data.email);
     // add a secret to make API keys unforgeable without access to the server
     hasher.input_str(&config.secret);
     let hash = hasher.result_str();
+    flame::end("generate_apikey");
 
     let is_admin = if config.admins.contains(&data.email) {
         1.into()
@@ -87,6 +85,7 @@ pub(crate) fn generate(
     };
 
     // insert into MySql if not exists
+    flame::start("insert_user");
     let mut bg = backend.lock().unwrap();
     bg.insert(
         "users",
@@ -97,12 +96,14 @@ pub(crate) fn generate(
             false.into(),
         ],
     );
+    flame::end("insert_user");
 
     // register user if not exists
     flame::start("register_principal");
     let private_key = bg.edna.register_principal(data.email.as_str().into());
     flame::end("register_principal");
 
+    flame::start("send_apikey_email");
     let privkey_str = base64::encode(&private_key.to_pkcs1_der().unwrap().as_der().to_vec());
     if config.send_emails {
         email::send(
@@ -114,6 +115,7 @@ pub(crate) fn generate(
         )
         .expect("failed to send API key email");
     }
+    flame::end("send_apikey_email");
     drop(bg);
 
     // return to user
