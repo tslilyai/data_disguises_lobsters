@@ -2,6 +2,139 @@
 \section{Design} 
 %-------------------------------------------------------------------------------
 
+\begin{table*}[t!]
+\centering
+\begin{tabular}{ c p{.8\linewidth} }
+\textbf{Symbol} & \textbf{Description} \\
+\hline
+    \vspace{6pt}
+$p$ & application principals, corresponding to a user ID in the application\\
+    \vspace{6pt}
+$d$ & disguise invoked by authorized principals that transforms the application database in
+    privacy-preserving ways\\
+    \vspace{6pt}
+\op{d} & a disguise operation (either a removal, modification, or decorrelation)\\
+    \vspace{6pt}
+\tdata{pd} & database diff associated with $p$ produced by disguise $d$.\\
+    \vspace{6pt}
+\dcapa{p} & data capability that grants access to all disguises' diffs associated with principal
+    $p$. \\
+    \vspace{6pt}
+\lcapa{pd} & locating capability that allows the holder to find the database diffs from
+    $d$ associated with a principal $p$.\\
+    \vspace{6pt}
+\pubk{p} & public key of $p$ \\
+    \vspace{6pt}
+\privk{p} & private key of $p$ \\
+    \end{tabular}
+\caption{Notation used to describe \sys's design.}
+\label{tab:notation}
+\end{table*}
+
+%-------------------------------------------------------------------------------
+\section{\sys API.}
+\label{s:api}
+%-------------------------------------------------------------------------------
+\begin{table*}[t!]
+\centering
+    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
+\textbf{API Call} & \textbf{Description} \\
+\hline
+    \fn{RegisterPrincipal($p$, Email email, PubKey $\pubk{p}$)} $\rightarrow$ () & Registers $p$ as
+        a principal with public key \pubk{p}.\\
+    \vspace{6pt}\\
+        \fn{ApplyDisguise($p$, Disguise $d$, DataCap \dcapa{p}, Vec<LocCap> lcaps)}
+        $\rightarrow$\fn{Vec<LocCap>} & 
+        Applies disguise $d$ and returns the corresponding disguise $d$ and locating capabilities
+        \lcapa{p}{d}. The argument capabilities allow \sys to locate and access disguise diffs,
+        which \sys uses to compose disguise $d$ on top of prior disguises.
+        \vspace{6pt}\\
+    \fn{RevealDisguise($p$, Disguise $d$,
+        DataCap \dcapa{p}, LocCap \lcapa{pd})} $\rightarrow$ ()& 
+    Reveals disguise $d$. The argument capabilities grant \sys access to database
+    diffs from applying $d$, which allows \sys to reveal undisguised data.
+        \vspace{6pt}\\
+        \fn{CapEstablishesOwnership($p$, DatabaseObj $x$, DataCap \dcapa{p}, LocCap \lcapa{pd})}
+    $\rightarrow$ \fn{bool} & Returns
+    whether principal $p$ has ownership rights to the provided database object. The capabilities 
+    allow \sys to access diffs that can prove that $p$ had been correlated with the object. 
+    \end{tabular}
+\caption{The \sys Library API}
+\label{tab:api}
+\end{table*}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\sys's API in Table~\ref{tab:api} enables the application to support disguise application and
+revealing.
+%
+The application also uses \sys to access and interpret diffs authorized by the provided
+capabilities.  Applications integrating with \sys may modify the client API
+so that the client can pass capabilities to the application along with the action to perform.
+For example, the application can send users URLs to click that invoke application actions with
+capability arguments.
+
+We next describe example usages of the API.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Principal Registration.}
+Every client who creates an application account for principal $p$ registers an email and public key with \sys.
+\sys remembers each public key \pubk{p} along with $p$'s ID.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Disguising and Revealing.}
+When a client speaking for principal $p$ wants to apply a disguise $d$,
+the application invokes \fn{ApplyDisguise} with the client-provided data
+capability and a set of locating capabilities. Each locating capability \lcapa{pd'} allows \sys to
+access $p$'s disguise diffs from disguise $d'$, and to compose the new disguise on top of these
+disguises during application. Applying a disguise returns the locating capability \lcapa{pd} that
+the application sends to the client (via e.g., emailing the client a link).
+
+In order to reveal data disguised by $d$ for principal $p$, the application invokes
+\fn{RevealDisguise} on behalf of a client speaking for $p$. The client provides its data capability
+\dcapa{p} and locating capability \lcapa{pd}. The application passes these to \sys to restore the
+original, undisguised data with access to $p$'s diffs corresponding to $d$.
+
+%\lyt{(ignore this) Why might we need multiple locating capabilities for reveal? This is because diffs may change
+%other diffs. But in this case, why don't we have the diff storing the diff change also store the
+%location of the diff? Also this might only affect "global" diffs.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Performing Permitted Application Actions.}
+Imagine that HotCRP disguise $d$ anonymizes all reviewers and authors of a conference by
+decorrelating them from their papers and reviews respectively. As described above, HotCRP emails the
+client a link when that their data has been decorrelated, which contains the locating
+capability in the URL. Assume that HotCRP sends a unique link for every piece of data (\eg every review
+or paper); HotCRP could also send a single link for all decorrelated data.
+
+The application normally ensures that only a client speaking for $p$ should have read-only access to
+reviews for $p$'s authored papers, and read-write access to reviews $p$ wrote.
+
+If the client speaking for $p$ wants to edit a review as it would normally, the application
+(post-$d)$ will not grant the client any read/write permissions to perform actions on any reviews of
+the conference: any previously correlated paper or review is now associated with pseudoprincipal
+$q$.  
+
+Instead, for the client speaking for $p$ to regain authorship or reviewership permissions of a
+particular review or paper:
+\begin{itemize}
+    \item The client clicks on the URL emailed to the client for that piece of data when it was decorrelated, which
+        opens a HotCRP page.
+    \item Javascript on the webpage retrieves the client's data capability
+        stored by the client's browser, and extracts the locating capability and the data object the client
+        wants to access from the URL.
+    \item The client then must log into HotCRP as principal $p$.
+    \item HotCRP invokes \sys's \fn{CapEstablishesOwnership} for the data object in question,
+        using the capabilities passed in by the client.
+    \item If \sys returns \fn{true}, the application permits the client to view the object with ownership
+        rights (\eg ability to see reviews on authored papers, or edit their review); otherwise, the
+        application does not allow the client to perform privileged actions.
+\end{itemize}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \subsection{Disguise Operations.} 
 Because disguises are inherently application-specific, the application developer 
 specifies a disguise as a 
@@ -135,175 +268,3 @@ ensures the security of ownership claims, disguise diffs, and disguise history.
 
 Our current design falls short, however, by failing to support ``Disguising Anonymized
 Users'' which we explain next.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
-%\begin{itemize}
-%\item \fn{diffID}: unique ID for this diff
-%\item \fn{disguiseID}: ID of disguise $d$ being applied
-%\item \fn{principalID}: associated principal $p$
-%\item \fn{objID}: unique ID for the data object modified by \op{d}
-%\item \fn{updateType}: decorrelate, modify, or remove
-%\item \fn{oldValue}: original value of object \fn{objID}
-%\item \fn{newValue}: updated value of object \fn{objID}
-%\item \fn{nonce}: random value generated to prevent known-plaintext attacks
-%\end{itemize}
-
-\iffalse
-\begin{figure*}[t!]
-\pcb{
-\<\< \\[-0.9\baselineskip]\\
-\textbf{Client Authenticated as $p_0$} \< \< \textbf{\sys} \\
-[0.1\baselineskip][\hline]
-\<\< \\[-0.9\baselineskip]\\
-\fn{capPairs} \gets \fn{LoadClientCapPairs($p_0$)}\\
-% TODO get all privkeys
-\fn{encPrivKs} \gets \fn{LoadClientCapPairs($p_0$)}\\
-\fn{privKs} \gets \{p \mapsto \privk{p}\}\pclb
-\pcintertext[dotted]{Recursively get addresses of all linked pseudoprincipals}
-\fn{idsToProcess} \gets \{p\}\\
-\pcwhile \fn{idsToProcess} \neq \{\}:\\
-\quad q \gets \fn{idsToProcess.pop()}\\
-\< \sendmessageright*{\fn{GetPseudoPrincipalEncPrivKeys($q$)}} \< \\
-\<\< \fn{encPrivKs} \gets \fn{\sys.Principals[q].EncPKTokens}\\
-\< \sendmessageleft*{\fn{encPrivKs}} \< \\
-\quad \pcforeach \fn{encPrivK} \in \fn{encPrivKs}:\\
-\quad \quad \privk{q} \gets \fn{privKeys}[q]\\
-\quad \quad \tpriv{qr} \gets \dec(\privk{q}, \fn{encPrivK})\\
-\quad\quad\fn{privKs.insert}(r\mapsto \tpriv{qr}.\fn{privKey}) \<\< \\
-\quad\quad\fn{idsToProcess.insert($r$)} \<\< \\
-\< \sendmessageright*{\fn{GetGlobalAddresses($q$)}} \< \\
-\<\< \fn{globalAddrs} \gets \fn{\sys.Principals[q].GlobalAddrs}\\
-\< \sendmessageleft*{\fn{globalAddrs}} \< \\
-\quad\quad\fn{addrs.append(globalAddrs)}\\
-\quad \pcendforeach\\
-\pcendwhile\pclb
-    \pcintertext[dotted]{Use addresses to get corresponding encrypted token keys}
-\< \sendmessageright*{\fn{AddressesToEncTokenKeys(addrs)}} \< \\
-    \<\< \fn{encsymkeys} \gets \fn{LoadEncTokenKeys(addrs)}\\
-\< \sendmessageleft*{\fn{encsymkeys}}\\
-\fn{symkeys} \gets \{\}\\
-\pcforeach \fn{Enc(\symk{qd'})} \in \fn{encsymkeys}\\
-\quad \pcif \text{authorizes access to $q$'s private tokens for $d'$}: \\
-\quad\quad \privk{q} \gets \fn{privKs[q]}\\
-\quad\quad \fn{symkeys.insert(\dec(\privk{q}, \symk{qd'}))}\\
-\pcendforeach\pclb
-\pcintertext[dotted]{Apply disguise with token keys}
-\< \sendmessageright*{\fn{Disguise($d$,symkeys)}} \< \\
-\<\< \{\addr{}\}\gets\fn{ApplyDisguise($d$,symkeys)} \pclb
-\pcintertext[dotted]{Addresses can be emailed by \sys or returned to application}
-}
-\caption{\textbf{Disguise Application.}}
-\label{fig:disgapp}
-\end{figure*} 
-\fi
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\iffalse
-\head{Decorrelation and Locked Private Keys.}
-Decorrelation generates a public-private key pair \pubk{q} and \privk{q} for pseudoprincipal $q$
-created during decorrelation.
-\sys stores \pubk{q} associated with $q$'s user ID, and puts \privk{q} in a \emph{locked private key}
-associated with the original principal $p$ and $q$, notated as \tpriv{p}{q}. \tpriv{p}{q} contains the
-pseudoprincipal's ID and private key, along with a random nonce, which are all encrypted with \pubk{p}:
-%\begin{itemize}
-%\item \fn{principalID}: original principal $p$
-%\item \fn{pseudoprincipalID}: generated pseudoprincipal $q$
-%\item \fn{pseudoPrincipalPrivateKey}: \privk{q}
-%\item \fn{nonce}: random value generated to prevent known-plaintext attacks
-%\end{itemize}
-Because \tpriv{p}{q} is encrypted with \pubk{p}, only a client who has
-\privk{p} can access pseudoprincipal $q$'s private key \privk{q}.
-
-
-\head{Protecting \dcapa{p} when stored by \sys.}
-%\lyt{We need public keys here so that \sys does not hold onto keys that can decrypt for pseudoprincipals!!}
-\sys then encrypts \dcapa{p} with public key \pubk{p}.  
-%
-Thus, only a client who has \privk{p} can decrypt the private key, and return in the capability pair the plaintext symmetric key that enables \sys to decrypt $p$'s database diffs produced from applying $d$.
-
-%\sys stores all global \tdata{pd} tokens in plaintext, where any party can access it.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Acquiring Pseudoprincipal Capabilities}
-As discussed above, \sys can access locating capabilities \lcapa{qd}s for pseudoprincipal $q$ without a
-client providing it. 
-%
-However, a client still needs to acquire \dcapa{qd} for \sys to have full capability pairs
-to disguise, reveal, or otherwise act on behalf of pseudoprincipal $q$.
-
-\sys adds a \fn{GetPrincipalLockedPrivateKeys} Client API call, which returns all locked private
-keys \tpriv{p}{q} generated when decorrelating data from $p$.
-A client then must prove it has \privk{p} to decrypt \tpriv{p}{q} and extract pseudoprincipal ID $q$ and \privk{q}.
-
-With $q$ and \privk{q}, the client can get all encrypted \dcapa{qd} for all $d$, and
-provide these to \sys so \sys has the full capability pair \pcapa{q}{d}. With
-this pair, \sys can retrieve diffs or establish ownership for $q$'s data.
-
-\lyt{TODO: Add an internal server-side API call that retrieves globally accessible location capabilities?}
-
-%-------------------------------------------------------------------------------
-\subsection{Does this design achieve our security goals?}
-\label{sec:achievegoals}
-%-------------------------------------------------------------------------------
-\vspace{6pt}\noindent\textbf{\emph{(1) Authorized Disguises.}}
-\sys ensures that only properly authenticated clients speaking for authorized principals can apply or
-reveal a disguise, achieving security goal (1).
-
-\vspace{6pt}\noindent\textbf{\emph{(2/3) Secure Ownership and Secure Disguise Diffs.}}
-\lcapa{pd} is required to find the encrypted \dcapa{p}---a symmetric key
-specific to each disguise $\delta$ and principal $p$ encrypted with \pubk{p}.
-Because \sys encrypts \tdata{pd} diffs associated with $p$ with \dcapa{p}, a client
-needs to first decrypt $\dcapa{p}$ with \privk{p}, and then hand the pair \pcapa{p}{d}
-to \sys for \sys to decrypt of $p$'s diffs from $d$.
-
-Thus, \sys ensures that only clients who can provide \lcapa{pd} and \dcapa{p} (and,
-by consequence, have \privk{p}) can access $p$'s disguise diffs, or learn what data objects $p$ and
-own. 
-
-\vspace{6pt}\noindent\textbf{\emph{(4) Privacy of Disguise History.}}
-We describe how \sys hides which disguises affect each principals' data by requiring a client to
-provide a locating capability \lcapa{pd} in order to find encrypted data from disguise $d$ applied
-to (non-pseudoprincipal) $p$. Because \sys does not store these locations, and the locationsare per-disguise, \sys
-cannot link different disguises' encrypted data to the same principal.
-
-\begin{table}[t!]
-\centering
-\begin{tabular}{ c | c c }
-    & \multicolumn{2}{c}{\textbf{\tdata{pd} Token Access}}\\
-\textbf{Client Proof}& \textbf{Global} & \textbf{Private to $p$}\\
-\hline
-    $\emptyset$ & plaintext & \\
-    \privk{p} & plaintext & \\
-    \dcapa{p} & plaintext & ciphertext \\
-    \privk{p}, \dcapa{p} & plaintext & plaintext \\
-\end{tabular}
-\vspace{6pt}
-\caption{Client access to disguise $d$'s tokens, depending on what proof the client can provide and the state of the tokens.}
-\label{tab:access}
-\end{table}
-
-Table~\ref{tab:access} illustrates which clients can access a disguise $d$'s tokens, depending on
-what the client presents as proof, and the state of the tokens.
-
-\sys ensures that private tokens are properly secured such that only a client with private key
-\privk{p} and capability \dcapa{p} can access tokens produced by disguise $d$ associated with $p$.
-%
-Furthermore, \sys ensures that only a client with capability \dcapa{p} can learn if a disguise $d$
-applies to principal $p$.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Storing \tpriv{p}{q} Tokens.}
-\tpriv{p}{q} tokens are encrypted with \pubk{p} and the resulting ciphertexts stored in one array
-corresponding to the original principal $p$. These token ciphertexts are not separated by disguise
-as \tdata{pd} ciphertexts are, since \tpriv{p}{q} tokens grant the holder authorization to access
-tokens from any disguise for pseudoprincipal $q$.
-
-\sys (and equivalently an attacker) cannot learn which disguises applied to principal $p$ from
-observing the array of \tpriv{p}{q} ciphertexts. However, \sys can learn how many disguises were
-applied to---and in particular, decorrelated---$p$'s data, as well as the number of pseudoprincipals
-in the system linked to $p$. This metadata is out of scope of our threat model.
-\fi
