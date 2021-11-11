@@ -56,12 +56,14 @@ pub fn apply(
         flame::end("EDNA: create_pseudoprincipal");
 
         // XXX issue where using bg adds quotes everywhere...
-        users.push(
+        users.push(format!(
+            "({})",
             rowvals
                 .iter()
                 .map(|rv| rv.value.trim_matches('\'').to_string())
-                .collect::<Vec<String>>(),
-        );
+                .collect::<Vec<String>>()
+                .join(",")
+        ));
 
         // rewrite answers for all qs to point from user to new pseudoprincipal
         for q in qs {
@@ -84,17 +86,8 @@ pub fn apply(
 
     #[cfg(feature = "flame_it")]
     flame::start("DB: insert pseudos");
-    bg.handle.exec_batch(
-        r"INSERT INTO `users` VALUES (:email, :apikey, :is_admin, :is_anon);",
-        users.iter().map(|u| {
-            params! {
-                "email" => &u[0],
-                "apikey" => &u[1],
-                "is_admin" => &u[2],
-                "is_anon" => &u[3],
-            }
-        }),
-    )?;
+    bg.handle
+        .query_drop(&format!(r"INSERT INTO `users` VALUES {};", users.join(",")))?;
     #[cfg(feature = "flame_it")]
     flame::end("DB: insert pseudos");
 
