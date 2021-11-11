@@ -55,15 +55,15 @@ pub fn apply(
         users.push(
             rowvals
                 .iter()
-                .map(|rv| rv.value.clone())
+                .map(|rv| rv.value.trim_matches('\'').to_string())
                 .collect::<Vec<String>>(),
         );
 
         // rewrite answers for all qs to point from user to new pseudoprincipal
         for q in qs {
             updates.push(UpdateFK {
-                new_uid: new_uid.clone(),
-                user: user.clone(),
+                new_uid: new_uid.trim_matches('\'').to_string(),
+                user: user.trim_matches('\'').to_string(),
                 lec: lecture,
                 q: q,
             });
@@ -81,8 +81,8 @@ pub fn apply(
         r"INSERT INTO `users` VALUES (:email, :apikey, :is_admin, :is_anon);",
         users.iter().map(|u| {
             params! {
-                "email" => &u[0].trim_matches('\''),
-                "apikey" => &u[1].trim_matches('\''),
+                "email" => &u[0],
+                "apikey" => &u[1],
                 "is_admin" => &u[2],
                 "is_anon" => &u[3],
             }
@@ -95,8 +95,8 @@ pub fn apply(
         r"UPDATE answers SET `user` = :newuid WHERE `user` = :user AND lec = :lec AND q = :q;",
         updates.iter().map(|u| {
             params! {
-                "newuid" => &u.new_uid.trim_matches('\''),
-                "user" => &u.user.trim_matches('\''),
+                "newuid" => &u.new_uid,
+                "user" => &u.user,
                 "lec" => u.lec,
                 "q" => u.q,
             }
