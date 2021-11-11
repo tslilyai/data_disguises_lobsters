@@ -57,12 +57,11 @@ pub fn apply(
 
         // XXX issue where using bg adds quotes everywhere...
         users.push(format!(
-            "({})",
-            rowvals
-                .iter()
-                .map(|rv| rv.value)
-                .collect::<Vec<String>>()
-                .join(",")
+            "('{}', {}, {}, {})",
+            rowvals[0].value,
+            rowvals[1].value,
+            rowvals[2].value,
+            rowvals[3].value,
         ));
 
         // rewrite answers for all qs to point from user to new pseudoprincipal
