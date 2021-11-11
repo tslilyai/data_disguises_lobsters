@@ -131,13 +131,13 @@ impl Disguiser {
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
                 if revealed {
                     warn!("Remove Token reversed!\n");
-                    locked_token_ctrler.mark_diff_token_revealed(
+                    /*locked_token_ctrler.mark_diff_token_revealed(
                         did,
                         dwrapper,
                         &decrypt_cap,
                         &diff_loc_caps,
                         &own_loc_caps,
-                    );
+                    );*/
                 }
             }
         }
@@ -150,13 +150,13 @@ impl Disguiser {
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
                 if revealed {
                     warn!("NonRemove Diff Token reversed!\n");
-                    locked_token_ctrler.mark_diff_token_revealed(
+                    /*locked_token_ctrler.mark_diff_token_revealed(
                         did,
                         dwrapper,
                         &decrypt_cap,
                         &diff_loc_caps,
                         &own_loc_caps,
-                    );
+                    );*/
                 }
             }
         }
