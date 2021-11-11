@@ -8,6 +8,7 @@ use rsa::RsaPrivateKey;
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 use std::sync::{Arc, Mutex, RwLock};
+use flamer::flame;
 
 pub struct Disguiser {
     pub pool: mysql::Pool,
@@ -71,6 +72,7 @@ impl Disguiser {
         }
     }
 
+    #[flame]
     pub fn create_new_pseudoprincipal(&mut self) -> (UID, Vec<RowVal>) {
         match self.pseudoprincipal_data_pool.pop() {
             Some(vs) => vs,
@@ -369,6 +371,7 @@ impl Disguiser {
         Ok(loc_caps)
     }
 
+    #[flame]
     fn modify_global_diff_tokens(&mut self, disguise: Arc<Disguise>) {
         let did = disguise.did;
         let uid = disguise.user.clone();
@@ -459,6 +462,7 @@ impl Disguiser {
         drop(locked_token_ctrler);
     }
 
+    #[flame]
     fn execute_removes(
         &self,
         disguise: Arc<Disguise>,
@@ -573,6 +577,7 @@ impl Disguiser {
 /*
  * Also only used by higher-level disguise specs
  */
+#[flame]
 fn decor_items(
     did: DID,
     token_ctrler: &mut TokenCtrler,
@@ -674,6 +679,7 @@ fn decor_items(
     drop(locked_stats);
 }
 
+#[flame]
 fn modify_item(
     did: DID,
     global: bool,

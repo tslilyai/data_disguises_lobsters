@@ -8,8 +8,8 @@ extern crate lettre_email;
 extern crate rocket_sync_db_pools;
 #[macro_use]
 extern crate slog;
-extern crate slog_term;
 extern crate log;
+extern crate slog_term;
 #[macro_use]
 extern crate serde_derive;
 extern crate base64;
@@ -28,20 +28,21 @@ mod questions;
 #[cfg(test)]
 mod tests;
 
+use backend::MySqlBackend;
 use rocket::http::ContentType;
+use rocket::http::CookieJar;
 use rocket::http::Status;
 use rocket::local::blocking::Client;
-use std::collections::{HashMap};
-use std::fs::{File, OpenOptions};
-use std::io::{BufReader, Read, Write};
-use std::thread;
-use std::time;
-use backend::MySqlBackend;
-use rocket::http::CookieJar;
 use rocket::response::Redirect;
 use rocket::{Build, Rocket, State};
 use rocket_dyn_templates::Template;
+use std::cmp::min;
+use std::collections::HashMap;
+use std::fs::{File, OpenOptions};
+use std::io::{BufReader, Read, Write};
 use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time;
 
 pub const APIKEY_FILE: &'static str = "apikey.txt";
 pub const DECRYPT_FILE: &'static str = "decrypt.txt";
@@ -71,7 +72,15 @@ fn index(cookies: &CookieJar<'_>, backend: &State<Arc<Mutex<MySqlBackend>>>) -> 
 
 fn rocket(args: &args::Args) -> Rocket<Build> {
     let backend = Arc::new(Mutex::new(
-        MySqlBackend::new(&format!("{}", args.class), Some(new_logger()), args.prime, args.nusers, args.nlec, args.nqs).unwrap(),
+        MySqlBackend::new(
+            &format!("{}", args.class),
+            Some(new_logger()),
+            args.prime,
+            args.nusers,
+            args.nlec,
+            args.nqs,
+        )
+        .unwrap(),
     ));
 
     rocket::build()
@@ -125,15 +134,20 @@ fn rocket(args: &args::Args) -> Rocket<Build> {
 async fn main() {
     env_logger::init();
     let args = args::parse_args();
-    
+
     if args.benchmark {
         thread::spawn(move || {
             run_benchmark(&args);
-        }).join().expect("Thread panicked")
+        })
+        .join()
+        .expect("Thread panicked")
     } else {
-        rocket(&args).launch().await.expect("Failed to launch rocket");
+        rocket(&args)
+            .launch()
+            .await
+            .expect("Failed to launch rocket");
     }
-} 
+}
 
 fn run_benchmark(args: &args::Args) {
     let mut account_durations = vec![];
@@ -221,7 +235,7 @@ fn run_benchmark(args: &args::Args) {
      * editing anonymized data
      ***********************************/
     flame::start("edit");
-    for u in 0..args.nusers {
+    for u in 0..min(5, args.nusers) {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
@@ -229,10 +243,13 @@ fn run_benchmark(args: &args::Args) {
         let start = time::Instant::now();
 
         // set ownership capability as cookie
+        flame::start("edit_owncap");
         let response = client.get(format!("/edit/{}", owncap)).dispatch();
         assert_eq!(response.status(), Status::Ok);
+        flame::end("edit_owncap");
 
         // set decryption capability as cookie
+        flame::start("edit_decryptcap");
         let postdata = serde_urlencoded::to_string(&vec![("decryption_cap", decryptcap)]).unwrap();
         let response = client
             .post("/edit")
@@ -240,10 +257,13 @@ fn run_benchmark(args: &args::Args) {
             .header(ContentType::Form)
             .dispatch();
         assert_eq!(response.status(), Status::Ok);
+        flame::end("edit_decryptcap");
 
         // get lecture to edit as pseudoprincipal (lecture 0 for now)
+        flame::start("edit_lec");
         let response = client.get(format!("/edit/lec/{}", 0)).dispatch();
         assert_eq!(response.status(), Status::Ok);
+        flame::end("edit_lec");
 
         // update answers to lecture 0
         let mut answers = vec![];
@@ -255,12 +275,14 @@ fn run_benchmark(args: &args::Args) {
         }
         let postdata = serde_urlencoded::to_string(&answers).unwrap();
         debug!(log, "Posting to questions for lec 0 answers {}", postdata);
+        flame::start("edit_post_new_answers");
         let response = client
             .post(format!("/questions/{}", 0)) // testing lecture 0 for now
             .body(postdata)
             .header(ContentType::Form)
             .dispatch();
         assert_eq!(response.status(), Status::SeeOther);
+        flame::end("edit_post_new_answers");
 
         edit_durations.push(start.elapsed());
 
@@ -274,7 +296,7 @@ fn run_benchmark(args: &args::Args) {
      * gdpr deletion (with composition)
      ***********************************/
     flame::start("delete");
-    for u in 0..args.nusers {
+    for u in 0..min(5, args.nusers) {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
         let apikey = user2apikey.get(&email).unwrap();
@@ -318,7 +340,7 @@ fn run_benchmark(args: &args::Args) {
      * gdpr restore (with composition)
      ***********************************/
     flame::start("restore");
-    for u in 0..args.nusers {
+    for u in 0..min(5, args.nusers) {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
@@ -346,7 +368,10 @@ fn run_benchmark(args: &args::Args) {
         .create(true)
         .write(true)
         .truncate(true)
-        .open(&format!("disguise_stats_{}lec_{}users.csv", args.nlec, args.nusers))
+        .open(&format!(
+            "disguise_stats_{}lec_{}users.csv",
+            args.nlec, args.nusers
+        ))
         .unwrap();
     writeln!(
         f,

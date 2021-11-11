@@ -1,4 +1,6 @@
 extern crate mysql;
+extern crate flame;
+extern crate flamer;
 extern crate ordered_float;
 
 use log::warn;

@@ -14,6 +14,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::iter::repeat;
 use std::sync::{Arc, Mutex, RwLock};
+use flamer::flame;
 
 pub type LocCap = u64;
 pub type DecryptCap = Vec<u8>; // private key
@@ -31,6 +32,7 @@ pub struct EncData {
 }
 
 impl EncData {
+    #[flame]
     pub fn decrypt_encdata(&self, decrypt_cap: &DecryptCap) -> (Vec<u8>, Vec<u8>) {
         if decrypt_cap.is_empty() {
             return (vec![], vec![]);
@@ -141,6 +143,7 @@ impl TokenCtrler {
         }
     }
 
+    #[flame]
     pub fn get_pseudoprincipal_key_from_pool(&mut self) -> (RsaPrivateKey, RsaPublicKey) {
         match self.pseudoprincipal_keys_pool.pop() {
             Some(key) => key,
@@ -163,6 +166,7 @@ impl TokenCtrler {
         self.tmp_diff_loc_caps.get(&(uid.to_string(), did))
     }
 
+    #[flame]
     pub fn save_and_clear(
         &mut self,
         did: DID,
@@ -228,6 +232,7 @@ impl TokenCtrler {
         self.tmp_remove_principals.clear();
     }
 
+    #[flame]
     fn get_ownership_loc_cap(&mut self, uid: &UID, did: DID) -> LocCap {
         // get the location capability being used for this disguise
         match self.tmp_ownership_loc_caps.get(&(uid.clone(), did)) {
@@ -246,6 +251,7 @@ impl TokenCtrler {
         }
     }
 
+    #[flame]
     fn get_diff_loc_cap(&mut self, uid: &UID, did: u64) -> LocCap {
         // get the location capability being used for this disguise
         match self.tmp_diff_loc_caps.get(&(uid.clone(), did)) {
@@ -264,6 +270,7 @@ impl TokenCtrler {
     /*
      * REGISTRATION
      */
+    #[flame]
     pub fn register_saved_principal(
         &mut self,
         uid: &UID,
@@ -287,6 +294,7 @@ impl TokenCtrler {
         self.principal_data.insert(uid.clone(), pdata);
     }
 
+    #[flame]
     pub fn register_principal(
         &mut self,
         uid: &UID,
@@ -307,6 +315,7 @@ impl TokenCtrler {
         private_key
     }
 
+    #[flame]
     pub fn register_anon_principal(
         &mut self,
         uid: &UID,
@@ -331,6 +340,7 @@ impl TokenCtrler {
         self.insert_ownership_token_wrapper(&own_token_wrapped);
     }
 
+    #[flame]
     fn persist_principal(&self, uid: &UID, pdata: &PrincipalData, conn: &mut mysql::PooledConn) {
         let pubkey_vec = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
         let v: Vec<String> = vec![];
@@ -350,6 +360,7 @@ impl TokenCtrler {
     }
 
     // Note: pseudoprincipals cannot be removed (they're essentially like ``tokens'')
+    #[flame]
     pub fn mark_principal_to_be_removed(&mut self, uid: &UID) {
         let p = self.principal_data.get_mut(uid).unwrap();
         // save to principal data if anon (pseudoprincipal)
@@ -359,6 +370,7 @@ impl TokenCtrler {
         self.tmp_remove_principals.insert(uid.to_string());
     }
 
+    #[flame]
     pub fn remove_principal(&mut self, uid: &UID, did: DID, conn: &mut mysql::PooledConn) {
         warn!("Removing principal {}\n", uid);
         let pdata = self.principal_data.get(uid);
@@ -384,6 +396,7 @@ impl TokenCtrler {
     /*
      * PRINCIPAL TOKEN INSERT
      */
+    #[flame]
     fn insert_ownership_token_wrapper(&mut self, pppk: &OwnershipTokenWrapper) {
         let p = self
             .principal_data
@@ -425,6 +438,7 @@ impl TokenCtrler {
         }
     }
 
+    #[flame]
     pub fn insert_user_diff_token_wrapper(&mut self, token: &DiffTokenWrapper) {
         let did = token.did;
         let uid = &token.uid;
@@ -476,6 +490,7 @@ impl TokenCtrler {
     /*
      * GLOBAL TOKEN FUNCTIONS
      */
+    #[flame]
     pub fn insert_global_diff_token_wrapper(&mut self, token: &DiffTokenWrapper) {
         warn!(
             "Inserting global token disguise {} user {}",
@@ -499,6 +514,7 @@ impl TokenCtrler {
         }
     }
 
+    #[flame]
     pub fn check_global_diff_token_for_match(&mut self, token: &DiffTokenWrapper) -> (bool, bool) {
         if let Some(global_diff_tokens) = self.global_diff_tokens.get(&token.did) {
             if let Some(user_tokens) = global_diff_tokens.get(&token.uid) {
@@ -520,6 +536,7 @@ impl TokenCtrler {
         return (false, false);
     }
 
+    #[flame]
     pub fn remove_global_diff_token_wrapper(
         &mut self,
         uid: &UID,
@@ -542,6 +559,7 @@ impl TokenCtrler {
         return found;
     }
 
+    #[flame]
     pub fn update_global_diff_token_from_old_to(
         &mut self,
         old_token: &DiffTokenWrapper,
@@ -567,6 +585,7 @@ impl TokenCtrler {
     /*
      * UPDATE TOKEN FUNCTIONS
      */
+    #[flame]
     pub fn mark_diff_token_revealed(
         &mut self,
         did: DID,
@@ -657,6 +676,7 @@ impl TokenCtrler {
         false
     }
 
+    #[flame]
     pub fn mark_ownership_token_revealed(
         &mut self,
         did: DID,
@@ -728,6 +748,7 @@ impl TokenCtrler {
     /*
      * GET TOKEN FUNCTIONS
      */
+    #[flame]
     pub fn get_all_global_diff_tokens(&self) -> Vec<DiffTokenWrapper> {
         let mut tokens = vec![];
         for (_, global_diff_tokens) in self.global_diff_tokens.iter() {
@@ -746,6 +767,7 @@ impl TokenCtrler {
         tokens
     }
 
+    #[flame]
     pub fn get_global_diff_tokens_of_disguise(&self, did: DID) -> Vec<DiffTokenWrapper> {
         let mut tokens = vec![];
         if let Some(global_diff_tokens) = self.global_diff_tokens.get(&did) {
@@ -769,6 +791,7 @@ impl TokenCtrler {
         tokens
     }
 
+    #[flame]
     pub fn get_global_diff_tokens(&self, uid: &UID, did: DID) -> Vec<DiffTokenWrapper> {
         if let Some(global_diff_tokens) = self.global_diff_tokens.get(&did) {
             if let Some(user_tokens) = global_diff_tokens.get(uid) {
@@ -785,6 +808,7 @@ impl TokenCtrler {
         vec![]
     }
 
+    #[flame]
     pub fn get_user_tokens(
         &self,
         did: DID,
@@ -851,6 +875,7 @@ impl TokenCtrler {
         (diff_tokens, own_tokens)
     }
 
+    #[flame]
     pub fn get_user_pseudoprincipals(
         &self,
         decrypt_cap: &DecryptCap,
