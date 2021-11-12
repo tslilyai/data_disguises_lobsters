@@ -2,15 +2,16 @@ use crate::helpers::*;
 use crate::stats::QueryStat;
 use crate::tokens::*;
 use crate::{RowVal, DID, UID};
-use log::warn;
+#[cfg(feature = "flame_it")]
+use flamer::flame;
+use log::{error, warn};
 use rand::{thread_rng, Rng};
 use rsa::pkcs1::{FromRsaPublicKey, ToRsaPublicKey};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
-#[cfg(feature = "flame_it")]
-use flamer::flame;
+use std::time;
 
 pub const REMOVE_GUISE: u64 = 1;
 pub const DECOR_GUISE: u64 = 2;
@@ -244,6 +245,7 @@ impl EdnaDiffToken {
     ) -> Result<bool, mysql::Error> {
         match self.update_type {
             REMOVE_PRINCIPAL => {
+                let start = time::Instant::now();
                 let pdata = PrincipalData {
                     pubkey: FromRsaPublicKey::from_pkcs1_der(&self.pubkey).unwrap(),
                     is_anon: self.is_anon,
@@ -259,9 +261,11 @@ impl EdnaDiffToken {
                     true,
                     conn,
                 );
+                error!("Reveal removed principal: {}", start.elapsed().as_millis());
             }
 
             REMOVE_GUISE => {
+                let start = time::Instant::now();
                 // get current guise in db
                 let token_guise_selection = get_select_of_ids(&self.guise_ids);
                 let selected = get_query_rows_str(
@@ -306,6 +310,7 @@ impl EdnaDiffToken {
                     conn,
                     stats.clone(),
                 )?;
+                error!("Reveal removed data: {}", start.elapsed().as_millis());
             }
             MODIFY_GUISE => {
                 // get current guise in db

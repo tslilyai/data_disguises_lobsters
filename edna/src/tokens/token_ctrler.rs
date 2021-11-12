@@ -5,7 +5,9 @@ use crate::{DID, UID};
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
-use log::warn;
+#[cfg(feature = "flame_it")]
+use flamer::flame;
+use log::{error, warn};
 use mysql::prelude::*;
 use rand::{rngs::OsRng, RngCore};
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
@@ -14,8 +16,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::iter::repeat;
 use std::sync::{Arc, Mutex, RwLock};
-#[cfg(feature = "flame_it")]
-use flamer::flame;
+use std::time;
 
 pub type LocCap = u64;
 pub type DecryptCap = Vec<u8>; // private key
@@ -65,7 +66,7 @@ pub struct PrincipalData {
 pub struct TokenCtrler {
     // principal tokens are stored indexed by some large random num
     pub principal_data: HashMap<UID, PrincipalData>,
-    
+
     pub pseudoprincipal_keys_pool: Vec<(RsaPrivateKey, RsaPublicKey)>,
     poolsize: usize,
 
@@ -89,7 +90,11 @@ pub struct TokenCtrler {
 }
 
 impl TokenCtrler {
-    pub fn new(poolsize: usize, conn: &mut mysql::PooledConn, stats: Arc<Mutex<QueryStat>>) -> TokenCtrler {
+    pub fn new(
+        poolsize: usize,
+        conn: &mut mysql::PooledConn,
+        stats: Arc<Mutex<QueryStat>>,
+    ) -> TokenCtrler {
         let mut tctrler = TokenCtrler {
             principal_data: HashMap::new(),
             pseudoprincipal_keys_pool: vec![],
@@ -127,7 +132,7 @@ impl TokenCtrler {
                 ownership_toks,
                 diff_toks,
                 false,
-                conn
+                conn,
             );
         }
         tctrler.repopulate_pseudoprincipal_keys_pool();
@@ -152,7 +157,7 @@ impl TokenCtrler {
                 // XXX todo queue up to run later, but just generate one key first
                 self.repopulate_pseudoprincipal_keys_pool();
                 self.pseudoprincipal_keys_pool.pop().unwrap()
-            } 
+            }
         }
     }
 
@@ -177,7 +182,6 @@ impl TokenCtrler {
         let olcs = self.tmp_ownership_loc_caps.clone();
 
         for ((uid, _), c) in dlcs.iter() {
-            
             let p = self.principal_data.get_mut(uid).unwrap();
             // save to principal data if no email (pseudoprincipal)
             if p.is_anon {
@@ -289,7 +293,7 @@ impl TokenCtrler {
             ownership_loc_caps: ot,
             diff_loc_caps: dt,
         };
-        if persist{
+        if persist {
             self.persist_principal(uid, &pdata, conn);
         }
         self.principal_data.insert(uid.clone(), pdata);
@@ -824,6 +828,7 @@ impl TokenCtrler {
         }
         for loc_cap in diff_loc_caps {
             if let Some(tokenls) = self.enc_diffs_map.get(&loc_cap) {
+                let start = time::Instant::now();
                 warn!("Getting tokens of user from ls len {}", tokenls.len());
                 for enc_token in tokenls {
                     // decrypt token with decrypt_cap provided by client
@@ -841,16 +846,25 @@ impl TokenCtrler {
                         diff_tokens.len()
                     );
                 }
+                error!(
+                    "Execute one locccap token decryption in get_tokens: {}",
+                    start.elapsed().as_millis()
+                );
             }
         }
         // get allowed pseudoprincipal diff tokens for all owned pseudoprincipals
         for lc in ownership_loc_caps {
             if let Some(pks) = self.enc_ownership_map.get(&lc) {
                 for enc_pk in &pks.clone() {
+                    let start = time::Instant::now();
                     // decrypt with decrypt_cap provided by client
                     let (_, plaintext) = enc_pk.decrypt_encdata(decrypt_cap);
                     let pk = ownership_token_from_bytes(&plaintext);
                     own_tokens.push(pk.clone());
+                    error!(
+                        "Decrypt pseudoprincipal token in get_tokens: {}",
+                        start.elapsed().as_millis()
+                    );
 
                     // get all tokens of pseudoprincipal
                     if let Some(pp) = self.principal_data.get(&pk.new_uid) {
@@ -1110,7 +1124,10 @@ mod tests {
                 assert_eq!(diff_tokens.len(), (iters as usize));
                 for i in 0..iters {
                     let dt = edna_diff_token_from_bytes(&diff_tokens[i].token_data);
-                    assert_eq!(dt.old_value[0].value, (old_fk_value + (i as u64)).to_string());
+                    assert_eq!(
+                        dt.old_value[0].value,
+                        (old_fk_value + (i as u64)).to_string()
+                    );
                 }
             }
         }
@@ -1204,7 +1221,10 @@ mod tests {
                 assert_eq!(diff_tokens.len(), 1);
                 assert_eq!(own_tokens.len(), 0);
                 let dt = edna_diff_token_from_bytes(&diff_tokens[0].token_data);
-                assert_eq!(dt.old_value[0].value, (old_fk_value + (d as u64)).to_string());
+                assert_eq!(
+                    dt.old_value[0].value,
+                    (old_fk_value + (d as u64)).to_string()
+                );
             }
         }
     }

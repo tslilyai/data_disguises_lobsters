@@ -4,6 +4,7 @@ use mysql::from_value;
 use mysql::prelude::*;
 use mysql::*;
 use std::collections::HashMap;
+use std::time;
 
 struct UpdateFK {
     new_uid: String,
@@ -29,6 +30,8 @@ pub fn apply(
     let mut user_lec_answers: HashMap<(String, u64), Vec<u64>> = HashMap::new();
     #[cfg(feature = "flame_it")]
     flame::start("DB: get_answers");
+    
+    let start = time::Instant::now();
     let res = bg.query_exec("all_answers", vec![]);
     for r in res {
         let uid: String = from_value(r[0].clone());
@@ -42,6 +45,8 @@ pub fn apply(
             }
         };
     }
+    info!(bg.log, "get answers: {}", start.elapsed().as_millis());
+
     #[cfg(feature = "flame_it")]
     flame::end("DB: get_answers");
 
@@ -51,7 +56,9 @@ pub fn apply(
         // insert a new pseudoprincipal
         #[cfg(feature = "flame_it")]
         flame::start("EDNA: create_pseudoprincipal");
+        let start = time::Instant::now();
         let (new_uid, rowvals) = bg.edna.create_new_pseudoprincipal();
+        info!(bg.log, "create pseudoprincipal: {}", start.elapsed().as_millis());
         #[cfg(feature = "flame_it")]
         flame::end("EDNA: create_pseudoprincipal");
 
@@ -77,21 +84,26 @@ pub fn apply(
         // register new ownershiptoken for pseudoprincipal
         #[cfg(feature = "flame_it")]
         flame::start("ENDA: save_pseudoprincipal");
+        let start = time::Instant::now();
         bg.edna
             .save_pseudoprincipal_token(get_did(), user, new_uid, vec![]);
+        warn!(bg.log, "save pseudoprincipals: {}", start.elapsed().as_millis());
         #[cfg(feature = "flame_it")]
         flame::end("ENDA: save_pseudoprincipal");
     }
 
     #[cfg(feature = "flame_it")]
     flame::start("DB: insert pseudos");
+    let start = time::Instant::now();
     bg.handle
         .query_drop(&format!(r"INSERT INTO `users` VALUES {};", users.join(",")))?;
+    warn!(bg.log, "insert pseudoprincipals: {}", start.elapsed().as_millis());
     #[cfg(feature = "flame_it")]
     flame::end("DB: insert pseudos");
 
     #[cfg(feature = "flame_it")]
     flame::start("DB: update_answers");
+    let start = time::Instant::now();
     bg.handle.exec_batch(
         r"UPDATE answers SET `user` = :newuid WHERE `user` = :user AND lec = :lec AND q = :q;",
         updates.iter().map(|u| {
@@ -103,6 +115,7 @@ pub fn apply(
             }
         }),
     )?;
+    warn!(bg.log, "update fks: {}", start.elapsed().as_millis());
     #[cfg(feature = "flame_it")]
     flame::end("DB: update_answers");
 

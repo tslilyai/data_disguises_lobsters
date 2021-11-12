@@ -46,7 +46,7 @@ $d$ & disguise invoked by authorized principals that transforms the application 
 \fn{StartDisguise($d$) $\rightarrow$ ()} & Invoked to inform \sys that a disguise application is
         starting.
     \vspace{6pt}\\
-        \fn{EndDisguise($d$) $\rightarrow$ \{\lcapa{pd}\}} & Marks the end of applying disguise $d$.
+        \fn{EndDisguise($d$) $\rightarrow$ \lcapa{pd}} & Marks the end of applying disguise $d$.
         Returns the set of locating capabilities required to later locate tokens produced by the disguise.
     \vspace{6pt}\\
         \fn{GetTokensOfDisguise($d$, \{\dcapa{p}\}, \{\lcapa{pd}\})}
@@ -56,7 +56,7 @@ $d$ & disguise invoked by authorized principals that transforms the application 
     \vspace{6pt}\\
         \fn{SaveDiffToken($p$, $d$, tokenData)} $\rightarrow$ () & Securely stores tokenData in a diff token \tdiff{pd}.\\
     \vspace{6pt}\\
-        \fn{SaveOwnershipToken($p$, $p'$, $d$, tokenData)} $\rightarrow$ () & Stores tokenData in an
+        \fn{SaveOwnershipToken($p$, $p'$, $d$, tokenData)} $\rightarrow$ () & Securely stores tokenData in an
         ownership token \town{pd} that saves the link from principal $p$ to pseudoprincipal $p'$.\\
     \vspace{6pt}\\
         \fn{CreatePseudoprincipal()} $\rightarrow$ ($p$, \fn{principalData}) & Returns
@@ -78,7 +78,7 @@ $d$ & disguise invoked by authorized principals that transforms the application 
 \textbf{API Call} & \textbf{Description} \\
 \hline
     \fn{ApplyDisguise($p$, $d$, DisguiseSpec dSpec, \dcapa{p}, \{\lcapa{pd'}\})}
-        $\rightarrow$ \{\lcapa{pd}\} & 
+        $\rightarrow$ \lcapa{pd} & 
         Applies disguise $d$ and returns the corresponding disguise $d$ and locating capabilities
         \lcapa{pd'}. The provided capabilities allow \sys to access ownership tokens 
         to further disguise data previously decorrelated from $p$. 

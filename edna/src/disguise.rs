@@ -8,6 +8,7 @@ use rsa::RsaPrivateKey;
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 use std::sync::{Arc, Mutex, RwLock};
+use log::error;
 #[cfg(feature = "flame_it")]
 use flamer::flame;
 
@@ -119,12 +120,15 @@ impl Disguiser {
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
 
         // XXX revealing all global tokens when a disguise is reversed
+        let start = time::Instant::now();
         let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
         let (dts, own_tokens) =
             locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps);
         diff_tokens.extend(dts.iter().cloned());
+        error!("Get tokens for reveal: {}", start.elapsed().as_millis());
 
         // reverse REMOVE tokens first
+        let start = time::Instant::now();
         for dwrapper in &diff_tokens {
             let d = edna_diff_token_from_bytes(&dwrapper.token_data);
             if dwrapper.did == did && !dwrapper.revealed && d.update_type == REMOVE_GUISE {
@@ -174,17 +178,18 @@ impl Disguiser {
                             d.reveal(&mut locked_token_ctrler, &mut conn, self.stats.clone())?;
                         if revealed {
                             warn!("Decor Ownership Token reversed!\n");
-                            locked_token_ctrler.mark_ownership_token_revealed(
+                            /*locked_token_ctrler.mark_ownership_token_revealed(
                                 did,
                                 owrapper,
                                 &decrypt_cap,
                                 &own_loc_caps,
-                            );
+                            );*/
                         }
                     }
                 }
             }
         }
+        error!("Reveal tokens: {}", start.elapsed().as_millis());
 
         drop(locked_token_ctrler);
         self.end_disguise_action();
@@ -206,6 +211,7 @@ impl Disguiser {
         let mut conn = self.pool.get_conn()?;
         //let mut threads = vec![];
         let did = disguise.did;
+        let start = time::Instant::now();
         let locked_token_ctrler = self.token_ctrler.lock().unwrap();
         let global_diff_tokens = locked_token_ctrler.get_all_global_diff_tokens();
         let (_, ownership_tokens) = locked_token_ctrler.get_user_tokens(
@@ -215,16 +221,20 @@ impl Disguiser {
             &ownership_loc_caps,
         );
         drop(locked_token_ctrler);
+        error!("Get user tokens for disguise: {}", start.elapsed().as_millis());
 
         /*
          * REMOVE
          */
         // WE ONLY NEED GLOBAL DIFF TOKENS because we need to potentially modify them
+        let start = time::Instant::now();
         self.execute_removes(disguise.clone(), &global_diff_tokens, &ownership_tokens);
-
+        error!("Execute removes total: {}", start.elapsed().as_millis());
+        
         /*
          * Decor and modify
          */
+        let start = time::Instant::now();
         for (table, transforms) in disguise.table_disguises.clone() {
             let pool = self.pool.clone();
             let mystats = self.stats.clone();
@@ -348,9 +358,10 @@ impl Disguiser {
                 locked_tokens.extend(token_transforms);
                 drop(locked_tokens);
 
-                warn!("Thread {:?} exiting", thread::current().id());
+                //warn!("Thread {:?} exiting", thread::current().id());
             //}));
         }
+        error!("Execute modify/decor total: {}", start.elapsed().as_millis());
 
         // wait until all mysql queries are done
         /*for jh in threads.into_iter() {
@@ -496,6 +507,7 @@ impl Disguiser {
                     );
                     warn!("Got preds {:?} with own_tokens {:?}\n", preds, own_tokens);
                     for p in &preds {
+                        let start = time::Instant::now();
                         let selection = predicate::pred_to_sql_where(p);
                         let selected_rows = get_query_rows_str(
                             &str_select_statement(&table, &selection),
@@ -505,6 +517,7 @@ impl Disguiser {
                         .unwrap();
                         let pred_items: HashSet<&Vec<RowVal>> =
                             HashSet::from_iter(selected_rows.iter());
+                        error!("select items for remove: {}", start.elapsed().as_millis());
                         warn!(
                             "ApplyPred: Got {} selected rows matching predicate {:?}\n",
                             pred_items.len(),
@@ -512,10 +525,13 @@ impl Disguiser {
                         );
 
                         // BATCH REMOVE ITEMS
+                        let start = time::Instant::now();
                         let delstmt = format!("DELETE FROM {} WHERE {}", table, selection);
                         helpers::query_drop(delstmt, &mut conn, mystats.clone()).unwrap();
+                        error!("delete items: {}", start.elapsed().as_millis());
 
                         // ITEM REMOVAL: ADD TOKEN RECORDS
+                        let start = time::Instant::now();
                         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
                         let locked_guise_gen = self.guise_gen.read().unwrap();
                         for i in &pred_items {
@@ -543,10 +559,12 @@ impl Disguiser {
                                 }
                             }
                         }
+                        error!("insert remove tokens: {}", start.elapsed().as_millis());
                         drop(locked_guise_gen);
                         drop(locked_token_ctrler);
 
                         // MARK MATCHING GLOBAL DIFF TOKENS FOR REMOVAL
+                        let start = time::Instant::now();
                         for dwrapper in diff_tokens {
                             let dt = edna_diff_token_from_bytes(&dwrapper.token_data);
                             if dwrapper.is_global
@@ -562,6 +580,7 @@ impl Disguiser {
                                 }
                             }
                         }
+                        error!("get matching global tokens to remove: {}", start.elapsed().as_millis());
                         // we already removed the actual user/principal for any global tokens
                     }
                 }
@@ -597,8 +616,6 @@ fn decor_items(
         thread::current().id(),
         child_name
     );
-    let start = time::Instant::now();
-
     for (index, i) in items.iter().enumerate() {
         // TODO sort items by shared parent
         // then group by group-by-cols
@@ -622,6 +639,7 @@ fn decor_items(
         // A. CREATE NEW PARENT
         let (new_uid, new_parent) = &pseudoprincipals[index];
 
+        let start = time::Instant::now();
         // actually insert pseudoprincipal
         query_drop(
             format!(
@@ -642,9 +660,11 @@ fn decor_items(
             stats.clone(),
         )
         .unwrap();
+        error!("Insert PP: {}", start.elapsed().as_millis());
 
         // actually register the anon principal, including saving an ownership token for the old uid
         // token is always inserted ``privately''
+        let start = time::Instant::now();
         let own_token_bytes = edna_own_token_to_bytes(&new_edna_ownership_token(
             did,
             child_name.to_string(),
@@ -656,8 +676,10 @@ fn decor_items(
             new_uid.to_string(),
         ));
         token_ctrler.register_anon_principal(&old_uid, &new_uid, did, own_token_bytes, conn);
+        error!("Register anon principal: {}", start.elapsed().as_millis());
 
         // B. UPDATE CHILD FOREIGN KEY
+        let start = time::Instant::now();
         let i_select = get_select_of_row(&child_name_info.id_cols, &i);
         query_drop(
             Statement::Update(UpdateStatement {
@@ -673,11 +695,14 @@ fn decor_items(
             stats.clone(),
         )
         .unwrap();
+        error!("Update decor fk: {}", start.elapsed().as_millis());
     }
 
+    /*
     let mut locked_stats = stats.lock().unwrap();
     locked_stats.decor_dur += start.elapsed();
     drop(locked_stats);
+    */
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
@@ -694,6 +719,7 @@ fn modify_item(
     conn: &mut mysql::PooledConn,
 ) {
     warn!("Thread {:?} starting mod {}", thread::current().id(), table);
+    
     let start = time::Instant::now();
 
     // update column for this item
@@ -712,8 +738,10 @@ fn modify_item(
         stats.clone(),
     )
     .unwrap();
+    error!("Update column for modify: {}", start.elapsed().as_millis());
 
     // TOKEN INSERT
+    let start = time::Instant::now();
     let new_obj: Vec<RowVal> = i
         .iter()
         .map(|v| {
@@ -739,6 +767,7 @@ fn modify_item(
             token_ctrler.insert_global_diff_token_wrapper(&update_token);
         }
     }
+    error!("Update token inserted: {}", start.elapsed().as_millis());
 
     let mut locked_stats = stats.lock().unwrap();
     locked_stats.mod_dur += start.elapsed();

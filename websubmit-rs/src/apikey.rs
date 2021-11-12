@@ -15,6 +15,7 @@ use rocket_dyn_templates::Template;
 use rsa::pkcs1::ToRsaPrivateKey;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time;
 
 /// (username, apikey)
 pub(crate) struct ApiKey {
@@ -69,14 +70,18 @@ pub(crate) fn generate(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
     config: &State<Config>,
 ) -> Template {
+    let mut bg = backend.lock().unwrap();
+
     // generate an API key from email address
     #[cfg(feature = "flame_it")]
     flame::start("generate_apikey");
+    let start = time::Instant::now();
     let mut hasher = Sha256::new();
     hasher.input_str(&data.email);
     // add a secret to make API keys unforgeable without access to the server
     hasher.input_str(&config.secret);
     let hash = hasher.result_str();
+    info!(bg.log, "apikey hash: {}", start.elapsed().as_millis());
     #[cfg(feature = "flame_it")]
     flame::end("generate_apikey");
 
@@ -89,7 +94,7 @@ pub(crate) fn generate(
     // insert into MySql if not exists
     #[cfg(feature = "flame_it")]
     flame::start("insert_user");
-    let mut bg = backend.lock().unwrap();
+    let start = time::Instant::now();
     bg.insert(
         "users",
         vec![
@@ -99,18 +104,22 @@ pub(crate) fn generate(
             false.into(),
         ],
     );
+    info!(bg.log, "user insert: {}", start.elapsed().as_millis());
     #[cfg(feature = "flame_it")]
     flame::end("insert_user");
 
     // register user if not exists
     #[cfg(feature = "flame_it")]
     flame::start("register_principal");
+    let start = time::Instant::now();
     let private_key = bg.edna.register_principal(data.email.as_str().into());
+    info!(bg.log, "register principal: {}", start.elapsed().as_millis());
     #[cfg(feature = "flame_it")]
     flame::end("register_principal");
 
     #[cfg(feature = "flame_it")]
     flame::start("send_apikey_email");
+    let start = time::Instant::now();
     let privkey_str = base64::encode(&private_key.to_pkcs1_der().unwrap().as_der().to_vec());
     if config.send_emails {
         email::send(
@@ -122,6 +131,7 @@ pub(crate) fn generate(
         )
         .expect("failed to send API key email");
     }
+    info!(bg.log, "send apikey email: {}", start.elapsed().as_millis());
     #[cfg(feature = "flame_it")]
     flame::end("send_apikey_email");
     drop(bg);
