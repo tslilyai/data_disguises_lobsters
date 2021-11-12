@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import csv
 import statistics
+import sys
 
 plt.style.use('seaborn-deep')
 nusers = [10, 20, 30, 50, 70, 100]
@@ -34,26 +35,31 @@ axes_flat[0].plot(nusers, account_results)
 axes_flat[0].set_title("Average Time to Create Account")
 axes_flat[0].set_xlabel('Number of users')
 axes_flat[0].set_ylabel('Time (ms)')
+axes_flat[0].set_ylim(ymin=0)
 
 axes_flat[1].plot(nusers, anon_results)
 axes_flat[1].set_title("Time to Anonymize All Accounts")
 axes_flat[1].set_xlabel('Number of users')
 axes_flat[1].set_ylabel('Time (ms)')
+axes_flat[1].set_ylim(ymin=0)
 
 axes_flat[2].plot(nusers, edit_results)
 axes_flat[2].set_title("Average Time to Edit Answers to Lecture")
 axes_flat[2].set_xlabel('Number of users')
 axes_flat[2].set_ylabel('Time (ms)')
+axes_flat[2].set_ylim(ymin=0)
 
 axes_flat[3].plot(nusers, delete_results)
 axes_flat[3].set_title("Average Time to Delete Account")
 axes_flat[3].set_xlabel('Number of users')
 axes_flat[3].set_ylabel('Time (ms)')
+axes_flat[3].set_ylim(ymin=0)
 
 axes_flat[4].plot(nusers, restore_results)
 axes_flat[4].set_title("Average Time to Restore Account")
 axes_flat[4].set_xlabel('Number of users')
 axes_flat[4].set_ylabel('Time (ms)')
+axes_flat[4].set_ylim(ymin=0)
 
 fig.tight_layout(h_pad=4)
 plt.savefig('results_{}lec.png'.format(lec), dpi=300)
