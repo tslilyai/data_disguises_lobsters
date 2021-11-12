@@ -64,7 +64,7 @@ publically with $p$'s ID.
 
 When \sys applies disguise $d'$ to further disguise pseudoprincipal $q$'s data, \sys:
 \begin{enumerate}
-    \item stores disguise diffs \tdata{qd'} at location \lcapa{qd}
+    \item stores disguise diffs \tdiff{qd'} at location \lcapa{qd}
     \item encrypts \lcapa{qd} with \pubk{p} to produce $\enc(\pubk{p}, \lcapa{qd})$
     \item stores $\enc(\pubk{p}, \lcapa{qd})$ mapped to by principal $q$'s ID
 \end{enumerate}
@@ -76,8 +76,7 @@ pseudoprincipal created from a decorrelation operation, and therefore any disgui
 the original principal $p$'s identity.  
 
 \head{Extending capabilities to authorize pseudoprincipal diffs access.}
-With this extended design, a client speaking for $p$ that provides data and locating capabilities
-\pcapa{p}{d}
+With this extended design, a client speaking for $p$ that provides data and locating capabilities%\pcapa{p}{d}
 authorizes access to \emph{both} $p$'s diffs for disguise $d$, \emph{and}
 diffs of a pseudoprincipal $q$ created by
 decorrelating $p$'s data. \lyt{I don't think we're necessarily allowing clients to speak for $q$,

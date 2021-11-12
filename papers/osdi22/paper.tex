@@ -55,10 +55,6 @@ keys
 \addbibresource{paper.bib}
 
 \newcommand{\sys}{Edna\xspace}
-\newcommand{\thing}{guise\xspace}
-\newcommand{\things}{guises\xspace}
-\newcommand{\Things}{Guise\xspace}
-\newcommand{\Thing}{Guises\xspace}
 
 \newcommand\ms[1]{\textcolor{red!55!blue}{[malte: {#1}]}}
 \newcommand\lyt[1]{\textcolor{green!55!blue}{[lyt: {#1}]}}
@@ -75,20 +71,18 @@ keys
 
 \newcommand\head[1]{\vspace{6pt}\noindent\textbf{\emph{#1}}}
 
-
 % token stuff
-\newcommand\tdata[1]{\ensuremath{\Delta_{#1}}}
 \newcommand\fn[1]{\texttt{{#1}}}
 \newcommand\op[1]{\ensuremath{\texttt{op}_{#1}}}
 \newcommand\privk[1]{\texttt{\ensuremath{\texttt{k}^{\text{pri}}_{#1}}}}
-\newcommand\tpriv[2]{\ensuremath{\mathcal{L}_{#1}(\privk{{#2}})}}
 \newcommand\pubk[1]{\texttt{\ensuremath{\texttt{k}^{\text{pub}}_{#1}}}}
 \newcommand\symk[1]{\texttt{\ensuremath{\texttt{k}_{#1}}}}
-\newcommand\dcapa[1]{\ensuremath{\mathcal{C}^{\texttt{data}}_{#1}}}
-\newcommand\pcapa[2]{\ensuremath{(\dcapa{{#1}},\lcapa{{#1}{#2}})}}
+
+\newcommand\tdiff[1]{\ensuremath{\Delta_{#1}}}
+\newcommand\town[2]{\ensuremath{\mathcal{L}_{#1}(\privk{{#2}})}}
+\newcommand\dcapa[1]{\ensuremath{\mathcal{C}^{\texttt{dec}}_{#1}}}
 \newcommand\lcapa[1]{\ensuremath{\mathcal{C}^{\texttt{loc}}_{#1}}}
 \newcommand\sysk{\texttt{\ensuremath{\texttt{k}_{\text{\sys}}}}}
-\newcommand\tokls[1]{\ensuremath{\mathcal{L}_{#1}}}
 
 \newcommand\app[1]{\ensuremath{\texttt{A}({#1})}\xspace}
 \newcommand\rev[1]{\ensuremath{\texttt{R}({#1})}\xspace}
@@ -126,13 +120,8 @@ keys
 \date{}
 
 % make title bold and 14 pt font (Latex default is non-bold, 16 pt)
-\title{\Large \bf %Going Undercover: Data Privacy Disguises\\
-%Become a Privacy Superhero By Putting Your Data in Disguise\\
-\sys: Data Disguises for Web Applications
-%Privacy Theater: Putting Your Data in Disguise\\
-%Project Runaway: Designing Data Disguises for Privacy\\
+\title{\Large \bf \sys: Data Disguises for Web Applications
 }
-%An Invisibility Cloak for the Internet}
 
 %for single author (just remove % characters)
 %\author{
@@ -156,6 +145,7 @@ keys
 
 \input{abstract}
 \input{intro}
+\input{overview}
 \input{design}
 \input{pseudoprincipal_design}
 \input{composition}

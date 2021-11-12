@@ -1,0 +1,165 @@
+%-------------------------------------------------------------------------------
+\section{Overview and API}
+\label{s:api}
+%-------------------------------------------------------------------------------
+
+\begin{table*}[t!]
+\centering
+\begin{tabular}{ c p{.8\linewidth} }
+\textbf{Notation} & \textbf{Description} \\
+\hline
+    \vspace{6pt}
+$p$ & application principals, corresponding to a user ID in the application\\
+    \vspace{6pt}
+$d$ & disguise invoked by authorized principals that transforms the application database in
+    privacy-preserving ways\\
+    \vspace{6pt}
+\pubk{p} & public key of $p$ \\
+    \vspace{6pt}
+\privk{p} & private key of $p$ \\
+    \vspace{6pt}
+\tdiff{pd} & diff token associated with $p$ produced by disguise $d$. These tokens store data
+    necessary to restore disguised content to its original form.\\
+    \vspace{6pt}
+\town{pd} & ownership token associated with $p$ produced by disguise $d$. These tokens store links
+    between $p$ and pseudoprincipals created by decorrelating $p$'s data.\\
+    \vspace{6pt}
+\dcapa{p} & decryption capability that enables decryption of tokens (produced by any disguise) associated with principal $p$. \\
+    \vspace{6pt}
+\lcapa{pd} & locating capability that enables finding the tokens associated with a principal $p$
+    produced by disguise $d$.\\
+    \vspace{6pt}
+    \end{tabular}
+\caption{Notation used to describe \sys's design.}
+\label{tab:notation}
+\end{table*}
+
+\begin{table*}[t!]
+\centering
+    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
+\textbf{API Call} & \textbf{Description} \\
+\hline
+\fn{RegisterPrincipal($p$, Email email)} $\rightarrow$ \privk{p} & Registers $p$ as
+        a principal, returning a private key \privk{p} corresponding to a principal-specific public
+        key $\pubk{p}$ known to \sys.\\
+    \vspace{6pt}\\
+\fn{StartDisguise($d$) $\rightarrow$ ()} & Invoked to inform \sys that a disguise application is
+        starting.
+    \vspace{6pt}\\
+        \fn{EndDisguise($d$) $\rightarrow$ \{\lcapa{pd}\}} & Marks the end of applying disguise $d$.
+        Returns the set of locating capabilities required to later locate tokens produced by the disguise.
+    \vspace{6pt}\\
+        \fn{GetTokensOfDisguise($d$, \{\dcapa{p}\}, \{\lcapa{pd}\})}
+        $\rightarrow$ (\{\tdiff{pd}\}, \{\town{pd}\}) & Retrieves the diff and ownership tokens produced by 
+        disguise $d$ that are accessible with the provided location
+        and decryption capabilities.
+    \vspace{6pt}\\
+        \fn{SaveDiffToken($p$, $d$, tokenData)} $\rightarrow$ () & Securely stores tokenData in a diff token \tdiff{pd}.\\
+    \vspace{6pt}\\
+        \fn{SaveOwnershipToken($p$, $p'$, $d$, tokenData)} $\rightarrow$ () & Stores tokenData in an
+        ownership token \town{pd} that saves the link from principal $p$ to pseudoprincipal $p'$.\\
+    \vspace{6pt}\\
+        \fn{CreatePseudoprincipal()} $\rightarrow$ ($p$, \fn{principalData}) & Returns
+        the pseudoprincipal ID and data of a new pseudoprincipal. The \fn{principalData} is
+        generated using an application-specified pseudoprincipal-generation policy.\\
+    \vspace{6pt}\\
+        \fn{GetPseudoprincipalsOf($p$, \dcapa{p}, \{\lcapa{pd}\})} $\rightarrow$ \{$p'$\} & Returns
+        the pseudoprincipal IDs of all pseudoprincipals linked with $p$. The decryption and location
+        capabilities enable \sys to access ownership tokens that reveal links between $p$ and its
+        pseudoprincipals.\\
+    \end{tabular}
+\caption{\sys's API}
+\label{tab:api}
+\end{table*}
+
+\begin{table*}[t!]
+\centering
+    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
+\textbf{API Call} & \textbf{Description} \\
+\hline
+    \fn{ApplyDisguise($p$, Disguise $d$, DataCap \dcapa{p}, Vec<LocCap> lcaps)}
+        $\rightarrow$\fn{Vec<LocCap>} & 
+        Applies disguise $d$ and returns the corresponding disguise $d$ and locating capabilities
+        \lcapa{p}{d}. The argument capabilities allow \sys to locate and access disguise diffs,
+        which \sys uses to compose disguise $d$ on top of prior disguises.
+        \vspace{6pt}\\
+    \fn{RevealDisguise($p$, Disguise $d$,
+        DataCap \dcapa{p}, LocCap \lcapa{pd})} $\rightarrow$ ()& 
+    Reveals disguise $d$. The argument capabilities grant \sys access to database
+    diffs from applying $d$, which allows \sys to reveal undisguised data.
+\end{tabular}
+\caption{\sys's Higher-Level Convenience Library API}
+\label{tab:high_level_api}
+\end{table*}
+
+\sys exposes an API (Table~\ref{tab:api}) to web applications that wish to support secure
+disguising.
+%
+The API allows the application to start and end disguises; save diff token data 
+and pseud
+The application also uses \sys to access and interpret diffs authorized by the provided
+capabilities.  Applications integrating with \sys may modify the client API
+so that the client can pass capabilities to the application along with the action to perform.
+For example, the application can send users URLs to click that invoke application actions with
+capability arguments.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+We next describe example usages of the API.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Principal Registration.}
+Every client who creates an application account for principal $p$ registers an email and public key with \sys.
+\sys remembers each public key \pubk{p} along with $p$'s ID.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Disguising and Revealing.}
+When a client speaking for principal $p$ wants to apply a disguise $d$,
+the application invokes \fn{ApplyDisguise} with the client-provided data
+capability and a set of locating capabilities. Each locating capability \lcapa{pd'} allows \sys to
+access $p$'s disguise diffs from disguise $d'$, and to compose the new disguise on top of these
+disguises during application. Applying a disguise returns the locating capability \lcapa{pd} that
+the application sends to the client (via e.g., emailing the client a link).
+
+In order to reveal data disguised by $d$ for principal $p$, the application invokes
+\fn{RevealDisguise} on behalf of a client speaking for $p$. The client provides its data capability
+\dcapa{p} and locating capability \lcapa{pd}. The application passes these to \sys to restore the
+original, undisguised data with access to $p$'s diffs corresponding to $d$.
+
+%\lyt{(ignore this) Why might we need multiple locating capabilities for reveal? This is because diffs may change
+%other diffs. But in this case, why don't we have the diff storing the diff change also store the
+%location of the diff? Also this might only affect "global" diffs.}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Performing Permitted Application Actions.}
+Imagine that HotCRP disguise $d$ anonymizes all reviewers and authors of a conference by
+decorrelating them from their papers and reviews respectively. As described above, HotCRP emails the
+client a link when that their data has been decorrelated, which contains the locating
+capability in the URL. Assume that HotCRP sends a unique link for every piece of data (\eg every review
+or paper); HotCRP could also send a single link for all decorrelated data.
+
+The application normally ensures that only a client speaking for $p$ should have read-only access to
+reviews for $p$'s authored papers, and read-write access to reviews $p$ wrote.
+
+If the client speaking for $p$ wants to edit a review as it would normally, the application
+(post-$d)$ will not grant the client any read/write permissions to perform actions on any reviews of
+the conference: any previously correlated paper or review is now associated with pseudoprincipal
+$q$.  
+
+Instead, for the client speaking for $p$ to regain authorship or reviewership permissions of a
+particular review or paper:
+\begin{itemize}
+    \item The client clicks on the URL emailed to the client for that piece of data when it was decorrelated, which
+        opens a HotCRP page.
+    \item Javascript on the webpage retrieves the client's data capability
+        stored by the client's browser, and extracts the locating capability and the data object the client
+        wants to access from the URL.
+    \item The client then must log into HotCRP as principal $p$.
+    \item HotCRP invokes \sys's \fn{CapEstablishesOwnership} for the data object in question,
+        using the capabilities passed in by the client.
+    \item If \sys returns \fn{true}, the application permits the client to view the object with ownership
+        rights (\eg ability to see reviews on authored papers, or edit their review); otherwise, the
+        application does not allow the client to perform privileged actions.
+\end{itemize}
+
+

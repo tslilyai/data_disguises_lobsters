@@ -178,14 +178,14 @@ information to reveal or apply disguises.
 \vspace{6pt}\noindent
 Two types of \emph{capabilities} control access to diffs:
 \begin{enumerate}
-    \item \emph{\textbf{Data Capability \dcapa{p}}}: Grants read access to disguise diffs 
+    \item \emph{\textbf{Decryption Capability \dcapa{p}}}: Grants read access to disguise diffs 
         associated with principal $p$.
     \item \emph{\textbf{Locating Capability \lcapa{pd}}}: Allows locating the disguise
         diffs associated with principal $p$ produced from applying $d$, but grants no 
         access to the diffs' data.
 \end{enumerate}
 
-\noindent \sys needs both the data and locating capabilities \pcapa{p}{d} to access
+\noindent \sys needs both decryption and locating capabilities to access
 disguise diffs of disguise $d$. Each capability alone is insufficient: an attacker who can spoof
 \lcapa{pd} will not be able to access disguise diffs without \dcapa{p}, although they can learn
 that $d$ disguised some of $p$'s data; and an attacker holding \dcapa{p} cannot locate the disguise
@@ -247,7 +247,7 @@ Only a client properly authenticated as a principal $p$ who is authorized to inv
 
 \vspace{6pt}\noindent\textbf{\emph{(2) Secure Disguise Diffs.}}
 %
-Only an authenticated principal who provides both locating capability \lcapa{pd} and data capability
+Only an authenticated principal who provides both locating capability \lcapa{pd} and decryption capability
 \dcapa{p} can authorize access to the disguise diffs, as well as any information
 (\eg ownership permissions) derived from diffs.
 %
