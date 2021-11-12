@@ -77,16 +77,15 @@ $d$ & disguise invoked by authorized principals that transforms the application 
     \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-    \fn{ApplyDisguise($p$, Disguise $d$, DataCap \dcapa{p}, Vec<LocCap> lcaps)}
-        $\rightarrow$\fn{Vec<LocCap>} & 
+    \fn{ApplyDisguise($p$, $d$, DisguiseSpec dSpec, \dcapa{p}, \{\lcapa{pd'}\})}
+        $\rightarrow$ \{\lcapa{pd}\} & 
         Applies disguise $d$ and returns the corresponding disguise $d$ and locating capabilities
-        \lcapa{p}{d}. The argument capabilities allow \sys to locate and access disguise diffs,
-        which \sys uses to compose disguise $d$ on top of prior disguises.
+        \lcapa{pd'}. The provided capabilities allow \sys to access ownership tokens 
+        to further disguise data previously decorrelated from $p$. 
         \vspace{6pt}\\
-    \fn{RevealDisguise($p$, Disguise $d$,
-        DataCap \dcapa{p}, LocCap \lcapa{pd})} $\rightarrow$ ()& 
-    Reveals disguise $d$. The argument capabilities grant \sys access to database
-    diffs from applying $d$, which allows \sys to reveal undisguised data.
+        \fn{RevealDisguise($p$, $d$, \dcapa{p}, \lcapa{pd}, \{\lcapa{pd'})} $\rightarrow$ ()& 
+        Reveals disguise $d$ by reversing data stored in tokens produced by disguise $d$ accessible using the \lcapa{pd'}. 
+        \lyt{Add details about how sometimes $d' \neq d$ because of pseudoprincipals?}
 \end{tabular}
 \caption{\sys's Higher-Level Convenience Library API}
 \label{tab:high_level_api}
