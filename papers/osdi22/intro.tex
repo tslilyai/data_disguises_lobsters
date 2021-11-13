@@ -104,7 +104,7 @@ that allows the user to reveal the disguise, restoring their account.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{\sys Abstractions}
-\sys supports these use cases by exposing three abstractions to applications:
+An application using \sys's API works with three \sys abstractions:
 \begin{itemize}
     \item Application \emph{principals}, which correspond to users of the application, 
 	and which are uniquely identifiable (\eg via a user ID).
@@ -118,46 +118,34 @@ that allows the user to reveal the disguise, restoring their account.
     A pseudoprincipal may or may not be indistinguishable from a real principal: for example, it 
         may not have an associated password.
 	%
-    \item A disguise $d \in D$ invoked by some principal $p$, which 
-        transforms the application database.
+    \item Disguises $d \in D$ %invoked by some principal $p$, which 
+        that transform the application database.
 	%
+    \item \emph{Disguise ownership tokens}: metadata produced by a disguise linking
+        disguise-produced pseudoprincipals to real-user principals.
+    %
+    \item \emph{Disguise diff tokens}: metadata recording the \emph{diff} between pre-disguise and
+        post-disguise application state.
+    %
+    \item \emph{Disguise capabilities}: capabilities authorize the holder to access disguise tokens.
 \end{itemize}
-%
-%
-\sys operates on two categories of data:
-\begin{enumerate}
-    \item \emph{\textbf{Database Contents}}: The application reads and writes database
-        contents, which include visible, undisguised and currently-disguised data.
-        \sys modifies the data database contents when it applies and reveals disguises.
-    \item \emph{\textbf{Disguise Diffs}}: \sys records the set of disguise diffs---which contain the
-        original database contents and the modifications performed to them---and uses diffs to
-        compose disguises on top of one another, or to reveal the updates done by a disguise.
-        Every disguise diff has an associated principal (namely the one associated with the modified data).
-\end{enumerate}
 
 \head{Data Access Control.}
-The application's normal permissions logic controls data access to database contents. The
-application invokes \sys to access and needs to parse diff contents directly: \sys exposes an API
-(\S\ref{s:api}) allowing the application to learn specific semantic information contained in diffs
-(\eg whether a particular principal used to own a now-decorrelated piece of data) if provided
-appropriate authorization. This authorization also allows the application to ask \sys to use diff
-information to reveal or apply disguises.
-
-\vspace{6pt}\noindent
-Two types of \emph{capabilities} control access to diffs:
+The application's normal permissions logic controls data access to database contents, and 
+\sys provides two types of \emph{capabilities} to control access to disguise tokens:
 \begin{enumerate}
-    \item \emph{\textbf{Decryption Capability \dcapa{p}}}: Grants read access to disguise diffs 
-        associated with principal $p$.
-    \item \emph{\textbf{Locating Capability \lcapa{pd}}}: Allows locating the disguise
-        diffs associated with principal $p$ produced from applying $d$, but grants no 
-        access to the diffs' data.
+    \item \emph{\textbf{Decryption Capability \dcapa{p}}}: Grants read access to tokens (ownership
+        and diff) associated with principal $p$.
+    \item \emph{\textbf{Location Capability \lcapa{pd}}}: Enables locating the tokens associated
+with principal $p$ produced from applying $d$, but grants no access to the diffs' data.
 \end{enumerate}
 
-\noindent \sys needs both decryption and locating capabilities to access
-disguise diffs of disguise $d$. Each capability alone is insufficient: an attacker who can spoof
-\lcapa{pd} will not be able to access disguise diffs without \dcapa{p}, although they can learn
-that $d$ disguised some of $p$'s data; and an attacker holding \dcapa{p} cannot locate the disguise
-diffs to access without \lcapa{pd}.
+\noindent \sys needs both decryption and location capabilities to access disguise diffs of disguise
+$d$. Each capability alone is insufficient: an attacker who can spoof \lcapa{pd} will not be able to
+access disguise diffs without \dcapa{p}, although they can learn that $d$ disguised some of $p$'s
+data; and an attacker holding \dcapa{p} cannot locate the disguise diffs to access without
+\lcapa{pd}.
+\lyt{Actually, they can, they just need to try every single location...}
 
 %-------------------------------------------------------------------------------
 \subsection{Threat Model}
@@ -186,8 +174,8 @@ In particular, an attacker who compromises \sys at time $t$ learns \emph{nothing
 \begin{enumerate}[nosep]
   \item the (plaintext) contents of the application database at or after time $t$;
   \item the disguises invoked, and the identity of the principals invoking them, after time $t$; and 
-  \item all of a principal's disguise diffs acquired prior to time $t$, should the principal authorize access to
-      disguise diffs for purposes of revealing or performing some application action after time $t$.
+  \item all of a principal's disguise tokens acquired prior to time $t$, should the principal authorize access to
+      disguise tokens for purposes of revealing or performing some application action after time $t$.
       %time $t$.
       %results of revealing, after time $t$, disguises applied prior to $t$.
 \end{enumerate}
@@ -213,11 +201,11 @@ Only a client properly authenticated as a principal $p$ who is authorized to inv
 (and later reveal) $d$.
 %
 
-\vspace{6pt}\noindent\textbf{\emph{(2) Secure Disguise Diffs.}}
+\vspace{6pt}\noindent\textbf{\emph{(2) Secure Disguise Tokens.}}
 %
-Only an authenticated principal who provides both locating capability \lcapa{pd} and decryption capability
-\dcapa{p} can authorize access to the disguise diffs, as well as any information
-(\eg ownership permissions) derived from diffs.
+Only an authenticated principal who provides both location capability \lcapa{pd} and decryption capability
+\dcapa{p} can authorize access to the disguise tokens, as well as any information
+(\eg ownership permissions) derived from tokens.
 %
 
 \vspace{6pt}\noindent\textbf{\emph{(3) Privacy of Disguise History.}}
@@ -225,7 +213,7 @@ Only an authenticated principal who provides both locating capability \lcapa{pd}
 An attacker cannot learn the set of disguises that have disguised a principal's data.
 %
 An attacker only learns a disguise $d$ exists if an authenticated principal $p$ provides
-locating capability \lcapa{pd} to \sys.
+location capability \lcapa{pd} to \sys.
 
 \vspace{6pt}\noindent\textbf{\emph{Non-Goals.}}
 %
@@ -234,10 +222,10 @@ Under \sys's threat model, the following properties are out of scope:
 \begin{itemize}
     \item Security of disguised data when an attacker has prior snapshots of the system.
     \item Security of metadata such as the number of disguises applied to, or number of
-        disguise diffs associated with, \emph{some} principal (where the principal
+        disguise tokens associated with, \emph{some} principal (where the principal
         ID is unknown).
     \item Security of metadata when an attacker has \lcapa{pd}: the attacker can learn that $d$
-        applied to a particular principal $p$, and the number of disguise diffs for that $p$ and $d$.
+        applied to a particular principal $p$, and the number of disguise tokens for that $p$ and $d$.
     \item Privacy guarantees about undisguised data: if identifying data about $p$ is not covered by
         disguise specification $d$, it remains visible to attackers after corresponding instance $d$ applies.
         For example, a disguise that leaves contents of posts unmodified does not hide identifying references
