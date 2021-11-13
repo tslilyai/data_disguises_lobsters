@@ -39,14 +39,14 @@ $d$ & disguise invoked by authorized principals that transforms the application 
     \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 \textbf{API Call} & \textbf{Description} \\
 \hline
-\fn{RegisterPrincipal($p$, Email email)} $\rightarrow$ \privk{p} & Registers $p$ as
+\fn{RegisterPrincipal($p$)} $\rightarrow$ \privk{p} & Registers $p$ as
         a principal, returning a private key \privk{p} corresponding to a principal-specific public
         key $\pubk{p}$ known to \sys.\\
     \vspace{6pt}\\
 \fn{StartDisguise($d$) $\rightarrow$ ()} & Invoked to inform \sys that a disguise application is
         starting.
     \vspace{6pt}\\
-        \fn{EndDisguise($d$) $\rightarrow$ \lcapa{pd}} & Marks the end of applying disguise $d$.
+        \fn{EndDisguise($d$) $\rightarrow$ (\lcapa{pd}, \lcapa{pd})} & Marks the end of applying disguise $d$.
         Returns the set of locating capabilities required to later locate tokens produced by the disguise.
     \vspace{6pt}\\
         \fn{GetTokensOfDisguise($d$, \{\dcapa{p}\}, \{\lcapa{pd}\})}
