@@ -70,17 +70,26 @@ pub fn parse_args() -> Args {
                 .takes_value(true)
                 .value_name("PRIME")
                 .default_value("true")
-        ).arg(
+         ).arg(
             Arg::with_name("benchmark")
                 .short("b")
                 .long("benchmark")
                 .takes_value(true)
                 .value_name("BENCHMARK")
                 .default_value("true")
+        ).arg(
+            Arg::with_name("baseline")
+                .short("bl")
+                .long("baseline")
+                .takes_value(true)
+                .value_name("BASELINE")
+                .default_value("false")
         )
         .after_help(WEBSUBMIT_USAGE)
         .get_matches();
-
+    let mut config = config::parse(args.value_of("config").expect("Failed to parse config!"))
+            .expect("failed to parse config");
+    config.is_baseline = bool::from_str(args.value_of("baseline").unwrap()).unwrap();
     Args {
         class: String::from(args.value_of("class").unwrap()),
         nusers: usize::from_str(args.value_of("nusers").unwrap()).unwrap(),
@@ -88,7 +97,6 @@ pub fn parse_args() -> Args {
         nqs: usize::from_str(args.value_of("nqs").unwrap()).unwrap(),
         prime: bool::from_str(args.value_of("prime").unwrap()).unwrap(),
         benchmark: bool::from_str(args.value_of("benchmark").unwrap()).unwrap(),
-        config: config::parse(args.value_of("config").expect("Failed to parse config!"))
-            .expect("failed to parse config"),
+        config: config,
     }
 }

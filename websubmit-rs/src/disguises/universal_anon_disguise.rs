@@ -115,6 +115,7 @@ pub fn apply(
 
     #[cfg(feature = "flame_it")]
     flame::start("DB: insert pseudos");
+    warn!(bg.log, "Query: {}", &format!(r"INSERT INTO `users` VALUES {};", users.join(",")));
     let start = time::Instant::now();
     bg.handle
         .query_drop(&format!(r"INSERT INTO `users` VALUES {};", users.join(",")))?;

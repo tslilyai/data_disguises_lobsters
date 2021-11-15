@@ -1,9 +1,9 @@
 use crate::admin::Admin;
 use crate::apikey::ApiKey;
 use crate::backend::MySqlBackend;
+use crate::config::Config;
 use crate::disguises;
 use crate::email;
-use crate::config::Config;
 //use chrono::prelude::*;
 use mysql::from_value;
 use rocket::form::{Form, FromForm};
@@ -69,7 +69,8 @@ pub(crate) fn anonymize_answers(
     config: &State<Config>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    let (dlcs, olcs) = disguises::universal_anon_disguise::apply(&mut bg, config.is_baseline).unwrap();
+    let (dlcs, olcs) =
+        disguises::universal_anon_disguise::apply(&mut bg, config.is_baseline).unwrap();
     assert!(dlcs.len() == 0);
     //let local: DateTime<Local> = Local::now();
     for ((uid, _did), olc) in olcs {
@@ -222,8 +223,12 @@ pub(crate) fn delete_submit(
     config: &State<Config>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    let decryption_cap: Vec<u8> =
-        base64::decode(&data.decryption_cap).expect("Bad decryption capability in post request");
+    let decryption_cap: Vec<u8> = if !config.is_baseline {
+        base64::decode(&data.decryption_cap).expect("Bad decryption capability in post request")
+    } else {
+        vec![]
+    };
+
     let own_loc_caps: Vec<u64> = if data.ownership_loc_caps.is_empty() {
         vec![]
     } else {
@@ -234,9 +239,14 @@ pub(crate) fn delete_submit(
             .map(|olc| u64::from_str(olc).unwrap())
             .collect()
     };
-    let (dlcs, olcs) =
-        disguises::gdpr_disguise::apply(&mut bg, apikey.user.clone(), decryption_cap, own_loc_caps, config.is_baseline)
-            .unwrap();
+    let (dlcs, olcs) = disguises::gdpr_disguise::apply(
+        &mut bg,
+        apikey.user.clone(),
+        decryption_cap,
+        own_loc_caps,
+        config.is_baseline,
+    )
+    .unwrap();
     // Note: we can return the dlc and olc for pseudoprincipals here, but since the user is already
     // linked to these pseudoprincipals and they remain in Edna, we don't need to deal with them
     //assert!(dlcs.len() <= 1);
