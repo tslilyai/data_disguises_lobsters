@@ -26,8 +26,8 @@ pub fn apply(
     mysql::Error,
 > {
     if is_baseline {
-        bg.handle.query_drop(&format!("DELETE FROM answers WHERE user = {}", user_email))?;
-        bg.handle.query_drop(&format!("DELETE FROM users WHERE email = {}", user_email))?;
+        bg.handle.query_drop(&format!("DELETE FROM answers WHERE `user` = '{}'", user_email))?;
+        bg.handle.query_drop(&format!("DELETE FROM users WHERE email = '{}'", user_email))?;
         return Ok((HashMap::new(), HashMap::new()));
     }
     let gdpr_disguise = get_disguise(user_email);
