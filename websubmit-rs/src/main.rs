@@ -168,7 +168,13 @@ fn run_benchmark(args: &args::Args, is_baseline: bool) {
     // create all users
     #[cfg(feature = "flame_it")]
     flame::start("create_users");
-    for u in 0..args.nusers {
+    let nusers: usize;
+    if is_baseline {
+        nusers = args.nusers + 5;
+    } else {
+        nusers = args.nusers;
+    }
+    for u in 0..nusers {
         let email = format!("{}@mail.edu", u);
         let postdata = serde_urlencoded::to_string(&vec![("email", email.clone())]).unwrap();
         let start = time::Instant::now();
@@ -190,18 +196,86 @@ fn run_benchmark(args: &args::Args, is_baseline: bool) {
         debug!(log, "Got email {} with apikey {}", &email, apikey);
         user2apikey.insert(email.clone(), apikey);
 
-        // get decryption cap
-        let file = File::open(format!("{}.{}", email, DECRYPT_FILE)).unwrap();
-        let mut buf_reader = BufReader::new(file);
-        let mut decryptcap = String::new();
-        buf_reader.read_to_string(&mut decryptcap).unwrap();
-        debug!(log, "Got email {} with decryptcap {}", &email, decryptcap);
-        user2decryptcap.insert(email, decryptcap);
+        if !is_baseline {
+            // get decryption cap
+            let file = File::open(format!("{}.{}", email, DECRYPT_FILE)).unwrap();
+            let mut buf_reader = BufReader::new(file);
+            let mut decryptcap = String::new();
+            buf_reader.read_to_string(&mut decryptcap).unwrap();
+            debug!(log, "Got email {} with decryptcap {}", &email, decryptcap);
+            user2decryptcap.insert(email, decryptcap);
+        }
         #[cfg(feature = "flame_it")]
         flame::end("read_user_files");
     }
     #[cfg(feature = "flame_it")]
     flame::end("create_users");
+
+    /**********************************
+     * baseline edits + delete 
+     ***********************************/
+    if is_baseline {
+        for u in 0..5 {
+            let email = format!("{}@mail.edu", u);
+            let apikey = user2apikey.get(&email).unwrap();
+            
+            // set api key
+            let postdata = serde_urlencoded::to_string(&vec![("key", apikey)]).unwrap();
+            let response = client
+                .post("/apikey/check")
+                .body(postdata)
+                .header(ContentType::Form)
+                .dispatch();
+            assert_eq!(response.status(), Status::SeeOther);
+
+            // editing
+            let start = time::Instant::now();
+            #[cfg(feature = "flame_it")]
+            flame::start("edit_lec");
+            let response = client.get(format!("/lec/{}", 0)).dispatch();
+            assert_eq!(response.status(), Status::Ok);
+            #[cfg(feature = "flame_it")]
+            flame::end("edit_lec");
+
+            let mut answers = vec![];
+            for q in 0..args.nqs {
+                answers.push((
+                    format!("answers.{}", q),
+                    format!("new_answer_user_{}_lec_{}", u, 0),
+                ));
+            }
+            let postdata = serde_urlencoded::to_string(&answers).unwrap();
+            debug!(log, "Posting to questions for lec 0 answers {}", postdata);
+            #[cfg(feature = "flame_it")]
+            flame::start("edit_post_new_answers");
+            let response = client
+                .post(format!("/questions/{}", 0)) // testing lecture 0 for now
+                .body(postdata)
+                .header(ContentType::Form)
+                .dispatch();
+            assert_eq!(response.status(), Status::SeeOther);
+            #[cfg(feature = "flame_it")]
+            flame::end("edit_post_new_answers");
+            edit_durations.push(start.elapsed());
+
+            // delete account
+            
+            let postdata = serde_urlencoded::to_string(&vec![
+                ("decryption_cap", "0"),
+                ("ownership_loc_caps", "0"),
+            ])
+            .unwrap();
+
+            let start = time::Instant::now();
+            let response = client
+                .post("/delete")
+                .body(postdata)
+                .header(ContentType::Form)
+                .dispatch();
+            assert_eq!(response.status(), Status::SeeOther);
+            delete_durations.push(start.elapsed());
+        }
+    }
 
     /**********************************
      * anonymization
@@ -243,10 +317,10 @@ fn run_benchmark(args: &args::Args, is_baseline: bool) {
     /***********************************
      * editing anonymized data
      ***********************************/
-    #[cfg(feature = "flame_it")]
-    flame::start("edit");
-    for u in 0..min(5, args.nusers) {
-        if !is_baseline {
+    if !is_baseline {
+        #[cfg(feature = "flame_it")]
+        flame::start("edit");
+        for u in 0..min(5, args.nusers) {
             let email = format!("{}@mail.edu", u);
             let owncap = user2owncap.get(&email).unwrap();
             let decryptcap = user2decryptcap.get(&email).unwrap();
@@ -307,87 +381,84 @@ fn run_benchmark(args: &args::Args, is_baseline: bool) {
             // logged out
             let response = client.get(format!("/leclist")).dispatch();
             assert_eq!(response.status(), Status::Unauthorized);
-        } else {
-            // TODO edit lecture
+        } 
+        #[cfg(feature = "flame_it")]
+        flame::end("edit");
+
+        /***********************************
+         * gdpr deletion (with composition)
+         ***********************************/
+        #[cfg(feature = "flame_it")]
+        flame::start("delete");
+        for u in 0..min(5, args.nusers) {
+            let email = format!("{}@mail.edu", u);
+            let apikey = user2apikey.get(&email).unwrap();
+            let owncap = user2owncap.get(&email).unwrap();
+            let decryptcap = user2decryptcap.get(&email).unwrap();
+
+            // login as the user
+            let postdata = serde_urlencoded::to_string(&vec![("key", apikey)]).unwrap();
+            let response = client
+                .post("/apikey/check")
+                .body(postdata)
+                .header(ContentType::Form)
+                .dispatch();
+            assert_eq!(response.status(), Status::SeeOther);
+
+            let postdata = serde_urlencoded::to_string(&vec![
+                ("decryption_cap", decryptcap),
+                ("ownership_loc_caps", &format!("{}", owncap)),
+            ])
+            .unwrap();
+
+            let start = time::Instant::now();
+            let response = client
+                .post("/delete")
+                .body(postdata)
+                .header(ContentType::Form)
+                .dispatch();
+            assert_eq!(response.status(), Status::SeeOther);
+            delete_durations.push(start.elapsed());
+
+            // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
+            let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
+            let mut buf_reader = BufReader::new(file);
+            let mut diffcap = String::new();
+            buf_reader.read_to_string(&mut diffcap).unwrap();
+            debug!(log, "Got email {} with diffcap {}", &email, diffcap);
+            user2diffcap.insert(email.clone(), diffcap);
+        }
+        #[cfg(feature = "flame_it")]
+        flame::end("delete");
+
+        /***********************************
+         * gdpr restore (with composition)
+         ***********************************/
+        #[cfg(feature = "flame_it")]
+        flame::start("restore");
+        for u in 0..min(5, args.nusers) {
+            let email = format!("{}@mail.edu", u);
+            let start = time::Instant::now();
+            let owncap = user2owncap.get(&email).unwrap();
+            let decryptcap = user2decryptcap.get(&email).unwrap();
+            let diffcap = user2diffcap.get(&email).unwrap();
+            let postdata = serde_urlencoded::to_string(&vec![
+                ("diff_loc_cap", diffcap),
+                ("decryption_cap", decryptcap),
+                ("ownership_loc_caps", &format!("{}", owncap)),
+            ])
+            .unwrap();
+            let response = client
+                .post("/restore")
+                .body(postdata)
+                .header(ContentType::Form)
+                .dispatch();
+            assert_eq!(response.status(), Status::SeeOther);
+            restore_durations.push(start.elapsed());
+            #[cfg(feature = "flame_it")]
+            flame::end("restore");
         }
     }
-    #[cfg(feature = "flame_it")]
-    flame::end("edit");
-
-    /***********************************
-     * gdpr deletion (with composition)
-     ***********************************/
-    #[cfg(feature = "flame_it")]
-    flame::start("delete");
-    for u in 0..min(5, args.nusers) {
-        let email = format!("{}@mail.edu", u);
-        let owncap = user2owncap.get(&email).unwrap();
-        let apikey = user2apikey.get(&email).unwrap();
-        let decryptcap = user2decryptcap.get(&email).unwrap();
-
-        // login as the user
-        let postdata = serde_urlencoded::to_string(&vec![("key", apikey)]).unwrap();
-        let response = client
-            .post("/apikey/check")
-            .body(postdata)
-            .header(ContentType::Form)
-            .dispatch();
-        assert_eq!(response.status(), Status::SeeOther);
-
-        let postdata = serde_urlencoded::to_string(&vec![
-            ("decryption_cap", decryptcap),
-            ("ownership_loc_caps", &format!("{}", owncap)),
-        ])
-        .unwrap();
-
-        let start = time::Instant::now();
-        let response = client
-            .post("/delete")
-            .body(postdata)
-            .header(ContentType::Form)
-            .dispatch();
-        assert_eq!(response.status(), Status::SeeOther);
-        delete_durations.push(start.elapsed());
-
-        // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
-        let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
-        let mut buf_reader = BufReader::new(file);
-        let mut diffcap = String::new();
-        buf_reader.read_to_string(&mut diffcap).unwrap();
-        debug!(log, "Got email {} with diffcap {}", &email, diffcap);
-        user2diffcap.insert(email.clone(), diffcap);
-    }
-    #[cfg(feature = "flame_it")]
-    flame::end("delete");
-
-    /***********************************
-     * gdpr restore (with composition)
-     ***********************************/
-    #[cfg(feature = "flame_it")]
-    flame::start("restore");
-    for u in 0..min(5, args.nusers) {
-        let email = format!("{}@mail.edu", u);
-        let owncap = user2owncap.get(&email).unwrap();
-        let decryptcap = user2decryptcap.get(&email).unwrap();
-        let diffcap = user2diffcap.get(&email).unwrap();
-        let postdata = serde_urlencoded::to_string(&vec![
-            ("diff_loc_cap", diffcap),
-            ("decryption_cap", decryptcap),
-            ("ownership_loc_caps", &format!("{}", owncap)),
-        ])
-        .unwrap();
-
-        let start = time::Instant::now();
-        let response = client
-            .post("/restore")
-            .body(postdata)
-            .header(ContentType::Form)
-            .dispatch();
-        assert_eq!(response.status(), Status::SeeOther);
-        restore_durations.push(start.elapsed());
-    }
-    #[cfg(feature = "flame_it")]
-    flame::end("restore");
 
     // print out stats
     let mut f = OpenOptions::new()
