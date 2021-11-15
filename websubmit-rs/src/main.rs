@@ -244,7 +244,7 @@ fn run_benchmark(args: &args::Args, is_baseline: bool) {
     #[cfg(feature = "flame_it")]
     flame::start("edit");
     for u in 0..min(5, args.nusers) {
-        if is_baseline {
+        if !is_baseline {
             let email = format!("{}@mail.edu", u);
             let owncap = user2owncap.get(&email).unwrap();
             let decryptcap = user2decryptcap.get(&email).unwrap();
