@@ -104,7 +104,7 @@ that allows the user to reveal the disguise, restoring their account.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{\sys Abstractions}
-An application using \sys's API works with three \sys abstractions:
+An application using \sys's API works with the following \sys abstractions:
 \begin{itemize}
     \item Application \emph{principals}, which correspond to users of the application, 
 	and which are uniquely identifiable (\eg via a user ID).
@@ -132,20 +132,19 @@ An application using \sys's API works with three \sys abstractions:
 
 \head{Data Access Control.}
 The application's normal permissions logic controls data access to database contents, and 
-\sys provides two types of \emph{capabilities} to control access to disguise tokens:
+\sys requires two types of \emph{disguise capabilities} to control access to disguise tokens:
 \begin{enumerate}
     \item \emph{\textbf{Decryption Capability \dcapa{p}}}: Grants read access to tokens (ownership
         and diff) associated with principal $p$.
-    \item \emph{\textbf{Location Capability \lcapa{pd}}}: Enables locating the tokens associated
+    \item \emph{\textbf{Location Capability \lcapa{pd}}}: Enables efficiently locating the tokens associated
 with principal $p$ produced from applying $d$, but grants no access to the diffs' data.
 \end{enumerate}
 
 \noindent \sys needs both decryption and location capabilities to access disguise diffs of disguise
 $d$. Each capability alone is insufficient: an attacker who can spoof \lcapa{pd} will not be able to
 access disguise diffs without \dcapa{p}, although they can learn that $d$ disguised some of $p$'s
-data; and an attacker holding \dcapa{p} cannot locate the disguise diffs to access without
+data; and an attacker holding \dcapa{p} cannot \lyt{efficiently?} locate the disguise diffs to access without
 \lcapa{pd}.
-\lyt{Actually, they can, they just need to try every single location...}
 
 %-------------------------------------------------------------------------------
 \subsection{Threat Model}
@@ -206,13 +205,14 @@ Only a client properly authenticated as a principal $p$ who is authorized to inv
 Only an authenticated principal who provides both location capability \lcapa{pd} and decryption capability
 \dcapa{p} can authorize access to the disguise tokens, as well as any information
 (\eg ownership permissions) derived from tokens.
+\lyt{Again, \lcapa{pd} isn't actually needed...}
 %
 
 \vspace{6pt}\noindent\textbf{\emph{(3) Privacy of Disguise History.}}
 %
 An attacker cannot learn the set of disguises that have disguised a principal's data.
 %
-An attacker only learns a disguise $d$ exists if an authenticated principal $p$ provides
+An attacker only learns a disguise $d$ applied to $p$'s data if authenticated principal $p$ provides
 location capability \lcapa{pd} to \sys.
 
 \vspace{6pt}\noindent\textbf{\emph{Non-Goals.}}

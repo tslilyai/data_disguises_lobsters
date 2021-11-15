@@ -115,7 +115,7 @@ pub fn apply(
             }
         }),
     )?;
-    warn!(bg.log, "update fks: {}", start.elapsed().as_millis());
+    warn!(bg.log, "update {} fks: {}", updates.len(), start.elapsed().as_millis());
     #[cfg(feature = "flame_it")]
     flame::end("DB: update_answers");
 
