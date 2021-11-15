@@ -39,7 +39,11 @@ pub fn reveal(
     decryption_cap: tokens::DecryptCap,
     diff_loc_caps: Vec<tokens::LocCap>,
     own_loc_caps: Vec<tokens::LocCap>,
+    is_baseline: bool,
 ) -> Result<(), mysql::Error> {
+    if is_baseline {
+        return Ok(());
+    }
     bg.edna.reverse_disguise(get_did(), decryption_cap, diff_loc_caps, own_loc_caps)
 }
 

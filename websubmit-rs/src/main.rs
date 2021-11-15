@@ -138,7 +138,7 @@ async fn main() {
 
     if args.benchmark {
         thread::spawn(move || {
-            run_benchmark(&args);
+            run_benchmark(&args, args.config.is_baseline);
         })
         .join()
         .expect("Thread panicked")
@@ -150,7 +150,7 @@ async fn main() {
     }
 }
 
-fn run_benchmark(args: &args::Args) {
+fn run_benchmark(args: &args::Args, is_baseline: bool) {
     let mut account_durations = vec![];
     let mut edit_durations = vec![];
     let mut delete_durations = vec![];
@@ -244,67 +244,70 @@ fn run_benchmark(args: &args::Args) {
     #[cfg(feature = "flame_it")]
     flame::start("edit");
     for u in 0..min(5, args.nusers) {
-        let email = format!("{}@mail.edu", u);
-        let owncap = user2owncap.get(&email).unwrap();
-        let decryptcap = user2decryptcap.get(&email).unwrap();
+        if is_baseline {
+            let email = format!("{}@mail.edu", u);
+            let owncap = user2owncap.get(&email).unwrap();
+            let decryptcap = user2decryptcap.get(&email).unwrap();
 
-        let start = time::Instant::now();
+            let start = time::Instant::now();
 
-        // set ownership capability as cookie
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_owncap");
-        let response = client.get(format!("/edit/{}", owncap)).dispatch();
-        assert_eq!(response.status(), Status::Ok);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_owncap");
+            // set ownership capability as cookie
+            #[cfg(feature = "flame_it")]
+            flame::start("edit_owncap");
+            let response = client.get(format!("/edit/{}", owncap)).dispatch();
+            assert_eq!(response.status(), Status::Ok);
+            #[cfg(feature = "flame_it")]
+            flame::end("edit_owncap");
 
-        // set decryption capability as cookie
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_decryptcap");
-        let postdata = serde_urlencoded::to_string(&vec![("decryption_cap", decryptcap)]).unwrap();
-        let response = client
-            .post("/edit")
-            .body(postdata)
-            .header(ContentType::Form)
-            .dispatch();
-        assert_eq!(response.status(), Status::Ok);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_decryptcap");
+            // set decryption capability as cookie
+            #[cfg(feature = "flame_it")]
+            flame::start("edit_decryptcap");
+            let postdata = serde_urlencoded::to_string(&vec![("decryption_cap", decryptcap)]).unwrap();
+            let response = client
+                .post("/edit")
+                .body(postdata)
+                .header(ContentType::Form)
+                .dispatch();
+            assert_eq!(response.status(), Status::Ok);
+            #[cfg(feature = "flame_it")]
+            flame::end("edit_decryptcap");
 
-        // get lecture to edit as pseudoprincipal (lecture 0 for now)
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_lec");
-        let response = client.get(format!("/edit/lec/{}", 0)).dispatch();
-        assert_eq!(response.status(), Status::Ok);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_lec");
+            // get lecture to edit as pseudoprincipal (lecture 0 for now)
+            #[cfg(feature = "flame_it")]
+            flame::start("edit_lec");
+            let response = client.get(format!("/edit/lec/{}", 0)).dispatch();
+            assert_eq!(response.status(), Status::Ok);
+            #[cfg(feature = "flame_it")]
+            flame::end("edit_lec");
 
-        // update answers to lecture 0
-        let mut answers = vec![];
-        for q in 0..args.nqs {
-            answers.push((
-                format!("answers.{}", q),
-                format!("new_answer_user_{}_lec_{}", u, 0),
-            ));
+            // update answers to lecture 0
+            let mut answers = vec![];
+            for q in 0..args.nqs {
+                answers.push((
+                    format!("answers.{}", q),
+                    format!("new_answer_user_{}_lec_{}", u, 0),
+                ));
+            }
+            let postdata = serde_urlencoded::to_string(&answers).unwrap();
+            debug!(log, "Posting to questions for lec 0 answers {}", postdata);
+            #[cfg(feature = "flame_it")]
+            flame::start("edit_post_new_answers");
+            let response = client
+                .post(format!("/questions/{}", 0)) // testing lecture 0 for now
+                .body(postdata)
+                .header(ContentType::Form)
+                .dispatch();
+            assert_eq!(response.status(), Status::SeeOther);
+            #[cfg(feature = "flame_it")]
+            flame::end("edit_post_new_answers");
+            edit_durations.push(start.elapsed());
+
+            // logged out
+            let response = client.get(format!("/leclist")).dispatch();
+            assert_eq!(response.status(), Status::Unauthorized);
+        } else {
+            // TODO edit lecture
         }
-        let postdata = serde_urlencoded::to_string(&answers).unwrap();
-        debug!(log, "Posting to questions for lec 0 answers {}", postdata);
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_post_new_answers");
-        let response = client
-            .post(format!("/questions/{}", 0)) // testing lecture 0 for now
-            .body(postdata)
-            .header(ContentType::Form)
-            .dispatch();
-        assert_eq!(response.status(), Status::SeeOther);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_post_new_answers");
-
-        edit_durations.push(start.elapsed());
-
-        // logged out
-        let response = client.get(format!("/leclist")).dispatch();
-        assert_eq!(response.status(), Status::Unauthorized);
     }
     #[cfg(feature = "flame_it")]
     flame::end("edit");

@@ -277,6 +277,7 @@ pub(crate) fn restore(diff_loc_cap: u64, ownership_loc_cap: u64) -> Template {
 pub(crate) fn restore_account(
     data: Form<RestoreRequest>,
     backend: &State<Arc<Mutex<MySqlBackend>>>,
+    config: &State<Config>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
     let decryption_cap: Vec<u8> =
@@ -297,6 +298,7 @@ pub(crate) fn restore_account(
         decryption_cap,
         vec![data.diff_loc_cap],
         own_loc_caps,
+        config.is_baseline,
     )
     .expect("Failed to reverse GDPR deletion disguise");
     drop(bg);
