@@ -1,4 +1,5 @@
 use crate::backend::MySqlBackend;
+use crate::disguises::*;
 use edna::*;
 use mysql::from_value;
 use mysql::prelude::*;
@@ -19,18 +20,21 @@ pub fn get_did() -> DID {
 
 pub fn apply(
     bg: &mut MySqlBackend,
+    is_baseline: bool,
 ) -> Result<(
     HashMap<(UID, DID), tokens::LocCap>,
     HashMap<(UID, DID), tokens::LocCap>,
 )> {
     // DECOR ANSWERS
-    bg.edna.start_disguise(get_did());
+    if !is_baseline {
+        bg.edna.start_disguise(get_did());
+    }
 
     // get all answers sorted by user and lecture
     let mut user_lec_answers: HashMap<(String, u64), Vec<u64>> = HashMap::new();
     #[cfg(feature = "flame_it")]
     flame::start("DB: get_answers");
-    
+
     let start = time::Instant::now();
     let res = bg.query_exec("all_answers", vec![]);
     for r in res {
@@ -53,23 +57,50 @@ pub fn apply(
     let mut users = vec![];
     let mut updates = vec![];
     for ((user, lecture), qs) in user_lec_answers {
-        // insert a new pseudoprincipal
-        #[cfg(feature = "flame_it")]
-        flame::start("EDNA: create_pseudoprincipal");
-        let start = time::Instant::now();
-        let (new_uid, rowvals) = bg.edna.create_new_pseudoprincipal();
-        info!(bg.log, "create pseudoprincipal: {}", start.elapsed().as_millis());
-        #[cfg(feature = "flame_it")]
-        flame::end("EDNA: create_pseudoprincipal");
+        let new_uid: String;
+        if !is_baseline {
+            // insert a new pseudoprincipal
+            #[cfg(feature = "flame_it")]
+            flame::start("EDNA: create_pseudoprincipal");
+            let start = time::Instant::now();
+            let p = bg.edna.create_new_pseudoprincipal();
+            new_uid = p.0;
+            let rowvals = p.1;
+            info!(
+                bg.log,
+                "create pseudoprincipal: {}",
+                start.elapsed().as_millis()
+            );
+            #[cfg(feature = "flame_it")]
+            flame::end("EDNA: create_pseudoprincipal");
 
-        // XXX issue where using bg adds quotes everywhere...
-        users.push(format!(
-            "({}, {}, {}, {})",
-            rowvals[0].value,
-            rowvals[1].value,
-            rowvals[2].value,
-            rowvals[3].value,
-        ));
+            // XXX issue where using bg adds quotes everywhere...
+            users.push(format!(
+                "({}, {}, {}, {})",
+                rowvals[0].value, rowvals[1].value, rowvals[2].value, rowvals[3].value,
+            ));
+
+            // register new ownershiptoken for pseudoprincipal
+            #[cfg(feature = "flame_it")]
+            flame::start("ENDA: save_pseudoprincipal");
+            let start = time::Instant::now();
+            bg.edna
+                .save_pseudoprincipal_token(get_did(), user.clone(), new_uid.clone(), vec![]);
+            warn!(
+                bg.log,
+                "save pseudoprincipals: {}",
+                start.elapsed().as_millis()
+            );
+            #[cfg(feature = "flame_it")]
+            flame::end("ENDA: save_pseudoprincipal");
+        } else {
+            let rowvals = get_insert_guise_vals();
+            users.push(format!(
+                "({}, {}, {}, {})",
+                rowvals[0], rowvals[1], rowvals[2], rowvals[3],
+            ));
+            new_uid = rowvals[0].to_string();
+        }
 
         // rewrite answers for all qs to point from user to new pseudoprincipal
         for q in qs {
@@ -80,16 +111,6 @@ pub fn apply(
                 q: q,
             });
         }
-
-        // register new ownershiptoken for pseudoprincipal
-        #[cfg(feature = "flame_it")]
-        flame::start("ENDA: save_pseudoprincipal");
-        let start = time::Instant::now();
-        bg.edna
-            .save_pseudoprincipal_token(get_did(), user, new_uid, vec![]);
-        warn!(bg.log, "save pseudoprincipals: {}", start.elapsed().as_millis());
-        #[cfg(feature = "flame_it")]
-        flame::end("ENDA: save_pseudoprincipal");
     }
 
     #[cfg(feature = "flame_it")]
@@ -97,7 +118,11 @@ pub fn apply(
     let start = time::Instant::now();
     bg.handle
         .query_drop(&format!(r"INSERT INTO `users` VALUES {};", users.join(",")))?;
-    warn!(bg.log, "insert pseudoprincipals: {}", start.elapsed().as_millis());
+    warn!(
+        bg.log,
+        "insert pseudoprincipals: {}",
+        start.elapsed().as_millis()
+    );
     #[cfg(feature = "flame_it")]
     flame::end("DB: insert pseudos");
 
@@ -115,11 +140,20 @@ pub fn apply(
             }
         }),
     )?;
-    warn!(bg.log, "update {} fks: {}", updates.len(), start.elapsed().as_millis());
+    warn!(
+        bg.log,
+        "update {} fks: {}",
+        updates.len(),
+        start.elapsed().as_millis()
+    );
     #[cfg(feature = "flame_it")]
     flame::end("DB: update_answers");
 
-    Ok(bg.edna.end_disguise(get_did()))
+    if is_baseline {
+        Ok((HashMap::new(), HashMap::new()))
+    } else {
+        Ok(bg.edna.end_disguise(get_did()))
+    }
 }
 
 // we don't need to reveal

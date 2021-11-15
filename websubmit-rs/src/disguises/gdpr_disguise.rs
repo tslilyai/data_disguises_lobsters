@@ -6,6 +6,7 @@ use edna::{DID, UID};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use sql_parser::ast::*;
+use mysql::prelude::*;
 
 pub fn get_did() -> DID {
     0
@@ -16,6 +17,7 @@ pub fn apply(
     user_email: UID,
     decryption_cap: tokens::DecryptCap,
     loc_caps: Vec<tokens::LocCap>,
+    is_baseline: bool,
 ) -> Result<
     (
         HashMap<(UID, DID), tokens::LocCap>,
@@ -23,6 +25,11 @@ pub fn apply(
     ),
     mysql::Error,
 > {
+    if is_baseline {
+        bg.handle.query_drop(&format!("DELETE FROM answers WHERE user = {}", user_email))?;
+        bg.handle.query_drop(&format!("DELETE FROM users WHERE email = {}", user_email))?;
+        return Ok((HashMap::new(), HashMap::new()));
+    }
     let gdpr_disguise = get_disguise(user_email);
     bg.edna.apply_disguise(Arc::new(gdpr_disguise), decryption_cap, loc_caps)
 }

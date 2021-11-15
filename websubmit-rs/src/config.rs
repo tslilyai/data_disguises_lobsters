@@ -23,6 +23,8 @@ pub struct Config {
     pub secret: String,
     /// Whether to send emails
     pub send_emails: bool,
+    /// Whether running baseline test or not
+    pub is_baseline: bool,
 }
 
 pub(crate) fn parse(path: &str) -> Result<Config, Error> {
@@ -62,5 +64,6 @@ pub(crate) fn parse(path: &str) -> Result<Config, Error> {
         resource_dir: value.get("resource_dir").unwrap().as_str().unwrap().into(),
         secret: value.get("secret").unwrap().as_str().unwrap().into(),
         send_emails: value.get("send_emails").unwrap().as_bool().unwrap().into(),
+        is_baseline: value.get("is_baseline").unwrap().as_bool().unwrap().into(),
     })
 }

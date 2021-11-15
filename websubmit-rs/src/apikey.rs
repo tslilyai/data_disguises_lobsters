@@ -107,20 +107,23 @@ pub(crate) fn generate(
     info!(bg.log, "user insert: {}", start.elapsed().as_millis());
     #[cfg(feature = "flame_it")]
     flame::end("insert_user");
-
-    // register user if not exists
-    #[cfg(feature = "flame_it")]
-    flame::start("register_principal");
-    let start = time::Instant::now();
-    let private_key = bg.edna.register_principal(data.email.as_str().into());
-    info!(bg.log, "register principal: {}", start.elapsed().as_millis());
-    #[cfg(feature = "flame_it")]
-    flame::end("register_principal");
+    
+    let mut privkey_str = String::new();
+    if !config.is_baseline {
+        // register user if not exists
+        #[cfg(feature = "flame_it")]
+        flame::start("register_principal");
+        let start = time::Instant::now();
+        let private_key = bg.edna.register_principal(data.email.as_str().into());
+        privkey_str = base64::encode(&private_key.to_pkcs1_der().unwrap().as_der().to_vec());
+        info!(bg.log, "register principal: {}", start.elapsed().as_millis());
+        #[cfg(feature = "flame_it")]
+        flame::end("register_principal");
+    }
 
     #[cfg(feature = "flame_it")]
     flame::start("send_apikey_email");
     let start = time::Instant::now();
-    let privkey_str = base64::encode(&private_key.to_pkcs1_der().unwrap().as_der().to_vec());
     if config.send_emails {
         email::send(
             bg.log.clone(),

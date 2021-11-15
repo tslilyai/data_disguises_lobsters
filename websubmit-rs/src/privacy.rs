@@ -3,6 +3,7 @@ use crate::apikey::ApiKey;
 use crate::backend::MySqlBackend;
 use crate::disguises;
 use crate::email;
+use crate::config::Config;
 //use chrono::prelude::*;
 use mysql::from_value;
 use rocket::form::{Form, FromForm};
@@ -65,9 +66,10 @@ pub(crate) struct EditCapabilitiesRequest {
 pub(crate) fn anonymize_answers(
     _adm: Admin,
     backend: &State<Arc<Mutex<MySqlBackend>>>,
+    config: &State<Config>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    let (dlcs, olcs) = disguises::universal_anon_disguise::apply(&mut bg).unwrap();
+    let (dlcs, olcs) = disguises::universal_anon_disguise::apply(&mut bg, config.is_baseline).unwrap();
     assert!(dlcs.len() == 0);
     //let local: DateTime<Local> = Local::now();
     for ((uid, _did), olc) in olcs {
@@ -217,6 +219,7 @@ pub(crate) fn delete_submit(
     apikey: ApiKey,
     data: Form<DeleteRequest>,
     backend: &State<Arc<Mutex<MySqlBackend>>>,
+    config: &State<Config>,
 ) -> Redirect {
     let mut bg = backend.lock().unwrap();
     let decryption_cap: Vec<u8> =
@@ -232,7 +235,7 @@ pub(crate) fn delete_submit(
             .collect()
     };
     let (dlcs, olcs) =
-        disguises::gdpr_disguise::apply(&mut bg, apikey.user.clone(), decryption_cap, own_loc_caps)
+        disguises::gdpr_disguise::apply(&mut bg, apikey.user.clone(), decryption_cap, own_loc_caps, config.is_baseline)
             .unwrap();
     // Note: we can return the dlc and olc for pseudoprincipals here, but since the user is already
     // linked to these pseudoprincipals and they remain in Edna, we don't need to deal with them

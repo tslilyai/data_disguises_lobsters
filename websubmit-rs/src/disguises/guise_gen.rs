@@ -12,7 +12,7 @@ fn get_insert_guise_cols() -> Vec<String> {
     ]
 }
 
-fn get_insert_guise_vals() -> Vec<Expr> {
+pub fn get_insert_guise_vals() -> Vec<Expr> {
     let mut rng = rand::thread_rng();
     let gid: u64 = rng.gen();
     let email: u32 = rng.gen();

@@ -12,3 +12,5 @@ resource_dir = "/path/to/resources"
 secret = "SECRET"
 # whether to send emails (set to false for development)
 send_emails = true
+# whether to run w/edna
+is_baseline = true
