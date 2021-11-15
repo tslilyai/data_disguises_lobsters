@@ -109,8 +109,9 @@ impl TokenCtrler {
             tmp_remove_principals: HashSet::new(),
         };
 
+        // TODO always an in-memory table
         let createq = format!(
-            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, pubkey blob, ownershipToks blob, diffToks blob, PRIMARY KEY ({}));",
+            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, pubkey blob, ownershipToks blob, diffToks blob, PRIMARY KEY ({})) ENGINE = MEMORY;",
             PRINCIPAL_TABLE, UID_COL, UID_COL);
         conn.query_drop(&createq).unwrap();
         let selected = get_query_rows_str(
