@@ -67,7 +67,7 @@ pub struct TokenCtrler {
     // principal tokens are stored indexed by some large random num
     pub principal_data: HashMap<UID, PrincipalData>,
 
-    pub pseudoprincipal_keys_pool: Vec<(RsaPrivateKey, RsaPublicKey)>,
+    pseudoprincipal_keys_pool: Vec<(RsaPrivateKey, RsaPublicKey)>,
     poolsize: usize,
 
     // (p,d) capability -> set of token ciphertext for principal+disguise
@@ -140,6 +140,7 @@ impl TokenCtrler {
     }
 
     pub fn repopulate_pseudoprincipal_keys_pool(&mut self) {
+        let start = time::Instant::now();
         let curlen = self.pseudoprincipal_keys_pool.len();
         for _ in curlen..self.poolsize {
             let private_key =
@@ -147,6 +148,11 @@ impl TokenCtrler {
             let pub_key = RsaPublicKey::from(&private_key);
             self.pseudoprincipal_keys_pool.push((private_key, pub_key));
         }
+        error!(
+            "Repopulated pseudoprincipal key pool of size {}: {}",
+            self.poolsize,
+            start.elapsed().as_millis()
+        );
     }
 
     #[cfg_attr(feature = "flame_it", flame)]

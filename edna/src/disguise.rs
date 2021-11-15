@@ -49,6 +49,7 @@ impl Disguiser {
     }
 
     pub fn repopulate_pseudoprincipals_pool(&mut self) {
+        let start = time::Instant::now();
         let guise_gen = self.guise_gen.read().unwrap();
         for _ in 0..self.poolsize {
             let new_parent_vals = (guise_gen.val_generation)();
@@ -72,6 +73,11 @@ impl Disguiser {
             let new_uid = new_parent_vals[uid_ix].to_string();
             self.pseudoprincipal_data_pool.push((new_uid, rowvals));
         }
+        error!(
+            "Repopulated pseudoprincipal data pool of size {}: {}",
+            self.poolsize,
+            start.elapsed().as_millis()
+        );
     }
 
     #[cfg_attr(feature = "flame_it", flame)]

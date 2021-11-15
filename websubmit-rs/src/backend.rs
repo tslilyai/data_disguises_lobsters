@@ -46,7 +46,7 @@ impl MySqlBackend {
             dbname,
             &schema,
             true,
-            (nusers * 2) * nlec, // generate twice as many guises as we probably need
+            (nusers + 1) * nlec * 2, // generate twice as many guises as we probably need
             disguises::get_guise_gen(), /*in-mem*/
         );
         let mut db = mysql::Conn::new(
