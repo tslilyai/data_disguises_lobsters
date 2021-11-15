@@ -226,16 +226,18 @@ fn run_benchmark(args: &args::Args, is_baseline: bool) {
     assert_eq!(response.status(), Status::SeeOther);
 
     // get tokens
-    for u in 0..args.nusers {
-        let email = format!("{}@mail.edu", u);
+    if !is_baseline {
+        for u in 0..args.nusers {
+            let email = format!("{}@mail.edu", u);
 
-        // get ownership location capability
-        let file = File::open(format!("{}.{}", email, OWNCAP_FILE)).unwrap();
-        let mut buf_reader = BufReader::new(file);
-        let mut owncap = String::new();
-        buf_reader.read_to_string(&mut owncap).unwrap();
-        debug!(log, "Got email {} with owncap {}", &email, owncap);
-        user2owncap.insert(email.clone(), owncap);
+            // get ownership location capability
+            let file = File::open(format!("{}.{}", email, OWNCAP_FILE)).unwrap();
+            let mut buf_reader = BufReader::new(file);
+            let mut owncap = String::new();
+            buf_reader.read_to_string(&mut owncap).unwrap();
+            debug!(log, "Got email {} with owncap {}", &email, owncap);
+            user2owncap.insert(email.clone(), owncap);
+        }
     }
 
     /***********************************

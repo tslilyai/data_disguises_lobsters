@@ -93,7 +93,7 @@ disguises, but which now belongs to anonymous users.
 Importantly, these disguising properties place minimal burden on users.
 %
 When HotCRP disguises a user's data for universal decorrelation or comment removal, HotCRP emails
-the user a unique URL (a \emph{capability}) that it gets via invoking \sys's API.  When the user
+the user a unique URL that it gets via invoking \sys's API.  When the user
 wants to ask for permission to view (or edit, if permitted) the undisguised paper or review, the
 user simply has to click the URL link and log into the application. Thus, application of universal
 disguises should not require a user to be online in order to gain the capability to apply further
@@ -127,24 +127,11 @@ An application using \sys's API works with the following \sys abstractions:
     \item \emph{Disguise diff tokens}: metadata recording the \emph{diff} between pre-disguise and
         post-disguise application state.
     %
-    \item \emph{Disguise capabilities}: capabilities authorize the holder to access disguise tokens.
+    \item \emph{Token decryption capability}: authorizes the holder to access disguise tokens.
+    %
+    \item \emph{Token locator}: locates a subset of disguise tokens belonging to a particular
+        principal produced by a particular disguise.
 \end{itemize}
-
-\head{Data Access Control.}
-The application's normal permissions logic controls data access to database contents, and 
-\sys requires two types of \emph{disguise capabilities} to control access to disguise tokens:
-\begin{enumerate}
-    \item \emph{\textbf{Decryption Capability \dcapa{p}}}: Grants read access to tokens (ownership
-        and diff) associated with principal $p$.
-    \item \emph{\textbf{Location Capability \lcapa{pd}}}: Enables efficiently locating the tokens associated
-with principal $p$ produced from applying $d$, but grants no access to the diffs' data.
-\end{enumerate}
-
-\noindent \sys needs both decryption and location capabilities to access disguise diffs of disguise
-$d$. Each capability alone is insufficient: an attacker who can spoof \lcapa{pd} will not be able to
-access disguise diffs without \dcapa{p}, although they can learn that $d$ disguised some of $p$'s
-data; and an attacker holding \dcapa{p} cannot \lyt{efficiently?} locate the disguise diffs to access without
-\lcapa{pd}.
 
 %-------------------------------------------------------------------------------
 \subsection{Threat Model}
@@ -202,10 +189,9 @@ Only a client properly authenticated as a principal $p$ who is authorized to inv
 
 \vspace{6pt}\noindent\textbf{\emph{(2) Secure Disguise Tokens.}}
 %
-Only an authenticated principal who provides both location capability \lcapa{pd} and decryption capability
+Only an authenticated principal who provides decryption capability
 \dcapa{p} can authorize access to the disguise tokens, as well as any information
 (\eg ownership permissions) derived from tokens.
-\lyt{Again, \lcapa{pd} isn't actually needed...}
 %
 
 \vspace{6pt}\noindent\textbf{\emph{(3) Privacy of Disguise History.}}
@@ -213,7 +199,7 @@ Only an authenticated principal who provides both location capability \lcapa{pd}
 An attacker cannot learn the set of disguises that have disguised a principal's data.
 %
 An attacker only learns a disguise $d$ applied to $p$'s data if authenticated principal $p$ provides
-location capability \lcapa{pd} to \sys.
+locator \lcapa{pd} to \sys.
 
 \vspace{6pt}\noindent\textbf{\emph{Non-Goals.}}
 %
