@@ -1,29 +1,47 @@
 \section{Introduction}
-Web applications must protect users' data and rights to data privacy as codified in laws
-such as the GDPR.
+\label{s:intro}
+
+%% Problem statement
 %
-Current web applications take an all-or-nothing approach: they either make minimal effort to
-provide data privacy (\eg Reddit and Lobsters), or permanently delete users'
-data upon request. Either option gives users little fine-grained control over how web applications
-retain and use their private data.
+Web applications today handle copious amounts of personal information, much of it sensitive.
+%
+%Users' privacy and their rights to exercise control over their data in these applications
+%thus are an increasingly important concern for application developers.
+%
+Laws like the GDPR force developer to consider users' data privacy and their rights to their
+data; and many developers do want to be ``good citizens'' even beyond meeting the legal
+requirements, or are at least worried about the reputational damage of a large-scale data leak.
+%
+But doing a good job at data privacy requires extensive manual labor today, and applications
+consequently grant users little fine-grained control over how they retain and use their private
+data.
 %
 
 %
-Furthermore, even these efforts are nontrivial, and require careful understanding and manipulation
-of the web application's database. Companies with resources such as FB have implemented internal
-systems that handle e.g., user account deletion (cite DELF); however, solutions like these fail to
-generalize and require time and money that smaller-scale companies may lack.
+%Furthermore, even these efforts are nontrivial, and require careful understanding and manipulation
+%of the web application's database. Companies with resources such as FB have implemented internal
+%systems that handle e.g., user account deletion (cite DELF); however, solutions like these fail to
+%generalize and require time and money that smaller-scale companies may lack.
 %
 
+%% Our key idea: data disguising
 %
-We propose a new system architecture for web applications to enable support for \emph{data
-disguising}, namely transforming users' data stored by the application in a number of
-privacy-preserving ways.  Beyond simply transforming data, data disguising enables data decay (gradual anonymization over time);
+This paper describes \emph{data disguising}, a new systematic framework that provides
+developers with abstractions that help them implement correct, expressive, and end-user-friendly
+privacy functionality.
+%
+Data disguises transform a user's data in a web application in privacy-preserving ways, but still
+allow the application to maintain key functionality even when a user has disguised (\ie anonymized)
+their data.
+%
+Beyond simply transforming data, data disguising enables data decay (gradual anonymization over time);
 revealing of disguises (restoration of deleted data by the user, while providing strong privacy
 guarantees when deleted); and decorrelation and temporary recorrelation of users with their data for
-the purpose of editing anonymized data, or further disguising it. \lyt{<-- Fix this.} Furthermore,
-data disguising generalizes across web applications, handling the technical challenges of securing
-private data, while being aware of application database schemas and semantics.
+the purpose of editing anonymized data, or further disguising it. \lyt{<-- Fix this.}
+%
+Furthermore, data disguising generalizes across web applications, handles the technical challenges
+of securing private data, and integrates with applications' database schemas and semantics.
+%
 
 \sys, a prototype data disguising library, enables database-backed applications to
 easily support secure data disguising and provide better user privacy. \sys's API supports the
@@ -137,6 +155,9 @@ An application using \sys's API works with the following \sys abstractions:
 \subsection{Threat Model}
 \label{s:threat}
 %-------------------------------------------------------------------------------
+
+\ms{note similarity with CryptDB threat model: only active user's data gets compromised if
+attacker is around while they interact with the system; dormant users' data is never exposed.}
 
 %
 Data disguises protect user information in a web application against external observation
