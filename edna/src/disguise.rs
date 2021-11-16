@@ -95,7 +95,7 @@ impl Disguiser {
     pub fn register_principal(&mut self, uid: &UID, conn: &mut mysql::PooledConn) -> RsaPrivateKey {
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
         let mut txn = conn.start_transaction(TxOpts::default()).unwrap();
-        let priv_key = locked_token_ctrler.register_principal(uid, false, &mut txn);
+        let priv_key = locked_token_ctrler.register_principal(uid, false, &mut txn, true);
         drop(locked_token_ctrler);
         txn.commit().unwrap();
         priv_key

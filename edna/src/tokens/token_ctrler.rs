@@ -9,7 +9,7 @@ use block_modes::{BlockMode, Cbc};
 use flamer::flame;
 use log::{error, warn};
 use mysql::prelude::*;
-use mysql::{TxOpts};
+use mysql::TxOpts;
 use rand::{rngs::OsRng, RngCore};
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
@@ -88,6 +88,7 @@ pub struct TokenCtrler {
     pub tmp_ownership_loc_caps: HashMap<(UID, DID), LocCap>,
     pub tmp_diff_loc_caps: HashMap<(UID, DID), LocCap>,
     pub tmp_remove_principals: HashSet<UID>,
+    pub tmp_principals_to_insert: Vec<(UID, PrincipalData)>,
 }
 
 impl TokenCtrler {
@@ -108,9 +109,12 @@ impl TokenCtrler {
             tmp_ownership_loc_caps: HashMap::new(),
             tmp_diff_loc_caps: HashMap::new(),
             tmp_remove_principals: HashSet::new(),
+            tmp_principals_to_insert: vec![],
         };
         let mut txn = conn.start_transaction(TxOpts::default()).unwrap();
         // TODO always an in-memory table
+        txn.query_drop("SET max_heap_table_size = 4294967295;")
+            .unwrap();
         let createq = format!(
             "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, pubkey varchar(1024), ownershipToks varchar(255), diffToks varchar(255), PRIMARY KEY ({})) ENGINE = MEMORY;",
             PRINCIPAL_TABLE, UID_COL, UID_COL);
@@ -303,7 +307,8 @@ impl TokenCtrler {
             diff_loc_caps: dt,
         };
         if persist {
-            self.persist_principal(uid, &pdata, txn);
+            self.mark_principal_to_insert(uid, &pdata);
+            self.persist_principals(txn);
         }
         self.principal_data.insert(uid.clone(), pdata);
     }
@@ -314,6 +319,7 @@ impl TokenCtrler {
         uid: &UID,
         is_anon: bool,
         txn: &mut mysql::Transaction,
+        persist: bool,
     ) -> RsaPrivateKey {
         warn!("Registering principal {}", uid);
         let start = time::Instant::now();
@@ -325,7 +331,10 @@ impl TokenCtrler {
             diff_loc_caps: vec![],
         };
 
-        self.persist_principal(uid, &pdata, txn);
+        self.mark_principal_to_insert(uid, &pdata);
+        if persist {
+            self.persist_principals(txn);
+        }
         self.principal_data.insert(uid.clone(), pdata);
         error!("Edna register principal: {}", start.elapsed().as_millis());
         private_key
@@ -345,7 +354,7 @@ impl TokenCtrler {
 
         // save the anon principal as a new principal with a public key
         // and initially empty token vaults
-        let private_key = self.register_principal(&anon_uidstr.to_string(), true, txn);
+        let private_key = self.register_principal(&anon_uidstr.to_string(), true, txn, false);
         let own_token_wrapped = new_generic_ownership_token_wrapper(
             uidstr.to_string(),
             anon_uidstr.to_string(),
@@ -356,21 +365,33 @@ impl TokenCtrler {
         self.insert_ownership_token_wrapper(&own_token_wrapped);
     }
 
+    fn mark_principal_to_insert(&mut self, uid: &UID, pdata: &PrincipalData) {
+        self.tmp_principals_to_insert.push((uid.clone(), pdata.clone()));
+    }
+
     #[cfg_attr(feature = "flame_it", flame)]
-    fn persist_principal(&self, uid: &UID, pdata: &PrincipalData, txn: &mut mysql::Transaction) {
+    fn persist_principals(&self, txn: &mut mysql::Transaction) {
         let start = time::Instant::now();
-        let pubkey_vec = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
-        let v: Vec<String> = vec![];
-        let empty_vec = serde_json::to_string(&v).unwrap();
-        let uid = uid.trim_matches('\'');
+        let mut values = vec![];
+        for (uid, pdata) in &self.tmp_principals_to_insert {
+            let pubkey_vec = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
+            let v: Vec<String> = vec![];
+            let empty_vec = serde_json::to_string(&v).unwrap();
+            let uid = uid.trim_matches('\'');
+            values.push(format!(
+                "\'{}\', {}, \'{}\', \'{}\', \'{}\', \'{}\')",
+                PRINCIPAL_TABLE,
+                uid,
+                if pdata.is_anon { 1 } else { 0 },
+                serde_json::to_string(&pubkey_vec).unwrap(),
+                empty_vec,
+                empty_vec
+            ));
+        }
         let insert_q = format!(
-            "INSERT INTO {} VALUES (\'{}\', {}, \'{}\', \'{}\', \'{}\');",
+            "INSERT INTO {} VALUES {};",
             PRINCIPAL_TABLE,
-            uid,
-            if pdata.is_anon { 1 } else { 0 },
-            serde_json::to_string(&pubkey_vec).unwrap(),
-            empty_vec,
-            empty_vec
+            values.join(", ")
         );
         warn!("Insert q {}", insert_q);
         txn.query_drop(&insert_q).unwrap();
@@ -444,7 +465,10 @@ impl TokenCtrler {
             enc_data: encrypted,
             iv: iv,
         };
-        error!("Edna encrypt ownership token: {}", start.elapsed().as_millis());
+        error!(
+            "Edna encrypt ownership token: {}",
+            start.elapsed().as_millis()
+        );
 
         // insert the encrypted pppk into locating capability
         let lc = self.get_ownership_loc_cap(&pppk.old_uid, pppk.did);
@@ -1216,7 +1240,8 @@ mod tests {
 
         for u in 1..iters {
             // check principal data
-            ctrler.principal_data
+            ctrler
+                .principal_data
                 .get(&u.to_string())
                 .expect("failed to get user?");
 
