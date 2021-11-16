@@ -293,16 +293,7 @@ fn run_baseline_benchmark(args: &args::Args) {
     #[cfg(feature = "flame_it")]
     flame::end("anonymize");
     assert_eq!(response.status(), Status::SeeOther);
-    #[cfg(feature = "flame_it")]
-    flame::dump_html(
-        &mut File::create(&format!(
-            "flamegraph_{}lec_{}users_baseline.html",
-            args.nlec, args.nusers
-        ))
-        .unwrap(),
-    )
-    .unwrap();
-
+    
     print_stats(
         args,
         account_durations,
@@ -312,6 +303,16 @@ fn run_baseline_benchmark(args: &args::Args) {
         vec![],
         true,
     );
+
+    #[cfg(feature = "flame_it")]
+    flame::dump_html(
+        &mut File::create(&format!(
+            "flamegraph_{}lec_{}users_baseline.html",
+            args.nlec, args.nusers
+        ))
+        .unwrap(),
+    )
+    .unwrap();
 }
 
 fn run_benchmark(args: &args::Args) {
@@ -556,6 +557,7 @@ fn run_benchmark(args: &args::Args) {
         restore_durations,
         false,
     );
+
     #[cfg(feature = "flame_it")]
     flame::dump_html(
         &mut File::create(&format!(
@@ -597,7 +599,7 @@ fn print_stats(
         "{}",
         account_durations
             .iter()
-            .map(|d| d.as_millis().to_string())
+            .map(|d| d.as_micros().to_string())
             .collect::<Vec<String>>()
             .join(",")
     )
@@ -607,7 +609,7 @@ fn print_stats(
         "{}",
         anon_durations
             .iter()
-            .map(|d| d.as_millis().to_string())
+            .map(|d| d.as_micros().to_string())
             .collect::<Vec<String>>()
             .join(",")
     )
@@ -617,7 +619,7 @@ fn print_stats(
         "{}",
         edit_durations
             .iter()
-            .map(|d| d.as_millis().to_string())
+            .map(|d| d.as_micros().to_string())
             .collect::<Vec<String>>()
             .join(",")
     )
@@ -627,7 +629,7 @@ fn print_stats(
         "{}",
         delete_durations
             .iter()
-            .map(|d| d.as_millis().to_string())
+            .map(|d| d.as_micros().to_string())
             .collect::<Vec<String>>()
             .join(",")
     )
@@ -637,7 +639,7 @@ fn print_stats(
         "{}",
         restore_durations
             .iter()
-            .map(|d| d.as_millis().to_string())
+            .map(|d| d.as_micros().to_string())
             .collect::<Vec<String>>()
             .join(",")
     )
