@@ -209,12 +209,12 @@ fn run_baseline_benchmark(args: &args::Args) {
     flame::end("create_users");
 
     /**********************************
-     * baseline edits + delete 
+     * baseline edits + delete
      ***********************************/
     for u in 0..5 {
         let email = format!("{}@mail.edu", u);
         let apikey = user2apikey.get(&email).unwrap();
-        
+
         // set api key
         let postdata = serde_urlencoded::to_string(&vec![("key", apikey)]).unwrap();
         let response = client
@@ -255,7 +255,7 @@ fn run_baseline_benchmark(args: &args::Args) {
         edit_durations.push(start.elapsed());
 
         // delete account
-        
+
         let postdata = serde_urlencoded::to_string(&vec![
             ("decryption_cap", "0"),
             ("ownership_loc_caps", "0"),
@@ -294,9 +294,24 @@ fn run_baseline_benchmark(args: &args::Args) {
     flame::end("anonymize");
     assert_eq!(response.status(), Status::SeeOther);
     #[cfg(feature = "flame_it")]
-    flame::dump_html(&mut File::create(&format!("flamegraph_{}lec_{}users_baseline.html", args.nlec, args.nusers)).unwrap()).unwrap();
+    flame::dump_html(
+        &mut File::create(&format!(
+            "flamegraph_{}lec_{}users_baseline.html",
+            args.nlec, args.nusers
+        ))
+        .unwrap(),
+    )
+    .unwrap();
 
-    print_stats(args, account_durations, anon_durations, edit_durations, delete_durations, vec![], true);
+    print_stats(
+        args,
+        account_durations,
+        anon_durations,
+        edit_durations,
+        delete_durations,
+        vec![],
+        true,
+    );
 }
 
 fn run_benchmark(args: &args::Args) {
@@ -454,7 +469,7 @@ fn run_benchmark(args: &args::Args) {
         // logged out
         let response = client.get(format!("/leclist")).dispatch();
         assert_eq!(response.status(), Status::Unauthorized);
-    } 
+    }
     #[cfg(feature = "flame_it")]
     flame::end("edit");
 
@@ -532,30 +547,44 @@ fn run_benchmark(args: &args::Args) {
         flame::end("restore");
     }
 
-    print_stats(args, account_durations, anon_durations, edit_durations, delete_durations, restore_durations, false);
+    print_stats(
+        args,
+        account_durations,
+        anon_durations,
+        edit_durations,
+        delete_durations,
+        restore_durations,
+        false,
+    );
     #[cfg(feature = "flame_it")]
-    flame::dump_html(&mut File::create(&format!("flamegraph_{}lec_{}users.html", args.nlec, args.nusers)).unwrap()).unwrap();
+    flame::dump_html(
+        &mut File::create(&format!(
+            "flamegraph_{}lec_{}users.html",
+            args.nlec, args.nusers
+        ))
+        .unwrap(),
+    )
+    .unwrap();
 }
 
 fn print_stats(
-    args: &args::Args, 
-    account_durations: Vec<Duration>, 
-    anon_durations: Vec<Duration>, 
-    edit_durations: Vec<Duration>, 
-    delete_durations: Vec<Duration>, 
+    args: &args::Args,
+    account_durations: Vec<Duration>,
+    anon_durations: Vec<Duration>,
+    edit_durations: Vec<Duration>,
+    delete_durations: Vec<Duration>,
     restore_durations: Vec<Duration>,
     is_baseline: bool,
-    ) 
-{
+) {
     let filename = if is_baseline {
-        format!("disguise_stats_{}lec_{}users_baseline.csv",
-            args.nlec, args.nusers)
+        format!(
+            "disguise_stats_{}lec_{}users_baseline.csv",
+            args.nlec, args.nusers
+        )
     } else {
-        format!("disguise_stats_{}lec_{}users.csv",
-            args.nlec, args.nusers)
-
+        format!("disguise_stats_{}lec_{}users.csv", args.nlec, args.nusers)
     };
-    
+
     // print out stats
     let mut f = OpenOptions::new()
         .create(true)

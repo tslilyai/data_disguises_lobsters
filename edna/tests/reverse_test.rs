@@ -5,15 +5,12 @@ mod disguises;
 use edna::helpers;
 use mysql::Opts;
 use mysql::prelude::*;
-use rand::rngs::OsRng;
 use rsa::pkcs1::{ToRsaPrivateKey};
-use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::*;
 
 const SCHEMA: &'static str = include_str!("./schema.sql");
-const RSA_BITS: usize = 2048;
 const USER_ITERS: u64 = 2;
 const NSTORIES: u64 = 2;
 
@@ -36,9 +33,7 @@ fn test_app_rev_anon_disguise() {
     let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 
-    let mut rng = OsRng;
     let mut priv_keys = vec![];
-    let mut pub_keys = vec![];
 
     // INITIALIZATION
     for u in 1..USER_ITERS {
@@ -68,11 +63,8 @@ fn test_app_rev_anon_disguise() {
         }
 
         // register user in Edna
-        let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+        let private_key = edna.register_principal(u.to_string());
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
-        let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u.to_string(), &pub_key);
-        pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }
 
@@ -270,9 +262,7 @@ fn test_app_rev_gdpr_disguise() {
     let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 
-    let mut rng = OsRng;
     let mut priv_keys = vec![];
-    let mut pub_keys = vec![];
 
     // INITIALIZATION
     for u in 1..USER_ITERS {
@@ -295,11 +285,8 @@ fn test_app_rev_gdpr_disguise() {
         }
 
         // register user in Edna
-        let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+        let private_key = edna.register_principal(u.to_string());
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
-        let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u.to_string(), &pub_key);
-        pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }
 
@@ -399,9 +386,7 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
     let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 
-    let mut rng = OsRng;
     let mut priv_keys = vec![];
-    let mut pub_keys = vec![];
 
     // INITIALIZATION
     for u in 1..USER_ITERS {
@@ -430,11 +415,8 @@ fn test_app_anon_gdpr_rev_gdpr_anon_disguises() {
         }
 
         // register user in Edna
-        let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+        let private_key = edna.register_principal(u.to_string());
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
-        let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u.to_string(), &pub_key);
-        pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }
 
@@ -845,9 +827,7 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
     let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 
-    let mut rng = OsRng;
     let mut priv_keys = vec![];
-    let mut pub_keys = vec![];
 
     // INITIALIZATION
     for u in 1..USER_ITERS {
@@ -876,11 +856,8 @@ fn test_app_anon_gdpr_rev_anon_gdpr_disguises() {
         }
 
         // register user in Edna
-        let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
+        let private_key = edna.register_principal(u.to_string());
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
-        let pub_key = RsaPublicKey::from(&private_key);
-        edna.register_principal(u.to_string(), &pub_key);
-        pub_keys.push(pub_key.clone());
         priv_keys.push(private_key_vec.clone());
     }
 

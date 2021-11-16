@@ -983,8 +983,7 @@ mod tests {
         let old_fk_value = 5;
         let fk_col = "fk_col".to_string();
 
-        let mut rng = OsRng;
-        let private_key = ctrler.register_principal(&uid.to_string(), false, &mut conn);
+        ctrler.register_principal(&uid.to_string(), false, &mut conn);
 
         let mut remove_token = new_delete_token_wrapper(
             did,
@@ -1021,7 +1020,6 @@ mod tests {
         let old_fk_value = 5;
         let fk_col = "fk_col".to_string();
 
-        let mut rng = OsRng;
         let private_key = ctrler.register_principal(&uid.to_string(), false, &mut conn);
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
 
@@ -1049,7 +1047,6 @@ mod tests {
             .principal_data
             .get(&uid.to_string())
             .expect("failed to get user?");
-        assert_eq!(pub_key, p.pubkey);
         assert!(p.ownership_loc_caps.is_empty());
         assert!(p.diff_loc_caps.is_empty());
         assert!(ctrler.tmp_diff_loc_caps.is_empty());
@@ -1076,13 +1073,11 @@ mod tests {
         let old_fk_value = 5;
         let fk_col = "fk_col".to_string();
 
-        let mut rng = OsRng;
         let mut priv_keys = vec![];
-        let mut pub_keys = vec![];
 
         let mut caps = HashMap::new();
         for u in 1..iters {
-            let private_key = ctrler.register_principal(&uid.to_string(), false, &mut conn);
+            let private_key = ctrler.register_principal(&u.to_string(), false, &mut conn);
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             priv_keys.push(private_key_vec.clone());
 
@@ -1119,7 +1114,6 @@ mod tests {
                 .get(&u.to_string())
                 .expect("failed to get user?")
                 .clone();
-            assert_eq!(pub_keys[u as usize - 1], p.pubkey);
             assert!(p.ownership_loc_caps.is_empty());
             assert!(p.diff_loc_caps.is_empty());
 
@@ -1159,11 +1153,10 @@ mod tests {
 
         let mut rng = OsRng;
         let mut priv_keys = vec![];
-        let mut pub_keys = vec![];
 
         let mut caps = HashMap::new();
         for u in 1..iters {
-            let private_key = ctrler.register_principal(&uid.to_string(), false, &mut conn);
+            let private_key = ctrler.register_principal(&u.to_string(), false, &mut conn);
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             priv_keys.push(private_key_vec.clone());
 
@@ -1213,12 +1206,9 @@ mod tests {
 
         for u in 1..iters {
             // check principal data
-            let p = ctrler
-                .principal_data
+            ctrler.principal_data
                 .get(&u.to_string())
-                .expect("failed to get user?")
-                .clone();
-            assert_eq!(pub_keys[u as usize - 1], p.pubkey);
+                .expect("failed to get user?");
 
             for d in 1..iters {
                 let c = caps.get(&(u, d)).unwrap().clone();
