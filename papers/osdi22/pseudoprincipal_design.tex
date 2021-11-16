@@ -27,7 +27,7 @@ associate diffs with pseudoprincipals. For example, after universal decorrelatio
 review correlates with a pseudoprincipal user. When \sys applies universal decorrelation,
 decorrelation of all papers and reviews generates correlation diffs for these pseudoprincipals.
 
-However, we now have a problem. Diffs are encrypted with \dcapa{p} ($p$'s private key) and stored at
+However, we now have a problem. Diffs are encrypted with \privk{p} and stored at
 \lcapa{pd}, and \sys emails \lcapa{pd} to (potentially offline) clients and does not retain
 \lcapa{pd}.  However, pseudoprincipals have no corresponding real user (and, for unlinkability, \sys
 cannot store which pseudoprincipal-user correspondences). Thus, \sys has no way to communicate
@@ -57,7 +57,7 @@ When a pseudoprincipal $q$ is generated to decorrelate data from $p$:
     \item encrypts the private key of $q$ with \pubk{p} to produce $\enc(\pubk{p}, \privk{q})$
     \item stores $\enc(\pubk{p}, \privk{q})$ at location \lcapa{pd} along with $p$'s encrypted diffs from disguise $d$
 \end{enumerate}
-This ensures that a client with \lcapa{pd} and \dcapa{p} (\privk{p}) can access \privk{q}, the data
+This ensures that a client with \lcapa{pd} and \privk{p} (\privk{p}) can access \privk{q}, the data
 capability of pseudoprincipal $q$.  Furthermore, only a client who holds \lcapa{pd} can learn
 that $p$ has decorrelated data because associated pseudoprincipal private keys are not stored
 publically with $p$'s ID.

@@ -1,0 +1,86 @@
+\begin{table*}[t!]
+\centering
+\begin{tabular}{ c p{.8\linewidth} }
+\textbf{Notation} & \textbf{Description} \\
+\hline
+    \vspace{6pt}
+$p$ & application principals, corresponding to a user ID in the application\\
+    \vspace{6pt}
+$d$ & disguise invoked by authorized principals that transforms the application database in
+    privacy-preserving ways\\
+    \vspace{6pt}
+\pubk{p} & public key of $p$ \\
+    \vspace{6pt}
+\privk{p} & private key of $p$ \\
+    \vspace{6pt}
+\tdiff{pd} & diff token associated with $p$ produced by disguise $d$. These tokens store data
+    necessary to restore disguised content to its original form.\\
+    \vspace{6pt}
+\town{pd} & ownership token associated with $p$ produced by disguise $d$. These tokens store links
+    between $p$ and pseudoprincipals created by decorrelating $p$'s data.\\
+    \vspace{6pt}
+\lcapa{pd} & locator to efficient find the tokens associated with a principal $p$
+    produced by disguise $d$.\\
+    \vspace{6pt}
+    \end{tabular}
+\caption{Notation used to describe \sys's design.}
+\label{tab:notation}
+\end{table*}
+
+\begin{table*}[t!]
+\centering
+    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
+\textbf{API Call} & \textbf{Description} \\
+\hline
+\fn{RegisterPrincipal($p$)} $\rightarrow$ \privk{p} & Registers $p$ as
+        a principal, returning a private key \privk{p} corresponding to a principal-specific public
+        key $\pubk{p}$ known to \sys.\\
+    \vspace{6pt}\\
+\fn{StartDisguise($d$) $\rightarrow$ ()} & Invoked to inform \sys that a disguise application is
+        starting.
+    \vspace{6pt}\\
+        \fn{EndDisguise($d$) $\rightarrow$ (\lcapa{pd}, \lcapa{pd})} & Marks the end of applying disguise $d$.
+        Returns a pair of locators required to later locate disguise $d$'s diff tokens and ownership tokens
+        respectively.
+    \vspace{6pt}\\
+        \fn{GetTokensOfDisguise($d$, \{\privk{p}\}, \{\lcapa{pd}\})}
+        $\rightarrow$ (\{\tdiff{pd}\}, \{\town{pd}\}) & Retrieves the diff and ownership tokens produced by 
+        disguise $d$ that are accessible with the provided location
+        and decryption capabilities.
+    \vspace{6pt}\\
+        \fn{SaveDiffToken($p$, $d$, tokenData)} $\rightarrow$ () & Securely stores tokenData in a diff token \tdiff{pd}.\\
+    \vspace{6pt}\\
+        \fn{SaveOwnershipToken($p$, $p'$, $d$, tokenData)} $\rightarrow$ () & Securely stores tokenData in an
+        ownership token \town{pd} that saves the link from principal $p$ to pseudoprincipal $p'$.\\
+    \vspace{6pt}\\
+        \fn{CreatePseudoprincipal()} $\rightarrow$ ($p$, \fn{principalData}) & Returns
+        the pseudoprincipal ID and data of a new pseudoprincipal. The \fn{principalData} is
+        generated using an application-specified pseudoprincipal-generation policy.\\
+    \vspace{6pt}\\
+        \fn{GetPseudoprincipalsOf($p$, \privk{p}, \{\lcapa{pd}\})} $\rightarrow$ \{$p'$\} & Returns
+        the pseudoprincipal IDs of all pseudoprincipals linked with $p$. The decryption and location
+        capabilities enable \sys to access ownership tokens that reveal links between $p$ and its
+        pseudoprincipals.\\
+    \end{tabular}
+\caption{\sys's API}
+\label{tab:api}
+\end{table*}
+
+\begin{table*}[t!]
+\centering
+    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
+\textbf{API Call} & \textbf{Description} \\
+\hline
+    \fn{ApplyDisguise($p$, $d$, DisguiseSpec dSpec, \privk{p}, \{\lcapa{pd'}\})}
+        $\rightarrow$ \lcapa{pd} & 
+        Applies disguise $d$ and returns the corresponding disguise $d$ and locating capabilities
+        \lcapa{pd'}. The provided capabilities allow \sys to access ownership tokens 
+        to further disguise data previously decorrelated from $p$. 
+        \vspace{6pt}\\
+        \fn{RevealDisguise($p$, $d$, \privk{p}, \lcapa{pd}, \{\lcapa{pd'})} $\rightarrow$ ()& 
+        Reveals disguise $d$ by reversing data stored in tokens produced by disguise $d$ accessible using the \lcapa{pd'}. 
+        \lyt{Add details about how sometimes $d' \neq d$ because of pseudoprincipals?}
+\end{tabular}
+\caption{\sys's Higher-Level Convenience Library API}
+\label{tab:high_level_api}
+\end{table*}

@@ -139,13 +139,14 @@ An application using \sys's API works with the following \sys abstractions:
     \item Disguises $d \in D$ %invoked by some principal $p$, which 
         that transform the application database.
 	%
-    \item \emph{Disguise ownership tokens}: metadata produced by a disguise linking
+    \item \emph{Disguise ownership tokens}: metadata linking
         disguise-produced pseudoprincipals to real-user principals.
     %
     \item \emph{Disguise diff tokens}: metadata recording the \emph{diff} between pre-disguise and
         post-disguise application state.
     %
-    \item \emph{Token decryption capability}: authorizes the holder to access disguise tokens.
+    \item \emph{Token decryption capability}: authorizes the holder to access disguise tokens. 
+        The decryption capability for principal $p$ is a private key \privk{p}.
     %
     \item \emph{Token locator}: locates a subset of disguise tokens belonging to a particular
         principal produced by a particular disguise.
@@ -211,7 +212,7 @@ Only a client properly authenticated as a principal $p$ who is authorized to inv
 \vspace{6pt}\noindent\textbf{\emph{(2) Secure Disguise Tokens.}}
 %
 Only an authenticated principal who provides decryption capability
-\dcapa{p} can authorize access to the disguise tokens, as well as any information
+\privk{p} can authorize access to the disguise tokens, as well as any information
 (\eg ownership permissions) derived from tokens.
 %
 
