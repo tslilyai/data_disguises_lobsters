@@ -17,7 +17,7 @@ pub struct MySqlBackend {
 
     // table name --> (keys, columns)
     tables: HashMap<String, (Vec<String>, Vec<String>)>,
-    queries: HashMap<String, mysql::Statement>,
+    queries: HashMap<String, String>,
 }
 
 impl MySqlBackend {
@@ -102,8 +102,7 @@ impl MySqlBackend {
                     let end_bytes = t.find(":").unwrap_or(t.len());
                     let name = &t[..end_bytes];
                     let query = &t[(end_bytes + 1)..];
-                    let prepstmt = db.prep(query).unwrap();
-                    queries.insert(name.to_string(), prepstmt);
+                    queries.insert(name.to_string(), query.to_string());
                 } else {
                     let asts = sql_parser::parser::parse_statements(stmt.to_string())
                         .expect(&format!("could not parse stmt {}!", stmt));
@@ -169,8 +168,9 @@ impl MySqlBackend {
     pub fn query_exec(&mut self, qname: &str, keys: Vec<Value>) -> Vec<Vec<Value>> {
         let q = self.queries.get(qname).unwrap();
         let mut conn = self.handle();
+        let prepstmt = conn.prep(q).unwrap();
         let res = conn
-            .exec_iter(q, keys)
+            .exec_iter(prepstmt, keys)
             .expect(&format!("failed to select from {}", qname));
         let mut rows = vec![];
         for row in res {
