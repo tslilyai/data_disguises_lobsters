@@ -528,9 +528,9 @@ fn run_benchmark(args: &args::Args) {
             .dispatch();
         assert_eq!(response.status(), Status::SeeOther);
         restore_durations.push(start.elapsed());
-        #[cfg(feature = "flame_it")]
-        flame::end("restore");
     }
+    #[cfg(feature = "flame_it")]
+    flame::end("restore");
 
     print_stats(args, account_durations, anon_durations, edit_durations, delete_durations, restore_durations, false);
     #[cfg(feature = "flame_it")]
