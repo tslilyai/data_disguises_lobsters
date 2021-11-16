@@ -112,7 +112,7 @@ impl TokenCtrler {
         let mut txn = conn.start_transaction(TxOpts::default()).unwrap();
         // TODO always an in-memory table
         let createq = format!(
-            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, pubkey varchar(4096), ownershipToks varchar(4096), diffToks varchar(4096), PRIMARY KEY ({})) ENGINE = MEMORY;",
+            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, pubkey varchar(1024), ownershipToks varchar(255), diffToks varchar(255), PRIMARY KEY ({})) ENGINE = MEMORY;",
             PRINCIPAL_TABLE, UID_COL, UID_COL);
         txn.query_drop(&createq).unwrap();
         let selected = get_query_rows_str_txn(
