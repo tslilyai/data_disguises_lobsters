@@ -372,6 +372,9 @@ impl TokenCtrler {
 
     #[cfg_attr(feature = "flame_it", flame)]
     fn persist_principals(&mut self, txn: &mut mysql::Transaction) {
+        if self.tmp_principals_to_insert.is_empty() {
+            return;
+        }
         let start = time::Instant::now();
         let mut values = vec![];
         for (uid, pdata) in &self.tmp_principals_to_insert {
@@ -380,8 +383,7 @@ impl TokenCtrler {
             let empty_vec = serde_json::to_string(&v).unwrap();
             let uid = uid.trim_matches('\'');
             values.push(format!(
-                "\'{}\', {}, \'{}\', \'{}\', \'{}\', \'{}\')",
-                PRINCIPAL_TABLE,
+                "(\'{}\', {}, \'{}\', \'{}\', \'{}\')",
                 uid,
                 if pdata.is_anon { 1 } else { 0 },
                 serde_json::to_string(&pubkey_vec).unwrap(),
