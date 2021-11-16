@@ -525,7 +525,7 @@ impl Disguiser {
                         .unwrap();
                         let pred_items: HashSet<&Vec<RowVal>> =
                             HashSet::from_iter(selected_rows.iter());
-                        error!("select items for remove: {}", start.elapsed().as_micros());
+                        error!("select items for remove {}: {}", selection, start.elapsed().as_micros());
                         warn!(
                             "ApplyPred: Got {} selected rows matching predicate {:?}\n",
                             pred_items.len(),
@@ -535,8 +535,8 @@ impl Disguiser {
                         // BATCH REMOVE ITEMS
                         let start = time::Instant::now();
                         let delstmt = format!("DELETE FROM {} WHERE {}", table, selection);
-                        helpers::query_drop_txn(delstmt, txn, mystats.clone()).unwrap();
-                        error!("delete items: {}", start.elapsed().as_micros());
+                        helpers::query_drop_txn(delstmt.to_string(), txn, mystats.clone()).unwrap();
+                        error!("delete items {}: {}", delstmt, start.elapsed().as_micros());
 
                         // ITEM REMOVAL: ADD TOKEN RECORDS
                         let start = time::Instant::now();
