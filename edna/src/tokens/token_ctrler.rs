@@ -314,6 +314,7 @@ impl TokenCtrler {
         conn: &mut mysql::PooledConn,
     ) -> RsaPrivateKey {
         warn!("Registering principal {}", uid);
+        let start = time::Instant::now();
         let (private_key, pubkey) = self.get_pseudoprincipal_key_from_pool();
         let pdata = PrincipalData {
             pubkey: pubkey,
@@ -324,6 +325,7 @@ impl TokenCtrler {
 
         self.persist_principal(uid, &pdata, conn);
         self.principal_data.insert(uid.clone(), pdata);
+        error!("Edna register principal: {}", start.elapsed().as_millis());
         private_key
     }
 
@@ -354,6 +356,7 @@ impl TokenCtrler {
 
     #[cfg_attr(feature = "flame_it", flame)]
     fn persist_principal(&self, uid: &UID, pdata: &PrincipalData, conn: &mut mysql::PooledConn) {
+        let start = time::Instant::now();
         let pubkey_vec = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
         let v: Vec<String> = vec![];
         let empty_vec = serde_json::to_string(&v).unwrap();
@@ -369,6 +372,7 @@ impl TokenCtrler {
         );
         warn!("Insert q {}", insert_q);
         conn.query_drop(&insert_q).unwrap();
+        error!("Edna persist principal: {}", start.elapsed().as_millis());
     }
 
     // Note: pseudoprincipals cannot be removed (they're essentially like ``tokens'')
@@ -415,6 +419,7 @@ impl TokenCtrler {
             .get_mut(&pppk.old_uid)
             .expect(&format!("no user with uid {} found?", pppk.old_uid));
 
+        let start = time::Instant::now();
         // generate key
         let mut key: Vec<u8> = repeat(0u8).take(16).collect();
         self.rng.fill_bytes(&mut key[..]);
@@ -437,6 +442,7 @@ impl TokenCtrler {
             enc_data: encrypted,
             iv: iv,
         };
+        error!("Edna encrypt ownership token: {}", start.elapsed().as_millis());
 
         // insert the encrypted pppk into locating capability
         let lc = self.get_ownership_loc_cap(&pppk.old_uid, pppk.did);
@@ -466,6 +472,7 @@ impl TokenCtrler {
             .get_mut(uid)
             .expect("no user with uid found?");
 
+        let start = time::Instant::now();
         // generate key
         let mut key: Vec<u8> = repeat(0u8).take(16).collect();
         self.rng.fill_bytes(&mut key[..]);
@@ -489,6 +496,7 @@ impl TokenCtrler {
             enc_data: encrypted,
             iv: iv,
         };
+        error!("Edna encrypt diff token: {}", start.elapsed().as_millis());
         match self.enc_diffs_map.get_mut(&cap) {
             Some(ts) => {
                 ts.push(enctoken);
