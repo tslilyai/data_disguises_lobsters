@@ -81,7 +81,7 @@ pub(crate) fn generate(
     // add a secret to make API keys unforgeable without access to the server
     hasher.input_str(&config.secret);
     let hash = hasher.result_str();
-    info!(bg.log, "apikey hash: {}", start.elapsed().as_millis());
+    info!(bg.log, "apikey hash: {}", start.elapsed().as_micros());
     #[cfg(feature = "flame_it")]
     flame::end("generate_apikey");
 
@@ -104,7 +104,7 @@ pub(crate) fn generate(
             false.into(),
         ],
     );
-    info!(bg.log, "user insert: {}", start.elapsed().as_millis());
+    info!(bg.log, "user insert: {}", start.elapsed().as_micros());
     #[cfg(feature = "flame_it")]
     flame::end("insert_user");
     
@@ -116,7 +116,7 @@ pub(crate) fn generate(
         let start = time::Instant::now();
         let private_key = bg.edna.register_principal(data.email.as_str().into());
         privkey_str = base64::encode(&private_key.to_pkcs1_der().unwrap().as_der().to_vec());
-        info!(bg.log, "register principal: {}", start.elapsed().as_millis());
+        info!(bg.log, "register principal: {}", start.elapsed().as_micros());
         #[cfg(feature = "flame_it")]
         flame::end("register_principal");
     }
@@ -134,7 +134,7 @@ pub(crate) fn generate(
         )
         .expect("failed to send API key email");
     }
-    info!(bg.log, "send apikey email: {}", start.elapsed().as_millis());
+    info!(bg.log, "send apikey email: {}", start.elapsed().as_micros());
     #[cfg(feature = "flame_it")]
     flame::end("send_apikey_email");
     drop(bg);

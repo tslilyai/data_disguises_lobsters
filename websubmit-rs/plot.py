@@ -23,11 +23,11 @@ restore_results_baseline = []
 for u in nusers:
     with open('disguise_stats_{}lec_{}users.csv'.format(lec, u),'r') as csvfile:
         rows = csvfile.readlines()
-        account_durs = [int(x) for x in rows[0].strip().split(',')]
-        anon_durs = [int(x) for x in rows[1].strip().split(',')]
-        edit_durs = [int(x) for x in rows[2].strip().split(',')]
-        delete_durs = [int(x) for x in rows[3].strip().split(',')]
-        restore_durs = [int(x) for x in rows[4].strip().split(',')]
+        account_durs = [int(x)/1000 for x in rows[0].strip().split(',')]
+        anon_durs = [int(x)/1000 for x in rows[1].strip().split(',')]
+        edit_durs = [float(x)/1000 for x in rows[2].strip().split(',')]
+        delete_durs = [float(x)/1000 for x in rows[3].strip().split(',')]
+        restore_durs = [float(x)/1000 for x in rows[4].strip().split(',')]
 
         account_results.append(statistics.mean(account_durs))
         anon_results.append(statistics.mean(anon_durs))
@@ -37,10 +37,10 @@ for u in nusers:
 
     with open('disguise_stats_{}lec_{}users_baseline.csv'.format(lec, u),'r') as csvfile:
         rows = csvfile.readlines()
-        account_durs = [int(x) for x in rows[0].strip().split(',')]
-        anon_durs = [int(x) for x in rows[1].strip().split(',')]
-        edit_durs = [int(x) for x in rows[2].strip().split(',')]
-        delete_durs = [int(x) for x in rows[3].strip().split(',')]
+        account_durs = [int(x)/1000 for x in rows[0].strip().split(',')]
+        anon_durs = [int(x)/1000 for x in rows[1].strip().split(',')]
+        edit_durs = [float(x)/1000 for x in rows[2].strip().split(',')]
+        delete_durs = [float(x)/1000 for x in rows[3].strip().split(',')]
         restore_durs = [0]
 
         account_results_baseline.append(statistics.mean(account_durs))
@@ -55,7 +55,7 @@ axes_flat[0].plot(nusers, account_results, label='edna', color='r')
 axes_flat[0].plot(nusers, account_results_baseline, label='baseline', color='b')
 axes_flat[0].set_title("Average Time to Create Account")
 axes_flat[0].set_xlabel('Number of users')
-axes_flat[0].set_ylabel('Time (mus)')
+axes_flat[0].set_ylabel('Time (ms)')
 axes_flat[0].set_ylim(ymin=0)
 axes_flat[0].legend(loc='upper left');
 
@@ -63,28 +63,28 @@ axes_flat[1].plot(nusers, anon_results, label='edna', color='r')
 axes_flat[1].plot(nusers, anon_results_baseline, label='baseline', color='b')
 axes_flat[1].set_title("Time to Anonymize All anons")
 axes_flat[1].set_xlabel('Number of users')
-axes_flat[1].set_ylabel('Time (mus)')
+axes_flat[1].set_ylabel('Time (ms)')
 axes_flat[1].set_ylim(ymin=0)
 
 axes_flat[2].plot(nusers, edit_results, label='edna', color='r')
 axes_flat[2].plot(nusers, edit_results_baseline, label='baseline', color='b')
 axes_flat[2].set_title("Average Time to Edit Answers to Lecture")
 axes_flat[2].set_xlabel('Number of users')
-axes_flat[2].set_ylabel('Time (mus)')
+axes_flat[2].set_ylabel('Time (ms)')
 axes_flat[2].set_ylim(ymin=0)
 
 axes_flat[3].plot(nusers, delete_results, label='edna', color='r')
 axes_flat[3].plot(nusers, delete_results_baseline, label='baseline', color='b')
 axes_flat[3].set_title("Average Time to Delete Account")
 axes_flat[3].set_xlabel('Number of users')
-axes_flat[3].set_ylabel('Time (mus)')
+axes_flat[3].set_ylabel('Time (ms)')
 axes_flat[3].set_ylim(ymin=0)
 
 axes_flat[4].plot(nusers, restore_results, label='edna', color='r')
 axes_flat[4].plot(nusers, restore_results_baseline, label='baseline', color='b')
 axes_flat[4].set_title("Average Time to Restore Account")
 axes_flat[4].set_xlabel('Number of users')
-axes_flat[4].set_ylabel('Time (mus)')
+axes_flat[4].set_ylabel('Time (ms)')
 axes_flat[4].set_ylim(ymin=0)
 
 fig.tight_layout(h_pad=4)

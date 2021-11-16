@@ -53,7 +53,7 @@ pub fn apply(
             }
         };
     }
-    info!(bg.log, "get answers: {}", start.elapsed().as_millis());
+    info!(bg.log, "get answers: {}", start.elapsed().as_micros());
 
     #[cfg(feature = "flame_it")]
     flame::end("DB: get_answers");
@@ -73,7 +73,7 @@ pub fn apply(
             info!(
                 bg.log,
                 "create pseudoprincipal: {}",
-                start.elapsed().as_millis()
+                start.elapsed().as_micros()
             );
             #[cfg(feature = "flame_it")]
             flame::end("EDNA: create_pseudoprincipal");
@@ -93,7 +93,7 @@ pub fn apply(
             warn!(
                 bg.log,
                 "save pseudoprincipals: {}",
-                start.elapsed().as_millis()
+                start.elapsed().as_micros()
             );
             #[cfg(feature = "flame_it")]
             flame::end("ENDA: save_pseudoprincipal");
@@ -125,7 +125,7 @@ pub fn apply(
     warn!(
         bg.log,
         "insert pseudoprincipals: {}",
-        start.elapsed().as_millis()
+        start.elapsed().as_micros()
     );
     #[cfg(feature = "flame_it")]
     flame::end("DB: insert pseudos");
@@ -148,7 +148,7 @@ pub fn apply(
         bg.log,
         "update {} fks: {}",
         updates.len(),
-        start.elapsed().as_millis()
+        start.elapsed().as_micros()
     );
     #[cfg(feature = "flame_it")]
     flame::end("DB: update_answers");
