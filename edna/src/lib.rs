@@ -7,7 +7,7 @@ extern crate ordered_float;
 
 use log::warn;
 use mysql::prelude::*;
-use mysql::Opts;
+use mysql::{Transaction, Opts};
 use rsa::{RsaPrivateKey};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
@@ -81,22 +81,13 @@ impl EdnaClient {
         }
     }
 
-    pub fn query_drop(&self, q: String) -> Result<(), mysql::Error> {
-        let mut conn = self.get_conn()?;
-        helpers::query_drop(q, &mut conn, self.disguiser.stats.clone())
-    }
-
-    pub fn query_iter(&self, q: String) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
-        let mut conn = self.get_conn()?;
-        helpers::get_query_rows_str(&q, &mut conn, self.disguiser.stats.clone())
-    }
-
     //-----------------------------------------------------------------------------
     // Necessary to make Edna aware of all principals in the system
     // so Edna can link these to pseudoprincipals/do crypto stuff
     //-----------------------------------------------------------------------------
     pub fn register_principal(&mut self, uid: UID) -> RsaPrivateKey {
-        self.disguiser.register_principal(&uid)
+        let mut conn = self.get_conn().unwrap();
+        self.disguiser.register_principal(&uid, &mut conn)
     }
 
     //-----------------------------------------------------------------------------
@@ -107,13 +98,13 @@ impl EdnaClient {
     pub fn end_disguise(
         &self,
         did: DID,
+        txn: &mut mysql::Transaction,
     ) -> (
         HashMap<(UID, DID), tokens::LocCap>,
         HashMap<(UID, DID), tokens::LocCap>,
     ) {
-        let mut conn = self.get_conn().unwrap();
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
-        let loc_caps = locked_token_ctrler.save_and_clear(did, &mut conn);
+        let loc_caps = locked_token_ctrler.save_and_clear(did, txn);
         drop(locked_token_ctrler);
         loc_caps
     }
@@ -231,15 +222,15 @@ impl EdnaClient {
         old_uid: UID,
         new_uid: UID,
         token_bytes: Vec<u8>,
+        txn: &mut Transaction,
     ) {
-        let mut conn = self.get_conn().unwrap();
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         locked_token_ctrler.register_anon_principal(
             &old_uid,
             &new_uid,
             did,
             token_bytes,
-            &mut conn,
+            txn,
         );
         drop(locked_token_ctrler);
     }

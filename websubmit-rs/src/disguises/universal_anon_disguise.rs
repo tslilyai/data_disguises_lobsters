@@ -1,4 +1,5 @@
 use crate::backend::MySqlBackend;
+use mysql::{TxOpts};
 use crate::disguises::*;
 use edna::*;
 use mysql::from_value;
@@ -29,6 +30,8 @@ pub fn apply(
     if !is_baseline {
         bg.edna.start_disguise(get_did());
     }
+    let mut conn = bg.handle();
+    let mut txn = conn.start_transaction(TxOpts::default())?;
 
     // get all answers sorted by user and lecture
     let mut user_lec_answers: HashMap<(String, u64), Vec<u64>> = HashMap::new();
@@ -36,8 +39,9 @@ pub fn apply(
     flame::start("DB: get_answers");
 
     let start = time::Instant::now();
-    let res = bg.query_exec("all_answers", vec![]);
+    let res = txn.query_iter("SELECT `user`, lec, q FROM answers;")?;
     for r in res {
+        let r = r.unwrap().unwrap();
         let uid: String = from_value(r[0].clone());
         let uidstr = uid.trim_matches('\'');
         let key: (String, u64) = (uidstr.to_string(), from_value(r[1].clone()));
@@ -85,7 +89,7 @@ pub fn apply(
             flame::start("ENDA: save_pseudoprincipal");
             let start = time::Instant::now();
             bg.edna
-                .save_pseudoprincipal_token(get_did(), user.clone(), new_uid.clone(), vec![]);
+                .save_pseudoprincipal_token(get_did(), user.clone(), new_uid.clone(), vec![], &mut txn);
             warn!(
                 bg.log,
                 "save pseudoprincipals: {}",
@@ -117,8 +121,7 @@ pub fn apply(
     flame::start("DB: insert pseudos");
     warn!(bg.log, "Query: {}", &format!(r"INSERT INTO `users` VALUES {};", users.join(",")));
     let start = time::Instant::now();
-    bg.handle
-        .query_drop(&format!(r"INSERT INTO `users` VALUES {};", users.join(",")))?;
+    txn.query_drop(&format!(r"INSERT INTO `users` VALUES {};", users.join(",")))?;
     warn!(
         bg.log,
         "insert pseudoprincipals: {}",
@@ -130,7 +133,7 @@ pub fn apply(
     #[cfg(feature = "flame_it")]
     flame::start("DB: update_answers");
     let start = time::Instant::now();
-    bg.handle.exec_batch(
+    txn.exec_batch(
         r"UPDATE answers SET `user` = :newuid WHERE `user` = :user AND lec = :lec AND q = :q;",
         updates.iter().map(|u| {
             params! {
@@ -150,11 +153,13 @@ pub fn apply(
     #[cfg(feature = "flame_it")]
     flame::end("DB: update_answers");
 
-    if is_baseline {
+    let res = if is_baseline {
         Ok((HashMap::new(), HashMap::new()))
     } else {
-        Ok(bg.edna.end_disguise(get_did()))
-    }
+        Ok(bg.edna.end_disguise(get_did(), &mut txn))
+    };
+    txn.commit()?;
+    res
 }
 
 // we don't need to reveal

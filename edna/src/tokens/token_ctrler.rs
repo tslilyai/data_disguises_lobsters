@@ -9,6 +9,7 @@ use block_modes::{BlockMode, Cbc};
 use flamer::flame;
 use log::{error, warn};
 use mysql::prelude::*;
+use mysql::{TxOpts};
 use rand::{rngs::OsRng, RngCore};
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
@@ -108,15 +109,15 @@ impl TokenCtrler {
             tmp_diff_loc_caps: HashMap::new(),
             tmp_remove_principals: HashSet::new(),
         };
-
+        let mut txn = conn.start_transaction(TxOpts::default()).unwrap();
         // TODO always an in-memory table
         let createq = format!(
             "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, pubkey varchar(4096), ownershipToks varchar(4096), diffToks varchar(4096), PRIMARY KEY ({})) ENGINE = MEMORY;",
             PRINCIPAL_TABLE, UID_COL, UID_COL);
-        conn.query_drop(&createq).unwrap();
-        let selected = get_query_rows_str(
+        txn.query_drop(&createq).unwrap();
+        let selected = get_query_rows_str_txn(
             &format!("SELECT * FROM {}", PRINCIPAL_TABLE),
-            conn,
+            &mut txn,
             stats.clone(),
         )
         .unwrap();
@@ -133,9 +134,10 @@ impl TokenCtrler {
                 ownership_toks,
                 diff_toks,
                 false,
-                conn,
+                &mut txn,
             );
         }
+        txn.commit().unwrap();
         tctrler.repopulate_pseudoprincipal_keys_pool();
         tctrler
     }
@@ -183,7 +185,7 @@ impl TokenCtrler {
     pub fn save_and_clear(
         &mut self,
         did: DID,
-        conn: &mut mysql::PooledConn,
+        txn: &mut mysql::Transaction,
     ) -> (HashMap<(UID, DID), LocCap>, HashMap<(UID, DID), LocCap>) {
         let dlcs = self.tmp_diff_loc_caps.clone();
         let olcs = self.tmp_ownership_loc_caps.clone();
@@ -196,7 +198,7 @@ impl TokenCtrler {
 
                 // update persistence
                 let uidstr = uid.trim_matches('\'');
-                conn.query_drop(&format!(
+                txn.query_drop(&format!(
                     "UPDATE {} SET {} = \'{}\' WHERE {} = \'{}\'",
                     PRINCIPAL_TABLE,
                     "diffToks",
@@ -216,7 +218,7 @@ impl TokenCtrler {
 
                 // update persistence
                 let uidstr = uid.trim_matches('\'');
-                conn.query_drop(&format!(
+                txn.query_drop(&format!(
                     "UPDATE {} SET {} = \'{}\' WHERE {} = \'{}\'",
                     PRINCIPAL_TABLE,
                     "ownershipToks",
@@ -230,7 +232,7 @@ impl TokenCtrler {
 
         // actually remove the principals supposed to be removed
         for uid in self.tmp_remove_principals.clone().iter() {
-            self.remove_principal(&uid, did, conn);
+            self.remove_principal(&uid, did, txn);
         }
 
         self.clear_tmp();
@@ -291,7 +293,7 @@ impl TokenCtrler {
         ot: Vec<LocCap>,
         dt: Vec<LocCap>,
         persist: bool,
-        conn: &mut mysql::PooledConn,
+        txn: &mut mysql::Transaction,
     ) {
         warn!("Re-registering saved principal {}", uid);
         let pdata = PrincipalData {
@@ -301,7 +303,7 @@ impl TokenCtrler {
             diff_loc_caps: dt,
         };
         if persist {
-            self.persist_principal(uid, &pdata, conn);
+            self.persist_principal(uid, &pdata, txn);
         }
         self.principal_data.insert(uid.clone(), pdata);
     }
@@ -311,7 +313,7 @@ impl TokenCtrler {
         &mut self,
         uid: &UID,
         is_anon: bool,
-        conn: &mut mysql::PooledConn,
+        txn: &mut mysql::Transaction,
     ) -> RsaPrivateKey {
         warn!("Registering principal {}", uid);
         let start = time::Instant::now();
@@ -323,7 +325,7 @@ impl TokenCtrler {
             diff_loc_caps: vec![],
         };
 
-        self.persist_principal(uid, &pdata, conn);
+        self.persist_principal(uid, &pdata, txn);
         self.principal_data.insert(uid.clone(), pdata);
         error!("Edna register principal: {}", start.elapsed().as_millis());
         private_key
@@ -336,14 +338,14 @@ impl TokenCtrler {
         anon_uid: &UID,
         did: DID,
         ownership_token_data: Vec<u8>,
-        conn: &mut mysql::PooledConn,
+        txn: &mut mysql::Transaction,
     ) {
         let uidstr = uid.trim_matches('\'');
         let anon_uidstr = anon_uid.trim_matches('\'');
 
         // save the anon principal as a new principal with a public key
         // and initially empty token vaults
-        let private_key = self.register_principal(&anon_uidstr.to_string(), true, conn);
+        let private_key = self.register_principal(&anon_uidstr.to_string(), true, txn);
         let own_token_wrapped = new_generic_ownership_token_wrapper(
             uidstr.to_string(),
             anon_uidstr.to_string(),
@@ -355,7 +357,7 @@ impl TokenCtrler {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    fn persist_principal(&self, uid: &UID, pdata: &PrincipalData, conn: &mut mysql::PooledConn) {
+    fn persist_principal(&self, uid: &UID, pdata: &PrincipalData, txn: &mut mysql::Transaction) {
         let start = time::Instant::now();
         let pubkey_vec = pdata.pubkey.to_pkcs1_der().unwrap().as_der().to_vec();
         let v: Vec<String> = vec![];
@@ -371,7 +373,7 @@ impl TokenCtrler {
             empty_vec
         );
         warn!("Insert q {}", insert_q);
-        conn.query_drop(&insert_q).unwrap();
+        txn.query_drop(&insert_q).unwrap();
         error!("Edna persist principal: {}", start.elapsed().as_millis());
     }
 
@@ -387,7 +389,7 @@ impl TokenCtrler {
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn remove_principal(&mut self, uid: &UID, did: DID, conn: &mut mysql::PooledConn) {
+    pub fn remove_principal(&mut self, uid: &UID, did: DID, txn: &mut mysql::Transaction) {
         warn!("Removing principal {}\n", uid);
         let pdata = self.principal_data.get(uid);
         if pdata.is_none() {
@@ -399,7 +401,7 @@ impl TokenCtrler {
 
             // actually remove
             self.principal_data.remove(uid);
-            conn.query_drop(format!(
+            txn.query_drop(format!(
                 "DELETE FROM {} WHERE {} = \'{}\'",
                 PRINCIPAL_TABLE,
                 UID_COL,
@@ -979,10 +981,10 @@ mod tests {
         init_logger();
         let dbname = "testTokenCtrlerGlobal".to_string();
         let edna = EdnaClient::new(true, &dbname, "", true, 2, get_guise_gen());
-        let mut conn = edna.get_conn().unwrap();
+        let mut txn = edna.get_txn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(2, &mut conn, stats);
+        let mut ctrler = TokenCtrler::new(2, &mut txn, stats);
 
         let did = 1;
         let uid = 11;
@@ -991,7 +993,7 @@ mod tests {
         let old_fk_value = 5;
         let fk_col = "fk_col".to_string();
 
-        ctrler.register_principal(&uid.to_string(), false, &mut conn);
+        ctrler.register_principal(&uid.to_string(), false, &mut txn);
 
         let mut remove_token = new_delete_token_wrapper(
             did,
@@ -1016,10 +1018,10 @@ mod tests {
         init_logger();
         let dbname = "testTokenCtrlerUser".to_string();
         let edna = EdnaClient::new(true, &dbname, "", true, 2, get_guise_gen());
-        let mut conn = edna.get_conn().unwrap();
+        let mut txn = edna.get_txn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(2, &mut conn, stats);
+        let mut ctrler = TokenCtrler::new(2, &mut txn, stats);
 
         let did = 1;
         let uid = 11;
@@ -1028,7 +1030,7 @@ mod tests {
         let old_fk_value = 5;
         let fk_col = "fk_col".to_string();
 
-        let private_key = ctrler.register_principal(&uid.to_string(), false, &mut conn);
+        let private_key = ctrler.register_principal(&uid.to_string(), false, &mut txn);
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
 
         let mut remove_token = new_delete_token_wrapper(
@@ -1071,10 +1073,10 @@ mod tests {
         let iters = 5;
         let dbname = "testTokenCtrlerUserMulti".to_string();
         let edna = EdnaClient::new(true, &dbname, "", true, iters, get_guise_gen());
-        let mut conn = edna.get_conn().unwrap();
+        let mut txn = edna.get_txn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(iters, &mut conn, stats);
+        let mut ctrler = TokenCtrler::new(iters, &mut txn, stats);
 
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
@@ -1085,7 +1087,7 @@ mod tests {
 
         let mut caps = HashMap::new();
         for u in 1..iters {
-            let private_key = ctrler.register_principal(&u.to_string(), false, &mut conn);
+            let private_key = ctrler.register_principal(&u.to_string(), false, &mut txn);
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             priv_keys.push(private_key_vec.clone());
 
@@ -1148,10 +1150,10 @@ mod tests {
         let iters = 5;
         let dbname = "testTokenCtrlerUserPK".to_string();
         let edna = EdnaClient::new(true, &dbname, "", true, iters, get_guise_gen());
-        let mut conn = edna.get_conn().unwrap();
+        let mut txn = edna.get_txn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(iters, &mut conn, stats);
+        let mut ctrler = TokenCtrler::new(iters, &mut txn, stats);
 
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
@@ -1164,7 +1166,7 @@ mod tests {
 
         let mut caps = HashMap::new();
         for u in 1..iters {
-            let private_key = ctrler.register_principal(&u.to_string(), false, &mut conn);
+            let private_key = ctrler.register_principal(&u.to_string(), false, &mut txn);
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             priv_keys.push(private_key_vec.clone());
 
@@ -1200,7 +1202,7 @@ mod tests {
                     &anon_uid.to_string(),
                     d as u64,
                     own_token_bytes,
-                    &mut conn,
+                    &mut txn,
                 );
                 let lc = ctrler
                     .get_tmp_reveal_capability(&u.to_string(), d as u64)

@@ -93,7 +93,7 @@ impl EdnaOwnershipToken {
     pub fn reveal(
         &self,
         token_ctrler: &mut TokenCtrler,
-        conn: &mut mysql::PooledConn,
+        txn: &mut mysql::Transaction,
         stats: Arc<Mutex<QueryStat>>,
     ) -> Result<bool, mysql::Error> {
         // TODO we need to transfer the principal's tokens to the original principal's bag, and
@@ -107,9 +107,9 @@ impl EdnaOwnershipToken {
             op: BinaryOperator::Eq,
             right: Box::new(Expr::Value(Value::Number(self.uid.to_string()))),
         };
-        let selected = get_query_rows_str(
+        let selected = get_query_rows_str_txn(
             &str_select_statement(&self.pprincipal_name, &selection.to_string()),
-            conn,
+            txn,
             stats.clone(),
         )?;
         if selected.is_empty() {
@@ -122,9 +122,9 @@ impl EdnaOwnershipToken {
 
         // if foreign key is rewritten, don't reverse anything
         let token_guise_selection = get_select_of_ids(&self.child_ids);
-        let selected = get_query_rows_str(
+        let selected = get_query_rows_str_txn(
             &str_select_statement(&self.child_name, &token_guise_selection.to_string()),
-            conn,
+            txn,
             stats.clone(),
         )?;
         if selected.len() > 0 {
@@ -145,19 +145,19 @@ impl EdnaOwnershipToken {
             id: Ident::new(self.fk_col.clone()),
             value: Expr::Value(Value::Number(self.uid.to_string())),
         }];
-        query_drop(
+        query_drop_txn(
             Statement::Update(UpdateStatement {
                 table_name: string_to_objname(&self.child_name),
                 assignments: updates,
                 selection: Some(token_guise_selection),
             })
             .to_string(),
-            conn,
+            txn,
             stats.clone(),
         )?;
 
         // remove the pseudoprincipal
-        query_drop(
+        query_drop_txn(
             Statement::Delete(DeleteStatement {
                 table_name: string_to_objname(&self.pprincipal_name),
                 selection: Some(Expr::BinaryOp {
@@ -169,11 +169,11 @@ impl EdnaOwnershipToken {
                 }),
             })
             .to_string(),
-            conn,
+            txn,
             stats.clone(),
         )?;
         // remove the principal from being registered by the token ctrler
-        token_ctrler.remove_principal(&self.new_uid, self.did, conn);
+        token_ctrler.remove_principal(&self.new_uid, self.did, txn);
         Ok(true)
     }
 }

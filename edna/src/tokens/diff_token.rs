@@ -240,7 +240,7 @@ impl EdnaDiffToken {
     pub fn reveal(
         &self,
         token_ctrler: &mut TokenCtrler,
-        conn: &mut mysql::PooledConn,
+        txn: &mut mysql::Transaction,
         stats: Arc<Mutex<QueryStat>>,
     ) -> Result<bool, mysql::Error> {
         match self.update_type {
@@ -259,7 +259,7 @@ impl EdnaDiffToken {
                     pdata.ownership_loc_caps,
                     pdata.diff_loc_caps,
                     true,
-                    conn,
+                    txn,
                 );
                 error!("Reveal removed principal: {}", start.elapsed().as_millis());
             }
@@ -268,9 +268,9 @@ impl EdnaDiffToken {
                 let start = time::Instant::now();
                 // get current guise in db
                 let token_guise_selection = get_select_of_ids(&self.guise_ids);
-                let selected = get_query_rows_str(
+                let selected = get_query_rows_str_txn(
                     &str_select_statement(&self.guise_name, &token_guise_selection.to_string()),
-                    conn,
+                    txn,
                     stats.clone(),
                 )?;
 
@@ -302,12 +302,12 @@ impl EdnaDiffToken {
                     })
                     .collect();
                 let valstr = vals.join(",");
-                query_drop(
+                query_drop_txn(
                     format!(
                         "INSERT INTO {} ({}) VALUES ({})",
                         self.guise_name, colstr, valstr
                     ),
-                    conn,
+                    txn,
                     stats.clone(),
                 )?;
                 error!("Reveal removed data: {}", start.elapsed().as_millis());
@@ -315,9 +315,9 @@ impl EdnaDiffToken {
             MODIFY_GUISE => {
                 // get current guise in db
                 let token_guise_selection = get_select_of_ids(&self.guise_ids);
-                let selected = get_query_rows_str(
+                let selected = get_query_rows_str_txn(
                     &str_select_statement(&self.guise_name, &token_guise_selection.to_string()),
-                    conn,
+                    txn,
                     stats.clone(),
                 )?;
 
@@ -343,14 +343,14 @@ impl EdnaDiffToken {
                         })
                     }
                 }
-                query_drop(
+                query_drop_txn(
                     Statement::Update(UpdateStatement {
                         table_name: string_to_objname(&self.guise_name),
                         assignments: updates,
                         selection: Some(token_guise_selection),
                     })
                     .to_string(),
-                    conn,
+                    txn,
                     stats.clone(),
                 )?;
             }
@@ -381,7 +381,7 @@ impl EdnaDiffToken {
                 // if token has been revealed, attempt to reveal old value of token
                 if revealed {
                     let edna_old_token = edna_diff_token_from_bytes(&old_token.token_data);
-                    return edna_old_token.reveal(token_ctrler, conn, stats.clone());
+                    return edna_old_token.reveal(token_ctrler, txn, stats.clone());
                 }
             }
             _ => unimplemented!("Bad diff token update type?"), // do nothing for PRIV_KEY

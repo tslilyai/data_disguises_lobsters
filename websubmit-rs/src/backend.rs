@@ -10,7 +10,7 @@ use std::collections::HashMap;
 const ADMIN_INSERT : &'static str = "INSERT INTO users VALUES ('malte@cs.brown.edu', 'b4bc3cef020eb6dd20defa1a7a8340dee889bc2164612e310766e69e45a1d5a7', 1, 0);";
 
 pub struct MySqlBackend {
-    pub handle: mysql::Conn,
+    pub pool: mysql::Pool,
     pub log: slog::Logger,
     pub edna: EdnaClient,
     _schema: String,
@@ -49,11 +49,10 @@ impl MySqlBackend {
             (nusers + 1) * nlec * 2, // generate twice as many guises as we probably need
             disguises::get_guise_gen(), /*in-mem*/
         );
-        let mut db = mysql::Conn::new(
-            Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap(),
-        )
-        .unwrap();
-        assert_eq!(db.ping(), true);
+        let opts = Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap();
+        let pool = Pool::new(opts).unwrap();
+
+        let mut db = pool.get_conn().unwrap();
 
         // initialize for testing
         if prime {
@@ -153,7 +152,7 @@ impl MySqlBackend {
             }
         }
         Ok(MySqlBackend {
-            handle: db,
+            pool: pool,
             log: log,
             _schema: schema.to_owned(),
 
@@ -163,10 +162,14 @@ impl MySqlBackend {
         })
     }
 
+    pub fn handle(&self) -> mysql::PooledConn {
+        self.pool.get_conn().unwrap()
+    }
+
     pub fn query_exec(&mut self, qname: &str, keys: Vec<Value>) -> Vec<Vec<Value>> {
         let q = self.queries.get(qname).unwrap();
-        let res = self
-            .handle
+        let mut conn = self.handle();
+        let res = conn
             .exec_iter(q, keys)
             .expect(&format!("failed to select from {}", qname));
         let mut rows = vec![];
@@ -187,7 +190,7 @@ impl MySqlBackend {
     pub fn insert(&mut self, table: &str, vals: Vec<Value>) {
         let valstrs: Vec<&str> = vals.iter().map(|_| "?").collect();
         let q = format!(r"INSERT INTO {} VALUES ({});", table, valstrs.join(","));
-        self.handle
+        self.handle()
             .exec_drop(q.clone(), vals)
             .expect(&format!("failed to insert into {}, query {}!", table, q));
     }
@@ -214,7 +217,7 @@ impl MySqlBackend {
             assignments.join(","),
             conds.join(" AND ")
         );
-        self.handle
+        self.handle()
             .exec_drop(q.clone(), args)
             .expect(&format!("failed to update {}, query {}!", table, q));
     }
@@ -249,7 +252,7 @@ impl MySqlBackend {
             recstrs.join(","),
             assignments.join(","),
         );
-        self.handle
+        self.handle()
             .exec_drop(q.clone(), args)
             .expect(&format!("failed to insert-update {}, query {}!", table, q));
     }

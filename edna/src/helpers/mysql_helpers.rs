@@ -24,6 +24,57 @@ pub fn query_drop(
     conn.query_drop(q)
 }
 
+pub fn query_drop_txn(
+    q: String,
+    txn: &mut mysql::Transaction,
+    stats: Arc<Mutex<QueryStat>>,
+) -> Result<(), mysql::Error> {
+    let mut locked_stats = stats.lock().unwrap();
+    warn!("query_drop: {}\n", q);
+    locked_stats.nqueries += 1;
+    drop(locked_stats);
+    txn.query_drop(q)
+}
+
+
+pub fn get_query_rows_str_txn(
+    qstr: &str,
+    txn: &mut mysql::Transaction,
+    stats: Arc<Mutex<QueryStat>>,
+) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
+    warn!("get_query_rows: {}\n", qstr);
+    let mut locked_stats = stats.lock().unwrap();
+    locked_stats.nqueries += 1;
+    drop(locked_stats);
+
+    let mut rows = vec![];
+    let res = txn.query_iter(qstr)?;
+    let cols: Vec<String> = res
+        .columns()
+        .as_ref()
+        .iter()
+        .map(|c| c.name_str().to_string())
+        .collect();
+
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        let mut i = 0;
+        let vals: Vec<RowVal> = rowvals
+            .iter()
+            .map(|v| {
+                let index = i;
+                i += 1;
+                RowVal {
+                    column: cols[index].clone(),
+                    value: mysql_val_to_string(v),
+                }
+            })
+            .collect();
+        rows.push(vals);
+    }
+    Ok(rows)
+}
+
 pub fn get_query_rows_str(
     qstr: &str,
     conn: &mut mysql::PooledConn,
