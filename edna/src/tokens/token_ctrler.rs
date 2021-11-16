@@ -158,7 +158,7 @@ impl TokenCtrler {
         error!(
             "Repopulated pseudoprincipal key pool of size {}: {}",
             self.poolsize,
-            start.elapsed().as_millis()
+            start.elapsed().as_micros()
         );
     }
 
@@ -337,7 +337,7 @@ impl TokenCtrler {
             self.persist_principals(txn);
         }
         self.principal_data.insert(uid.clone(), pdata);
-        error!("Edna register principal: {}", start.elapsed().as_millis());
+        error!("Edna register principal: {}", start.elapsed().as_micros());
         private_key
     }
 
@@ -396,7 +396,7 @@ impl TokenCtrler {
         );
         warn!("Insert q {}", insert_q);
         txn.query_drop(&insert_q).unwrap();
-        error!("Edna persist principal: {}", start.elapsed().as_millis());
+        error!("Edna persist principal: {}", start.elapsed().as_micros());
         self.tmp_principals_to_insert.clear();
     }
 
@@ -469,7 +469,7 @@ impl TokenCtrler {
         };
         error!(
             "Edna encrypt ownership token: {}",
-            start.elapsed().as_millis()
+            start.elapsed().as_micros()
         );
 
         // insert the encrypted pppk into locating capability
@@ -524,7 +524,7 @@ impl TokenCtrler {
             enc_data: encrypted,
             iv: iv,
         };
-        error!("Edna encrypt diff token: {}", start.elapsed().as_millis());
+        error!("Edna encrypt diff token: {}", start.elapsed().as_micros());
         match self.enc_diffs_map.get_mut(&cap) {
             Some(ts) => {
                 ts.push(enctoken);
@@ -891,7 +891,7 @@ impl TokenCtrler {
                 }
                 error!(
                     "Execute one locccap token decryption in get_tokens: {}",
-                    start.elapsed().as_millis()
+                    start.elapsed().as_micros()
                 );
             }
         }
@@ -906,7 +906,7 @@ impl TokenCtrler {
                     own_tokens.push(pk.clone());
                     error!(
                         "Decrypt pseudoprincipal token in get_tokens: {}",
-                        start.elapsed().as_millis()
+                        start.elapsed().as_micros()
                     );
 
                     // get all tokens of pseudoprincipal

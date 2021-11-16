@@ -311,9 +311,9 @@ fn test_disguise() {
         .truncate(true)
         .open(&format!("disguise_stats_{}lec_{}users.csv", args.nlec, args.nusers)
         .unwrap();
-    writeln!(f, "{}", account_durations.iter().map(|d| d.as_millis().to_string()).collect::<Vec<String>>().join(",")).unwrap();
-    writeln!(f, "{}", anon_durations.iter().map(|d| d.as_millis().to_string()).collect::<Vec<String>>().join(",")).unwrap();
-    writeln!(f, "{}", edit_durations.iter().map(|d| d.as_millis().to_string()).collect::<Vec<String>>().join(",")).unwrap();
-    writeln!(f, "{}", delete_durations.iter().map(|d| d.as_millis().to_string()).collect::<Vec<String>>().join(",")).unwrap();
-    writeln!(f, "{}", restore_durations.iter().map(|d| d.as_millis().to_string()).collect::<Vec<String>>().join(",")).unwrap();
+    writeln!(f, "{}", account_durations.iter().map(|d| d.as_micros().to_string()).collect::<Vec<String>>().join(",")).unwrap();
+    writeln!(f, "{}", anon_durations.iter().map(|d| d.as_micros().to_string()).collect::<Vec<String>>().join(",")).unwrap();
+    writeln!(f, "{}", edit_durations.iter().map(|d| d.as_micros().to_string()).collect::<Vec<String>>().join(",")).unwrap();
+    writeln!(f, "{}", delete_durations.iter().map(|d| d.as_micros().to_string()).collect::<Vec<String>>().join(",")).unwrap();
+    writeln!(f, "{}", restore_durations.iter().map(|d| d.as_micros().to_string()).collect::<Vec<String>>().join(",")).unwrap();
 }

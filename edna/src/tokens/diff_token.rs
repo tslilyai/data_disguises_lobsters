@@ -261,7 +261,7 @@ impl EdnaDiffToken {
                     true,
                     txn,
                 );
-                error!("Reveal removed principal: {}", start.elapsed().as_millis());
+                error!("Reveal removed principal: {}", start.elapsed().as_micros());
             }
 
             REMOVE_GUISE => {
@@ -310,7 +310,7 @@ impl EdnaDiffToken {
                     txn,
                     stats.clone(),
                 )?;
-                error!("Reveal removed data: {}", start.elapsed().as_millis());
+                error!("Reveal removed data: {}", start.elapsed().as_micros());
             }
             MODIFY_GUISE => {
                 // get current guise in db
