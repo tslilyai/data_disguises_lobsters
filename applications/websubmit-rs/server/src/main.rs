@@ -142,40 +142,39 @@ fn rocket(args: &args::Args) -> Rocket<Build> {
 async fn main() {
     env_logger::init();
     let args = args::parse_args();
-
+    let my_rocket = rocket(&args);
     if args.benchmark {
         if args.config.is_baseline {
             thread::spawn(move || {
-                run_baseline_benchmark(&args);
+                run_baseline_benchmark(&args, my_rocket);
             })
             .join()
             .expect("Thread panicked")
         } else {
             thread::spawn(move || {
-                run_benchmark(&args);
+                run_benchmark(&args, my_rocket);
             })
             .join()
             .expect("Thread panicked")
         }
     } else {
-        rocket(&args)
-            .launch()
+        my_rocket.launch()
             .await
             .expect("Failed to launch rocket");
     }
 }
 
-fn run_baseline_benchmark(args: &args::Args) {
+fn run_baseline_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     let mut account_durations = vec![];
     let mut edit_durations = vec![];
     let mut delete_durations = vec![];
     let mut anon_durations = vec![];
-
-    let client = Client::tracked(rocket(args)).expect("valid rocket instance");
-
-    let mut user2apikey = HashMap::new();
     let log = new_logger();
 
+    let client = Client::tracked(rocket).expect("valid rocket instance");
+
+    let mut user2apikey = HashMap::new();
+    
     // create all users
     #[cfg(feature = "flame_it")]
     flame::start("create_users");
@@ -315,14 +314,14 @@ fn run_baseline_benchmark(args: &args::Args) {
     .unwrap();
 }
 
-fn run_benchmark(args: &args::Args) {
+fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     let mut account_durations = vec![];
     let mut edit_durations = vec![];
     let mut delete_durations = vec![];
     let mut restore_durations = vec![];
     let mut anon_durations = vec![];
 
-    let client = Client::tracked(rocket(args)).expect("valid rocket instance");
+    let client = Client::tracked(rocket).expect("valid rocket instance");
 
     let mut user2apikey = HashMap::new();
     let mut user2decryptcap = HashMap::new();

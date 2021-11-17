@@ -21,7 +21,6 @@ rust-crypto = "0.2.36"
 slog = "2.4.0" 
 #, features = ["max_level_trace", "release_max_level_trace"] }
 slog-term = "2.4.0"
-tokio = "0.1"
 toml = "0.2.1"
 serde = "1.0"
 serde_derive = "1.0"
@@ -32,6 +31,8 @@ serde_urlencoded = "0.7"
 log = "0.4.0"
 env_logger = "0.8.4"
 flame = { version = "0.2.2", optional=true }
+reqwest = { version = "0.11", features = ["json", "cookies", "blocking"] }
+tokio = { version = "1", features = ["full"] }
 
 [dependencies.rocket_dyn_templates]
 version = "0.1.0-rc.1"
@@ -45,3 +46,11 @@ features = ["diesel_mysql_pool"]
 [features]
 default = []
 flame_it = ["flame"]
+
+[[bin]]
+name = "server"
+path = "server/src/main.rs"
+
+[[bin]]
+name = "client"
+path = "client/src/main.rs"
