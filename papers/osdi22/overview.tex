@@ -2,7 +2,6 @@
 \section{Overview and API}
 \label{s:api}
 %-------------------------------------------------------------------------------
-\input{tables}
 
 \sys exposes an API (Table~\ref{tab:api}) to web applications that wish to support secure
 disguising.
@@ -15,40 +14,95 @@ disguise revealing.
 applications to apply and reveal (a restricted set) of disguises without needing to implement the
 disguise's application database modifications.
 
-Applications integrating with \sys may modify the client API
-so that the client can pass capabilities to the application along with the action to perform.
-For example, the application can send users URLs to click that invoke application actions with
-capability arguments.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-We next describe example usages of the API.
+To use \sys's API, applications must provide \sys with a description of principal IDs and how to
+generate new principal objects.
+We next describe how an application uses \sys's API.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Principal Registration.}
-Every client who creates an application account for principal $p$ registers an email and public key with \sys.
-\sys remembers each public key \pubk{p} along with $p$'s ID.
+Every client who creates an application account for principal $p$ registers the principal's unique id 
+with \sys by invoking \fn{RegisterPrincipal}. \sys generates a public-private key pair, returning private key \privk{p} to the
+application. \sys saves the public key \pubk{p} with $p$'s ID.
+
+The application handles passing \privk{p} to the client; \privk{p} will allow the user running the
+client to later access $p$'s disguise tokens.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Disguising and Revealing.}
+\head{Disguising and Disguise Tokens.}
 When a client speaking for principal $p$ wants to apply a disguise $d$,
-the application invokes \fn{ApplyDisguise} with the client-provided data
-capability and a set of  capabilities. Each locator \lcapa{pd'} allows \sys to
-access $p$'s disguise diffs from disguise $d'$, and to compose the new disguise on top of these
-disguises during application. Applying a disguise returns the  capability \lcapa{pd} that
-the application sends to the client (via e.g., emailing the client a link).
+the application invokes \fn{StartDisguise} to signal \sys that a new disguise has begun.
+The application then performs the disguise's data updates (\eg, removing or modifying
+data objects). If the application wishes for the original data to be later revealed, the
+application generates some custom diff and invokes \fn{SaveDiffToken} with the diff.
 
-In order to reveal data disguised by $d$ for principal $p$, the application invokes
-\fn{RevealDisguise} on behalf of a client speaking for $p$. The client provides its decryption capability
-\privk{p} and locator \lcapa{pd}. The application passes these to \sys to restore the
-original, undisguised data with access to $p$'s diffs corresponding to $d$.
+In the case that the application decorrelates a data object from a principal, the application
+queries \sys for a new pseudoprincipal owner for the data object (to preserve referential integrity)
+using \fn{CreatePseudoprincipal}. \sys returns the pseudoprincipal's ID and object data; the
+application handles properly inserting the pseudoprincipal object.  If the application wishes for
+the original owning principal to be temporarily or permanently recorrelated with the data object,
+the application generates any ownership information it wishes to save, and invokes
+\fn{SaveOwnershipToken} with both the original principal's and new pseudoprincipal's IDs.
 
-%\lyt{(ignore this) Why might we need multiple  capabilities for reveal? This is because diffs may change
-%other diffs. But in this case, why don't we have the diff storing the diff change also store the
-%location of the diff? Also this might only affect "global" diffs.}
+When the disguise is complete, the application invokes \fn{EndDisguise}. This informs \sys to erase
+any sensitive data, complete any token encryption operations, and to return to the application a
+pair of locators that will allow \sys later to locate the (encrypted) diff and ownership tokens
+produced by the disguise respectively.
+
+The application handles passing the locators \lcapa{pd} to the user speaking for $p$; to ensure that
+adversaries cannot learn that disguise $d$ applied to principal $p$, the application should not
+retain locators.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Performing Permitted Application Actions.}
+\head{Disguise Revealing.}
+In order to reveal the original state of data disguised by $d$ for principal $p$, the application 
+needs to retrieve the diff and ownership tokens of $p$ from $d$ storing information about the undisguised
+state prior to applying $d$.
+This requires the application to obtain the locators \lcapa{pd} and decryption capability \privk{p}
+from a client speaking for $p$.
+
+With these in hand, the application calls \fn{GetTokensOfDisguise}, which returns the set of
+(plaintext) diff and ownership tokens from disguise $d$ for principal $p$; the application then uses
+the token data to reveal data as appropriate.
+\lyt{Add details about how sometimes we need multiple locators $d' \neq d$ because of pseudoprincipals?}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Temporary Authorization.}
+The application may also wish to temporarily recorrelate users with their data by temporarily
+authorizing them to act on behalf of a pseudoprincipal. For example, users can temporarily act as
+anonymous users to edit their anonymized lecture answers. Furthermore, applications may wish to
+\emph{compose} disguises on top of anonymized data, to \eg delete now-anonymized data that
+originally belonged to $p$ when $p$ deletes their account.
+
+\sys allows the application to query for all pseudoprincipals corresponding to a particular
+principal using \fn{GetPseudoprincipalsOf}, which returns the set of corresponding pseudoprincipal
+IDs. The application must provide (obtaining from the client) any locators \lcapa{pd} from 
+anonymizing disguises $d$ that produced the pseudoprincipals in question, as well as the client's
+decryption capability \privk{p}. This allows \sys to inspect the content of ownership tokens and
+verify links between principal $p$ and pseudoprincipals stored in ownership tokens.
+
+Once the application knows which pseudoprincipals $p'$ correspond to a principal $p$, the application can
+authorize a client acting on behalf of $p$ to act on behalf of $p'$.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Disguising and Revealing with the High-Level API.}
+If an application developer does not want to implement the necessary data transformations for disguise
+application and revealing, the developer can provide a disguise specification in a language provided
+by \sys, which includes schema information and supports a restricted set of SQL database
+modifications. When \fn{ApplyDisguise} is invoked with the disguise specification, \sys applies the
+disguise data transformations and automatically generates the appropriate diff and ownership tokens.
+
+Similarly, when \fn{RevealDisguise} is invoked, \sys can interpret the automatically-generated diff and
+ownership tokens and perform the data modifications to restore the original state of data (given
+that no subsequent updates had been performed since disguising).
+
+Application handling of locators and decryption capabilities remains the same: \fn{ApplyDisguise}
+takes optional locators and decryption capabilities to support disguise composition, and produces
+locators for the applied disguise; \fn{RevealDisguise} takes locators and decryption capabilities to
+locate and access tokens to reveal.
+
+\input{tables}
+
+\iffalse
 Imagine that HotCRP disguise $d$ anonymizes all reviewers and authors of a conference by
 decorrelating them from their papers and reviews respectively. As described above, HotCRP emails the
 client a link when that their data has been decorrelated, which contains the 
@@ -78,5 +132,4 @@ particular review or paper:
         rights (\eg ability to see reviews on authored papers, or edit their review); otherwise, the
         application does not allow the client to perform privileged actions.
 \end{itemize}
-
-
+\fi
