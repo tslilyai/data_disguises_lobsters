@@ -17,6 +17,7 @@ log_*
 *.xml
 *.mp4
 *.ppt
+*.txt
 papers/osdi21/paper.pdf
 papers/hotos21/paper.pdf
 papers/sosp21/paper.pdf

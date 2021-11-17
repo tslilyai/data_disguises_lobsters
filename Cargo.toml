@@ -4,5 +4,6 @@ members = [
     "repr",
     "sql-parser",
     "edna",
-    "websubmit-rs",
+    #"applications/hotcrp",
+    "applications/websubmit-rs",
 ]

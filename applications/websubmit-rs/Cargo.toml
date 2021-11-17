@@ -8,7 +8,7 @@ edition = "2018"
 arccstr = "1.2.0"
 chrono = { version = "0.4.0", features = ["serde"] }
 clap = "2.33.0"
-edna = {path = "../edna"}
+edna = {path = "../../edna"}
 lettre = "0.9.2"
 lettre_email = "0.9.2"
 mysql = "*"
@@ -26,7 +26,7 @@ toml = "0.2.1"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
-sql-parser = { path= "../sql-parser" }
+sql-parser = { path= "../../sql-parser" }
 base64 = "0.13.0"
 serde_urlencoded = "0.7"
 log = "0.4.0"
