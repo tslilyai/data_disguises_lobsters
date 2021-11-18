@@ -79,7 +79,6 @@ pub fn parse_args() -> Args {
                 .default_value("true")
         ).arg(
             Arg::with_name("baseline")
-                .short("bl")
                 .long("baseline")
                 .takes_value(true)
                 .value_name("BASELINE")

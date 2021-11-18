@@ -21,7 +21,7 @@ pub fn parse_args() -> Args {
         .arg(
             Arg::with_name("ndisguising")
                 .short("d")
-                .long("nusers")
+                .long("ndisguising")
                 .takes_value(true)
                 .value_name("NDIGUISING")
                 .default_value("2"),
@@ -51,12 +51,18 @@ pub fn parse_args() -> Args {
                 .default_value("2"),
         )
         .arg(
+            Arg::with_name("niters")
+                .short("i")
+                .long("niters")
+                .takes_value(true)
+                .value_name("NITERS")
+                .default_value("2000"),
+        ).arg(
             Arg::with_name("ndisguise_iters")
-                .short("di")
                 .long("ndisguise_iters")
                 .takes_value(true)
                 .value_name("NDISGUISE_ITERS")
-                .default_value("2000"),
+                .default_value("200"),
         ).arg(
             Arg::with_name("baseline")
                 .short("b")

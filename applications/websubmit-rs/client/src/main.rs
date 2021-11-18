@@ -15,6 +15,7 @@ use std::io::{BufReader, Read, Write};
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time;
+use std::time::Duration;
 
 mod args;
 
@@ -36,6 +37,9 @@ fn main() {
 
     // create all users
     let mut account_durations = vec![];
+    let edit_durations = Arc::new(Mutex::new(vec![]));
+    let delete_durations = Arc::new(Mutex::new(vec![]));
+    let restore_durations = Arc::new(Mutex::new(vec![]));
     let mut user2apikey = HashMap::new();
     let mut user2decryptcap = HashMap::new();
 
@@ -89,8 +93,16 @@ fn main() {
         let email = format!("{}@mail.edu", u);
         let myargs = args.clone();
         let apikey = user2apikey.get(&email).unwrap().clone();
+        let my_edit_durations = edit_durations.clone();
         normal_threads.push(thread::spawn(move || {
-            run_normal(u.to_string(), apikey, new_logger(), myargs, c)
+            run_normal(
+                u.to_string(),
+                apikey,
+                new_logger(),
+                myargs,
+                my_edit_durations,
+                c,
+            )
         }));
     }
     let mut disguising_threads = vec![];
@@ -101,8 +113,19 @@ fn main() {
             let myargs = args.clone();
             let apikey = user2apikey.get(&email).unwrap().clone();
             let decryptcap = user2decryptcap.get(&email).unwrap().clone();
+            let my_delete_durations = delete_durations.clone();
+            let my_restore_durations = restore_durations.clone();
             disguising_threads.push(thread::spawn(move || {
-                run_disguising(u.to_string(), apikey, decryptcap, new_logger(), myargs, c)
+                run_disguising(
+                    u.to_string(),
+                    apikey,
+                    decryptcap,
+                    new_logger(),
+                    myargs,
+                    my_delete_durations,
+                    my_restore_durations,
+                    c,
+                )
             }));
         } else {
             disguising_threads.push(thread::spawn(move || {
@@ -117,11 +140,27 @@ fn main() {
     for j in normal_threads {
         j.join().expect("Could not join?").unwrap();
     }
-    info!(log, "normal threads completed: {}", start.elapsed().as_micros());
+    info!(
+        log,
+        "normal threads completed: {}",
+        start.elapsed().as_micros()
+    );
     for j in disguising_threads {
         j.join().expect("Could not join?").unwrap();
     }
-    info!(log, "disguising threads completed: {}", start.elapsed().as_micros());
+    info!(
+        log,
+        "disguising threads completed: {}",
+        start.elapsed().as_micros()
+    );
+
+    print_stats(
+        &args,
+        &account_durations,
+        &edit_durations.lock().unwrap(),
+        &delete_durations.lock().unwrap(),
+        &restore_durations.lock().unwrap(),
+    );
 }
 
 fn run_normal(
@@ -129,9 +168,10 @@ fn run_normal(
     apikey: String,
     log: slog::Logger,
     args: args::Args,
+    edit_durations: Arc<Mutex<Vec<Duration>>>,
     c: Arc<Barrier>,
 ) -> Result<()> {
-    let mut edit_durations = vec![];
+    let mut my_edit_durations = vec![];
     let client = reqwest::blocking::Client::builder()
         .cookie_store(true)
         .build()?;
@@ -177,8 +217,12 @@ fn run_normal(
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         #[cfg(feature = "flame_it")]
         flame::end("edit_post_new_answers");
-        edit_durations.push(start.elapsed());
+        my_edit_durations.push(start.elapsed());
     }
+    edit_durations
+        .lock()
+        .unwrap()
+        .append(&mut my_edit_durations);
     #[cfg(feature = "flame_it")]
     flame::dump_html(
         &mut File::create(&format!(
@@ -197,10 +241,12 @@ fn run_disguising(
     decryptcap: String,
     log: slog::Logger,
     args: args::Args,
+    delete_durations: Arc<Mutex<Vec<Duration>>>,
+    restore_durations: Arc<Mutex<Vec<Duration>>>,
     c: Arc<Barrier>,
 ) -> Result<()> {
-    let mut delete_durations = vec![];
-    let mut restore_durations = vec![];
+    let mut my_delete_durations = vec![];
+    let mut my_restore_durations = vec![];
 
     let client = reqwest::blocking::Client::builder()
         .cookie_store(true)
@@ -228,7 +274,7 @@ fn run_disguising(
             ])
             .send()?;
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        delete_durations.push(start.elapsed());
+        my_delete_durations.push(start.elapsed());
 
         // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
         let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
@@ -254,12 +300,20 @@ fn run_disguising(
             ])
             .send()?;
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
-        restore_durations.push(start.elapsed());
+        my_restore_durations.push(start.elapsed());
         #[cfg(feature = "flame_it")]
         flame::end("restore");
 
         thread::sleep(time::Duration::from_millis(1));
     }
+    delete_durations
+        .lock()
+        .unwrap()
+        .append(&mut my_delete_durations);
+    restore_durations
+        .lock()
+        .unwrap()
+        .append(&mut my_restore_durations);
 
     #[cfg(feature = "flame_it")]
     flame::dump_html(
@@ -271,4 +325,72 @@ fn run_disguising(
     )
     .unwrap();
     Ok(())
+}
+
+fn print_stats(
+    args: &args::Args,
+    account_durations: &Vec<Duration>,
+    edit_durations: &Vec<Duration>,
+    delete_durations: &Vec<Duration>,
+    restore_durations: &Vec<Duration>,
+) {
+    let filename = if args.baseline {
+        format!(
+            "concurrent_disguise_stats_{}lec_{}users_{}disguisers_baseline.csv",
+            args.nlec, args.nusers, args.ndisguising
+        )
+    } else {
+        format!(
+            "concurrent_disguise_stats_{}lec_{}users_{}disguisers_.csv",
+            args.nlec, args.nusers, args.ndisguising
+        )
+    };
+
+    // print out stats
+    let mut f = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&filename)
+        .unwrap();
+    writeln!(
+        f,
+        "{}",
+        account_durations
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
+    writeln!(
+        f,
+        "{}",
+        edit_durations
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
+    writeln!(
+        f,
+        "{}",
+        delete_durations
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
+    writeln!(
+        f,
+        "{}",
+        restore_durations
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
 }
