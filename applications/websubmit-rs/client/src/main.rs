@@ -96,13 +96,20 @@ fn main() {
     let mut disguising_threads = vec![];
     for u in args.nusers..args.ndisguising {
         let c = Arc::clone(&barrier);
-        let email = format!("{}@mail.edu", u);
-        let myargs = args.clone();
-        let apikey = user2apikey.get(&email).unwrap().clone();
-        let decryptcap = user2decryptcap.get(&email).unwrap().clone();
-        disguising_threads.push(thread::spawn(move || {
-            run_disguising(u.to_string(), apikey, decryptcap, new_logger(), myargs, c)
-        }));
+        if !args.baseline {
+            let email = format!("{}@mail.edu", u);
+            let myargs = args.clone();
+            let apikey = user2apikey.get(&email).unwrap().clone();
+            let decryptcap = user2decryptcap.get(&email).unwrap().clone();
+            disguising_threads.push(thread::spawn(move || {
+                run_disguising(u.to_string(), apikey, decryptcap, new_logger(), myargs, c)
+            }));
+        } else {
+            disguising_threads.push(thread::spawn(move || {
+                c.wait();
+                Ok(())
+            }));
+        }
     }
     barrier.wait();
     let start = time::Instant::now();

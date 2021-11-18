@@ -11,6 +11,7 @@ pub struct Args {
     pub nqs: usize,
     pub niters: usize,
     pub ndisguise_iters: usize,
+    pub baseline: bool,
 }
 
 pub fn parse_args() -> Args {
@@ -56,6 +57,13 @@ pub fn parse_args() -> Args {
                 .takes_value(true)
                 .value_name("NDISGUISE_ITERS")
                 .default_value("2000"),
+        ).arg(
+            Arg::with_name("baseline")
+                .short("b")
+                .long("baseline")
+                .takes_value(true)
+                .value_name("BASELINE")
+                .default_value("false"),
         )
         .get_matches();
     Args {
@@ -65,5 +73,6 @@ pub fn parse_args() -> Args {
         nqs: usize::from_str(args.value_of("nqs").unwrap()).unwrap(),
         niters: usize::from_str(args.value_of("niters").unwrap()).unwrap(),
         ndisguise_iters: usize::from_str(args.value_of("ndisguise_iters").unwrap()).unwrap(),
+        baseline: bool::from_str(args.value_of("baseline").unwrap()).unwrap(),
     }
 }
