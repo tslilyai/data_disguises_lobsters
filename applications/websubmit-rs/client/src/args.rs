@@ -12,12 +12,20 @@ pub struct Args {
     pub niters: usize,
     pub ndisguise_iters: usize,
     pub baseline: bool,
+    pub db: String,
 }
 
 pub fn parse_args() -> Args {
     let args = App::new("websubmit")
         .version("0.0.1")
         .about("Class submission system.")
+        .arg(
+            Arg::with_name("db")
+                .long("db")
+                .takes_value(true)
+                .value_name("DBNAME")
+                .default_value("myclass"),
+        )
         .arg(
             Arg::with_name("ndisguising")
                 .short("d")
@@ -80,5 +88,6 @@ pub fn parse_args() -> Args {
         niters: usize::from_str(args.value_of("niters").unwrap()).unwrap(),
         ndisguise_iters: usize::from_str(args.value_of("ndisguise_iters").unwrap()).unwrap(),
         baseline: bool::from_str(args.value_of("baseline").unwrap()).unwrap(),
+        db: String::from(args.value_of("db").unwrap()),
     }
 }

@@ -1,4 +1,5 @@
 use crate::disguises;
+use crate::args;
 use edna::EdnaClient;
 use mysql::prelude::*;
 use mysql::Opts;
@@ -24,31 +25,38 @@ impl MySqlBackend {
     pub fn new(
         dbname: &str,
         log: Option<slog::Logger>,
-        prime: bool,
-        nusers: usize,
-        nlec: usize,
-        nqs: usize,
+        args: &args::Args,
     ) -> Result<Self> {
         let log = match log {
             None => slog::Logger::root(slog::Discard, o!()),
             Some(l) => l,
         };
 
-        let schema = std::fs::read_to_string("src/schema.sql")?;
+        let schema = std::fs::read_to_string(&args.schema)?;
 
         // connect to everything
         debug!(
             log,
             "Connecting to MySql DB and initializing schema {}...", dbname
         );
-        // TODO set num_guises based on if benchmarking
+
+        let nusers : usize;
+        if args.config.is_baseline {
+            nusers = args.nusers + 5;
+        } else {
+            nusers = args.nusers;
+        }
+        let nguises = if args.benchmark {
+            nusers * args.nlec * 2
+        } else {
+            10
+        };
         let edna = EdnaClient::new(
-            prime,
+            args.prime,
             dbname,
             &schema,
             true,
-            // estimate a max of 500 users * 50 lectures XXX
-            10, 
+            nguises,
             disguises::get_guise_gen(), /*in-mem*/
         );
         let opts = Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap();
@@ -57,12 +65,12 @@ impl MySqlBackend {
         let mut db = pool.get_conn().unwrap();
 
         // initialize for testing
-        if prime {
+        if args.prime {
             db.query_drop(ADMIN_INSERT).unwrap();
-            for l in 0..nlec {
+            for l in 0..args.nlec {
                 db.query_drop(&format!("INSERT INTO lectures VALUES ({}, 'lec{}');", l, l))
                     .unwrap();
-                for q in 0..nqs {
+                for q in 0..args.nqs {
                     db.query_drop(&format!(
                         "INSERT INTO questions VALUES ({}, {}, 'lec{}question{}');",
                         l, q, l, q
@@ -97,7 +105,7 @@ impl MySqlBackend {
             }
             stmt.push_str(line);
             if stmt.ends_with(';') {
-                if is_view && prime {
+                if is_view && args.prime {
                     db.query_drop(stmt).unwrap();
                 } else if is_query {
                     let t = stmt.trim_start_matches("QUERY ");

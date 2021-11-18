@@ -17,12 +17,20 @@ pub struct Args {
     pub prime: bool,
     pub benchmark: bool,
     pub config: config::Config,
+    pub schema: String,
 }
 
 pub fn parse_args() -> Args {
     let args = App::new("websubmit")
         .version("0.0.1")
         .about("Class submission system.")
+        .arg(
+            Arg::with_name("schema")
+                .long("schema")
+                .takes_value(true)
+                .value_name("SCHEMA")
+                .default_value("schema.sql")
+        )
         .arg(
             Arg::with_name("config")
                 .short("c")
@@ -47,7 +55,7 @@ pub fn parse_args() -> Args {
                 .long("nusers")
                 .takes_value(true)
                 .value_name("NUSERS")
-                .default_value("2")
+                .default_value("0")
         )
         .arg(
             Arg::with_name("nlec")
@@ -55,14 +63,14 @@ pub fn parse_args() -> Args {
                 .long("nlec")
                 .takes_value(true)
                 .value_name("NLEC")
-                .default_value("2")
+                .default_value("0")
         ).arg(
             Arg::with_name("nqs")
                 .short("q")
                 .long("nqs")
                 .takes_value(true)
                 .value_name("NQS")
-                .default_value("2")
+                .default_value("0")
         ).arg(
             Arg::with_name("prime")
                 .short("p")
@@ -76,7 +84,7 @@ pub fn parse_args() -> Args {
                 .long("benchmark")
                 .takes_value(true)
                 .value_name("BENCHMARK")
-                .default_value("true")
+                .default_value("false")
         ).arg(
             Arg::with_name("baseline")
                 .long("baseline")
@@ -96,6 +104,7 @@ pub fn parse_args() -> Args {
         nqs: usize::from_str(args.value_of("nqs").unwrap()).unwrap(),
         prime: bool::from_str(args.value_of("prime").unwrap()).unwrap(),
         benchmark: bool::from_str(args.value_of("benchmark").unwrap()).unwrap(),
+        schema: String::from(args.value_of("schema").unwrap()),
         config: config,
     }
 }

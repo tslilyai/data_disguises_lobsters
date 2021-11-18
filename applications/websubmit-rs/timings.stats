@@ -1,0 +1,16 @@
+ DB:     Inserting user              32ms
+ DB:     Insert pseudoprincipals     33ms (batch) 
+ DB:     Update FKs in decor         37ms/fk update
+ DB:     Delete 1 data record        33ms
+ DB:     Reveal 1 removed data       33ms (inserts removed data)
+ 
+ Edna:   Registering principal       25ms (includes DB insert)
+ Edna:   Register pseudoprincipal    33ms (includes DB insert)
+ Edna:   Generating PP keys          316ms/key (batched together at init)
+ Edna:   Generating PP data          0ms/pp (batched together at init)
+ 
+ Edna:   Decrypt ownership token     2ms
+ Edna:   Decrypt diff token          14ms
+ Edna:   Decrypt ownership token     2ms
+ Edna:   Encrypt ownership token     
+ Edna:   Decrypt ownership token     

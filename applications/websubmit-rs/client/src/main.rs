@@ -52,8 +52,7 @@ fn main() {
         .build()
         .expect("Could not build client");
 
-    // TODO myclass
-    let opts = Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", "myclass")).unwrap();
+    let opts = Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", args.db)).unwrap();
     let pool = Pool::new(opts).unwrap();
     let mut db = pool.get_conn().unwrap();
     for l in 0..args.nlec {
@@ -71,6 +70,7 @@ fn main() {
             }
         }
     }
+    info!(log, "Inserted {} lecs with {} qs", args.nlec, args.nusers);
 
     for u in 0..args.nusers + args.ndisguising {
         let email = format!("{}@mail.edu", u);
@@ -86,23 +86,20 @@ fn main() {
         // get api key
         #[cfg(feature = "flame_it")]
         flame::start("read_user_files");
-        let file = File::open(format!("../server/{}.{}", email, APIKEY_FILE)).unwrap();
+        let file = File::open(format!("{}.{}", email, APIKEY_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
         let mut apikey = String::new();
         buf_reader.read_to_string(&mut apikey).unwrap();
-        debug!(log, "Got email {} with apikey {}", &email, apikey);
+        info!(log, "Got email {} with apikey {}", &email, apikey);
         user2apikey.insert(email.clone(), apikey);
 
         // get decryption cap
-        let file = File::open(format!("../server/{}.{}", email, DECRYPT_FILE)).unwrap();
+        let file = File::open(format!("{}.{}", email, DECRYPT_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
         let mut decryptcap = String::new();
         buf_reader.read_to_string(&mut decryptcap).unwrap();
-        debug!(log, "Got email {} with decryptcap {}", &email, decryptcap);
+        info!(log, "Got email {} with decryptcap {}", &email, decryptcap);
         user2decryptcap.insert(email, decryptcap);
-        #[cfg(feature = "flame_it")]
-        flame::end("read_user_files");
-
         #[cfg(feature = "flame_it")]
         flame::end("read_user_files");
     }
@@ -129,7 +126,7 @@ fn main() {
         }));
     }
     let mut disguising_threads = vec![];
-    for u in args.nusers..args.ndisguising {
+    for u in args.nusers..args.nusers + args.ndisguising {
         let c = Arc::clone(&barrier);
         if !args.baseline {
             let email = format!("{}@mail.edu", u);
@@ -151,12 +148,14 @@ fn main() {
                 )
             }));
         } else {
+            info!(log, "RunDisguisingBaseline Waiting for barrier!");
             disguising_threads.push(thread::spawn(move || {
                 c.wait();
                 Ok(())
             }));
         }
     }
+    info!(log, "Waiting for barrier!");
     barrier.wait();
     let start = time::Instant::now();
 
@@ -208,7 +207,9 @@ fn run_normal(
         .send()?;
     assert_eq!(response.status(), StatusCode::OK);
 
+    info!(log, "RunNormal Waiting for barrier!");
     c.wait();
+    info!(log, "RunNormal Going!");
     for _ in 0..args.niters {
         // editing
         lec = (lec + 1) % args.nlec;
@@ -226,7 +227,7 @@ fn run_normal(
             format!("answers.{}", q),
             format!("new_answer_user_{}_lec_{}", uid, lec),
         ));
-        debug!(
+        info!(
             log,
             "Posting to questions for lec {} answers {:?}", lec, answers
         );
@@ -237,7 +238,7 @@ fn run_normal(
             .post(format!("{}/questions/{}", SERVER, 0)) // testing lecture 0 for now
             .form(&answers)
             .send()?;
-        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(response.status(), StatusCode::OK);
         #[cfg(feature = "flame_it")]
         flame::end("edit_post_new_answers");
         my_edit_durations.push(start.elapsed());
@@ -276,6 +277,7 @@ fn run_disguising(
         .build()?;
 
     let email = format!("{}@mail.edu", uid);
+    info!(log, "RunDisguising Waiting for barrier!");
     c.wait();
     for _ in 0..args.ndisguise_iters {
         // login as the user
@@ -283,7 +285,7 @@ fn run_disguising(
             .post(&format!("{}/apikey/check", SERVER))
             .form(&vec![("key", apikey.to_string())])
             .send()?;
-        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(response.status(), StatusCode::OK);
 
         // delete
         #[cfg(feature = "flame_it")]
@@ -296,15 +298,15 @@ fn run_disguising(
                 ("ownership_loc_caps", format!("{}", 0)),
             ])
             .send()?;
-        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(response.status(), StatusCode::OK);
         my_delete_durations.push(start.elapsed());
 
         // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
-        let file = File::open(format!("../server/{}.{}", email, DIFFCAP_FILE)).unwrap();
+        let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
         let mut diffcap = String::new();
         buf_reader.read_to_string(&mut diffcap).unwrap();
-        debug!(log, "Got email {} with diffcap {}", &email, diffcap);
+        info!(log, "Got email {} with diffcap {}", &email, diffcap);
         #[cfg(feature = "flame_it")]
         flame::end("delete");
 
@@ -322,7 +324,7 @@ fn run_disguising(
                 ("ownership_loc_caps", format!("{}", 0)),
             ])
             .send()?;
-        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(response.status(), StatusCode::OK);
         my_restore_durations.push(start.elapsed());
         #[cfg(feature = "flame_it")]
         flame::end("restore");
@@ -364,7 +366,7 @@ fn print_stats(
         )
     } else {
         format!(
-            "concurrent_disguise_stats_{}lec_{}users_{}disguisers_.csv",
+            "concurrent_disguise_stats_{}lec_{}users_{}disguisers.csv",
             args.nlec, args.nusers, args.ndisguising
         )
     };

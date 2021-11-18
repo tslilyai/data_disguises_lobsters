@@ -73,20 +73,11 @@ fn index(cookies: &CookieJar<'_>, backend: &State<Arc<Mutex<MySqlBackend>>>) -> 
 }
 
 fn rocket(args: &args::Args) -> Rocket<Build> {
-    let nusers: usize;
-    if args.config.is_baseline {
-        nusers = args.nusers + 5;
-    } else {
-        nusers = args.nusers;
-    }
     let backend = Arc::new(Mutex::new(
         MySqlBackend::new(
             &format!("{}", args.class),
             Some(new_logger()),
-            args.prime,
-            nusers,
-            args.nlec,
-            args.nqs,
+            &args,
         )
         .unwrap(),
     ));
