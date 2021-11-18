@@ -9,7 +9,7 @@ set -e
 	
 for l in 20 40; do
     for u in 10 30 50 70 100; do
-	for nd in 5 10 15; do
+	    for nd in $((u/10)) $((u / 6)) $((u / 4)) $((u / 2)); do
 		for baseline in true false; do
 			ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
 			
