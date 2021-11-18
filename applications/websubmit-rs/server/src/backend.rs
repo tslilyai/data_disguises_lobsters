@@ -34,7 +34,7 @@ impl MySqlBackend {
             Some(l) => l,
         };
 
-        let schema = std::fs::read_to_string("server/src/schema.sql")?;
+        let schema = std::fs::read_to_string("src/schema.sql")?;
 
         // connect to everything
         debug!(
