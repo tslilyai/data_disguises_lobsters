@@ -41,12 +41,14 @@ impl MySqlBackend {
             log,
             "Connecting to MySql DB and initializing schema {}...", dbname
         );
+        // TODO set num_guises based on if benchmarking
         let edna = EdnaClient::new(
             prime,
             dbname,
             &schema,
             true,
-            (nusers + 1) * nlec * 2, // generate twice as many guises as we probably need
+            // estimate a max of 500 users * 50 lectures XXX
+            10, 
             disguises::get_guise_gen(), /*in-mem*/
         );
         let opts = Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap();

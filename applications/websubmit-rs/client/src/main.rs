@@ -16,6 +16,8 @@ use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time;
 use std::time::Duration;
+use mysql::{Opts, Pool};
+use mysql::prelude::*;
 
 mod args;
 
@@ -49,6 +51,27 @@ fn main() {
         .cookie_store(true)
         .build()
         .expect("Could not build client");
+
+    // TODO myclass
+    let opts = Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", "myclass")).unwrap();
+    let pool = Pool::new(opts).unwrap();
+    let mut db = pool.get_conn().unwrap();
+    for l in 0..args.nlec {
+        db.query_drop(&format!("INSERT INTO lectures VALUES ({}, 'lec{}');", l, l))
+            .unwrap();
+        for q in 0..args.nqs {
+            db.query_drop(&format!(
+                "INSERT INTO questions VALUES ({}, {}, 'lec{}question{}');",
+                l, q, l, q
+            ))
+            .unwrap();
+            for u in 0..args.nusers + args.ndisguising {
+                db.query_drop(&format!("INSERT INTO answers VALUES ('{}@mail.edu', {}, {}, 'lec{}q{}answer{}', '1000-01-01 00:00:00');", 
+                        u, l, q, l, q, u)).unwrap();
+            }
+        }
+    }
+
     for u in 0..args.nusers + args.ndisguising {
         let email = format!("{}@mail.edu", u);
         let start = time::Instant::now();
@@ -59,11 +82,11 @@ fn main() {
             .expect("Could not create new user");
         account_durations.push(start.elapsed());
         assert_eq!(response.status(), StatusCode::OK);
-
+     
         // get api key
         #[cfg(feature = "flame_it")]
         flame::start("read_user_files");
-        let file = File::open(format!("{}.{}", email, APIKEY_FILE)).unwrap();
+        let file = File::open(format!("../server/{}.{}", email, APIKEY_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
         let mut apikey = String::new();
         buf_reader.read_to_string(&mut apikey).unwrap();
@@ -71,7 +94,7 @@ fn main() {
         user2apikey.insert(email.clone(), apikey);
 
         // get decryption cap
-        let file = File::open(format!("{}.{}", email, DECRYPT_FILE)).unwrap();
+        let file = File::open(format!("../server/{}.{}", email, DECRYPT_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
         let mut decryptcap = String::new();
         buf_reader.read_to_string(&mut decryptcap).unwrap();
@@ -183,7 +206,7 @@ fn run_normal(
         .post(&format!("{}/apikey/check", SERVER))
         .form(&vec![("key", apikey.clone())])
         .send()?;
-    assert_eq!(response.status(), StatusCode::SEE_OTHER);
+    assert_eq!(response.status(), StatusCode::OK);
 
     c.wait();
     for _ in 0..args.niters {
@@ -192,7 +215,7 @@ fn run_normal(
         let start = time::Instant::now();
         #[cfg(feature = "flame_it")]
         flame::start("edit_lec");
-        let response = client.get(format!("/questions/{}", lec)).send()?;
+        let response = client.get(format!("{}/questions/{}", SERVER, lec)).send()?;
         assert_eq!(response.status(), StatusCode::OK);
         #[cfg(feature = "flame_it")]
         flame::end("edit_lec");
@@ -277,7 +300,7 @@ fn run_disguising(
         my_delete_durations.push(start.elapsed());
 
         // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
-        let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
+        let file = File::open(format!("../server/{}.{}", email, DIFFCAP_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
         let mut diffcap = String::new();
         buf_reader.read_to_string(&mut diffcap).unwrap();
