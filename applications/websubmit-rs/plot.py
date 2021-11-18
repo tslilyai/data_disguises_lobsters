@@ -4,88 +4,65 @@ import statistics
 import sys
 from collections import defaultdict
 from itertools import cycle
-cycol1 = cycle('bgr')
-cycol2 = cycle('cyk')
+plt.style.use('seaborn-deep')
 
 nusers = [10, 30, 50, 70, 100]
 props = [1/10, 1/4, 1/2]
 
-lec = sys.argv[1]
+lec = sys.argv[0]
 
 # collect all results, compute maximum latency over all tests + all query  types
-account_results = defaultdict(list)
 edit_results = defaultdict(list)
 delete_results = defaultdict(list)
 restore_results = defaultdict(list)
-
-account_results_baseline = defaultdict(list)
 edit_results_baseline = defaultdict(list)
 
-fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(8,15))
-axes_flat = axes.flatten()
 
 for u in nusers:
-    ndisg = [int(u * prop) for prop in props]
-    for i, nd in enumerate(ndisg):
+    for nd in [int(u * prop) for prop in props]:
         with open('concurrent_disguise_stats_{}lec_{}users_{}disguisers.csv'.format(lec, u, nd),'r') as csvfile:
             rows = csvfile.readlines()
-            account_durs = [int(x)/1000 for x in rows[0].strip().split(',')]
-            edit_durs = [float(x)/1000 for x in rows[1].strip().split(',')]
-            delete_durs = [float(x)/1000 for x in rows[2].strip().split(',')]
-            restore_durs = [float(x)/1000 for x in rows[3].strip().split(',')]
+            editpairs = [x.split(':') for x in rows[0].strip().split(',')]
+            edit_data = [(float(x[0])/1000, float(x[0])/1000 for x in editpairs]
 
-            account_results[i].append(statistics.mean(account_durs))
-            edit_results[i].append(statistics.mean(edit_durs))
-            delete_results[i].append(statistics.mean(delete_durs))
-            restore_results[i].append(statistics.mean(restore_durs))
+            deletepairs = [x.split(':') for x in rows[1].strip().split(',')]
+            delete_data = [(float(x[0])/1000, float(x[1])/1000 for x in deletepairs]
+
+            restorepairs = [x.split(':') for x in rows[2].strip().split(',')]
+            restore_data = [(float(x[0])/1000, float(x[2])/1000 for x in restorepairs]
+
+            edit_results[u].append(edit_data)
+            delete_results[u].append(delete_data)
+            restore_results[u].append(restore_data)
 
         with open('concurrent_disguise_stats_{}lec_{}users_{}disguisers_baseline.csv'.format(lec, u, nd),'r') as csvfile:
             rows = csvfile.readlines()
-            account_durs = [int(x)/1000 for x in rows[0].strip().split(',')]
-            edit_durs = [float(x)/1000 for x in rows[1].strip().split(',')]
+            editpairs = [x.split(':') for x in rows[0].strip().split(',')]
+            edit_data = [(float(x[0])/1000, float(x[0])/1000 for x in editpairs]
+            edit_results_baseline[u].append(edit_data)
 
-            account_results_baseline[i].append(statistics.mean(account_durs))
-            edit_results_baseline[i].append(statistics.mean(edit_durs))
+for u in nusers:
+    fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(8,15))
+    axes_flat = axes.flatten()
 
-axes_flat[0].plot(nusers, account_results_baseline[0], label='baseline', color='c')
-for i in range(len(props)):
-    axes_flat[0].plot(nusers, account_results[i], label='edna_{}'.format(props[i]), color=next(cycol1))
-#for i in range(len(props)):
+    axes_flat[0].hist(edit_results_baseline[u][0], label='baseline')
+    for i in range(len(props)):
+        axes_flat[0].hist(edit_results[u][i], label='edna_{}'.format(props[i]))
+    for i in range(len(props)):
+        axes_flat[1].hist(nusers, delete_results[i], label='edna_{}'.format(props[i]))
+    for i in range(len(props)):
+        axes_flat[2].hist(nusers, restore_results[i], label='edna_{}'.format(props[i]))
 
-axes_flat[1].plot(nusers, edit_results_baseline[0], label='baseline', color='c')
-for i in range(len(props)):
-    axes_flat[1].plot(nusers, edit_results[i], label='edna_{}'.format(props[i]), color=next(cycol1))
-#for i in range(len(props)):
+    for i in xrange(len(axes_flat)):
+        axes_flat[i].set_xlabel('Benchmark Time (ms)')
+        axes_flat[i].set_ylabel('Latency (ms)')
+        axes_flat[i].set_ylim(ymin=0)
+        axes_flat[i].set_xlim(xmin=0)
+        axes_flat[i].legend(loc='upper left');
 
-for i in range(len(props)):
-    axes_flat[2].plot(nusers, delete_results[i], label='edna_{}'.format(props[i]), color=next(cycol1))
+    axes_flat[0].set_title("Time to Edit Answers to Lecture")
+    axes_flat[1].set_title("Average Time to Delete Account")
+    axes_flat[2].set_title("Average Time to Restore Account")
 
-for i in range(len(props)):
-    axes_flat[3].plot(nusers, restore_results[i], label='edna_{}'.format(props[i]), color=next(cycol1))
-
-axes_flat[0].set_title("Average Time to Create Account")
-axes_flat[0].set_xlabel('Number of users')
-axes_flat[0].set_ylabel('Time (ms)')
-axes_flat[0].set_ylim(ymin=0)
-axes_flat[0].legend(loc='lower left');
-
-axes_flat[1].set_title("Average Time to Edit Answers to Lecture")
-axes_flat[1].set_xlabel('Number of users')
-axes_flat[1].set_ylabel('Time (ms)')
-axes_flat[1].set_ylim(ymin=0)
-axes_flat[1].legend(loc='upper left');
-
-axes_flat[2].set_title("Average Time to Delete Account")
-axes_flat[2].set_xlabel('Number of users')
-axes_flat[2].set_ylabel('Time (ms)')
-axes_flat[2].set_ylim(ymin=0)
-axes_flat[2].legend(loc='upper left');
-
-axes_flat[3].set_title("Average Time to Restore Account")
-axes_flat[3].set_xlabel('Number of users')
-axes_flat[3].set_ylabel('Time (ms)')
-axes_flat[3].set_ylim(ymin=0)
-axes_flat[3].legend(loc='upper left');
-
-fig.tight_layout(h_pad=4)
-plt.savefig('concurrent_results_{}lec.png'.format(lec), dpi=300)
+    fig.tight_layout(h_pad=4)
+    plt.savefig('concurrent_results_{}lec_{}users.png'.format(lec, u), dpi=300)

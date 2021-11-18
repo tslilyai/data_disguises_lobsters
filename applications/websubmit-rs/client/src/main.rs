@@ -28,6 +28,7 @@ pub fn new_logger() -> slog::Logger {
     Logger::root(Mutex::new(term_full()).fuse(), o!())
 }
 
+const TOTAL_TIME: u128 = 10000;
 const SERVER: &'static str = "http://localhost:8000";
 const APIKEY_FILE: &'static str = "apikey.txt";
 const DECRYPT_FILE: &'static str = "decrypt.txt";
@@ -38,7 +39,6 @@ fn main() {
     let args = args::parse_args();
 
     // create all users
-    let mut account_durations = vec![];
     let edit_durations = Arc::new(Mutex::new(vec![]));
     let delete_durations = Arc::new(Mutex::new(vec![]));
     let restore_durations = Arc::new(Mutex::new(vec![]));
@@ -74,13 +74,11 @@ fn main() {
 
     for u in 0..args.nusers + args.ndisguising {
         let email = format!("{}@mail.edu", u);
-        let start = time::Instant::now();
         let response = client
             .post(&format!("{}/apikey/generate", SERVER))
             .form(&vec![("email", email.clone())])
             .send()
             .expect("Could not create new user");
-        account_durations.push(start.elapsed());
         assert_eq!(response.status(), StatusCode::OK);
      
         // get api key
@@ -178,7 +176,6 @@ fn main() {
 
     print_stats(
         &args,
-        &account_durations,
         &edit_durations.lock().unwrap(),
         &delete_durations.lock().unwrap(),
         &restore_durations.lock().unwrap(),
@@ -190,7 +187,7 @@ fn run_normal(
     apikey: String,
     log: slog::Logger,
     args: args::Args,
-    edit_durations: Arc<Mutex<Vec<Duration>>>,
+    edit_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
     c: Arc<Barrier>,
 ) -> Result<()> {
     let mut my_edit_durations = vec![];
@@ -206,42 +203,43 @@ fn run_normal(
         .form(&vec![("key", apikey.clone())])
         .send()?;
     assert_eq!(response.status(), StatusCode::OK);
-
-    info!(log, "RunNormal Waiting for barrier!");
     c.wait();
-    info!(log, "RunNormal Going!");
-    for _ in 0..args.niters {
-        // editing
-        lec = (lec + 1) % args.nlec;
-        let start = time::Instant::now();
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_lec");
-        let response = client.get(format!("{}/questions/{}", SERVER, lec)).send()?;
-        assert_eq!(response.status(), StatusCode::OK);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_lec");
 
-        q = (q + 1) % args.nqs;
-        let mut answers = vec![];
-        answers.push((
-            format!("answers.{}", q),
-            format!("new_answer_user_{}_lec_{}", uid, lec),
-        ));
-        info!(
-            log,
-            "Posting to questions for lec {} answers {:?}", lec, answers
-        );
+    let overall_start = time::Instant::now();
+    while overall_start.elapsed().as_millis() < TOTAL_TIME {
+        for _ in 0..args.niters {
+            // editing
+            lec = (lec + 1) % args.nlec;
+            let start = time::Instant::now();
+            #[cfg(feature = "flame_it")]
+            flame::start("edit_lec");
+            let response = client.get(format!("{}/questions/{}", SERVER, lec)).send()?;
+            assert_eq!(response.status(), StatusCode::OK);
+            #[cfg(feature = "flame_it")]
+            flame::end("edit_lec");
 
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_post_new_answers");
-        let response = client
-            .post(format!("{}/questions/{}", SERVER, 0)) // testing lecture 0 for now
-            .form(&answers)
-            .send()?;
-        assert_eq!(response.status(), StatusCode::OK);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_post_new_answers");
-        my_edit_durations.push(start.elapsed());
+            q = (q + 1) % args.nqs;
+            let mut answers = vec![];
+            answers.push((
+                format!("answers.{}", q),
+                format!("new_answer_user_{}_lec_{}", uid, lec),
+            ));
+            info!(
+                log,
+                "Posting to questions for lec {} answers {:?}", lec, answers
+            );
+
+            #[cfg(feature = "flame_it")]
+            flame::start("edit_post_new_answers");
+            let response = client
+                .post(format!("{}/questions/{}", SERVER, 0)) // testing lecture 0 for now
+                .form(&answers)
+                .send()?;
+            assert_eq!(response.status(), StatusCode::OK);
+            #[cfg(feature = "flame_it")]
+            flame::end("edit_post_new_answers");
+            my_edit_durations.push((overall_start.elapsed(), start.elapsed()));
+        }
     }
     edit_durations
         .lock()
@@ -265,8 +263,8 @@ fn run_disguising(
     decryptcap: String,
     log: slog::Logger,
     args: args::Args,
-    delete_durations: Arc<Mutex<Vec<Duration>>>,
-    restore_durations: Arc<Mutex<Vec<Duration>>>,
+    delete_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
+    restore_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
     c: Arc<Barrier>,
 ) -> Result<()> {
     let mut my_delete_durations = vec![];
@@ -277,60 +275,64 @@ fn run_disguising(
         .build()?;
 
     let email = format!("{}@mail.edu", uid);
-    info!(log, "RunDisguising Waiting for barrier!");
     c.wait();
-    for _ in 0..args.ndisguise_iters {
-        // login as the user
-        let response = client
-            .post(&format!("{}/apikey/check", SERVER))
-            .form(&vec![("key", apikey.to_string())])
-            .send()?;
-        assert_eq!(response.status(), StatusCode::OK);
 
-        // delete
-        #[cfg(feature = "flame_it")]
-        flame::start("delete");
-        let start = time::Instant::now();
-        let response = client
-            .post(&format!("{}/delete", SERVER))
-            .form(&vec![
-                ("decryption_cap", decryptcap.to_string()),
-                ("ownership_loc_caps", format!("{}", 0)),
-            ])
-            .send()?;
-        assert_eq!(response.status(), StatusCode::OK);
-        my_delete_durations.push(start.elapsed());
+    let overall_start = time::Instant::now();
+    while overall_start.elapsed().as_millis() < TOTAL_TIME {
+        for _ in 0..args.ndisguise_iters {
+            // login as the user
+            let response = client
+                .post(&format!("{}/apikey/check", SERVER))
+                .form(&vec![("key", apikey.to_string())])
+                .send()?;
+            assert_eq!(response.status(), StatusCode::OK);
 
-        // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
-        let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
-        let mut buf_reader = BufReader::new(file);
-        let mut diffcap = String::new();
-        buf_reader.read_to_string(&mut diffcap).unwrap();
-        info!(log, "Got email {} with diffcap {}", &email, diffcap);
-        #[cfg(feature = "flame_it")]
-        flame::end("delete");
+            // delete
+            #[cfg(feature = "flame_it")]
+            flame::start("delete");
+            let start = time::Instant::now();
+            let response = client
+                .post(&format!("{}/delete", SERVER))
+                .form(&vec![
+                    ("decryption_cap", decryptcap.to_string()),
+                    ("ownership_loc_caps", format!("{}", 0)),
+                ])
+                .send()?;
+            assert_eq!(response.status(), StatusCode::OK);
+            my_delete_durations.push((overall_start.elapsed(), start.elapsed()));
 
-        thread::sleep(time::Duration::from_millis(1));
+            // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
+            let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
+            let mut buf_reader = BufReader::new(file);
+            let mut diffcap = String::new();
+            buf_reader.read_to_string(&mut diffcap).unwrap();
+            info!(log, "Got email {} with diffcap {}", &email, diffcap);
+            #[cfg(feature = "flame_it")]
+            flame::end("delete");
 
-        // restore
-        #[cfg(feature = "flame_it")]
-        flame::start("restore");
-        let start = time::Instant::now();
-        let response = client
-            .post(&format!("{}/restore", SERVER))
-            .form(&vec![
-                ("diff_loc_cap", diffcap),
-                ("decryption_cap", decryptcap.to_string()),
-                ("ownership_loc_caps", format!("{}", 0)),
-            ])
-            .send()?;
-        assert_eq!(response.status(), StatusCode::OK);
-        my_restore_durations.push(start.elapsed());
-        #[cfg(feature = "flame_it")]
-        flame::end("restore");
+            thread::sleep(time::Duration::from_millis(10));
 
-        thread::sleep(time::Duration::from_millis(1));
+            // restore
+            #[cfg(feature = "flame_it")]
+            flame::start("restore");
+            let start = time::Instant::now();
+            let response = client
+                .post(&format!("{}/restore", SERVER))
+                .form(&vec![
+                    ("diff_loc_cap", diffcap),
+                    ("decryption_cap", decryptcap.to_string()),
+                    ("ownership_loc_caps", format!("{}", 0)),
+                ])
+                .send()?;
+            assert_eq!(response.status(), StatusCode::OK);
+            my_restore_durations.push((overall_start.elapsed(), start.elapsed()));
+            #[cfg(feature = "flame_it")]
+            flame::end("restore");
+
+            thread::sleep(time::Duration::from_millis(10));
+        }
     }
+    thread::sleep(time::Duration::from_millis(1000));
     delete_durations
         .lock()
         .unwrap()
@@ -354,10 +356,9 @@ fn run_disguising(
 
 fn print_stats(
     args: &args::Args,
-    account_durations: &Vec<Duration>,
-    edit_durations: &Vec<Duration>,
-    delete_durations: &Vec<Duration>,
-    restore_durations: &Vec<Duration>,
+    edit_durations: &Vec<(Duration, Duration)>,
+    delete_durations: &Vec<(Duration, Duration)>,
+    restore_durations: &Vec<(Duration, Duration)>,
 ) {
     let filename = if args.baseline {
         format!(
@@ -381,19 +382,9 @@ fn print_stats(
     writeln!(
         f,
         "{}",
-        account_durations
-            .iter()
-            .map(|d| d.as_micros().to_string())
-            .collect::<Vec<String>>()
-            .join(",")
-    )
-    .unwrap();
-    writeln!(
-        f,
-        "{}",
         edit_durations
             .iter()
-            .map(|d| d.as_micros().to_string())
+            .map(|d| format!("{}:{}", d.0.as_millis().to_string(), d.1.as_micros().to_string()))
             .collect::<Vec<String>>()
             .join(",")
     )
@@ -403,7 +394,7 @@ fn print_stats(
         "{}",
         delete_durations
             .iter()
-            .map(|d| d.as_micros().to_string())
+            .map(|d| format!("{}:{}", d.0.as_millis().to_string(), d.1.as_micros().to_string()))
             .collect::<Vec<String>>()
             .join(",")
     )
@@ -413,7 +404,7 @@ fn print_stats(
         "{}",
         restore_durations
             .iter()
-            .map(|d| d.as_micros().to_string())
+            .map(|d| format!("{}:{}", d.0.as_millis().to_string(), d.1.as_micros().to_string()))
             .collect::<Vec<String>>()
             .join(",")
     )
