@@ -11,7 +11,6 @@ use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 pub(crate) struct Admin;
 
@@ -74,10 +73,9 @@ pub(crate) fn lec_add(_adm: Admin) -> Template {
 pub(crate) fn lec_add_submit(
     _adm: Admin,
     data: Form<AdminLecAdd>,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
 ) -> Redirect {
     // insert into MySql if not exists
-    let mut bg = backend.lock().unwrap();
     bg.insert(
         "lectures",
         vec![
@@ -85,16 +83,15 @@ pub(crate) fn lec_add_submit(
             data.lec_label.to_string().into(),
         ],
     );
-    drop(bg);
 
     Redirect::to("/leclist")
 }
 
 #[get("/<num>")]
-pub(crate) fn lec(_adm: Admin, num: u8, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Template {
-    let mut bg = backend.lock().unwrap();
+pub(crate) fn lec(_adm: Admin, num: u8, 
+    bg: &State<MySqlBackend>)
+-> Template {
     let res = bg.query_exec("qs_by_lec", vec![(num as u64).into()]);
-    drop(bg);
     let mut qs: Vec<_> = res
         .into_iter()
         .map(|r| {
@@ -121,9 +118,8 @@ pub(crate) fn addq(
     _adm: Admin,
     num: u8,
     data: Form<AddLectureQuestionForm>,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
 ) -> Redirect {
-    let mut bg = backend.lock().unwrap();
     bg.insert(
         "questions",
         vec![
@@ -132,7 +128,6 @@ pub(crate) fn addq(
             data.q_prompt.to_string().into(),
         ],
     );
-    drop(bg);
 
     Redirect::to(format!("/admin/lec/{}", num))
 }
@@ -142,11 +137,9 @@ pub(crate) fn editq(
     _adm: Admin,
     num: u8,
     qnum: u8,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
 ) -> Template {
-    let mut bg = backend.lock().unwrap();
     let res = bg.query_exec("qs_by_lec", vec![(num as u64).into()]);
-    drop(bg);
 
     let mut ctx = HashMap::new();
     for r in res {
@@ -165,15 +158,13 @@ pub(crate) fn editq_submit(
     _adm: Admin,
     num: u8,
     data: Form<AddLectureQuestionForm>,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
 ) -> Redirect {
-    let mut bg = backend.lock().unwrap();
     bg.update(
         "questions",
         vec![(num as u64).into(), (data.q_id as u64).into()],
         vec![(2, data.q_prompt.to_string().into())],
     );
-    drop(bg);
 
     Redirect::to(format!("/admin/lec/{}", num))
 }
@@ -181,12 +172,10 @@ pub(crate) fn editq_submit(
 #[get("/")]
 pub(crate) fn get_registered_users(
     _adm: Admin,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
     config: &State<Config>,
 ) -> Template {
-    let mut bg = backend.lock().unwrap();
     let res = bg.query_exec("all_users", vec![]);
-    drop(bg);
 
     let users: Vec<_> = res
         .into_iter()

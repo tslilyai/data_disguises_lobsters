@@ -7,12 +7,11 @@ use chrono::naive::NaiveDateTime;
 use chrono::Local;
 use mysql::from_value;
 use rocket::form::{Form, FromForm};
-use rocket::http::{CookieJar};
+use rocket::http::CookieJar;
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 
 //pub(crate) enum LectureQuestionFormError {
 //   Invalid,
@@ -70,12 +69,10 @@ struct LectureListContext {
 #[get("/")]
 pub(crate) fn leclist(
     apikey: ApiKey,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
     config: &State<Config>,
 ) -> Template {
-    let mut bg = backend.lock().unwrap();
     let res = bg.query_exec("leclist", vec![]); //vec![(0 as u64).into()]);
-    drop(bg);
 
     let user = apikey.user.clone();
     let admin = config.admins.contains(&user);
@@ -104,15 +101,9 @@ pub(crate) fn leclist(
 }
 
 #[get("/<num>")]
-pub(crate) fn answers(
-    _admin: Admin,
-    num: u8,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
-) -> Template {
-    let mut bg = backend.lock().unwrap();
+pub(crate) fn answers(_admin: Admin, num: u8, bg: &State<MySqlBackend>) -> Template {
     let key: Value = (num as u64).into();
     let res = bg.query_exec("answers_by_lec", vec![key]);
-    drop(bg);
     let answers: Vec<_> = res
         .into_iter()
         .map(|r| LectureAnswer {
@@ -136,14 +127,8 @@ pub(crate) fn answers(
 }
 
 #[get("/<num>")]
-pub(crate) fn questions(
-    apikey: ApiKey,
-    num: u8,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
-) -> Template {
+pub(crate) fn questions(apikey: ApiKey, num: u8, bg: &State<MySqlBackend>) -> Template {
     use std::collections::HashMap;
-
-    let mut bg = backend.lock().unwrap();
 
     // check if user can edit these answers
     let user_res = bg.query_exec("is_anon", vec![apikey.user.clone().into()]);
@@ -185,7 +170,6 @@ pub(crate) fn questions(
         answers.insert(id, atext);
     }
     let res = bg.query_exec("qs_by_lec", vec![key]);
-    drop(bg);
     let mut qs: Vec<_> = res
         .into_iter()
         .map(|r| {
@@ -215,27 +199,23 @@ pub(crate) fn questions_submit(
     cookies: &CookieJar<'_>,
     num: u8,
     data: Form<LectureQuestionSubmission>,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
     config: &State<Config>,
 ) -> Redirect {
-    let mut bg = backend.lock().unwrap();
     let vnum: Value = (num as u64).into();
     let ts: Value = Local::now().naive_local().into();
 
     debug!(
-            bg.log,
-            "User {} updating {} answers",
-            apikey.user,
-            data.answers.len()
-        );
+        bg.log,
+        "User {} updating {} answers",
+        apikey.user,
+        data.answers.len()
+    );
 
     for (id, answer) in &data.answers {
         debug!(
             bg.log,
-            "User {} edited q {} to answer {}",
-            apikey.user,
-            id, 
-            answer
+            "User {} edited q {} to answer {}", apikey.user, id, answer
         );
 
         let rec: Vec<Value> = vec![
@@ -284,7 +264,6 @@ pub(crate) fn questions_submit(
             bg.log,
             "Anon User {} edited an answer, logging out", apikey.user
         );
-        drop(bg);
         if let Some(cookie) = cookies.get("apikey") {
             cookies.remove(cookie.clone());
         }
@@ -294,7 +273,6 @@ pub(crate) fn questions_submit(
             bg.log,
             "Real User {} edited an answer, continuing to leclist", apikey.user
         );
-        drop(bg);
         Redirect::to("/leclist")
     }
 }

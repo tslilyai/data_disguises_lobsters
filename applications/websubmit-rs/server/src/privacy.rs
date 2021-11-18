@@ -13,7 +13,6 @@ use rocket::State;
 use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
 
 #[derive(Serialize)]
 pub(crate) struct LectureQuestion {
@@ -65,12 +64,11 @@ pub(crate) struct EditCapabilitiesRequest {
 #[post("/")]
 pub(crate) fn anonymize_answers(
     _adm: Admin,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
     config: &State<Config>,
 ) -> Redirect {
-    let mut bg = backend.lock().unwrap();
     let (dlcs, olcs) =
-        disguises::universal_anon_disguise::apply(&mut bg, config.is_baseline).unwrap();
+        disguises::universal_anon_disguise::apply(&*bg, config.is_baseline).unwrap();
     assert!(dlcs.len() == 0);
     //let local: DateTime<Local> = Local::now();
     for ((uid, _did), olc) in olcs {
@@ -83,7 +81,6 @@ pub(crate) fn anonymize_answers(
         )
         .expect("failed to send email");
     }
-    drop(bg);
 
     Redirect::to(format!("/leclist"))
 }
@@ -112,15 +109,12 @@ pub(crate) fn edit_as_pseudoprincipal(cookies: &CookieJar<'_>, olc: u64) -> Temp
 pub(crate) fn edit_as_pseudoprincipal_lecs(
     cookies: &CookieJar<'_>,
     data: Form<EditCapabilitiesRequest>,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
 ) -> Template {
     let cookie = Cookie::new("decryptioncap", data.decryption_cap.to_string());
     //cookies.add_private(cookie);
     cookies.add(cookie);
-
-    let mut bg = backend.lock().unwrap();
     let res = bg.query_exec("leclist", vec![]);
-    drop(bg);
 
     let lecs: Vec<_> = res
         .into_iter()
@@ -141,17 +135,17 @@ pub(crate) fn edit_as_pseudoprincipal_lecs(
 pub(crate) fn edit_lec_answers_as_pseudoprincipal(
     cookies: &CookieJar<'_>,
     lid: u64,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
 ) -> Template {
     let decryption_cap = cookies.get("decryptioncap").unwrap().value();
     let olc: u64 = u64::from_str(cookies.get("olc").unwrap().value()).unwrap();
-
-    let mut bg = backend.lock().unwrap();
+    let edna = bg.edna.lock().unwrap();
+    
     // get all the UIDs that this user can access
-    let pps = bg
-        .edna
+    let pps = edna
         .get_pseudoprincipals(base64::decode(decryption_cap).unwrap(), vec![olc]);
     debug!(bg.log, "Got pps {:?}", pps);
+    drop(edna);
 
     // get all answers for lectures
     let mut answers = HashMap::new();
@@ -174,7 +168,6 @@ pub(crate) fn edit_lec_answers_as_pseudoprincipal(
 
     let res = bg.query_exec("qs_by_lec", vec![lid.into()]);
     debug!(bg.log, "Setting API key to user key {}", apikey);
-    drop(bg);
     let mut qs: Vec<LectureQuestion> = vec![];
     for r in res {
         let qid: u64 = from_value(r[1].clone());
@@ -219,10 +212,9 @@ pub(crate) fn delete() -> Template {
 pub(crate) fn delete_submit(
     apikey: ApiKey,
     data: Form<DeleteRequest>,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
     config: &State<Config>,
 ) -> Redirect {
-    let mut bg = backend.lock().unwrap();
     let decryption_cap: Vec<u8> = if !config.is_baseline {
         base64::decode(&data.decryption_cap).expect("Bad decryption capability in post request")
     } else {
@@ -240,7 +232,7 @@ pub(crate) fn delete_submit(
             .collect()
     };
     let (dlcs, olcs) = disguises::gdpr_disguise::apply(
-        &mut bg,
+        &*bg,
         apikey.user.clone(),
         decryption_cap,
         own_loc_caps,
@@ -269,7 +261,6 @@ pub(crate) fn delete_submit(
         format!("OWNCAP:{}\nDIFFCAP:{}", olc_str, dlc_str), //"You have successfully deleted your account! To restore your account, please click http://localhost:8000/restore/{}/{}",
     )
     .expect("failed to send email");
-    drop(bg);
 
     Redirect::to(format!("/login"))
 }
@@ -286,10 +277,9 @@ pub(crate) fn restore(diff_loc_cap: u64, ownership_loc_cap: u64) -> Template {
 #[post("/", data = "<data>")]
 pub(crate) fn restore_account(
     data: Form<RestoreRequest>,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
     config: &State<Config>,
 ) -> Redirect {
-    let mut bg = backend.lock().unwrap();
     let decryption_cap: Vec<u8> =
         base64::decode(&data.decryption_cap).expect("Bad decryption capability in post request");
     let mut own_loc_caps: Vec<u64> = vec![];
@@ -304,14 +294,13 @@ pub(crate) fn restore_account(
     }
 
     disguises::gdpr_disguise::reveal(
-        &mut bg,
+        &*bg,
         decryption_cap,
         vec![data.diff_loc_cap],
         own_loc_caps,
         config.is_baseline,
     )
     .expect("Failed to reverse GDPR deletion disguise");
-    drop(bg);
 
     Redirect::to(format!("/login"))
 }

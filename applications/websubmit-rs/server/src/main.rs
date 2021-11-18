@@ -41,7 +41,7 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Read, Write};
-use std::sync::{Arc, Mutex};
+use std::sync::{Mutex};
 use std::thread;
 use std::time;
 use std::time::Duration;
@@ -59,11 +59,11 @@ pub fn new_logger() -> slog::Logger {
 }
 
 #[get("/")]
-fn index(cookies: &CookieJar<'_>, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
+fn index(cookies: &CookieJar<'_>, bg: &State<MySqlBackend>) -> Redirect {
     if let Some(cookie) = cookies.get("apikey") {
         let apikey: String = cookie.value().parse().ok().unwrap();
         // TODO validate API key
-        match apikey::check_api_key(&*backend, &apikey) {
+        match apikey::check_api_key(&*bg, &apikey) {
             Ok(_user) => Redirect::to("/leclist"),
             Err(_) => Redirect::to("/login"),
         }
@@ -73,14 +73,7 @@ fn index(cookies: &CookieJar<'_>, backend: &State<Arc<Mutex<MySqlBackend>>>) -> 
 }
 
 fn rocket(args: &args::Args) -> Rocket<Build> {
-    let backend = Arc::new(Mutex::new(
-        MySqlBackend::new(
-            &format!("{}", args.class),
-            Some(new_logger()),
-            &args,
-        )
-        .unwrap(),
-    ));
+    let backend = MySqlBackend::new(&format!("{}", args.class), Some(new_logger()), &args).unwrap();
 
     rocket::build()
         .attach(Template::fairing())
@@ -149,9 +142,7 @@ async fn main() {
             .expect("Thread panicked")
         }
     } else {
-        my_rocket.launch()
-            .await
-            .expect("Failed to launch rocket");
+        my_rocket.launch().await.expect("Failed to launch rocket");
     }
 }
 
@@ -165,7 +156,7 @@ fn run_baseline_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     let client = Client::tracked(rocket).expect("valid rocket instance");
 
     let mut user2apikey = HashMap::new();
-    
+
     // create all users
     #[cfg(feature = "flame_it")]
     flame::start("create_users");
@@ -283,7 +274,7 @@ fn run_baseline_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     #[cfg(feature = "flame_it")]
     flame::end("anonymize");
     assert_eq!(response.status(), Status::SeeOther);
-    
+
     print_stats(
         args,
         account_durations,

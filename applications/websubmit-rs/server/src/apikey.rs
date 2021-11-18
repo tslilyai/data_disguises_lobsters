@@ -14,7 +14,6 @@ use rocket::State;
 use rocket_dyn_templates::Template;
 use rsa::pkcs1::ToRsaPrivateKey;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::time;
 
 /// (username, apikey)
@@ -46,7 +45,7 @@ impl<'r> FromRequest<'r> for ApiKey {
 
     async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
         let be = request
-            .guard::<&State<Arc<Mutex<MySqlBackend>>>>()
+            .guard::<&State<MySqlBackend>>()
             .await
             .unwrap();
         request
@@ -67,10 +66,9 @@ impl<'r> FromRequest<'r> for ApiKey {
 #[post("/", data = "<data>")]
 pub(crate) fn generate(
     data: Form<ApiKeyRequest>,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
     config: &State<Config>,
 ) -> Template {
-    let mut bg = backend.lock().unwrap();
 
     // generate an API key from email address
     #[cfg(feature = "flame_it")]
@@ -114,7 +112,7 @@ pub(crate) fn generate(
         #[cfg(feature = "flame_it")]
         flame::start("register_principal");
         let start = time::Instant::now();
-        let private_key = bg.edna.register_principal(data.email.as_str().into());
+        let private_key = bg.edna.lock().unwrap().register_principal(data.email.as_str().into());
         privkey_str = base64::encode(&private_key.to_pkcs1_der().unwrap().as_der().to_vec());
         info!(bg.log, "register principal: {}", start.elapsed().as_micros());
         #[cfg(feature = "flame_it")]
@@ -137,7 +135,6 @@ pub(crate) fn generate(
     info!(bg.log, "send apikey email: {}", start.elapsed().as_micros());
     #[cfg(feature = "flame_it")]
     flame::end("send_apikey_email");
-    drop(bg);
 
     // return to user
     let mut ctx = HashMap::new();
@@ -147,12 +144,10 @@ pub(crate) fn generate(
 }
 
 pub(crate) fn check_api_key(
-    backend: &Arc<Mutex<MySqlBackend>>,
+    bg: &State<MySqlBackend>,
     key: &str,
 ) -> Result<String, ApiKeyError> {
-    let mut bg = backend.lock().unwrap();
     let rs = bg.query_exec("users_by_apikey", vec![key.into()]);
-    drop(bg);
     if rs.len() < 1 {
         Err(ApiKeyError::Missing)
     } else if rs.len() > 1 {
@@ -169,10 +164,10 @@ pub(crate) fn check_api_key(
 pub(crate) fn check(
     data: Form<ApiKeySubmit>,
     cookies: &CookieJar<'_>,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    bg: &State<MySqlBackend>,
 ) -> Redirect {
     // check that the API key exists and set cookie
-    let res = check_api_key(&*backend, &data.key);
+    let res = check_api_key(&*bg, &data.key);
     match res {
         Err(ApiKeyError::BackendFailure) => {
             eprintln!("Problem communicating with MySql backend");

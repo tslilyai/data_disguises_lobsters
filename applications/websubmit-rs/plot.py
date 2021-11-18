@@ -4,11 +4,11 @@ import statistics
 import sys
 from collections import defaultdict
 from itertools import cycle
-cycol1 = cycle('bgrm')
-cycol2 = cycle('cykw')
+cycol1 = cycle('bgr')
+cycol2 = cycle('cyk')
 
 nusers = [10, 30, 50, 70, 100]
-props = [1/10, 1/6, 1/4, 1/2]
+props = [1/10, 1/4, 1/2]
 
 lec = sys.argv[1]
 
@@ -47,40 +47,45 @@ for u in nusers:
             account_results_baseline[i].append(statistics.mean(account_durs))
             edit_results_baseline[i].append(statistics.mean(edit_durs))
 
-for (i, results) in account_results.items():
-    axes_flat[0].plot(nusers, account_results[i], label='edna_{}disguisers'.format(props[i]), color=next(cycol1))
-    axes_flat[0].plot(nusers, account_results_baseline[i], label='baseline_{}disguisers'.format(props[i]), color=next(cycol2))
+axes_flat[0].plot(nusers, account_results_baseline[0], label='baseline', color='c')
+for i in range(len(props)):
+    axes_flat[0].plot(nusers, account_results[i], label='edna_{}'.format(props[i]), color=next(cycol1))
+#for i in range(len(props)):
 
-for (i, results) in edit_results.items():
-    axes_flat[1].plot(nusers, edit_results[i], label='edna_{}disguisers'.format(props[i]), color=next(cycol1))
-    axes_flat[1].plot(nusers, edit_results_baseline[i], label='baseline_{}disguisers'.format(props[i]), color=next(cycol2))
+axes_flat[1].plot(nusers, edit_results_baseline[0], label='baseline', color='c')
+for i in range(len(props)):
+    axes_flat[1].plot(nusers, edit_results[i], label='edna_{}'.format(props[i]), color=next(cycol1))
+#for i in range(len(props)):
 
-for (i, results) in delete_results.items():
-    axes_flat[2].plot(nusers, delete_results[i], label='edna_{}disguisers'.format(props[i]), color=next(cycol1))
+for i in range(len(props)):
+    axes_flat[2].plot(nusers, delete_results[i], label='edna_{}'.format(props[i]), color=next(cycol1))
 
-for (i, results) in restore_results.items():
-    axes_flat[3].plot(nusers, restore_results[i], label='edna_{}disguisers'.format(props[i]), color=next(cycol1))
+for i in range(len(props)):
+    axes_flat[3].plot(nusers, restore_results[i], label='edna_{}'.format(props[i]), color=next(cycol1))
 
 axes_flat[0].set_title("Average Time to Create Account")
 axes_flat[0].set_xlabel('Number of users')
 axes_flat[0].set_ylabel('Time (ms)')
 axes_flat[0].set_ylim(ymin=0)
-axes_flat[0].legend(loc='upper left');
+axes_flat[0].legend(loc='lower left');
 
 axes_flat[1].set_title("Average Time to Edit Answers to Lecture")
 axes_flat[1].set_xlabel('Number of users')
 axes_flat[1].set_ylabel('Time (ms)')
 axes_flat[1].set_ylim(ymin=0)
+axes_flat[1].legend(loc='upper left');
 
 axes_flat[2].set_title("Average Time to Delete Account")
 axes_flat[2].set_xlabel('Number of users')
 axes_flat[2].set_ylabel('Time (ms)')
 axes_flat[2].set_ylim(ymin=0)
+axes_flat[2].legend(loc='upper left');
 
 axes_flat[3].set_title("Average Time to Restore Account")
 axes_flat[3].set_xlabel('Number of users')
 axes_flat[3].set_ylabel('Time (ms)')
 axes_flat[3].set_ylim(ymin=0)
+axes_flat[3].legend(loc='upper left');
 
 fig.tight_layout(h_pad=4)
 plt.savefig('concurrent_results_{}lec.png'.format(lec), dpi=300)

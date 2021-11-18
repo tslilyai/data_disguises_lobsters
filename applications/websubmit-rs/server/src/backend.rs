@@ -1,5 +1,5 @@
-use crate::disguises;
 use crate::args;
+use crate::disguises;
 use edna::EdnaClient;
 use mysql::prelude::*;
 use mysql::Opts;
@@ -7,26 +7,23 @@ pub use mysql::Value;
 use mysql::*;
 use sql_parser::ast::*;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex, RwLock};
 
 const ADMIN_INSERT : &'static str = "INSERT INTO users VALUES ('malte@cs.brown.edu', 'b4bc3cef020eb6dd20defa1a7a8340dee889bc2164612e310766e69e45a1d5a7', 1, 0);";
 
 pub struct MySqlBackend {
     pub pool: mysql::Pool,
     pub log: slog::Logger,
-    pub edna: EdnaClient,
+    pub edna: Arc<Mutex<EdnaClient>>,
     _schema: String,
 
     // table name --> (keys, columns)
-    tables: HashMap<String, (Vec<String>, Vec<String>)>,
-    queries: HashMap<String, String>,
+    tables: Arc<RwLock<HashMap<String, (Vec<String>, Vec<String>)>>>,
+    queries: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl MySqlBackend {
-    pub fn new(
-        dbname: &str,
-        log: Option<slog::Logger>,
-        args: &args::Args,
-    ) -> Result<Self> {
+    pub fn new(dbname: &str, log: Option<slog::Logger>, args: &args::Args) -> Result<Self> {
         let log = match log {
             None => slog::Logger::root(slog::Discard, o!()),
             Some(l) => l,
@@ -40,7 +37,7 @@ impl MySqlBackend {
             "Connecting to MySql DB and initializing schema {}...", dbname
         );
 
-        let nusers : usize;
+        let nusers: usize;
         if args.config.is_baseline {
             nusers = args.nusers + 5;
         } else {
@@ -165,9 +162,9 @@ impl MySqlBackend {
             log: log,
             _schema: schema.to_owned(),
 
-            tables: tables,
-            queries: queries,
-            edna: edna,
+            tables: Arc::new(RwLock::new(tables)),
+            queries: Arc::new(RwLock::new(queries)),
+            edna: Arc::new(Mutex::new(edna)),
         })
     }
 
@@ -175,8 +172,10 @@ impl MySqlBackend {
         self.pool.get_conn().unwrap()
     }
 
-    pub fn query_exec(&mut self, qname: &str, keys: Vec<Value>) -> Vec<Vec<Value>> {
-        let q = self.queries.get(qname).unwrap();
+    pub fn query_exec(&self, qname: &str, keys: Vec<Value>) -> Vec<Vec<Value>> {
+        let qs = self.queries.read().unwrap();
+        let q = qs.get(qname).unwrap().clone();
+        drop(qs);
         let mut conn = self.handle();
         let prepstmt = conn.prep(q).unwrap();
         let res = conn
@@ -197,7 +196,7 @@ impl MySqlBackend {
         return rows;
     }
 
-    pub fn insert(&mut self, table: &str, vals: Vec<Value>) {
+    pub fn insert(&self, table: &str, vals: Vec<Value>) {
         let valstrs: Vec<&str> = vals.iter().map(|_| "?").collect();
         let q = format!(r"INSERT INTO {} VALUES ({});", table, valstrs.join(","));
         self.handle()
@@ -205,11 +204,13 @@ impl MySqlBackend {
             .expect(&format!("failed to insert into {}, query {}!", table, q));
     }
 
-    pub fn update(&mut self, table: &str, keys: Vec<Value>, vals: Vec<(usize, Value)>) {
-        let (key_cols, cols) = self
-            .tables
+    pub fn update(&self, table: &str, keys: Vec<Value>, vals: Vec<(usize, Value)>) {
+        let tables = self.tables.read().unwrap();
+        let (key_cols, cols) = tables
             .get(table)
-            .expect(&format!("Incorrect table in update? {}", table));
+            .expect(&format!("Incorrect table in update? {}", table))
+            .clone();
+        drop(tables);
         let mut assignments = vec![];
         let mut args = vec![];
         for (index, value) in vals {
@@ -232,16 +233,13 @@ impl MySqlBackend {
             .expect(&format!("failed to update {}, query {}!", table, q));
     }
 
-    pub fn insert_or_update(
-        &mut self,
-        table: &str,
-        rec: Vec<Value>,
-        update_vals: Vec<(u64, Value)>,
-    ) {
-        let (_, cols) = self
-            .tables
+    pub fn insert_or_update(&self, table: &str, rec: Vec<Value>, update_vals: Vec<(u64, Value)>) {
+        let tables = self.tables.read().unwrap();
+        let (_, cols) = tables
             .get(table)
-            .expect(&format!("Incorrect table in update? {}", table));
+            .expect(&format!("Incorrect table in update? {}", table))
+            .clone();
+        drop(tables);
         let mut args = vec![];
         let recstrs: Vec<&str> = rec
             .iter()

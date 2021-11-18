@@ -13,7 +13,7 @@ pub fn get_did() -> DID {
 }
 
 pub fn apply(
-    bg: &mut MySqlBackend,
+    bg: &MySqlBackend,
     user_email: UID,
     decryption_cap: tokens::DecryptCap,
     loc_caps: Vec<tokens::LocCap>,
@@ -31,11 +31,11 @@ pub fn apply(
         return Ok((HashMap::new(), HashMap::new()));
     }
     let gdpr_disguise = get_disguise(user_email);
-    bg.edna.apply_disguise(Arc::new(gdpr_disguise), decryption_cap, loc_caps)
+    bg.edna.lock().unwrap().apply_disguise(Arc::new(gdpr_disguise), decryption_cap, loc_caps)
 }
 
 pub fn reveal(
-    bg: &mut MySqlBackend,
+    bg: &MySqlBackend,
     decryption_cap: tokens::DecryptCap,
     diff_loc_caps: Vec<tokens::LocCap>,
     own_loc_caps: Vec<tokens::LocCap>,
@@ -44,7 +44,7 @@ pub fn reveal(
     if is_baseline {
         return Ok(());
     }
-    bg.edna.reverse_disguise(get_did(), decryption_cap, diff_loc_caps, own_loc_caps)
+    bg.edna.lock().unwrap().reverse_disguise(get_did(), decryption_cap, diff_loc_caps, own_loc_caps)
 }
 
 fn get_disguise(user_email: UID) -> Disguise {

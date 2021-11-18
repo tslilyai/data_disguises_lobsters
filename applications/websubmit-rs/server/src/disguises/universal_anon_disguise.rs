@@ -1,9 +1,9 @@
 use crate::backend::MySqlBackend;
-use mysql::{TxOpts};
 use crate::disguises::*;
 use edna::*;
 use mysql::from_value;
 use mysql::prelude::*;
+use mysql::TxOpts;
 use mysql::*;
 use std::collections::HashMap;
 use std::time;
@@ -20,7 +20,7 @@ pub fn get_did() -> DID {
 }
 
 pub fn apply(
-    bg: &mut MySqlBackend,
+    bg: &MySqlBackend,
     is_baseline: bool,
 ) -> Result<(
     HashMap<(UID, DID), tokens::LocCap>,
@@ -28,7 +28,9 @@ pub fn apply(
 )> {
     // DECOR ANSWERS
     if !is_baseline {
-        bg.edna.start_disguise(get_did());
+        let edna = bg.edna.lock().unwrap();
+        edna.start_disguise(get_did());
+        drop(edna);
     }
     let mut conn = bg.handle();
     let mut txn = conn.start_transaction(TxOpts::default())?;
@@ -67,7 +69,9 @@ pub fn apply(
             #[cfg(feature = "flame_it")]
             flame::start("EDNA: create_pseudoprincipal");
             let start = time::Instant::now();
-            let p = bg.edna.create_new_pseudoprincipal();
+            let mut edna = bg.edna.lock().unwrap();
+            let p = edna.create_new_pseudoprincipal();
+            drop(edna);
             new_uid = p.0;
             let rowvals = p.1;
             info!(
@@ -88,8 +92,15 @@ pub fn apply(
             #[cfg(feature = "flame_it")]
             flame::start("ENDA: save_pseudoprincipal");
             let start = time::Instant::now();
-            bg.edna
-                .save_pseudoprincipal_token(get_did(), user.clone(), new_uid.clone(), vec![], &mut txn);
+            let edna = bg.edna.lock().unwrap();
+            edna.save_pseudoprincipal_token(
+                get_did(),
+                user.clone(),
+                new_uid.clone(),
+                vec![],
+                &mut txn,
+            );
+            drop(edna);
             warn!(
                 bg.log,
                 "save pseudoprincipals: {}",
@@ -119,7 +130,11 @@ pub fn apply(
 
     #[cfg(feature = "flame_it")]
     flame::start("DB: insert pseudos");
-    warn!(bg.log, "Query: {}", &format!(r"INSERT INTO `users` VALUES {};", users.join(",")));
+    warn!(
+        bg.log,
+        "Query: {}",
+        &format!(r"INSERT INTO `users` VALUES {};", users.join(","))
+    );
     let start = time::Instant::now();
     txn.query_drop(&format!(r"INSERT INTO `users` VALUES {};", users.join(",")))?;
     warn!(
@@ -156,7 +171,10 @@ pub fn apply(
     let res = if is_baseline {
         Ok((HashMap::new(), HashMap::new()))
     } else {
-        Ok(bg.edna.end_disguise(get_did(), &mut txn))
+        let edna = bg.edna.lock().unwrap();
+        let res = edna.end_disguise(get_did(), &mut txn);
+        drop(edna);
+        Ok(res)
     };
     txn.commit()?;
     res
