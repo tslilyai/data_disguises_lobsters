@@ -127,9 +127,11 @@ fn main() {
     if !args.baseline {
         let my_delete_durations = delete_durations.clone();
         let my_restore_durations = restore_durations.clone();
+        let nusers = args.nusers;
         let ndisguising = args.ndisguising;
         normal_threads.push(thread::spawn(move || {
             run_disguising(
+                nusers,
                 ndisguising,
                 user2apikey.clone(),
                 user2decryptcap.clone(),
@@ -233,6 +235,7 @@ fn run_normal(
 }
 
 fn run_disguising(
+    nusers: usize,
     ndisguising: usize,
     user2apikey: HashMap<String, String>,
     user2decryptcap: HashMap<String, String>,
@@ -242,7 +245,7 @@ fn run_disguising(
     let overall_start = time::Instant::now();
     while overall_start.elapsed().as_millis() < TOTAL_TIME {
         let mut disguising_threads = vec![];
-        for u in 0..ndisguising {
+        for u in nusers..nusers+ndisguising {
             let email = format!("{}@mail.edu", u);
             let apikey = user2apikey.get(&email).unwrap().clone();
             let decryptcap = user2decryptcap.get(&email).unwrap().clone();
