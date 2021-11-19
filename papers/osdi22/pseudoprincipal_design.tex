@@ -86,7 +86,7 @@ could just send the symmetric key to the original user being disguised?}
 Recall that \sys removes any metadata about a principal when the principal is removed by the
 application during a disguise.
 However, \sys cannot simply remove pseudoprincipal metadata because this metadata includes \lcapa{qd}
-ciphertexts. Remove \lcapa{qd} removes the ability to find any of the encrypted token bags
+ciphertexts. Removing \lcapa{qd} removes the ability to find any of the encrypted token bags
 located at \lcapa{qd}. Thus, if \sys wanted to access $q$'s tokens for \eg disguise reversal, \sys
 would need to attempt to decrypt every encrypted token bag at every location.
 
@@ -102,7 +102,7 @@ retain $q$'s metadata at the cost slightly weaker security (an adversary learns 
 pseudoprincipal existed and some data had been decorrelated at some point, even if the corresponding
 user or data has since been deleted).
 
-For simplicity, our current design retains pseudoprincipal metadata in all scenarios.
+For simplicity, \sys's current design retains pseudoprincipal metadata in all scenarios.
 
 \iffalse
 Two strawmen, simple designs either fail to achieve this security property, or reduce functionality:

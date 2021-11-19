@@ -1,12 +1,12 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{High-Level Disguise Specifications.} 
-\sys's high-level disguising API can be used for applications that use SQL databases. \sys provides
-a disguise specification language that supports disguising and revealing database objects
-corresponding to individual database rows, and can only decorrelate data that is linked to
-principals directly via foreign key relationships.
+\sys's high-level disguising API can be used for a restricted set of disguises in applications that
+use SQL databases. \sys provides a disguise specification language that supports disguising and
+revealing database objects corresponding to individual database rows, and can only decorrelate data
+that is linked to principals directly via foreign key relationships.
 
-Disguises specifications consist of descriptions of predicated disguise operations that \sys knows
-how to perform.  Operations of disguise $d$ take data objects as input and execute updates to
+Disguises specifications consist of a set of predicated disguise operation specifications that \sys knows
+how to perform.  Operations take data objects as input and execute updates to
 application data. \sys automatically generates tokens when applying each operations.
 
 In addition to the application-aware pseudoprincipal generation policy (which is required for the
@@ -16,7 +16,7 @@ comment removal operation should be associated with the principal whose ID is re
 author column, a foreign key to the principals table.
 
 \vspace{6pt}\noindent
-\sys supports three high-level disguise specifcation operations:
+\sys supports three high-level disguise specification operations:
 \begin{enumerate}
     \item Modify: change an attribute of the data object.
     \item Remove: delete the data object.
@@ -51,7 +51,7 @@ If provided a decryption capability and locator \lcapa{pd'} from disguise $d'$, 
 disguise $d'$.
 
 If one of $d$'s operations has a predicate to apply the operation to $p$'s data, \sys
-\emph{composes} the operation on top of $d'$ by also applying the operation to data of $q$.
+composes the operation on top of $d'$ by also applying the operation to data of $q$.
 
 \head{Disguise Revealing.} 
 To reveal disguise $d$, \sys retrieves all tokens accessible with the provided decryption capability
