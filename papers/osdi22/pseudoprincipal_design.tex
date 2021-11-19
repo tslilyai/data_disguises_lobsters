@@ -1,37 +1,29 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Disguising Pseudoprincipal Data}
+\subsection{Pseudoprincipal Tokens Design}
 
 To apply one disguise on top of another in a way that supports, \eg comment removal after universal
-decorrelation, \sys must support \emph{pseudoprincipal diffs}, namely diffs associated with
-pseudoprincipals. 
+decorrelation, \sys should support disguises that modify data belonging to pseudoprincipals, and which
+produce tokens for pseudoprincipals.
+%
+For example, after universal decorrelation, every paper or review correlates with a pseudoprincipal
+user. If the application then performs a disguise to remove papers, the corresponding diff token 
+would be associated with pseudoprincipals.
 
-These diffs can occur after at least one disguise has been applied: subsequent disguises may
-associate diffs with pseudoprincipals. For example, after universal decorrelation, every paper or
-review correlates with a pseudoprincipal user. When \sys applies universal decorrelation,
-decorrelation of all papers and reviews generates correlation diffs for these pseudoprincipals.
+However, pseudoprincipals $q$ have no corresponding real user known to the application or \sys (for
+unlinkability, the application server and \sys cannot store pseudoprincipal-user correspondences). 
+This means that there is no ability to store the corresponding decryption capability \privk{q}
+external to the application or \sys.
+To support pseudoprincipal tokens, \sys needs to securely store pseudoprincipal decryption
+capabilities (private keys) such that only authorized users can access them.
 
-However, we now have a problem. Diffs are encrypted with \privk{p} and stored at
-\lcapa{pd}, and \sys emails \lcapa{pd} to (potentially offline) clients and does not retain
-\lcapa{pd}.  However, pseudoprincipals have no corresponding real user (and, for unlinkability, \sys
-cannot store which pseudoprincipal-user correspondences). Thus, \sys has no way to communicate
-\lcapa{pd} to a user who speaks for pseudoprincipal $p$!
-%, so pseudoprincipals' capabilities can either be insecurely stored by \sys, or lost forever!
-
-We have three potential approaches to solve this problem. Two we see as strawmen because they fail
-to meet our secury and use case goals respectively:
+The simplest designs either fail to achieve this security property, or reduce functionality:
 \begin{enumerate}
-    \item \emph{Weak Security:} \sys can store \lcapa{pd} for pseudoprincipal $p$. This means
-        an adversary will be able to learn $p$'s undisguised data, even if it had been disguised by
-        $d$.
-
-    \item \emph{Permanent Disguises:} \sys throws away \lcapa{pd} for pseudoprincipal $p$. This means that the
-        disguise modifications are permanent, and no links (to determine ownership) between
-        $p$ and other pseudoprincipals can be made. This affects temporary recorrelation, because
-        decorrelation links between principals cannot be derived from discarded diffs.
+    \item \emph{Weak Security:} \sys can store \privk{q} in plaintext for pseudoprincipal $q$. 
+        This is equivalent to $q$'s data being undisguised after compromise.  
+    \item \emph{Permanent Disguises:} \sys throws away \privk{q} for pseudoprincipal $q$. This means that the
+            disguise modifications to pseudoprincipal data are permanent, and prevents temporary
+            recorrelation and disguise revealing.
 \end{enumerate}
-
-We next describe a third option, which meets our security and use case goals while trading off
-efficiency and usability.
 
 \head{Pseudoprincipal Private Keys.}
 When a pseudoprincipal $q$ is generated to decorrelate data from $p$: 
@@ -56,7 +48,18 @@ $p$, \sys does not store any similar metadata indicating how many disguises have
 This means that an adversary can learn that \emph{some} disguise has applied to and
 decorrelated data from $q$. However, this falls out of scope in our threat model: $q$ is a
 pseudoprincipal created from a decorrelation operation, and therefore any disguise metadata regarding $q$ has already been dissociated from
-the original principal $p$'s identity.  
+the original principal $p$'s identity.
+
+\lyt{TODO}
+
+Thus, locators \lcapa{qd} produced by disguising pseudoprincipal $q$ to a user who speaks for pseudoprincipal $p$!
+We now have a problem. Diffs are encrypted with \privk{p} and stored at
+\lcapa{pd}, and \sys emails \lcapa{pd} to (potentially offline) clients and does not retain
+\lcapa{pd}.  
+%, so pseudoprincipals' capabilities can either be insecurely stored by \sys, or lost forever!
+
+
+  
 
 \head{Extending capabilities to authorize pseudoprincipal diffs access.}
 With this extended design, a client speaking for $p$ that provides data and locating capabilities%\pcapa{p}{d}
