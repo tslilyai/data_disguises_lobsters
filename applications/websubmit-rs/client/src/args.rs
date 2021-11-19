@@ -9,8 +9,6 @@ pub struct Args {
     pub ndisguising: usize,
     pub nlec: usize,
     pub nqs: usize,
-    pub niters: usize,
-    pub ndisguise_iters: usize,
     pub baseline: bool,
     pub db: String,
 }
@@ -57,20 +55,6 @@ pub fn parse_args() -> Args {
                 .takes_value(true)
                 .value_name("NQS")
                 .default_value("2"),
-        )
-        .arg(
-            Arg::with_name("niters")
-                .short("i")
-                .long("niters")
-                .takes_value(true)
-                .value_name("NITERS")
-                .default_value("2000"),
-        ).arg(
-            Arg::with_name("ndisguise_iters")
-                .long("ndisguise_iters")
-                .takes_value(true)
-                .value_name("NDISGUISE_ITERS")
-                .default_value("200"),
         ).arg(
             Arg::with_name("baseline")
                 .short("b")
@@ -85,8 +69,6 @@ pub fn parse_args() -> Args {
         ndisguising: usize::from_str(args.value_of("ndisguising").unwrap()).unwrap(),
         nlec: usize::from_str(args.value_of("nlec").unwrap()).unwrap(),
         nqs: usize::from_str(args.value_of("nqs").unwrap()).unwrap(),
-        niters: usize::from_str(args.value_of("niters").unwrap()).unwrap(),
-        ndisguise_iters: usize::from_str(args.value_of("ndisguise_iters").unwrap()).unwrap(),
         baseline: bool::from_str(args.value_of("baseline").unwrap()).unwrap(),
         db: String::from(args.value_of("db").unwrap()),
     }

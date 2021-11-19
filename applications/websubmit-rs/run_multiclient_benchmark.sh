@@ -1,7 +1,8 @@
 #!/bin/bash
 
 RUST_LOG=error
-cargo build --release --features flame_it
+cargo build --release
+rm *.csv *.txt
 rm -rf output
 mkdir output
 
@@ -13,7 +14,7 @@ for l in 20 40; do
 		for baseline in true false; do
 			ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
 			
-			sleep 5
+			sleep 8
 
 			echo "Starting server"
 			RUST_LOG=error ../../target/release/websubmit-server \
@@ -22,12 +23,11 @@ for l in 20 40; do
 				--nusers 0 --nlec 0 --nqs 0 &> \
 				output/server.out &
 			
-			sleep 5
+			sleep 8
 
 			echo "Running client"
 			RUST_LOG=error perflock ../../target/release/websubmit-client \
 				--nusers $u --nlec $l --nqs 4 --ndisguising $nd \
-				--niters 200 --ndisguise_iters 20 \
 				--baseline $baseline --db myclass &> \
 				output/${l}lec_${u}users_${nd}disguisers_$baseline.out
 			echo "Ran baseline($baseline) test for $l lecture and $u, $nd users"
@@ -36,5 +36,3 @@ for l in 20 40; do
     done
     python3 plot.py $l
 done
-
-rm *txt || true 
