@@ -1,22 +1,5 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Disguising Anonymized Users}
-
-%\begin{table*}[t!]
-%\centering
-    %\begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
-%\textbf{API Call} & \textbf{Description} \\
-%\hline
-    %\fn{GetEncryptedPseudoPrincipalPrivateKeys($p$, \lcapa{pd}) $\rightarrow$
-        %\fn{Vec<Enc(\pubk{p},\privk{q})>}} & Returns the set of encrypted pseudoprincipals and their
-        %private keys created when decorrelating $p$'s data for disguise $d$.
-    %\vspace{6pt}\\
-        %\fn{GetEncryptedLocatingCaps($q$) $\rightarrow$ \fn{Vec<Enc(\pubk{q}, \lcapa{qd})>}} & 
-        %Returns the set of \lcapa{qd} encrypted with
-        %\pubk{q} for all $d$ that applied to $q$. Nonempty only if $q$ is a pseudoprincipal.\\
-    %\end{tabular}
-%\caption{Additional Client-\sys API Calls for Asymmetric Encryption}
-%\label{tab:client_api_ext}
-%\end{table*}
+\subsection{Disguising Pseudoprincipal Data}
 
 To apply one disguise on top of another in a way that supports, \eg comment removal after universal
 decorrelation, \sys must support \emph{pseudoprincipal diffs}, namely diffs associated with

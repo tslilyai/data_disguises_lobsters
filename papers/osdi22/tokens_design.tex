@@ -1,0 +1,97 @@
+%-------------------------------------------------------------------------------
+\section{Design} 
+%-------------------------------------------------------------------------------
+
+\subsection{Secure Disguise Tokens Design} 
+Applications save disguise metadata in the form of tokens: ownership tokens \town{pd} save information linking
+principals to anonymous pseudoprincipals, and diff tokens \tdiff{pd} save information about modifications
+performed during the disguise. 
+We discuss here how the \sys securely stores tokens produced by applications upon disguising, and
+how \sys allows applications to efficiently and securely retrieve these tokens.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Token Wrappers.}
+In order to generically handle token data, \sys stores all tokens in token wrappers. 
+Wrappers store the bytes of the token \tdiff{pd} or \town{pd} (provided
+by the application), a correlated principal ID $p$, and the disguise ID $d$ of the disguise producing the
+token. In addition, \sys includes a random nonce in the token wrapper to prevent known plaintext
+attacks.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Securing Token Access.} 
+When a new principal $p$ is created, \sys produces a private-public keypair, and returns \privk{p} to
+the application (which then sends it to the appropriate client). \sys stores \pubk{p} associated
+with principal ID $p$.
+
+\sys secures a principal $p$'s tokens by storing them in a token wrapper, and encrypting the wrapper
+with \pubk{p}. Only a client holding the private key \privk{p}---the decryption
+capability---can access these tokens.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Securing Disguise History.} 
+\sys should not leak information that $d$ disguised principal $p$ if $p$ interacts with the system
+to reveal or otherwise access disguised data. In particular, \sys should avoid an adversary learning
+that encrypted tokens exist for a particular $p$ and $d$, since this allows the adversary to deduce
+that $d$ disguised $p$. For example, \sys should not reveal that a principal $p$ has invoked GDPR
+deletion.
+
+A strawman solution could store all encrypted tokens in one large bag, so those from
+$d$ for $p$ are indistinguishable from those from $d'$ for $p'$. When \sys then gets a request for
+tokens from disguise $d$ and for principal $p$, \sys attempts to decrypt (using a provided
+decryption capability \privk{p}) all tokens in order to find the relevant ones.
+
+To make this process more efficient, \sys uses \emph{locators \lcapa{pd}}. For each $p$ and $d$,
+\sys stores encrypted tokens \tdiff{pd} and \town{pd} in a randomly located bag pointed to by
+locator \lcapa{pd}. \sys returns all locators produced by a disguise to the application; to ensure
+that locators don't leak information that disguise $d$ applied to $p$, \sys then forgets all locator
+information, and the application should ensure that locators are stored external to the application
+server (\eg by emailing them to the corresponding users).
+
+Note that with this design, an adversary without access to \lcapa{pd} can learn that $n$ diffs exist
+for \emph{some} $p$ and $d$, but cannot identify \emph{which} $p$ or $d$. 
+%
+Furthermore, an adversary with access to decryption capability \privk{p} would not need locators to
+discover $p$'s disguise history: they can decrypt every token in every bag to see which bags they
+can successful decrypt. Using locators just makes such an attack less efficient.
+%
+These scenarios are outside our threat model.
+
+\lyt{
+An alternative design might remove encrypted tokens completely (and \eg store them in external per-user
+vaults or email them to the client).
+This leaves no trace in \sys or the application, and would prevent the adversary from learning
+anything. However, this places a large burden on the client.
+Maybe put this in future work?
+}
+
+
+\iffalse
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%G
+\subsection{Current Design: Discussion}
+As the current design stands, \sys supports 1st-person and 3rd-person disguising, as well as
+1st-person revealing.
+%
+Application developers can write GDPR-compliant and/or universal disguises with the primitives
+exposed by \sys to write disguise specifications.
+%
+\sys uses diffs produced from disguising to reveal data when authorized to do so, and when
+revealing does not revert updates made to the data since the time of disguise application.
+
+%
+\sys also supports ``Temporary Recorrelation without Database Changes'' because \sys can determine
+the original owner of data as long as \sys has access to decorrelation diffs (which the client or
+the application provides via the appropriate capabilities).
+%
+\sys can use information from decorrelation diffs to disguise decorrelated data as if it were owned
+by the original user; and 
+%
+\sys can support the API discussed in \S\ref{s:api}, which allows applications to query \sys to
+check ownership properties and grant authorized users personalized views and permissions to access
+data objects.
+
+Furthermore, \sys does this while meeting all security goals: \sys supports authorized disguises and
+ensures the security of ownership claims, disguise diffs, and disguise history.
+
+Our current design falls short, however, by failing to support ``Disguising Anonymized
+Users'' which we explain next.
+\fi

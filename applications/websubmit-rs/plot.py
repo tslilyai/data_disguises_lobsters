@@ -5,8 +5,8 @@ import sys
 from collections import defaultdict
 plt.style.use('seaborn-deep')
 
-nusers = [10, 30]#, 50]#, 70, 100]
-props = [1/10, 1/4]#, 1/2]
+nusers = [10, 30, 50, 70, 100]
+props = [1/10, 1/4, 1/2]
 maxts = 100000
 nbuckets = 10000
 bucketwidth = maxts/nbuckets
@@ -73,7 +73,7 @@ for u in nusers:
         axes_flat[i].set_xlabel('Benchmark Time (ms)')
         axes_flat[i].set_ylabel('Latency (ms)')
         axes_flat[i].set_ylim(ymin=0)
-        axes_flat[i].set_xlim(xmin=0)
+        axes_flat[i].set_xlim(xmin=0, xmax=nbuckets)
         axes_flat[i].legend(loc='upper left');
 
     axes_flat[0].set_title("Editing Answers to Lecture Latency")
