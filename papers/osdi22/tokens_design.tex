@@ -22,6 +22,8 @@ attacks.
 When a new principal $p$ is created, \sys produces a private-public keypair, and returns \privk{p} to
 the application (which then sends it to the appropriate client). \sys stores \pubk{p} associated
 with principal ID $p$.
+If a principal $p$ is removed from the application during a disguise, \sys deletes any corresponding metadata, namely
+the record of \pubk{p}.
 
 \sys secures a principal $p$'s tokens by storing them in a token wrapper, and encrypting the wrapper
 with \pubk{p}. Only a client holding the private key \privk{p}---the decryption

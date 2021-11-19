@@ -82,6 +82,28 @@ tokens, and an adversary learns no disguise metadata about real users.
 \lyt{Note somewhere that pseudoprincipals and recursive disguising are why we need asymmetric crypto; otherwise, we
 could just send the symmetric key to the original user being disguised?}
 
+\head{Retaining Pseudoprincipal Metadata.}
+Recall that \sys removes any metadata about a principal when the principal is removed by the
+application during a disguise.
+However, \sys cannot simply remove pseudoprincipal metadata because this metadata includes \lcapa{qd}
+ciphertexts. Remove \lcapa{qd} removes the ability to find any of the encrypted token bags
+located at \lcapa{qd}. Thus, if \sys wanted to access $q$'s tokens for \eg disguise reversal, \sys
+would need to attempt to decrypt every encrypted token bag at every location.
+
+A pseudoprincipal is often deleted while \sys has knowledge of the link between $q$ and
+original principal $p$ (\eg, when a client deletes $p$'s account and provides ownership tokens
+to \sys to delete $p$'s anoymized data). In these scenarios, \sys can encrypt the
+\lcapa{qd} ciphertexts with \pubk{p} and store the ciphertexts at some locator that is then emailed
+to the real user speaking for $p$.
+
+However, without knowledge of this link, \sys only has two choices when $q$ is removed by the
+application: delete $q$'s metadata at the cost of losing (efficient) access to $q$'s tokens, or
+retain $q$'s metadata at the cost slightly weaker security (an adversary learns that a
+pseudoprincipal existed and some data had been decorrelated at some point, even if the corresponding
+user or data has since been deleted).
+
+For simplicity, our current design retains pseudoprincipal metadata in all scenarios.
+
 \iffalse
 Two strawmen, simple designs either fail to achieve this security property, or reduce functionality:
 \begin{enumerate}
