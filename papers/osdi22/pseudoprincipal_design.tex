@@ -5,61 +5,61 @@ To apply one disguise on top of another in a way that supports, \eg comment remo
 decorrelation, \sys should support disguises that modify data belonging to pseudoprincipals, and which
 produce tokens for pseudoprincipals.
 %
-For example, after universal decorrelation, every paper or review correlates with a pseudoprincipal
-user. If the application then performs a disguise to remove papers, the corresponding diff token 
-would be associated with pseudoprincipals.
+For example, after universal decorrelation, pseudoprincipals own every paper or review. If the
+application then performs a disguise to remove papers, the corresponding diff token would be
+associated with pseudoprincipals.
 
-However, pseudoprincipals $q$ have no corresponding real user known to the application or \sys (for
-unlinkability, the application server and \sys cannot store pseudoprincipal-user correspondences). 
-This means that there is no ability to store the corresponding decryption capability \privk{q}
-external to the application or \sys.
-To support pseudoprincipal tokens, \sys needs to securely store pseudoprincipal decryption
-capabilities (private keys) such that only authorized users can access them.
+To secure these tokens, \sys needs to encrypt them in some way. The simplest way would be to use
+\pubk{p}, where $p$ is the real principal linked to the pseudoprincipal being disguised.
+However, \sys does not know which real user corresponds to which pseudoprincipals (for
+unlinkability, the application server/\sys cannot store pseudoprincipal-user correspondences). 
 
-The simplest designs either fail to achieve this security property, or reduce functionality:
-\begin{enumerate}
-    \item \emph{Weak Security:} \sys can store \privk{q} in plaintext for pseudoprincipal $q$. 
-        This is equivalent to $q$'s data being undisguised after compromise.  
-    \item \emph{Permanent Disguises:} \sys throws away \privk{q} for pseudoprincipal $q$. This means that the
-            disguise modifications to pseudoprincipal data are permanent, and prevents temporary
-            recorrelation and disguise revealing.
-\end{enumerate}
+Instead, \sys associates each pseudoprincipal $q$ with a keypair \pubk{q} and \privk{q}, and treats
+pseudoprincipals the same as any other principal in the system. \sys encrypts pseudoprincipal tokens
+with \pubk{q}, and requires decryption capability \privk{q} to access these tokens. \sys must
+securely store pseudoprincipal decryption capabilities \privk{q} such that only authorized
+users---those who can speak for the original principal linked to pseudoprincipals---can
+access them.
 
-\head{Pseudoprincipal Private Keys.}
-When a pseudoprincipal $q$ is generated to decorrelate data from $p$: 
+\head{Protecting Pseudoprincipal Decryption Capabilities.}
+To secure access to pseudoprincipal private keys, \sys leverages the fact that 
+when a disguise generates pseudoprincipals, the link between pseudoprincipal and original principal
+is known. 
+
+When disguise $d$ decorrelates data from $p$ and asks \sys to generate a pseudoprincipal $q$, \sys does the following: 
 \begin{enumerate}
     \item \sys generates keypair (\pubk{q}, \privk{q}) for $q$
     \item encrypts the private key of $q$ with \pubk{p} to produce $\enc(\pubk{p}, \privk{q})$
     \item stores $\enc(\pubk{p}, \privk{q})$ at location \lcapa{pd} along with $p$'s encrypted diffs from disguise $d$
 \end{enumerate}
-This ensures that a client with \lcapa{pd} and \privk{p} (\privk{p}) can access \privk{q}, the data
-capability of pseudoprincipal $q$.  Furthermore, only a client who holds \lcapa{pd} can learn
-that $p$ has decorrelated data because associated pseudoprincipal private keys are not stored
-publically with $p$'s ID.
 
-When \sys applies disguise $d'$ to further disguise pseudoprincipal $q$'s data, \sys:
+Note that the application cannot simply send \privk{q} via \eg email to the corresponding
+real user: the original principal whose data is being decorrelated may in fact be a pseudoprincipal
+itself, and therefore unassociated with any real email!
+
+This method ensures that only a client with \lcapa{pd} and \privk{p} can access \privk{q}, the data
+capability of pseudoprincipal $q$. 
+%Furthermore, only a client who holds \lcapa{pd} can learn
+%that $p$ has decorrelated data because associated pseudoprincipal private keys are not stored
+%publically with $p$'s ID.
+
+\head{Securing Pseudoprincipal Tokens.}
+When \sys applies disguise $d$ to further disguise pseudoprincipal $q$'s data, \sys:
 \begin{enumerate}
-    \item stores disguise diffs \tdiff{qd'} at location \lcapa{qd}
-    \item encrypts \lcapa{qd} with \pubk{p} to produce $\enc(\pubk{p}, \lcapa{qd})$
-    \item stores $\enc(\pubk{p}, \lcapa{qd})$ mapped to by principal $q$'s ID
+    \item stores disguise tokens \tdiff{qd} and \town{qd} at location \lcapa{qd}
+    \item encrypts \lcapa{qd} with \pubk{q} to produce $\enc(\pubk{q}, \lcapa{qd})$
+    \item stores \lcapa{qd} associated with principal $q$'s ID
 \end{enumerate}
-Note that \sys stores \lcapa{qd} ciphertexts associated with $q$'s ID, whereas for a real principal
-$p$, \sys does not store any similar metadata indicating how many disguises have applied to $p$. 
-This means that an adversary can learn that \emph{some} disguise has applied to and
-decorrelated data from $q$. However, this falls out of scope in our threat model: $q$ is a
-pseudoprincipal created from a decorrelation operation, and therefore any disguise metadata regarding $q$ has already been dissociated from
-the original principal $p$'s identity.
+Note that the process for pseudoprincipal tokens is the same as that for real principal tokens up to
+step (3): \sys stores \lcapa{qd} associated with $q$'s ID, whereas \sys returns all locators to
+the application when producing real principal tokens (and then forgets these locators).
+This is because the application and \sys may not know which original principal can speak for $q$,
+and therefore cannot \eg email \lcapa{qd} to the appropriate user.
 
-\lyt{TODO}
-
-Thus, locators \lcapa{qd} produced by disguising pseudoprincipal $q$ to a user who speaks for pseudoprincipal $p$!
-We now have a problem. Diffs are encrypted with \privk{p} and stored at
-\lcapa{pd}, and \sys emails \lcapa{pd} to (potentially offline) clients and does not retain
-\lcapa{pd}.  
-%, so pseudoprincipals' capabilities can either be insecurely stored by \sys, or lost forever!
-
-
-  
+Storing \lcapa{qd} on the server allows an adversary can learn that \emph{some} disguise has
+applied to $q$. However, this falls out of scope in our threat model: $q$ is a pseudoprincipal
+created by a disguise, and therefore any disguise metadata regarding $q$ has already been
+dissociated from the original principal $p$'s identity.
 
 \head{Extending capabilities to authorize pseudoprincipal diffs access.}
 With this extended design, a client speaking for $p$ that provides data and locating capabilities%\pcapa{p}{d}
@@ -89,3 +89,18 @@ all disguise diffs, and an adversary learns no disguise metadata for real users.
 %This makes it difficult to implement a userflow where the user can click on a single URL to grant
 %\sys diff access: in this design, the user has to first retrieve all possible URLs, and make several
 %more round-trips to the application/\sys.
+
+\lyt{Note somewhere that pseudoprincipals and recursive disguising are why we need asymmetric crypto; otherwise, we
+could just send the symmetric key to the original user being disguised?}
+
+\iffalse
+Two strawmen, simple designs either fail to achieve this security property, or reduce functionality:
+\begin{enumerate}
+    \item \emph{Weak Security:} \sys can store \privk{q} in plaintext for pseudoprincipal $q$. 
+        This is equivalent to $q$'s data being undisguised after compromise.  
+    \item \emph{Permanent Disguises:} \sys throws away \privk{q} for pseudoprincipal $q$. This means that the
+            disguise modifications to pseudoprincipal data are permanent, and prevents temporary
+            recorrelation and disguise revealing.
+\end{enumerate}
+
+\fi
