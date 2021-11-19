@@ -64,6 +64,14 @@ anything. However, this places a large burden on the client.
 Maybe put this in future work?
 }
 
+To summarize, when \sys saves a disguise token $\mathcal{T}_{pd}$ from disguise $d$ associated with principal $p$, \sys:
+\begin{enumerate}
+    \item creates a token wrapper $W$ for the token $\mathcal{T}_{pd}$
+    \item encrypts $W$ with \pubk{p} to produce $\enc(\pubk{p}, W)$
+    \item stores $\enc(\pubk{p}, W)$ at location \lcapa{pd}
+    \item returns \lcapa{pd} to the application, where it is sent to the appropriate user and then
+        forgotten by the server
+\end{enumerate}
 
 \iffalse
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%G

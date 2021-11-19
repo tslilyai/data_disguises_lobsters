@@ -43,52 +43,41 @@ capability of pseudoprincipal $q$.
 %that $p$ has decorrelated data because associated pseudoprincipal private keys are not stored
 %publically with $p$'s ID.
 
-\head{Securing Pseudoprincipal Tokens.}
-When \sys applies disguise $d$ to further disguise pseudoprincipal $q$'s data, \sys:
+\head{Securing Pseudoprincipal Token Access.}
+When \sys saves a disguise token $\mathcal{T}_{pd}$ from disguise $d$ associated with pseudoprincipal $q$, \sys:
 \begin{enumerate}
-    \item stores disguise tokens \tdiff{qd} and \town{qd} at location \lcapa{qd}
+    \item creates a token wrapper $W$ for the token $\mathcal{T}_{qd}$
+    \item encrypts $W$ with \pubk{q} to produce $\enc(\pubk{q}, W)$
+    \item stores $\enc(\pubk{q}, W)$ at location \lcapa{qd}
     \item encrypts \lcapa{qd} with \pubk{q} to produce $\enc(\pubk{q}, \lcapa{qd})$
-    \item stores \lcapa{qd} associated with principal $q$'s ID
+    \item stores \enc(\pubk{q}, \lcapa{qd}) associated with principal $q$'s ID
 \end{enumerate}
 Note that the process for pseudoprincipal tokens is the same as that for real principal tokens up to
-step (3): \sys stores \lcapa{qd} associated with $q$'s ID, whereas \sys returns all locators to
+step (4): \sys stores encrypted \lcapa{qd} associated with $q$'s ID, whereas \sys returns all locators to
 the application when producing real principal tokens (and then forgets these locators).
 This is because the application and \sys may not know which original principal can speak for $q$,
 and therefore cannot \eg email \lcapa{qd} to the appropriate user.
 
-Storing \lcapa{qd} on the server allows an adversary can learn that \emph{some} disguise has
+Storing \lcapa{qd} ciphertexts on the server allows an adversary can learn that \emph{some} disguise has
 applied to $q$. However, this falls out of scope in our threat model: $q$ is a pseudoprincipal
 created by a disguise, and therefore any disguise metadata regarding $q$ has already been
 dissociated from the original principal $p$'s identity.
 
-\head{Extending capabilities to authorize pseudoprincipal diffs access.}
-With this extended design, a client speaking for $p$ that provides data and locating capabilities%\pcapa{p}{d}
-authorizes access to \emph{both} $p$'s diffs for disguise $d$, \emph{and}
-diffs of a pseudoprincipal $q$ created by
-decorrelating $p$'s data. \lyt{I don't think we're necessarily allowing clients to speak for $q$,
-but rather to perform actions using $q$'s diffs.}
+With this extended design, a client speaking for $p$ that provides decryption capability \privk{p}
+and locator \lcapa{dp} authorizes access to \emph{both} $p$'s tokens for disguise $d$ \emph{and} all
+tokens of all pseudoprincipals $q$ created during disguise $d$ linked to $p$.
 
 Given a data capability \privk{p}, \sys can can access \privk{q} by decrypting \enc(\pubk{p},
 \privk{q}).
 %
-With \privk{q}, \sys can decrypt all \enc(\pubk{q}, \lcapa{qd}) so that \sys has both the data and
-location capabilities for all of $q$'s disguise diffs. This allows the application to reveal,
-disguise, or perform application actions with access to diffs from all disguises applying to $q$.
+With \privk{q}, \sys can decrypt all \enc(\pubk{q}, \lcapa{qd}) to locate all $q$'s encrypted
+tokens, and then decrypt these tokens with \privk{q}. 
 
-While clearly more expensive for \sys to execute, this protocol allows \sys to recursively disguise
-pseudoprincipals, yet still require only the top-level original principal capabilities to support the
-desired use cases. Furthermore, this design still meets our security goals: data capabilities secure
-all disguise diffs, and an adversary learns no disguise metadata for real users.
-
-%This introduces another round-trip for any client using the API: a client speaking for $p$ that
-%wants to reveal or compose on top of pseudoprincipal diffs must (1) query for all pseudoprincipal
-%\privk{q} ciphertexts associated with $p$ for all \lcapa{qd} (for all $d$); (2) recursively
-%query for all nested pseudoprincipal \privk{q} ciphertexts associated with $q$ for all \lcapa{qd};
-%and (3) actually invoke the action with the decrypted capability pairs.
-%
-%This makes it difficult to implement a userflow where the user can click on a single URL to grant
-%\sys diff access: in this design, the user has to first retrieve all possible URLs, and make several
-%more round-trips to the application/\sys.
+Thus, \sys can recursively disguise pseudoprincipals of some original principal $p$ such that only a
+user who can speak for $p$ can access these pseudoprincipals' associated tokens.
+Importantly, these users can do so using only $p$'s decryption capability and locators.
+Furthermore, this design still meets our security goals: decryption capabilities secure all disguise
+tokens, and an adversary learns no disguise metadata about real users.
 
 \lyt{Note somewhere that pseudoprincipals and recursive disguising are why we need asymmetric crypto; otherwise, we
 could just send the symmetric key to the original user being disguised?}
