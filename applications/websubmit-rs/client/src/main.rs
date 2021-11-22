@@ -106,13 +106,14 @@ fn main() {
             let my_restore_durations = restore_durations.clone(); 
             let apikey = user2apikey.get(&email).unwrap().clone();
             let my_edit_durations = edit_durations.clone();
+            let decryptcap = user2decryptcap.get(&email).unwrap().clone();
             normal_threads.push(thread::spawn(move || {
                 run_normal_plus_disguising(
                     u.to_string(),
                     apikey,
                     new_logger(),
                     myargs,
-                    user2decryptcap.clone(),
+                    decryptcap.clone(),
                     my_edit_durations,
                     my_delete_durations,
                     my_restore_durations,
@@ -138,7 +139,7 @@ fn main() {
                 )
             }));
         }
-        if args.test == args::TEST_BATCH_DISGUISE {
+        if args.test == args::TEST_BATCH_DISGUISING {
             let my_delete_durations = delete_durations.clone();
             let my_restore_durations = restore_durations.clone();
             let nusers = args.nusers;
@@ -235,7 +236,7 @@ fn run_normal_plus_disguising(
     apikey: String,
     log: slog::Logger,
     args: args::Args,
-    user2decryptcap: HashMap<String, String>,
+    decryptcap: String,
     edit_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
     delete_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
     restore_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
@@ -285,12 +286,10 @@ fn run_normal_plus_disguising(
 
         // with 0.5% chance, gdpr delete
         if rng.gen_range(0..1000) < 5 {
-            let email = format!("{}@mail.edu", uid);
-            let decryptcap = user2decryptcap.get(&email).unwrap().clone();
             run_disguising_thread(
                 uid.to_string(),
                 apikey.to_string(),
-                decryptcap,
+                decryptcap.clone(),
                 new_logger(),
                 delete_durations.clone(),
                 restore_durations.clone(),
@@ -436,6 +435,7 @@ fn print_stats(
                 "concurrent_disguise_stats_{}lec_{}users_disguising_{}batch.csv",
                 args.nlec, args.nusers, args.ndisguising
             ),
+            _ => unimplemented!("Bad test")
     };
 
     // print out stats
