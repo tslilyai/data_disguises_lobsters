@@ -6,10 +6,10 @@ import sys
 from collections import defaultdict
 plt.style.use('seaborn-deep')
 
-nusers = [100, 200]
+nusers = [100, 200, 500]
 props = [1/10, 1/4]
-maxts = 50000
-nbuckets = 5000
+maxts = 150000
+nbuckets = 15000
 bucketwidth = maxts/nbuckets
 buckets = [b * bucketwidth for b in range(nbuckets)]
 
