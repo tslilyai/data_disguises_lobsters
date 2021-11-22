@@ -1,14 +1,15 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import csv
 import statistics
 import sys
 from collections import defaultdict
 plt.style.use('seaborn-deep')
 
-nusers = [10, 30, 50, 70, 100]
-props = [1/10, 1/4, 1/2]
-maxts = 100000
-nbuckets = 10000
+nusers = [100, 200]
+props = [1/10, 1/4]
+maxts = 50000
+nbuckets = 5000
 bucketwidth = maxts/nbuckets
 buckets = [b * bucketwidth for b in range(nbuckets)]
 
@@ -58,16 +59,30 @@ for u in nusers:
                 editdata[bucket].append(val)
             edit_results_baseline[u].append(editdata)
 
+
+
 for u in nusers:
-    fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(8,15))
+    fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(8,15))
     axes_flat = axes.flatten()
     for i in range(len(props)):
-        axes_flat[0].scatter(edit_results[u][i].keys(), [statistics.mean(x) for x in edit_results[u][i].values()], label='edna_{}'.format(props[i]))
-    axes_flat[0].scatter(edit_results_baseline[u][0].keys(), [statistics.mean(x) for x in edit_results_baseline[u][0].values()], label='baseline')
+        xs = list(edit_results_baseline[u][i].keys())
+        order = np.argsort(xs)
+        xs = np.array(xs)[order]
+        ys = [statistics.mean(x) for x in edit_results_baseline[u][0].values()]
+        ys = np.array(ys)[order]
+        axes_flat[0].plot(xs, ys, label='baseline_{}'.format(props[i]))
+
+        xs = list(edit_results[u][i].keys())
+        order = np.argsort(xs)
+        xs = np.array(xs)[order]
+        ys = [statistics.mean(x) for x in edit_results[u][i].values()]
+        ys = np.array(ys)[order]
+        axes_flat[1].plot(xs, ys, label='edna_{}'.format(props[i]))
+
     for i in range(len(props)):
-        axes_flat[1].scatter(delete_results[u][i].keys(), [statistics.mean(x) for x in delete_results[u][i].values()], label='edna_{}'.format(props[i]))
+        axes_flat[2].scatter(delete_results[u][i].keys(), [statistics.mean(x) for x in delete_results[u][i].values()], label='edna_{}'.format(props[i]))
     for i in range(len(props)):
-        axes_flat[2].scatter(restore_results[u][i].keys(), [statistics.mean(x) for x in restore_results[u][i].values()], label='edna_{}'.format(props[i]))
+        axes_flat[3].scatter(restore_results[u][i].keys(), [statistics.mean(x) for x in restore_results[u][i].values()], label='edna_{}'.format(props[i]))
 
     for i in range(len(axes_flat)):
         axes_flat[i].set_xlabel('Benchmark Time (ms)')
@@ -76,9 +91,10 @@ for u in nusers:
         axes_flat[i].set_xlim(xmin=0, xmax=nbuckets)
         axes_flat[i].legend(loc='upper left');
 
-    axes_flat[0].set_title("Editing Answers to Lecture Latency")
-    axes_flat[1].set_title("Delete Account Latency")
-    axes_flat[2].set_title("Restore Account Latency")
+    axes_flat[0].set_title("Baseline: Editing Answers to Lecture Latency")
+    axes_flat[1].set_title("With Disguises: Editing Answers to Lecture Latency")
+    axes_flat[2].set_title("Delete Account Latency")
+    axes_flat[3].set_title("Restore Account Latency")
 
     fig.tight_layout(h_pad=4)
     plt.savefig('concurrent_results_{}lec_{}users.png'.format(lec, u), dpi=300)
