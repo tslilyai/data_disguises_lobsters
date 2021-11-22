@@ -3,8 +3,6 @@ extern crate crypto;
 extern crate mysql;
 #[macro_use]
 extern crate slog;
-#[cfg(feature = "flame_it")]
-extern crate flame;
 extern crate log;
 extern crate slog_term;
 
@@ -29,7 +27,7 @@ pub fn new_logger() -> slog::Logger {
     Logger::root(Mutex::new(term_full()).fuse(), o!())
 }
 
-const TOTAL_TIME: u128 = 100000;
+const TOTAL_TIME: u128 = 50000;
 const SERVER: &'static str = "http://localhost:8000";
 const APIKEY_FILE: &'static str = "apikey.txt";
 const DECRYPT_FILE: &'static str = "decrypt.txt";
@@ -46,8 +44,6 @@ fn main() {
     let mut user2apikey = HashMap::new();
     let mut user2decryptcap = HashMap::new();
 
-    #[cfg(feature = "flame_it")]
-    flame::start("create_users");
     let client = reqwest::blocking::Client::builder()
         .cookie_store(true)
         .build()
@@ -83,8 +79,6 @@ fn main() {
         assert_eq!(response.status(), StatusCode::OK);
      
         // get api key
-        #[cfg(feature = "flame_it")]
-        flame::start("read_user_files");
         let file = File::open(format!("{}.{}", email, APIKEY_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
         let mut apikey = String::new();
@@ -99,11 +93,7 @@ fn main() {
         buf_reader.read_to_string(&mut decryptcap).unwrap();
         info!(log, "Got email {} with decryptcap {}", &email, decryptcap);
         user2decryptcap.insert(email, decryptcap);
-        #[cfg(feature = "flame_it")]
-        flame::end("read_user_files");
     }
-    #[cfg(feature = "flame_it")]
-    flame::end("create_users");
 
     let barrier = Arc::new(Barrier::new(args.nusers + 1));
     let mut normal_threads = vec![];
@@ -183,17 +173,12 @@ fn run_normal(
     c.wait();
 
     let overall_start = time::Instant::now();
-    let mut rng = rand::thread_rng();
     while overall_start.elapsed().as_millis() < TOTAL_TIME {
         // editing
         lec = (lec + 1) % args.nlec;
         let start = time::Instant::now();
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_lec");
         let response = client.get(format!("{}/questions/{}", SERVER, lec)).send()?;
         assert_eq!(response.status(), StatusCode::OK);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_lec");
 
         q = (q + 1) % args.nqs;
         let mut answers = vec![];
@@ -206,31 +191,17 @@ fn run_normal(
             "Posting to questions for lec {} answers {:?}", lec, answers
         );
 
-        #[cfg(feature = "flame_it")]
-        flame::start("edit_post_new_answers");
         let response = client
             .post(format!("{}/questions/{}", SERVER, 0)) // testing lecture 0 for now
             .form(&answers)
             .send()?;
         assert_eq!(response.status(), StatusCode::OK);
-        #[cfg(feature = "flame_it")]
-        flame::end("edit_post_new_answers");
         my_edit_durations.push((overall_start.elapsed(), start.elapsed()));
-        thread::sleep(time::Duration::from_millis(rng.gen_range(50..200)));
     }
     edit_durations
         .lock()
         .unwrap()
         .append(&mut my_edit_durations);
-    #[cfg(feature = "flame_it")]
-    flame::dump_html(
-        &mut File::create(&format!(
-            "flamegraph_{}lec_{}users_baseline.html",
-            args.nlec, args.nusers
-        ))
-        .unwrap(),
-    )
-    .unwrap();
     Ok(())
 }
 
@@ -266,7 +237,6 @@ fn run_disguising(
         for j in disguising_threads {
             j.join().expect("Could not join?").unwrap();
         }
-        thread::sleep(time::Duration::from_millis(5000));
     }
     Ok(())
 }
@@ -299,8 +269,6 @@ fn run_disguising_thread(
         assert_eq!(response.status(), StatusCode::OK);
 
         // delete
-        #[cfg(feature = "flame_it")]
-        flame::start("delete");
         let start = time::Instant::now();
         let response = client
             .post(&format!("{}/delete", SERVER))
@@ -318,12 +286,11 @@ fn run_disguising_thread(
         let mut diffcap = String::new();
         buf_reader.read_to_string(&mut diffcap).unwrap();
         info!(log, "Got email {} with diffcap {}", &email, diffcap);
-        #[cfg(feature = "flame_it")]
-        flame::end("delete");
+
+        // users sleep for ~5 seconds, then restore
+        thread::sleep(time::Duration::from_millis(rng.gen_range(4500..5000)));
 
         // restore
-        #[cfg(feature = "flame_it")]
-        flame::start("restore");
         let start = time::Instant::now();
         let response = client
             .post(&format!("{}/restore", SERVER))
@@ -335,9 +302,6 @@ fn run_disguising_thread(
             .send()?;
         assert_eq!(response.status(), StatusCode::OK);
         my_restore_durations.push((overall_start.elapsed(), start.elapsed()));
-        #[cfg(feature = "flame_it")]
-        flame::end("restore");
-        thread::sleep(time::Duration::from_millis(rng.gen_range(50..200)));
     }
     delete_durations
         .lock()
@@ -347,16 +311,6 @@ fn run_disguising_thread(
         .lock()
         .unwrap()
         .append(&mut my_restore_durations);
-
-    #[cfg(feature = "flame_it")]
-    flame::dump_html(
-        &mut File::create(&format!(
-            "flamegraph_{}lec_{}users.html",
-            args.nlec, args.nusers
-        ))
-        .unwrap(),
-    )
-    .unwrap();
     Ok(())
 }
 

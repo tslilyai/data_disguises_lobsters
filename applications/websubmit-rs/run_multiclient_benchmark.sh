@@ -7,13 +7,13 @@ rm -rf output
 mkdir output
 
 set -e
-	
-for l in 20 40; do
-    for u in 10 30 50 70 100; do
-	    for nd in $((u/10)) $((u / 6)) $((u / 4)) $((u / 2)); do
+
+for l in 40; do
+    for u in 100 200 500 1000; do
+	    for nd in $((u/10)) $((u / 4)); do
 		for baseline in false true; do
 			ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
-			
+
 			sleep 8
 
 			echo "Starting server"
@@ -22,7 +22,7 @@ for l in 20 40; do
 				--benchmark false --prime true \
 				--nusers 0 --nlec 0 --nqs 0 &> \
 				output/server.out &
-			
+
 			sleep 8
 
 			echo "Running client"
