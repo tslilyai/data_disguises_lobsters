@@ -10,28 +10,48 @@ set -e
 
 for l in 40; do
     for u in 100 200 500 1000; do
-	    for nd in $((u/10)) $((u / 4)); do
-		for baseline in false true; do
-			ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
+	ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
 
-			sleep 8
+	sleep 8
 
-			echo "Starting server"
-			RUST_LOG=error ../../target/release/websubmit-server \
-				-i myclass --schema server/src/schema.sql --config server/sample-config.toml \
-				--benchmark false --prime true \
-				--nusers 0 --nlec 0 --nqs 0 &> \
-				output/server.out &
+	echo "Starting server"
+	RUST_LOG=error ../../target/release/websubmit-server \
+		-i myclass --schema server/src/schema.sql --config server/sample-config.toml \
+		--benchmark false --prime true \
+		--nusers 0 --nlec 0 --nqs 0 &> \
+		output/server.out &
 
-			sleep 8
+	sleep 15
 
-			echo "Running client"
-			RUST_LOG=error perflock ../../target/release/websubmit-client \
-				--nusers $u --nlec $l --nqs 4 --ndisguising $nd \
-				--baseline $baseline --db myclass &> \
-				output/${l}lec_${u}users_${nd}disguisers_$baseline.out
-			echo "Ran baseline($baseline) test for $l lecture and $u, $nd users"
-		done
+	echo "Running client"
+	RUST_LOG=error perflock ../../target/release/websubmit-client \
+		--nusers $u --nlec $l --nqs 4 \
+		--test 1 --db myclass &> \
+		output/${l}lec_${u}users_normal_disguising.out
+	echo "Ran test(1) for $l lecture and $u users"
+
+    	for t in 2 0 ; do
+	    for nd in $((u/10)) $((u/4)); do
+		ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
+
+		sleep 8
+
+		echo "Starting server"
+		RUST_LOG=error ../../target/release/websubmit-server \
+			-i myclass --schema server/src/schema.sql --config server/sample-config.toml \
+			--benchmark false --prime true \
+			--nusers 0 --nlec 0 --nqs 0 &> \
+			output/server.out &
+
+		sleep 15
+
+		echo "Running client"
+		RUST_LOG=error perflock ../../target/release/websubmit-client \
+			--nusers $u --nlec $l --nqs 4 --ndisguising $nd \
+			--test $t --db myclass &> \
+			output/${l}lec_${u}users_${nd}disguisers_$t.out
+		echo "Ran test($t) for $l lecture and $u, $nd users"
+	    done
 	done
     done
     python3 plot.py $l

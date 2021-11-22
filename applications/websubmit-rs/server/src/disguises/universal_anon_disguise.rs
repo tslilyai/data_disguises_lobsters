@@ -33,7 +33,7 @@ pub fn apply(
     
     let mut conn = bg.handle();
     let mut users = vec![];
-    let res = conn.query_iter("SELECT `email` FROM users WHERE NOT is_anon;")?;
+    let res = conn.query_iter("SELECT email FROM users WHERE is_anon = 0;")?;
     for r in res {
         let r = r.unwrap().unwrap();
         let uid: String = from_value(r[0].clone());
@@ -55,7 +55,7 @@ pub fn apply(
         let mut user_lec_answers: HashMap<u64, Vec<u64>> = HashMap::new();
         #[cfg(feature = "flame_it")]
         flame::start("DB: get_answers");
-        let res = txn.query_iter(&format!("SELECT lec, q FROM answers WHERE `user` = {};", u))?;
+        let res = txn.query_iter(&format!("SELECT lec, q FROM answers WHERE `user` = '{}';", u))?;
         for r in res {
             let r = r.unwrap().unwrap();
             let key: u64 = from_value(r[0].clone());
@@ -140,45 +140,47 @@ pub fn apply(
             }
         }
 
-        #[cfg(feature = "flame_it")]
-        flame::start("DB: insert pseudos");
-        warn!(
-            bg.log,
-            "Query: {}",
-            &format!(r"INSERT INTO `users` VALUES {};", pps.join(","))
-        );
-        let start = time::Instant::now();
-        txn.query_drop(&format!(r"INSERT INTO `users` VALUES {};", pps.join(",")))?;
-        warn!(
-            bg.log,
-            "insert pseudoprincipals: {}",
-            start.elapsed().as_micros()
-        );
-        #[cfg(feature = "flame_it")]
-        flame::end("DB: insert pseudos");
+        if !pps.is_empty() {
+            #[cfg(feature = "flame_it")]
+            flame::start("DB: insert pseudos");
+            warn!(
+                bg.log,
+                "Query: {}",
+                &format!(r"INSERT INTO `users` VALUES {};", pps.join(","))
+            );
+            let start = time::Instant::now();
+            txn.query_drop(&format!(r"INSERT INTO `users` VALUES {};", pps.join(",")))?;
+            warn!(
+                bg.log,
+                "insert pseudoprincipals: {}",
+                start.elapsed().as_micros()
+            );
+            #[cfg(feature = "flame_it")]
+            flame::end("DB: insert pseudos");
 
-        #[cfg(feature = "flame_it")]
-        flame::start("DB: update_answers");
-        let start = time::Instant::now();
-        txn.exec_batch(
-            r"UPDATE answers SET `user` = :newuid WHERE `user` = :user AND lec = :lec AND q = :q;",
-            updates.iter().map(|u| {
-                params! {
-                    "newuid" => &u.new_uid,
-                    "user" => &u.user,
-                    "lec" => u.lec,
-                    "q" => u.q,
-                }
-            }),
-        )?;
-        warn!(
-            bg.log,
-            "update {} fks: {}",
-            updates.len(),
-            start.elapsed().as_micros()
-        );
-        #[cfg(feature = "flame_it")]
-        flame::end("DB: update_answers");
+            #[cfg(feature = "flame_it")]
+            flame::start("DB: update_answers");
+            let start = time::Instant::now();
+            txn.exec_batch(
+                r"UPDATE answers SET `user` = :newuid WHERE `user` = :user AND lec = :lec AND q = :q;",
+                updates.iter().map(|u| {
+                    params! {
+                        "newuid" => &u.new_uid,
+                        "user" => &u.user,
+                        "lec" => u.lec,
+                        "q" => u.q,
+                    }
+                }),
+            )?;
+            warn!(
+                bg.log,
+                "update {} fks: {}",
+                updates.len(),
+                start.elapsed().as_micros()
+            );
+            #[cfg(feature = "flame_it")]
+            flame::end("DB: update_answers");
+        }
 
         if !is_baseline {
             let edna = bg.edna.lock().unwrap();

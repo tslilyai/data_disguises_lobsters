@@ -6,13 +6,13 @@ rm -rf output
 mkdir output
 
 for l in 20 40; do
-    for u in 10 20 30 50 70 100; do
-	RUST_LOG=error perflock ../../../target/release/websubmit-server \
-        	-i myclass --schema src/schema.sql --config sample-config.toml \
-		--benchmark true --prime true --baseline true \
-		--nusers $u --nlec $l --nqs 4 &> \
-            output/${l}lec_${u}users_baseline.out
-	echo "Ran baseline test for $l lecture and $u users"
+    for u in 10; do
+	#RUST_LOG=error perflock ../../../target/release/websubmit-server \
+        	#-i myclass --schema src/schema.sql --config sample-config.toml \
+		#--benchmark true --prime true --baseline true \
+		#--nusers $u --nlec $l --nqs 4 &> \
+            #output/${l}lec_${u}users_baseline.out
+	#echo "Ran baseline test for $l lecture and $u users"
 
 	RUST_LOG=error perflock ../../../target/release/websubmit-server \
         	-i myclass --schema src/schema.sql --config sample-config.toml \

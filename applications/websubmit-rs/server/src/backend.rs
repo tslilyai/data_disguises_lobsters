@@ -46,7 +46,7 @@ impl MySqlBackend {
         let nguises = if args.benchmark {
             nusers * args.nlec * 2
         } else {
-            10
+            10 
         };
         let edna = EdnaClient::new(
             args.prime,

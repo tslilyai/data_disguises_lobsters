@@ -4,7 +4,7 @@ import statistics
 import sys
 
 plt.style.use('seaborn-deep')
-nusers = [10, 20, 30, 50, 70, 100]
+nusers = [10]#, 20, 30, 50, 70, 100]
 lec = sys.argv[1]
 
 # collect all results, compute maximum latency over all tests + all query  types
