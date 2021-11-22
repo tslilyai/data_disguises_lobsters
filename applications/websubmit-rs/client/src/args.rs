@@ -3,13 +3,17 @@ use std::str::FromStr;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 
+pub const TEST_BASELINE : u64 = 0;
+pub const TEST_NORMAL_DISGUISING : u64 = 1;
+pub const TEST_BATCH_DISGUISING : u64 = 2;
+
 #[derive(Clone, Debug)]
 pub struct Args {
     pub nusers: usize,
     pub ndisguising: usize,
     pub nlec: usize,
     pub nqs: usize,
-    pub baseline: bool,
+    pub test: u64,
     pub db: String,
 }
 
@@ -56,11 +60,11 @@ pub fn parse_args() -> Args {
                 .value_name("NQS")
                 .default_value("2"),
         ).arg(
-            Arg::with_name("baseline")
-                .short("b")
-                .long("baseline")
+            Arg::with_name("test")
+                .short("t")
+                .long("test")
                 .takes_value(true)
-                .value_name("BASELINE")
+                .value_name("test")
                 .default_value("false"),
         )
         .get_matches();
@@ -69,7 +73,7 @@ pub fn parse_args() -> Args {
         ndisguising: usize::from_str(args.value_of("ndisguising").unwrap()).unwrap(),
         nlec: usize::from_str(args.value_of("nlec").unwrap()).unwrap(),
         nqs: usize::from_str(args.value_of("nqs").unwrap()).unwrap(),
-        baseline: bool::from_str(args.value_of("baseline").unwrap()).unwrap(),
+        test: u64::from_str(args.value_of("test").unwrap()).unwrap(),
         db: String::from(args.value_of("db").unwrap()),
     }
 }

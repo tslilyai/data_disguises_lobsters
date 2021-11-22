@@ -97,38 +97,63 @@ fn main() {
 
     let barrier = Arc::new(Barrier::new(args.nusers + 1));
     let mut normal_threads = vec![];
-    for u in 0..args.nusers {
-        let c = Arc::clone(&barrier);
-        let email = format!("{}@mail.edu", u);
-        let myargs = args.clone();
-        let apikey = user2apikey.get(&email).unwrap().clone();
-        let my_edit_durations = edit_durations.clone();
-        normal_threads.push(thread::spawn(move || {
-            run_normal(
-                u.to_string(),
-                apikey,
-                new_logger(),
-                myargs,
-                my_edit_durations,
-                c,
-            )
-        }));
-    }
-    if !args.baseline {
-        let my_delete_durations = delete_durations.clone();
-        let my_restore_durations = restore_durations.clone();
-        let nusers = args.nusers;
-        let ndisguising = args.ndisguising;
-        normal_threads.push(thread::spawn(move || {
-            run_disguising(
-                nusers,
-                ndisguising,
-                user2apikey.clone(),
-                user2decryptcap.clone(),
-                my_delete_durations,
-                my_restore_durations,
-            )
-        }));
+    if args.test == args::TEST_NORMAL_DISGUISING {
+        for u in 0..args.nusers {
+            let c = Arc::clone(&barrier);
+            let email = format!("{}@mail.edu", u);
+            let myargs = args.clone();
+            let my_delete_durations = delete_durations.clone();
+            let my_restore_durations = restore_durations.clone(); 
+            let apikey = user2apikey.get(&email).unwrap().clone();
+            let my_edit_durations = edit_durations.clone();
+            normal_threads.push(thread::spawn(move || {
+                run_normal_plus_disguising(
+                    u.to_string(),
+                    apikey,
+                    new_logger(),
+                    myargs,
+                    user2decryptcap.clone(),
+                    my_edit_durations,
+                    my_delete_durations,
+                    my_restore_durations,
+                    c,
+                )
+            }));
+        }
+    } else {
+        for u in 0..args.nusers {
+            let c = Arc::clone(&barrier);
+            let email = format!("{}@mail.edu", u);
+            let myargs = args.clone();
+            let apikey = user2apikey.get(&email).unwrap().clone();
+            let my_edit_durations = edit_durations.clone();
+            normal_threads.push(thread::spawn(move || {
+                run_normal(
+                    u.to_string(),
+                    apikey,
+                    new_logger(),
+                    myargs,
+                    my_edit_durations,
+                    c,
+                )
+            }));
+        }
+        if args.test == args::TEST_BATCH_DISGUISE {
+            let my_delete_durations = delete_durations.clone();
+            let my_restore_durations = restore_durations.clone();
+            let nusers = args.nusers;
+            let ndisguising = args.ndisguising;
+            normal_threads.push(thread::spawn(move || {
+                run_disguising(
+                    nusers,
+                    ndisguising,
+                    user2apikey.clone(),
+                    user2decryptcap.clone(),
+                    my_delete_durations,
+                    my_restore_durations,
+                )
+            }));
+        }
     }
     info!(log, "Waiting for barrier!");
     barrier.wait();
@@ -197,6 +222,81 @@ fn run_normal(
             .send()?;
         assert_eq!(response.status(), StatusCode::OK);
         my_edit_durations.push((overall_start.elapsed(), start.elapsed()));
+    }
+    edit_durations
+        .lock()
+        .unwrap()
+        .append(&mut my_edit_durations);
+    Ok(())
+}
+
+fn run_normal_plus_disguising(
+    uid: String,
+    apikey: String,
+    log: slog::Logger,
+    args: args::Args,
+    user2decryptcap: HashMap<String, String>,
+    edit_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
+    delete_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
+    restore_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
+    c: Arc<Barrier>,
+) -> Result<()> {
+    let mut rng = rand::thread_rng();
+    let mut my_edit_durations = vec![];
+    let client = reqwest::blocking::Client::builder()
+        .cookie_store(true)
+        .build()?;
+    let mut lec = 0;
+    let mut q = 0;
+
+    // set api key
+    let response = client
+        .post(&format!("{}/apikey/check", SERVER))
+        .form(&vec![("key", apikey.clone())])
+        .send()?;
+    assert_eq!(response.status(), StatusCode::OK);
+    c.wait();
+
+    let overall_start = time::Instant::now();
+    while overall_start.elapsed().as_millis() < TOTAL_TIME {
+        // editing
+        lec = (lec + 1) % args.nlec;
+        let start = time::Instant::now();
+        let response = client.get(format!("{}/questions/{}", SERVER, lec)).send()?;
+        assert_eq!(response.status(), StatusCode::OK);
+
+        q = (q + 1) % args.nqs;
+        let mut answers = vec![];
+        answers.push((
+            format!("answers.{}", q),
+            format!("new_answer_user_{}_lec_{}", uid, lec),
+        ));
+        info!(
+            log,
+            "Posting to questions for lec {} answers {:?}", lec, answers
+        );
+
+        let response = client
+            .post(format!("{}/questions/{}", SERVER, 0)) // testing lecture 0 for now
+            .form(&answers)
+            .send()?;
+        assert_eq!(response.status(), StatusCode::OK);
+        my_edit_durations.push((overall_start.elapsed(), start.elapsed()));
+
+        // with 0.5% chance, gdpr delete
+        if rng.gen_range(0..1000) < 5 {
+            let email = format!("{}@mail.edu", uid);
+            let decryptcap = user2decryptcap.get(&email).unwrap().clone();
+            run_disguising_thread(
+                uid.to_string(),
+                apikey.to_string(),
+                decryptcap,
+                new_logger(),
+                delete_durations.clone(),
+                restore_durations.clone(),
+                overall_start,
+            )?;
+        }
     }
     edit_durations
         .lock()
@@ -320,16 +420,22 @@ fn print_stats(
     delete_durations: &Vec<(Duration, Duration)>,
     restore_durations: &Vec<(Duration, Duration)>,
 ) {
-    let filename = if args.baseline {
+    let filename = match args.test {
+        args::TEST_BASELINE => 
         format!(
             "concurrent_disguise_stats_{}lec_{}users_{}disguisers_baseline.csv",
             args.nlec, args.nusers, args.ndisguising
-        )
-    } else {
-        format!(
-            "concurrent_disguise_stats_{}lec_{}users_{}disguisers.csv",
-            args.nlec, args.nusers, args.ndisguising
-        )
+        ), 
+        args::TEST_NORMAL_DISGUISING => 
+            format!(
+                "concurrent_disguise_stats_{}lec_{}users_disguising.csv",
+                args.nlec, args.nusers
+            ),
+        args::TEST_BATCH_DISGUISING =>
+            format!(
+                "concurrent_disguise_stats_{}lec_{}users_disguising_{}batch.csv",
+                args.nlec, args.nusers, args.ndisguising
+            ),
     };
 
     // print out stats
