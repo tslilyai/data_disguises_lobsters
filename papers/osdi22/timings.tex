@@ -4,7 +4,7 @@
  \textbf{High-Level Operation} & \textbf{Time (mus)}\\
     User GDPR Deletion & 5250/lec\\
     User GDPR Restore & 18300/lec\\
-    User Anonymization & 8204/lec\\
+    User Anonymization & 900/lec\\
     Edit Anonymized Answer & 62000/lec \\
     Edit Normal Answer & 2000/lec \\
     Create Account & 1000\\
@@ -29,5 +29,14 @@ Encrypt Diff Token & 340\\
 Decrypt Diff Token & 3000\\
 \end{tabular}
 \end{center}
-\caption{Amount of time required to run different operations for disguises in WebSubmit}
+\caption{Amount of time required to run different operations for disguises in WebSubmit. Each
+    lecture is associated with 4 answers.}
 \end{table}
+
+GDPR Deletion requires decrypting ownership token + selecting DB rows to remove (for both original
+user and pseudoprincipals) + removing DB rows +
+encrypting and inserting diff tokens for each lecture (4x).
+
+Editing an anonymized answer current decrypts \emph{all} ownership tokens, even for lectures that
+are associated with different lectures. This means that for 20 lectures, editing the answers
+of a single lecture requires 20 decryptions.
