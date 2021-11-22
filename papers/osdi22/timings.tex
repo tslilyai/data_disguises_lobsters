@@ -1,0 +1,25 @@
+\begin{table}
+\begin{center}
+\begin{tabular}{ c c }
+    \textbf{DB Operation} & \textbf{Time (mus)}\\
+\hline
+Insert DB Row (User )& 120\\
+Update DB Row (FK) & 64\\ 
+Select DB Row (User) & 120\\
+Remove DB Row (User) & 90\\
+Select DB Rows (Answers) & 160\\
+Remove DB Rows (Answers) & 150\\
+Reveal Deleted Row (DB Select + Insert) & 160 \\
+Create + Register Principal & 110\\
+\hline
+    \textbf{Crypto Operation} & \textbf{Time (mus)}\\
+\hline
+Generate Keypair & 300831\\
+Encrypt Ownership Token & 360\\
+Decrypt Ownership Token & 3000\\
+Encrypt Diff Token & 340\\
+Decrypt Diff Token & 3000\\
+\end{tabular}
+\end{center}
+\caption{Amount of time required to run different operations for disguises in WebSubmit}
+\end{table}

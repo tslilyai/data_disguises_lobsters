@@ -21,6 +21,6 @@ for l in 20 40; do
             output/${l}lec_${u}users.out
 	echo "Ran test for $l lecture and $u users"
     done
-    python3 plot.py $l
+    python3 plot_server.py $l
 done
 
