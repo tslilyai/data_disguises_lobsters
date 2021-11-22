@@ -133,7 +133,7 @@ impl Disguiser {
         let (dts, own_tokens) =
             locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps);
         diff_tokens.extend(dts.iter().cloned());
-        error!("Get tokens for reveal: {}", start.elapsed().as_micros());
+        error!("Edna: Get tokens for reveal: {}", start.elapsed().as_micros());
 
         // reverse REMOVE tokens first
         let start = time::Instant::now();
@@ -231,7 +231,7 @@ impl Disguiser {
             &ownership_loc_caps,
         );
         drop(locked_token_ctrler);
-        error!("Get user tokens for disguise: {}", start.elapsed().as_micros());
+        error!("Edna: Get all user tokens for disguise: {}", start.elapsed().as_micros());
 
         /*
          * REMOVE
@@ -239,7 +239,7 @@ impl Disguiser {
         // WE ONLY NEED GLOBAL DIFF TOKENS because we need to potentially modify them
         let start = time::Instant::now();
         self.execute_removes(disguise.clone(), &global_diff_tokens, &ownership_tokens, &mut txn);
-        error!("Execute removes total: {}", start.elapsed().as_micros());
+        error!("Edna: Execute removes total: {}", start.elapsed().as_micros());
         
         /*
          * Decor and modify
@@ -369,7 +369,7 @@ impl Disguiser {
                 //warn!("Thread {:?} exiting", thread::current().id());
             //}));
         }
-        error!("Execute modify/decor total: {}", start.elapsed().as_micros());
+        error!("Edna: Execute modify/decor total: {}", start.elapsed().as_micros());
 
         // wait until all mysql queries are done
         /*for jh in threads.into_iter() {
@@ -389,11 +389,13 @@ impl Disguiser {
         drop(locked_token_ctrler);
         self.end_disguise_action();
         txn.commit().unwrap();
+        error!("Edna: apply disguise: {}", start.elapsed().as_micros());
         Ok(loc_caps)
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
     fn modify_global_diff_tokens(&mut self, disguise: Arc<Disguise>) {
+        let start = time::Instant::now();
         let did = disguise.did;
         let uid = disguise.user.clone();
 
@@ -481,6 +483,7 @@ impl Disguiser {
             }
         }
         drop(locked_token_ctrler);
+        error!("Edna: modify global diff tokens: {}", start.elapsed().as_micros());
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -525,7 +528,7 @@ impl Disguiser {
                         .unwrap();
                         let pred_items: HashSet<&Vec<RowVal>> =
                             HashSet::from_iter(selected_rows.iter());
-                        error!("select items for remove {}: {}", selection, start.elapsed().as_micros());
+                        error!("Edna: select items for remove {}: {}", selection, start.elapsed().as_micros());
                         warn!(
                             "ApplyPred: Got {} selected rows matching predicate {:?}\n",
                             pred_items.len(),
@@ -536,7 +539,7 @@ impl Disguiser {
                         let start = time::Instant::now();
                         let delstmt = format!("DELETE FROM {} WHERE {}", table, selection);
                         helpers::query_drop_txn(delstmt.to_string(), txn, mystats.clone()).unwrap();
-                        error!("delete items {}: {}", delstmt, start.elapsed().as_micros());
+                        error!("Edna: delete items {}: {}", delstmt, start.elapsed().as_micros());
 
                         // ITEM REMOVAL: ADD TOKEN RECORDS
                         let start = time::Instant::now();
@@ -567,7 +570,7 @@ impl Disguiser {
                                 }
                             }
                         }
-                        error!("insert remove tokens: {}", start.elapsed().as_micros());
+                        error!("Edna: insert {} remove tokens: {}", pred_items.len(), start.elapsed().as_micros());
                         drop(locked_guise_gen);
                         drop(locked_token_ctrler);
 

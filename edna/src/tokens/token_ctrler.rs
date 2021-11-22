@@ -156,7 +156,7 @@ impl TokenCtrler {
             self.pseudoprincipal_keys_pool.push((private_key, pub_key));
         }
         error!(
-            "Repopulated pseudoprincipal key pool of size {}: {}",
+            "Edna: Repopulated pseudoprincipal key pool of size {}: {}",
             self.poolsize,
             start.elapsed().as_micros()
         );
@@ -323,7 +323,6 @@ impl TokenCtrler {
         persist: bool,
     ) -> RsaPrivateKey {
         warn!("Registering principal {}", uid);
-        let start = time::Instant::now();
         let (private_key, pubkey) = self.get_pseudoprincipal_key_from_pool();
         let pdata = PrincipalData {
             pubkey: pubkey,
@@ -337,7 +336,6 @@ impl TokenCtrler {
             self.persist_principals(txn);
         }
         self.principal_data.insert(uid.clone(), pdata);
-        error!("Edna register principal: {}", start.elapsed().as_micros());
         private_key
     }
 
@@ -350,6 +348,7 @@ impl TokenCtrler {
         ownership_token_data: Vec<u8>,
         txn: &mut mysql::Transaction,
     ) {
+        let start = time::Instant::now();
         let uidstr = uid.trim_matches('\'');
         let anon_uidstr = anon_uid.trim_matches('\'');
 
@@ -364,6 +363,7 @@ impl TokenCtrler {
             &private_key,
         );
         self.insert_ownership_token_wrapper(&own_token_wrapped);
+        error!("Edna: register anon principal: {}", start.elapsed().as_micros());
     }
 
     fn mark_principal_to_insert(&mut self, uid: &UID, pdata: &PrincipalData) {
@@ -398,7 +398,7 @@ impl TokenCtrler {
         );
         warn!("Insert q {}", insert_q);
         txn.query_drop(&insert_q).unwrap();
-        error!("Edna persist principal: {}", start.elapsed().as_micros());
+        error!("Edna persist {} principals: {}", self.tmp_principals_to_insert.len(), start.elapsed().as_micros());
         self.tmp_principals_to_insert.clear();
     }
 
@@ -415,6 +415,7 @@ impl TokenCtrler {
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn remove_principal(&mut self, uid: &UID, did: DID, txn: &mut mysql::Transaction) {
+        let start = time::Instant::now();
         warn!("Removing principal {}\n", uid);
         let pdata = self.principal_data.get(uid);
         if pdata.is_none() {
@@ -434,6 +435,11 @@ impl TokenCtrler {
             ))
             .unwrap();
         }
+        error!(
+            "Edna: remove principal: {}",
+            start.elapsed().as_micros()
+        );
+
     }
 
     /*
@@ -441,12 +447,11 @@ impl TokenCtrler {
      */
     #[cfg_attr(feature = "flame_it", flame)]
     fn insert_ownership_token_wrapper(&mut self, pppk: &OwnershipTokenWrapper) {
+        let start = time::Instant::now();
         let p = self
             .principal_data
             .get_mut(&pppk.old_uid)
             .expect(&format!("no user with uid {} found?", pppk.old_uid));
-
-        let start = time::Instant::now();
         // generate key
         let mut key: Vec<u8> = repeat(0u8).take(16).collect();
         self.rng.fill_bytes(&mut key[..]);
@@ -469,10 +474,7 @@ impl TokenCtrler {
             enc_data: encrypted,
             iv: iv,
         };
-        error!(
-            "Edna encrypt ownership token: {}",
-            start.elapsed().as_micros()
-        );
+        
 
         // insert the encrypted pppk into locating capability
         let lc = self.get_ownership_loc_cap(&pppk.old_uid, pppk.did);
@@ -484,10 +486,15 @@ impl TokenCtrler {
                 self.enc_ownership_map.insert(lc, vec![enc_pppk]);
             }
         }
+        error!(
+            "Edna: encrypt and insert  ownership token: {}",
+            start.elapsed().as_micros()
+        );
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn insert_user_diff_token_wrapper(&mut self, token: &DiffTokenWrapper) {
+        let start = time::Instant::now();
         let did = token.did;
         let uid = &token.uid;
         warn!(
@@ -502,7 +509,6 @@ impl TokenCtrler {
             .get_mut(uid)
             .expect("no user with uid found?");
 
-        let start = time::Instant::now();
         // generate key
         let mut key: Vec<u8> = repeat(0u8).take(16).collect();
         self.rng.fill_bytes(&mut key[..]);
@@ -526,7 +532,6 @@ impl TokenCtrler {
             enc_data: encrypted,
             iv: iv,
         };
-        error!("Edna encrypt diff token: {}", start.elapsed().as_micros());
         match self.enc_diffs_map.get_mut(&cap) {
             Some(ts) => {
                 ts.push(enctoken);
@@ -535,6 +540,7 @@ impl TokenCtrler {
                 self.enc_diffs_map.insert(cap, vec![enctoken]);
             }
         }
+        error!("Edna: insert and encrypt diff token: {}", start.elapsed().as_micros());
     }
 
     /*
@@ -873,9 +879,9 @@ impl TokenCtrler {
         }
         for loc_cap in diff_loc_caps {
             if let Some(tokenls) = self.enc_diffs_map.get(&loc_cap) {
-                let start = time::Instant::now();
                 warn!("Getting tokens of user from ls len {}", tokenls.len());
                 for enc_token in tokenls {
+                    let start = time::Instant::now();
                     // decrypt token with decrypt_cap provided by client
                     let (_, plaintext) = enc_token.decrypt_encdata(decrypt_cap);
                     let token = diff_token_from_bytes(&plaintext);
@@ -890,11 +896,11 @@ impl TokenCtrler {
                         token.did,
                         diff_tokens.len()
                     );
+                    error!(
+                        "Edna: Decrypt one difftoken in get_tokens: {}",
+                        start.elapsed().as_micros()
+                    );
                 }
-                error!(
-                    "Execute one locccap token decryption in get_tokens: {}",
-                    start.elapsed().as_micros()
-                );
             }
         }
         // get allowed pseudoprincipal diff tokens for all owned pseudoprincipals
@@ -907,7 +913,7 @@ impl TokenCtrler {
                     let pk = ownership_token_from_bytes(&plaintext);
                     own_tokens.push(pk.clone());
                     error!(
-                        "Decrypt pseudoprincipal token in get_tokens: {}",
+                        "Edna: Decrypt pseudoprincipal token in get_tokens: {}",
                         start.elapsed().as_micros()
                     );
 

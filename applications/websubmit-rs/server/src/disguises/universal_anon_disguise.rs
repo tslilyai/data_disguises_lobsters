@@ -41,6 +41,7 @@ pub fn apply(
     }
    
     for u in users {
+        let beginning_start = time::Instant::now();
         // TODO lock user account
         let mut txn = conn.start_transaction(TxOpts::default())?;
        
@@ -53,8 +54,6 @@ pub fn apply(
         
         // get all answers sorted by user and lecture
         let mut user_lec_answers: HashMap<u64, Vec<u64>> = HashMap::new();
-        #[cfg(feature = "flame_it")]
-        flame::start("DB: get_answers");
         let res = txn.query_iter(&format!("SELECT lec, q FROM answers WHERE `user` = '{}';", u))?;
         for r in res {
             let r = r.unwrap().unwrap();
@@ -67,10 +66,7 @@ pub fn apply(
                 }
             };
         }
-        info!(bg.log, "get answers: {}", start.elapsed().as_micros());
-
-        #[cfg(feature = "flame_it")]
-        flame::end("DB: get_answers");
+        info!(bg.log, "WSAnon: get answers: {}", start.elapsed().as_micros());
 
         let mut updates = vec![];
         let mut pps = vec![];
@@ -78,8 +74,6 @@ pub fn apply(
             let new_uid: String;
             if !is_baseline {
                 // insert a new pseudoprincipal
-                #[cfg(feature = "flame_it")]
-                flame::start("EDNA: create_pseudoprincipal");
                 let start = time::Instant::now();
                 let mut edna = bg.edna.lock().unwrap();
                 let p = edna.create_new_pseudoprincipal();
@@ -88,11 +82,9 @@ pub fn apply(
                 let rowvals = p.1;
                 info!(
                     bg.log,
-                    "create pseudoprincipal: {}",
+                    "WSAnon: create pseudoprincipal: {}",
                     start.elapsed().as_micros()
                 );
-                #[cfg(feature = "flame_it")]
-                flame::end("EDNA: create_pseudoprincipal");
 
                 // XXX issue where using bg adds quotes everywhere...
                 pps.push(format!(
@@ -101,8 +93,6 @@ pub fn apply(
                 ));
 
                 // register new ownershiptoken for pseudoprincipal
-                #[cfg(feature = "flame_it")]
-                flame::start("ENDA: save_pseudoprincipal");
                 let start = time::Instant::now();
                 let edna = bg.edna.lock().unwrap();
                 edna.save_pseudoprincipal_token(
@@ -115,11 +105,9 @@ pub fn apply(
                 drop(edna);
                 warn!(
                     bg.log,
-                    "save pseudoprincipals: {}",
+                    "WSAnon: save pseudoprincipals: {}",
                     start.elapsed().as_micros()
                 );
-                #[cfg(feature = "flame_it")]
-                flame::end("ENDA: save_pseudoprincipal");
             } else {
                 let rowvals = get_insert_guise_vals();
                 pps.push(format!(
@@ -141,25 +129,14 @@ pub fn apply(
         }
 
         if !pps.is_empty() {
-            #[cfg(feature = "flame_it")]
-            flame::start("DB: insert pseudos");
-            warn!(
-                bg.log,
-                "Query: {}",
-                &format!(r"INSERT INTO `users` VALUES {};", pps.join(","))
-            );
             let start = time::Instant::now();
             txn.query_drop(&format!(r"INSERT INTO `users` VALUES {};", pps.join(",")))?;
             warn!(
                 bg.log,
-                "insert pseudoprincipals: {}",
+                "WSAnon: INSERT INTO `users` VALUES {};: {}",
+                pps.join(","),
                 start.elapsed().as_micros()
             );
-            #[cfg(feature = "flame_it")]
-            flame::end("DB: insert pseudos");
-
-            #[cfg(feature = "flame_it")]
-            flame::start("DB: update_answers");
             let start = time::Instant::now();
             txn.exec_batch(
                 r"UPDATE answers SET `user` = :newuid WHERE `user` = :user AND lec = :lec AND q = :q;",
@@ -174,12 +151,11 @@ pub fn apply(
             )?;
             warn!(
                 bg.log,
-                "update {} fks: {}",
+                "WSAnon: update {} fks: {}",
                 updates.len(),
                 start.elapsed().as_micros()
             );
-            #[cfg(feature = "flame_it")]
-            flame::end("DB: update_answers");
+            
         }
 
         if !is_baseline {
@@ -190,6 +166,11 @@ pub fn apply(
             locators.1.extend(&mut res.1.into_iter());
         }
         txn.commit()?;
+        warn!(
+            bg.log,
+            "WSAnon: total: {}",
+            beginning_start.elapsed().as_micros()
+        );
     }
     Ok(locators)
 }

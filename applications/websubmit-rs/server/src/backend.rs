@@ -8,6 +8,7 @@ use mysql::*;
 use sql_parser::ast::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
+use std::time;
 
 const ADMIN_INSERT : &'static str = "INSERT INTO users VALUES ('malte@cs.brown.edu', 'b4bc3cef020eb6dd20defa1a7a8340dee889bc2164612e310766e69e45a1d5a7', 1, 0);";
 
@@ -173,11 +174,12 @@ impl MySqlBackend {
     }
 
     pub fn query_exec(&self, qname: &str, keys: Vec<Value>) -> Vec<Vec<Value>> {
+        let start = time::Instant::now();
         let qs = self.queries.read().unwrap();
         let q = qs.get(qname).unwrap().clone();
         drop(qs);
         let mut conn = self.handle();
-        let prepstmt = conn.prep(q).unwrap();
+        let prepstmt = conn.prep(q.clone()).unwrap();
         let res = conn
             .exec_iter(prepstmt, keys)
             .expect(&format!("failed to select from {}", qname));
@@ -187,24 +189,22 @@ impl MySqlBackend {
             let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
             rows.push(vals);
         }
-        /*debug!(
-            self.log,
-            "executed query {}, got {} rows",
-            qname,
-            rows.len()
-        );*/
+        warn!(self.log, "WS Backend: query {}: {}", q.clone(), start.elapsed().as_micros());
         return rows;
     }
 
     pub fn insert(&self, table: &str, vals: Vec<Value>) {
+        let start = time::Instant::now();
         let valstrs: Vec<&str> = vals.iter().map(|_| "?").collect();
         let q = format!(r"INSERT INTO {} VALUES ({});", table, valstrs.join(","));
         self.handle()
             .exec_drop(q.clone(), vals)
             .expect(&format!("failed to insert into {}, query {}!", table, q));
+        warn!(self.log, "WS Backend: insert {}: {}", q.clone(), start.elapsed().as_micros());
     }
 
     pub fn update(&self, table: &str, keys: Vec<Value>, vals: Vec<(usize, Value)>) {
+        let start = time::Instant::now();
         let tables = self.tables.read().unwrap();
         let (key_cols, cols) = tables
             .get(table)
@@ -231,9 +231,11 @@ impl MySqlBackend {
         self.handle()
             .exec_drop(q.clone(), args)
             .expect(&format!("failed to update {}, query {}!", table, q));
+        warn!(self.log, "WS Backend: update {}: {}", q.clone(), start.elapsed().as_micros());
     }
 
     pub fn insert_or_update(&self, table: &str, rec: Vec<Value>, update_vals: Vec<(u64, Value)>) {
+        let start = time::Instant::now();
         let tables = self.tables.read().unwrap();
         let (_, cols) = tables
             .get(table)
@@ -263,5 +265,6 @@ impl MySqlBackend {
         self.handle()
             .exec_drop(q.clone(), args)
             .expect(&format!("failed to insert-update {}, query {}!", table, q));
+        warn!(self.log, "WS Backend: Insert or update {}: {}", q.clone(), start.elapsed().as_micros());
     }
 }
