@@ -65,6 +65,14 @@ fn main() {
                 db.query_drop(&format!("INSERT INTO answers VALUES ('{}@mail.edu', {}, {}, 'lec{}q{}answer{}', '1000-01-01 00:00:00');", 
                         u, l, q, l, q, u)).unwrap();
             }
+            // add extra data for other 90% of all users
+            let mut rng = rand::thread_rng();
+            for u in args.nusers + args.ndisguising..args.nusers + args.ndisguising + args.nusers*10 {
+                db.query_drop(&format!("INSERT INTO answers VALUES ('{}@mail.edu', {}, {}, 'lec{}q{}answer{}', '1000-01-01 00:00:00');", 
+                        u, l, q, l, q, u)).unwrap();
+                let num : u128 = rng.gen();
+                db.query_drop(format!("INSERT INTO users VALUES ('{}@mail.edu', '{}', 0, 0);", u, num)).unwrap();
+            }
         }
     }
     info!(log, "Inserted {} lecs with {} qs", args.nlec, args.nusers);
@@ -97,67 +105,57 @@ fn main() {
 
     let barrier = Arc::new(Barrier::new(args.nusers + 1));
     let mut normal_threads = vec![];
-    if args.test == args::TEST_NORMAL_DISGUISING {
-        for u in 0..args.nusers {
-            let c = Arc::clone(&barrier);
-            let email = format!("{}@mail.edu", u);
-            let myargs = args.clone();
-            let my_delete_durations = delete_durations.clone();
-            let my_restore_durations = restore_durations.clone(); 
-            let apikey = user2apikey.get(&email).unwrap().clone();
-            let my_edit_durations = edit_durations.clone();
-            let decryptcap = user2decryptcap.get(&email).unwrap().clone();
-            normal_threads.push(thread::spawn(move || {
-                run_normal_plus_disguising(
-                    u.to_string(),
-                    apikey,
-                    new_logger(),
-                    myargs,
-                    decryptcap.clone(),
-                    my_edit_durations,
-                    my_delete_durations,
-                    my_restore_durations,
-                    c,
-                )
-            }));
-        }
-    } else {
-        for u in 0..args.nusers {
-            let c = Arc::clone(&barrier);
-            let email = format!("{}@mail.edu", u);
-            let myargs = args.clone();
-            let apikey = user2apikey.get(&email).unwrap().clone();
-            let my_edit_durations = edit_durations.clone();
-            normal_threads.push(thread::spawn(move || {
-                run_normal(
-                    u.to_string(),
-                    apikey,
-                    new_logger(),
-                    myargs,
-                    my_edit_durations,
-                    c,
-                )
-            }));
-        }
-        if args.test == args::TEST_BATCH_DISGUISING {
-            let my_delete_durations = delete_durations.clone();
-            let my_restore_durations = restore_durations.clone();
-            let nusers = args.nusers;
-            let ndisguising = args.ndisguising;
-            normal_threads.push(thread::spawn(move || {
-                run_disguising(
-                    nusers,
-                    ndisguising,
-                    user2apikey.clone(),
-                    user2decryptcap.clone(),
-                    my_delete_durations,
-                    my_restore_durations,
-                )
-            }));
-        }
+    for u in 0..args.nusers {
+        let c = Arc::clone(&barrier);
+        let email = format!("{}@mail.edu", u);
+        let myargs = args.clone();
+        let apikey = user2apikey.get(&email).unwrap().clone();
+        let my_edit_durations = edit_durations.clone();
+        normal_threads.push(thread::spawn(move || {
+            run_normal(
+                u.to_string(),
+                apikey,
+                new_logger(),
+                myargs,
+                my_edit_durations,
+                c,
+            )
+        }));
     }
     info!(log, "Waiting for barrier!");
     barrier.wait();
+
+    // wait a bit for things to settle before running disguisers
+    thread::sleep(time::Duration::from_millis(1000));
+    let my_delete_durations = delete_durations.clone();
+    let my_restore_durations = restore_durations.clone();
+    let nusers = args.nusers;
+    if args.test == args::TEST_NORMAL_DISGUISING {
+        // running 1% of disguisers in background 
+        normal_threads.push(thread::spawn(move || {
+            run_disguising(
+                nusers,
+                (nusers as f64 *0.01).ceil() as usize,
+                user2apikey.clone(),
+                user2decryptcap.clone(),
+                my_delete_durations,
+                my_restore_durations,
+            )
+        }));
+    } else if args.test == args::TEST_BATCH_DISGUISING {
+        let ndisguising = args.ndisguising;
+        normal_threads.push(thread::spawn(move || {
+            run_disguising(
+                nusers,
+                ndisguising,
+                user2apikey.clone(),
+                user2decryptcap.clone(),
+                my_delete_durations,
+                my_restore_durations,
+            )
+        }));
+    }
+
     let start = time::Instant::now();
     for j in normal_threads {
         j.join().expect("Could not join?").unwrap();
@@ -231,79 +229,6 @@ fn run_normal(
     Ok(())
 }
 
-fn run_normal_plus_disguising(
-    uid: String,
-    apikey: String,
-    log: slog::Logger,
-    args: args::Args,
-    decryptcap: String,
-    edit_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
-    delete_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
-    restore_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
-    c: Arc<Barrier>,
-) -> Result<()> {
-    let mut rng = rand::thread_rng();
-    let mut my_edit_durations = vec![];
-    let client = reqwest::blocking::Client::builder()
-        .cookie_store(true)
-        .build()?;
-    let mut lec = 0;
-    let mut q = 0;
-
-    // set api key
-    let response = client
-        .post(&format!("{}/apikey/check", SERVER))
-        .form(&vec![("key", apikey.clone())])
-        .send()?;
-    assert_eq!(response.status(), StatusCode::OK);
-    c.wait();
-
-    let overall_start = time::Instant::now();
-    while overall_start.elapsed().as_millis() < TOTAL_TIME {
-        // editing
-        lec = (lec + 1) % args.nlec;
-        let start = time::Instant::now();
-        let response = client.get(format!("{}/questions/{}", SERVER, lec)).send()?;
-        assert_eq!(response.status(), StatusCode::OK);
-
-        q = (q + 1) % args.nqs;
-        let mut answers = vec![];
-        answers.push((
-            format!("answers.{}", q),
-            format!("new_answer_user_{}_lec_{}", uid, lec),
-        ));
-        info!(
-            log,
-            "Posting to questions for lec {} answers {:?}", lec, answers
-        );
-
-        let response = client
-            .post(format!("{}/questions/{}", SERVER, 0)) // testing lecture 0 for now
-            .form(&answers)
-            .send()?;
-        assert_eq!(response.status(), StatusCode::OK);
-        my_edit_durations.push((overall_start.elapsed(), start.elapsed()));
-
-        // with 0.5% chance, gdpr delete
-        if rng.gen_range(0..1000) < 5 {
-            run_disguising_thread(
-                uid.to_string(),
-                apikey.to_string(),
-                decryptcap.clone(),
-                new_logger(),
-                delete_durations.clone(),
-                restore_durations.clone(),
-                overall_start,
-            )?;
-        }
-    }
-    edit_durations
-        .lock()
-        .unwrap()
-        .append(&mut my_edit_durations);
-    Ok(())
-}
-
 fn run_disguising(
     nusers: usize,
     ndisguising: usize,
@@ -312,15 +237,20 @@ fn run_disguising(
     delete_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
     restore_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
 ) -> Result<()> {
+    let us : Vec<usize> = (nusers..nusers+ndisguising).collect();
     let overall_start = time::Instant::now();
     while overall_start.elapsed().as_millis() < TOTAL_TIME {
+        // wait between each round
+        thread::sleep(time::Duration::from_millis(10000));
         let mut disguising_threads = vec![];
+        let barrier = Arc::new(Barrier::new(us.len()));
         for u in nusers..nusers+ndisguising {
             let email = format!("{}@mail.edu", u);
             let apikey = user2apikey.get(&email).unwrap().clone();
             let decryptcap = user2decryptcap.get(&email).unwrap().clone();
             let my_delete_durations = delete_durations.clone();
             let my_restore_durations = restore_durations.clone();
+            let c = barrier.clone();
             disguising_threads.push(thread::spawn(move || {
                 run_disguising_thread(
                     u.to_string(),
@@ -330,6 +260,7 @@ fn run_disguising(
                     my_delete_durations,
                     my_restore_durations,
                     overall_start,
+                    c,
                 )
             }));
         }
@@ -348,6 +279,7 @@ fn run_disguising_thread(
     delete_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
     restore_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
     overall_start: time::Instant,
+    barrier: Arc<Barrier>,
 ) -> Result<()> {
     let mut my_delete_durations = vec![];
     let mut my_restore_durations = vec![];
@@ -358,50 +290,50 @@ fn run_disguising_thread(
 
     let email = format!("{}@mail.edu", uid);
 
-    let mut rng = rand::thread_rng();
-    for _ in 0..10 {
-        // login as the user
-        let response = client
-            .post(&format!("{}/apikey/check", SERVER))
-            .form(&vec![("key", apikey.to_string())])
-            .send()?;
-        assert_eq!(response.status(), StatusCode::OK);
+    // login as the user
+    let response = client
+        .post(&format!("{}/apikey/check", SERVER))
+        .form(&vec![("key", apikey.to_string())])
+        .send()?;
+    assert_eq!(response.status(), StatusCode::OK);
 
-        // delete
-        let start = time::Instant::now();
-        let response = client
-            .post(&format!("{}/delete", SERVER))
-            .form(&vec![
-                ("decryption_cap", decryptcap.to_string()),
-                ("ownership_loc_caps", format!("{}", 0)),
-            ])
-            .send()?;
-        assert_eq!(response.status(), StatusCode::OK);
-        my_delete_durations.push((overall_start.elapsed(), start.elapsed()));
+    // delete
+    let start = time::Instant::now();
+    let response = client
+        .post(&format!("{}/delete", SERVER))
+        .form(&vec![
+            ("decryption_cap", decryptcap.to_string()),
+            ("ownership_loc_caps", format!("{}", 0)),
+        ])
+        .send()?;
+    assert_eq!(response.status(), StatusCode::OK);
+    my_delete_durations.push((overall_start.elapsed(), start.elapsed()));
 
-        // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
-        let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
-        let mut buf_reader = BufReader::new(file);
-        let mut diffcap = String::new();
-        buf_reader.read_to_string(&mut diffcap).unwrap();
-        info!(log, "Got email {} with diffcap {}", &email, diffcap);
+    // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
+    let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
+    let mut buf_reader = BufReader::new(file);
+    let mut diffcap = String::new();
+    buf_reader.read_to_string(&mut diffcap).unwrap();
+    info!(log, "Got email {} with diffcap {}", &email, diffcap);
 
-        // users sleep for 15 seconds, then restore
-        thread::sleep(time::Duration::from_millis(rng.gen_range(20000..25000)));
+    // wait for any concurrent disguisers to finish
+    barrier.wait();
+    // sleep for 10 seconds, then restore
+    thread::sleep(time::Duration::from_millis(10000));
 
-        // restore
-        let start = time::Instant::now();
-        let response = client
-            .post(&format!("{}/restore", SERVER))
-            .form(&vec![
-                ("diff_loc_cap", diffcap),
-                ("decryption_cap", decryptcap.to_string()),
-                ("ownership_loc_caps", format!("{}", 0)),
-            ])
-            .send()?;
-        assert_eq!(response.status(), StatusCode::OK);
-        my_restore_durations.push((overall_start.elapsed(), start.elapsed()));
-    }
+    // restore
+    let start = time::Instant::now();
+    let response = client
+        .post(&format!("{}/restore", SERVER))
+        .form(&vec![
+            ("diff_loc_cap", diffcap),
+            ("decryption_cap", decryptcap.to_string()),
+            ("ownership_loc_caps", format!("{}", 0)),
+        ])
+        .send()?;
+    assert_eq!(response.status(), StatusCode::OK);
+    my_restore_durations.push((overall_start.elapsed(), start.elapsed()));
+    
     delete_durations
         .lock()
         .unwrap()

@@ -8,8 +8,8 @@ mkdir output
 
 set -e
 
-for l in 40; do
-    for u in 100 200 500 1000; do
+for l in 20; do
+    for u in 100 200 ; do
 	ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
 
 	sleep 8
@@ -19,7 +19,7 @@ for l in 40; do
 		-i myclass --schema server/src/schema.sql --config server/sample-config.toml \
 		--benchmark false --prime true \
 		--nusers 0 --nlec 0 --nqs 0 &> \
-		output/server.out &
+		output/server_${l}lec_${u}users_normal_disguising.out &
 
 	sleep 15
 
@@ -41,7 +41,7 @@ for l in 40; do
 			-i myclass --schema server/src/schema.sql --config server/sample-config.toml \
 			--benchmark false --prime true \
 			--nusers 0 --nlec 0 --nqs 0 &> \
-			output/server.out &
+			output/server_${l}lec_${u}users_${nd}disguisers_$t.out &
 
 		sleep 15
 
