@@ -6,11 +6,11 @@ import sys
 from collections import defaultdict
 plt.style.use('seaborn-deep')
 
-nusers = [100, 200, 500]
+nusers = [100, 200]
 props = [1/10, 1/4]
 maxts = 150000
-nbuckets = 15000
-bucketwidth = maxts/nbuckets
+bucketwidth = 1000
+nbuckets = int(maxts/bucketwidth)
 buckets = [b * bucketwidth for b in range(nbuckets)]
 
 lec = sys.argv[1]
@@ -23,7 +23,7 @@ edit_results_baseline = defaultdict(list)
 
 for u in nusers:
     for nd in [int(u * prop) for prop in props]:
-        with open('concurrent_disguise_stats_{}lec_{}users_{}disguisers.csv'.format(lec, u, nd),'r') as csvfile:
+        with open('concurrent_disguise_stats_{}lec_{}users_disguising_{}batch.csv'.format(lec, u, nd),'r') as csvfile:
             rows = csvfile.readlines()
             editpairs = [x.split(':') for x in rows[0].strip().split(',')]
             editdata = defaultdict(list)
@@ -85,7 +85,7 @@ for u in nusers:
         axes_flat[3].scatter(restore_results[u][i].keys(), [statistics.mean(x) for x in restore_results[u][i].values()], label='edna_{}'.format(props[i]))
 
     for i in range(len(axes_flat)):
-        axes_flat[i].set_xlabel('Benchmark Time (ms)')
+        axes_flat[i].set_xlabel('Benchmark Time (s)')
         axes_flat[i].set_ylabel('Latency (ms)')
         axes_flat[i].set_ylim(ymin=0)
         axes_flat[i].set_xlim(xmin=0, xmax=nbuckets)
