@@ -59,8 +59,6 @@ for u in nusers:
                 editdata[bucket].append(val)
             edit_results_baseline[u].append(editdata)
 
-
-
 for u in nusers:
     fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(8,15))
     axes_flat = axes.flatten()
