@@ -5,27 +5,40 @@
    - attack scenarios
 
 \subsection{Performance}
+
 We measure two aspects of \sys's performance: (1) the latency and storage cost of using \sys's
 low-level API to apply a disguise, reveal a disguise, or temporarily recorrelate disguised data; and
 (2) the impact of these disguising operations on the performance of concurrently executing
 application users.
 
-\lyt{TODO describe WebSubmit (or put case study first so we have the description?)}
+We evaluate performance using three applications: WebSubmit-rs, HotCRP, and Lobsters.
 
-\head{Cost of \sys's API.}
+WebSubmit is an answers-submission application for course lectures (similar to \lyt{TODO other
+course submission apps}). Its simple schema consists of lectures, questions, answers, and user
+accounts; each user owns their account and a set of answers. We integrated \sys into WebSubmit to
+support a disguise for admin-anonymization of all answers; a disguise for per-user GDPR-compliant
+account deletion; account restoration after deletion; and answer editing after anonymization.
+\sys-WebSubmit is a fully-E2E application that supports additional endpoints to perform these
+disguise actions, and emails users their capabilities and locators (as these endpoints) when
+disguise actions are performed.
+
+\lyt{TODO describe HotCRP and Lobsters.}
+
+\head{Latency Costs of Disguise-Related Actions.}
 \begin{table}[t!]
 \begin{center}
 \begin{tabular}{ c c }
- \textbf{High-Level Operation} & \textbf{Time (mus)}\\
+    \textbf{High-Level Op (20 Lectures, 4 Answers/Lecture)} & \textbf{Time (mus)}\\
 \hline
     Create User Account & 1000\\
-    Delete User Account & 5250/lec\\
-    Restore User Account & 18300/lec\\
-    Anonymize User Account & 900/lec\\
-    Edit Normal Lecture Answers & 2000/lec \\
-    Edit Anonymized Lecture Answers & 62000/lec \\
+    Anonymize User Account & 18500\\
+    Edit Normal Lecture Answer & 2000 \\
+    Edit Anonymized Lecture Answer & 62000 \\
+    Delete User Account (Pre-Anon) & 25000 \\
+    Delete User Account (Post-Anon) & 105000 \\
+    Restore User Account & 366000 \\
 \hline
-    \textbf{DB Operation} & \textbf{Time (mus)}\\
+    \textbf{DB Op} & \textbf{Time (mus)}\\
 \hline
 Insert DB Row (User )& 120\\
 Update DB Row (FK) & 64\\ 
@@ -36,7 +49,7 @@ Remove DB Rows (Answers) & 150\\
 Reveal Deleted Row (DB Select + Insert) & 160 \\
 Create + Register Principal & 110\\
 \hline
-    \textbf{Crypto Operation} & \textbf{Time (mus)}\\
+    \textbf{Crypto Op} & \textbf{Time (mus)}\\
 \hline
 Generate Keypair & 300831\\
 Encrypt Ownership Token & 360\\
@@ -45,39 +58,55 @@ Encrypt Diff Token & 340\\
 Decrypt Diff Token & 3000\\
 \end{tabular}
 \end{center}
-\caption{Amount of time required to run different operations for disguises in WebSubmit. Each
-    lecture is associated with 4 answers.}
+\caption{Amount of time required to run different operations for disguises in WebSubmit.}
     \label{tab:opstats}
 \end{table}
 
-Table~\ref{tab:opstats} shows the latency of different operations involved in disguising. 
-The latency of each high-level operation shown scales linearly with amount
-of data (\ie number of lectures and answers per lecture) associated with the user,
-and requires some number of DB or crypto operations.
+Table~\ref{tab:opstats} shows the latency of different WebSubmit disguise-related operations. 
+The latency of each high-level operation shown scales linearly with the amount
+of data (\ie number of answers) associated with each user. Each high-level operation requires some number of DB or crypto operations.
 
-Creating an account in WebSubmit generates an APIKey and registers a private-public keypair
-for the user (returing the public key as the user's decryption capability).
+Creating an account in WebSubmit generates an APIKey and registers a private-public keypair for the
+user (emailing the user the public key as the user's decryption capability).
 
-Account deletion requires decrypting one ownership token for each lecture; selecting DB rows of
-both the original principal and any linked pseudoprincipals to remove; removing these
-selected rows; and encrypting and inserting one diff token for each answer for each lecture.
+Account anonymization generates one pseudoprincipal per lecture, so that all of a user's answers for
+a particular lecture belong to the same pseudoprincipal.
+Anonymization selects the relevant answers to anonymize; generates per-lecture
+pseudoprincipals and ownership tokens; encrypts and stores these ownership tokens; and
+performs DB
+queries to insert pseudoprincipls and to update answer FKs to point to these new pseudopricipals.
 
-Account restoration requires decrypting a diff token for each answer for each lecture; DB queries to check
-whether the diffs can be restored (\eg that the corresponding lecture of an answer to reinsert
-still exists); and DB queries to restore the disguised data to its original state.
+Editing answers normally simply performs update DB queries. Editing anonymized answers, however,
+uses client-provided locator and decryption capabilities to authorize the client to speak for the
+pseudoprincipal associated with the answer.  \sys performs this authorization check by decrypting
+\emph{all} ownership tokens at the specified locator until it finds a ownership token linking the
+client to the currently-owning pseudoprincipal. For example, this benchmark's anonymization of a
+user account generates 20 ownership token ciphertexts at the same locator; editing anonymized
+answers of a single lecture thus performs up to 20 decryptions to determine which pseudoprincipals
+the client can act for. This can be optimized by batching all ownership tokens from one disguise
+into a single encrypted ciphertext.
 
-Account anonymization requires selecting the relevant answers to anonymize; generating
-pseudoprincipals and ownership tokens for each answer; encrypting and storing these ownership tokens; and performing DB queries to actually update application data.
+Account deletion pre-anonymization does not perform any composition using accessible
+ownership; \sys simply selects answers of the user to remove; removes these answers; and encrypts
+and inserts one diff token for each answer.
 
-Editing answers of a lecture normally performs the relevant update DB queries. However, editing
-anonymized answers of a lecture uses client-provided locator and decryption capabilities to
-authorize the client to speak for the pseudoprincipal associated with the answer. \sys performs this
-authorization check by decrypting \emph{all} ownership tokens at the specified locator with the
-decryption capability until it finds a ownership token linking the client to the owning
-pseudoprincipal. For example, anonymization of a user account with answers to 20 lectures generates
-20 ownership tokens encrypted at the same locator; editing the answers of a single lecture thus
-performs up to 20 decryptions to determine which pseudoprincipals the client can act for. This can
-be optimized by batching all ownership tokens from one disguise into a single encrypted ciphertext.
+Account deletion post-anonymization first uses a decryption capability and locator to find and decrypt
+ownership tokens of the user. This lets \sys find data of pseudoprincipals that the user is authorized to
+remove along with their account, and compose account deletion on top of anonymizaton.
+\sys decrypts one ownership token for each lecture; selects answers of both
+the user and any linked pseudoprincipals to remove; and like before, removes these answers and
+encrypts and inserts one diff token for each answer.
+
+Account restoration decrypts a diff token for each answer for each lecture, and performs DB checks
+to ensure the diffs can be restored (\eg that the corresponding lecture of an answer to reinsert
+still exists). If the checks pass (which they do in this benchmark), restoration reinserts the
+answers stored in the diffs.
+
+\head{Storage Costs of Disguise-Related Actions.}
+Each generated pseudoprincipal adds an additional row to the users table in WebSubmit; \sys also stores public-key metadata for each principal (and
+pseudoprincipal), and (in-memory) encrypted ciphertexts for tokens.
+Clients keep track of capabilities and locators that are emailed to them in the form of URLs that
+allow for account restoration or post-anonymization answer editing.
 
 \head{Impact on Normal Application Execution.}
 
