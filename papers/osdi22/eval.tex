@@ -113,17 +113,16 @@ Figure~\ref{fig:concurrent} illustrates the normal-case and worst-case impacts o
 WebSubmit has 100 users continuously editing their lecture answers (in a database containing 2000
 users, 20 lectures, and 4 answers per lecture per user).
 
-To simulate the normal case, we imagine that some user in addition to the 100 editing users is
-always deleting or restoring their account, and measure the change in latency. As shown in
-the second graph of Figure~\ref{fig:concurrent}, we observe no
-increase in latency over the baseline with 0 disguisers (approximately 600ms/edit).
+To simulate a realistic normal amount of disguising, we imagine that there is always some user in
+addition to the 100 editing users that is deleting or restoring their account, and measure the
+change in latency. With one disguiser, we observe no increase in latency over the baseline with 0
+disguisers (approximately 600ms/edit).
 
 To simulate the worst-case scenario in practice, we imagine that up to 25 additional users decide to
 simultaneously delete their account (\eg in response to some social media campaign). At some later
 point in time, these users may decide to come back and (worst-case) simultaneously restore their
-accounts. As shown in
-the third graph of Figure~\ref{fig:concurrent}, we observe that 10 users disguising themselves at once has
-minimal impact on edit latency for the 100 users; but 25 users simultaneously disguising and
+accounts. We observe that while 10 users disguising themselves at once has
+minimal impact on edit latency for the 100 users, 25 users simultaneously disguising and
 revealing leads to spikes up to 2700ms from 600ms.
 
 We imagine \sys can prevent such spikes by rate-limiting and queuing disguise actions when
