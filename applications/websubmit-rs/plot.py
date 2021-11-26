@@ -8,7 +8,7 @@ from collections import defaultdict
 plt.style.use('seaborn-deep')
 
 nusers = [100]
-props = [1/10, 1/4]
+props = [1/10, 1/6, 1/4]
 maxts = 150000
 bucketwidth = 1000
 nbuckets = int(maxts/bucketwidth)
@@ -62,22 +62,22 @@ for u in nusers:
             delete_results[u].append(deletedata)
             restore_results[u].append(restoredata)
 
-        with open('concurrent_disguise_stats_{}lec_{}users_{}disguisers_baseline.csv'.format(lec, u, nd),'r') as csvfile:
-            rows = csvfile.readlines()
-            editpairs = [x.split(':') for x in rows[0].strip().split(',')]
-            editdata = defaultdict(list)
-            for x in editpairs:
-                bucket = int((float(x[0]))/bucketwidth)
-                val = float(x[1])/1000
-                editdata[bucket].append(val)
-            edit_results_baseline[u].append(editdata)
+    with open('concurrent_disguise_stats_{}lec_{}users_25disguisers_baseline.csv'.format(lec, u, nd),'r') as csvfile:
+        rows = csvfile.readlines()
+        editpairs = [x.split(':') for x in rows[0].strip().split(',')]
+        editdata = defaultdict(list)
+        for x in editpairs:
+            bucket = int((float(x[0]))/bucketwidth)
+            val = float(x[1])/1000
+            editdata[bucket].append(val)
+        edit_results_baseline[u].append(editdata)
 
 xs = list(edit_results_baseline[100][0].keys())
 order = np.argsort(xs)
 xs = np.array(xs)[order]
 ys = [statistics.mean(x) for x in edit_results_baseline[100][0].values()]
 ys = np.array(ys)[order]
-plt.plot(xs, ys, label='0 Disguisers', linestyle="--", color='m')
+plt.plot(xs, ys, label='0 Disguisers', color='y')
 
 xs = list(normal_edit_results[100].keys())
 order = np.argsort(xs)
