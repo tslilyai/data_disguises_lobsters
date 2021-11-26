@@ -116,7 +116,7 @@ users, 20 lectures, and 4 answers per lecture per user).
 To simulate the normal case, we imagine that some user in addition to the 100 editing users is
 always deleting or restoring their account, and measure the change in latency. As shown in
 the second graph of Figure~\ref{fig:concurrent}, we observe no
-increase in latency over the baseline (approximately 600ms/edit).
+increase in latency over the baseline with 0 disguisers (approximately 600ms/edit).
 
 To simulate the worst-case scenario in practice, we imagine that up to 25 additional users decide to
 simultaneously delete their account (\eg in response to some social media campaign). At some later
@@ -129,13 +129,13 @@ revealing leads to spikes up to 2700ms from 600ms.
 We imagine \sys can prevent such spikes by rate-limiting and queuing disguise actions when
 necessary, in particular for non-time-sensitive disguises like GDPR-compliant account deletion.
 
-\begin{figure*}[t!]
+\begin{figure}[t!]
     \centering
         \includegraphics[width=0.5\textwidth]{figs/concurrent_results_20lec_100users}
     \caption{Impact of disguising (account deletion and revealing) on 100 users concurrently running
     normal application answer edits.} 
     \label{fig:concurrent}
-\end{figure*}
+\end{figure}
 
 \subsection{Case studies}
    1) websubmit
