@@ -3,12 +3,11 @@ name = "edna-hotcrp"
 authors = ["Lily Tsai<tslilyai@mit.edu>"]
 version = "0.1.0"
 edition = '2018'
-publish = false
 
 [dependencies]
 chrono = { version = "0.4.0", features = ["serde"] }
 clap = "2.25.0"
-edna = { path = "../../edna", package = "edna" }
+edna = { path = "../../edna" }
 sql_parser = { path = "../../sql-parser", package = "sql-parser" }
 env_logger = "0.7.1"
 futures-core = "0.3.0"
@@ -30,11 +29,6 @@ histogram-sampler = "0.4.0"
 rsa = "0.5.0"
 
 [[bin]]
-name = "lobsters"
-path = "lobsters/main.rs"
-doc = false
-
-[[bin]]
 name = "hotcrp"
-path = "hotcrp/main.rs"
+path = "src/main.rs"
 doc = false

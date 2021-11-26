@@ -1,10 +1,42 @@
-use crate::datagen::*;
 use crate::*;
-use decor::disguise::*;
-use decor::predicate::*;
+use edna::predicate::*;
+use edna::spec::*;
+use edna::*;
 use sql_parser::ast::*;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
+
+pub fn apply(
+    edna: Arc<Mutex<EdnaClient>>,
+    uid: u64,
+    decryption_cap: tokens::DecryptCap,
+    loc_caps: Vec<tokens::LocCap>,
+) -> Result<
+    (
+        HashMap<(UID, DID), tokens::LocCap>,
+        HashMap<(UID, DID), tokens::LocCap>,
+    ),
+    mysql::Error,
+> {
+    let gdpr_disguise = get_disguise(uid);
+    edna.lock()
+        .unwrap()
+        .apply_disguise(Arc::new(gdpr_disguise), decryption_cap, loc_caps)
+}
+
+pub fn reveal(
+    edna: Arc<Mutex<EdnaClient>>,
+    decryption_cap: tokens::DecryptCap,
+    diff_loc_caps: Vec<tokens::LocCap>,
+    own_loc_caps: Vec<tokens::LocCap>,
+) -> Result<(), mysql::Error> {
+    edna.lock().unwrap().reverse_disguise(
+        get_disguise_id(),
+        decryption_cap,
+        diff_loc_caps,
+        own_loc_caps,
+    )
+}
 
 fn get_eq_pred(col: &str, val: String) -> Vec<Vec<PredClause>> {
     vec![vec![PredClause::ColValCmp {
@@ -14,16 +46,18 @@ fn get_eq_pred(col: &str, val: String) -> Vec<Vec<PredClause>> {
     }]]
 }
 
-pub fn get_disguise(user_id: u64) -> Disguise {
-    Disguise {
-        did: GDPR_DISGUISE_ID,
-        user: Some(User { id: user_id }),
-        table_disguises: get_table_disguises(user_id),
-        table_info: get_table_info(),
-        guise_gen: get_guise_gen(),
-    }
+fn get_disguise_id() -> u64 {
+    0
 }
 
+pub fn get_disguise(user_id: u64) -> Disguise {
+    Disguise {
+        did: get_disguise_id(),
+        user: user_id.to_string(),
+        table_disguises: get_table_disguises(user_id),
+        table_info: get_table_info(),
+    }
+}
 
 fn get_table_info() -> Arc<RwLock<HashMap<String, TableInfo>>> {
     let mut hm = HashMap::new();
@@ -137,7 +171,7 @@ fn get_table_info() -> Arc<RwLock<HashMap<String, TableInfo>>> {
     Arc::new(RwLock::new(hm))
 }
 
-fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
+fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<ObjectTransformation>>>> {
     let mut hm = HashMap::new();
 
     // REMOVED
@@ -145,7 +179,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "ContactInfo".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("contactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Remove)),
                 global: false,
@@ -156,7 +190,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "PaperReviewPreference".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("contactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Remove)),
                 global: false,
@@ -167,7 +201,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "PaperWatch".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("contactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Remove)),
                 global: false,
@@ -178,7 +212,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "Capability".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("contactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Remove)),
                 global: false,
@@ -189,7 +223,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "PaperConflict".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("contactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Remove)),
                 global: false,
@@ -200,7 +234,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "TopicInterest".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("contactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Remove)),
                 global: false,
@@ -213,7 +247,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "PaperReviewRefused".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("requestedBy", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -221,7 +255,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
                 })),
                 global: false,
             },
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("refusedBy", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -235,7 +269,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "ActionLog".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("destContactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -243,7 +277,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
                 })),
                 global: false,
             },
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("contactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -251,7 +285,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
                 })),
                 global: false,
             },
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("trueContactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -265,7 +299,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "ReviewRating".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("contactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -279,7 +313,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "PaperComment".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("contactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -293,7 +327,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "PaperReview".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("contactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -301,7 +335,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
                 })),
                 global: false,
             },
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("requestedBy", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -315,7 +349,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
         "PaperReview".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("leadContactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -323,7 +357,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
                 })),
                 global: false,
             },
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("managerContactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -331,7 +365,7 @@ fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Transform
                 })),
                 global: false,
             },
-            Transform {
+            ObjectTransformation {
                 pred: get_eq_pred("shepherdContactId", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),

@@ -47,7 +47,7 @@ pub fn get_random_string() -> String {
     table_cols
 }*/
 
-pub fn populate_database(edna: &mut decor::EdnaClient) -> Result<(), mysql::Error> {
+pub fn populate_database(edna: &mut edna::EdnaClient) -> Result<(), mysql::Error> {
     let total_users = NUSERS_NONPC + NUSERS_PC;
     let other_uids: Vec<usize> = (1..NUSERS_NONPC + 1).collect();
     let pc_uids: Vec<usize> = (NUSERS_NONPC + 1..total_users + 1).collect();

@@ -1,5 +1,5 @@
 use edna::GuiseGen;
-use rand::prelude::*;
+use rand::Rng;
 use sql_parser::ast::*;
 use std::sync::{Arc, RwLock};
 
@@ -30,9 +30,9 @@ pub fn get_insert_guise_cols() -> Vec<String> {
 
 pub fn get_insert_guise_vals() -> Vec<Expr> {
     let mut rng = rand::thread_rng();
-    let gid: u64 = rng.gen();
-    let email: String = format!("{}@anon.com", rng.gen());
-    let pass: String = format!("{}pass", rng.gen());
+    let gid: u64 = rng.gen::<u64>();
+    let email: String = format!("{}@anon.com", gid);
+    let pass: String = format!("{}pass", gid);
     vec![
         Expr::Value(Value::Number(gid.to_string())),
         Expr::Value(Value::String(String::new())),

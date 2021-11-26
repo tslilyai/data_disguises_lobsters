@@ -1,5 +1,5 @@
 use crate::datagen::*;
-use decor::helpers::*;
+use edna::helpers::*;
 use rand::seq::SliceRandom;
 use sql_parser::ast::*;
 

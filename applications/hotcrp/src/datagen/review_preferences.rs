@@ -1,4 +1,4 @@
-use decor::helpers::*;
+use edna::helpers::*;
 use sql_parser::ast::*;
 
 pub fn insert_review_preference(

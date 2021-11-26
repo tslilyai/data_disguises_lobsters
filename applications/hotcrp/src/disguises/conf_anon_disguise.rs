@@ -1,33 +1,42 @@
 use crate::datagen::*;
 use crate::*;
-use edna::disguise::*;
 use edna::predicate::*;
+use edna::*;
+use edna::spec::*;
 use sql_parser::ast::*;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 const ROLE_PC: u64 = 1;
 
-pub fn get_disguise() -> Disguise {
-    Disguise {
-        did: CONF_ANON_DISGUISE_ID,
-        user: None,
-        table_disguises: get_table_disguises(),
-        table_info: get_table_info(),
-        guise_gen: get_guise_gen(),
-    }
+pub fn apply(
+    edna: Arc<Mutex<EdnaClient>>,
+) -> Result<
+    (
+        HashMap<(UID, DID), tokens::LocCap>,
+        HashMap<(UID, DID), tokens::LocCap>,
+    ),
+    mysql::Error,
+> {
+    let anon_disguise = get_disguise();
+    edna.lock()
+        .unwrap()
+        .apply_disguise(Arc::new(anon_disguise), vec![], vec![])
 }
 
-fn get_guise_gen() -> Arc<RwLock<HashMap<String, GuiseGen>>> {
-    let mut hm = HashMap::new();
-    hm.insert(
-        "ContactInfo".to_string(),
-        GuiseGen {
-            col_generation: Box::new(get_insert_guise_contact_info_cols),
-            val_generation: Box::new(get_insert_guise_contact_info_vals),
-        },
-    );
-    Arc::new(RwLock::new(hm))
+// no revealing
+
+fn get_disguise_id() -> u64 {
+    1
+}
+
+pub fn get_disguise() -> Disguise {
+    Disguise {
+        did: get_disguise_id(),
+        user: 0.to_string(),
+        table_disguises: get_table_disguises(),
+        table_info: get_table_info(),
+    }
 }
 
 fn get_table_info() -> Arc<RwLock<HashMap<String, TableInfo>>> {
@@ -117,14 +126,14 @@ fn get_table_info() -> Arc<RwLock<HashMap<String, TableInfo>>> {
     Arc::new(RwLock::new(hm))
 }
 
-fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
+fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<ObjectTransformation>>>> {
     let mut hm = HashMap::new();
 
     hm.insert(
         "ContactInfo".to_string(),
         Arc::new(RwLock::new(vec![
             // only modify if a PC member
-            Transform {
+            ObjectTransformation {
                 pred: vec![vec![PredClause::ColValCmp {
                     col: "roles".to_string(),
                     val: ROLE_PC.to_string(),
@@ -143,7 +152,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
     );
     hm.insert(
         "PaperWatch".to_string(),
-        Arc::new(RwLock::new(vec![Transform {
+        Arc::new(RwLock::new(vec![ObjectTransformation {
             pred: vec![],
             trans: Arc::new(RwLock::new(TransformArgs::Decor {
                 fk_name: "ContactInfo".to_string(),
@@ -154,7 +163,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
     );
     hm.insert(
         "PaperReviewPreference".to_string(),
-        Arc::new(RwLock::new(vec![Transform {
+        Arc::new(RwLock::new(vec![ObjectTransformation {
             pred: vec![],
             trans: Arc::new(RwLock::new(TransformArgs::Decor {
                 fk_name: "ContactInfo".to_string(),
@@ -166,7 +175,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
     hm.insert(
         "PaperReviewRefused".to_string(),
         Arc::new(RwLock::new(vec![
-            Transform {
+            ObjectTransformation {
                 pred: vec![],
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -174,7 +183,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
                 })),
                 global: true,
             },
-            Transform {
+            ObjectTransformation {
                 pred: vec![],
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -187,7 +196,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
     hm.insert(
         "ActionLog".to_string(),
         Arc::new(RwLock::new(vec![
-            Transform {
+            ObjectTransformation {
                 pred: vec![],
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -195,7 +204,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
                 })),
                 global: true,
             },
-            Transform {
+            ObjectTransformation {
                 pred: vec![],
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -203,7 +212,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
                 })),
                 global: true,
             },
-            Transform {
+            ObjectTransformation {
                 pred: vec![],
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -215,7 +224,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
     );
     hm.insert(
         "ReviewRating".to_string(),
-        Arc::new(RwLock::new(vec![Transform {
+        Arc::new(RwLock::new(vec![ObjectTransformation {
             pred: vec![],
             trans: Arc::new(RwLock::new(TransformArgs::Decor {
                 fk_name: "ContactInfo".to_string(),
@@ -226,7 +235,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
     );
     hm.insert(
         "PaperComment".to_string(),
-        Arc::new(RwLock::new(vec![Transform {
+        Arc::new(RwLock::new(vec![ObjectTransformation {
             pred: vec![],
             trans: Arc::new(RwLock::new(TransformArgs::Decor {
                 fk_name: "ContactInfo".to_string(),
@@ -238,7 +247,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
     hm.insert(
         "PaperReview".to_string(),
         Arc::new(RwLock::new(vec![
-            Transform {
+            ObjectTransformation {
                 pred: vec![],
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -246,7 +255,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
                 })),
                 global: true,
             },
-            Transform {
+            ObjectTransformation {
                 pred: vec![],
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -259,7 +268,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
     hm.insert(
         "Paper".to_string(),
         Arc::new(RwLock::new(vec![
-            Transform {
+            ObjectTransformation {
                 pred: vec![],
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -267,7 +276,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
                 })),
                 global: true,
             },
-            Transform {
+            ObjectTransformation {
                 pred: vec![],
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
@@ -275,7 +284,7 @@ fn get_table_disguises() -> HashMap<String, Arc<RwLock<Vec<Transform>>>> {
                 })),
                 global: true,
             },
-            Transform {
+            ObjectTransformation {
                 pred: vec![],
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
                     fk_name: "ContactInfo".to_string(),
