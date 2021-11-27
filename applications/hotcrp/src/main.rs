@@ -4,19 +4,18 @@ extern crate log;
 extern crate mysql;
 extern crate rand;
 
+use edna::EdnaClient;
 use log::warn;
-use rand::rngs::OsRng;
-use std::collections::{HashMap};
-use std::fs::File;
-use std::io::Write;
-use std::sync::Arc;
+use rsa::pkcs1::ToRsaPrivateKey;
+use std::collections::HashMap;
+use std::fs::{OpenOptions};
+use std::io::{Write};
+use std::time::Duration;
 use std::*;
 use structopt::StructOpt;
 
 mod datagen;
 mod disguises;
-
-use edna::{disguise, EdnaClient};
 
 const SCHEMA: &'static str = include_str!("schema.sql");
 const DBNAME: &'static str = &"test_hotcrp";
@@ -40,6 +39,11 @@ fn init_logger() {
 
 fn main() {
     init_logger();
+    let mut account_durations = vec![];
+    let mut edit_durations = vec![];
+    let mut delete_durations = vec![];
+    let mut anon_durations = vec![];
+    let mut restore_durations = vec![];
 
     let args = Cli::from_args();
     let nusers = datagen::NUSERS_NONPC + datagen::NUSERS_PC;
@@ -55,10 +59,134 @@ fn main() {
         datagen::populate_database(&mut edna).unwrap();
     }
 
-    let mut user_keys = HashMap::new();
-    let mut rng = OsRng;
+    let mut decrypt_caps = HashMap::new();
     for uid in 1..nusers + 1 {
+        let start = time::Instant::now();
         let private_key = edna.register_principal(uid.to_string());
-        user_keys.insert(uid, private_key);
+        let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
+        decrypt_caps.insert(uid as u64, private_key_vec);
+        account_durations.push(start.elapsed());
     }
+
+    // anonymize
+    let start = time::Instant::now();
+    // anonymization doesn't produce diff tokens that we'll reuse later
+    let (_diff_locs, own_locs) = disguises::conf_anon_disguise::apply(&mut edna).unwrap();
+    anon_durations.push(start.elapsed());
+
+    // anonymize nonpc members? some reviewers, some not
+    for u in 1..11 {
+        let dc = decrypt_caps.get(&u).unwrap().to_vec();
+        let ol = vec![*own_locs
+            .get(&(
+                u.to_string(),
+                disguises::conf_anon_disguise::get_disguise_id(),
+            ))
+            .unwrap()];
+
+        // edit
+        let start = time::Instant::now();
+        let pps = edna.get_pseudoprincipals(dc.clone(), ol.clone());
+        edit_durations.push(start.elapsed());
+
+        // delete
+        let start = time::Instant::now();
+        let (gdpr_diff_locs, gdpr_own_locs) =
+            disguises::gdpr_disguise::apply(&mut edna, u, dc.clone(), ol).unwrap();
+        delete_durations.push(start.elapsed());
+
+        // restore
+        let start = time::Instant::now();
+        let ol = vec![*gdpr_own_locs
+            .get(&(
+                u.to_string(),
+                disguises::conf_anon_disguise::get_disguise_id(),
+            ))
+            .unwrap()];
+        let dl = vec![*gdpr_diff_locs
+            .get(&(
+                u.to_string(),
+                disguises::conf_anon_disguise::get_disguise_id(),
+            ))
+            .unwrap()];
+        disguises::gdpr_disguise::reveal(&mut edna, dc, dl, ol).unwrap();
+        restore_durations.push(start.elapsed());
+    }
+    print_stats(
+        nusers as u64,
+        account_durations,
+        anon_durations,
+        edit_durations,
+        delete_durations,
+        restore_durations,
+    );
+}
+
+fn print_stats(
+    nusers: u64,
+    account_durations: Vec<Duration>,
+    anon_durations: Vec<Duration>,
+    edit_durations: Vec<Duration>,
+    delete_durations: Vec<Duration>,
+    restore_durations: Vec<Duration>,
+) {
+    let filename = format!("disguise_stats_{}users.csv", nusers);
+
+    // print out stats
+    let mut f = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&filename)
+        .unwrap();
+    writeln!(
+        f,
+        "{}",
+        account_durations
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
+    writeln!(
+        f,
+        "{}",
+        anon_durations
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
+    writeln!(
+        f,
+        "{}",
+        edit_durations
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
+    writeln!(
+        f,
+        "{}",
+        delete_durations
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
+    writeln!(
+        f,
+        "{}",
+        restore_durations
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
 }

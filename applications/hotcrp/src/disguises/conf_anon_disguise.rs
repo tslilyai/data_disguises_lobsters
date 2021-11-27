@@ -1,16 +1,16 @@
 use crate::datagen::*;
 use crate::*;
 use edna::predicate::*;
-use edna::*;
 use edna::spec::*;
+use edna::*;
 use sql_parser::ast::*;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 
 const ROLE_PC: u64 = 1;
 
 pub fn apply(
-    edna: Arc<Mutex<EdnaClient>>,
+    edna: &mut EdnaClient,
 ) -> Result<
     (
         HashMap<(UID, DID), tokens::LocCap>,
@@ -19,14 +19,12 @@ pub fn apply(
     mysql::Error,
 > {
     let anon_disguise = get_disguise();
-    edna.lock()
-        .unwrap()
-        .apply_disguise(Arc::new(anon_disguise), vec![], vec![])
+    edna.apply_disguise(Arc::new(anon_disguise), vec![], vec![])
 }
 
 // no revealing
 
-fn get_disguise_id() -> u64 {
+pub fn get_disguise_id() -> u64 {
     1
 }
 

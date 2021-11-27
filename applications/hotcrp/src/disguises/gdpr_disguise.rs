@@ -4,10 +4,10 @@ use edna::spec::*;
 use edna::*;
 use sql_parser::ast::*;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 
 pub fn apply(
-    edna: Arc<Mutex<EdnaClient>>,
+    edna: &mut EdnaClient,
     uid: u64,
     decryption_cap: tokens::DecryptCap,
     loc_caps: Vec<tokens::LocCap>,
@@ -19,18 +19,16 @@ pub fn apply(
     mysql::Error,
 > {
     let gdpr_disguise = get_disguise(uid);
-    edna.lock()
-        .unwrap()
-        .apply_disguise(Arc::new(gdpr_disguise), decryption_cap, loc_caps)
+    edna.apply_disguise(Arc::new(gdpr_disguise), decryption_cap, loc_caps)
 }
 
 pub fn reveal(
-    edna: Arc<Mutex<EdnaClient>>,
+    edna: &mut EdnaClient,
     decryption_cap: tokens::DecryptCap,
     diff_loc_caps: Vec<tokens::LocCap>,
     own_loc_caps: Vec<tokens::LocCap>,
 ) -> Result<(), mysql::Error> {
-    edna.lock().unwrap().reverse_disguise(
+    edna.reverse_disguise(
         get_disguise_id(),
         decryption_cap,
         diff_loc_caps,
