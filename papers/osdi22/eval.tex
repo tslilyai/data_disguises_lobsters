@@ -64,19 +64,19 @@ Decrypt Diff Token & 3000\\
     \label{tab:opstats}
 \end{table}
 
-Table~\ref{tab:opstats} shows the latency of different WebSubmit disguise-related operations. 
-The latency of each high-level operation shown scales linearly with the amount
-of data (\ie number of answers) associated with each user. Each high-level operation requires some number of DB or crypto operations.
+Table~\ref{tab:opstats} shows the latency of different WebSubmit disguise-related operations.  The
+latency of each high-level operation shown scales linearly with the amount of data (\ie number of
+answers) associated with each user. Each high-level operation requires some number of DB or crypto
+operations.
 
 Creating an account in WebSubmit generates an APIKey and registers a private-public keypair for the
 user (emailing the user the public key as the user's decryption capability).
 
 Account anonymization generates one pseudoprincipal per lecture, so that all of a user's answers for
-a particular lecture belong to the same pseudoprincipal.
-Anonymization selects the relevant answers to anonymize; generates per-lecture
-pseudoprincipals and ownership tokens; encrypts and stores these ownership tokens; and
-performs DB
-queries to insert pseudoprincipls and to update answer FKs to point to these new pseudopricipals.
+a particular lecture belong to the same pseudoprincipal.  Anonymization selects the relevant answers
+to anonymize; generates per-lecture pseudoprincipals and ownership tokens; encrypts and stores these
+ownership tokens; and performs DB queries to insert pseudoprincipls and to update answer FKs to
+point to these new pseudopricipals.
 
 Editing answers normally simply performs update DB queries. Editing anonymized answers, however,
 uses client-provided locator and decryption capabilities to authorize the client to speak for the
@@ -88,44 +88,45 @@ answers of a single lecture thus performs up to 20 decryptions to determine whic
 the client can act for. This can be optimized by batching all ownership tokens from one disguise
 into a single encrypted ciphertext.
 
-Account deletion pre-anonymization does not perform any composition using accessible
-ownership; \sys simply selects answers of the user to remove; removes these answers; and encrypts
-and inserts one diff token for each answer.
+Account deletion pre-anonymization does not perform any composition using accessible ownership; \sys
+simply selects answers of the user to remove; removes these answers; and encrypts and inserts one
+diff token for each answer.
 
-Account deletion post-anonymization first uses a decryption capability and locator to find and decrypt
-ownership tokens of the user. This lets \sys find data of pseudoprincipals that the user is authorized to
-remove along with their account, and compose account deletion on top of anonymizaton.
-\sys decrypts one ownership token for each lecture; selects answers of both
-the user and any linked pseudoprincipals to remove; and like before, removes these answers and
-encrypts and inserts one diff token for each answer.
+Account deletion post-anonymization first uses a decryption capability and locator to find and
+decrypt ownership tokens of the user. This lets \sys find data of pseudoprincipals that the user is
+authorized to remove along with their account, and compose account deletion on top of anonymizaton.
+\sys decrypts one ownership token for each lecture; selects answers of both the user and any linked
+pseudoprincipals to remove; and like before, removes these answers and encrypts and inserts one diff
+token for each answer.
 
 Account restoration decrypts a diff token for each answer for each lecture, and performs DB checks
 to ensure the diffs can be restored (\eg that the corresponding lecture of an answer to reinsert
 still exists). If the checks pass (which they do in this benchmark), restoration reinserts the
 answers stored in the diffs.
 
-\head{Storage Costs of Disguise-Related Actions.}
-Each generated pseudoprincipal adds an additional row to the users table in WebSubmit; \sys also stores public-key metadata for each principal (and
-pseudoprincipal), and (in-memory) encrypted ciphertexts for tokens.
-Clients keep track of capabilities and locators that are emailed to them in the form of URLs that
-allow for account restoration or post-anonymization answer editing.
+\head{Storage Costs of Disguise-Related Actions.} Each generated pseudoprincipal adds an additional
+row to the users table in WebSubmit; \sys also stores public-key metadata for each principal (and
+pseudoprincipal), and (in-memory) encrypted ciphertexts for tokens.  Clients keep track of
+capabilities and locators that are emailed to them in the form of URLs that allow for account
+restoration or post-anonymization answer editing.
 
-\head{Impact on Normal Application Execution.}
-Figure~\ref{fig:concurrent} illustrates the normal-case and worst-case impacts of disguising when
-WebSubmit has 100 users continuously editing their lecture answers (in a database containing 2000
-users, 20 lectures, and 4 answers per lecture per user).
+\head{Impact on Normal Application Execution.} Figure~\ref{fig:concurrent} illustrates the
+normal-case and worst-case impacts of disguising when WebSubmit has 100 users continuously editing
+their lecture answers (in a database containing 2000 users, 20 lectures, and 4 answers per lecture
+per user).
 
 To simulate a realistic normal amount of disguising, we imagine that there is always some user in
 addition to the 100 editing users that is deleting or restoring their account, and measure the
 change in latency. With one disguiser, we observe no increase in latency over the baseline with 0
 disguisers (approximately 600ms/edit).
 
-To simulate the worst-case scenario in practice, we imagine that up to 25 additional users decide to
-simultaneously delete their account (\eg in response to some social media campaign). At some later
-point in time, these users may decide to come back and (worst-case) simultaneously restore their
-accounts. We observe that while 10 users disguising themselves at once has
-minimal impact on edit latency for the 100 users, 25 users simultaneously disguising and
-revealing leads to spikes up to 2700ms from 600ms.
+To simulate the worst-case scenario in practice, we imagine that anywhere from 10 to 25 additional
+active users decide to simultaneously delete their account (\eg in response to some social media
+campaign). At some later point in time, these users decide to come back and (in the worst case)
+restore their accounts simultaneously. We observe that while 10 users disguising themselves at once
+has minimal impact on edit latency (approximatley 600ms) for the 100 users, 16 users doing so causes
+concurrent edit latency spikes up to 1000ms, and 25 users doing so causes spikes up to 2700ms.  
+%
 These spikes come in pairs, with the larger second spike in the pair coinciding with concurrent
 revealing (and the first of the pair coinciding with disguising); revealing has greater impact due
 to its higher latency and compute costs.
