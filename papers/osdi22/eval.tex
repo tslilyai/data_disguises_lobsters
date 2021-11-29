@@ -28,7 +28,7 @@ disguise actions are performed.
 \begin{table}[t!]
 \begin{center}
 \begin{tabular}{ c c }
-    \textbf{High-Level Op (20 Lec, 4 Ans/Lec)} & \textbf{Time (mus)}\\
+    \textbf{Client Op (20 Lec, 4 Ans/Lec)} & \textbf{Time (mus)}\\
 \hline
     Create User Account & 1000\\
     Anonymize User Account & 18500\\
@@ -58,15 +58,14 @@ Encrypt Diff Token & 340\\
 Decrypt Diff Token & 3000\\
 \end{tabular}
 \end{center}
-\caption{Amount of time required to run different operations for disguises in WebSubmit. High-level
-    operations are run on a prepopulated database with 2000 users, 20 lectures, and 4 answers per
-    lecture per user.}
+\caption{Amount of time required to run different operations for disguises in WebSubmit. Client operations run on a prepopulated database with 2000 users, 20 lectures, and 4 answers per
+    lecture per user, and currently sends requests to the loopback address.}
     \label{tab:opstats}
 \end{table}
 
 Table~\ref{tab:opstats} shows the latency of different WebSubmit disguise-related operations.  The
-latency of each high-level operation shown scales linearly with the amount of data (\ie number of
-answers) associated with each user. Each high-level operation requires some number of DB or crypto
+latency of each client operation shown scales linearly with the amount of data (\ie number of
+answers) associated with each user. Each client operation requires some number of DB or crypto
 operations.
 
 Creating an account in WebSubmit generates an APIKey and registers a private-public keypair for the
