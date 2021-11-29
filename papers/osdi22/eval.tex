@@ -28,34 +28,33 @@ disguise actions are performed.
 \begin{table}[t!]
 \begin{center}
 \begin{tabular}{ c c }
-    \textbf{Client Op (20 Lec, 4 Ans/Lec)} & \textbf{Time (mus)}\\
+    \textbf{Client Op (20 Lec, 4 Ans/Lec)} & \textbf{Time (ms)}\\
 \hline
-    Create User Account & 1000\\
-    Anonymize User Account & 18500\\
-    Edit Normal Lecture Answer & 2000 \\
-    Edit Anonymized Lecture Answer & 62000 \\
-    Delete User Account (Pre-Anon) & 25000 \\
-    Delete User Account (Post-Anon) & 105000 \\
-    Restore User Account & 366000 \\
+    Create User Account & 1\\
+    Anonymize User Account & 19\\
+    Edit Normal Lecture Answer & 2 \\
+    Edit Anonymized Lecture Answer & 62 \\
+    Delete User Account (Pre-Anon) & 25 \\
+    Delete User Account (Post-Anon) & 105 \\
+    Restore User Account & 366 \\
 \hline
-    \textbf{DB Op} & \textbf{Time (mus)}\\
+    \textbf{DB Op} & \textbf{Time (ms)}\\
 \hline
-Insert DB Row (User )& 120\\
-Update DB Row (FK) & 64\\ 
-Select DB Row (User) & 120\\
-Remove DB Row (User) & 90\\
-Select DB Rows (Answers) & 160\\
-Remove DB Rows (Answers) & 150\\
-Reveal Deleted Row (DB Select + Insert) & 160 \\
-Create + Register Principal & 110\\
+Update DB Row & 0.1\\ 
+Select DB Row (User) & 0.1\\
+Remove DB Row (User) & 0.1\\
+Select DB Rows (Answers) & 0.2\\
+Remove DB Rows (Answers) & 0.2\\
+Reveal Deleted Row (DB Select + Insert) & 0.2 \\
+Create + Register Principal & 0.1\\
 \hline
-    \textbf{Crypto Op} & \textbf{Time (mus)}\\
+    \textbf{Crypto Op} & \textbf{Time (ms)}\\
 \hline
-Generate Keypair & 300831\\
-Encrypt Ownership Token & 360\\
-Decrypt Ownership Token & 3000\\
-Encrypt Diff Token & 340\\
-Decrypt Diff Token & 3000\\
+Generate Keypair & 301\\
+Encrypt Ownership Token & 0.4\\
+Decrypt Ownership Token & 0.3\\
+Encrypt Diff Token & 0.3\\
+Decrypt Diff Token & 3.0\\
 \end{tabular}
 \end{center}
 \caption{Amount of time required to run different operations for disguises in WebSubmit. Client operations run on a prepopulated database with 2000 users, 20 lectures, and 4 answers per
