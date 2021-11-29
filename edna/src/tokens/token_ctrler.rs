@@ -359,6 +359,7 @@ impl TokenCtrler {
         // save the anon principal as a new principal with a public key
         // and initially empty token vaults
         let private_key = self.register_principal(&anon_uidstr.to_string(), true, txn, false);
+        warn!("Edna: ownership token from anon principal {} to original {}", anon_uid, uid);
         let own_token_wrapped = new_generic_ownership_token_wrapper(
             uidstr.to_string(),
             anon_uidstr.to_string(),
@@ -454,8 +455,13 @@ impl TokenCtrler {
         let start = time::Instant::now();
         let p = self
             .principal_data
-            .get_mut(&pppk.old_uid)
-            .expect(&format!("no user with uid {} found?", pppk.old_uid));
+            .get_mut(&pppk.old_uid);
+        if p.is_none() { 
+            warn!("no user with uid {} found?", pppk.old_uid);
+            return;
+        } 
+
+        let p = p.unwrap();
         // generate key
         let mut key: Vec<u8> = repeat(0u8).take(16).collect();
         self.rng.fill_bytes(&mut key[..]);

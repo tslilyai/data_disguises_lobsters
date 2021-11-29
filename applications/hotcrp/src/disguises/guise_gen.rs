@@ -30,7 +30,7 @@ pub fn get_insert_guise_cols() -> Vec<String> {
 
 pub fn get_insert_guise_vals() -> Vec<Expr> {
     let mut rng = rand::thread_rng();
-    let gid: u64 = rng.gen::<u64>();
+    let gid: u32 = rng.gen_range(1000..2147483648);
     let email: String = format!("{}@anon.com", gid);
     let pass: String = format!("{}pass", gid);
     vec![
@@ -65,4 +65,3 @@ pub fn get_guise_gen() -> Arc<RwLock<GuiseGen>> {
         val_generation: Box::new(get_insert_guise_vals),
     }))
 }
-
