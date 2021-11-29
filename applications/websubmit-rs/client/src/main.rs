@@ -196,6 +196,7 @@ fn run_normal(
     assert_eq!(response.status(), StatusCode::OK);
     c.wait();
 
+    let mut rng = rand::thread_rng();
     let overall_start = time::Instant::now();
     while overall_start.elapsed().as_millis() < TOTAL_TIME {
         // editing
@@ -221,6 +222,7 @@ fn run_normal(
             .send()?;
         assert_eq!(response.status(), StatusCode::OK);
         my_edit_durations.push((overall_start.elapsed(), start.elapsed()));
+        thread::sleep(time::Duration::from_millis(rng.gen_range(100..5000)));
     }
     edit_durations
         .lock()

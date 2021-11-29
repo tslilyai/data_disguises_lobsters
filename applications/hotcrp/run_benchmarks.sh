@@ -7,10 +7,10 @@ rm *txt
 mkdir output
 set -e
 
-RUST_LOG=warn ../../target/release/hotcrp --prime \
-	--nusers_nonpc 2 \
-	--nusers_pc 10 \
-	--npapers_rej 4 \
-	--npapers_acc 2 
+RUST_LOG=error ../../target/release/hotcrp --prime \
+	--nusers_nonpc 400 \
+	--nusers_pc 50 \
+	--npapers_rej 400 \
+	--npapers_acc 50 
 #    output/${u}users.out
 echo "Ran test for users"

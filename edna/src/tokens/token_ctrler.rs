@@ -153,14 +153,13 @@ impl TokenCtrler {
         );
         let start = time::Instant::now();
         let keys = get_keys().unwrap();
+        warn!("Got {} keys", keys.len());
         //let curlen = self.pseudoprincipal_keys_pool.len();
         //for _ in curlen..self.poolsize {
             //let private_key =
              //   RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
             //let pub_key = RsaPublicKey::from(&private_key);
-        for (pub_key, private_key) in keys {
-            self.pseudoprincipal_keys_pool.push((private_key, pub_key));
-        }
+        self.pseudoprincipal_keys_pool.extend(keys);
         error!(
             "Edna: Repopulated pseudoprincipal key pool of size {}: {}",
             self.poolsize,
@@ -989,6 +988,7 @@ impl TokenCtrler {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1282,4 +1282,4 @@ mod tests {
             }
         }
     }
-}
+}*/
