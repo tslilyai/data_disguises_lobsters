@@ -4,6 +4,7 @@ members = [
     "repr",
     "sql-parser",
     "edna",
+    "edna-srv",
     "applications/hotcrp",
     "applications/lobsters",
     "applications/websubmit-rs",
