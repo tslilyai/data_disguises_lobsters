@@ -84,7 +84,8 @@ client to the currently-owning pseudoprincipal. For example, this benchmark's an
 user account generates 20 ownership token ciphertexts at the same locator; editing anonymized
 answers of a single lecture thus performs up to 20 decryptions to determine which pseudoprincipals
 the client can act for. This can be optimized by batching all ownership tokens from one disguise
-into a single encrypted ciphertext.
+into a single encrypted ciphertext, or by generating and sending clients per-pseudoprincipal locators
+instead of per-disguise locators.
 
 Account deletion pre-anonymization does not perform any composition using accessible ownership; \sys
 simply selects answers of the user to remove; removes these answers; and encrypts and inserts one
@@ -140,7 +141,9 @@ necessary, in particular for non-time-sensitive disguises like GDPR-compliant ac
     \centering
         \includegraphics[width=0.5\textwidth]{figs/concurrent_results_20lec_100users}
     \caption{Impact of disguising (account deletion and revealing) on 100 users concurrently running
-    normal application answer edits.} 
+    normal application answer edits. Low disguising load (<10 concurrently disguising users) has
+    minimal effects on the baseline edit latency; high load (up to 25 users) causes latency spikes
+    up to 3000ms (5x the baseline).} 
     \label{fig:concurrent}
 \end{figure}
 
