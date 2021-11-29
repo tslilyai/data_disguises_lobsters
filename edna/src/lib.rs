@@ -21,6 +21,7 @@ pub mod predicate;
 pub mod spec;
 pub mod stats;
 pub mod tokens;
+pub mod generate_keys;
 
 pub type DID = u64;
 pub type UID = String;

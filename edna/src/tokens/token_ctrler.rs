@@ -1,6 +1,7 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
 use crate::tokens::*;
+use crate::generate_keys::*;
 use crate::{DID, UID};
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
@@ -21,7 +22,6 @@ use std::time;
 
 pub type LocCap = u64;
 pub type DecryptCap = Vec<u8>; // private key
-const RSA_BITS: usize = 2048;
 type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 
 const PRINCIPAL_TABLE: &'static str = "EdnaPrincipals";
@@ -152,11 +152,13 @@ impl TokenCtrler {
             self.poolsize,
         );
         let start = time::Instant::now();
-        let curlen = self.pseudoprincipal_keys_pool.len();
-        for _ in curlen..self.poolsize {
-            let private_key =
-                RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
-            let pub_key = RsaPublicKey::from(&private_key);
+        let keys = get_keys().unwrap();
+        //let curlen = self.pseudoprincipal_keys_pool.len();
+        //for _ in curlen..self.poolsize {
+            //let private_key =
+             //   RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
+            //let pub_key = RsaPublicKey::from(&private_key);
+        for (pub_key, private_key) in keys {
             self.pseudoprincipal_keys_pool.push((private_key, pub_key));
         }
         error!(
