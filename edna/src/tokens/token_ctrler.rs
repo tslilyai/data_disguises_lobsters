@@ -147,6 +147,10 @@ impl TokenCtrler {
     }
 
     pub fn repopulate_pseudoprincipal_keys_pool(&mut self) {
+        warn!(
+            "Edna: Repopulating pseudoprincipal key pool of size {}",
+            self.poolsize,
+        );
         let start = time::Instant::now();
         let curlen = self.pseudoprincipal_keys_pool.len();
         for _ in curlen..self.poolsize {

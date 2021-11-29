@@ -21,9 +21,19 @@ const SCHEMA: &'static str = include_str!("schema.sql");
 const DBNAME: &'static str = &"test_hotcrp";
 
 #[derive(StructOpt)]
-struct Cli {
+pub struct Cli {
     #[structopt(long = "prime")]
     prime: bool,
+    // Generates nusers_nonpc+nusers_pc users
+    #[structopt(long = "nusers_nonpc", default_value="400")]
+    nusers_nonpc: usize,
+    #[structopt(long = "nusers_pc", default_value="50")]
+    nusers_pc: usize,
+    // Generates npapers_rej+npapers_accept papers.
+    #[structopt(long = "npapers_rej", default_value="400")]
+    npapers_rej: usize,
+    #[structopt(long = "npapers_acc", default_value="50")]
+    npapers_accept: usize,
 }
 
 fn init_logger() {
@@ -46,18 +56,20 @@ fn main() {
     let mut restore_durations = vec![];
 
     let args = Cli::from_args();
-    let nusers = datagen::NUSERS_NONPC + datagen::NUSERS_PC;
+    let nusers = args.nusers_nonpc + args.nusers_pc;
     let mut edna = EdnaClient::new(
         args.prime,
         DBNAME,
         SCHEMA,
         true,
-        nusers * 200,               // assume each user has max 200 pieces of data
+        nusers * 2, // assume each user has approx 5 pieces of data
         disguises::get_guise_gen(), /*in-mem*/
     );
     if args.prime {
-        datagen::populate_database(&mut edna).unwrap();
+        datagen::populate_database(&mut edna, &args).unwrap();
     }
+
+    warn!("database populated!");
 
     let mut decrypt_caps = HashMap::new();
     for uid in 1..nusers + 1 {

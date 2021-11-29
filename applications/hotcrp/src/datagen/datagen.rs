@@ -2,13 +2,6 @@ use crate::datagen::*;
 use crate::*;
 use rand::{distributions::Alphanumeric, Rng};
 
-// Generates NUSERS_NONPC+NUSERS_PC users
-pub const NUSERS_NONPC: usize = 400;
-pub const NUSERS_PC: usize = 30;
-// Generates NPAPERS_REJ+NPAPER_ACCEPT papers.
-const NPAPERS_REJ: usize = 400;
-const NPAPERS_ACCEPT: usize = 50;
-
 /*shepherd_val
  * Paper metadata:
  * - Each paper is assigned 1 leadContactId
@@ -17,9 +10,9 @@ const NPAPERS_ACCEPT: usize = 50;
  * - Reviews and paper conflicts per paper
  */
 const NREVIEWS: usize = 4;
-const NCONFLICT_REVIEWER: usize = 2; // from PC
+const NCONFLICT_REVIEWER: usize = 2; // from pc
 const NCONFLICT_AUTHOR: usize = 2; // from pool of other users
-const NPAPER_COMMENTS: usize = 3; // made by reviewers, users w/authorship conflicts
+const NCOMMENTS: usize = 3; // made by reviewers, users w/authorship conflicts
 
 pub fn get_random_string() -> String {
     rand::thread_rng()
@@ -47,17 +40,17 @@ pub fn get_random_string() -> String {
     table_cols
 }*/
 
-pub fn populate_database(edna: &mut edna::EdnaClient) -> Result<(), mysql::Error> {
-    let total_users = NUSERS_NONPC + NUSERS_PC;
-    let other_uids: Vec<usize> = (1..NUSERS_NONPC + 1).collect();
-    let pc_uids: Vec<usize> = (NUSERS_NONPC + 1..total_users + 1).collect();
-    let papers_rej: Vec<usize> = (1..NPAPERS_REJ + 1).collect();
-    let papers_acc: Vec<usize> = (NPAPERS_REJ + 1..(NPAPERS_REJ + NPAPERS_ACCEPT + 1)).collect();
+pub fn populate_database(edna: &mut edna::EdnaClient, args: &Cli) -> Result<(), mysql::Error> {
+    let total_users = args.nusers_nonpc + args.nusers_pc;
+    let other_uids: Vec<usize> = (1..args.nusers_nonpc + 1).collect();
+    let pc_uids: Vec<usize> = (args.nusers_nonpc + 1..total_users + 1).collect();
+    let papers_rej: Vec<usize> = (1..args.npapers_rej + 1).collect();
+    let papers_acc: Vec<usize> = (args.npapers_rej + 1..(args.npapers_rej + args.npapers_accept + 1)).collect();
 
     // insert users
     warn!("INSERTING USERS");
     let mut db = edna.get_conn()?;
-    users::insert_users(NUSERS_NONPC + NUSERS_PC, &mut db)?;
+    users::insert_users(args.nusers_nonpc + args.nusers_pc, &mut db)?;
 
     // insert papers, author comments on papers, coauthorship conflicts
     warn!("INSERTING PAPERS");
@@ -66,7 +59,7 @@ pub fn populate_database(edna: &mut edna::EdnaClient) -> Result<(), mysql::Error
         &pc_uids,
         &papers_rej,
         &papers_acc,
-        NPAPER_COMMENTS,
+        NCOMMENTS,
         NCONFLICT_AUTHOR,
         &mut db,
     )?;
@@ -75,9 +68,9 @@ pub fn populate_database(edna: &mut edna::EdnaClient) -> Result<(), mysql::Error
     warn!("INSERTING REVIEWS");
     reviews::insert_reviews(
         &pc_uids,
-        NPAPERS_REJ + NPAPERS_ACCEPT,
+        args.npapers_rej + args.npapers_accept,
         NREVIEWS,
-        NPAPER_COMMENTS,
+        NCOMMENTS,
         NCONFLICT_REVIEWER,
         &mut db,
     )?;
