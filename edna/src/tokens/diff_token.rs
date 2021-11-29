@@ -291,6 +291,8 @@ impl EdnaDiffToken {
                     .map(|rv| {
                         if rv.value.is_empty() {
                             "\"\"".to_string()
+                        } else if rv.value == "NULL" {
+                            "NULL".to_string()
                         } else {
                             for c in rv.value.chars() {
                                 if !c.is_numeric() {
