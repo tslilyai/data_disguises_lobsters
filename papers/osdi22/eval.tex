@@ -116,13 +116,17 @@ per user).
 To simulate a realistic normal amount of disguising, we imagine that there is always some user in
 addition to the 100 editing users that is deleting or restoring their account, and measure the
 change in latency. With one disguiser, we observe no increase in latency over the baseline with 0
-disguisers (approximately 600ms/edit).
+disguisers (approximately 600ms/edit). 
+\lyt{Note the increase from 2ms (for a normal edit) in
+Table~\ref{tab:opstats}: this occurs because 100 users (on concurrently running threads)
+simultaneously perform nonstop SQL queriest to edit answers, leading to 100\% processor
+utilization.}
 
 To simulate the worst-case scenario in practice, we imagine that anywhere from 10 to 25 additional
 active users decide to simultaneously delete their account (\eg in response to some social media
 campaign). At some later point in time, these users decide to come back and (in the worst case)
 restore their accounts simultaneously. We observe that while 10 users disguising themselves at once
-has minimal impact on edit latency (approximatley 600ms) for the 100 users, 16 users doing so causes
+has minimal impact on edit latency for the 100 users, 16 users doing so causes
 concurrent edit latency spikes up to 1000ms, and 25 users doing so causes spikes up to 2700ms.  
 %
 These spikes come in pairs, with the larger second spike in the pair coinciding with concurrent
