@@ -28,10 +28,10 @@ pub(crate) fn register_principal(
     });
 }
 
-#[post("/start_disguise")]
-pub(crate) fn start_disguise(edna: &State<Arc<Mutex<EdnaClient>>>) {
+#[post("/start_disguise", format = "json", data = "<data>")]
+pub(crate) fn start_disguise(data: Json<edna::DID>, edna: &State<Arc<Mutex<EdnaClient>>>) {
     let e = edna.lock().unwrap();
-    e.start_disguise(1234)
+    e.start_disguise(*data)
 }
 
 #[post("/end_disguise")]
