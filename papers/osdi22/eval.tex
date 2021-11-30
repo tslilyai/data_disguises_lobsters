@@ -142,25 +142,19 @@ ciphertexts for tokens.  Clients keep track of capabilities and locators that ar
 the form of URLs that allow for account restoration or post-anonymization answer editing.
 
 \head{Impact on Normal Application Execution.} Figure~\ref{fig:concurrent} illustrates the
-normal-case and worst-case impacts of disguising when WebSubmit has 100 users continuously editing
-their lecture answers (in a database containing 2000 users, 20 lectures, and 4 answers per lecture
-per user).
+impacts of disguising when WebSubmit has 100 users continuously editing their lecture answers, with
+250-500ms pauses between edits, and in a prepopulated database containing 2000 users, 20 lectures,
+and 4 answers per lecture per user.
 
-To simulate a realistic normal amount of disguising, we imagine that there is always some user in
-addition to the 100 editing users that is deleting or restoring their account, and measure the
-change in latency. With one disguiser, we observe no increase in latency over the baseline with 0
-disguisers (approximately 600ms/edit). 
-\lyt{Note the increase from 2ms (for a normal edit) in
-Table~\ref{tab:opstats}: this occurs because 100 users (on concurrently running threads)
-simultaneously perform nonstop SQL queriest to edit answers, leading to 100\% processor
-utilization.}
+We imagine that a realistic normal amount of disguising would have 0 or 1 user at any point deleting
+or restoring their account (in addition to the 100 editing users). With one disguiser, we observe no
+increase in latency over the baseline with 0 disguisers (approximately \lyt{TODO}). 
 
-To simulate the worst-case scenario in practice, we imagine that anywhere from 10 to 25 additional
+To simulate a practical worst-case scenario, we imagine that anywhere from 10 to 25 additional
 active users decide to simultaneously delete their account (\eg in response to some social media
 campaign). At some later point in time, these users decide to come back and (in the worst case)
-restore their accounts simultaneously. We observe that while 10 users disguising themselves at once
-has minimal impact on edit latency for the 100 users, 16 users doing so causes
-concurrent edit latency spikes up to 1000ms, and 25 users doing so causes spikes up to 2700ms.  
+simultaneously restore their accounts. We observe that while 10 or 16 users disguising themselves at once
+has minimal impact on edit latency for the 100 users, 25 users doing so causes spikes up to 2500ms.  
 %
 These spikes come in pairs, with the larger second spike in the pair coinciding with concurrent
 revealing (and the first of the pair coinciding with disguising); revealing has greater impact due
@@ -169,12 +163,14 @@ to its higher latency and compute costs.
 We imagine \sys can prevent such spikes by rate-limiting and queuing disguise actions when
 necessary, in particular for non-time-sensitive disguises like GDPR-compliant account deletion.
 
+\lyt{Include some note about how overloading the CPU with concurrent edits has some effects?}
+
 \begin{figure}[t!]
     \centering
         \includegraphics[width=0.5\textwidth]{figs/concurrent_results_20lec_100users}
     \caption{Impact of disguising (account deletion and revealing) on 100 users concurrently running
-    normal application answer edits. Low disguising load (<10 concurrently disguising users) has
+    normal application answer edits. Low-to-medium disguising load (<16 concurrently disguising users) has
     minimal effects on the baseline edit latency; high load (up to 25 users) causes latency spikes
-    up to 3000ms (5x the baseline).} 
+    up to 2500ms.} 
     \label{fig:concurrent}
 \end{figure}
