@@ -14,17 +14,6 @@ application users.
 
 We evaluate performance using three applications: WebSubmit-rs, HotCRP, and Lobsters.
 
-WebSubmit is an answers-submission application for course lectures (similar to \lyt{TODO other
-course submission apps}). Its simple schema consists of lectures, questions, answers, and user
-accounts; each user owns their account and a set of answers. We integrated \sys into WebSubmit to
-support a disguise for admin-anonymization of all answers; a disguise for per-user GDPR-compliant
-account deletion; account restoration after deletion; and answer editing after anonymization.
-\sys-WebSubmit is a fully-E2E application that supports additional endpoints to perform these
-disguise actions, and emails users their capabilities and locators (as these endpoints) when
-disguise actions are performed.
-
-\lyt{TODO describe HotCRP and Lobsters.}
-
 \head{Latency Costs of Disguise-Related Actions.}
 \begin{table}[t!]
 \begin{center}

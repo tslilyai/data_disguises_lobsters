@@ -3,6 +3,14 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{WebSubmit.rs}
+\lyt{I imagine we'll have this sprinkled throughout the design as the running example?}
+WebSubmit is an answers-submission application. Its simple schema consists of lectures, questions,
+answers, and user accounts; each user owns their account and a set of answers. We integrated \sys
+into WebSubmit to support a disguise for admin-anonymization of all answers; a disguise for per-user
+GDPR-compliant account deletion; account restoration after deletion; and answer editing after
+anonymization.  \sys-WebSubmit is a fully-E2E application that supports additional endpoints to
+perform these disguise actions, and emails users their capabilities and locators (as these
+endpoints) when disguise actions are performed.
 
 \subsection{Lobsters} 
 We integrated the Lobsters~\cite{lobsters} link-sharing and discussion
