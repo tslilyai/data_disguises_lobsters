@@ -6,7 +6,7 @@ use std::*;
 use std::collections::HashSet;
 //use log::{warn, debug};
 
-pub fn recent(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), mysql::Error> {
+pub fn recent(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Result<(), mysql::Error> {
     // /recent is a little weird:
     // https://github.com/lobsters/lobsters/blob/50b4687aeeec2b2d60598f63e06565af226f93e3/app/models/story_repository.rb#L41
     // but it *basically* just looks for stories in the past few days

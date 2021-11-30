@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use mysql::prelude::*;
 use std::*;
 
-pub fn read_story(db: &mut mysql::Conn, acting_as: Option<u64>, id : u64) -> Result<Vec<String>, mysql::Error> {
+pub fn read_story(db: &mut mysql::PooledConn, acting_as: Option<u64>, id : u64) -> Result<Vec<String>, mysql::Error> {
     let mut result = vec![];
     let (author, story) : (u32, u32) = db.query_first(format!(
             "SELECT `stories`.`id`, `stories`.`user_id` \
@@ -137,7 +137,7 @@ pub fn read_story(db: &mut mysql::Conn, acting_as: Option<u64>, id : u64) -> Res
     Ok(result)
 }
 
-pub fn post_story(db: &mut mysql::Conn, acting_as: Option<u64>, id: u64,  title: String) -> Result<(), mysql::Error> {
+pub fn post_story(db: &mut mysql::PooledConn, acting_as: Option<u64>, id: u64,  title: String) -> Result<(), mysql::Error> {
     let user = acting_as.unwrap();
 
     // check that tags are active

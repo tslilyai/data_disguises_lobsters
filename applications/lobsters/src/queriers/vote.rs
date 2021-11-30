@@ -5,7 +5,7 @@ use mysql::prelude::*;
 use std::*;
 //use log::{warn, debug};
 
-pub fn vote_on_comment(db: &mut mysql::Conn, acting_as: Option<u64>, comment: u64, pos: bool) -> Result<(), mysql::Error> {
+pub fn vote_on_comment(db: &mut mysql::PooledConn, acting_as: Option<u64>, comment: u64, pos: bool) -> Result<(), mysql::Error> {
     let user = acting_as.unwrap();
 
     let (author, sid, upvotes, downvotes, comment) : (u32, u32, u32, u32, u32) = db.query_first(format!(
@@ -136,7 +136,7 @@ pub fn vote_on_comment(db: &mut mysql::Conn, acting_as: Option<u64>, comment: u6
     Ok(())
 }
 
-pub fn vote_on_story(db: &mut mysql::Conn, acting_as: Option<u64>, story_id: u64, pos: bool) -> Result<(), mysql::Error> {
+pub fn vote_on_story(db: &mut mysql::PooledConn, acting_as: Option<u64>, story_id: u64, pos: bool) -> Result<(), mysql::Error> {
     let user = acting_as.unwrap();
     let (author, score, story) : (u64, f64, u64) = db.query(format!(
                 "SELECT `stories`.user_id, stories.hotness, stories.id \

@@ -5,7 +5,7 @@ extern crate log;
 use mysql::prelude::*;
 use std::*;
 
-pub fn login(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
+pub fn login(db: &mut mysql::PooledConn, uid: u64) -> Result<(), mysql::Error> {
     let user : Option<u64> = db.query_first(format!(
             "SELECT 1 as one FROM `users` WHERE `users`.`username` = 'user{}'",
              uid-1))?;
@@ -16,7 +16,7 @@ pub fn login(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
     Ok(())
 }
 
-pub fn get_profile(db: &mut mysql::Conn, uid: u64) -> Result<(), mysql::Error> {
+pub fn get_profile(db: &mut mysql::PooledConn, uid: u64) -> Result<(), mysql::Error> {
     let uids : Vec<u64> = db.query(format!(
             "SELECT `users`.id FROM `users` \
              WHERE `users`.`username` = {}",

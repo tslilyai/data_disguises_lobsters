@@ -75,7 +75,7 @@ impl Sampler {
     }
 }
 
-pub fn gen_data(sampler: &Sampler, db: &mut mysql::Conn) -> (u32, u32) {
+pub fn gen_data(sampler: &Sampler, db: &mut mysql::PooledConn) -> (u32, u32) {
     let nstories = sampler.nstories();
     let mut rng = rand::thread_rng();
     println!("Generating {} stories, {} comments, {} users", nstories, sampler.ncomments(), sampler.nusers());

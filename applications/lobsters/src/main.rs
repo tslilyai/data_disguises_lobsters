@@ -16,6 +16,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::*;
 use structopt::StructOpt;
+use rsa::RsaPrivateKey;
 
 mod datagen;
 mod disguises;
@@ -31,8 +32,6 @@ struct Cli {
     scale: f64,
     #[structopt(long = "nqueries", default_value = "100")]
     nqueries: u64,
-    #[structopt(long = "testname", default_value = "no_shim")]
-    testname: String,
     #[structopt(long = "prime")]
     prime: bool,
     #[structopt(long = "prop_unsub", default_value = "0.0")]
@@ -54,14 +53,11 @@ fn init_logger() {
 
 fn run_unsub_test(
     edna: &mut EdnaClient,
-    scale: f64,
-    prime: bool,
-    testname: &'static str,
     is_baseline: bool,
     sampler: &datagen::Sampler,
 ) {
     let mut db = edna.get_conn().unwrap();
-    let mut file = File::create(format!("{}.out", testname)).unwrap();
+    let mut file = File::create(format!("lobsters_stats_unsub.out")).unwrap();
     for i in 0..sampler.nusers() {
         let user_id = i as u64 + 1;
         let mut user_stories = 0;
@@ -116,24 +112,21 @@ fn run_unsub_test(
 fn run_test(
     edna: &mut EdnaClient,
     nqueries: u64,
-    scale: f64,
-    prime: bool,
-    testname: &'static str,
     prop_unsub: f64,
     is_baseline: bool,
-    user2decryptcap: &HashMap<u64, Vec<u8>>,
+    user2decryptcap: &HashMap<u64, RsaPrivateKey>,
     sampler: &datagen::Sampler,
 ) {
-    let mut nusers = sampler.nusers();
-    let mut nstories = sampler.nstories();
-    let mut ncomments = sampler.ncomments();
+    let nusers = sampler.nusers();
+    let nstories = sampler.nstories();
+    let ncomments = sampler.ncomments();
     let mut db = edna.get_conn().unwrap();
 
     let mut rng = rand::thread_rng();
     let mut unsubbed_users: HashMap<u64, (String, String)> = HashMap::new();
     let mut nunsub = 0;
     let mut nresub = 0;
-    let mut file = File::create(format!("{}.out", testname)).unwrap();
+    let mut file = File::create(format!("lobsters_stats.out")).unwrap();
     let max_id = nusers;
 
     let start = time::Instant::now();
@@ -163,17 +156,16 @@ fn run_test(
         // with probability prop_unsub, unsubscribe the user
         if rng.gen_bool(prop_unsub) {
             nunsub += 1;
-            if is_baseline {
+            if !is_baseline {
                 // UNSUB
-                let (dlcs, olcs) = disguises::gdpr_disguise::apply(
-                    &*edna,
+                /*let (dlcs, olcs) = disguises::gdpr_disguise::apply(
+                    edna,
                     user_id,
                     decryption_cap,
                     own_loc_caps,
-                    is_baseline,
                 )
                 .unwrap();
-                unsubbed_users.insert(user_id, (dlcs, olcs));
+                unsubbed_users.insert(user_id, (dlcs, olcs));*/
             } else {
                 db.query_drop(&format!(
                     "DELETE FROM `users` WHERE `users`.`username` = 'user{}'",
@@ -260,8 +252,7 @@ fn run_test(
     }
     let dur = start.elapsed();
     println!(
-        "{} Time to do {} queries ({}/{} un/resubs): {}s",
-        testname,
+        "Lobsters: Time to do {} queries ({}/{} un/resubs): {}s",
         nqueries,
         nunsub,
         nresub,
@@ -289,7 +280,7 @@ fn main() {
     }
     let mut edna = EdnaClient::new(
         args.prime,
-        DBNAME,
+        &dbname,
         SCHEMA,
         true,
         sampler.nusers() as usize * 200, // assume each user has 200 pieces of data
@@ -302,16 +293,13 @@ fn main() {
     let mut user2decryptcap = HashMap::new();
     for u in 0..sampler.nusers() {
         let user_id = u as u64 + 1;
-        let private_key = edna.register_principal(user_id.as_str().into());
+        let private_key = edna.register_principal(user_id.to_string().into());
         user2decryptcap.insert(user_id, private_key);
     }
-    run_unsub_test(&mut edna, scale, prime, "unsub", is_baseline, &sampler);
+    run_unsub_test(&mut edna, is_baseline, &sampler);
     run_test(
         &mut edna,
         nqueries,
-        scale,
-        prime,
-        "normal_unsub",
         prop_unsub,
         is_baseline,
         &user2decryptcap,

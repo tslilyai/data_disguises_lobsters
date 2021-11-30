@@ -6,7 +6,7 @@ use std::*;
 use std::collections::HashSet;
 //use log::{warn, debug};
 
-pub fn query_frontpage(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<Vec<String>, mysql::Error> {
+pub fn query_frontpage(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Result<Vec<String>, mysql::Error> {
     let mut result = vec![];
     let mut users : HashSet<u64> = HashSet::new(); 
     let mut stories : HashSet<u64> = HashSet::new();

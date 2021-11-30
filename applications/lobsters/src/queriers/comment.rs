@@ -5,7 +5,7 @@ use mysql::prelude::*;
 use std::*;
 use std::collections::HashSet;
 
-pub fn get_comments(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), mysql::Error> 
+pub fn get_comments(db: &mut mysql::PooledConn, acting_as: Option<u64>) -> Result<(), mysql::Error> 
 {
     let mut comments = HashSet::new();
     let mut users = HashSet::new();
@@ -90,7 +90,7 @@ pub fn get_comments(db: &mut mysql::Conn, acting_as: Option<u64>) -> Result<(), 
     Ok(())
 }
 
-pub fn post_comment(db: &mut mysql::Conn, 
+pub fn post_comment(db: &mut mysql::PooledConn, 
                     acting_as: Option<u64>, 
                     id: u64,
                     story: u64,
