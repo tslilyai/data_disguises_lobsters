@@ -1,10 +1,20 @@
 use edna::EdnaClient;
+use rocket::serde::{json::Json, Deserialize};
 use rocket::State;
 use std::sync::{Arc, Mutex};
 
-#[post("/register_principal")]
-pub(crate) fn register_principal(edna: &State<Arc<Mutex<EdnaClient>>>) {
-    unimplemented!()
+#[derive(Deserialize)]
+pub struct RegisterPrincipal {
+    uid: edna::UID,
+}
+
+#[post("/register_principal", format = "json", data = "<data>")]
+pub(crate) fn register_principal(
+    data: Json<RegisterPrincipal>,
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) {
+    let mut e = edna.lock().unwrap();
+    e.register_principal(data.uid.to_owned());
 }
 
 #[post("/start_disguise")]
