@@ -1,6 +1,5 @@
 #!/bin/bash
 
-RUST_LOG=error
 cargo build --release
 rm -rf output
 rm *txt
@@ -11,6 +10,6 @@ RUST_LOG=error ../../target/release/hotcrp --prime \
 	--nusers_nonpc 400 \
 	--nusers_pc 50 \
 	--npapers_rej 400 \
-	--npapers_acc 50 
-#    output/${u}users.out
+	--npapers_acc 50 \
+	&> output/users.out
 echo "Ran test for users"

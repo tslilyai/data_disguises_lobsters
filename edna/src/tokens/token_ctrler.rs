@@ -200,7 +200,7 @@ impl TokenCtrler {
         let olcs = self.tmp_ownership_loc_caps.clone();
 
         for ((uid, _), c) in dlcs.iter() {
-            let p = self.principal_data.get_mut(uid).unwrap();
+            let p = self.principal_data.get_mut(uid).expect(&format!("no user with uid {} when saving?", uid));
             // save to principal data if no email (pseudoprincipal)
             if p.is_anon {
                 p.diff_loc_caps.push(*c);
@@ -498,7 +498,7 @@ impl TokenCtrler {
             }
         }
         error!(
-            "Edna: encrypt and insert  ownership token: {}",
+            "Edna: encrypt and insert ownership token: {}",
             start.elapsed().as_micros()
         );
     }

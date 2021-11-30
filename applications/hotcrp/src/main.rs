@@ -39,8 +39,8 @@ pub struct Cli {
 fn init_logger() {
     let _ = env_logger::builder()
         // Include all events in tests
-        .filter_level(log::LevelFilter::Warn)
-        //.filter_level(log::LevelFilter::Error)
+        //.filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Error)
         // Ensure events are captured by `cargo test`
         .is_test(true)
         // Ignore errors initializing the logger if tests race to configure it
@@ -87,7 +87,7 @@ fn main() {
     anon_durations.push(start.elapsed());
 
     // edit/delete/restore for pc members 
-    for u in args.nusers_nonpc+1..nusers+1 {
+    for u in args.nusers_nonpc+2..args.nusers_nonpc+2 + 10 {
         let dc = decrypt_caps.get(&u).unwrap().to_vec();
         let ol = vec![*own_locs
             .get(&(
@@ -104,24 +104,13 @@ fn main() {
         // delete
         let start = time::Instant::now();
         let (gdpr_diff_locs, gdpr_own_locs) =
-            disguises::gdpr_disguise::apply(&mut edna, u as u64, dc.clone(), ol).unwrap();
+            disguises::gdpr_disguise::apply(&mut edna, u as u64, dc.clone(), ol.clone()).unwrap();
         delete_durations.push(start.elapsed());
 
         // restore
         let start = time::Instant::now();
-
-        let dl = vec![*gdpr_diff_locs
-            .get(&(
-                u.to_string(),
-                disguises::gdpr_disguise::get_disguise_id(),
-            ))
-            .unwrap()];
-        let ol = vec![*gdpr_own_locs
-            .get(&(
-                u.to_string(),
-                disguises::gdpr_disguise::get_disguise_id(),
-            ))
-            .unwrap()];
+        let dl = vec![*gdpr_diff_locs.get(&(u.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()];
+        //let ol = gdpr_own_locs.into_iter().map(|p| p.1).collect();
         disguises::gdpr_disguise::reveal(&mut edna, dc, dl, ol).unwrap();
         restore_durations.push(start.elapsed());
     }

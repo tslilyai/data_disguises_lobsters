@@ -1,7 +1,7 @@
 use crate::helpers::*;
 use crate::RowVal;
 use crate::tokens::*;
-use log::warn;
+use log::debug;
 use sql_parser::ast::*;
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -120,7 +120,7 @@ pub fn modify_predicate_with_owner(
                                 op: op,
                             });
                             changed = true;
-                            warn!("Modified pred val cmp to {:?}\n", new_and_clauses);
+                            debug!("Modified pred val cmp to {:?}\n", new_and_clauses);
                         } else {
                             new_and_clauses.push(clause.clone())
                         }
@@ -135,7 +135,7 @@ pub fn modify_predicate_with_owner(
                             op: op.clone(),
                         });
                         changed = true;
-                        warn!("Modified pred val cmp to {:?}\n", new_and_clauses);
+                        debug!("Modified pred val cmp to {:?}\n", new_and_clauses);
                     } else {
                         new_and_clauses.push(clause.clone())
                     }
@@ -145,7 +145,7 @@ pub fn modify_predicate_with_owner(
         }
         new_pred.push(new_and_clauses);
     }
-    warn!("Modified pred {:?} to {:?} with ot {:?}\n", pred, new_pred, ownership_token);
+    debug!("Modified pred {:?} to {:?} with ot {:?}\n", pred, new_pred, ownership_token);
     (new_pred, changed)
 }
 
@@ -155,7 +155,7 @@ pub fn diff_token_matches_pred(pred: &Vec<Vec<PredClause>>, name: &str, t: &Edna
     }
     if predicate_applies_to_row(pred, &t.old_value) || predicate_applies_to_row(pred, &t.new_value)
     {
-        //warn!("Pred: OwnershipToken matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
+        //debug!("Pred: OwnershipToken matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
         return true;
     }
     false
@@ -189,7 +189,7 @@ pub fn get_ownership_tokens_matching_pred(
         if predicate_applies_with_col(pred, fk_col, &t.old_uid)
             || predicate_applies_with_col(pred, fk_col, &t.new_uid)
         {
-            warn!("Pred: OwnershipToken matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
+            debug!("Pred: OwnershipToken matched pred {:?}! Pushing matching to len {}\n", pred, matching.len());
             matching.push(t.clone());
         }
     }
@@ -211,7 +211,7 @@ pub fn predicate_applies_with_col(p: &Vec<Vec<PredClause>>, col: &str, val: &str
             break;
         }
     }
-    warn!("Predicate {:?} applies with col {} and val {}? {}\n", p, col, val, found_true);
+    debug!("Predicate {:?} applies with col {} and val {}? {}\n", p, col, val, found_true);
     found_true
 }
 
@@ -236,7 +236,7 @@ pub fn clause_applies_to_col(p: &PredClause, c: &str, v: &str) -> bool {
         }
         Bool(b) => *b,
     };
-    //warn!("PredClause {:?} matches {:?}: {}\n", p, row, matches);
+    //debug!("PredClause {:?} matches {:?}: {}\n", p, row, matches);
     matches
 }
 
@@ -255,7 +255,7 @@ pub fn predicate_applies_to_row(p: &Vec<Vec<PredClause>>, row: &Vec<RowVal>) -> 
             break;
         }
     }
-    warn!("Predicate {:?} applies to row {:?}? {}\n", p, row, found_true);
+    debug!("Predicate {:?} applies to row {:?}? {}\n", p, row, found_true);
     found_true
 }
 
@@ -287,7 +287,7 @@ pub fn clause_applies_to_row(p: &PredClause, row: &Vec<RowVal>) -> bool {
             match row.iter().find(|rv| &rv.column == col) {
                 Some(rv) => rv1 = rv.value.clone(),
                 None => {
-                    warn!("Didn't find column {} in row {:?}", col, row);
+                    debug!("Didn't find column {} in row {:?}", col, row);
                     return false; // this can happen if the row just isn't of the right guise type?
                 }
             }
@@ -296,7 +296,7 @@ pub fn clause_applies_to_row(p: &PredClause, row: &Vec<RowVal>) -> bool {
         }
         Bool(b) => *b,
     };
-    warn!("PredClause {:?} matches {:?}: {}\n", p, row, matches);
+    debug!("PredClause {:?} matches {:?}: {}\n", p, row, matches);
     matches
 }
 

@@ -173,7 +173,8 @@ impl EdnaOwnershipToken {
             stats.clone(),
         )?;
         // remove the principal from being registered by the token ctrler
-        token_ctrler.remove_principal(&self.new_uid, self.did, txn);
+        //XXX LYT keep principal around for now
+        //token_ctrler.remove_principal(&self.new_uid, self.did, txn);
         Ok(true)
     }
 }
