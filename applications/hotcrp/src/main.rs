@@ -116,15 +116,12 @@ fn main() {
                 disguises::gdpr_disguise::get_disguise_id(),
             ))
             .unwrap()];
-        // we don't always anonymize things so this might be empty
-        let ol = match gdpr_own_locs
+        let ol = vec![*gdpr_own_locs
             .get(&(
                 u.to_string(),
                 disguises::gdpr_disguise::get_disguise_id(),
-            )) {
-                Some(ol) => vec![*ol],
-                None => vec![],
-            };
+            ))
+            .unwrap()];
         disguises::gdpr_disguise::reveal(&mut edna, dc, dl, ol).unwrap();
         restore_durations.push(start.elapsed());
     }

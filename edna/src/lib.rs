@@ -4,6 +4,7 @@ extern crate flame;
 #[cfg(feature = "flame_it")]
 extern crate flamer;
 extern crate ordered_float;
+extern crate base64;
 
 use log::warn;
 use mysql::prelude::*;

@@ -1,5 +1,5 @@
 [package]
-name = "edna"
+name = "edna"	
 version = "0.1.0"
 authors = ["Lily Tsai <tslilyai@mit.edu>"]
 edition = "2018"
@@ -7,6 +7,7 @@ exclude = ["tests/testdata"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
+base64 = "0.13.0"
 log = "0.4.0"
 env_logger = "0.8.4"
 aes = "0.7.4"
