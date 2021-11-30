@@ -7,19 +7,11 @@ extern crate slog_term;
 #[macro_use]
 extern crate serde_derive;
 
-use rocket::http::ContentType;
-use rocket::http::Status;
-use rocket::local::blocking::Client;
-use rocket::response::Redirect;
+mod guises;
+
+use clap::{App, Arg};
 use rocket::{Build, Rocket, State};
-use std::cmp::min;
-use std::collections::HashMap;
-use std::fs::{File, OpenOptions};
-use std::io::{BufReader, Read, Write};
-use std::sync::{Mutex};
-use std::thread;
-use std::time;
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
 
 pub fn new_logger() -> slog::Logger {
     use slog::Drain;
@@ -30,16 +22,67 @@ pub fn new_logger() -> slog::Logger {
 
 #[get("/")]
 fn index() -> &'static str {
-    "Edna API server"
+    "Edna API server\n"
 }
 
-fn rocket() -> Rocket<Build> {
+fn rocket(
+    prime: bool,
+    db: &str,
+    schema: &str,
+    in_memory: bool,
+    keypool_size: usize,
+) -> Rocket<Build> {
+    let edna_client = edna::EdnaClient::new(
+        prime,
+        db,
+        schema,
+        in_memory,
+        keypool_size,
+        guises::get_guise_gen(),
+    );
     rocket::build()
+        .manage(Arc::new(Mutex::new(edna_client)))
         .mount("/", routes![index])
 }
 
 #[rocket::main]
 async fn main() {
-    let my_rocket = rocket();
+    let matches = App::new("Edna API server")
+        .arg(
+            Arg::with_name("database")
+                .short("d")
+                .long("database-name")
+                .default_value("testdb")
+                .help("The MySQL database to use")
+                .takes_value(true),
+        )
+        .arg(Arg::with_name("prime").help("Prime the database"))
+        .arg(
+            Arg::with_name("schema")
+                .short("s")
+                .default_value("schema.sql")
+                .takes_value(true)
+                .long("schema")
+                .help("File containing SQL schema to use"),
+        )
+        .arg(
+            Arg::with_name("in-memory")
+                .long("memory")
+                .help("Use in-memory tables."),
+        )
+        .arg(
+            Arg::with_name("keypool-size")
+                .long("keypool-size")
+                .default_value("10")
+                .takes_value(true),
+        )
+        .get_matches();
+    let my_rocket = rocket(
+        matches.is_present("prime"),
+        matches.value_of("database").unwrap(),
+        matches.value_of("schema").unwrap(),
+        matches.is_present("in-memory"),
+        usize::from_str_radix(matches.value_of("keypool-size").unwrap(), 10).unwrap(),
+    );
     my_rocket.launch().await.expect("Failed to launch rocket");
 }

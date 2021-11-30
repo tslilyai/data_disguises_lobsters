@@ -8,6 +8,7 @@ edition = "2018"
 chrono = { version = "0.4.0", features = ["serde"] }
 clap = "2.33.0"
 edna = {path = "../edna"}
+rand = "0.8.4"
 rocket = "0.5.0-rc.1"
 slog = "2.4.0"
 slog-term = "2.4.0"
@@ -15,6 +16,7 @@ serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
+sql-parser = { path= "../sql-parser" }
 
 [[bin]]
 name = "edna-server"
