@@ -102,7 +102,7 @@ returns the corresponding private key to the application.
 
 Both baseline and \sys anonymization actions generate one pseudoprincipal per object to anonymize
 (\eg answers for lectures in WebSubmit, or reviews in HotCRP). Anonymization selects the relevant answers
-to anonymize, generates new pseudoprincipals, and performs DB queries to insert new pseudoprincipls
+to anonymize, generates new pseudoprincipals, and performs DB queries to insert new pseudoprincipals
 and to update objects to point to these new pseudopricipals (\eg updating foreign keys).
 \sys incurs increased costs by additionally generating per-pseudoprincipal ownership tokens, and 
 encrypting and storing these ownership tokens with the appropriate public keys.
