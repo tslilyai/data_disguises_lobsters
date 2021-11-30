@@ -282,6 +282,9 @@ fn run_baseline_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         edit_durations,
         delete_durations,
         vec![],
+        vec![],
+        vec![],
+        vec![],
         true,
     );
 
@@ -302,7 +305,10 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     let mut delete_durations = vec![];
     let mut restore_durations = vec![];
     let mut anon_durations = vec![];
-
+    let mut edit_durations_nonanon = vec![];
+    let mut delete_durations_nonanon = vec![];
+    let mut restore_durations_nonanon = vec![];
+ 
     let client = Client::tracked(rocket).expect("valid rocket instance");
 
     let mut user2apikey = HashMap::new();
@@ -349,6 +355,120 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     }
     #[cfg(feature = "flame_it")]
     flame::end("create_users");
+
+    /***********************************
+     * editing nonanon data
+     ***********************************/
+    #[cfg(feature = "flame_it")]
+    flame::start("edit");
+    for u in 0..min(5, args.nusers) {
+        // login
+        let email = format!("{}@mail.edu", u);
+        let apikey = user2apikey.get(&email).unwrap();
+        let postdata = serde_urlencoded::to_string(&vec![("key", apikey)]).unwrap();
+        let response = client
+            .post("/apikey/check")
+            .body(postdata)
+            .header(ContentType::Form)
+            .dispatch();
+        assert_eq!(response.status(), Status::SeeOther);
+
+        // editing
+        let start = time::Instant::now();
+        #[cfg(feature = "flame_it")]
+        flame::start("edit_lec");
+        let response = client.get(format!("/questions/{}", 0)).dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        #[cfg(feature = "flame_it")]
+        flame::end("edit_lec");
+
+        let mut answers = vec![];
+        for q in 0..args.nqs {
+            answers.push((
+                format!("answers.{}", q),
+                format!("new_answer_user_{}_lec_{}", u, 0),
+            ));
+        }
+        let postdata = serde_urlencoded::to_string(&answers).unwrap();
+        debug!(log, "Posting to questions for lec 0 answers {}", postdata);
+        #[cfg(feature = "flame_it")]
+        flame::start("edit_post_new_answers");
+        let response = client
+            .post(format!("/questions/{}", 0)) // testing lecture 0 for now
+            .body(postdata)
+            .header(ContentType::Form)
+            .dispatch();
+        assert_eq!(response.status(), Status::SeeOther);
+        #[cfg(feature = "flame_it")]
+        flame::end("edit_post_new_answers");
+        edit_durations_nonanon.push(start.elapsed());
+    }
+    #[cfg(feature = "flame_it")]
+    flame::end("edit");
+
+    /***********************************
+     * gdpr deletion (no composition)
+     ***********************************/
+    for u in 0..min(5, args.nusers) {
+        let email = format!("{}@mail.edu", u);
+        let apikey = user2apikey.get(&email).unwrap();
+        let decryptcap = user2decryptcap.get(&email).unwrap();
+
+        // login as the user
+        let postdata = serde_urlencoded::to_string(&vec![("key", apikey)]).unwrap();
+        let response = client
+            .post("/apikey/check")
+            .body(postdata)
+            .header(ContentType::Form)
+            .dispatch();
+        assert_eq!(response.status(), Status::SeeOther);
+
+        let postdata = serde_urlencoded::to_string(&vec![
+            ("decryption_cap", decryptcap),
+            ("ownership_loc_caps", &format!("")),
+        ])
+        .unwrap();
+
+        let start = time::Instant::now();
+        let response = client
+            .post("/delete")
+            .body(postdata)
+            .header(ContentType::Form)
+            .dispatch();
+        assert_eq!(response.status(), Status::SeeOther);
+        delete_durations_nonanon.push(start.elapsed());
+
+        // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
+        let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
+        let mut buf_reader = BufReader::new(file);
+        let mut diffcap = String::new();
+        buf_reader.read_to_string(&mut diffcap).unwrap();
+        debug!(log, "Got email {} with diffcap {}", &email, diffcap);
+        user2diffcap.insert(email.clone(), diffcap);
+    }
+
+    /***********************************
+     * gdpr restore (with composition)
+     ***********************************/
+    for u in 0..min(5, args.nusers) {
+        let email = format!("{}@mail.edu", u);
+        let start = time::Instant::now();
+        let decryptcap = user2decryptcap.get(&email).unwrap();
+        let diffcap = user2diffcap.get(&email).unwrap();
+        let postdata = serde_urlencoded::to_string(&vec![
+            ("diff_loc_cap", diffcap),
+            ("decryption_cap", decryptcap),
+            ("ownership_loc_caps", &format!("")),
+        ])
+        .unwrap();
+        let response = client
+            .post("/restore")
+            .body(postdata)
+            .header(ContentType::Form)
+            .dispatch();
+        assert_eq!(response.status(), Status::SeeOther);
+        restore_durations_nonanon.push(start.elapsed());
+    }
 
     /**********************************
      * anonymization
@@ -536,6 +656,9 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
         edit_durations,
         delete_durations,
         restore_durations,
+        edit_durations_nonanon,
+        delete_durations_nonanon,
+        restore_durations_nonanon,
         false,
     );
 
@@ -557,6 +680,9 @@ fn print_stats(
     edit_durations: Vec<Duration>,
     delete_durations: Vec<Duration>,
     restore_durations: Vec<Duration>,
+    edit_durations_nonanon: Vec<Duration>,
+    delete_durations_nonanon: Vec<Duration>,
+    restore_durations_nonanon: Vec<Duration>,
     is_baseline: bool,
 ) {
     let filename = if is_baseline {
@@ -619,6 +745,36 @@ fn print_stats(
         f,
         "{}",
         restore_durations
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
+    writeln!(
+        f,
+        "{}",
+        edit_durations_nonanon
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
+    writeln!(
+        f,
+        "{}",
+        delete_durations_nonanon
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
+    writeln!(
+        f,
+        "{}",
+        restore_durations_nonanon
             .iter()
             .map(|d| d.as_micros().to_string())
             .collect::<Vec<String>>()

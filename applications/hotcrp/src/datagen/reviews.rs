@@ -2,6 +2,8 @@ use crate::datagen::*;
 use edna::helpers::*;
 use rand::seq::SliceRandom;
 use sql_parser::ast::*;
+use mysql::prelude::*;
+use mysql::Value::Bytes;
 
 fn get_review_cols() -> Vec<&'static str> {
     vec!["paperId", "contactId", "requestedBy"]
@@ -61,5 +63,40 @@ pub fn insert_reviews(
         }),
         db,
     )?;
+    Ok(())
+}
+
+pub fn get_reviews(
+    uid: u64,
+    db: &mut mysql::PooledConn,
+) -> Result<Vec<u64>, mysql::Error> {
+    let res = db.query_iter(&format!("SELECT ReviewId FROM PaperReview WHERE ContactId = {}", uid))?;
+    let mut ids = vec![];
+    for row in res {
+        let rowvals = row.unwrap().unwrap();
+        ids.push(u64::from_value(rowvals[0].clone()));
+    }
+    Ok(ids)
+}
+
+pub fn update_review(
+    rid: u64,
+    db: &mut mysql::PooledConn,
+) -> Result<(), mysql::Error> {
+    let res = db.query_iter(&format!("SELECT data FROM PaperReview WHERE ReviewId = {}", rid))?;
+    let mut newdata = "hello world".to_string();
+    for row in res {
+        let data = &row.unwrap().unwrap()[0];
+        match data {
+            Bytes(vs) => {
+                let mut vs = vs.clone();
+                vs.append(&mut newdata.as_bytes().to_vec());
+                newdata = String::from_utf8(vs.to_vec()).unwrap()
+            }
+            _ => (),
+        }
+        break;
+    }
+    db.query_drop(&format!("UPDATE PaperReview SET data = \'{}\' WHERE ReviewId = {}", newdata, rid))?;
     Ok(())
 }
