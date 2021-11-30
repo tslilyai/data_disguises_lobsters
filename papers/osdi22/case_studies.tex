@@ -1,0 +1,37 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Case Studies}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{WebSubmit.rs}
+
+\subsection{Lobsters}
+We implement a second in the Lobsters~\cite{lobsters} web application.
+
+\subsection{HotCRP}
+We implement two disguises in HotCRP: a universal conference anonymization disguise, and a
+GDPR-compliant account deletion disguise.
+
+Universal conference anonymization decorrelates users from their submissions, reviews, and comments,
+as well as data such as paper watches and review ratings. User accounts remain in the database, but
+are decorrelated from any data.
+
+\lyt{This is taken from hotos} Account deletion of a user 
+%
+(1)~deletes the user account;
+%
+(2)~deletes information that's only relevant to the user, such as their review preferences;
+%
+(3)~deletes their contact author relationships to any submissions;
+%
+(4)~modifies their other data, such as reviews, to refer to newly generated pseudoprincipals
+instead, thus \emph{decorrelating} the reviews from their identity.
+
+After account deletion, a user's review texts are still in the system, but they are linked to
+different pseudoprincipals, making them difficult to reassociate with one another or with the user.
+%
+Pseudoprincipals have suitable default values; for example, they should be disabled, ensuring they
+have no permissions and cannot log in.
+%
+This form of account deletion removes a user's relationship to submissions, but does not remove the
+submissions themselves; a different policy might go even further and automatically delete a
+submission whose last author is scrubbed.
