@@ -2,6 +2,7 @@ use edna::EdnaClient;
 use rocket::serde::{json::Json, Deserialize};
 use rocket::State;
 use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 #[derive(Deserialize)]
@@ -28,15 +29,29 @@ pub(crate) fn register_principal(
     });
 }
 
-#[post("/start_disguise", format = "json", data = "<data>")]
-pub(crate) fn start_disguise(data: Json<edna::DID>, edna: &State<Arc<Mutex<EdnaClient>>>) {
+#[get("/start_disguise/<did>")]
+pub(crate) fn start_disguise(did: edna::DID, edna: &State<Arc<Mutex<EdnaClient>>>) {
     let e = edna.lock().unwrap();
-    e.start_disguise(*data)
+    e.start_disguise(did)
 }
 
-#[post("/end_disguise")]
-pub(crate) fn end_disguise(edna: &State<Arc<Mutex<EdnaClient>>>) {
-    unimplemented!()
+#[derive(Serialize)]
+pub struct EndDisguiseResponse {
+    diff_locators: HashMap<(edna::UID, edna::DID), edna::tokens::LocCap>,
+    ownership_locators: HashMap<(edna::UID, edna::DID), edna::tokens::LocCap>,
+}
+
+#[get("/end_disguise/<did>")]
+pub(crate) fn end_disguise(
+    did: edna::DID,
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) -> Json<EndDisguiseResponse> {
+    let e = edna.lock().unwrap();
+    let locators = e.end_disguise(did);
+    return Json(EndDisguiseResponse {
+        diff_locators: locators.0,
+        ownership_locators: locators.1,
+    });
 }
 
 #[post("/get_pseudoprincipals_of")]
