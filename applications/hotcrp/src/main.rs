@@ -55,6 +55,10 @@ fn main() {
     let mut anon_durations = vec![];
     let mut restore_durations = vec![];
 
+    let mut edit_durations_preanon = vec![];
+    let mut delete_durations_preanon = vec![];
+    let mut restore_durations_preanon = vec![];
+
     let args = Cli::from_args();
     let nusers = args.nusers_nonpc + args.nusers_pc;
     let mut edna = EdnaClient::new(
@@ -78,6 +82,29 @@ fn main() {
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         decrypt_caps.insert(uid as usize, private_key_vec);
         account_durations.push(start.elapsed());
+    }
+
+    // baseline edit/delete/restore for pc members 
+    for u in args.nusers_nonpc+2..args.nusers_nonpc+2 + 10 {
+        let dc = decrypt_caps.get(&u).unwrap().to_vec();
+
+        // edit
+        let start = time::Instant::now();
+        // TODO 
+        edit_durations_preanon.push(start.elapsed());
+
+        // delete
+        let start = time::Instant::now();
+        let (gdpr_diff_locs, gdpr_own_locs) =
+            disguises::gdpr_disguise::apply(&mut edna, u as u64, dc.clone(), vec![]).unwrap();
+        delete_durations_preanon.push(start.elapsed());
+
+        // restore
+        let start = time::Instant::now();
+        let dl = vec![*gdpr_diff_locs.get(&(u.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()];
+        let ol = vec![*gdpr_own_locs.get(&(u.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()];
+        disguises::gdpr_disguise::reveal(&mut edna, dc, dl, ol).unwrap();
+        restore_durations_preanon.push(start.elapsed());
     }
 
     // anonymize
@@ -121,6 +148,9 @@ fn main() {
         edit_durations,
         delete_durations,
         restore_durations,
+        edit_durations_preanon,
+        delete_durations_preanon,
+        restore_durations_preanon,
     );
 }
 
@@ -131,6 +161,9 @@ fn print_stats(
     edit_durations: Vec<Duration>,
     delete_durations: Vec<Duration>,
     restore_durations: Vec<Duration>,
+    edit_durations_preanon: Vec<Duration>,
+    delete_durations_preanon: Vec<Duration>,
+    restore_durations_preanon: Vec<Duration>,
 ) {
     let filename = format!("disguise_stats_{}users.csv", nusers);
 
@@ -185,6 +218,36 @@ fn print_stats(
         f,
         "{}",
         restore_durations
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
+    writeln!(
+        f,
+        "{}",
+        edit_durations_preanon
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
+    writeln!(
+        f,
+        "{}",
+        delete_durations_preanon
+            .iter()
+            .map(|d| d.as_micros().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    )
+    .unwrap();
+    writeln!(
+        f,
+        "{}",
+        restore_durations_preanon
             .iter()
             .map(|d| d.as_micros().to_string())
             .collect::<Vec<String>>()
