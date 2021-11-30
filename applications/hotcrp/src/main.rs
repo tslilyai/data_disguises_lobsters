@@ -150,7 +150,7 @@ fn run_edna(args: &Cli) {
         let pps = edna.get_pseudoprincipals(dc.clone(), ol.clone());
         for pp in pps {
             let rids = datagen::reviews::get_reviews(u64::from_str(&pp).unwrap(), &mut db).unwrap();
-            if rids[0] == *rid {
+            if rids.len() > 0 && rids[0] == *rid {
                 datagen::reviews::update_review(rids[0], &mut db).unwrap();
             }
         }
@@ -179,6 +179,7 @@ fn run_edna(args: &Cli) {
         edit_durations_preanon,
         delete_durations_preanon,
         restore_durations_preanon,
+        false,
     );
 }
 
@@ -340,6 +341,7 @@ fn run_baseline(args: &Cli) {
         vec![],
         vec![],
         vec![],
+        true,
     );
 }
 fn print_stats(
@@ -352,8 +354,13 @@ fn print_stats(
     edit_durations_preanon: Vec<Duration>,
     delete_durations_preanon: Vec<Duration>,
     restore_durations_preanon: Vec<Duration>,
+    baseline: bool
 ) {
-    let filename = format!("disguise_stats_{}users.csv", nusers);
+    let filename = if baseline {
+        format!("hotcrp_disguise_stats_{}users_baseline.csv", nusers)
+    } else {
+        format!("hotcrp_disguise_stats_{}users.csv", nusers)
+    };
 
     // print out stats
     let mut f = OpenOptions::new()

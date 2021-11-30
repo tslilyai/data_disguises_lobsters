@@ -6,7 +6,7 @@ rm -rf output
 rm *txt
 mkdir output
 
-for baseline in false; do
+for baseline in true ; do
 	for l in 20 ; do
 	    for u in 100; do
 		RUST_LOG=error ../../../target/release/websubmit-server \

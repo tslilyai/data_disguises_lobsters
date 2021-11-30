@@ -13,6 +13,6 @@ for baseline in '--baseline' ''; do
 		--npapers_rej 400 \
 		--npapers_acc 50 \
 		$baseline \
-		&> output/users.out
+		&> output/users_$baseline.out
 	echo "Ran $baseline test for users"
 done

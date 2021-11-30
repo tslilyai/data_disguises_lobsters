@@ -84,20 +84,19 @@ pub fn update_review(
     db: &mut mysql::PooledConn,
 ) -> Result<(), mysql::Error> {
     let res = db.query_iter(&format!("SELECT data FROM PaperReview WHERE ReviewId = {}", rid))?;
-    let mut newdata = String::new();
+    let mut newdata = "hello world".to_string();
     for row in res {
         let data = &row.unwrap().unwrap()[0];
-        newdata = match data {
+        match data {
             Bytes(vs) => {
-                let mut newstr = "hello world".as_bytes().to_vec();
                 let mut vs = vs.clone();
-                vs.append(&mut newstr);
-                String::from_utf8(vs.to_vec()).unwrap()
+                vs.append(&mut newdata.as_bytes().to_vec());
+                newdata = String::from_utf8(vs.to_vec()).unwrap()
             }
-            _ => unimplemented!("expected bytes for data!"),
-        };
+            _ => (),
+        }
         break;
     }
-    db.query_drop(&format!("UPDATE PaperReview SET data = {} WHERE ReviewId = {}", newdata, rid))?;
+    db.query_drop(&format!("UPDATE PaperReview SET data = \'{}\' WHERE ReviewId = {}", newdata, rid))?;
     Ok(())
 }
