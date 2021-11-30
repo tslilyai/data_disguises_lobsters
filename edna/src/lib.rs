@@ -1,15 +1,15 @@
-extern crate mysql;
+extern crate base64;
 #[cfg(feature = "flame_it")]
 extern crate flame;
 #[cfg(feature = "flame_it")]
 extern crate flamer;
+extern crate mysql;
 extern crate ordered_float;
-extern crate base64;
 
 use log::warn;
 use mysql::prelude::*;
-use mysql::{Transaction, Opts};
-use rsa::{RsaPrivateKey};
+use mysql::Opts;
+use rsa::RsaPrivateKey;
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::collections::HashMap;
@@ -17,12 +17,12 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::*;
 
 pub mod disguise;
+pub mod generate_keys;
 pub mod helpers;
 pub mod predicate;
 pub mod spec;
 pub mod stats;
 pub mod tokens;
-pub mod generate_keys;
 
 pub type DID = u64;
 pub type UID = String;
@@ -100,13 +100,12 @@ impl EdnaClient {
     pub fn end_disguise(
         &self,
         did: DID,
-        txn: &mut mysql::Transaction,
     ) -> (
         HashMap<(UID, DID), tokens::LocCap>,
         HashMap<(UID, DID), tokens::LocCap>,
     ) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
-        let loc_caps = locked_token_ctrler.save_and_clear(did, txn);
+        let loc_caps = locked_token_ctrler.save_and_clear(did, &mut self.get_conn().unwrap());
         drop(locked_token_ctrler);
         loc_caps
     }
@@ -141,7 +140,7 @@ impl EdnaClient {
                 .collect(),
         )
     }
-/*
+    /*
     pub fn get_tokens_of_disguise_and_mark_revealed(
         &self,
         did: DID,
@@ -224,7 +223,6 @@ impl EdnaClient {
         old_uid: UID,
         new_uid: UID,
         token_bytes: Vec<u8>,
-        txn: &mut Transaction,
     ) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         locked_token_ctrler.register_anon_principal(
@@ -232,7 +230,7 @@ impl EdnaClient {
             &new_uid,
             did,
             token_bytes,
-            txn,
+            &mut self.get_conn().unwrap(),
         );
         drop(locked_token_ctrler);
     }

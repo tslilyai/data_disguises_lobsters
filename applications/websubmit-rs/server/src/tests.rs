@@ -7,20 +7,13 @@ use rocket::http::ContentType;
 use rocket::http::Status;
 use rocket::local::blocking::Client;
 use std::collections::{HashMap, HashSet};
-use std::fs::{OpenOptions, File};
-use std::io::{BufReader, Read, Write};
-use std::time;
+use std::fs::File;
+use std::io::{BufReader, Read};
 
 #[test]
 fn test_disguise() {
-    let mut account_durations = vec![];
-    let mut edit_durations = vec![];
-    let mut delete_durations = vec![];
-    let mut restore_durations = vec![];
-    let mut anon_durations = vec![];
-
-    let client = Client::tracked(rocket()).expect("valid rocket instance");
     let args = args::parse_args();
+    let client = Client::tracked(rocket(&args)).expect("valid rocket instance");
     let config = args.config;
 
     let mut db = mysql::Conn::new(
@@ -39,13 +32,11 @@ fn test_disguise() {
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let postdata = serde_urlencoded::to_string(&vec![("email", email.clone())]).unwrap();
-        let start = time::Instant::now();
         let response = client
             .post("/apikey/generate")
             .body(postdata)
             .header(ContentType::Form)
             .dispatch();
-        account_durations.push(start.elapsed());
         assert_eq!(response.status(), Status::Ok);
 
         // get api key
@@ -78,9 +69,7 @@ fn test_disguise() {
     assert_eq!(response.status(), Status::SeeOther);
 
     // anonymize
-    let start = time::Instant::now();
     let response = client.post("/admin/anonymize").dispatch();
-    anon_durations.push(start.elapsed());
     assert_eq!(response.status(), Status::SeeOther);
 
     // get tokens
@@ -141,7 +130,6 @@ fn test_disguise() {
         let owncap = user2owncap.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
     
-        let start = time::Instant::now();
        
         // set ownership capability as cookie
         let response = client.get(format!("/edit/{}", owncap)).dispatch();
@@ -174,7 +162,6 @@ fn test_disguise() {
             .dispatch();
         assert_eq!(response.status(), Status::SeeOther);
 
-        edit_durations.push(start.elapsed());
 
         // logged out
         let response = client.get(format!("/leclist")).dispatch();
@@ -214,14 +201,12 @@ fn test_disguise() {
         ])
         .unwrap();
 
-        let start = time::Instant::now();
         let response = client
             .post("/delete")
             .body(postdata)
             .header(ContentType::Form)
             .dispatch();
         assert_eq!(response.status(), Status::SeeOther);
-        delete_durations.push(start.elapsed());
 
         // get diff location capability: GDPR deletion in this app doesn't produce anon tokens
         let file = File::open(format!("{}.{}", email, DIFFCAP_FILE)).unwrap();
@@ -264,14 +249,12 @@ fn test_disguise() {
         ])
         .unwrap();
 
-        let start = time::Instant::now();
         let response = client
             .post("/restore")
             .body(postdata)
             .header(ContentType::Form)
             .dispatch();
         assert_eq!(response.status(), Status::SeeOther);
-        restore_durations.push(start.elapsed());
     }
     // database is back in anonymized form
     // check answers for lecture 0
@@ -296,24 +279,6 @@ fn test_disguise() {
     }
     assert_eq!(
         rows.len(),
-        1 + args.nusers as usize * (args``.nlec as usize + 1)
+        1 + args.nusers as usize * (args.nlec as usize + 1)
     );
-
-    // print out stats
-    // account_durations
-    // anon_durations
-    // edit_durations
-    // delete_durations
-    // restore_durations
-    let mut f = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(&format!("disguise_stats_{}lec_{}users.csv", args.nlec, args.nusers)
-        .unwrap();
-    writeln!(f, "{}", account_durations.iter().map(|d| d.as_micros().to_string()).collect::<Vec<String>>().join(",")).unwrap();
-    writeln!(f, "{}", anon_durations.iter().map(|d| d.as_micros().to_string()).collect::<Vec<String>>().join(",")).unwrap();
-    writeln!(f, "{}", edit_durations.iter().map(|d| d.as_micros().to_string()).collect::<Vec<String>>().join(",")).unwrap();
-    writeln!(f, "{}", delete_durations.iter().map(|d| d.as_micros().to_string()).collect::<Vec<String>>().join(",")).unwrap();
-    writeln!(f, "{}", restore_durations.iter().map(|d| d.as_micros().to_string()).collect::<Vec<String>>().join(",")).unwrap();
 }

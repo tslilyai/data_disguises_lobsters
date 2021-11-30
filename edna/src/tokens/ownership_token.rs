@@ -1,13 +1,13 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
-use crate::tokens::*;
-use crate::{DID, UID, RowVal};
+//use crate::tokens::*;
+use crate::{RowVal, DID, UID};
 use log::warn;
+use rand::{thread_rng, Rng};
 use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
 use serde::{Deserialize, Serialize};
 use sql_parser::ast::*;
 use std::sync::{Arc, Mutex};
-use rand::{thread_rng, Rng};
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct OwnershipTokenWrapper {
@@ -20,7 +20,6 @@ pub struct OwnershipTokenWrapper {
     pub nonce: u64,
     pub token_data: Vec<u8>,
 }
-
 
 #[derive(Default, Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 pub struct EdnaOwnershipToken {
@@ -35,7 +34,7 @@ pub struct EdnaOwnershipToken {
     pub fk_col: String,
 }
 
-pub fn edna_own_token_from_bytes(bytes: &Vec<u8>) -> Result<EdnaOwnershipToken, serde_json::Error>{
+pub fn edna_own_token_from_bytes(bytes: &Vec<u8>) -> Result<EdnaOwnershipToken, serde_json::Error> {
     serde_json::from_slice(bytes)
 }
 
@@ -92,8 +91,7 @@ pub fn new_edna_ownership_token(
 impl EdnaOwnershipToken {
     pub fn reveal(
         &self,
-        token_ctrler: &mut TokenCtrler,
-        txn: &mut mysql::Transaction,
+        db: &mut mysql::PooledConn,
         stats: Arc<Mutex<QueryStat>>,
     ) -> Result<bool, mysql::Error> {
         // TODO we need to transfer the principal's tokens to the original principal's bag, and
@@ -107,9 +105,9 @@ impl EdnaOwnershipToken {
             op: BinaryOperator::Eq,
             right: Box::new(Expr::Value(Value::Number(self.uid.to_string()))),
         };
-        let selected = get_query_rows_str_txn(
+        let selected = get_query_rows_str(
             &str_select_statement(&self.pprincipal_name, &selection.to_string()),
-            txn,
+            db,
             stats.clone(),
         )?;
         if selected.is_empty() {
@@ -122,9 +120,9 @@ impl EdnaOwnershipToken {
 
         // if foreign key is rewritten, don't reverse anything
         let token_guise_selection = get_select_of_ids(&self.child_ids);
-        let selected = get_query_rows_str_txn(
+        let selected = get_query_rows_str(
             &str_select_statement(&self.child_name, &token_guise_selection.to_string()),
-            txn,
+            db,
             stats.clone(),
         )?;
         if selected.len() > 0 {
@@ -145,19 +143,19 @@ impl EdnaOwnershipToken {
             id: Ident::new(self.fk_col.clone()),
             value: Expr::Value(Value::Number(self.uid.to_string())),
         }];
-        query_drop_txn(
+        query_drop(
             Statement::Update(UpdateStatement {
                 table_name: string_to_objname(&self.child_name),
                 assignments: updates,
                 selection: Some(token_guise_selection),
             })
             .to_string(),
-            txn,
+            db,
             stats.clone(),
         )?;
 
         // remove the pseudoprincipal
-        query_drop_txn(
+        query_drop(
             Statement::Delete(DeleteStatement {
                 table_name: string_to_objname(&self.pprincipal_name),
                 selection: Some(Expr::BinaryOp {
@@ -169,12 +167,12 @@ impl EdnaOwnershipToken {
                 }),
             })
             .to_string(),
-            txn,
+            db,
             stats.clone(),
         )?;
         // remove the principal from being registered by the token ctrler
         //XXX LYT keep principal around for now
-        //token_ctrler.remove_principal(&self.new_uid, self.did, txn);
+        //token_ctrler.remove_principal(&self.new_uid, self.did, db);
         Ok(true)
     }
 }

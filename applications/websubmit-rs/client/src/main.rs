@@ -222,7 +222,7 @@ fn run_normal(
             .send()?;
         assert_eq!(response.status(), StatusCode::OK);
         my_edit_durations.push((overall_start.elapsed(), start.elapsed()));
-        thread::sleep(time::Duration::from_millis(rng.gen_range(100..5000)));
+        thread::sleep(time::Duration::from_millis(rng.gen_range(100..500)));
     }
     edit_durations
         .lock()
