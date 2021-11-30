@@ -7,38 +7,41 @@
 
 \subsection{Performance}
 
-We measure two aspects of \sys's performance: (1) the latency and storage cost of using \sys's
-low-level API to apply a disguise, reveal a disguise, or temporarily recorrelate disguised data; and
-(2) the impact of these disguising operations on the performance of concurrently executing
-application users.
+We evaluate performance using three applications: WebSubmit-rs, HotCRP, and Lobsters to answer the
+following two questions.
+\begin{enumerate}
+    \item \emph{Cost of Disguise-Related Actions}: How expensive are \sys-enabled disguise actions
+(disguise application with token storage, disguise revealing, and temporary recorrelation)?
+How much does latency and storage use increase when an application uses \sys
+to gain disguising and post-disguise functionality?
+\item \emph{Impact on Normal Application Use}: How do \sys-enabled disguise actions impact the performance of concurrently executing
+application user queries?.
+\end{enumerate}
 
-We evaluate performance using three applications: WebSubmit-rs, HotCRP, and Lobsters.
+\head{Latency of Disguise-Related Actions.}
+\begin{figure}[h!]
+    \centering
+        \includegraphics[width=0.5\textwidth]{figs/client_op_stats}
+    \caption{Latencies of disguise-related actions 
+    taken without \sys; with \sys;
+    and with \sys using temporary recorrelation after anonymization. 
+    } 
+    \label{fig:client_opstats}
+\end{figure}
 
-\head{Latency Costs of Disguise-Related Actions.}
-\begin{table}[t!]
+\begin{table}[h!]
 \begin{center}
 \begin{tabular}{ c c }
-    \textbf{Client Op (20 Lec, 4 Ans/Lec)} & \textbf{Time (ms)}\\
 \hline
-    Create User Account & 1\\
-    Anonymize User Account & 19\\
-    Edit Normal Lecture Answer & 2 \\
-    Edit Anonymized Lecture Answer & 62 \\
-    Delete User Account (Pre-Anon) & 25 \\
-    Delete User Account (Post-Anon) & 105 \\
-    Restore User Account & 366 \\
-\hline
-    \textbf{DB Op} & \textbf{Time (ms)}\\
+\textbf{DB Op} & \textbf{Time (ms)}\\
 \hline
 Update DB Row & 0.1\\ 
-Select DB Row (User) & 0.1\\
-Remove DB Row (User) & 0.1\\
-Select DB Rows (Answers) & 0.2\\
-Remove DB Rows (Answers) & 0.2\\
+Select DB Rows & 0.2\\
+Remove DB Rows & 0.2\\
 Reveal Deleted Row (DB Select + Insert) & 0.2 \\
 Create + Register Principal & 0.1\\
 \hline
-    \textbf{Crypto Op} & \textbf{Time (ms)}\\
+\textbf{Crypto Op} & \textbf{Time (ms)}\\
 \hline
 Generate Keypair & 301\\
 Encrypt Ownership Token & 0.4\\
@@ -47,57 +50,96 @@ Encrypt Diff Token & 0.3\\
 Decrypt Diff Token & 3.0\\
 \end{tabular}
 \end{center}
-\caption{Amount of time required to run different operations for disguises in WebSubmit. Client operations run on a prepopulated database with 2000 users, 20 lectures, and 4 answers per
-    lecture per user, and currently sends requests to the loopback address.}
-    \label{tab:opstats}
+\caption{Amount of time required to run different operations required to apply and reveal disguises.}
+\label{tab:opstats}
 \end{table}
 
-Table~\ref{tab:opstats} shows the latency of different WebSubmit disguise-related operations.  The
-latency of each client operation shown scales linearly with the amount of data (\ie number of
-answers) associated with each user. Each client operation requires some number of DB or crypto
-operations.
+We measured the latency of different disguise-related actions in all three applications.
 
-Creating an account in WebSubmit generates an APIKey and registers a private-public keypair for the
-user (emailing the user the public key as the user's decryption capability).
+WebSubmit benchmarks measure end-to-end latency, including the time for clients to contact a (local)
+server and the time for server application code (including \sys's operations) to perform these
+actions and return a response.
+%
+WebSubmit benchmarks preopulate the database with 20 lectures, 4 questions per lecture, and 100
+users.
 
-Account anonymization generates one pseudoprincipal per lecture, so that all of a user's answers for
-a particular lecture belong to the same pseudoprincipal.  Anonymization selects the relevant answers
-to anonymize; generates per-lecture pseudoprincipals and ownership tokens; encrypts and stores these
-ownership tokens; and performs DB queries to insert pseudoprincipls and to update answer FKs to
-point to these new pseudopricipals.
+HotCRP benchmarks run on prepopulated databases, and simulate the server-side application database
+operations and how the server would invoke \sys.  An end-to-end integration with the HotCRP client
+is future work; however, we imagine that modifications similar to those in WebSubmit would be
+necessary.
+%
+HotCRP benchmarks prepopulate the database with 450 total users (50 reviewers), 450 papers (50
+accepted), 4 reviews and 4 comments per paper, and a number of per-user data items (\eg paper
+watches, review preferences, etc.).  
 
-Editing answers normally simply performs update DB queries. Editing anonymized answers, however,
-uses client-provided locator and decryption capabilities to authorize the client to speak for the
-pseudoprincipal associated with the answer.  \sys performs this authorization check by decrypting
-\emph{all} ownership tokens at the specified locator until it finds a ownership token linking the
-client to the currently-owning pseudoprincipal. For example, this benchmark's anonymization of a
-user account generates 20 ownership token ciphertexts at the same locator; editing anonymized
-answers of a single lecture thus performs up to 20 decryptions to determine which pseudoprincipals
-the client can act for. This can be optimized by batching all ownership tokens from one disguise
-into a single encrypted ciphertext, or by generating and sending clients per-pseudoprincipal locators
-instead of per-disguise locators.
+While we have an end-to-end implementation of Lobsters, \lyt{TODO}.
 
-Account deletion pre-anonymization does not perform any composition using accessible ownership; \sys
-simply selects answers of the user to remove; removes these answers; and encrypts and inserts one
-diff token for each answer.
+%
+%
+Figure~\ref{fig:client_opstats} shows the cost of performing disguise-related actions with and
+without \sys. We also measure the latency of these actions if composed on top of prior
+anonymization, where performing these actions requires temporary recorrelation.
+Note that temporary recorrelation to perform edits or account deletion requires an
+application to use \sys, both to anonymize the data in the first place, and to perform the 
+recorrelation. Thus, we do not measure post-anonymization numbers for actions without \sys. Similarly,
+account restoration is only possible when using \sys during account deletion, so we have
+no baseline latency without \sys here.
 
-Account deletion post-anonymization first uses a decryption capability and locator to find and
-decrypt ownership tokens of the user. This lets \sys find data of pseudoprincipals that the user is
-authorized to remove along with their account, and compose account deletion on top of anonymizaton.
-\sys decrypts one ownership token for each lecture; selects answers of both the user and any linked
-pseudoprincipals to remove; and like before, removes these answers and encrypts and inserts one diff
-token for each answer.
+We observe that simply using \sys (without temporary recorrelation) greatly increases the latency of
+account deletion and anonymization.  For latency-critical tasks (such as editing data or creating an
+account), \sys incurs only a slight increase in latency \lyt{Numbers}. Temporary recorrelation
+after anonymization in order to perform edits or delete/restore accounts adds an additional
+\lyt{Numbers} increase in latency.
 
-Account restoration decrypts a diff token for each answer for each lecture, and performs DB checks
-to ensure the diffs can be restored (\eg that the corresponding lecture of an answer to reinsert
-still exists). If the checks pass (which they do in this benchmark), restoration reinserts the
-answers stored in the diffs.
+We can break these costs down further into fine-grained operations shown in 
+Table~\ref{tab:opstats}, since every disguise action requires some number of DB operations; if using
+\sys, these actions also require cryptographic operations.
 
-\head{Storage Costs of Disguise-Related Actions.} Each generated pseudoprincipal adds an additional
-row to the users table in WebSubmit; \sys also stores public-key metadata for each principal (and
-pseudoprincipal), and (in-memory) encrypted ciphertexts for tokens.  Clients keep track of
-capabilities and locators that are emailed to them in the form of URLs that allow for account
-restoration or post-anonymization answer editing.
+To create an account, all measured applications perform a database insert. Using \sys additionally
+requires registering the new user as a principal, which assigns the user a (pre-generated)
+private-public key pair, stores metadata about the new principal's key in \sys's storage, and
+returns the corresponding private key to the application.
+
+Both baseline and \sys anonymization actions generate one pseudoprincipal per object to anonymize
+(\eg answers for lectures in WebSubmit, or reviews in HotCRP). Anonymization selects the relevant answers
+to anonymize, generates new pseudoprincipals, and performs DB queries to insert new pseudoprincipls
+and to update objects to point to these new pseudopricipals (\eg updating foreign keys).
+\sys incurs increased costs by additionally generating per-pseudoprincipal ownership tokens, and 
+encrypting and storing these ownership tokens with the appropriate public keys.
+
+Editing data with or without \sys simply performs update DB queries. Editing anonymized data,
+however, requires temporary recorrelation to authorize the client to speak for the pseudoprincipal
+associated with the data.  Most of the expense of temporary recorrelation comes from \sys decrypting
+(with the client-provided decryption capability) \emph{all} ownership tokens at the client-provided
+locator until it finds a ownership token linking the client to the currently-owning pseudoprincipal.
+For example, if anonymization of a user account generates 20 ownership token ciphertexts at the same
+locator, then editing anonymized answers of a single lecture may perform up to 20 decryptions to
+determine which pseudoprincipals the client can act for. This can be optimized by batching all
+ownership tokens from one disguise into a single encrypted ciphertext, or by generating and sending
+clients per-pseudoprincipal locators instead of per-disguise locators.
+
+Account deletion by both the baseline application and with \sys performs the same DB operations to remove, modify, or
+anonymize data.  \sys incurs increased costs by additionally encrypting and inserting one diff token
+for each deleted or modified object, and one ownership token for each anonymized object.  Account
+deletion post-anonymization requires \sys to perform temporary recorrelation find data of
+pseudoprincipals that the user is authorized to remove along with their account.  \sys incurs
+latency increases from decrypting all ownership tokens of the user, and from performing the deletion
+or modification queries for each discovered pseudoprincipal (in addition to the original user).
+
+Account restoration is only possible with \sys. \sys decrypts a token for each piece of
+modified/removed/anonymized data, and performs DB checks to ensure the data can be restored (\eg
+that the corresponding lecture of an answer to reinsert still exists). If the checks pass (which
+they do in this benchmark), restoration reinserts the answers stored in the diffs.
+Account restoration of anonymized uses temporary recorrelation to allow \sys access to 
+pseudoprincipal-associated tokens produced from the account deletion.
+This additionally requires \sys to additionally decrypt ownership tokens for all
+pseudoprincipals of the user, which leads to the increase in latency.
+
+\head{Storage Costs of Disguise-Related Actions.} 
+Each generated pseudoprincipal adds an additional row to the users table in WebSubmit; \sys also
+stores public-key metadata for each principal (and pseudoprincipal), and (in-memory) encrypted
+ciphertexts for tokens.  Clients keep track of capabilities and locators that are emailed to them in
+the form of URLs that allow for account restoration or post-anonymization answer editing.
 
 \head{Impact on Normal Application Execution.} Figure~\ref{fig:concurrent} illustrates the
 normal-case and worst-case impacts of disguising when WebSubmit has 100 users continuously editing
