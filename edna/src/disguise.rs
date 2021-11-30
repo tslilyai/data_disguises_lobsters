@@ -183,7 +183,7 @@ impl Disguiser {
                     if d.did == did {
                         warn!("Reversing token {:?}\n", d);
                         let revealed =
-                            d.reveal(&mut locked_token_ctrler, &mut txn, self.stats.clone())?;
+                            d.reveal(&mut txn, self.stats.clone())?;
                         if revealed {
                             warn!("Decor Ownership Token reversed!\n");
                             /*locked_token_ctrler.mark_ownership_token_revealed(

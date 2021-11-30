@@ -72,3 +72,20 @@ pub fn insert_users(nusers: usize, db: &mut mysql::PooledConn) -> Result<(), mys
         }).to_string())?;
     Ok(())
 }
+
+pub fn insert_single_user(db: &mut mysql::PooledConn) -> Result<(), mysql::Error> {
+    // insert users
+    let mut fk_cols = get_contact_info_cols();
+    let mut vals = get_contact_info_vals(1);
+    vals.remove(0);
+    fk_cols.remove(0);
+    let mut new_ci = vec![];
+    new_ci.push(vals);
+    db.query_drop(
+        &Statement::Insert(InsertStatement {
+            table_name: string_to_objname("ContactInfo"),
+            columns: fk_cols.iter().map(|c| Ident::new(c.to_string())).collect(),
+            source: InsertSource::Query(Box::new(values_query(new_ci))),
+        }).to_string())?;
+    Ok(())
+}

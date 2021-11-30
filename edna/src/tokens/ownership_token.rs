@@ -1,6 +1,6 @@
 use crate::helpers::*;
 use crate::stats::QueryStat;
-use crate::tokens::*;
+//use crate::tokens::*;
 use crate::{DID, UID, RowVal};
 use log::warn;
 use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
@@ -92,7 +92,6 @@ pub fn new_edna_ownership_token(
 impl EdnaOwnershipToken {
     pub fn reveal(
         &self,
-        token_ctrler: &mut TokenCtrler,
         txn: &mut mysql::Transaction,
         stats: Arc<Mutex<QueryStat>>,
     ) -> Result<bool, mysql::Error> {

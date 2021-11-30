@@ -6,16 +6,15 @@ rm -rf output
 rm *txt
 mkdir output
 
-for baseline in false true; do
-	for l in 20 40; do
-	    for u in 10 20; do
-		RUST_LOG=error perflock ../../../target/release/websubmit-server \
+for baseline in false; do
+	for l in 20 ; do
+	    for u in 100; do
+		RUST_LOG=error ../../../target/release/websubmit-server \
 			-i myclass --schema src/schema.sql --config sample-config.toml \
-			--benchmark true --prime true --baseline false \
+			--benchmark true --prime true --baseline $baseline \
 			--nusers $u --nlec $l --nqs 4 &> \
-		    output/${l}lec_${u}users.out
+		    output/${l}lec_${u}users_$baseline.out
 		echo "Ran test for $l lecture and $u users"
 	    done
     done
 done
-
