@@ -7,10 +7,12 @@ extern crate slog_term;
 #[macro_use]
 extern crate serde_derive;
 
+mod apiproxy;
 mod guises;
 
 use clap::{App, Arg};
-use rocket::{Build, Rocket, State};
+use edna::EdnaClient;
+use rocket::{Build, Rocket};
 use std::sync::{Arc, Mutex};
 
 pub fn new_logger() -> slog::Logger {
@@ -32,7 +34,7 @@ fn rocket(
     in_memory: bool,
     keypool_size: usize,
 ) -> Rocket<Build> {
-    let edna_client = edna::EdnaClient::new(
+    let edna_client = EdnaClient::new(
         prime,
         db,
         schema,
@@ -43,6 +45,26 @@ fn rocket(
     rocket::build()
         .manage(Arc::new(Mutex::new(edna_client)))
         .mount("/", routes![index])
+        .mount("/register_principal", routes![apiproxy::register_principal])
+        .mount("/start_disguise", routes![apiproxy::start_disguise])
+        .mount("/end_disguise", routes![apiproxy::end_disguise])
+        .mount(
+            "/get_pseudoprincipals_of",
+            routes![apiproxy::get_pseudoprincipals_of],
+        )
+        .mount(
+            "/get_tokens_of_disguise",
+            routes![apiproxy::get_tokens_of_disguise],
+        )
+        .mount("/save_diff_token", routes![apiproxy::save_diff_token])
+        .mount(
+            "/save_pseudoprincipal_token",
+            routes![apiproxy::save_pseudoprincipal_token],
+        )
+        .mount(
+            "/create_pseudoprincipal",
+            routes![apiproxy::create_pseudoprincipal],
+        )
 }
 
 #[rocket::main]
