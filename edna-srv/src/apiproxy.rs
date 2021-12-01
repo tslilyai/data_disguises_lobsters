@@ -1,3 +1,4 @@
+use crate::lobsters_disguises;
 use edna::EdnaClient;
 use rocket::serde::{json::Json, Deserialize};
 use rocket::State;
@@ -5,6 +6,68 @@ use rsa::pkcs1::ToRsaPrivateKey;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+/************************
+ * High-Level API
+ ************************/
+#[derive(Deserialize)]
+pub struct ApplyDisguise {
+    decrypt_cap: edna::tokens::DecryptCap,
+    ownership_locators: Vec<edna::tokens::LocCap>,
+}
+#[derive(Serialize)]
+pub struct ApplyDisguiseResponse {
+    diff_locators: HashMap<(edna::UID, edna::DID), edna::tokens::LocCap>,
+    ownership_locators: HashMap<(edna::UID, edna::DID), edna::tokens::LocCap>,
+}
+
+#[post("/apply_disguise/<did>/<uid>", format = "json", data = "<data>")]
+pub(crate) fn apply_disguise(
+    did: edna::DID,
+    uid: edna::UID,
+    data: Json<ApplyDisguise>,
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) -> Json<ApplyDisguiseResponse> {
+    let disguise = lobsters_disguises::get_disguise_with_ids(did, uid);
+    let mut e = edna.lock().unwrap();
+    let locators = e
+        .apply_disguise(
+            disguise,
+            data.decrypt_cap.clone(),
+            data.ownership_locators.clone(),
+        )
+        .unwrap();
+    return Json(ApplyDisguiseResponse {
+        diff_locators: locators.0,
+        ownership_locators: locators.1,
+    });
+}
+
+#[derive(Deserialize)]
+pub struct RevealDisguise {
+    decrypt_cap: edna::tokens::DecryptCap,
+    diff_locators: Vec<edna::tokens::LocCap>,
+    ownership_locators: Vec<edna::tokens::LocCap>,
+}
+
+#[post("/reveal_disguise/<did>", format = "json", data = "<data>")]
+pub(crate) fn reveal_disguise(
+    did: edna::DID,
+    data: Json<RevealDisguise>,
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) {
+    let mut e = edna.lock().unwrap();
+    // XXX clones
+    e.reverse_disguise(
+        did,
+        data.decrypt_cap.clone(),
+        data.diff_locators.clone(),
+        data.ownership_locators.clone(),
+    ).unwrap();
+}
+
+/************************
+ * Low-Level API
+ ************************/
 #[derive(Serialize)]
 pub struct RegisterPrincipalResponse {
     // base64-encoded private key

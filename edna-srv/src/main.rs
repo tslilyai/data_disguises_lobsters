@@ -8,7 +8,7 @@ extern crate slog_term;
 extern crate serde_derive;
 
 mod apiproxy;
-mod guises;
+mod lobsters_disguises;
 
 use clap::{App, Arg};
 use edna::EdnaClient;
@@ -40,7 +40,7 @@ fn rocket(
         schema,
         in_memory,
         keypool_size,
-        guises::get_guise_gen(),
+        lobsters_disguises::get_guise_gen(),
     );
     rocket::build()
         .manage(Arc::new(Mutex::new(edna_client)))
@@ -48,6 +48,8 @@ fn rocket(
         .mount("/register_principal", routes![apiproxy::register_principal])
         .mount("/start_disguise", routes![apiproxy::start_disguise])
         .mount("/end_disguise", routes![apiproxy::end_disguise])
+        .mount("/apply_disguise", routes![apiproxy::apply_disguise])
+        .mount("/reveal_disguise", routes![apiproxy::reveal_disguise])
         .mount(
             "/get_pseudoprincipals_of",
             routes![apiproxy::get_pseudoprincipals_of],

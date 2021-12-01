@@ -139,7 +139,7 @@ An application using \sys's API works with the following \sys abstractions:
     \item Disguises $d \in D$ %invoked by some principal $p$, which 
         that transform the application database.
 	%
-    \item \emph{Disguise ownership tokens}: metadata linking
+    \item \emph{Disguise speaks-for tokens}: metadata linking
         disguise-produced pseudoprincipals to real-user principals.
     %
     \item \emph{Disguise diff tokens}: metadata recording the \emph{diff} between pre-disguise and
@@ -214,7 +214,7 @@ Only a client properly authenticated as a principal $p$ who is authorized to inv
 %
 Only an authenticated principal who provides decryption capability
 \privk{p} can authorize access to the disguise tokens, as well as any information
-(\eg ownership permissions) derived from tokens.
+(\eg speaks-for permissions) derived from tokens.
 %
 
 \vspace{6pt}\noindent\textbf{\emph{(3) Privacy of Disguise History.}}
@@ -262,7 +262,7 @@ $d$ & disguise invoked by authorized principals that transforms the application 
 \tdiff{pd} & diff token associated with $p$ produced by disguise $d$. These tokens store data
     necessary to restore disguised content to its original form.\\
     \vspace{6pt}
-\town{pd} & ownership token associated with $p$ produced by disguise $d$. These tokens store links
+\town{pd} & speaks-for token associated with $p$ produced by disguise $d$. These tokens store links
     between $p$ and pseudoprincipals created by decorrelating $p$'s data.\\
     \vspace{6pt}
 \lcapa{pd} & locator to efficiently find the tokens associated with a principal $p$

@@ -44,8 +44,8 @@ Create + Register Principal & 0.1\\
 \textbf{Crypto Op} & \textbf{Time (ms)}\\
 \hline
 Generate Keypair & 301\\
-Encrypt Ownership Token & 0.4\\
-Decrypt Ownership Token & 0.3\\
+Encrypt SpeaksFor Token & 0.4\\
+Decrypt SpeaksFor Token & 3.0\\
 Encrypt Diff Token & 0.3\\
 Decrypt Diff Token & 3.0\\
 \end{tabular}
@@ -105,43 +105,43 @@ returns the corresponding private key to the application.
 (\eg answers for lectures in WebSubmit, or reviews in HotCRP). Anonymization selects the relevant answers
 to anonymize, generates new pseudoprincipals, and performs DB queries to insert new pseudoprincipals
 and to update objects to point to these new pseudopricipals (\eg updating foreign keys).
-\sys incurs increased costs by additionally generating per-pseudoprincipal ownership tokens, and 
-encrypting and storing these ownership tokens with the appropriate public keys.
+\sys incurs increased costs by additionally generating per-pseudoprincipal speaks-for tokens, and 
+encrypting and storing these speaks-for tokens with the appropriate public keys.
 
 \textbf{Editing data} with or without \sys simply performs update DB queries. Editing anonymized data,
 however, requires temporary recorrelation to authorize the client to speak for the pseudoprincipal
 associated with the data.  Most of the expense of temporary recorrelation comes from \sys decrypting
-(with the client-provided decryption capability) \emph{all} ownership tokens at the client-provided
-locator until it finds a ownership token linking the client to the currently-owning pseudoprincipal.
-For example, if anonymization of a user account generates 20 ownership token ciphertexts at the same
-locator, then editing anonymized answers of a single lecture may perform up to 20 decryptions to
+(with the client-provided decryption capability) \emph{all} speaks-for tokens at the client-provided
+locator until it finds a speaks-for token linking the client to the currently-owning pseudoprincipal.
+For example, if anonymization of a user account generates 20 speaks-for token ciphertexts at the same
+locator, then editing anonymized data may perform up to 20 decryptions to
 determine which pseudoprincipals the client can act for. This can be optimized by batching all
-ownership tokens from one disguise into a single encrypted ciphertext, or by generating and sending
+speaks-for tokens from one disguise into a single encrypted ciphertext, or by generating and sending
 clients per-pseudoprincipal locators instead of per-disguise locators.
 
 \textbf{Account deletion or data decay} with or without \sys performs the same DB operations to
 remove, modify, or anonymize data.  \sys incurs increased costs by additionally encrypting and
-inserting one diff token for each deleted or modified object, and one ownership token for each
+inserting one diff token for each deleted or modified object, and one speaks-for token for each
 anonymized object.  Account deletion post-anonymization requires \sys to perform temporary
 recorrelation find data of pseudoprincipals that the user is authorized to remove along with their
-account.  \sys incurs latency increases from decrypting all ownership tokens of the user, and from
+account.  \sys incurs latency increases from decrypting all speaks-for tokens of the user, and from
 performing the deletion or modification queries for each discovered pseudoprincipal (in addition to
 the original user).
 
-\textbf{Account restoration or undecay} is only possible with \sys. \sys decrypts a token for each piece
-of modified/removed/anonymized data, and performs DB checks to ensure the data can be restored (\eg
-that the corresponding lecture of an answer to reinsert still exists). If the checks pass (which
-they do in this benchmark), restoration reinserts the answers stored in the diffs.  Account
-restoration of anonymized uses temporary recorrelation to allow \sys access to
-pseudoprincipal-associated tokens produced from the account deletion.  This additionally requires
-\sys to additionally decrypt ownership tokens for all pseudoprincipals of the user, which causes the 
-the increase in latency.\lyt{Numbers?}
+\textbf{Account restoration or undecay} is only possible with \sys. \sys decrypts a token for each
+piece of modified/removed/anonymized data, and performs DB checks to ensure the data can be restored
+(\eg that the corresponding lecture of an answer to reinsert still exists). If the checks pass
+(which they do in this benchmark), restoration restores the data stored in the diffs. Account
+restoration may also restore pseudoprincipal-associated data, which requires temporary recorrelation
+to access to pseudoprincipal-associated tokens produced from the account deletion.  \sys thus
+additionally decrypt speaks-for tokens for all pseudoprincipals of the user, which causes the the
+increase in latency.\lyt{Numbers?}
 
 \head{Storage Costs of Disguise-Related Actions.} 
 Each generated pseudoprincipal adds an additional row to the users table in WebSubmit; \sys also
 stores public-key metadata for each principal (and pseudoprincipal), and (in-memory) encrypted
 ciphertexts for tokens.  Clients keep track of capabilities and locators that are emailed to them in
-the form of URLs that allow for account restoration or post-anonymization answer editing.
+the form of URLs that allow for account restoration or post-anonymization editing.
 
 \head{Impact on Normal Application Execution.} Figure~\ref{fig:concurrent} illustrates the
 impacts of disguising when WebSubmit has 100 users continuously editing their lecture answers, with

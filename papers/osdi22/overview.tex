@@ -6,7 +6,7 @@
 \sys exposes an API (Table~\ref{tab:api}) to web applications that wish to support secure
 disguising.
 %
-The API allows the application to start and end disguises; securely save diff and ownership token
+The API allows the application to start and end disguises; securely save diff and speaks-for token
 data; and extract token data when necessary to enable post-disguise temporary recorrelation or
 disguise revealing.
 %
@@ -40,12 +40,12 @@ queries \sys for a new pseudoprincipal owner for the data object (to preserve re
 using \fn{CreatePseudoprincipal}. \sys returns the pseudoprincipal's ID and object data; the
 application handles properly inserting the pseudoprincipal object.  If the application wishes for
 the original owning principal to be temporarily or permanently recorrelated with the data object,
-the application generates any ownership information it wishes to save, and invokes
-\fn{SaveOwnershipToken} with both the original principal's and new pseudoprincipal's IDs.
+the application generates any speaks-for information it wishes to save, and invokes
+\fn{SaveSpeaksForToken} with both the original principal's and new pseudoprincipal's IDs.
 
 When the disguise is complete, the application invokes \fn{EndDisguise}. This informs \sys to erase
 any sensitive data, complete any token encryption operations, and to return to the application a
-pair of locators that will allow \sys later to locate the (encrypted) diff and ownership tokens
+pair of locators that will allow \sys later to locate the (encrypted) diff and speaks-for tokens
 produced by the disguise respectively.
 
 The application handles passing the locators \lcapa{pd} to the user speaking for $p$; to ensure that
@@ -55,13 +55,13 @@ retain locators.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Disguise Revealing.}
 In order to reveal the original state of data disguised by $d$ for principal $p$, the application 
-needs to retrieve the diff and ownership tokens of $p$ from $d$ storing information about the undisguised
+needs to retrieve the diff and speaks-for tokens of $p$ from $d$ storing information about the undisguised
 state prior to applying $d$.
 This requires the application to obtain the locators \lcapa{pd} and decryption capability \privk{p}
 from a client speaking for $p$.
 
 With these in hand, the application calls \fn{GetTokensOfDisguise}, which returns the set of
-(plaintext) diff and ownership tokens from disguise $d$ for principal $p$; the application then uses
+(plaintext) diff and speaks-for tokens from disguise $d$ for principal $p$; the application then uses
 the token data to reveal data as appropriate.
 \lyt{Add details about how sometimes we need multiple locators $d' \neq d$ because of pseudoprincipals?}
 
@@ -77,8 +77,8 @@ originally belonged to $p$ when $p$ deletes their account.
 principal using \fn{GetPseudoprincipalsOf}, which returns the set of corresponding pseudoprincipal
 IDs. The application must provide (obtaining from the client) any locators \lcapa{pd} from 
 anonymizing disguises $d$ that produced the pseudoprincipals in question, as well as the client's
-decryption capability \privk{p}. This allows \sys to inspect the content of ownership tokens and
-verify links between principal $p$ and pseudoprincipals stored in ownership tokens.
+decryption capability \privk{p}. This allows \sys to inspect the content of speaks-for tokens and
+verify links between principal $p$ and pseudoprincipals stored in speaks-for tokens.
 
 Once the application knows which pseudoprincipals $p'$ correspond to a principal $p$, the application can
 authorize a client acting on behalf of $p$ to act on behalf of $p'$.
@@ -89,10 +89,10 @@ If an application developer does not want to implement the necessary data transf
 application and revealing, the developer can provide a disguise specification in a language provided
 by \sys, which includes schema information and supports a restricted set of SQL database
 modifications. When \fn{ApplyDisguise} is invoked with the disguise specification, \sys applies the
-disguise data transformations and automatically generates the appropriate diff and ownership tokens.
+disguise data transformations and automatically generates the appropriate diff and speaks-for tokens.
 
 Similarly, when \fn{RevealDisguise} is invoked, \sys can interpret the automatically-generated diff and
-ownership tokens and perform the data modifications to restore the original state of data (given
+speaks-for tokens and perform the data modifications to restore the original state of data (given
 that no subsequent updates had been performed since disguising).
 
 Application handling of locators and decryption capabilities remains the same: \fn{ApplyDisguise}
@@ -100,36 +100,4 @@ takes optional locators and decryption capabilities to support disguise composit
 locators for the applied disguise; \fn{RevealDisguise} takes locators and decryption capabilities to
 locate and access tokens to reveal.
 
-\input{tables}
-
-\iffalse
-Imagine that HotCRP disguise $d$ anonymizes all reviewers and authors of a conference by
-decorrelating them from their papers and reviews respectively. As described above, HotCRP emails the
-client a link when that their data has been decorrelated, which contains the 
-capability in the URL. Assume that HotCRP sends a unique link for every piece of data (\eg every review
-or paper); HotCRP could also send a single link for all decorrelated data.
-
-The application normally ensures that only a client speaking for $p$ should have read-only access to
-reviews for $p$'s authored papers, and read-write access to reviews $p$ wrote.
-
-If the client speaking for $p$ wants to edit a review as it would normally, the application
-(post-$d)$ will not grant the client any read/write permissions to perform actions on any reviews of
-the conference: any previously correlated paper or review is now associated with pseudoprincipal
-$q$.  
-
-Instead, for the client speaking for $p$ to regain authorship or reviewership permissions of a
-particular review or paper:
-\begin{itemize}
-    \item The client clicks on the URL emailed to the client for that piece of data when it was decorrelated, which
-        opens a HotCRP page.
-    \item Javascript on the webpage retrieves the client's data capability
-        stored by the client's browser, and extracts the  capability and the data object the client
-        wants to access from the URL.
-    \item The client then must log into HotCRP as principal $p$.
-    \item HotCRP invokes \sys's \fn{CapEstablishesOwnership} for the data object in question,
-        using the capabilities passed in by the client.
-    \item If \sys returns \fn{true}, the application permits the client to view the object with ownership
-        rights (\eg ability to see reviews on authored papers, or edit their review); otherwise, the
-        application does not allow the client to perform privileged actions.
-\end{itemize}
-\fi
+\input{api}
