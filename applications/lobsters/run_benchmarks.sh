@@ -9,5 +9,5 @@ set -e
 RUST_LOG=error ../../target/release/lobsters \
 	--prime \
 	--scale 1 
-#	&> output/users.out
+	#&> output/users.out
 echo "Ran test for users"

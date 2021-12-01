@@ -126,6 +126,17 @@ decay_results_all = []
 undecay_results_all = []
 account_results_all_baseline = []
 delete_results_all_baseline = []
+xs_decay = []
+decay_results_all_baseline = []
+
+with open('lobster_decay_baseline.csv','r') as csvfile:
+    rows = csvfile.readlines()
+    for r in rows:
+        vals = [int(x.strip()) for x in r.split(",")]
+        ndata = vals[1]
+        decay_baseline = vals[2]/1000
+        xs_decay.append(ndata)
+        decay_results_all_baseline(append(decay_baseline))
 
 filename = "lobsters_stats.csv"
 with open(filename,'r') as csvfile:
@@ -179,9 +190,10 @@ with open(filename,'r') as csvfile:
             undecay_results_high.append(undecay)
 
 ax = axes_flat[2]
-ax.plot(xs, delete_results_all_baseline, color='g', label="Delete, No Edna")
+ax.plot(xs, delete_results_all_baseline, color='b', linestyle="--", label="Delete, No Edna")
 ax.plot(xs, delete_results_all, color='b', label="Delete, Edna")
 ax.plot(xs, restore_results_all, color='b', linestyle=':', label="Restore, Edna")
+ax.plot(xs, decay_results_all_baseline, color='r', linestyle="--", label="Decay, No Edna")
 ax.plot(xs, decay_results_all, color='r', label="Decay, Edna")
 ax.plot(xs, undecay_results_all, color='r', linestyle=':', label="Undecay, Edna")
 

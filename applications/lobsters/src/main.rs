@@ -53,17 +53,17 @@ fn run_stats_test(
     user2decryptcaps: &HashMap<u64, Vec<u8>>,
 ) {
     let mut db = edna.get_conn().unwrap();
-    let mut file = File::create(format!("lobsters_stats_unsub.out")).unwrap();
+    let mut file = File::create(format!("lobsters_disguise_stats.csv")).unwrap();
     file.write("uid, ndata, create_baseline, create_edna, decay, undecay, delete, restore, baseline\n".as_bytes()).unwrap();
     let mut rng = rand::thread_rng();
 
     for u in 0..sampler.nusers() {
         // sample every 50 users
-        if u % 50 != 0 {
+        if u % 70 != 0 {
             continue
         }
         let user_id = u as u64 + 1;
-        let decryption_cap = user2decryptcaps.get(&user_id).unwrap();
+        //let decryption_cap = user2decryptcaps.get(&user_id).unwrap();
         let mut user_stories = 0;
         let mut user_comments = 0;
         let res = db
@@ -160,7 +160,8 @@ fn run_stats_test(
 
         // baseline delete
         let start = time::Instant::now();
-        disguises::baseline::apply_delete(user_id, edna).unwrap();
+        //disguises::baseline::apply_delete(user_id, edna).unwrap();
+        disguises::baseline::apply_decay(user_id, edna).unwrap();
         file.write(format!("{}\n", start.elapsed().as_micros()).as_bytes()).unwrap();
     }
 
