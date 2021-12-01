@@ -63,58 +63,62 @@ for (i, ax) in enumerate(axes_flat[:2]):
 
     # add baseline closer to red line for anonymize
     ax.bar((X-barwidth/2)[:1],
-            [statistics.mean(account_durs_baseline)],
-            yerr= [[0], [statistics.mean(account_durs_baseline) + statistics.stdev(account_durs_baseline)]],
+            [statistics.median(account_durs_baseline)],
+            yerr= [
+                [statistics.median(account_durs_baseline)-np.percentile(account_durs_baseline, 5)],
+                [0]
+                #[np.percentile(account_durs_baseline, 95) - statistics.median(account_durs_baseline)-np.percentile(account_durs_baseline)],
+            ],
             color='g', capsize=5, width=barwidth)
-    add_labels((X-barwidth/2)[:1], [statistics.mean(account_durs_baseline)], ax, 'g', offset)
+    add_labels((X-barwidth/2)[:1], [statistics.median(account_durs_baseline)], ax, 'g', offset)
 
-    ax.bar((X-barwidth)[1:2], [statistics.mean(edit_durs_baseline)],
-            yerr= [[0], [statistics.mean(edit_durs_baseline) + statistics.stdev(edit_durs_baseline)]],
+    ax.bar((X-barwidth)[1:2], [statistics.median(edit_durs_baseline)],
+            yerr= [[0], [statistics.median(edit_durs_baseline) + statistics.stdev(edit_durs_baseline)]],
             color='g', capsize=5, width=barwidth, label="Manual Privacy Transformation (No Edna)")
-    add_labels((X-barwidth)[1:2], [statistics.mean(edit_durs_baseline)], ax, 'g', offset)
+    add_labels((X-barwidth)[1:2], [statistics.median(edit_durs_baseline)], ax, 'g', offset)
 
-    ax.bar((X-barwidth/2)[2:3], [statistics.mean(delete_durs_baseline)],
-            yerr= [[0], [statistics.mean(delete_durs_baseline) + statistics.stdev(delete_durs_baseline)]],
+    ax.bar((X-barwidth/2)[2:3], [statistics.median(delete_durs_baseline)],
+            yerr= [[0], [statistics.median(delete_durs_baseline) + statistics.stdev(delete_durs_baseline)]],
             color='g', capsize=5, width=barwidth)
-    add_labels((X-barwidth/2)[2:3], [statistics.mean(delete_durs_baseline)], ax, 'g', offset)
+    add_labels((X-barwidth/2)[2:3], [statistics.median(delete_durs_baseline)], ax, 'g', offset)
 
-    ax.bar((X-barwidth/2)[4:], [statistics.mean(anon_durs_baseline)],  color='g', capsize=5, width=barwidth)
-    add_labels((X-barwidth/2)[4:], [statistics.mean(anon_durs_baseline)], ax, 'g', offset)
+    ax.bar((X-barwidth/2)[4:], [statistics.median(anon_durs_baseline)],  color='g', capsize=5, width=barwidth)
+    add_labels((X-barwidth/2)[4:], [statistics.median(anon_durs_baseline)], ax, 'g', offset)
 
 
     # edna
-    ax.bar((X+barwidth/2)[:1], [statistics.mean(account_durs)],
-            yerr= [[0], [statistics.mean(account_durs) + statistics.stdev(account_durs)]],
+    ax.bar((X+barwidth/2)[:1], [statistics.median(account_durs)],
+            yerr= [[0], [statistics.median(account_durs) + statistics.stdev(account_durs)]],
             color='m', capsize=5, width=barwidth)
-    add_labels((X+barwidth/2)[:1], [statistics.mean(account_durs)], ax, 'm', offset)
+    add_labels((X+barwidth/2)[:1], [statistics.median(account_durs)], ax, 'm', offset)
 
-    ax.bar((X)[1:2], [statistics.mean(edit_durs_noanon)],
-            yerr= [[0], [statistics.mean(edit_durs_noanon) + statistics.stdev(edit_durs_noanon)]],
+    ax.bar((X)[1:2], [statistics.median(edit_durs_noanon)],
+            yerr= [[0], [statistics.median(edit_durs_noanon) + statistics.stdev(edit_durs_noanon)]],
             color='m', capsize=5, width=barwidth, label="Edna")
-    add_labels((X)[1:2], [statistics.mean(edit_durs_noanon)], ax, 'm', offset)
+    add_labels((X)[1:2], [statistics.median(edit_durs_noanon)], ax, 'm', offset)
 
-    ax.bar((X+barwidth/2)[2:3], [statistics.mean(delete_durs_noanon)],
-            yerr= [[0], [statistics.mean(delete_durs_noanon) + statistics.stdev(delete_durs_noanon)]],
+    ax.bar((X+barwidth/2)[2:3], [statistics.median(delete_durs_noanon)],
+            yerr= [[0], [statistics.median(delete_durs_noanon) + statistics.stdev(delete_durs_noanon)]],
             color='m', capsize=5, width=barwidth)
-    add_labels((X+barwidth/2)[2:3], [statistics.mean(delete_durs_noanon)], ax, 'm', offset)
+    add_labels((X+barwidth/2)[2:3], [statistics.median(delete_durs_noanon)], ax, 'm', offset)
 
-    ax.bar((X)[3:4], [statistics.mean(restore_durs)],
-            yerr= [[0], [statistics.mean(restore_durs) + statistics.stdev(restore_durs)]],
+    ax.bar((X)[3:4], [statistics.median(restore_durs)],
+            yerr= [[0], [statistics.median(restore_durs) + statistics.stdev(restore_durs)]],
             color='m', capsize=5, width=barwidth)
-    add_labels((X)[3:4], [statistics.mean(restore_durs)], ax, 'm', offset)
+    add_labels((X)[3:4], [statistics.median(restore_durs)], ax, 'm', offset)
 
-    ax.bar((X+barwidth/2)[4:], [statistics.mean(anon_durs)],  color='m', capsize=5, width=barwidth)
-    add_labels((X+barwidth/2)[4:], [statistics.mean(anon_durs)], ax, 'm', offset)
+    ax.bar((X+barwidth/2)[4:], [statistics.median(anon_durs)],  color='m', capsize=5, width=barwidth)
+    add_labels((X+barwidth/2)[4:], [statistics.median(anon_durs)], ax, 'm', offset)
 
     # edna with temp recorrelation
-    ax.bar((X+barwidth)[1:2], [statistics.mean(edit_durs)],
-            yerr= [[0], [statistics.mean(edit_durs) + statistics.stdev(edit_durs)]],
+    ax.bar((X+barwidth)[1:2], [statistics.median(edit_durs)],
+            yerr= [[0], [statistics.median(edit_durs) + statistics.stdev(edit_durs)]],
             color='y', capsize=5, width=barwidth, label="Edna After Anonymization")
-    add_labels((X+barwidth)[1:2], [statistics.mean(edit_durs)], ax, 'y', offset)
+    add_labels((X+barwidth)[1:2], [statistics.median(edit_durs)], ax, 'y', offset)
 
     ax.set_title(title)
     ax.set_ylabel('Time (ms)')
-    ax.set_ylim(ymin=0, ymax=(statistics.mean(restore_durs)+statistics.stdev(restore_durs))*2)
+    ax.set_ylim(ymin=0, ymax=(statistics.median(restore_durs)+statistics.stdev(restore_durs))*2)
     ax.set_xticks(X)
     ax.set_xticklabels(labels)
 
@@ -171,60 +175,63 @@ labels = ['Create Account',
         'Restore Decayed\nAccount']
 ax = axes_flat[2]
 ax.bar((X-barwidth/2)[:3], [
-        statistics.mean(account_results_all_baseline),
-        statistics.mean(delete_results_all_baseline),
-        statistics.mean(decay_results_all_baseline),
+        statistics.median(account_results_all_baseline),
+        statistics.median(delete_results_all_baseline),
+        statistics.median(decay_results_all_baseline),
     ],
     yerr= [
-        [0,0,0],
-        [statistics.mean(account_results_all_baseline) + statistics.stdev(account_results_all_baseline),
-            statistics.mean(delete_results_all_baseline) + statistics.stdev(delete_results_all_baseline),
-            statistics.mean(decay_results_all_baseline) + statistics.stdev(decay_results_all_baseline)],
+        [np.percentile(account_results_all_baseline, 5),
+         np.percentile(delete_results_all_baseline, 5),
+        np.percentile(decay_results_all_baseline, 5)],
+        [np.percentile(account_results_all_baseline, 95),
+         np.percentile(delete_results_all_baseline, 95),
+        np.percentile(decay_results_all_baseline, 95)],
     ],
     capsize=5,
     color='g', width=barwidth, label="No Edna")
 add_labels((X-barwidth/2)[:3], [
-       statistics.mean(account_results_all_baseline),
-       statistics.mean(delete_results_all_baseline),
-       statistics.mean(decay_results_all_baseline),
+       statistics.median(account_results_all_baseline),
+       statistics.median(delete_results_all_baseline),
+       statistics.median(decay_results_all_baseline),
    ], ax, 'g', 50)
 ax.bar((X+barwidth/2)[:3], [
-        statistics.mean(account_results_all),
-        statistics.mean(delete_results_all),
-        statistics.mean(decay_results_all)
+        statistics.median(account_results_all),
+        statistics.median(delete_results_all),
+        statistics.median(decay_results_all)
     ],
     yerr = [
-        [0,0,0],
-        [statistics.mean(account_results_all) + statistics.stdev(account_results_all),
-            statistics.mean(delete_results_all) + statistics.stdev(delete_results_all),
-            statistics.mean(decay_results_all) + statistics.stdev(decay_results_all)],
+        [np.percentile(account_results_all, 5),
+         np.percentile(delete_results_all, 5),
+        np.percentile(decay_results_all, 5)],
+        [np.percentile(account_results_all, 95),
+         np.percentile(delete_results_all, 95),
+        np.percentile(decay_results_all, 95)],
     ],
     capsize=5,
     color='m', width=barwidth, label="Edna")
 add_labels((X+barwidth/2)[:3], [
-        statistics.mean(account_results_all),
-        statistics.mean(delete_results_all),
-        statistics.mean(decay_results_all),
+        statistics.median(account_results_all),
+        statistics.median(delete_results_all),
+        statistics.median(decay_results_all),
     ], ax, 'm', 50)
 
 ax.bar(X[3:], [
-        statistics.mean(restore_results_all),
-        statistics.mean(undecay_results_all)
+        statistics.median(restore_results_all),
+        statistics.median(undecay_results_all)
     ],
     yerr = [
-        [0, 0],
-        [statistics.mean(restore_results_all) + statistics.stdev(restore_results_all),
-            statistics.mean(undecay_results_all) + statistics.stdev(undecay_results_all)
-    ]],
+        [np.percentile(restore_results_all, 5), np.percentile(undecay_results_all, 5)],
+        [np.percentile(restore_results_all, 95), np.percentile(undecay_results_all, 95)],
+    ],
     capsize=5, color='m', width=barwidth)
 add_labels(X[3:], [
-     statistics.mean(restore_results_all),
-     statistics.mean(undecay_results_all)], ax, 'm', 50)
+     statistics.median(restore_results_all),
+     statistics.median(undecay_results_all)], ax, 'm', 50)
 
 title = "Lobsters Operation Latencies"
 ax.set_title(title)
 ax.set_ylabel('Time (ms)')
-ax.set_ylim(ymin=0,ymax=(statistics.mean(restore_results_all)+statistics.stdev(restore_results_all))*1.5)
+ax.set_ylim(ymin=0,ymax=(statistics.median(restore_results_all)+statistics.stdev(restore_results_all))*1.5)
 ax.set_xticks(X)
 ax.set_xticklabels(labels)
 

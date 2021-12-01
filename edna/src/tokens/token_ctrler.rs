@@ -1146,12 +1146,12 @@ impl TokenCtrler {
     }
 }
 
-/*
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{EdnaClient, GuiseGen, RowVal};
     use rsa::pkcs1::ToRsaPrivateKey;
+    use sql_parser::ast::*;
 
     fn init_logger() {
         let _ = env_logger::builder()
@@ -1164,11 +1164,11 @@ mod tests {
     }
 
     fn get_insert_guise_cols() -> Vec<String> {
-        vec![]
+        vec!["id".to_string()]
     }
 
-    fn get_insert_guise_vals() -> Vec<sql_parser::ast::Expr> {
-        vec![]
+    fn get_insert_guise_vals() -> Vec<Expr> {
+        vec![Expr::Value(Value::Number(0.to_string()))]
     }
 
     fn get_guise_gen() -> Arc<RwLock<GuiseGen>> {
@@ -1181,51 +1181,14 @@ mod tests {
     }
 
     #[test]
-    fn test_insert_global_diff_token_single() {
-        init_logger();
-        let dbname = "testTokenCtrlerGlobal".to_string();
-        let edna = EdnaClient::new(true, &dbname, "", true, 2, get_guise_gen());
-        let mut db = edna.get_db().unwrap();
-        let stats = edna.get_stats();
-
-        let mut ctrler = TokenCtrler::new(2, &mut db, stats);
-
-        let did = 1;
-        let uid = 11;
-        let guise_name = "guise".to_string();
-        let guise_ids = vec![];
-        let old_fk_value = 5;
-        let fk_col = "fk_col".to_string();
-
-        ctrler.register_principal(&uid.to_string(), false, &mut db);
-
-        let mut remove_token = new_delete_token_wrapper(
-            did,
-            guise_name,
-            guise_ids,
-            vec![RowVal {
-                column: fk_col.clone(),
-                value: old_fk_value.to_string(),
-            }],
-            true,
-        );
-        remove_token.uid = uid.to_string();
-        ctrler.insert_global_diff_token_wrapper(&mut remove_token);
-        assert_eq!(ctrler.global_diff_tokens.len(), 1);
-        let tokens = ctrler.get_global_diff_tokens(&uid.to_string(), did);
-        assert_eq!(tokens.len(), 1);
-        assert_eq!(tokens[0], remove_token);
-    }
-
-    #[test]
     fn test_insert_user_token_single() {
         init_logger();
         let dbname = "testTokenCtrlerUser".to_string();
         let edna = EdnaClient::new(true, &dbname, "", true, 2, get_guise_gen());
-        let mut db = edna.get_db().unwrap();
+        let mut db = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(2, &mut db, stats);
+        let mut ctrler = TokenCtrler::new(2, &mut db, stats, false);
 
         let did = 1;
         let uid = 11;
@@ -1234,7 +1197,7 @@ mod tests {
         let old_fk_value = 5;
         let fk_col = "fk_col".to_string();
 
-        let private_key = ctrler.register_principal(&uid.to_string(), false, &mut db);
+        let private_key = ctrler.register_principal(&uid.to_string(), false, &mut db, true);
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
 
         let mut remove_token = new_delete_token_wrapper(
@@ -1277,10 +1240,10 @@ mod tests {
         let iters = 5;
         let dbname = "testTokenCtrlerUserMulti".to_string();
         let edna = EdnaClient::new(true, &dbname, "", true, iters, get_guise_gen());
-        let mut db = edna.get_db().unwrap();
+        let mut db = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(iters, &mut db, stats);
+        let mut ctrler = TokenCtrler::new(iters, &mut db, stats, true);
 
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
@@ -1291,7 +1254,7 @@ mod tests {
 
         let mut caps = HashMap::new();
         for u in 1..iters {
-            let private_key = ctrler.register_principal(&u.to_string(), false, &mut db);
+            let private_key = ctrler.register_principal(&u.to_string(), false, &mut db, true);
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             priv_keys.push(private_key_vec.clone());
 
@@ -1354,10 +1317,10 @@ mod tests {
         let iters = 5;
         let dbname = "testTokenCtrlerUserPK".to_string();
         let edna = EdnaClient::new(true, &dbname, "", true, iters, get_guise_gen());
-        let mut db = edna.get_db().unwrap();
+        let mut db = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(iters, &mut db, stats);
+        let mut ctrler = TokenCtrler::new(iters, &mut db, stats, true);
 
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
@@ -1370,7 +1333,7 @@ mod tests {
 
         let mut caps = HashMap::new();
         for u in 1..iters {
-            let private_key = ctrler.register_principal(&u.to_string(), false, &mut db);
+            let private_key = ctrler.register_principal(&u.to_string(), false, &mut db, true);
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             priv_keys.push(private_key_vec.clone());
 
@@ -1440,4 +1403,4 @@ mod tests {
             }
         }
     }
-}*/
+}
