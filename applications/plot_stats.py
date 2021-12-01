@@ -6,7 +6,7 @@ import numpy as np
 
 plt.style.use('seaborn-deep')
 
-fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(8,8))
+fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(8,12))
 axes_flat = axes.flatten()
 barwidth = 0.25
 # positions
@@ -92,7 +92,7 @@ for (i, ax) in enumerate(axes_flat[:2]):
 
 # LOBSTERS
 X = np.arange(5)
-labels = ['Create Account', 'Delete Account', 'Decay Account', 'Restore Deleted Account', 'Restore Decayed Account']
+labels = ['Create Account', 'Delete Account', 'Restore Account', 'Decay Account', 'Undecay Account']
 
 account_results = []
 delete_results = []
@@ -105,9 +105,9 @@ delete_results_baseline = []
 filename = "lobsters_stats.csv"
 title = "Lobsters Operation Latencies"
 with open(filename,'r') as csvfile:
-    rows = csvfile.readlines()
+    rows = csvfile.readlines()[1:]
     for r in rows:
-        vals = [int(x.strip()/1000) for x in r.split(",")]
+        vals = [int(x.strip())/1000 for x in r.split(",")]
         ndata = vals[1]
         create_baseline = vals[2]
         create_edna = vals[3]
@@ -117,17 +117,25 @@ with open(filename,'r') as csvfile:
         restore = vals[7]
         delete_baseline = vals[8]
 
-        account_results.push(create_edna);
-        account_results_baseline.push(create_baseline);
-        delete_results.push(delete/float(ndata))
-        delete_results_baseline.push(delete_baseline/float(ndata))
-        restore_results.push(restore/float(ndata))
-        decay_results.push(decay/float(ndata))
-        undecay_results.push(undecay/float(ndata))
+        account_results.append(create_edna);
+        account_results_baseline.append(create_baseline);
+        delete_results.append(delete/float(ndata))
+        delete_results_baseline.append(delete_baseline/float(ndata))
+        restore_results.append(restore/float(ndata))
+        decay_results.append(decay/float(ndata))
+        undecay_results.append(undecay/float(ndata))
 
+# XXX todo check if variance is great
 ax = axes_flat[2]
-ax.bar(X-barwidth/2, [account_results_baseline, delete_results_baseline, delete_results_baseline, 0, 0], color='g', width=barwidth, label="No Edna")
-ax.bar(X+barwidth/2, [account_results, delete_results, decay_results, restore_results, undecay_results], color='b', width=barwidth, label="Edna")
+ax.bar(X-barwidth/2, [statistics.mean(account_results_baseline),
+    statistics.mean(delete_results_baseline),
+    0, statistics.mean(delete_results_baseline), 0], color='g', width=barwidth, label="No Edna")
+ax.bar(X+barwidth/2, [statistics.mean(account_results),
+    statistics.mean(delete_results), 0,
+    statistics.mean(decay_results), 0], color='b', width=barwidth, label="Edna")
+ax.bar(X, [0, 0,
+    statistics.mean(restore_results), 0,
+    statistics.mean(undecay_results)], color='b', width=barwidth)
 
 ax.set_title(title)
 ax.set_ylabel('Time (ms)')

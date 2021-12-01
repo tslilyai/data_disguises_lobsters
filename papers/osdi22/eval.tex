@@ -72,18 +72,17 @@ HotCRP benchmarks prepopulate the database with 450 total users (50 reviewers), 
 accepted), 4 reviews and 4 comments per paper, and a number of per-user data items (\eg paper
 watches, review preferences, etc.).  
 
-While we have an end-to-end implementation of Lobsters, \lyt{TODO}.
+While we have an end-to-end implementation of Lobsters, we evaluate \lyt{TODO}.
 
 %
 %
 Figure~\ref{fig:client_opstats} shows the cost of performing disguise-related actions with and
-without \sys. We also measure the latency of these actions if composed on top of prior
-anonymization, where performing these actions requires temporary recorrelation.
-Note that temporary recorrelation to perform edits or account deletion requires an
-application to use \sys, both to anonymize the data in the first place, and to perform the 
-recorrelation. Thus, we do not measure post-anonymization numbers for actions without \sys. Similarly,
-account restoration is only possible when using \sys during account deletion, so we have
-no baseline latency without \sys here.
+without \sys. We also measure the latency of actions in WebSubmit and HotCRP if composed on top of
+prior anonymization, where performing these actions requires temporary recorrelation.  Note that
+temporary recorrelation to perform edits or account deletion requires an application to use \sys,
+both to anonymize the data in the first place, and to perform the recorrelation. Thus, we do not
+measure post-anonymization numbers for actions without \sys. Similarly, account restoration is only
+possible when using \sys during account deletion, so we have no baseline latency without \sys here.
 
 We observe that simply using \sys (without temporary recorrelation) greatly increases the latency of
 account deletion and anonymization.  For latency-critical tasks (such as editing data or creating an
@@ -118,22 +117,23 @@ determine which pseudoprincipals the client can act for. This can be optimized b
 ownership tokens from one disguise into a single encrypted ciphertext, or by generating and sending
 clients per-pseudoprincipal locators instead of per-disguise locators.
 
-Account deletion by both the baseline application and with \sys performs the same DB operations to remove, modify, or
-anonymize data.  \sys incurs increased costs by additionally encrypting and inserting one diff token
-for each deleted or modified object, and one ownership token for each anonymized object.  Account
-deletion post-anonymization requires \sys to perform temporary recorrelation find data of
-pseudoprincipals that the user is authorized to remove along with their account.  \sys incurs
-latency increases from decrypting all ownership tokens of the user, and from performing the deletion
-or modification queries for each discovered pseudoprincipal (in addition to the original user).
+Account deletion or data decay by both the baseline application and with \sys performs the same DB operations to
+remove, modify, or anonymize data.  \sys incurs increased costs by additionally encrypting and
+inserting one diff token for each deleted or modified object, and one ownership token for each
+anonymized object.  Account deletion post-anonymization requires \sys to perform temporary
+recorrelation find data of pseudoprincipals that the user is authorized to remove along with their
+account.  \sys incurs latency increases from decrypting all ownership tokens of the user, and from
+performing the deletion or modification queries for each discovered pseudoprincipal (in addition to
+the original user).
 
-Account restoration is only possible with \sys. \sys decrypts a token for each piece of
-modified/removed/anonymized data, and performs DB checks to ensure the data can be restored (\eg
+Account restoration or data undecay is only possible with \sys. \sys decrypts a token for each piece
+of modified/removed/anonymized data, and performs DB checks to ensure the data can be restored (\eg
 that the corresponding lecture of an answer to reinsert still exists). If the checks pass (which
-they do in this benchmark), restoration reinserts the answers stored in the diffs.
-Account restoration of anonymized uses temporary recorrelation to allow \sys access to 
-pseudoprincipal-associated tokens produced from the account deletion.
-This additionally requires \sys to additionally decrypt ownership tokens for all
-pseudoprincipals of the user, which leads to the increase in latency.
+they do in this benchmark), restoration reinserts the answers stored in the diffs.  Account
+restoration of anonymized uses temporary recorrelation to allow \sys access to
+pseudoprincipal-associated tokens produced from the account deletion.  This additionally requires
+\sys to additionally decrypt ownership tokens for all pseudoprincipals of the user, which leads to
+the increase in latency.
 
 \head{Storage Costs of Disguise-Related Actions.} 
 Each generated pseudoprincipal adds an additional row to the users table in WebSubmit; \sys also
