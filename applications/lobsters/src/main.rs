@@ -5,18 +5,16 @@ extern crate mysql;
 extern crate rand;
 
 use edna::{helpers, EdnaClient};
-use hwloc::{CpuSet, ObjectType, Topology, CPUBIND_THREAD};
 use log::warn;
 use mysql::prelude::*;
 use rand::Rng;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::*;
 use structopt::StructOpt;
-use rsa::RsaPrivateKey;
+use rsa::pkcs1::ToRsaPrivateKey;
 
 mod datagen;
 mod disguises;
@@ -51,15 +49,18 @@ fn init_logger() {
         .try_init();
 }
 
-fn run_unsub_test(
+fn run_stats_test(
     edna: &mut EdnaClient,
-    is_baseline: bool,
     sampler: &datagen::Sampler,
+    user2decryptcaps: &HashMap<u64, Vec<u8>>,
 ) {
     let mut db = edna.get_conn().unwrap();
     let mut file = File::create(format!("lobsters_stats_unsub.out")).unwrap();
+    file.write("uid, ndata, delete, restore, decay, undecay, baseline\n".as_bytes()).unwrap();
+
     for i in 0..sampler.nusers() {
         let user_id = i as u64 + 1;
+        let decryption_cap = user2decryptcaps.get(&user_id).unwrap();
         let mut user_stories = 0;
         let mut user_comments = 0;
         let res = db
@@ -85,25 +86,61 @@ fn run_unsub_test(
             user_comments = helpers::mysql_val_to_u64(&vals[0]).unwrap();
         }
 
+        // UNSUB 
         let start = time::Instant::now();
-        // UNSUB
-        let dur = start.elapsed();
+        let (dlcs, olcs) = disguises::gdpr_disguise::apply(
+            edna,
+            user_id,
+            decryption_cap.clone(),
+            vec![],
+        )
+        .unwrap();
         file.write(
             format!(
                 "{}, {}, {}, ",
                 user_id,
                 user_stories + user_comments,
-                dur.as_micros()
+                start.elapsed().as_micros()
             )
             .as_bytes(),
         )
         .unwrap();
 
-        let start = time::Instant::now();
         // RESUB
-        let dur = start.elapsed();
-        file.write(format!("{}\n", dur.as_micros()).as_bytes())
-            .unwrap();
+        let start = time::Instant::now();
+        disguises::gdpr_disguise::reveal(
+            edna,
+            decryption_cap.clone(),
+            vec![*dlcs.get(&(user_id.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()],
+            vec![*olcs.get(&(user_id.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()],
+        ).unwrap();
+        file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes()).unwrap();
+
+        // DECAY
+        let start = time::Instant::now();
+        let (dlcs, olcs) = disguises::data_decay::apply(
+            edna,
+            user_id,
+            decryption_cap.clone(),
+            vec![],
+        )
+        .unwrap();
+        file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes()).unwrap();
+
+        // UNDECAY
+        let start = time::Instant::now();
+        disguises::data_decay::reveal(
+            edna,
+            decryption_cap.clone(),
+            vec![*dlcs.get(&(user_id.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()],
+            vec![*olcs.get(&(user_id.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()],
+        ).unwrap();
+        file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes()).unwrap();
+
+        // baseline delete
+        let start = time::Instant::now();
+        disguises::baseline::apply_delete(user_id, edna).unwrap();
+        file.write(format!("{}\n", start.elapsed().as_micros()).as_bytes()).unwrap();
     }
 
     file.flush().unwrap();
@@ -114,7 +151,7 @@ fn run_test(
     nqueries: u64,
     prop_unsub: f64,
     is_baseline: bool,
-    user2decryptcap: &HashMap<u64, RsaPrivateKey>,
+    user2decryptcap: &HashMap<u64, Vec<u8>>,
     sampler: &datagen::Sampler,
 ) {
     let nusers = sampler.nusers();
@@ -250,13 +287,12 @@ fn run_test(
                 .unwrap();
         }
     }
-    let dur = start.elapsed();
     println!(
         "Lobsters: Time to do {} queries ({}/{} un/resubs): {}s",
         nqueries,
         nunsub,
         nresub,
-        dur.as_secs()
+        start.elapsed().as_secs()
     );
 
     file.flush().unwrap();
@@ -289,20 +325,22 @@ fn main() {
     if prime {
         datagen::gen_data(&sampler, &mut edna.get_conn().unwrap());
     }
+    
     // always register users with edna?
     let mut user2decryptcap = HashMap::new();
     for u in 0..sampler.nusers() {
         let user_id = u as u64 + 1;
         let private_key = edna.register_principal(user_id.to_string().into());
-        user2decryptcap.insert(user_id, private_key);
+        let privkey_str = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
+        user2decryptcap.insert(user_id, privkey_str);
     }
-    run_unsub_test(&mut edna, is_baseline, &sampler);
-    run_test(
+    run_stats_test(&mut edna, &sampler, &user2decryptcap);
+    /*run_test(
         &mut edna,
         nqueries,
         prop_unsub,
         is_baseline,
         &user2decryptcap,
         &sampler,
-    );
+    );*/
 }
