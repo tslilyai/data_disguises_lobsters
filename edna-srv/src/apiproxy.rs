@@ -99,14 +99,44 @@ pub(crate) fn get_tokens_of_disguise(
     });
 }
 
-#[post("/create_pseudoprincipal")]
-pub(crate) fn create_pseudoprincipal(edna: &State<Arc<Mutex<EdnaClient>>>) {
-    unimplemented!()
+#[derive(Serialize)]
+pub struct CreatePseudoprincipalResponse {
+    uid: edna::UID,
+    row: Vec<edna::RowVal>,
 }
 
-#[post("/save_pseudoprincipal_token")]
-pub(crate) fn save_pseudoprincipal_token(edna: &State<Arc<Mutex<EdnaClient>>>) {
-    unimplemented!()
+#[get("/create_pseudoprincipal")]
+pub(crate) fn create_pseudoprincipal(
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) -> Json<CreatePseudoprincipalResponse> {
+    let mut e = edna.lock().unwrap();
+    let pp = e.create_new_pseudoprincipal();
+    return Json(CreatePseudoprincipalResponse {
+        uid: pp.0,
+        row: pp.1,
+    });
+}
+
+#[derive(Deserialize)]
+pub struct SavePseudoprincipalToken {
+    did: edna::DID,
+    old_uid: edna::UID,
+    new_uid: edna::UID,
+    token_bytes: Vec<u8>,
+}
+
+#[post("/save_pseudoprincipal_token", format = "json", data = "<data>")]
+pub(crate) fn save_pseudoprincipal_token(
+    data: Json<SavePseudoprincipalToken>,
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) {
+    let e = edna.lock().unwrap();
+    e.save_pseudoprincipal_token(
+        data.did.clone(),
+        data.old_uid.clone(),
+        data.new_uid.clone(),
+        data.token_bytes.clone(),
+    );
 }
 
 #[post("/save_diff_token")]
