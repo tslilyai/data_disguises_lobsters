@@ -7,6 +7,10 @@ from textwrap import wrap
 
 plt.style.use('seaborn-deep')
 
+def add_labels(x,y,ax):
+    for i in range(len(x)):
+        ax.text(x[i], y[i], "{0:.1f}".format(y[i]), ha='center')
+
 fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(8,15))
 axes_flat = axes.flatten()
 barwidth = 0.25
@@ -72,22 +76,33 @@ for (i, ax) in enumerate(axes_flat[:2]):
     # add baseline closer to red line for anonymize
     ax.bar(X-barwidth, [account_results_baseline, edit_results_baseline, delete_results_baseline, 0,
         0], color='g', width=barwidth, label="No Edna")
+    add_labels((X-barwidth)[:3], [account_results_baseline, edit_results_baseline,
+        delete_results_baseline], ax)
     ax.bar(X-barwidth/2, [0, 0, 0, 0, anon_results_baseline], color='g', width=barwidth)
+    add_labels((X-barwidth/2)[4:], [anon_results_baseline], ax)
 
+    # edna
     ax.bar(X, [account_results, edit_results_noanon, delete_results_noanon, 0, 0],
             color='b', width=barwidth, label="Edna")
+    add_labels(X[:3], [account_results,edit_results_noanon,delete_results_noanon], ax)
     ax.bar(X-barwidth/2, [0, 0, 0, restore_results_noanon, 0], color='b', width=barwidth)
+    add_labels((X-barwidth/2)[3:4], [restore_results_noanon], ax)
     ax.bar(X+barwidth/2, [0, 0, 0, 0, anon_results], color='b', width=barwidth)
+    add_labels((X+barwidth/2)[4:], [anon_results], ax)
 
+    # temp recorrelation
     ax.bar(X+barwidth, [account_results, edit_results, delete_results, 0, 0],
             color='r', width=barwidth, label="Edna + Temporary Recorrelation")
+    add_labels((X+barwidth)[:3], [account_results, edit_results, delete_results], ax)
+
     ax.bar(X+barwidth/2, [0, 0, 0, restore_results, 0], color='r', width=barwidth)
+    add_labels((X+barwidth/2)[3:4], [restore_results], ax)
 
     ax.set_title(title)
     ax.set_ylabel('Time (ms)')
-    ax.set_ylim(ymin=0.01)
+    ax.set_ylim(ymin=0)
     ax.set_xticks(X)
-    ax.set_yscale('log')
+    #ax.set_yscale('log')
     ax.set_xticklabels(labels)
     ax.legend(loc='best');
 
@@ -185,6 +200,12 @@ ax.bar(X-barwidth/2, [
     0,
     0],
     color='g', width=barwidth, label="No Edna")
+add_labels((X-barwidth/2)[:3], [
+       statistics.mean(account_results_per_baseline),
+       statistics.mean(delete_results_per_baseline),
+       statistics.mean(decay_results_per_baseline),
+   ], ax)
+
 ax.bar(X+barwidth/2, [
     statistics.mean(account_results_per),
     statistics.mean(delete_results_per),
@@ -197,13 +218,20 @@ ax.bar(X, [
     0,
     statistics.mean(restore_results_per),
     statistics.mean(undecay_results_per)], color='b', width=barwidth)
+add_labels((X+barwidth/2)[:3], [
+    statistics.mean(account_results_per),
+    statistics.mean(delete_results_per),
+    statistics.mean(decay_results_per),
+    ], ax)
+add_labels(X[3:], [
+     statistics.mean(restore_results_per),
+    statistics.mean(undecay_results_per)], ax)
 
 title = "Fine-Grained Lobsters Operation Latencies"
 ax.set_title(title)
 ax.set_ylabel('Time (ms)')
-ax.set_ylim(ymin=0.01)
+ax.set_ylim(ymin=0)
 ax.set_xticks(X)
-ax.set_yscale('log')
 ax.set_xticklabels(labels)
 ax.legend(loc='best');
 
