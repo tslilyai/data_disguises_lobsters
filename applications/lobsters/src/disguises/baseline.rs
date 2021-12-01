@@ -24,7 +24,7 @@ pub fn apply_decay(
     let res = db.query_iter(&format!("SELECT id FROM comments WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE comments SET user_id={} WHERE id={}", new_user, id))?;
     }
@@ -33,7 +33,7 @@ pub fn apply_decay(
     let res = db.query_iter(&format!("SELECT id FROM stories WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE stories SET user_id={} WHERE id={}", new_user, id))?;
     }
@@ -41,14 +41,14 @@ pub fn apply_decay(
     let res = db.query_iter(&format!("SELECT id FROM messages WHERE author_user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE messages SET author_user_id={} WHERE id={}", new_user, id))?;
     }
     let res = db.query_iter(&format!("SELECT id FROM messages WHERE recipient_user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE messages SET recipient_user_id={} WHERE id={}", new_user, id))?;
     }
@@ -56,14 +56,14 @@ pub fn apply_decay(
     let res = db.query_iter(&format!("SELECT id FROM moderations WHERE moderator_user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE moderations SET moderator_user_id={} WHERE id={}", new_user, id))?;
     }
     let res = db.query_iter(&format!("SELECT id FROM moderations WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE moderations SET user_id={} WHERE id={}", new_user, id))?;
     }
@@ -71,7 +71,7 @@ pub fn apply_decay(
     let res = db.query_iter(&format!("SELECT id FROM votes WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE votes SET user_id={} WHERE id={}", new_user, id))?;
     }
@@ -102,7 +102,7 @@ pub fn apply_delete(
     let res = db.query_iter(&format!("SELECT id FROM comments WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE comments SET user_id={} WHERE id={}", new_user, id))?;
     }
@@ -113,7 +113,7 @@ pub fn apply_delete(
     let res = db.query_iter(&format!("SELECT id FROM stories WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE stories SET user_id={} WHERE id={}", new_user, id))?;
     }
@@ -121,14 +121,14 @@ pub fn apply_delete(
     let res = db.query_iter(&format!("SELECT id FROM messages WHERE author_user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE messages SET author_user_id={} WHERE id={}", new_user, id))?;
     }
     let res = db.query_iter(&format!("SELECT id FROM messages WHERE recipient_user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE messages SET recipient_user_id={} WHERE id={}", new_user, id))?;
     }
@@ -136,14 +136,14 @@ pub fn apply_delete(
     let res = db.query_iter(&format!("SELECT id FROM moderations WHERE moderator_user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE moderations SET moderator_user_id={} WHERE id={}", new_user, id))?;
     }
     let res = db.query_iter(&format!("SELECT id FROM moderations WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE moderations SET user_id={} WHERE id={}", new_user, id))?;
     }
@@ -151,7 +151,7 @@ pub fn apply_delete(
     let res = db.query_iter(&format!("SELECT id FROM votes WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u64>().to_string();
+        let new_user = rng.gen::<i32>().to_string();
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE votes SET user_id={} WHERE id={}", new_user, id))?;
     }

@@ -32,8 +32,6 @@ struct Cli {
     nqueries: u64,
     #[structopt(long = "prime")]
     prime: bool,
-    #[structopt(long = "prop_unsub", default_value = "0.0")]
-    prop_unsub: f64,
     #[structopt(long = "is_baseline")]
     is_baseline: bool,
 }
@@ -56,10 +54,15 @@ fn run_stats_test(
 ) {
     let mut db = edna.get_conn().unwrap();
     let mut file = File::create(format!("lobsters_stats_unsub.out")).unwrap();
-    file.write("uid, ndata, delete, restore, decay, undecay, baseline\n".as_bytes()).unwrap();
+    file.write("uid, ndata, create_baseline, create_edna, decay, undecay, delete, restore, baseline\n".as_bytes()).unwrap();
+    let mut rng = rand::thread_rng();
 
-    for i in 0..sampler.nusers() {
-        let user_id = i as u64 + 1;
+    for u in 0..sampler.nusers() {
+        // sample every 50 users
+        if u % 50 != 0 {
+            continue
+        }
+        let user_id = u as u64 + 1;
         let decryption_cap = user2decryptcaps.get(&user_id).unwrap();
         let mut user_stories = 0;
         let mut user_comments = 0;
@@ -85,35 +88,18 @@ fn run_stats_test(
             assert_eq!(vals.len(), 1);
             user_comments = helpers::mysql_val_to_u64(&vals[0]).unwrap();
         }
-
-        // UNSUB 
-        let start = time::Instant::now();
-        let (dlcs, olcs) = disguises::gdpr_disguise::apply(
-            edna,
-            user_id,
-            decryption_cap.clone(),
-            vec![],
-        )
-        .unwrap();
         file.write(
             format!(
-                "{}, {}, {}, ",
+                "{}, {}, ",
                 user_id,
-                user_stories + user_comments,
-                start.elapsed().as_micros()
-            )
-            .as_bytes(),
-        )
-        .unwrap();
-
-        // RESUB
+                user_stories + user_comments
+            ).as_bytes()).unwrap();
+ 
         let start = time::Instant::now();
-        disguises::gdpr_disguise::reveal(
-            edna,
-            decryption_cap.clone(),
-            vec![*dlcs.get(&(user_id.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()],
-            vec![*olcs.get(&(user_id.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()],
-        ).unwrap();
+        let some_user_id : u32 = rng.gen();
+        db.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", some_user_id)).unwrap();
+        file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes()).unwrap();
+        edna.register_principal(some_user_id.to_string().into());
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes()).unwrap();
 
         // DECAY
@@ -129,11 +115,46 @@ fn run_stats_test(
 
         // UNDECAY
         let start = time::Instant::now();
+        let dls = match dlcs.get(&(user_id.to_string(), disguises::data_decay::get_disguise_id())) {
+            Some(dl) => vec![*dl],
+            None => vec![],
+        };
+        let ols = match olcs.get(&(user_id.to_string(), disguises::data_decay::get_disguise_id())) {
+            Some(ol) => vec![*ol],
+            None => vec![],
+        };
         disguises::data_decay::reveal(
             edna,
             decryption_cap.clone(),
-            vec![*dlcs.get(&(user_id.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()],
-            vec![*olcs.get(&(user_id.to_string(), disguises::gdpr_disguise::get_disguise_id())).unwrap()],
+            dls, ols
+        ).unwrap();
+        file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes()).unwrap();
+
+        // UNSUB 
+        let start = time::Instant::now();
+        let (dlcs, olcs) = disguises::gdpr_disguise::apply(
+            edna,
+            user_id,
+            decryption_cap.clone(),
+            vec![],
+        )
+        .unwrap();
+        file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes()).unwrap();
+
+        // RESUB
+        let start = time::Instant::now();
+        let dls = match dlcs.get(&(user_id.to_string(), disguises::gdpr_disguise::get_disguise_id())) {
+            Some(dl) => vec![*dl],
+            None => vec![],
+        };
+        let ols = match olcs.get(&(user_id.to_string(), disguises::gdpr_disguise::get_disguise_id())) {
+            Some(ol) => vec![*ol],
+            None => vec![],
+        };
+        disguises::gdpr_disguise::reveal(
+            edna,
+            decryption_cap.clone(),
+            dls, ols,
         ).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes()).unwrap();
 
@@ -149,7 +170,6 @@ fn run_stats_test(
 fn run_test(
     edna: &mut EdnaClient,
     nqueries: u64,
-    prop_unsub: f64,
     is_baseline: bool,
     user2decryptcap: &HashMap<u64, Vec<u8>>,
     sampler: &datagen::Sampler,
@@ -160,9 +180,6 @@ fn run_test(
     let mut db = edna.get_conn().unwrap();
 
     let mut rng = rand::thread_rng();
-    let mut unsubbed_users: HashMap<u64, (String, String)> = HashMap::new();
-    let mut nunsub = 0;
-    let mut nresub = 0;
     let mut file = File::create(format!("lobsters_stats.out")).unwrap();
     let max_id = nusers;
 
@@ -173,125 +190,85 @@ fn run_test(
         // XXX: we're assuming that users who vote a lot also comment a lot
         // XXX: we're assuming that users who vote a lot also submit many stories
         let user_id = sampler.user(&mut rng) as u64;
-        let username_id = user_id - 1;
         let user = Some(user_id);
 
-        if let Some((dlcs, olcs)) = &unsubbed_users.remove(&user_id) {
-            nresub += 1;
-            if is_baseline {
-                // RESUB
-            } else {
-                // user id is always one more than the username...
-                db.query_drop(&format!(
-                    "INSERT INTO `users` (id, username) VALUES ({}, 'user{}')",
-                    user_id, username_id
-                ))
-                .unwrap();
-            }
-        }
+        // randomly pick next request type based on relative frequency
+        let mut seed: isize = rng.gen_range(0, 100000);
+        let seed = &mut seed;
+        let mut pick = |f| {
+            let applies = *seed <= f;
+            *seed -= f;
+            applies
+        };
 
-        // with probability prop_unsub, unsubscribe the user
-        if rng.gen_bool(prop_unsub) {
-            nunsub += 1;
-            if !is_baseline {
-                // UNSUB
-                /*let (dlcs, olcs) = disguises::gdpr_disguise::apply(
-                    edna,
-                    user_id,
-                    decryption_cap,
-                    own_loc_caps,
-                )
+        let mut res = vec![];
+        if pick(55842) {
+            // XXX: we're assuming here that stories with more votes are viewed more
+            let story = sampler.story_for_vote(&mut rng) as u64;
+            res = queriers::stories::read_story(&mut db, user, story).unwrap();
+        } else if pick(30105) {
+            res = queriers::frontpage::query_frontpage(&mut db, user).unwrap();
+        } else if pick(6702) {
+            // XXX: we're assuming that users who vote a lot are also "popular"
+            queriers::user::get_profile(&mut db, user_id).unwrap();
+        } else if pick(4674) {
+            queriers::comment::get_comments(&mut db, user).unwrap();
+        } else if pick(967) {
+            queriers::recent::recent(&mut db, user).unwrap();
+        } else if pick(630) {
+            let comment = sampler.comment_for_vote(&mut rng);
+            queriers::vote::vote_on_comment(&mut db, user, comment as u64, true).unwrap();
+        } else if pick(475) {
+            let story = sampler.story_for_vote(&mut rng);
+            queriers::vote::vote_on_story(&mut db, user, story as u64, true).unwrap();
+        } else if pick(316) {
+            // comments without a parent
+            let id = rng.gen_range(ncomments, max_id);
+            let story = sampler.story_for_comment(&mut rng);
+            queriers::comment::post_comment(&mut db, user, id as u64, story as u64, None)
                 .unwrap();
-                unsubbed_users.insert(user_id, (dlcs, olcs));*/
-            } else {
-                db.query_drop(&format!(
-                    "DELETE FROM `users` WHERE `users`.`username` = 'user{}'",
-                    username_id
-                ))
-                .unwrap();
-                unsubbed_users.insert(user_id, (String::new(), String::new()));
-            }
+        } else if pick(87) {
+            queriers::user::login(&mut db, user_id).unwrap();
+        } else if pick(71) {
+            // comments with a parent
+            let id = rng.gen_range(ncomments, max_id);
+            let story = sampler.story_for_comment(&mut rng);
+            // we need to pick a comment that's on the chosen story
+            // we know that every nth comment from prepopulation is to the same story
+            let comments_per_story = ncomments / nstories;
+            let parent = story + nstories * rng.gen_range(0, comments_per_story);
+            queriers::comment::post_comment(
+                &mut db,
+                user,
+                id.into(),
+                story as u64,
+                Some(parent as u64),
+            )
+            .unwrap();
+        } else if pick(54) {
+            let comment = sampler.comment_for_vote(&mut rng);
+            queriers::vote::vote_on_comment(&mut db, user, comment as u64, false).unwrap();
+        } else if pick(53) {
+            let id = rng.gen_range(nstories, max_id);
+            queriers::stories::post_story(
+                &mut db,
+                user,
+                id as u64,
+                format!("benchmark {}", id),
+            )
+            .unwrap();
         } else {
-            // randomly pick next request type based on relative frequency
-            let mut seed: isize = rng.gen_range(0, 100000);
-            let seed = &mut seed;
-            let mut pick = |f| {
-                let applies = *seed <= f;
-                *seed -= f;
-                applies
-            };
-
-            let mut res = vec![];
-            if pick(55842) {
-                // XXX: we're assuming here that stories with more votes are viewed more
-                let story = sampler.story_for_vote(&mut rng) as u64;
-                res = queriers::stories::read_story(&mut db, user, story).unwrap();
-            } else if pick(30105) {
-                res = queriers::frontpage::query_frontpage(&mut db, user).unwrap();
-            } else if pick(6702) {
-                // XXX: we're assuming that users who vote a lot are also "popular"
-                queriers::user::get_profile(&mut db, user_id).unwrap();
-            } else if pick(4674) {
-                queriers::comment::get_comments(&mut db, user).unwrap();
-            } else if pick(967) {
-                queriers::recent::recent(&mut db, user).unwrap();
-            } else if pick(630) {
-                let comment = sampler.comment_for_vote(&mut rng);
-                queriers::vote::vote_on_comment(&mut db, user, comment as u64, true).unwrap();
-            } else if pick(475) {
-                let story = sampler.story_for_vote(&mut rng);
-                queriers::vote::vote_on_story(&mut db, user, story as u64, true).unwrap();
-            } else if pick(316) {
-                // comments without a parent
-                let id = rng.gen_range(ncomments, max_id);
-                let story = sampler.story_for_comment(&mut rng);
-                queriers::comment::post_comment(&mut db, user, id as u64, story as u64, None)
-                    .unwrap();
-            } else if pick(87) {
-                queriers::user::login(&mut db, user_id).unwrap();
-            } else if pick(71) {
-                // comments with a parent
-                let id = rng.gen_range(ncomments, max_id);
-                let story = sampler.story_for_comment(&mut rng);
-                // we need to pick a comment that's on the chosen story
-                // we know that every nth comment from prepopulation is to the same story
-                let comments_per_story = ncomments / nstories;
-                let parent = story + nstories * rng.gen_range(0, comments_per_story);
-                queriers::comment::post_comment(
-                    &mut db,
-                    user,
-                    id.into(),
-                    story as u64,
-                    Some(parent as u64),
-                )
-                .unwrap();
-            } else if pick(54) {
-                let comment = sampler.comment_for_vote(&mut rng);
-                queriers::vote::vote_on_comment(&mut db, user, comment as u64, false).unwrap();
-            } else if pick(53) {
-                let id = rng.gen_range(nstories, max_id);
-                queriers::stories::post_story(
-                    &mut db,
-                    user,
-                    id as u64,
-                    format!("benchmark {}", id),
-                )
-                .unwrap();
-            } else {
-                let story = sampler.story_for_vote(&mut rng);
-                queriers::vote::vote_on_story(&mut db, user, story as u64, false).unwrap();
-            }
-            res.sort();
-            warn!("Query {}, user{}, {}\n", i, user_id, res.join(" "));
-            file.write(format!("Query {}, user{}, {}\n", i, user_id, res.join(" ")).as_bytes())
-                .unwrap();
+            let story = sampler.story_for_vote(&mut rng);
+            queriers::vote::vote_on_story(&mut db, user, story as u64, false).unwrap();
         }
+        res.sort();
+        warn!("Query {}, user{}, {}\n", i, user_id, res.join(" "));
+        file.write(format!("Query {}, user{}, {}\n", i, user_id, res.join(" ")).as_bytes())
+            .unwrap();
     }
     println!(
-        "Lobsters: Time to do {} queries ({}/{} un/resubs): {}s",
+        "Lobsters: Time to do {} queries: {}s",
         nqueries,
-        nunsub,
-        nresub,
         start.elapsed().as_secs()
     );
 
@@ -304,7 +281,6 @@ fn main() {
     let nqueries = args.nqueries;
     let scale = args.scale;
     let prime = args.prime;
-    let prop_unsub = args.prop_unsub;
     let is_baseline = args.is_baseline;
     let sampler = datagen::Sampler::new(scale);
 
@@ -338,7 +314,6 @@ fn main() {
     /*run_test(
         &mut edna,
         nqueries,
-        prop_unsub,
         is_baseline,
         &user2decryptcap,
         &sampler,

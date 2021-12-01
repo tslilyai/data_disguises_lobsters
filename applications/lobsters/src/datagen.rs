@@ -79,6 +79,7 @@ pub fn gen_data(sampler: &Sampler, db: &mut mysql::PooledConn) -> (u32, u32) {
     let nstories = sampler.nstories();
     let mut rng = rand::thread_rng();
     println!("Generating {} stories, {} comments, {} users", nstories, sampler.ncomments(), sampler.nusers());
+    db.query_drop("INSERT INTO `tags` (`tag`) VALUES ('test');").unwrap();
 
     let mut users = vec![];
     for uid in 0..sampler.nusers() {

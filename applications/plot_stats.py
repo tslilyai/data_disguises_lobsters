@@ -14,7 +14,7 @@ X = np.arange(5)
 labels = ['Create Account', 'Edit Data', 'Delete Account', 'Restore Account', 'Anonymize Account']
 
 # WEBSUBMIT RESULTS
-for (i, ax) in enumerate(axes_flat):
+for (i, ax) in enumerate(axes_flat[:2]):
     account_results = 0
     anon_results = 0
     edit_results = 0
@@ -89,6 +89,54 @@ for (i, ax) in enumerate(axes_flat):
     ax.set_yscale('log')
     ax.set_xticklabels(labels)
     ax.legend(loc='best');
+
+# LOBSTERS
+X = np.arange(5)
+labels = ['Create Account', 'Delete Account', 'Decay Account', 'Restore Deleted Account', 'Restore Decayed Account']
+
+account_results = []
+delete_results = []
+restore_results = []
+decay_results = []
+undecay_results = []
+account_results_baseline = []
+delete_results_baseline = []
+
+filename = "lobsters_stats.csv"
+title = "Lobsters Operation Latencies"
+with open(filename,'r') as csvfile:
+    rows = csvfile.readlines()
+    for r in rows:
+        vals = [int(x.strip()/1000) for x in r.split(",")]
+        ndata = vals[1]
+        create_baseline = vals[2]
+        create_edna = vals[3]
+        decay = vals[4]
+        undecay = vals[5]
+        delete = vals[6]
+        restore = vals[7]
+        delete_baseline = vals[8]
+
+        account_results.push(create_edna);
+        account_results_baseline.push(create_baseline);
+        delete_results.push(delete/float(ndata))
+        delete_results_baseline.push(delete_baseline/float(ndata))
+        restore_results.push(restore/float(ndata))
+        decay_results.push(decay/float(ndata))
+        undecay_results.push(undecay/float(ndata))
+
+ax = axes_flat[2]
+ax.bar(X-barwidth/2, [account_results_baseline, delete_results_baseline, delete_results_baseline, 0, 0], color='g', width=barwidth, label="No Edna")
+ax.bar(X+barwidth/2, [account_results, delete_results, decay_results, restore_results, undecay_results], color='b', width=barwidth, label="Edna")
+
+ax.set_title(title)
+ax.set_ylabel('Time (ms)')
+ax.set_ylim(ymin=0.01)
+ax.set_xticks(X)
+ax.set_yscale('log')
+ax.set_xticklabels(labels)
+ax.legend(loc='best');
+
 
 fig.tight_layout(h_pad=4)
 plt.savefig('client_op_stats.pdf', dpi=300)

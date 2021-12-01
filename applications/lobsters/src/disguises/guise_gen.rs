@@ -15,7 +15,7 @@ pub fn get_insert_guise_cols() -> Vec<String> {
 
 pub fn get_insert_guise_vals() -> Vec<Expr> {
     let mut rng = rand::thread_rng();
-    let gid: u64 = rng.gen::<u64>();
+    let gid: i32 = rng.gen::<i32>();
     let username: String = format!("anon{}", gid);
     vec![
         Expr::Value(Value::Number(gid.to_string())),
