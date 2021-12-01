@@ -3,7 +3,7 @@
 %-------------------------------------------------------------------------------
 
 \subsection{Secure Disguise Tokens Design} 
-Applications save disguise metadata in the form of tokens: ownership tokens \town{pd} save information linking
+Applications save disguise metadata in the form of tokens: speaks-for tokens \town{pd} save information linking
 principals to anonymous pseudoprincipals, and diff tokens \tdiff{pd} save information about modifications
 performed during the disguise. 
 We discuss here how the \sys securely stores tokens produced by applications upon disguising, and
@@ -96,11 +96,11 @@ the application provides via the appropriate capabilities).
 by the original user; and 
 %
 \sys can support the API discussed in \S\ref{s:api}, which allows applications to query \sys to
-check ownership properties and grant authorized users personalized views and permissions to access
+check speaks-for relationships and grant authorized users personalized views and permissions to access
 data objects.
 
 Furthermore, \sys does this while meeting all security goals: \sys supports authorized disguises and
-ensures the security of ownership claims, disguise diffs, and disguise history.
+ensures the security of speaks-for claims, disguise diffs, and disguise history.
 
 Our current design falls short, however, by failing to support ``Disguising Anonymized
 Users'' which we explain next.
