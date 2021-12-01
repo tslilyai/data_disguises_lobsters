@@ -1,24 +1,68 @@
 %-------------------------------------------------------------------------------
-\section{Design} 
+\section{Design}
 %-------------------------------------------------------------------------------
 
-\subsection{Secure Disguise Tokens Design} 
+\ms{dumped here}
+
+\sys enables HotCRP to support the following features:
+\begin{itemize}
+    \item\emph{1st-Party GDPR-Compliant Disguising:}
+HotCRP supports user-invoked disguise(s) to modify, decorrelate and/or delete the user's data and
+account, meeting the requirements of the GDPR's right to be forgotten.
+
+    \item \emph{1st-Party Disguised Data Restoration}: HotCRP users who invoke GDPR deletion are given the
+        option to return by revealing their disguise; however, between disguising and revealing
+        their account, no other entity learns the identity or existence of the user (ensuring that
+        the disguise complies with the GDPR).
+
+    \item\emph{3rd-Party Disguising.}
+\sys supports disguises applied by users (such as an admin) that transform data of other users in the system. For example, universal conference anonymization or
+    comment removal alters data not associated with the invoking admin.
+
+\item \emph{Data Decay}: After several years, the admin can decay identifiers in the conference data
+    by decorrelating all users from their authored reviews and papers.  This helps protect reviewers
+        and paper authors from being unblinded in the case of a data breach.
+
+\item \emph{Temporary Recorrelation with Anonymized Data}:
+Even after universal decorrelation, HotCRP allows users to apply GDPR account
+deletion to delete even their decorrelated papers and reviews that they wrote.
+%
+
+%
+Furthermore, HotCRP users can also view reviews on their papers, or edit their reviews, even if
+        these papers and reviews have been decorrelated and belong to anonymous users.  HotCRP users
+        interact with a personalized, temporary database view when they visit their decorrelated
+        data.
+
+Data disguising enables temporary recorrelation to support these use cases \emph{without} changing
+        the database contents and revealing to other users of the system
+which actual user authored these anonymized papers and reviews.
+
+\item \emph{Further Disguising of Anonymized Users' Data}: A disguise such as universal comment
+        removal can be applied after universal decorrelation, even though it now applies to data of anonymous users.
+This allows disguises to be developed over time, and to remove identifying data potentially mistakenly missed by prior
+disguises, but which now belongs to anonymous users.
+\end{itemize}
+
+\ms{end dump}
+
+\subsection{Secure Disguise Tokens Design}
 Applications save disguise metadata in the form of tokens: speaks-for tokens \town{pd} save information linking
 principals to anonymous pseudoprincipals, and diff tokens \tdiff{pd} save information about modifications
-performed during the disguise. 
+performed during the disguise.
 We discuss here how the \sys securely stores tokens produced by applications upon disguising, and
 how \sys allows applications to efficiently and securely retrieve these tokens.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Token Wrappers.}
-In order to generically handle token data, \sys stores all tokens in token wrappers. 
+In order to generically handle token data, \sys stores all tokens in token wrappers.
 Wrappers store the bytes of the token \tdiff{pd} or \town{pd} (provided
 by the application), a correlated principal ID $p$, and the disguise ID $d$ of the disguise producing the
 token. In addition, \sys includes a random nonce in the token wrapper to prevent known plaintext
 attacks.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Securing Token Access.} 
+\head{Securing Token Access.}
 When a new principal $p$ is created, \sys produces a private-public keypair, and returns \privk{p} to
 the application (which then sends it to the appropriate client). \sys stores \pubk{p} associated
 with principal ID $p$.
@@ -30,7 +74,7 @@ with \pubk{p}. Only a client holding the private key \privk{p}---the decryption
 capability---can access these tokens.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Securing Disguise History.} 
+\head{Securing Disguise History.}
 \sys should not leak information that $d$ disguised principal $p$ if $p$ interacts with the system
 to reveal or otherwise access disguised data. In particular, \sys should avoid an adversary learning
 that encrypted tokens exist for a particular $p$ and $d$, since this allows the adversary to deduce
@@ -50,7 +94,7 @@ information, and the application should ensure that locators are stored external
 server (\eg by emailing them to the corresponding users).
 
 Note that with this design, an adversary without access to \lcapa{pd} can learn that $n$ diffs exist
-for \emph{some} $p$ and $d$, but cannot identify \emph{which} $p$ or $d$. 
+for \emph{some} $p$ and $d$, but cannot identify \emph{which} $p$ or $d$.
 %
 Furthermore, an adversary with access to decryption capability \privk{p} would not need locators to
 discover $p$'s disguise history: they can decrypt every token in every bag to see which bags they
@@ -93,7 +137,7 @@ the original owner of data as long as \sys has access to decorrelation diffs (wh
 the application provides via the appropriate capabilities).
 %
 \sys can use information from decorrelation diffs to disguise decorrelated data as if it were owned
-by the original user; and 
+by the original user; and
 %
 \sys can support the API discussed in \S\ref{s:api}, which allows applications to query \sys to
 check speaks-for relationships and grant authorized users personalized views and permissions to access
