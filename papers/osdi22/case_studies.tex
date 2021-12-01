@@ -16,7 +16,7 @@ endpoints) when disguise actions are performed.
 We integrated the Lobsters~\cite{lobsters} link-sharing and discussion
 application with \sys to explore data disguises in another class of web applications.
 
-\sys-Lobsters supports two disguises: GDPR-compliant account deletion, and automatic data decay.
+\sys-Lobsters supports two disguises: GDPR-compliant account deletion, and automatic data decay, and uses the high-level \sys API to specify, apply, and reveal both disguises.
 
 GDPR-compliant account deletion 
 %
@@ -62,6 +62,7 @@ restored data.
 \subsection{HotCRP}
 We implement two disguises on top of the HotCRP schema: a universal conference anonymization disguise, and a
 GDPR-compliant account deletion disguise.
+\sys-HotCRP uses the high-level \sys API to specify, apply, and reveal both disguises.
 
 Universal conference anonymization decorrelates users from their submissions, reviews, and comments,
 as well as data such as paper watches and review ratings. User accounts remain in the database, but
