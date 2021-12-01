@@ -1,14 +1,9 @@
 use edna::EdnaClient;
 use rocket::serde::{json::Json, Deserialize};
 use rocket::State;
-use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
+use rsa::pkcs1::ToRsaPrivateKey;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-
-#[derive(Deserialize)]
-pub struct RegisterPrincipal {
-    uid: edna::UID,
-}
 
 #[derive(Serialize)]
 pub struct RegisterPrincipalResponse {
@@ -18,11 +13,11 @@ pub struct RegisterPrincipalResponse {
 
 #[post("/register_principal", format = "json", data = "<data>")]
 pub(crate) fn register_principal(
-    data: Json<RegisterPrincipal>,
+    data: Json<edna::UID>,
     edna: &State<Arc<Mutex<EdnaClient>>>,
 ) -> Json<RegisterPrincipalResponse> {
     let mut e = edna.lock().unwrap();
-    let privkey = e.register_principal(data.uid.to_owned());
+    let privkey = e.register_principal(data.to_owned());
     let privkey_str = base64::encode(&privkey.to_pkcs1_der().unwrap().as_der().to_vec());
     return Json(RegisterPrincipalResponse {
         privkey: privkey_str,
