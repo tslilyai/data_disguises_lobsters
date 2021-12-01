@@ -7,11 +7,11 @@ from textwrap import wrap
 
 plt.style.use('seaborn-deep')
 
-def add_labels(x,y,ax,color):
+def add_labels(x,y,ax,color,offset):
     for i in range(len(x)):
-        ax.text(x[i], y[i], "{0:.1f}".format(y[i]), ha='center', color=color)
+        ax.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color)
 
-fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(8,15))
+fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(8,12))
 axes_flat = axes.flatten()
 barwidth = 0.25
 # positions
@@ -20,27 +20,29 @@ labels = ['Create Account', 'Edit Data', 'Delete Account', 'Restore Account', 'A
 
 # WEBSUBMIT RESULTS
 for (i, ax) in enumerate(axes_flat[:2]):
-    account_results = 0
-    anon_results = 0
-    edit_results = 0
-    delete_results = 0
-    restore_results = 0
-    edit_results_noanon = 0
-    delete_results_noanon = 0
-    restore_results_noanon = 0
+    account_durs = []
+    anon_durs = []
+    edit_durs = []
+    delete_durs = []
+    restore_durs = []
+    edit_durs_noanon = []
+    delete_durs_noanon = []
+    restore_durs_noanon = []
 
-    account_results_baseline = 0
-    anon_results_baseline = 0
-    edit_results_baseline = 0
-    delete_results_baseline = 0
+    account_durs_baseline = []
+    anon_durs_baseline = []
+    edit_durs_baseline = []
+    delete_durs_baseline = []
 
     filename = "hotcrp_disguise_stats_450users.csv"
     filename_baseline = "hotcrp_disguise_stats_450users_baseline.csv"
-    title = "HotCRP Operation Latencies"
+    title = "HotCRP Reviewer Operation Latencies"
+    offset = 50
     if i == 0:
         filename = 'websubmit_{}lec_{}users_stats.csv'.format(20, 100)
         filename_baseline = 'websubmit_{}lec_{}users_baseline_stats.csv'.format(20, 100)
         title = "WebSubmit Operation Latencies"
+        offset = 10
     with open(filename,'r') as csvfile:
         rows = csvfile.readlines()
         account_durs = [int(x)/1000 for x in rows[0].strip().split(',')]
@@ -52,59 +54,69 @@ for (i, ax) in enumerate(axes_flat[:2]):
         delete_durs_noanon = [float(x)/1000 for x in rows[6].strip().split(',')]
         restore_durs_noanon = [float(x)/1000 for x in rows[7].strip().split(',')]
 
-        account_results = statistics.mean(account_durs)
-        anon_results = statistics.mean(anon_durs)
-        edit_results=statistics.mean(edit_durs)
-        delete_results=statistics.mean(delete_durs)
-        restore_results=statistics.mean(restore_durs)
-        edit_results_noanon=statistics.mean(edit_durs_noanon)
-        delete_results_noanon=statistics.mean(delete_durs_noanon)
-        restore_results_noanon=statistics.mean(restore_durs_noanon)
-
     with open(filename_baseline,'r') as csvfile:
         rows = csvfile.readlines()
-        account_durs = [int(x)/1000 for x in rows[0].strip().split(',')]
-        anon_durs = [int(x)/1000/100 for x in rows[1].strip().split(',')]
-        edit_durs = [float(x)/1000 for x in rows[2].strip().split(',')]
-        delete_durs = [float(x)/1000 for x in rows[3].strip().split(',')]
-
-        account_results_baseline=statistics.mean(account_durs)
-        anon_results_baseline=statistics.mean(anon_durs)
-        edit_results_baseline=statistics.mean(edit_durs)
-        delete_results_baseline=statistics.mean(delete_durs)
+        account_durs_baseline = [int(x)/1000 for x in rows[0].strip().split(',')]
+        anon_durs_baseline = [int(x)/1000/100 for x in rows[1].strip().split(',')]
+        edit_durs_baseline = [float(x)/1000 for x in rows[2].strip().split(',')]
+        delete_durs_baseline = [float(x)/1000 for x in rows[3].strip().split(',')]
 
     # add baseline closer to red line for anonymize
-    ax.bar(X-barwidth, [account_results_baseline, edit_results_baseline, delete_results_baseline, 0,
-        0], color='g', width=barwidth, label="No Edna")
-    add_labels((X-barwidth)[:3], [account_results_baseline, edit_results_baseline,
-        delete_results_baseline], ax, 'g')
-    ax.bar(X-barwidth/2, [0, 0, 0, 0, anon_results_baseline], color='g', width=barwidth)
-    add_labels((X-barwidth/2)[4:], [anon_results_baseline], ax, 'g')
+    ax.bar((X-barwidth/2)[:1],
+            [statistics.mean(account_durs_baseline)],
+            yerr= [[0], [statistics.mean(account_durs_baseline) + statistics.stdev(account_durs_baseline)]],
+            color='g', capsize=5, width=barwidth)
+    add_labels((X-barwidth/2)[:1], [statistics.mean(account_durs_baseline)], ax, 'g', offset)
+
+    ax.bar((X-barwidth)[1:2], [statistics.mean(edit_durs_baseline)],
+            yerr= [[0], [statistics.mean(edit_durs_baseline) + statistics.stdev(edit_durs_baseline)]],
+            color='g', capsize=5, width=barwidth, label="Manual Privacy Transformation (No Edna)")
+    add_labels((X-barwidth)[1:2], [statistics.mean(edit_durs_baseline)], ax, 'g', offset)
+
+    ax.bar((X-barwidth/2)[2:3], [statistics.mean(delete_durs_baseline)],
+            yerr= [[0], [statistics.mean(delete_durs_baseline) + statistics.stdev(delete_durs_baseline)]],
+            color='g', capsize=5, width=barwidth)
+    add_labels((X-barwidth/2)[2:3], [statistics.mean(delete_durs_baseline)], ax, 'g', offset)
+
+    ax.bar((X-barwidth/2)[4:], [statistics.mean(anon_durs_baseline)],  color='g', capsize=5, width=barwidth)
+    add_labels((X-barwidth/2)[4:], [statistics.mean(anon_durs_baseline)], ax, 'g', offset)
+
 
     # edna
-    ax.bar(X, [account_results, edit_results_noanon, delete_results_noanon, 0, 0],
-            color='b', width=barwidth, label="Edna")
-    add_labels(X[:3], [account_results,edit_results_noanon,delete_results_noanon], ax, 'b')
-    ax.bar(X-barwidth/2, [0, 0, 0, restore_results_noanon, 0], color='b', width=barwidth)
-    add_labels((X-barwidth/2)[3:4], [restore_results_noanon], ax, 'b')
-    ax.bar(X+barwidth/2, [0, 0, 0, 0, anon_results], color='b', width=barwidth)
-    add_labels((X+barwidth/2)[4:], [anon_results], ax, 'b')
+    ax.bar((X+barwidth/2)[:1], [statistics.mean(account_durs)],
+            yerr= [[0], [statistics.mean(account_durs) + statistics.stdev(account_durs)]],
+            color='m', capsize=5, width=barwidth)
+    add_labels((X+barwidth/2)[:1], [statistics.mean(account_durs)], ax, 'm', offset)
 
-    # temp recorrelation
-    ax.bar(X+barwidth, [account_results, edit_results, delete_results, 0, 0],
-            color='r', width=barwidth, label="Edna + Temporary Recorrelation")
-    add_labels((X+barwidth)[:3], [account_results, edit_results, delete_results], ax, 'r')
+    ax.bar((X)[1:2], [statistics.mean(edit_durs_noanon)],
+            yerr= [[0], [statistics.mean(edit_durs_noanon) + statistics.stdev(edit_durs_noanon)]],
+            color='m', capsize=5, width=barwidth, label="Edna")
+    add_labels((X)[1:2], [statistics.mean(edit_durs_noanon)], ax, 'm', offset)
 
-    ax.bar(X+barwidth/2, [0, 0, 0, restore_results, 0], color='r', width=barwidth)
-    add_labels((X+barwidth/2)[3:4], [restore_results], ax, 'r')
+    ax.bar((X+barwidth/2)[2:3], [statistics.mean(delete_durs_noanon)],
+            yerr= [[0], [statistics.mean(delete_durs_noanon) + statistics.stdev(delete_durs_noanon)]],
+            color='m', capsize=5, width=barwidth)
+    add_labels((X+barwidth/2)[2:3], [statistics.mean(delete_durs_noanon)], ax, 'm', offset)
+
+    ax.bar((X)[3:4], [statistics.mean(restore_durs)],
+            yerr= [[0], [statistics.mean(restore_durs) + statistics.stdev(restore_durs)]],
+            color='m', capsize=5, width=barwidth)
+    add_labels((X)[3:4], [statistics.mean(restore_durs)], ax, 'm', offset)
+
+    ax.bar((X+barwidth/2)[4:], [statistics.mean(anon_durs)],  color='m', capsize=5, width=barwidth)
+    add_labels((X+barwidth/2)[4:], [statistics.mean(anon_durs)], ax, 'm', offset)
+
+    # edna with temp recorrelation
+    ax.bar((X+barwidth)[1:2], [statistics.mean(edit_durs)],
+            yerr= [[0], [statistics.mean(edit_durs) + statistics.stdev(edit_durs)]],
+            color='y', capsize=5, width=barwidth, label="Edna After Anonymization")
+    add_labels((X+barwidth)[1:2], [statistics.mean(edit_durs)], ax, 'y', offset)
 
     ax.set_title(title)
     ax.set_ylabel('Time (ms)')
-    ax.set_ylim(ymin=0)
+    ax.set_ylim(ymin=0, ymax=(statistics.mean(restore_durs)+statistics.stdev(restore_durs))*2)
     ax.set_xticks(X)
-    #ax.set_yscale('log')
     ax.set_xticklabels(labels)
-    ax.legend(loc='best');
 
 # LOBSTERS
 xs = []
@@ -118,15 +130,6 @@ delete_results_all_baseline = []
 xs_decay = []
 decay_results_all_baseline = []
 
-account_results_per = []
-delete_results_per = []
-restore_results_per = []
-decay_results_per = []
-undecay_results_per = []
-account_results_per_baseline = []
-delete_results_per_baseline = []
-decay_results_per_baseline = []
-
 with open('lobster_decay_baseline.csv','r') as csvfile:
     rows = csvfile.readlines()[1:]
     for r in rows:
@@ -135,8 +138,6 @@ with open('lobster_decay_baseline.csv','r') as csvfile:
         decay_baseline = vals[2]/1000
         xs_decay.append(ndata)
         decay_results_all_baseline.append(decay_baseline)
-        if ndata > 0:
-            decay_results_per_baseline.append(decay_baseline/ndata)
 
 filename = "lobsters_stats.csv"
 with open(filename,'r') as csvfile:
@@ -162,78 +163,73 @@ with open(filename,'r') as csvfile:
         decay_results_all.append(decay)
         undecay_results_all.append(undecay)
 
-        if ndata > 0:
-            account_results_per.append(create_edna);
-            account_results_per_baseline.append(create_baseline);
-            delete_results_per.append(delete/ndata)
-            delete_results_per_baseline.append(delete_baseline/ndata)
-            restore_results_per.append(restore/ndata)
-            decay_results_per.append(decay/ndata)
-            undecay_results_per.append(undecay/ndata)
-
-
 X = np.arange(5)
 labels = ['Create Account',
-        'Delete Story/\nComment',
-        'Decay Story/\nComment',
-        'Restore Deleted\nStory/Comment',
-        'Restore Decayed\nStory/Comment']
-ax = axes_flat[3]
-ax.plot(xs, delete_results_all_baseline, color='g', linestyle="--", label="Delete/Decay Account, No Edna")
-ax.plot(xs, delete_results_all, color='b', label="Delete Account, Edna")
-#ax.plot(xs_decay, decay_results_all_baseline, color='r', linestyle="--", label="Decay, No Edna")
-ax.plot(xs, decay_results_all, color='r', label="Decay Account, Edna")
-ax.plot(xs, restore_results_all, color='b', linestyle=':', label="Restore Deleted Account, Edna")
-ax.plot(xs, undecay_results_all, color='r', linestyle=':', label="Restore Decayed Account, Edna")
-title = "Lobsters Operation Latencies vs. Amount of User Data"
-ax.set_title(title)
-ax.set_ylabel('Time (ms)')
-ax.set_ylim(ymin=0)
-ax.set_xlabel('Number of User-Owned Stories and Comments')
-ax.legend(loc='best');
-
+        'Delete Account',
+        'Decay Account',
+        'Restore Deleted\nAccount',
+        'Restore Decayed\nAccount']
 ax = axes_flat[2]
-ax.bar(X-barwidth/2, [
-    statistics.mean(account_results_per_baseline),
-    statistics.mean(delete_results_per_baseline),
-    statistics.mean(decay_results_per_baseline),
-    0,
-    0],
+ax.bar((X-barwidth/2)[:3], [
+        statistics.mean(account_results_all_baseline),
+        statistics.mean(delete_results_all_baseline),
+        statistics.mean(decay_results_all_baseline),
+    ],
+    yerr= [
+        [0,0,0],
+        [statistics.mean(account_results_all_baseline) + statistics.stdev(account_results_all_baseline),
+            statistics.mean(delete_results_all_baseline) + statistics.stdev(delete_results_all_baseline),
+            statistics.mean(decay_results_all_baseline) + statistics.stdev(decay_results_all_baseline)],
+    ],
+    capsize=5,
     color='g', width=barwidth, label="No Edna")
 add_labels((X-barwidth/2)[:3], [
-       statistics.mean(account_results_per_baseline),
-       statistics.mean(delete_results_per_baseline),
-       statistics.mean(decay_results_per_baseline),
-   ], ax, 'g')
-
-ax.bar(X+barwidth/2, [
-    statistics.mean(account_results_per),
-    statistics.mean(delete_results_per),
-    statistics.mean(decay_results_per),
-    0,
-    0], color='b', width=barwidth, label="Edna")
-ax.bar(X, [
-    0,
-    0,
-    0,
-    statistics.mean(restore_results_per),
-    statistics.mean(undecay_results_per)], color='b', width=barwidth)
+       statistics.mean(account_results_all_baseline),
+       statistics.mean(delete_results_all_baseline),
+       statistics.mean(decay_results_all_baseline),
+   ], ax, 'g', 50)
+ax.bar((X+barwidth/2)[:3], [
+        statistics.mean(account_results_all),
+        statistics.mean(delete_results_all),
+        statistics.mean(decay_results_all)
+    ],
+    yerr = [
+        [0,0,0],
+        [statistics.mean(account_results_all) + statistics.stdev(account_results_all),
+            statistics.mean(delete_results_all) + statistics.stdev(delete_results_all),
+            statistics.mean(decay_results_all) + statistics.stdev(decay_results_all)],
+    ],
+    capsize=5,
+    color='m', width=barwidth, label="Edna")
 add_labels((X+barwidth/2)[:3], [
-    statistics.mean(account_results_per),
-    statistics.mean(delete_results_per),
-    statistics.mean(decay_results_per),
-    ], ax, 'b')
-add_labels(X[3:], [
-     statistics.mean(restore_results_per),
-    statistics.mean(undecay_results_per)], ax, 'b')
+        statistics.mean(account_results_all),
+        statistics.mean(delete_results_all),
+        statistics.mean(decay_results_all),
+    ], ax, 'm', 50)
 
-title = "Fine-Grained Lobsters Operation Latencies"
+ax.bar(X[3:], [
+        statistics.mean(restore_results_all),
+        statistics.mean(undecay_results_all)
+    ],
+    yerr = [
+        [0, 0],
+        [statistics.mean(restore_results_all) + statistics.stdev(restore_results_all),
+            statistics.mean(undecay_results_all) + statistics.stdev(undecay_results_all)
+    ]],
+    capsize=5, color='m', width=barwidth)
+add_labels(X[3:], [
+     statistics.mean(restore_results_all),
+     statistics.mean(undecay_results_all)], ax, 'm', 50)
+
+title = "Lobsters Operation Latencies"
 ax.set_title(title)
 ax.set_ylabel('Time (ms)')
-ax.set_ylim(ymin=0)
+ax.set_ylim(ymin=0,ymax=(statistics.mean(restore_results_all)+statistics.stdev(restore_results_all))*1.5)
 ax.set_xticks(X)
 ax.set_xticklabels(labels)
-ax.legend(loc='best');
+
+# one legend per everything
+axes_flat[0].legend(loc='upper left');
 
 fig.tight_layout(h_pad=4)
 plt.savefig('client_op_stats.pdf', dpi=300)
