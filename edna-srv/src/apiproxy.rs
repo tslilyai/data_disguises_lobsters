@@ -49,9 +49,22 @@ pub(crate) fn end_disguise(
     });
 }
 
-#[post("/get_pseudoprincipals_of")]
-pub(crate) fn get_pseudoprincipals_of(edna: &State<Arc<Mutex<EdnaClient>>>) {
-    unimplemented!()
+#[derive(Deserialize)]
+pub struct GetPseudoprincipals {
+    decrypt_cap: edna::tokens::DecryptCap,
+    ownership_locators: Vec<edna::tokens::LocCap>,
+}
+
+#[post("/get_pseudoprincipals_of", format = "json", data = "<data>")]
+pub(crate) fn get_pseudoprincipals_of(
+    data: Json<GetPseudoprincipals>,
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) -> Json<Vec<edna::UID>> {
+    let e = edna.lock().unwrap();
+    // TODO(malte): cloning here because get_pseudoprincipals expects owned caps; may be fine to
+    // use refs in the Edna API here?
+    let pps = e.get_pseudoprincipals(data.decrypt_cap.clone(), data.ownership_locators.clone());
+    return Json(pps);
 }
 
 #[post("/get_tokens_of_disguise")]
