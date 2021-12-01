@@ -1,13 +1,9 @@
 use edna::EdnaClient;
 use rocket::serde::{json::Json, Deserialize};
 use rocket::State;
-use rsa::{pkcs1::ToRsaPrivateKey, RsaPrivateKey};
+use rsa::pkcs1::ToRsaPrivateKey;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-
-#[derive(Deserialize)]
-pub struct RegisterPrincipal {
-    uid: edna::UID,
-}
 
 #[derive(Serialize)]
 pub struct RegisterPrincipalResponse {
@@ -17,49 +13,147 @@ pub struct RegisterPrincipalResponse {
 
 #[post("/register_principal", format = "json", data = "<data>")]
 pub(crate) fn register_principal(
-    data: Json<RegisterPrincipal>,
+    data: Json<edna::UID>,
     edna: &State<Arc<Mutex<EdnaClient>>>,
 ) -> Json<RegisterPrincipalResponse> {
     let mut e = edna.lock().unwrap();
-    let privkey = e.register_principal(data.uid.to_owned());
+    let privkey = e.register_principal(data.to_owned());
     let privkey_str = base64::encode(&privkey.to_pkcs1_der().unwrap().as_der().to_vec());
     return Json(RegisterPrincipalResponse {
         privkey: privkey_str,
     });
 }
 
-#[post("/start_disguise", format = "json", data = "<data>")]
-pub(crate) fn start_disguise(data: Json<edna::DID>, edna: &State<Arc<Mutex<EdnaClient>>>) {
+#[get("/start_disguise/<did>")]
+pub(crate) fn start_disguise(did: edna::DID, edna: &State<Arc<Mutex<EdnaClient>>>) {
     let e = edna.lock().unwrap();
-    e.start_disguise(*data)
+    e.start_disguise(did)
 }
 
-#[post("/end_disguise")]
-pub(crate) fn end_disguise(edna: &State<Arc<Mutex<EdnaClient>>>) {
-    unimplemented!()
+#[derive(Serialize)]
+pub struct EndDisguiseResponse {
+    diff_locators: HashMap<(edna::UID, edna::DID), edna::tokens::LocCap>,
+    ownership_locators: HashMap<(edna::UID, edna::DID), edna::tokens::LocCap>,
 }
 
-#[post("/get_pseudoprincipals_of")]
-pub(crate) fn get_pseudoprincipals_of(edna: &State<Arc<Mutex<EdnaClient>>>) {
-    unimplemented!()
+#[get("/end_disguise/<did>")]
+pub(crate) fn end_disguise(
+    did: edna::DID,
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) -> Json<EndDisguiseResponse> {
+    let e = edna.lock().unwrap();
+    let locators = e.end_disguise(did);
+    return Json(EndDisguiseResponse {
+        diff_locators: locators.0,
+        ownership_locators: locators.1,
+    });
 }
 
-#[post("/get_tokens_of_disguise")]
-pub(crate) fn get_tokens_of_disguise(edna: &State<Arc<Mutex<EdnaClient>>>) {
-    unimplemented!()
+#[derive(Deserialize)]
+pub struct GetPseudoprincipals {
+    decrypt_cap: edna::tokens::DecryptCap,
+    ownership_locators: Vec<edna::tokens::LocCap>,
 }
 
-#[post("/create_pseudoprincipal")]
-pub(crate) fn create_pseudoprincipal(edna: &State<Arc<Mutex<EdnaClient>>>) {
-    unimplemented!()
+#[post("/get_pseudoprincipals_of", format = "json", data = "<data>")]
+pub(crate) fn get_pseudoprincipals_of(
+    data: Json<GetPseudoprincipals>,
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) -> Json<Vec<edna::UID>> {
+    let e = edna.lock().unwrap();
+    // TODO(malte): cloning here because get_pseudoprincipals expects owned caps; may be fine to
+    // use refs in the Edna API here?
+    let pps = e.get_pseudoprincipals(data.decrypt_cap.clone(), data.ownership_locators.clone());
+    return Json(pps);
 }
 
-#[post("/save_pseudoprincipal_token")]
-pub(crate) fn save_pseudoprincipal_token(edna: &State<Arc<Mutex<EdnaClient>>>) {
-    unimplemented!()
+#[derive(Deserialize)]
+pub struct GetTokensOfDisguise {
+    did: edna::DID,
+    decrypt_cap: edna::tokens::DecryptCap,
+    diff_locators: Vec<edna::tokens::LocCap>,
+    ownership_locators: Vec<edna::tokens::LocCap>,
 }
 
-#[post("/save_diff_token")]
-pub(crate) fn save_diff_token(edna: &State<Arc<Mutex<EdnaClient>>>) {
-    unimplemented!()
+#[derive(Serialize)]
+pub struct GetTokensOfDisguiseResponse {
+    diff_tokens: Vec<Vec<u8>>,
+    ownership_tokens: Vec<Vec<u8>>,
+}
+
+#[post("/get_tokens_of_disguise", format = "json", data = "<data>")]
+pub(crate) fn get_tokens_of_disguise(
+    data: Json<GetTokensOfDisguise>,
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) -> Json<GetTokensOfDisguiseResponse> {
+    let e = edna.lock().unwrap();
+    let tokens = e.get_tokens_of_disguise(
+        data.did,
+        data.decrypt_cap.clone(),
+        data.diff_locators.clone(),
+        data.ownership_locators.clone(),
+    );
+    return Json(GetTokensOfDisguiseResponse {
+        diff_tokens: tokens.0,
+        ownership_tokens: tokens.1,
+    });
+}
+
+#[derive(Serialize)]
+pub struct CreatePseudoprincipalResponse {
+    uid: edna::UID,
+    row: Vec<edna::RowVal>,
+}
+
+#[get("/create_pseudoprincipal")]
+pub(crate) fn create_pseudoprincipal(
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) -> Json<CreatePseudoprincipalResponse> {
+    let mut e = edna.lock().unwrap();
+    let pp = e.create_new_pseudoprincipal();
+    return Json(CreatePseudoprincipalResponse {
+        uid: pp.0,
+        row: pp.1,
+    });
+}
+
+#[derive(Deserialize)]
+pub struct SavePseudoprincipalToken {
+    did: edna::DID,
+    old_uid: edna::UID,
+    new_uid: edna::UID,
+    token_bytes: Vec<u8>,
+}
+
+#[post("/save_pseudoprincipal_token", format = "json", data = "<data>")]
+pub(crate) fn save_pseudoprincipal_token(
+    data: Json<SavePseudoprincipalToken>,
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) {
+    let e = edna.lock().unwrap();
+    e.save_pseudoprincipal_token(
+        data.did.clone(),
+        data.old_uid.clone(),
+        data.new_uid.clone(),
+        data.token_bytes.clone(),
+    );
+}
+
+#[derive(Deserialize)]
+pub struct SaveDiffToken {
+    uid: edna::UID,
+    did: edna::DID,
+    data: Vec<u8>,
+    is_global: bool,
+}
+
+#[post("/save_diff_token", format = "json", data = "<data>")]
+pub(crate) fn save_diff_token(data: Json<SaveDiffToken>, edna: &State<Arc<Mutex<EdnaClient>>>) {
+    let e = edna.lock().unwrap();
+    e.save_diff_token(
+        data.uid.clone(),
+        data.did.clone(),
+        data.data.clone(),
+        data.is_global,
+    );
 }
