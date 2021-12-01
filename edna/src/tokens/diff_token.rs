@@ -76,19 +76,19 @@ impl Hash for EdnaDiffToken {
     }
 }
 
+pub fn diff_tokens_from_bytes(bytes: &Vec<u8>) -> Vec<DiffTokenWrapper> {
+    serde_json::from_slice(bytes).unwrap()
+}
 pub fn diff_token_from_bytes(bytes: &Vec<u8>) -> DiffTokenWrapper {
     serde_json::from_slice(bytes).unwrap()
 }
-
 pub fn diff_token_to_bytes(token: &DiffTokenWrapper) -> Vec<u8> {
     let s = serde_json::to_string(token).unwrap();
     s.as_bytes().to_vec()
 }
-
 pub fn edna_diff_token_from_bytes(bytes: &Vec<u8>) -> EdnaDiffToken {
     serde_json::from_slice(bytes).unwrap()
 }
-
 pub fn edna_diff_token_to_bytes(token: &EdnaDiffToken) -> Vec<u8> {
     let s = serde_json::to_string(token).unwrap();
     s.as_bytes().to_vec()

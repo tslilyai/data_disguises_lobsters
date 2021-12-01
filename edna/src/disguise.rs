@@ -38,6 +38,7 @@ impl Disguiser {
                 keypool_size,
                 &mut pool.get_conn().unwrap(),
                 stats.clone(),
+                true //batch,
             ))),
             guise_gen: guise_gen.clone(),
             global_diff_tokens_to_modify: Arc::new(RwLock::new(HashMap::new())),
