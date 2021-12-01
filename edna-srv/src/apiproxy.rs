@@ -67,9 +67,36 @@ pub(crate) fn get_pseudoprincipals_of(
     return Json(pps);
 }
 
-#[post("/get_tokens_of_disguise")]
-pub(crate) fn get_tokens_of_disguise(edna: &State<Arc<Mutex<EdnaClient>>>) {
-    unimplemented!()
+#[derive(Deserialize)]
+pub struct GetTokensOfDisguise {
+    did: edna::DID,
+    decrypt_cap: edna::tokens::DecryptCap,
+    diff_locators: Vec<edna::tokens::LocCap>,
+    ownership_locators: Vec<edna::tokens::LocCap>,
+}
+
+#[derive(Serialize)]
+pub struct GetTokensOfDisguiseResponse {
+    diff_tokens: Vec<Vec<u8>>,
+    ownership_tokens: Vec<Vec<u8>>,
+}
+
+#[post("/get_tokens_of_disguise", format = "json", data = "<data>")]
+pub(crate) fn get_tokens_of_disguise(
+    data: Json<GetTokensOfDisguise>,
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) -> Json<GetTokensOfDisguiseResponse> {
+    let e = edna.lock().unwrap();
+    let tokens = e.get_tokens_of_disguise(
+        data.did,
+        data.decrypt_cap.clone(),
+        data.diff_locators.clone(),
+        data.ownership_locators.clone(),
+    );
+    return Json(GetTokensOfDisguiseResponse {
+        diff_tokens: tokens.0,
+        ownership_tokens: tokens.1,
+    });
 }
 
 #[post("/create_pseudoprincipal")]
