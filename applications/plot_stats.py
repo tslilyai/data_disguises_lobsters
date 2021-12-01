@@ -7,9 +7,9 @@ from textwrap import wrap
 
 plt.style.use('seaborn-deep')
 
-def add_labels(x,y,ax):
+def add_labels(x,y,ax,color):
     for i in range(len(x)):
-        ax.text(x[i], y[i], "{0:.1f}".format(y[i]), ha='center')
+        ax.text(x[i], y[i], "{0:.1f}".format(y[i]), ha='center', color=color)
 
 fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(8,15))
 axes_flat = axes.flatten()
@@ -77,26 +77,26 @@ for (i, ax) in enumerate(axes_flat[:2]):
     ax.bar(X-barwidth, [account_results_baseline, edit_results_baseline, delete_results_baseline, 0,
         0], color='g', width=barwidth, label="No Edna")
     add_labels((X-barwidth)[:3], [account_results_baseline, edit_results_baseline,
-        delete_results_baseline], ax)
+        delete_results_baseline], ax, 'g')
     ax.bar(X-barwidth/2, [0, 0, 0, 0, anon_results_baseline], color='g', width=barwidth)
-    add_labels((X-barwidth/2)[4:], [anon_results_baseline], ax)
+    add_labels((X-barwidth/2)[4:], [anon_results_baseline], ax, 'g')
 
     # edna
     ax.bar(X, [account_results, edit_results_noanon, delete_results_noanon, 0, 0],
             color='b', width=barwidth, label="Edna")
-    add_labels(X[:3], [account_results,edit_results_noanon,delete_results_noanon], ax)
+    add_labels(X[:3], [account_results,edit_results_noanon,delete_results_noanon], ax, 'b')
     ax.bar(X-barwidth/2, [0, 0, 0, restore_results_noanon, 0], color='b', width=barwidth)
-    add_labels((X-barwidth/2)[3:4], [restore_results_noanon], ax)
+    add_labels((X-barwidth/2)[3:4], [restore_results_noanon], ax, 'b')
     ax.bar(X+barwidth/2, [0, 0, 0, 0, anon_results], color='b', width=barwidth)
-    add_labels((X+barwidth/2)[4:], [anon_results], ax)
+    add_labels((X+barwidth/2)[4:], [anon_results], ax, 'b')
 
     # temp recorrelation
     ax.bar(X+barwidth, [account_results, edit_results, delete_results, 0, 0],
             color='r', width=barwidth, label="Edna + Temporary Recorrelation")
-    add_labels((X+barwidth)[:3], [account_results, edit_results, delete_results], ax)
+    add_labels((X+barwidth)[:3], [account_results, edit_results, delete_results], ax, 'r')
 
     ax.bar(X+barwidth/2, [0, 0, 0, restore_results, 0], color='r', width=barwidth)
-    add_labels((X+barwidth/2)[3:4], [restore_results], ax)
+    add_labels((X+barwidth/2)[3:4], [restore_results], ax, 'r')
 
     ax.set_title(title)
     ax.set_ylabel('Time (ms)')
@@ -204,7 +204,7 @@ add_labels((X-barwidth/2)[:3], [
        statistics.mean(account_results_per_baseline),
        statistics.mean(delete_results_per_baseline),
        statistics.mean(decay_results_per_baseline),
-   ], ax)
+   ], ax, 'g')
 
 ax.bar(X+barwidth/2, [
     statistics.mean(account_results_per),
@@ -222,10 +222,10 @@ add_labels((X+barwidth/2)[:3], [
     statistics.mean(account_results_per),
     statistics.mean(delete_results_per),
     statistics.mean(decay_results_per),
-    ], ax)
+    ], ax, 'b')
 add_labels(X[3:], [
      statistics.mean(restore_results_per),
-    statistics.mean(undecay_results_per)], ax)
+    statistics.mean(undecay_results_per)], ax, 'b')
 
 title = "Fine-Grained Lobsters Operation Latencies"
 ax.set_title(title)
