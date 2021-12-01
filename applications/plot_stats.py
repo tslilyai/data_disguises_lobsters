@@ -6,7 +6,7 @@ import numpy as np
 
 plt.style.use('seaborn-deep')
 
-fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(8,12))
+fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(8,10))
 axes_flat = axes.flatten()
 barwidth = 0.25
 # positions
@@ -94,21 +94,46 @@ for (i, ax) in enumerate(axes_flat[:2]):
 X = np.arange(5)
 labels = ['Create Account', 'Delete Account', 'Restore Account', 'Decay Account', 'Undecay Account']
 
-account_results = []
-delete_results = []
-restore_results = []
-decay_results = []
-undecay_results = []
-account_results_baseline = []
-delete_results_baseline = []
+account_results_low = []
+delete_results_low = []
+restore_results_low = []
+decay_results_low = []
+undecay_results_low = []
+account_results_low_baseline = []
+delete_results_low_baseline = []
+
+account_results_med = []
+delete_results_med = []
+restore_results_med = []
+decay_results_med = []
+undecay_results_med = []
+account_results_med_baseline = []
+delete_results_med_baseline = []
+
+account_results_high = []
+delete_results_high = []
+restore_results_high = []
+decay_results_high = []
+undecay_results_high = []
+account_results_high_baseline = []
+delete_results_high_baseline = []
+
+xs = []
+account_results_all = []
+delete_results_all = []
+restore_results_all = []
+decay_results_all = []
+undecay_results_all = []
+account_results_all_baseline = []
+delete_results_all_baseline = []
 
 filename = "lobsters_stats.csv"
-title = "Lobsters Operation Latencies"
 with open(filename,'r') as csvfile:
     rows = csvfile.readlines()[1:]
     for r in rows:
-        vals = [int(x.strip())/1000 for x in r.split(",")]
+        vals = [int(x.strip()) for x in r.split(",")]
         ndata = vals[1]
+        vals = [x/1000 for x in vals]
         create_baseline = vals[2]
         create_edna = vals[3]
         decay = vals[4]
@@ -117,34 +142,89 @@ with open(filename,'r') as csvfile:
         restore = vals[7]
         delete_baseline = vals[8]
 
-        account_results.append(create_edna);
-        account_results_baseline.append(create_baseline);
-        delete_results.append(delete/float(ndata))
-        delete_results_baseline.append(delete_baseline/float(ndata))
-        restore_results.append(restore/float(ndata))
-        decay_results.append(decay/float(ndata))
-        undecay_results.append(undecay/float(ndata))
+        xs.append(ndata)
+        account_results_all.append(create_edna);
+        account_results_all_baseline.append(create_baseline);
+        delete_results_all.append(delete)
+        delete_results_all_baseline.append(delete_baseline)
+        restore_results_all.append(restore)
+        decay_results_all.append(decay)
+        undecay_results_all.append(undecay)
 
-# XXX todo check if variance is great
+        if ndata < 10:
+            account_results_low.append(create_edna);
+            account_results_low_baseline.append(create_baseline);
+            delete_results_low.append(delete)
+            delete_results_low_baseline.append(delete_baseline)
+            restore_results_low.append(restore)
+            decay_results_low.append(decay)
+            undecay_results_low.append(undecay)
+
+        if ndata > 200 and ndata < 250:
+            account_results_med.append(create_edna);
+            account_results_med_baseline.append(create_baseline);
+            delete_results_med.append(delete)
+            delete_results_med_baseline.append(delete_baseline)
+            restore_results_med.append(restore)
+            decay_results_med.append(decay)
+            undecay_results_med.append(undecay)
+
+        if ndata > 500:
+            account_results_high.append(create_edna);
+            account_results_high_baseline.append(create_baseline);
+            delete_results_high.append(delete)
+            delete_results_high_baseline.append(delete_baseline)
+            restore_results_high.append(restore)
+            decay_results_high.append(decay)
+            undecay_results_high.append(undecay)
+
 ax = axes_flat[2]
-ax.bar(X-barwidth/2, [statistics.mean(account_results_baseline),
-    statistics.mean(delete_results_baseline),
-    0, statistics.mean(delete_results_baseline), 0], color='g', width=barwidth, label="No Edna")
-ax.bar(X+barwidth/2, [statistics.mean(account_results),
-    statistics.mean(delete_results), 0,
-    statistics.mean(decay_results), 0], color='b', width=barwidth, label="Edna")
-ax.bar(X, [0, 0,
-    statistics.mean(restore_results), 0,
-    statistics.mean(undecay_results)], color='b', width=barwidth)
+ax.plot(xs, delete_results_all_baseline, color='g', label="Delete, No Edna")
+ax.plot(xs, delete_results_all, color='b', label="Delete, Edna")
+ax.plot(xs, restore_results_all, color='b', linestyle=':', label="Restore, Edna")
+ax.plot(xs, decay_results_all, color='r', label="Decay, Edna")
+ax.plot(xs, undecay_results_all, color='r', linestyle=':', label="Undecay, Edna")
 
+'''
+ax.bar(X-barwidth/2, [statistics.mean(account_results_low_baseline),
+    statistics.mean(delete_results_low_baseline),
+    0, statistics.mean(delete_results_low_baseline), 0], color='g', width=barwidth, label="No Edna")
+ax.bar(X+barwidth/2, [statistics.mean(account_results_low),
+    statistics.mean(delete_results_low), 0,
+    statistics.mean(decay_results_low), 0], color='b', width=barwidth, label="Edna")
+ax.bar(X, [0, 0,
+    statistics.mean(restore_results_low), 0,
+    statistics.mean(undecay_results_low)], color='b', width=barwidth)
+
+ax = axes_flat[3]
+ax.bar(X-barwidth/2, [statistics.mean(account_results_med_baseline),
+    statistics.mean(delete_results_med_baseline),
+    0, statistics.mean(delete_results_med_baseline), 0], color='g', width=barwidth, label="No Edna")
+ax.bar(X+barwidth/2, [statistics.mean(account_results_med),
+    statistics.mean(delete_results_med), 0,
+    statistics.mean(decay_results_med), 0], color='b', width=barwidth, label="Edna")
+ax.bar(X, [0, 0,
+    statistics.mean(restore_results_med), 0,
+    statistics.mean(undecay_results_med)], color='b', width=barwidth)
+
+ax = axes_flat[4]
+ax.bar(X-barwidth/2, [statistics.mean(account_results_high_baseline),
+    statistics.mean(delete_results_high_baseline),
+    0, statistics.mean(delete_results_high_baseline), 0], color='g', width=barwidth, label="No Edna")
+ax.bar(X+barwidth/2, [statistics.mean(account_results_high),
+    statistics.mean(delete_results_high), 0,
+    statistics.mean(decay_results_high), 0], color='b', width=barwidth, label="Edna")
+ax.bar(X, [0, 0,
+    statistics.mean(restore_results_high), 0,
+    statistics.mean(undecay_results_high)], color='b', width=barwidth)
+'''
+
+title = "Lobsters Operation Latencies vs. Amount of User Data"
 ax.set_title(title)
 ax.set_ylabel('Time (ms)')
-ax.set_ylim(ymin=0.01)
-ax.set_xticks(X)
-ax.set_yscale('log')
-ax.set_xticklabels(labels)
+ax.set_ylim(ymin=0)
+ax.set_xlabel('Number of User-Owned Stories and Comments')
 ax.legend(loc='best');
-
 
 fig.tight_layout(h_pad=4)
 plt.savefig('client_op_stats.pdf', dpi=300)

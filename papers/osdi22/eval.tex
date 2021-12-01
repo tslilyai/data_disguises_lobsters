@@ -72,19 +72,21 @@ HotCRP benchmarks prepopulate the database with 450 total users (50 reviewers), 
 accepted), 4 reviews and 4 comments per paper, and a number of per-user data items (\eg paper
 watches, review preferences, etc.).  
 
-While we have an end-to-end implementation of Lobsters, we evaluate \lyt{TODO}.
+While we have an end-to-end implementation of Lobsters, we evaluate performance by generating
+server-side database queries\lyt{TODO}.
 
 %
 %
 Figure~\ref{fig:client_opstats} shows the cost of performing disguise-related actions with and
 without \sys. We also measure the latency of actions in WebSubmit and HotCRP if composed on top of
-prior anonymization, where performing these actions requires temporary recorrelation.  Note that
-temporary recorrelation to perform edits or account deletion requires an application to use \sys,
-both to anonymize the data in the first place, and to perform the recorrelation. Thus, we do not
-measure post-anonymization numbers for actions without \sys. Similarly, account restoration is only
-possible when using \sys during account deletion, so we have no baseline latency without \sys here.
+prior anonymization, where performing these actions requires temporary recorrelation. Note that an
+application \emph{must} use \sys to gain temporary recorrelation functionality, and use \sys to both
+to anonymize the data in the first place and to perform the recorrelation. Thus, we do not measure
+post-anonymization numbers for actions without \sys. Similarly, \sys enables account restoration or
+undecay when applying account deletion or data decay, so we have no baseline latency without \sys
+for account restoration or undecay.
 
-We observe that simply using \sys (without temporary recorrelation) greatly increases the latency of
+We observe that simply using \sys without temporary recorrelation greatly increases the latency of
 account deletion and anonymization.  For latency-critical tasks (such as editing data or creating an
 account), \sys incurs only a slight increase in latency \lyt{Numbers}. Temporary recorrelation
 after anonymization in order to perform edits or delete/restore accounts adds an additional
@@ -94,19 +96,19 @@ We can break these costs down further into fine-grained operations shown in
 Table~\ref{tab:opstats}, since every disguise action requires some number of DB operations; if using
 \sys, these actions also require cryptographic operations.
 
-To create an account, all measured applications perform a database insert. Using \sys additionally
+\textbf{Creating an account} with or without \sys performs a database insert. Using \sys additionally
 requires registering the new user as a principal, which assigns the user a (pre-generated)
 private-public key pair, stores metadata about the new principal's key in \sys's storage, and
 returns the corresponding private key to the application.
 
-Both baseline and \sys anonymization actions generate one pseudoprincipal per object to anonymize
+\textbf{Anonymization} with or without \sys generates one pseudoprincipal per object to anonymize
 (\eg answers for lectures in WebSubmit, or reviews in HotCRP). Anonymization selects the relevant answers
 to anonymize, generates new pseudoprincipals, and performs DB queries to insert new pseudoprincipals
 and to update objects to point to these new pseudopricipals (\eg updating foreign keys).
 \sys incurs increased costs by additionally generating per-pseudoprincipal ownership tokens, and 
 encrypting and storing these ownership tokens with the appropriate public keys.
 
-Editing data with or without \sys simply performs update DB queries. Editing anonymized data,
+\textbf{Editing data} with or without \sys simply performs update DB queries. Editing anonymized data,
 however, requires temporary recorrelation to authorize the client to speak for the pseudoprincipal
 associated with the data.  Most of the expense of temporary recorrelation comes from \sys decrypting
 (with the client-provided decryption capability) \emph{all} ownership tokens at the client-provided
@@ -117,7 +119,7 @@ determine which pseudoprincipals the client can act for. This can be optimized b
 ownership tokens from one disguise into a single encrypted ciphertext, or by generating and sending
 clients per-pseudoprincipal locators instead of per-disguise locators.
 
-Account deletion or data decay by both the baseline application and with \sys performs the same DB operations to
+\textbf{Account deletion or data decay} with or without \sys performs the same DB operations to
 remove, modify, or anonymize data.  \sys incurs increased costs by additionally encrypting and
 inserting one diff token for each deleted or modified object, and one ownership token for each
 anonymized object.  Account deletion post-anonymization requires \sys to perform temporary
@@ -126,14 +128,14 @@ account.  \sys incurs latency increases from decrypting all ownership tokens of 
 performing the deletion or modification queries for each discovered pseudoprincipal (in addition to
 the original user).
 
-Account restoration or data undecay is only possible with \sys. \sys decrypts a token for each piece
+\textbf{Account restoration or undecay} is only possible with \sys. \sys decrypts a token for each piece
 of modified/removed/anonymized data, and performs DB checks to ensure the data can be restored (\eg
 that the corresponding lecture of an answer to reinsert still exists). If the checks pass (which
 they do in this benchmark), restoration reinserts the answers stored in the diffs.  Account
 restoration of anonymized uses temporary recorrelation to allow \sys access to
 pseudoprincipal-associated tokens produced from the account deletion.  This additionally requires
-\sys to additionally decrypt ownership tokens for all pseudoprincipals of the user, which leads to
-the increase in latency.
+\sys to additionally decrypt ownership tokens for all pseudoprincipals of the user, which causes the 
+the increase in latency.\lyt{Numbers?}
 
 \head{Storage Costs of Disguise-Related Actions.} 
 Each generated pseudoprincipal adds an additional row to the users table in WebSubmit; \sys also
