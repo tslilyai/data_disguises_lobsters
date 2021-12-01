@@ -1,7 +1,84 @@
 %-------------------------------------------------------------------------------
-\section{Overview and API}
-\label{s:api}
+\section{\sys Overview}
+\label{s:overview}
 %-------------------------------------------------------------------------------
+
+%
+\sys is a library that web application code calls into to invoke data disguises.
+%
+Web application developers rely on data disguises to help conveniently and
+correctly implement application-specific privacy transformations.
+%
+In particular, \sys guarantees that if a data disguise has disguised an original
+application data object $D_o$ into a disguised object $D_d$, the original, undisguised
+object $D_o$ is hidden from an attacker who compromises the server as long as it remains
+untouched going forward.
+%
+
+%
+In addition to the privacy-increasing, ``forward'' transformations that disguise
+data---\eg account deletion, anonymization, or data decay---\sys also makes it easy for
+developers to implement reversal of disguises (``backward'' transformations, \eg when a
+user reactivates their account) and operations over disguised data (\eg edits to
+anonymized information) while disguised data remains secure.
+%
+
+%
+Importantly, a application developer who uses \sys needs not to worry about the
+cryptographic details or interaction between disguises.
+%
+Instead, the developer works with a set of abstractions that fit a wide
+variety of application use cases.
+%
+
+\subsection{Application Developer Perspective and APIs}
+%
+It's the application developer's job to invoke \sys, and \sys is normally
+hidden from end users of the web application.
+%
+However, the web application's UI may expose functionality that invokes \sys's
+data disguises behind the scenes, such as a ``Delete my account'' button.
+%
+
+%
+An application developer devises the privacy transformations their application needs to
+support, implements them in terms of \sys's API, and exposes hooks to invoke disguises to
+users who are empowered to trigger them (\eg individual users for account deletion, but
+administrators for global anonymization).
+%
+\sys exposes two APIs:
+\begin{enumerate}[nosep]
+ \item A high-level API (Figure~\ref{f:api-high}) for applications that want \sys to do
+   all the work of applying data disguises, including database modifications, based on
+   a declarative disguise specification and a database schema with foreign key
+   relationships.
+ \item A low-level API (Figure~\ref{f:api-low}) that provides application developers with
+   additional control. This API allows custom organization of disguised data, lets the
+   application make its own database modifications, and is schema-agnostic.
+\end{enumerate}
+%
+\sys's high-level API is internally implemented in terms of the low-level API and its
+abstractions, we primarily discuss the low-level API in this paper.
+%
+\S\ref{s:api-high} briefly describes the high-level API.
+%
+
+\subsection{Disguise Execution}
+%
+
+\ms{Would LOVE to have a figure here.}
+
+\section{API}
+\label{s:api}
+
+\ms{I just dumped old content here; this needs reorganizing.}
+
+%
+We structure the API description around an example application, websubmit-rs~\cite{websubmit-rs}.
+%
+websubmit-rs is used by students at a U.S.\ university to submit homework assignments for classes.
+%
+
 
 \sys exposes an API (Table~\ref{tab:api}) to web applications that wish to support secure
 disguising.
@@ -20,7 +97,7 @@ We next describe how an application uses \sys's API.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Principal Registration.}
-Every client who creates an application account for principal $p$ registers the principal's unique id 
+Every client who creates an application account for principal $p$ registers the principal's unique id
 with \sys by invoking \fn{RegisterPrincipal}. \sys generates a public-private key pair, returning private key \privk{p} to the
 application. \sys saves the public key \pubk{p} with $p$'s ID.
 
@@ -54,7 +131,7 @@ retain locators.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Disguise Revealing.}
-In order to reveal the original state of data disguised by $d$ for principal $p$, the application 
+In order to reveal the original state of data disguised by $d$ for principal $p$, the application
 needs to retrieve the diff and speaks-for tokens of $p$ from $d$ storing information about the undisguised
 state prior to applying $d$.
 This requires the application to obtain the locators \lcapa{pd} and decryption capability \privk{p}
@@ -75,7 +152,7 @@ originally belonged to $p$ when $p$ deletes their account.
 
 \sys allows the application to query for all pseudoprincipals corresponding to a particular
 principal using \fn{GetPseudoprincipalsOf}, which returns the set of corresponding pseudoprincipal
-IDs. The application must provide (obtaining from the client) any locators \lcapa{pd} from 
+IDs. The application must provide (obtaining from the client) any locators \lcapa{pd} from
 anonymizing disguises $d$ that produced the pseudoprincipals in question, as well as the client's
 decryption capability \privk{p}. This allows \sys to inspect the content of speaks-for tokens and
 verify links between principal $p$ and pseudoprincipals stored in speaks-for tokens.

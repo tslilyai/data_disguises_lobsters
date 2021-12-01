@@ -86,7 +86,7 @@ account, meeting the requirements of the GDPR's right to be forgotten.
     by decorrelating all users from their authored reviews and papers.  This helps protect reviewers
         and paper authors from being unblinded in the case of a data breach.
 
-\item \emph{Temporary Recorrelation with Anonymized Data}: 
+\item \emph{Temporary Recorrelation with Anonymized Data}:
 Even after universal decorrelation, HotCRP allows users to apply GDPR account
 deletion to delete even their decorrelated papers and reviews that they wrote.
 %
@@ -95,7 +95,7 @@ deletion to delete even their decorrelated papers and reviews that they wrote.
 Furthermore, HotCRP users can also view reviews on their papers, or edit their reviews, even if
         these papers and reviews have been decorrelated and belong to anonymous users.  HotCRP users
         interact with a personalized, temporary database view when they visit their decorrelated
-        data. 
+        data.
 
 Data disguising enables temporary recorrelation to support these use cases \emph{without} changing
         the database contents and revealing to other users of the system
@@ -124,7 +124,7 @@ that allows the user to reveal the disguise, restoring their account.
 \subsection{\sys Abstractions}
 An application using \sys's API works with the following \sys abstractions:
 \begin{itemize}
-    \item Application \emph{principals}, which correspond to users of the application, 
+    \item Application \emph{principals}, which correspond to users of the application,
 	and which are uniquely identifiable (\eg via a user ID).
         %
 	We denote an application principal as $p \in P$, where $P$ is the set of all application principals.
@@ -133,10 +133,10 @@ An application using \sys's API works with the following \sys abstractions:
     person, and which are uniquely identifiable (\eg via a user ID).
         %
 	Pseudoprincipals are part of the set of application principals $p \in P$.
-    A pseudoprincipal may or may not be indistinguishable from a real principal: for example, it 
+    A pseudoprincipal may or may not be indistinguishable from a real principal: for example, it
         may not have an associated password.
 	%
-    \item Disguises $d \in D$ %invoked by some principal $p$, which 
+    \item Disguises $d \in D$ %invoked by some principal $p$, which
         that transform the application database.
 	%
     \item \emph{Disguise speaks-for tokens}: metadata linking
@@ -145,7 +145,7 @@ An application using \sys's API works with the following \sys abstractions:
     \item \emph{Disguise diff tokens}: metadata recording the \emph{diff} between pre-disguise and
         post-disguise application state.
     %
-    \item \emph{Token decryption capability}: authorizes the holder to access disguise tokens. 
+    \item \emph{Token decryption capability}: authorizes the holder to access disguise tokens.
         The decryption capability for principal $p$ is a private key \privk{p}.
     %
     \item \emph{Token locator}: locates a subset of disguise tokens belonging to a particular
@@ -168,7 +168,7 @@ and service compromise.
 An external observer is a user of the web application (authenticated or unauthenticated) who
 observes information exposed through using the application.
 %
-A service compromise occurs when an attacker compromises the web application and 
+A service compromise occurs when an attacker compromises the web application and
 gains full access to the server.
 %
 The attacker therefore can access any data stored, perform any actions the application can
@@ -182,7 +182,7 @@ explicitly revealed by an authorized principal.
 In particular, an attacker who compromises \sys at time $t$ learns \emph{nothing but}:
 \begin{enumerate}[nosep]
   \item the (plaintext) contents of the application database at or after time $t$;
-  \item the disguises invoked, and the identity of the principals invoking them, after time $t$; and 
+  \item the disguises invoked, and the identity of the principals invoking them, after time $t$; and
   \item all of a principal's disguise tokens acquired prior to time $t$, should the principal authorize access to
       disguise tokens for purposes of revealing or performing some application action after time $t$.
       %time $t$.
@@ -244,33 +244,33 @@ Under \sys's threat model, the following properties are out of scope:
         \sys leaks the fact that a post's author has been disguised.
 \end{itemize}
 
-\begin{table*}[t!]
-\centering
-\begin{tabular}{ c p{.8\linewidth} }
-\textbf{Notation} & \textbf{Description} \\
-\hline
-    \vspace{6pt}
-$p$ & application principals, corresponding to a user ID in the application.\\
-    \vspace{6pt}
-$d$ & disguise invoked by authorized principals that transforms the application database in
-    privacy-preserving ways.\\
-    \vspace{6pt}
-\pubk{p} & public key of $p$. \\
-    \vspace{6pt}
-\privk{p} & private key of $p$, which acts as the decryption capability for $p$'s tokens. \\
-    \vspace{6pt}
-\tdiff{pd} & diff token associated with $p$ produced by disguise $d$. These tokens store data
-    necessary to restore disguised content to its original form.\\
-    \vspace{6pt}
-\town{pd} & speaks-for token associated with $p$ produced by disguise $d$. These tokens store links
-    between $p$ and pseudoprincipals created by decorrelating $p$'s data.\\
-    \vspace{6pt}
-\lcapa{pd} & locator to efficiently find the tokens associated with a principal $p$
-    produced by disguise $d$.\\
-    \vspace{6pt}
-    \end{tabular}
-\caption{Notation used to describe \sys's design.}
-\label{tab:notation}
-\end{table*}
+%\begin{table*}[t!]
+%\centering
+%\begin{tabular}{ c p{.8\linewidth} }
+%\textbf{Notation} & \textbf{Description} \\
+%\hline
+%    \vspace{6pt}
+%$p$ & application principals, corresponding to a user ID in the application.\\
+%    \vspace{6pt}
+%$d$ & disguise invoked by authorized principals that transforms the application database in
+%    privacy-preserving ways.\\
+%    \vspace{6pt}
+%\pubk{p} & public key of $p$. \\
+%    \vspace{6pt}
+%\privk{p} & private key of $p$, which acts as the decryption capability for $p$'s tokens. \\
+%    \vspace{6pt}
+%\tdiff{pd} & diff token associated with $p$ produced by disguise $d$. These tokens store data
+%    necessary to restore disguised content to its original form.\\
+%    \vspace{6pt}
+%\town{pd} & speaks-for token associated with $p$ produced by disguise $d$. These tokens store links
+%    between $p$ and pseudoprincipals created by decorrelating $p$'s data.\\
+%    \vspace{6pt}
+%\lcapa{pd} & locator to efficiently find the tokens associated with a principal $p$
+%    produced by disguise $d$.\\
+%    \vspace{6pt}
+%    \end{tabular}
+%\caption{Notation used to describe \sys's design.}
+%\label{tab:notation}
+%\end{table*}
 
 
