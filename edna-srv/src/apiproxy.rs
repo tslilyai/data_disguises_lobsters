@@ -139,7 +139,21 @@ pub(crate) fn save_pseudoprincipal_token(
     );
 }
 
-#[post("/save_diff_token")]
-pub(crate) fn save_diff_token(edna: &State<Arc<Mutex<EdnaClient>>>) {
-    unimplemented!()
+#[derive(Deserialize)]
+pub struct SaveDiffToken {
+    uid: edna::UID,
+    did: edna::DID,
+    data: Vec<u8>,
+    is_global: bool,
+}
+
+#[post("/save_diff_token", format = "json", data = "<data>")]
+pub(crate) fn save_diff_token(data: Json<SaveDiffToken>, edna: &State<Arc<Mutex<EdnaClient>>>) {
+    let e = edna.lock().unwrap();
+    e.save_diff_token(
+        data.uid.clone(),
+        data.did.clone(),
+        data.data.clone(),
+        data.is_global,
+    );
 }
