@@ -24,12 +24,30 @@ application user queries?.
         \includegraphics[width=0.5\textwidth]{figs/client_op_stats}
     \caption{Latencies of disguise-related actions when implemented manually by the application
     developer without \sys, and with \sys.
-    These actions include disguise application, disguise revealing (only applicable with \sys), and
-    authorized edits of anonymized data with \sys in WebSubmit and HotCRP.
     Each bar shows the median latency; the ranges indicate the 5th to 95th percentile latencies.
     } 
     \label{fig:client_opstats}
 \end{figure}
+
+\begin{table*}[t!]
+\begin{center}
+\begin{tabular}{ c | c c }
+\hline
+& No Token Batching (ms) & Token Batching (ms) \\
+\hline
+    WebSubmit Delete Pre-Anon & 30 & 3 \\
+    WebSubmit Delete Post-Anon & 112 & 30 \\
+    WebSubmit Restore Pre-Anon & 250 & 18 \\
+    WebSubmit Restore Post-Anon & 372 & 86 \\
+    HotCRP Delete Pre-Anon & 114 & 51 \\
+    HotCRP Delete Post-Anon & 1612 & 880 \\
+    HotCRP Restore Pre-Anon & 629 & 73 \\
+    HotCRP Restore Post-Anon & 1856 & 998 
+\end{tabular}
+\end{center}
+\caption{Account delete and restore latencies before anonymization, and composed after anonymization.}
+\label{tab:composition}
+\end{table*}
 
 \begin{table}[h!]
 \begin{center}

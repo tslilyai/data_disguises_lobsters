@@ -87,6 +87,19 @@ for (i, ax) in enumerate(axes_flat[:2]):
         edit_durs_baseline = [float(x)/1000 for x in rows[2].strip().split(',')]
         delete_durs_baseline = [float(x)/1000 for x in rows[3].strip().split(',')]
 
+
+
+    print(title,
+            statistics.median(delete_durs),
+            statistics.median(delete_durs_noanon),
+            statistics.median(restore_durs),
+            statistics.median(restore_durs_noanon),
+            statistics.median(delete_durs_batch),
+            statistics.median(delete_durs_batch_noanon),
+            statistics.median(restore_durs_batch),
+            statistics.median(restore_durs_batch_noanon),
+        )
+
     ################ add baseline closer to red line for anonymize
     ax.bar((X-barwidth/2)[:1],
             [statistics.median(account_durs_baseline)],
@@ -139,7 +152,7 @@ for (i, ax) in enumerate(axes_flat[:2]):
     ############### edna batched
     ax.bar((X+barwidth/2)[2:3], [statistics.median(edit_durs_batch)],
             yerr=get_yerr([edit_durs_batch]),
-            color='c', capsize=5, width=barwidth, label="Edna (Batching)")
+            color='c', capsize=5, width=barwidth, label="Edna (Token Batching)")
     add_labels((X+barwidth/2)[2:3], [statistics.median(edit_durs_batch)], ax, 'c', offset)
 
     ax.bar((X+barwidth)[3:4], [statistics.median(delete_durs_batch_noanon)],
@@ -157,7 +170,7 @@ for (i, ax) in enumerate(axes_flat[:2]):
 
     ax.set_title(title)
     ax.set_ylabel('Time (ms)')
-    ax.set_ylim(ymin=0, ymax=(np.percentile(restore_durs_noanon, 95)*1.25))
+    ax.set_ylim(ymin=0, ymax=(np.percentile(restore_durs_noanon, 95)*1.15))
     ax.set_xticks(X)
     ax.set_xticklabels(labels)
 
@@ -301,7 +314,7 @@ ax.bar((X+barwidth)[1:3], [
         np.percentile(decay_durs_batch, 95)],
     ],
     capsize=5,
-    color='c', width=barwidth, label="Edna (Batching)")
+    color='c', width=barwidth, label="Edna (Token Batching)")
 add_labels((X+barwidth)[1:3], [
         statistics.median(delete_durs_batch),
         statistics.median(decay_durs_batch),
@@ -323,7 +336,7 @@ add_labels((X+barwidth/2)[3:], [
 title = "Lobsters Operation Latencies"
 ax.set_title(title)
 ax.set_ylabel('Time (ms)')
-ax.set_ylim(ymin=0, ymax=(np.percentile(restore_durs,95)*1.25))
+ax.set_ylim(ymin=0, ymax=(np.percentile(restore_durs,95)*1.15))
 ax.set_xticks(X)
 ax.set_xticklabels(labels)
 
