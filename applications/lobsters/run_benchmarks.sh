@@ -8,8 +8,7 @@ set -e
 
 for batch in '--batch' ''; do
 	RUST_LOG=error ../../target/release/lobsters \
-		--prime \
-		--batch \
+		--prime $batch \
 		--scale 1 \
 		&> output/users$batch.out
 	echo "Ran test for users"
