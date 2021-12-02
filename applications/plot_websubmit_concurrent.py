@@ -8,7 +8,7 @@ from collections import defaultdict
 plt.style.use('seaborn-deep')
 
 nusers = [100]
-props = [1/10, 1/6, 1/4]#, 1/5, 3/10]
+props = [1/10, 1/6, 1/5, 1/4, 3/10]
 maxts = 150000
 bucketwidth = 1000
 nbuckets = int(maxts/bucketwidth)
@@ -109,14 +109,14 @@ for i in range(2):
 
     axes_flat[i].set_xlabel('Benchmark Time (s)')
     axes_flat[i].set_ylabel('Latency (ms)')
-    axes_flat[i].set_ylim(ymin=0, ymax=3000)
+    axes_flat[i].set_ylim(ymin=0, ymax=4500)
     axes_flat[i].set_xlim(xmin=0, xmax=nbuckets)
+    axes_flat[i].legend(loc="upper left")
 
     if i == 0:
         axes_flat[i].set_title("Edit Latency vs. Number of Concurrent Disguisers (Unbatched)")
     else:
         axes_flat[i].set_title("Edit Latency vs. Number of Concurrent Disguisers (Batched)")
 
-axes_flat[0].legend(loc="best")
 plt.tight_layout(h_pad=4)
 plt.savefig('websubmit_concurrent_results_{}lec_{}users.pdf'.format(lec, 100))
