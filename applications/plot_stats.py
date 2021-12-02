@@ -182,7 +182,7 @@ for (i, ax) in enumerate(axes_flat[:2]):
 
     ax.set_title(title)
     ax.set_ylabel('Time (ms)')
-    ax.set_ylim(ymin=0, ymax=(np.percentile(restore_durs_noanon, 95)*2.2))
+    ax.set_ylim(ymin=0, ymax=(np.percentile(restore_durs_noanon, 95)*2.1))
     ax.set_xticks(X)
     ax.set_xticklabels(labels)
 
@@ -373,5 +373,5 @@ ax.set_xticklabels(labels)
 # one legend per everything
 axes_flat[0].legend(loc='upper left');
 
-fig.tight_layout(h_pad=4)
+fig.tight_layout(h_pad=2)
 plt.savefig('client_op_stats.pdf', dpi=300)
