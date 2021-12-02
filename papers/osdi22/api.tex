@@ -37,6 +37,7 @@
 \begin{lstlisting}[language=Rust, style=rust]
 RegisterPrincipal(princ: UID) -> PrivKey;
 CreatePseudoprincipal() -> (UID, PrincMetadata);
+DeregisterPrincipal(princ: UID);
 
 StartDisguise() -> DisguiseID;
 EndDisguise(did: DisguiseID) -> Vec<Locator>;
