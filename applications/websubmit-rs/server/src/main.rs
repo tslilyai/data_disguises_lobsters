@@ -684,13 +684,18 @@ fn print_stats(
     restore_durations_nonanon: Vec<Duration>,
     is_baseline: bool,
 ) {
+    let prefix = if args.batch {
+        "_batch"
+    } else {
+        ""
+    };
     let filename = if is_baseline {
         format!(
-            "disguise_stats_{}lec_{}users_baseline.csv",
-            args.nlec, args.nusers
+            "disguise_stats_{}lec_{}users{}_baseline.csv",
+            args.nlec, args.nusers, prefix
         )
     } else {
-        format!("disguise_stats_{}lec_{}users.csv", args.nlec, args.nusers)
+        format!("disguise_stats_{}lec_{}users{}.csv", args.nlec, args.nusers, prefix)
     };
 
     // print out stats
