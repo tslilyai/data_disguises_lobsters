@@ -25,6 +25,9 @@ for i in range(2):
     if i == 0:
         folder = 'no_batch'
         batch = ''
+    else:
+        folder = 'batch'
+        batch = '_batch'
     # collect all results
     normal_edit_results = defaultdict(list)
     edit_results = defaultdict(list)
@@ -108,13 +111,13 @@ for i in range(2):
 
     axes_flat[i].set_xlabel('Benchmark Time (s)')
     axes_flat[i].set_ylabel('Latency (ms)')
-    axes_flat[i].set_ylim(ymin=0, ymax=2700)
+    axes_flat[i].set_ylim(ymin=0, ymax=3000)
     axes_flat[i].set_xlim(xmin=0, xmax=nbuckets)
 
     if i == 0:
-        axes_flat[i].set_title("Edit Latency vs. Number of Concurrent Disguisers (Batched)")
-    else:
         axes_flat[i].set_title("Edit Latency vs. Number of Concurrent Disguisers (Unbatched)")
+    else:
+        axes_flat[i].set_title("Edit Latency vs. Number of Concurrent Disguisers (Batched)")
 
 axes_flat[0].legend(loc="best")
 plt.tight_layout(h_pad=4)
