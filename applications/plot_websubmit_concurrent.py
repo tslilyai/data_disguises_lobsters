@@ -19,15 +19,13 @@ lec = 20
 fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(8,8))
 axes_flat = axes.flatten()
 
-folder = 'batch'
 batch = '_batch'
 for i in range(2):
     if i == 0:
-        folder = 'no_batch'
         batch = ''
     else:
-        folder = 'batch'
         batch = '_batch'
+
     # collect all results
     normal_edit_results = defaultdict(list)
     edit_results = defaultdict(list)
@@ -36,8 +34,8 @@ for i in range(2):
     restore_results = defaultdict(list)
 
     for u in nusers:
-        with open('results/websubmit_results/{}/concurrent_disguise_stats_{}lec_{}users_disguising{}.csv'
-                .format(folder, lec, u, batch),'r') as csvfile:
+        with open('results/websubmit_results/concurrent_disguise_stats_{}lec_{}users_disguising{}.csv'
+                .format(lec, u, batch),'r') as csvfile:
             rows = csvfile.readlines()
             editpairs = [x.split(':') for x in rows[0].strip().split(',')]
             editdata = defaultdict(list)
@@ -48,8 +46,8 @@ for i in range(2):
             normal_edit_results[u] = editdata
 
         for nd in [int(u * prop) for prop in props]:
-            with open('results/websubmit_results/{}/concurrent_disguise_stats_{}lec_{}users_disguising_{}group{}.csv'
-                    .format(folder, lec, u, nd, batch),'r') as csvfile:
+            with open('results/websubmit_results/concurrent_disguise_stats_{}lec_{}users_disguising_{}group{}.csv'
+                    .format(lec, u, nd, batch),'r') as csvfile:
                 rows = csvfile.readlines()
                 editpairs = [x.split(':') for x in rows[0].strip().split(',')]
                 editdata = defaultdict(list)
@@ -76,8 +74,8 @@ for i in range(2):
                 delete_results[u].append(deletedata)
                 restore_results[u].append(restoredata)
 
-        with open('results/websubmit_results/{}/concurrent_disguise_stats_{}lec_{}users_25disguisers_baseline.csv'
-                .format(folder, lec, u, nd),'r') as csvfile:
+        with open('results/websubmit_results/concurrent_disguise_stats_{}lec_{}users_30disguisers_baseline.csv'
+                .format(lec, u, nd),'r') as csvfile:
             rows = csvfile.readlines()
             editpairs = [x.split(':') for x in rows[0].strip().split(',')]
             editdata = defaultdict(list)

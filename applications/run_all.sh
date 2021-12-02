@@ -5,6 +5,6 @@ cd websubmit-rs/server
 cd ../../hotcrp
 ./run_benchmarks.sh
 cd ../lobsters
-.run_benchmarks.sh
+./run_benchmarks.sh
 cd ../websubmit-rs
 ./run_multiclient_benchmark.sh
