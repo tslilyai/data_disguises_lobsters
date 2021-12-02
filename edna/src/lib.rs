@@ -68,6 +68,7 @@ impl EdnaClient {
      ********************************/
     pub fn new(
         prime: bool,
+        batch: bool,
         dbname: &str,
         schema: &str,
         in_memory: bool,
@@ -79,7 +80,7 @@ impl EdnaClient {
         EdnaClient {
             schema: schema.to_string(),
             in_memory: in_memory,
-            disguiser: disguise::Disguiser::new(&url, keypool_size, guise_gen),
+            disguiser: disguise::Disguiser::new(&url, keypool_size, guise_gen, batch),
         }
     }
 

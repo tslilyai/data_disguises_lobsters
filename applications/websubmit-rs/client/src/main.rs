@@ -222,7 +222,7 @@ fn run_normal(
             .send()?;
         assert_eq!(response.status(), StatusCode::OK);
         my_edit_durations.push((overall_start.elapsed(), start.elapsed()));
-        thread::sleep(time::Duration::from_millis(rng.gen_range(250..500)));
+        thread::sleep(time::Duration::from_millis(rng.gen_range(500..1000)));
     }
     edit_durations
         .lock()
@@ -354,21 +354,26 @@ fn print_stats(
     delete_durations: &Vec<(Duration, Duration)>,
     restore_durations: &Vec<(Duration, Duration)>,
 ) {
+    let prefix = if args.batch {
+        "_batch"
+    } else {
+        ""
+    };
     let filename = match args.test {
         args::TEST_BASELINE => 
         format!(
-            "concurrent_disguise_stats_{}lec_{}users_{}disguisers_baseline.csv",
-            args.nlec, args.nusers, args.ndisguising
+            "concurrent_disguise_stats_{}lec_{}users_{}disguisers{}_baseline.csv",
+            args.nlec, args.nusers, prefix, args.ndisguising
         ), 
         args::TEST_NORMAL_DISGUISING => 
             format!(
-                "concurrent_disguise_stats_{}lec_{}users_disguising.csv",
-                args.nlec, args.nusers
+                "concurrent_disguise_stats_{}lec_{}users_disguising{}.csv",
+                args.nlec, args.nusers, prefix
             ),
         args::TEST_BATCH_DISGUISING =>
             format!(
-                "concurrent_disguise_stats_{}lec_{}users_disguising_{}batch.csv",
-                args.nlec, args.nusers, args.ndisguising
+                "concurrent_disguise_stats_{}lec_{}users_disguising_{}group{}.csv",
+                args.nlec, args.nusers, args.ndisguising, prefix
             ),
             _ => unimplemented!("Bad test")
     };

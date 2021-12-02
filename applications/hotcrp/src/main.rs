@@ -27,6 +27,8 @@ const DBNAME: &'static str = &"test_hotcrp";
 pub struct Cli {
     #[structopt(long = "prime")]
     prime: bool,
+    #[structopt(long = "batch")]
+    batch: bool,
     #[structopt(long = "baseline")]
     baseline: bool,
     // Generates nusers_nonpc+nusers_pc users
@@ -78,6 +80,7 @@ fn run_edna(args: &Cli) {
     let nusers = args.nusers_nonpc + args.nusers_pc;
     let mut edna = EdnaClient::new(
         args.prime,
+        args.batch,
         DBNAME,
         SCHEMA,
         true,
@@ -103,7 +106,7 @@ fn run_edna(args: &Cli) {
 
     let mut user2rid = HashMap::new();
     // baseline edit/delete/restore for pc members 
-    for u in args.nusers_nonpc+2..args.nusers_nonpc+2 + 10 {
+    for u in args.nusers_nonpc+2..args.nusers_nonpc + args.nusers_pc {
         let dc = decrypt_caps.get(&u).unwrap().to_vec();
 
         // edit
@@ -180,6 +183,7 @@ fn run_edna(args: &Cli) {
         delete_durations_preanon,
         restore_durations_preanon,
         false,
+        args.batch,
     );
 }
 
@@ -192,6 +196,7 @@ fn run_baseline(args: &Cli) {
     let nusers = args.nusers_nonpc + args.nusers_pc;
     let mut edna = EdnaClient::new(
         args.prime,
+        args.batch,
         DBNAME,
         SCHEMA,
         true,
@@ -342,8 +347,10 @@ fn run_baseline(args: &Cli) {
         vec![],
         vec![],
         true,
+        args.batch,
     );
 }
+
 fn print_stats(
     nusers: u64,
     account_durations: Vec<Duration>,
@@ -354,10 +361,13 @@ fn print_stats(
     edit_durations_preanon: Vec<Duration>,
     delete_durations_preanon: Vec<Duration>,
     restore_durations_preanon: Vec<Duration>,
-    baseline: bool
+    baseline: bool,
+    batch: bool,
 ) {
     let filename = if baseline {
         format!("hotcrp_disguise_stats_{}users_baseline.csv", nusers)
+    } else if batch {
+        format!("hotcrp_disguise_stats_{}users_batch.csv", nusers)
     } else {
         format!("hotcrp_disguise_stats_{}users.csv", nusers)
     };

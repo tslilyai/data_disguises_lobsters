@@ -31,6 +31,7 @@ fn index() -> &'static str {
 
 fn rocket(
     prime: bool,
+    batch: bool,
     db: &str,
     schema: &str,
     in_memory: bool,
@@ -38,6 +39,7 @@ fn rocket(
 ) -> Rocket<Build> {
     let edna_client = EdnaClient::new(
         prime,
+        batch,
         db,
         schema,
         in_memory,
@@ -83,6 +85,7 @@ async fn main() {
                 .takes_value(true),
         )
         .arg(Arg::with_name("prime").help("Prime the database"))
+        .arg(Arg::with_name("batch").help("Use token batching"))
         .arg(
             Arg::with_name("schema")
                 .short("s")
@@ -105,6 +108,7 @@ async fn main() {
         .get_matches();
     let my_rocket = rocket(
         matches.is_present("prime"),
+        matches.is_present("batch"),
         matches.value_of("database").unwrap(),
         matches.value_of("schema").unwrap(),
         matches.is_present("in-memory"),

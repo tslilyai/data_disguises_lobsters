@@ -1196,7 +1196,7 @@ mod tests {
     fn test_insert_user_token_single() {
         init_logger();
         let dbname = "testTokenCtrlerUser".to_string();
-        let edna = EdnaClient::new(true, &dbname, "", true, 2, get_guise_gen());
+        let edna = EdnaClient::new(true, true, &dbname, "", true, 2, get_guise_gen());
         let mut db = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
@@ -1251,7 +1251,7 @@ mod tests {
         init_logger();
         let iters = 5;
         let dbname = "testTokenCtrlerUserMulti".to_string();
-        let edna = EdnaClient::new(true, &dbname, "", true, iters, get_guise_gen());
+        let edna = EdnaClient::new(true, true, &dbname, "", true, iters, get_guise_gen());
         let mut db = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
@@ -1327,7 +1327,7 @@ mod tests {
         init_logger();
         let iters = 5;
         let dbname = "testTokenCtrlerUserPK".to_string();
-        let edna = EdnaClient::new(true, &dbname, "", true, iters, get_guise_gen());
+        let edna = EdnaClient::new(true, true, &dbname, "", true, iters, get_guise_gen());
         let mut db = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 

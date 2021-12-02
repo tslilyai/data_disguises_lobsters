@@ -32,6 +32,8 @@ struct Cli {
     nqueries: u64,
     #[structopt(long = "prime")]
     prime: bool,
+    #[structopt(long = "batch")]
+    batch: bool,
     #[structopt(long = "is_baseline")]
     is_baseline: bool,
 }
@@ -51,9 +53,15 @@ fn run_stats_test(
     edna: &mut EdnaClient,
     sampler: &datagen::Sampler,
     user2decryptcaps: &HashMap<u64, Vec<u8>>,
+    batch: bool
 ) {
     let mut db = edna.get_conn().unwrap();
-    let mut file = File::create(format!("lobsters_disguise_stats.csv")).unwrap();
+    let filename = if batch {
+        format!("lobsters_disguise_stats.csv")
+    } else {
+        format!("lobsters_disguise_stats_batch.csv")
+    };
+    let mut file = File::create(filename).unwrap();
     file.write("uid, ndata, create_baseline, create_edna, decay, undecay, delete, restore, baseline\n".as_bytes()).unwrap();
     let mut rng = rand::thread_rng();
 
@@ -293,6 +301,7 @@ fn main() {
     }
     let mut edna = EdnaClient::new(
         args.prime,
+        args.batch,
         &dbname,
         SCHEMA,
         true,
@@ -311,7 +320,7 @@ fn main() {
         let privkey_str = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         user2decryptcap.insert(user_id, privkey_str);
     }
-    run_stats_test(&mut edna, &sampler, &user2decryptcap);
+    run_stats_test(&mut edna, &sampler, &user2decryptcap, args.batch);
     /*run_test(
         &mut edna,
         nqueries,

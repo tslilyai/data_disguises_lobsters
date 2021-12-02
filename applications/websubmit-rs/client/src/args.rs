@@ -15,12 +15,20 @@ pub struct Args {
     pub nqs: usize,
     pub test: u64,
     pub db: String,
+    pub batch: bool,
 }
 
 pub fn parse_args() -> Args {
     let args = App::new("websubmit")
         .version("0.0.1")
         .about("Class submission system.")
+        .arg(
+            Arg::with_name("batch")
+                .long("batch")
+                .takes_value(true)
+                .value_name("PRIME")
+                .default_value("true")
+        )
         .arg(
             Arg::with_name("db")
                 .long("db")
@@ -74,6 +82,7 @@ pub fn parse_args() -> Args {
         nlec: usize::from_str(args.value_of("nlec").unwrap()).unwrap(),
         nqs: usize::from_str(args.value_of("nqs").unwrap()).unwrap(),
         test: u64::from_str(args.value_of("test").unwrap()).unwrap(),
+        batch: bool::from_str(args.value_of("batch").unwrap()).unwrap(),
         db: String::from(args.value_of("db").unwrap()),
     }
 }
