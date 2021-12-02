@@ -53,25 +53,30 @@ DiffsForDisguise(did: DisguiseID, pk: PrivKey, loc: Locator) -> Vec<Vec<u8>>;
 PseudoprincipalsOf(princ: UID, pk: PrivKey, loc: Locator) -> Vec<UID>;
 \end{lstlisting}
 \caption{\sys's low-level API.}
-\label{f:api}
+\label{f:api-low}
 \end{figure}
 
-\begin{table*}[h!]
-\centering
-    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
-\textbf{API Call} & \textbf{Description} \\
-\hline
-    \fn{ApplyDisguise($p$, $d$, DisguiseSpec dSpec, \privk{p}, \{\lcapa{pd'}\})}
-        $\rightarrow$ (\lcapa{pd}, \lcapa{pd}) &
-        Applies disguise $d$, returning a parit of locators required to later locate disguise $d$'s
-        diff and speaks-for tokens respectively.
-        \vspace{6pt}\\
-        \fn{RevealDisguise($p$, $d$, \privk{p}, \lcapa{pd})} $\rightarrow$ ()&
-        Reveals disguise $d$ by reversing data stored in tokens produced by disguise $d$ accessible
-        using \lcapa{pd} and \privk{p}.
-        \lyt{In practice this takes a set of \lcapa{} from different disguises because of
-        pseudoprincipals}
-\end{tabular}
-\caption{\sys's Higher-Level Convenience Library API}
-\label{tab:high_level_api}
-\end{table*}
+\begin{figure}[t]
+%\centering
+%    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
+%\textbf{API Call} & \textbf{Description} \\
+%\hline
+%    \fn{ApplyDisguise($p$, $d$, DisguiseSpec dSpec, \privk{p}, \{\lcapa{pd'}\})}
+%        $\rightarrow$ (\lcapa{pd}, \lcapa{pd}) &
+%        Applies disguise $d$, returning a parit of locators required to later locate disguise $d$'s
+%        diff and speaks-for tokens respectively.
+%        \vspace{6pt}\\
+%        \fn{RevealDisguise($p$, $d$, \privk{p}, \lcapa{pd})} $\rightarrow$ ()&
+%        Reveals disguise $d$ by reversing data stored in tokens produced by disguise $d$ accessible
+%        using \lcapa{pd} and \privk{p}.
+%        \lyt{In practice this takes a set of \lcapa{} from different disguises because of
+%        pseudoprincipals}
+%\end{tabular}
+\begin{lstlisting}[language=Rust, style=rust]
+RegisterPrincipal(princ: UID) -> PrivKey;
+ApplyDisguise(princ: UID, spec: DisguiseSpec, pk: PrivKey, locs: Vec<Locator>) -> (DisguiseID, Vec<Locator>);
+RevealDisguise(princ: UID, did: DisguiseID, pk: PrivKey, locs: Locator);
+\end{lstlisting}
+\caption{\sys's higher-level API.}
+\label{f:api-high}
+\end{figure}

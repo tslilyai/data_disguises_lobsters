@@ -24,7 +24,7 @@ delete_results = defaultdict(list)
 restore_results = defaultdict(list)
 
 for u in nusers:
-    with open('concurrent_disguise_stats_{}lec_{}users_disguising.csv'.format(lec, u),'r') as csvfile:
+    with open('results/no_batch/concurrent_disguise_stats_{}lec_{}users_disguising.csv'.format(lec, u),'r') as csvfile:
         rows = csvfile.readlines()
         editpairs = [x.split(':') for x in rows[0].strip().split(',')]
         editdata = defaultdict(list)
@@ -35,7 +35,7 @@ for u in nusers:
         normal_edit_results[u] = editdata
 
     for nd in [int(u * prop) for prop in props]:
-        with open('concurrent_disguise_stats_{}lec_{}users_disguising_{}batch.csv'.format(lec, u, nd),'r') as csvfile:
+        with open('results/no_batch/concurrent_disguise_stats_{}lec_{}users_disguising_{}batch.csv'.format(lec, u, nd),'r') as csvfile:
             rows = csvfile.readlines()
             editpairs = [x.split(':') for x in rows[0].strip().split(',')]
             editdata = defaultdict(list)
@@ -62,7 +62,7 @@ for u in nusers:
             delete_results[u].append(deletedata)
             restore_results[u].append(restoredata)
 
-    with open('concurrent_disguise_stats_{}lec_{}users_25disguisers_baseline.csv'.format(lec, u, nd),'r') as csvfile:
+    with open('results/no_batch/concurrent_disguise_stats_{}lec_{}users_25disguisers_baseline.csv'.format(lec, u, nd),'r') as csvfile:
         rows = csvfile.readlines()
         editpairs = [x.split(':') for x in rows[0].strip().split(',')]
         editdata = defaultdict(list)
@@ -94,17 +94,12 @@ for i in range(len(props)):
     ys = np.array(ys)[order]
     plt.plot(xs, ys, label='{} Disguisers'.format(int(props[i]*100)))
 
-#for i in range(len(props)):
-    #axes_flat[2].scatter(delete_results[100][i].keys(), [statistics.mean(x) for x in delete_results[100][i].values()], label='edna_{}'.format(props[i]))
-#for i in range(len(props)):
-    #axes_flat[3].scatter(restore_results[100][i].keys(), [statistics.mean(x) for x in restore_results[100][i].values()], label='edna_{}'.format(props[i]))
-
 plt.xlabel('Benchmark Time (s)')
 plt.ylabel('Latency (ms)')
 plt.ylim(ymin=0)
 plt.xlim(xmin=0, xmax=nbuckets)
 
-plt.title("Edit Latency vs. Amount of Concurrent Disguising Actions")
+plt.title("Edit Latency vs. Number of of Concurrent Disguisers")
 plt.legend(loc="best")
 
 plt.tight_layout(h_pad=4)
