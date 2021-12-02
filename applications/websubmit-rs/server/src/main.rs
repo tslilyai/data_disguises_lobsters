@@ -37,7 +37,6 @@ use rocket::local::blocking::Client;
 use rocket::response::Redirect;
 use rocket::{Build, Rocket, State};
 use rocket_dyn_templates::Template;
-use std::cmp::min;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Read, Write};
@@ -448,7 +447,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     }
 
     /***********************************
-     * gdpr restore (with composition)
+     * gdpr restore (without composition)
      ***********************************/
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);

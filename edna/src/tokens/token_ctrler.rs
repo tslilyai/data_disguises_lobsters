@@ -199,6 +199,10 @@ impl TokenCtrler {
         &mut self,
         db: &mut mysql::PooledConn,
     ) -> (HashMap<(UID, DID), LocCap>, HashMap<(UID, DID), LocCap>) {
+        // this creates dlcs and olcs btw, so we have to do it first
+        if self.batch {
+            self.insert_batch_tokens();
+        }
 
         let dlcs = self.tmp_diff_loc_caps.clone();
         let olcs = self.tmp_ownership_loc_caps.clone();
@@ -246,9 +250,6 @@ impl TokenCtrler {
             }
         }
 
-        if self.batch {
-            self.insert_batch_tokens();
-        }
         // actually remove the principals supposed to be removed
         for uid in self.tmp_remove_principals.clone().iter() {
             self.remove_principal(&uid, db);
@@ -630,8 +631,8 @@ impl TokenCtrler {
         let did = token.did;
         let uid = &token.uid;
         warn!(
-            "inserting user token {:?} with uid {} did {}",
-            token, uid, did
+            "inserting user diff token with uid {} did {}",
+            uid, did
         );
 
         if self.batch {
