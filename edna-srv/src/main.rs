@@ -9,6 +9,8 @@ extern crate serde_derive;
 
 mod apiproxy;
 mod lobsters_disguises;
+#[cfg(test)]
+mod tests;
 
 use clap::{App, Arg};
 use edna::EdnaClient;

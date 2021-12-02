@@ -19,6 +19,8 @@ serde_derive = "1.0"
 serde_json = "1.0"
 serde_urlencoded = "0.7"
 sql-parser = { path= "../sql-parser" }
+mysql = "*"
+mysql_common = "0.22"
 
 [[bin]]
 name = "edna-server"

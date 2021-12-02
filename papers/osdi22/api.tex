@@ -1,42 +1,59 @@
-\begin{table*}[h!]
-\centering
-    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
-\textbf{API Call} & \textbf{Description} \\
-\hline
-\fn{RegisterPrincipal($p$)} $\rightarrow$ \privk{p} & Registers $p$ as
-        a principal, returning a private key \privk{p} corresponding to a principal-specific public
-        key $\pubk{p}$ known to \sys.\\
-    \vspace{6pt}\\
-\fn{StartDisguise($d$) $\rightarrow$ ()} & Invoked to inform \sys that a disguise application is
-        starting.
-    \vspace{6pt}\\
-        \fn{EndDisguise($d$) $\rightarrow$ (\lcapa{pd}, \lcapa{pd})} & Marks the end of applying disguise $d$.
-        Returns a pair of locators required to later locate disguise $d$'s diff tokens and
-        speakds-for tokens
-        respectively.
-    \vspace{6pt}\\
-        \fn{SaveDiffToken($p$, $d$, tokenData)} $\rightarrow$ () & Securely stores tokenData in a diff token \tdiff{pd}.\\
-    \vspace{6pt}\\
-        \fn{SaveSpeaksForToken($p$, $p'$, $d$, tokenData)} $\rightarrow$ () & Securely stores tokenData in a
-        speaks-for token \town{pd} that saves the link from principal $p$ to pseudoprincipal $p'$.\\
-    \vspace{6pt}\\
-        \fn{CreatePseudoprincipal()} $\rightarrow$ ($p$, \fn{principalData}) & Returns
-        the pseudoprincipal ID and data of a new pseudoprincipal. \fn{principalData} is
-        generated using an application-specified pseudoprincipal-generation policy.\\
-    \vspace{6pt}\\
-        \fn{GetTokensOfDisguise($d$, \privk{p}, \lcapa{pd})}
-        $\rightarrow$ (\{\tdiff{pd}\}, \{\town{pd}\}) & Retrieves the diff and speaks-for tokens produced by 
-        disguise $d$ that are accessible with the provided locator 
-        and decryption capability.
-    \vspace{6pt}\\
-        \fn{GetPseudoprincipalsOf($p$, \privk{p}, \{\lcapa{pd}\})} $\rightarrow$ \{$p'$\} & Returns
-        the pseudoprincipal IDs of all pseudoprincipals linked with $p$ produced by disguises $d$.
-        The decryption capability and set of locators enable \sys to access speaks-for tokens that
-        reveal links between $p$ and its pseudoprincipals.\\
-    \end{tabular}
-\caption{\sys's API}
-\label{tab:api}
-\end{table*}
+\begin{figure}[t]
+%\centering
+%    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
+%\textbf{API Call} & \textbf{Description} \\
+%\hline
+%\fn{RegisterPrincipal($p$)} $\rightarrow$ \privk{p} & Registers $p$ as
+%        a principal, returning a private key \privk{p} corresponding to a principal-specific public
+%        key $\pubk{p}$ known to \sys.\\
+%    \vspace{6pt}\\
+%\fn{StartDisguise($d$) $\rightarrow$ ()} & Invoked to inform \sys that a disguise application is
+%        starting.
+%    \vspace{6pt}\\
+%        \fn{EndDisguise($d$) $\rightarrow$ (\lcapa{pd}, \lcapa{pd})} & Marks the end of applying disguise $d$.
+%        Returns a pair of locators required to later locate disguise $d$'s diff tokens and
+%        speakds-for tokens
+%        respectively.
+%    \vspace{6pt}\\
+%        \fn{SaveDiffToken($p$, $d$, tokenData)} $\rightarrow$ () & Securely stores tokenData in a diff token \tdiff{pd}.\\
+%    \vspace{6pt}\\
+%        \fn{SaveSpeaksForToken($p$, $p'$, $d$, tokenData)} $\rightarrow$ () & Securely stores tokenData in a
+%        speaks-for token \town{pd} that saves the link from principal $p$ to pseudoprincipal $p'$.\\
+%    \vspace{6pt}\\
+%        \fn{CreatePseudoprincipal()} $\rightarrow$ ($p$, \fn{principalData}) & Returns
+%        the pseudoprincipal ID and data of a new pseudoprincipal. \fn{principalData} is
+%        generated using an application-specified pseudoprincipal-generation policy.\\
+%    \vspace{6pt}\\
+%        \fn{GetTokensOfDisguise($d$, \privk{p}, \lcapa{pd})}
+%        $\rightarrow$ (\{\tdiff{pd}\}, \{\town{pd}\}) & Retrieves the diff and speaks-for tokens produced by
+%        disguise $d$ that are accessible with the provided locator
+%        and decryption capability.
+%    \vspace{6pt}\\
+%        \fn{GetPseudoprincipalsOf($p$, \privk{p}, \{\lcapa{pd}\})} $\rightarrow$ \{$p'$\} & Returns
+%        the pseudoprincipal IDs of all pseudoprincipals linked with $p$ produced by disguises $d$.
+%        The decryption capability and set of locators enable \sys to access speaks-for tokens that
+%        reveal links between $p$ and its pseudoprincipals.\\
+%    \end{tabular}
+\begin{lstlisting}[language=Rust, style=rust]
+RegisterPrincipal(princ: UID) -> PrivKey;
+CreatePseudoprincipal() -> (UID, PrincMetadata);
+
+StartDisguise() -> DisguiseID;
+EndDisguise(did: DisguiseID) -> Vec<Locator>;
+
+// stores an encrypted diff with app-specific content
+StoreDiff(princ: UID, did: DisguiseID, data: Vec<u8>);
+// stores encrypted mapping that princ1 speaks for princ2
+StoreSpeaksFor(princ1: UID, princ2: UID, did: DisguiseID, data: Vec<u8>);
+
+// get diffs stored as part of did at loc
+DiffsForDisguise(did: DisguiseID, pk: PrivKey, loc: Locator) -> Vec<Vec<u8>>;
+// get principals that princ speaks for (stored at loc)
+PseudoprincipalsOf(princ: UID, pk: PrivKey, loc: Locator) -> Vec<UID>;
+\end{lstlisting}
+\caption{\sys's low-level API.}
+\label{f:api}
+\end{figure}
 
 \begin{table*}[h!]
 \centering
@@ -46,11 +63,11 @@
     \fn{ApplyDisguise($p$, $d$, DisguiseSpec dSpec, \privk{p}, \{\lcapa{pd'}\})}
         $\rightarrow$ (\lcapa{pd}, \lcapa{pd}) &
         Applies disguise $d$, returning a parit of locators required to later locate disguise $d$'s
-        diff and speaks-for tokens respectively. 
+        diff and speaks-for tokens respectively.
         \vspace{6pt}\\
-        \fn{RevealDisguise($p$, $d$, \privk{p}, \lcapa{pd})} $\rightarrow$ ()& 
+        \fn{RevealDisguise($p$, $d$, \privk{p}, \lcapa{pd})} $\rightarrow$ ()&
         Reveals disguise $d$ by reversing data stored in tokens produced by disguise $d$ accessible
-        using \lcapa{pd} and \privk{p}. 
+        using \lcapa{pd} and \privk{p}.
         \lyt{In practice this takes a set of \lcapa{} from different disguises because of
         pseudoprincipals}
 \end{tabular}

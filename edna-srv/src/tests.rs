@@ -12,19 +12,56 @@ use std::io::{BufReader, Read};
 
 #[test]
 fn test_disguise() {
-    let args = args::parse_args();
-    let client = Client::tracked(rocket(&args)).expect("valid rocket instance");
+    let matches = App::new("Edna API server")
+        .arg(
+            Arg::with_name("database")
+                .short("d")
+                .long("database-name")
+                .default_value("testdb")
+                .help("The MySQL database to use")
+                .takes_value(true),
+        )
+        .arg(Arg::with_name("prime").help("Prime the database"))
+        .arg(
+            Arg::with_name("schema")
+                .short("s")
+                .default_value("schema.sql")
+                .takes_value(true)
+                .long("schema")
+                .help("File containing SQL schema to use"),
+        )
+        .arg(
+            Arg::with_name("in-memory")
+                .long("memory")
+                .help("Use in-memory tables."),
+        )
+        .arg(
+            Arg::with_name("keypool-size")
+                .long("keypool-size")
+                .default_value("10")
+                .takes_value(true),
+        )
+        .get_matches();
+
+    let client = Client::tracked(
+        rocket(
+            matches.is_present("prime"),
+            matches.value_of("database").unwrap(),
+            matches.value_of("schema").unwrap(),
+            matches.is_present("in-memory"),
+            usize::from_str_radix(matches.value_of("keypool-size").unwrap(), 10).unwrap(),
+        )
+    ).expect("valid rocket instance");
     let mut db = mysql::Conn::new(
-        Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", args.class)).unwrap(),
+        Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", matches.value_of("database").unwrap())).unwrap(),
     )
     .unwrap();
     assert_eq!(db.ping(), true);
 
-    let mut user2apikey = HashMap::new();
+    /*let mut user2apikey = HashMap::new();
     let mut user2decryptcap = HashMap::new();
     let mut user2owncap = HashMap::new();
     let mut user2diffcap = HashMap::new();
-    let log = new_logger();
 
     // create all users
     for u in 0..args.nusers {
@@ -42,7 +79,6 @@ fn test_disguise() {
         let mut buf_reader = BufReader::new(file);
         let mut apikey = String::new();
         buf_reader.read_to_string(&mut apikey).unwrap();
-        debug!(log, "Got email {} with apikey {}", &email, apikey);
         user2apikey.insert(email.clone(), apikey);
 
         // get decryption cap
@@ -50,7 +86,6 @@ fn test_disguise() {
         let mut buf_reader = BufReader::new(file);
         let mut decryptcap = String::new();
         buf_reader.read_to_string(&mut decryptcap).unwrap();
-        debug!(log, "Got email {} with decryptcap {}", &email, decryptcap);
         user2decryptcap.insert(email, decryptcap);
     }
 
@@ -79,7 +114,6 @@ fn test_disguise() {
         let mut buf_reader = BufReader::new(file);
         let mut owncap = String::new();
         buf_reader.read_to_string(&mut owncap).unwrap();
-        debug!(log, "Got email {} with owncap {}", &email, owncap);
         user2owncap.insert(email.clone(), owncap);
 
         // check results of anonymization: user has no answers
@@ -152,7 +186,6 @@ fn test_disguise() {
             answers.push((format!("answers.{}", q), format!("new_answer_user_{}_lec_{}", u, 0)));
         }
         let postdata = serde_urlencoded::to_string(&answers).unwrap();
-        debug!(log, "Posting to questions for lec 0 answers {}", postdata);
         let response = client
             .post(format!("/questions/{}", 0)) // testing lecture 0 for now
             .body(postdata)
@@ -279,4 +312,5 @@ fn test_disguise() {
         rows.len(),
         1 + args.nusers as usize * (args.nlec as usize + 1)
     );
+    */
 }

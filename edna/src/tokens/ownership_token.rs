@@ -46,7 +46,9 @@ pub fn edna_own_token_to_bytes(token: &EdnaOwnershipToken) -> Vec<u8> {
 pub fn ownership_token_from_bytes(bytes: &Vec<u8>) -> OwnershipTokenWrapper {
     serde_json::from_slice(bytes).unwrap()
 }
-
+pub fn ownership_tokens_from_bytes(bytes: &Vec<u8>) -> Vec<OwnershipTokenWrapper> {
+    serde_json::from_slice(bytes).unwrap()
+}
 pub fn new_generic_ownership_token_wrapper(
     old_uid: UID,
     new_uid: UID,

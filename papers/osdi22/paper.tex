@@ -38,6 +38,9 @@ asymptotics ,
 keys
 ]{ cryptocode }
 
+% Nicer TT font
+\renewcommand{\ttdefault}{pxtt}
+
 % BibLaTeX for bibliography
 \usepackage[
   backend=biber,
@@ -95,11 +98,14 @@ keys
 \createprocedureblock{procb}{center,boxed}{}{}{}
 
 \lstdefinestyle{rust}{
+    language = Rust,
+    basicstyle=\ttfamily\footnotesize,
+    stringstyle=\color{blue},
     %backgroundcolor=\color{backcolour},
     commentstyle=\color{codegreen},
     keywordstyle=\color{codepurple},
-    stringstyle=\color{blue},
-    basicstyle=\ttfamily\scriptsize,
+    keywordstyle=[2]{\color{lime}},
+    morekeywords=[2]{StartDisguise,EndDisguise}
     breakatwhitespace=false,
     breaklines=true,
     captionpos=b,
