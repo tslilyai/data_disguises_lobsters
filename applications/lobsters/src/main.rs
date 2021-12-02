@@ -18,6 +18,8 @@ use std::time;
 use std::time::Duration;
 use std::*;
 use structopt::StructOpt;
+use serde_json;
+use std::io::BufReader;
 
 mod datagen;
 mod disguises;
@@ -83,17 +85,24 @@ fn main() {
         sampler.nusers() as usize * 200, // assume each user has 200 pieces of data
         disguises::get_guise_gen(),      /*in-mem*/
     );
+
+    // we'll read the private keys from file if we've primed already
+    let mut user2decryptcap = HashMap::new();
     if prime {
         datagen::gen_data(&sampler, &mut edna.get_conn().unwrap());
-    }
-
-    // always register users with edna?
-    let mut user2decryptcap = HashMap::new();
-    for u in 0..sampler.nusers() {
-        let user_id = u as u64 + 1;
-        let private_key = edna.register_principal(&user_id.to_string());
-        let privkey_str = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
-        user2decryptcap.insert(user_id, privkey_str);
+        for u in 0..sampler.nusers() {
+            let user_id = u as u64 + 1;
+            let private_key = edna.register_principal(&user_id.to_string());
+            let privkey_str = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
+            user2decryptcap.insert(user_id, privkey_str);
+        }
+        serde_json::to_writer(&File::create("decrypt_caps.json").unwrap(), &user2decryptcap).unwrap();
+        error!("Got {} decrypt caps", user2decryptcap.len());
+    } else {
+        let file = File::open("decrypt_caps.json").unwrap();
+        let reader = BufReader::new(file);
+        user2decryptcap = serde_json::from_reader(reader).unwrap();
+        error!("Got {} decrypt caps", user2decryptcap.len());
     }
 
     if args.stats {
@@ -156,12 +165,11 @@ fn run_normal_thread(
     op_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
     barrier: Arc<Barrier>,
 ) {
-    let nusers = sampler.nusers();
     let nstories = sampler.nstories();
     let ncomments = sampler.ncomments();
 
     let mut rng = rand::thread_rng();
-    let max_id = nusers;
+    let max_id = ncomments*10000;
     let mut my_op_durations = vec![];
 
     barrier.wait();
@@ -470,7 +478,7 @@ fn run_stats_test(
         // baseline delete
         let start = time::Instant::now();
         //disguises::baseline::apply_delete(user_id, edna).unwrap();
-        disguises::baseline::apply_decay(user_id, edna).unwrap();
+        //disguises::baseline::apply_decay(user_id, edna).unwrap();
         file.write(format!("{}\n", start.elapsed().as_micros()).as_bytes())
             .unwrap();
     }
