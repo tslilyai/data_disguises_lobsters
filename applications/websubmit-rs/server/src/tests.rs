@@ -14,8 +14,6 @@ use std::io::{BufReader, Read};
 fn test_disguise() {
     let args = args::parse_args();
     let client = Client::tracked(rocket(&args)).expect("valid rocket instance");
-    let config = args.config;
-
     let mut db = mysql::Conn::new(
         Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", args.class)).unwrap(),
     )
