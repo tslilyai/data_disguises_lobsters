@@ -37,7 +37,6 @@ use rocket::local::blocking::Client;
 use rocket::response::Redirect;
 use rocket::{Build, Rocket, State};
 use rocket_dyn_templates::Template;
-use std::cmp::min;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, Read, Write};
@@ -448,7 +447,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     }
 
     /***********************************
-     * gdpr restore (with composition)
+     * gdpr restore (without composition)
      ***********************************/
     for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
@@ -685,13 +684,18 @@ fn print_stats(
     restore_durations_nonanon: Vec<Duration>,
     is_baseline: bool,
 ) {
+    let prefix = if args.batch {
+        "_batch"
+    } else {
+        ""
+    };
     let filename = if is_baseline {
         format!(
-            "disguise_stats_{}lec_{}users_baseline.csv",
-            args.nlec, args.nusers
+            "disguise_stats_{}lec_{}users{}_baseline.csv",
+            args.nlec, args.nusers, prefix
         )
     } else {
-        format!("disguise_stats_{}lec_{}users.csv", args.nlec, args.nusers)
+        format!("disguise_stats_{}lec_{}users{}.csv", args.nlec, args.nusers, prefix)
     };
 
     // print out stats

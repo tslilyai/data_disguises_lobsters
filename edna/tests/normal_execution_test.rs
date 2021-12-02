@@ -26,7 +26,7 @@ fn test_normal_execution() {
 
     // init schema, etc.
     let guise_gen = disguises::get_guise_gen();
-    edna::EdnaClient::new(true, DBNAME, SCHEMA, true, 1, guise_gen);
+    edna::EdnaClient::new(true, true, DBNAME, SCHEMA, true, 1, guise_gen);
     let mut db = mysql::Conn::new(Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", DBNAME)).unwrap()).unwrap();
     assert_eq!(db.ping(), true);
 

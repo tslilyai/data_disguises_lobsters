@@ -51,6 +51,7 @@ impl MySqlBackend {
         };
         let edna = EdnaClient::new(
             args.prime,
+            args.batch,
             dbname,
             &schema,
             true,

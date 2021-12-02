@@ -6,8 +6,10 @@ rm *txt
 mkdir output
 set -e
 
-RUST_LOG=error ../../target/release/lobsters \
-	--prime \
-	--scale 1 
-	#&> output/users.out
-echo "Ran test for users"
+for batch in '--batch' ''; do
+	RUST_LOG=error ../../target/release/lobsters \
+		--prime $batch \
+		--scale 1 \
+		&> output/users$batch.out
+	echo "Ran test for users"
+done

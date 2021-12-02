@@ -22,6 +22,7 @@ fn test_disguise() {
                 .takes_value(true),
         )
         .arg(Arg::with_name("prime").help("Prime the database"))
+        .arg(Arg::with_name("batch").help("Use token batching"))
         .arg(
             Arg::with_name("schema")
                 .short("s")
@@ -46,6 +47,7 @@ fn test_disguise() {
     let client = Client::tracked(
         rocket(
             matches.is_present("prime"),
+            matches.is_present("batch"),
             matches.value_of("database").unwrap(),
             matches.value_of("schema").unwrap(),
             matches.is_present("in-memory"),
