@@ -7,7 +7,6 @@ use crate::*;
 use flamer::flame;
 use log::error;
 use mysql::{Opts, Pool};
-use rsa::RsaPrivateKey;
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
 use std::sync::{Arc, Mutex, RwLock};
@@ -91,13 +90,6 @@ impl Disguiser {
                 self.pseudoprincipal_data_pool.pop().unwrap()
             }
         }
-    }
-
-    pub fn register_principal(&mut self, uid: &UID, db: &mut mysql::PooledConn) -> RsaPrivateKey {
-        let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        let priv_key = locked_token_ctrler.register_principal(uid, false, db, true);
-        drop(locked_token_ctrler);
-        priv_key
     }
 
     pub fn get_pseudoprincipals(
@@ -396,7 +388,7 @@ impl Disguiser {
 
         // any capabilities generated during disguise should be emailed
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        let loc_caps = locked_token_ctrler.save_and_clear(did, &mut db);
+        let loc_caps = locked_token_ctrler.save_and_clear(&mut db);
         drop(locked_token_ctrler);
         self.end_disguise_action();
         error!("Edna: apply disguise: {}", start.elapsed().as_micros());
@@ -587,7 +579,7 @@ impl Disguiser {
                                 // if we're working on a guise table (e.g., a users table)
                                 // remove the user
                                 if locked_guise_gen.guise_name == table {
-                                    locked_token_ctrler.mark_principal_to_be_removed(&token.uid);
+                                    locked_token_ctrler.mark_principal_to_be_removed(&token.uid, token.did);
                                 }
                             }
                         }

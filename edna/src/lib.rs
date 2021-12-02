@@ -87,9 +87,12 @@ impl EdnaClient {
     // Necessary to make Edna aware of all principals in the system
     // so Edna can link these to pseudoprincipals/do crypto stuff
     //-----------------------------------------------------------------------------
-    pub fn register_principal(&mut self, uid: UID) -> RsaPrivateKey {
-        let mut conn = self.get_conn().unwrap();
-        self.disguiser.register_principal(&uid, &mut conn)
+    pub fn register_principal(&mut self, uid: &UID) -> RsaPrivateKey {
+        let mut db = self.get_conn().unwrap();
+        let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
+        let priv_key = locked_token_ctrler.register_principal(uid, false, &mut db, true);
+        drop(locked_token_ctrler);
+        priv_key
     }
 
     //-----------------------------------------------------------------------------
@@ -97,15 +100,12 @@ impl EdnaClient {
     //-----------------------------------------------------------------------------
     pub fn start_disguise(&self, _did: DID) {}
 
-    pub fn end_disguise(
-        &self,
-        did: DID,
-    ) -> (
+    pub fn end_disguise(&self) -> (
         HashMap<(UID, DID), tokens::LocCap>,
         HashMap<(UID, DID), tokens::LocCap>,
     ) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
-        let loc_caps = locked_token_ctrler.save_and_clear(did, &mut self.get_conn().unwrap());
+        let loc_caps = locked_token_ctrler.save_and_clear(&mut self.get_conn().unwrap());
         drop(locked_token_ctrler);
         loc_caps
     }
@@ -217,6 +217,12 @@ impl EdnaClient {
     //-----------------------------------------------------------------------------
     // Save information about decorrelation/ownership
     //-----------------------------------------------------------------------------
+    pub fn remove_principal_metadata(&mut self, uid: &UID, did: DID) {
+        let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
+        locked_token_ctrler.mark_principal_to_be_removed(uid, did);
+        drop(locked_token_ctrler);
+    }
+
     pub fn save_pseudoprincipal_token(
         &self,
         did: DID,

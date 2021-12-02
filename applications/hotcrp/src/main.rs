@@ -94,7 +94,7 @@ fn run_edna(args: &Cli) {
     let mut decrypt_caps = HashMap::new();
     for uid in 1..nusers + 1 {
         let start = time::Instant::now();
-        let private_key = edna.register_principal(uid.to_string());
+        let private_key = edna.register_principal(&uid.to_string());
         let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         decrypt_caps.insert(uid as usize, private_key_vec);
         datagen::insert_single_user(&mut db).unwrap();

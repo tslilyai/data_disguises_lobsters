@@ -63,7 +63,7 @@ fn run_stats_test(
             continue
         }
         let user_id = u as u64 + 1;
-        //let decryption_cap = user2decryptcaps.get(&user_id).unwrap();
+        let decryption_cap = user2decryptcaps.get(&user_id).unwrap();
         let mut user_stories = 0;
         let mut user_comments = 0;
         let res = db
@@ -99,7 +99,7 @@ fn run_stats_test(
         let some_user_id : u32 = rng.gen();
         db.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", some_user_id)).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes()).unwrap();
-        edna.register_principal(some_user_id.to_string().into());
+        edna.register_principal(&some_user_id.to_string());
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes()).unwrap();
 
         // DECAY
@@ -307,7 +307,7 @@ fn main() {
     let mut user2decryptcap = HashMap::new();
     for u in 0..sampler.nusers() {
         let user_id = u as u64 + 1;
-        let private_key = edna.register_principal(user_id.to_string().into());
+        let private_key = edna.register_principal(&user_id.to_string());
         let privkey_str = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
         user2decryptcap.insert(user_id, privkey_str);
     }

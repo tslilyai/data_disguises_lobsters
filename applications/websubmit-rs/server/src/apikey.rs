@@ -112,7 +112,7 @@ pub(crate) fn generate(
         #[cfg(feature = "flame_it")]
         flame::start("register_principal");
         let start = time::Instant::now();
-        let private_key = bg.edna.lock().unwrap().register_principal(data.email.as_str().into());
+        let private_key = bg.edna.lock().unwrap().register_principal(&data.email);
         privkey_str = base64::encode(&private_key.to_pkcs1_der().unwrap().as_der().to_vec());
         info!(bg.log, "register principal: {}", start.elapsed().as_micros());
         #[cfg(feature = "flame_it")]

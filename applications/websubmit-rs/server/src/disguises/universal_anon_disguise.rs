@@ -157,7 +157,8 @@ pub fn apply(
 
         if !is_baseline {
             let edna = bg.edna.lock().unwrap();
-            let res = edna.end_disguise(get_did()); drop(edna);
+            let res = edna.end_disguise(); 
+            drop(edna);
             locators.0.extend(&mut res.0.into_iter());
             locators.1.extend(&mut res.1.into_iter());
         }

@@ -197,7 +197,6 @@ impl TokenCtrler {
     #[cfg_attr(feature = "flame_it", flame)]
     pub fn save_and_clear(
         &mut self,
-        did: DID,
         db: &mut mysql::PooledConn,
     ) -> (HashMap<(UID, DID), LocCap>, HashMap<(UID, DID), LocCap>) {
 
@@ -247,13 +246,10 @@ impl TokenCtrler {
             }
         }
 
-        // actually remove the principals supposed to be removed
-        for uid in self.tmp_remove_principals.clone().iter() {
-            self.save_remove_principal_tokens(&uid, did);
-        }
         if self.batch {
             self.insert_batch_tokens();
         }
+        // actually remove the principals supposed to be removed
         for uid in self.tmp_remove_principals.clone().iter() {
             self.remove_principal(&uid, db);
         }
@@ -436,27 +432,17 @@ impl TokenCtrler {
 
     // Note: pseudoprincipals cannot be removed (they're essentially like ``tokens'')
     #[cfg_attr(feature = "flame_it", flame)]
-    pub fn mark_principal_to_be_removed(&mut self, uid: &UID) {
+    pub fn mark_principal_to_be_removed(&mut self, uid: &UID, did: DID) {
+        let start = time::Instant::now();
         let p = self.principal_data.get_mut(uid).unwrap();
         // save to principal data if anon (pseudoprincipal)
         if p.is_anon {
             return;
         }
+        let mut ptoken = new_remove_principal_token_wrapper(uid, did, &p);
+        self.insert_user_diff_token_wrapper(&mut ptoken);
         self.tmp_remove_principals.insert(uid.to_string());
-    }
-
-    fn save_remove_principal_tokens(&mut self, uid: &UID, did: DID) {
-        warn!("Removing principal token {}\n", uid);
-        let start = time::Instant::now();
-        let pdata = self.principal_data.get(uid);
-        if pdata.is_none() {
-            return;
-        } else {
-            let pdata = pdata.unwrap();
-            let mut ptoken = new_remove_principal_token_wrapper(uid, did, &pdata);
-            self.insert_user_diff_token_wrapper(&mut ptoken);
-        }
-        error!("Edna: remove principal tokens: {}", start.elapsed().as_micros());
+        error!("Edna: mark principal to remove : {}", start.elapsed().as_micros());        
     }
 
     pub fn remove_principal(&mut self, uid: &UID, db: &mut mysql::PooledConn) {
@@ -1299,7 +1285,7 @@ mod tests {
                     remove_token.uid = u.to_string();
                     ctrler.insert_user_diff_token_wrapper(&mut remove_token);
                 }
-                let (dcs, lcs) = ctrler.save_and_clear(d as u64, &mut db);
+                let (dcs, lcs) = ctrler.save_and_clear(&mut db);
                 dcaps.extend(dcs);
                 lcaps.extend(lcs);
             }
@@ -1396,7 +1382,7 @@ mod tests {
                     own_token_bytes,
                     &mut db,
                 );
-                let (dcs, lcs) = ctrler.save_and_clear(d as u64, &mut db);
+                let (dcs, lcs) = ctrler.save_and_clear(&mut db);
                 dcaps.extend(dcs);
                 lcaps.extend(lcs);
             }

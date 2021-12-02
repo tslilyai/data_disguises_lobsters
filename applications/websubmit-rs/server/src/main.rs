@@ -192,7 +192,7 @@ fn run_baseline_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     /**********************************
      * baseline edits + delete
      ***********************************/
-    for u in 0..5 {
+    for u in 0..nusers {
         let email = format!("{}@mail.edu", u);
         let apikey = user2apikey.get(&email).unwrap();
 
@@ -361,7 +361,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
      ***********************************/
     #[cfg(feature = "flame_it")]
     flame::start("edit");
-    for u in 0..min(5, args.nusers) {
+    for u in 0..args.nusers {
         // login
         let email = format!("{}@mail.edu", u);
         let apikey = user2apikey.get(&email).unwrap();
@@ -409,7 +409,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     /***********************************
      * gdpr deletion (no composition)
      ***********************************/
-    for u in 0..min(5, args.nusers) {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let apikey = user2apikey.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
@@ -450,7 +450,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
     /***********************************
      * gdpr restore (with composition)
      ***********************************/
-    for u in 0..min(5, args.nusers) {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let start = time::Instant::now();
         let decryptcap = user2decryptcap.get(&email).unwrap();
@@ -510,7 +510,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
      ***********************************/
     #[cfg(feature = "flame_it")]
     flame::start("edit");
-    for u in 0..min(5, args.nusers) {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let owncap = user2owncap.get(&email).unwrap();
         let decryptcap = user2decryptcap.get(&email).unwrap();
@@ -580,7 +580,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
      ***********************************/
     #[cfg(feature = "flame_it")]
     flame::start("delete");
-    for u in 0..min(5, args.nusers) {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let apikey = user2apikey.get(&email).unwrap();
         let owncap = user2owncap.get(&email).unwrap();
@@ -626,7 +626,7 @@ fn run_benchmark(args: &args::Args, rocket: Rocket<Build>) {
      ***********************************/
     #[cfg(feature = "flame_it")]
     flame::start("restore");
-    for u in 0..min(5, args.nusers) {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let start = time::Instant::now();
         let owncap = user2owncap.get(&email).unwrap();

@@ -80,7 +80,7 @@ pub(crate) fn register_principal(
     edna: &State<Arc<Mutex<EdnaClient>>>,
 ) -> Json<RegisterPrincipalResponse> {
     let mut e = edna.lock().unwrap();
-    let privkey = e.register_principal(data.to_owned());
+    let privkey = e.register_principal(&data.to_owned());
     let privkey_str = base64::encode(&privkey.to_pkcs1_der().unwrap().as_der().to_vec());
     return Json(RegisterPrincipalResponse {
         privkey: privkey_str,
@@ -104,8 +104,9 @@ pub(crate) fn end_disguise(
     did: edna::DID,
     edna: &State<Arc<Mutex<EdnaClient>>>,
 ) -> Json<EndDisguiseResponse> {
+    let _ = did;
     let e = edna.lock().unwrap();
-    let locators = e.end_disguise(did);
+    let locators = e.end_disguise();
     return Json(EndDisguiseResponse {
         diff_locators: locators.0,
         ownership_locators: locators.1,
