@@ -222,7 +222,7 @@ fn run_normal(
             .send()?;
         assert_eq!(response.status(), StatusCode::OK);
         my_edit_durations.push((overall_start.elapsed(), start.elapsed()));
-        thread::sleep(time::Duration::from_millis(rng.gen_range(100..500)));
+        thread::sleep(time::Duration::from_millis(rng.gen_range(250..500)));
     }
     edit_durations
         .lock()
@@ -325,6 +325,7 @@ fn run_disguising_thread(
 
     // restore
     let start = time::Instant::now();
+    info!(log, "Restoring user {} with diffcap {}", &email, diffcap);
     let response = client
         .post(&format!("{}/restore", SERVER))
         .form(&vec![

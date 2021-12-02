@@ -200,9 +200,6 @@ impl TokenCtrler {
         did: DID,
         db: &mut mysql::PooledConn,
     ) -> (HashMap<(UID, DID), LocCap>, HashMap<(UID, DID), LocCap>) {
-        if self.batch {
-            self.insert_batch_tokens();
-        }
 
         let dlcs = self.tmp_diff_loc_caps.clone();
         let olcs = self.tmp_ownership_loc_caps.clone();
@@ -252,10 +249,15 @@ impl TokenCtrler {
 
         // actually remove the principals supposed to be removed
         for uid in self.tmp_remove_principals.clone().iter() {
-            self.remove_principal(&uid, did, db);
+            self.save_remove_principal_tokens(&uid, did);
         }
-
-                self.persist_principals(db);
+        if self.batch {
+            self.insert_batch_tokens();
+        }
+        for uid in self.tmp_remove_principals.clone().iter() {
+            self.remove_principal(&uid, db);
+        }
+        self.persist_principals(db);
         self.clear_tmp();
         (dlcs, olcs)
     }
@@ -443,10 +445,9 @@ impl TokenCtrler {
         self.tmp_remove_principals.insert(uid.to_string());
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
-    pub fn remove_principal(&mut self, uid: &UID, did: DID, db: &mut mysql::PooledConn) {
+    fn save_remove_principal_tokens(&mut self, uid: &UID, did: DID) {
+        warn!("Removing principal token {}\n", uid);
         let start = time::Instant::now();
-        warn!("Removing principal {}\n", uid);
         let pdata = self.principal_data.get(uid);
         if pdata.is_none() {
             return;
@@ -454,9 +455,25 @@ impl TokenCtrler {
             let pdata = pdata.unwrap();
             let mut ptoken = new_remove_principal_token_wrapper(uid, did, &pdata);
             self.insert_user_diff_token_wrapper(&mut ptoken);
+        }
+        error!("Edna: remove principal tokens: {}", start.elapsed().as_micros());
+    }
 
-            // actually remove
+    pub fn remove_principal(&mut self, uid: &UID, db: &mut mysql::PooledConn) {
+        // actually remove
+        let start = time::Instant::now();
+        let pdata = self.principal_data.get(uid);
+        if pdata.is_none() {
+            return;
+        } else {
+            warn!("Removing principal {}\n", uid);
             self.principal_data.remove(uid);
+            warn!(
+                "DELETE FROM {} WHERE {} = \'{}\'",
+                PRINCIPAL_TABLE,
+                UID_COL,
+                uid.trim_matches('\'')
+            );
             db.query_drop(format!(
                 "DELETE FROM {} WHERE {} = \'{}\'",
                 PRINCIPAL_TABLE,
@@ -472,12 +489,13 @@ impl TokenCtrler {
      * PRINCIPAL TOKEN INSERT
      */
     fn insert_batch_tokens(&mut self) {
-        let keys = self.tmp_own_tokens.keys().cloned().collect::<Vec<_>>();
-        for (uid, did) in keys {
-            let lc = self.get_ownership_loc_cap(&uid, did);
+        let start = time::Instant::now();
+        let okeys = self.tmp_own_tokens.keys().cloned().collect::<Vec<_>>();
+        for (uid, did) in &okeys {
+            let lc = self.get_ownership_loc_cap(uid, *did);
             let p = self
                 .principal_data
-                .get_mut(&uid)
+                .get_mut(uid)
                 .expect("no user with uid found?");
             
             // generate key
@@ -496,7 +514,7 @@ impl TokenCtrler {
             self.rng.fill_bytes(&mut iv[..]);
             let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
            
-            let pppks = self.tmp_own_tokens.get(&(uid, did)).unwrap();
+            let pppks = self.tmp_own_tokens.get(&(uid.to_string(), *did)).unwrap();
             let plaintext = serialize_to_bytes(&pppks);
             let encrypted = cipher.encrypt_vec(&plaintext);
             let enc_pppk = EncData {
@@ -514,13 +532,14 @@ impl TokenCtrler {
                     self.enc_ownership_map.insert(lc, vec![enc_pppk]);
                 }
             }
+            error!("EdnaBatch: Inserted {} own tokens for {}", pppks.len(), uid);
         }
-        let keys = self.tmp_diff_tokens.keys().cloned().collect::<Vec<_>>();
-        for (uid, did) in keys {
-            let cap = self.get_diff_loc_cap(&uid, did);
+        let dkeys = self.tmp_diff_tokens.keys().cloned().collect::<Vec<_>>();
+        for (uid, did) in &dkeys {
+            let cap = self.get_diff_loc_cap(uid, *did);
             let p = self
                 .principal_data
-                .get_mut(&uid)
+                .get_mut(uid)
                 .expect("no user with uid found?");
 
             // generate key
@@ -539,7 +558,7 @@ impl TokenCtrler {
             self.rng.fill_bytes(&mut iv[..]);
             let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
             
-            let dts = self.tmp_diff_tokens.get(&(uid, did)).unwrap();
+            let dts = self.tmp_diff_tokens.get(&(uid.to_string(), *did)).unwrap();
             let plaintext = serialize_to_bytes(&dts);
             let encrypted = cipher.encrypt_vec(&plaintext);
             assert_eq!(encrypted.len() % 16, 0);
@@ -556,7 +575,11 @@ impl TokenCtrler {
                     self.enc_diffs_map.insert(cap, vec![enctoken]);
                 }
             }
+            error!("EdnaBatch: Inserted {} diff tokens for {}", dts.len(), uid);
         }
+        error!(
+            "EdnaBatch: Inserted {} user own tokens and {} user diff tokens: {}", okeys.len(), dkeys.len(), start.elapsed().as_micros(),
+        );
     }
 
     #[cfg_attr(feature = "flame_it", flame)]
@@ -1023,6 +1046,9 @@ impl TokenCtrler {
 
                     if self.batch {
                         let mut tokens = diff_tokens_from_bytes(&plaintext);
+                        error!(
+                            "EdnaBatch: Decrypted diff tokens added {}: {}", tokens.len(), start.elapsed().as_micros(),
+                        );
                         diff_tokens.append(&mut tokens);
                     } else {
                         let token = diff_token_from_bytes(&plaintext);
@@ -1030,15 +1056,10 @@ impl TokenCtrler {
                         if !token.revealed && token.did == did {
                             diff_tokens.push(token.clone());
                         }
+                        error!(
+                            "Edna: Decrypted tokens pushed to len {}: {}", diff_tokens.len(), start.elapsed().as_micros(),
+                        );
                     }
-                    warn!(
-                        "tokens pushed to len {}",
-                        diff_tokens.len()
-                    );
-                    error!(
-                        "Edna: Decrypt one difftoken in get_tokens: {}",
-                        start.elapsed().as_micros()
-                    );
                 }
             }
         }
@@ -1053,6 +1074,10 @@ impl TokenCtrler {
                     let mut new_uids = vec![];
                     if self.batch {
                         let mut tokens = ownership_tokens_from_bytes(&plaintext);
+                        error!(
+                            "EdnaBatch: Decrypted own tokens added {}: {}", tokens.len(), start.elapsed().as_micros(),
+                        );
+
                         for pk in &tokens {
                             new_uids.push((pk.new_uid.clone(), pk.priv_key.clone()));
                         }
@@ -1061,11 +1086,11 @@ impl TokenCtrler {
                         let pk = ownership_token_from_bytes(&plaintext);
                         own_tokens.push(pk.clone());
                         new_uids.push((pk.new_uid, pk.priv_key));
+                        error!(
+                            "Edna: Decrypt pseudoprincipal token in get_tokens: {}",
+                            start.elapsed().as_micros()
+                        );
                     }
-                    error!(
-                        "Edna: Decrypt pseudoprincipal token in get_tokens: {}",
-                        start.elapsed().as_micros()
-                    );
 
                     // get all tokens of pseudoprincipal
                     for (new_uid, privkey) in new_uids {
