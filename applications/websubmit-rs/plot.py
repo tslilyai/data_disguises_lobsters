@@ -24,7 +24,7 @@ delete_results = defaultdict(list)
 restore_results = defaultdict(list)
 
 for u in nusers:
-    with open('concurrent_disguise_stats_{}lec_{}users_disguising.csv'.format(lec, u),'r') as csvfile:
+    with open('results/no_batch/concurrent_disguise_stats_{}lec_{}users_disguising.csv'.format(lec, u),'r') as csvfile:
         rows = csvfile.readlines()
         editpairs = [x.split(':') for x in rows[0].strip().split(',')]
         editdata = defaultdict(list)
@@ -35,7 +35,7 @@ for u in nusers:
         normal_edit_results[u] = editdata
 
     for nd in [int(u * prop) for prop in props]:
-        with open('concurrent_disguise_stats_{}lec_{}users_disguising_{}batch.csv'.format(lec, u, nd),'r') as csvfile:
+        with open('results/no_batch/concurrent_disguise_stats_{}lec_{}users_disguising_{}batch.csv'.format(lec, u, nd),'r') as csvfile:
             rows = csvfile.readlines()
             editpairs = [x.split(':') for x in rows[0].strip().split(',')]
             editdata = defaultdict(list)
@@ -62,7 +62,7 @@ for u in nusers:
             delete_results[u].append(deletedata)
             restore_results[u].append(restoredata)
 
-    with open('concurrent_disguise_stats_{}lec_{}users_25disguisers_baseline.csv'.format(lec, u, nd),'r') as csvfile:
+    with open('results/no_batch/concurrent_disguise_stats_{}lec_{}users_25disguisers_baseline.csv'.format(lec, u, nd),'r') as csvfile:
         rows = csvfile.readlines()
         editpairs = [x.split(':') for x in rows[0].strip().split(',')]
         editdata = defaultdict(list)
