@@ -22,9 +22,11 @@ application user queries?.
 \begin{figure}[h!]
     \centering
         \includegraphics[width=0.5\textwidth]{figs/client_op_stats}
-    \caption{Latencies of disguise-related actions 
-    taken without \sys; with \sys;
-    and with \sys using temporary recorrelation after anonymization. 
+    \caption{Latencies of disguise-related actions when implemented manually by the application
+    developer without \sys, and with \sys.
+    These actions include disguise application, disguise revealing (only applicable with \sys), and
+    authorized edits of anonymized data with \sys in WebSubmit and HotCRP.
+    Each bar shows the median latency; the ranges indicate the 5th to 95th percentile latencies.
     } 
     \label{fig:client_opstats}
 \end{figure}

@@ -65,20 +65,25 @@ for (i, ax) in enumerate(axes_flat[:2]):
     ax.bar((X-barwidth/2)[:1],
             [statistics.median(account_durs_baseline)],
             yerr= [
-                [statistics.median(account_durs_baseline)-np.percentile(account_durs_baseline, 5)],
-                [0]
-                #[np.percentile(account_durs_baseline, 95) - statistics.median(account_durs_baseline)-np.percentile(account_durs_baseline)],
-            ],
+                [np.percentile(account_durs_baseline, 5)],
+                [np.percentile(account_durs_baseline, 95)
+            ]],
             color='g', capsize=5, width=barwidth)
     add_labels((X-barwidth/2)[:1], [statistics.median(account_durs_baseline)], ax, 'g', offset)
 
     ax.bar((X-barwidth)[1:2], [statistics.median(edit_durs_baseline)],
-            yerr= [[0], [statistics.median(edit_durs_baseline) + statistics.stdev(edit_durs_baseline)]],
+            yerr= [
+                [np.percentile(edit_durs_baseline, 5)],
+                [np.percentile(edit_durs_baseline, 95)
+            ]],
             color='g', capsize=5, width=barwidth, label="Manual Privacy Transformation (No Edna)")
     add_labels((X-barwidth)[1:2], [statistics.median(edit_durs_baseline)], ax, 'g', offset)
 
     ax.bar((X-barwidth/2)[2:3], [statistics.median(delete_durs_baseline)],
-            yerr= [[0], [statistics.median(delete_durs_baseline) + statistics.stdev(delete_durs_baseline)]],
+            yerr= [
+                [np.percentile(delete_durs_baseline, 5)],
+                [np.percentile(delete_durs_baseline, 95)
+            ]],
             color='g', capsize=5, width=barwidth)
     add_labels((X-barwidth/2)[2:3], [statistics.median(delete_durs_baseline)], ax, 'g', offset)
 
@@ -93,17 +98,26 @@ for (i, ax) in enumerate(axes_flat[:2]):
     add_labels((X+barwidth/2)[:1], [statistics.median(account_durs)], ax, 'm', offset)
 
     ax.bar((X)[1:2], [statistics.median(edit_durs_noanon)],
-            yerr= [[0], [statistics.median(edit_durs_noanon) + statistics.stdev(edit_durs_noanon)]],
+            yerr= [
+                [np.percentile(edit_durs_noanon, 5)],
+                [np.percentile(edit_durs_noanon, 95)
+            ]],
             color='m', capsize=5, width=barwidth, label="Edna")
     add_labels((X)[1:2], [statistics.median(edit_durs_noanon)], ax, 'm', offset)
 
     ax.bar((X+barwidth/2)[2:3], [statistics.median(delete_durs_noanon)],
-            yerr= [[0], [statistics.median(delete_durs_noanon) + statistics.stdev(delete_durs_noanon)]],
+            yerr= [
+                [np.percentile(delete_durs_noanon, 5)],
+                [np.percentile(delete_durs_noanon, 95)
+            ]],
             color='m', capsize=5, width=barwidth)
     add_labels((X+barwidth/2)[2:3], [statistics.median(delete_durs_noanon)], ax, 'm', offset)
 
     ax.bar((X)[3:4], [statistics.median(restore_durs)],
-            yerr= [[0], [statistics.median(restore_durs) + statistics.stdev(restore_durs)]],
+            yerr= [
+                [np.percentile(restore_durs, 5)],
+                [np.percentile(restore_durs, 95)
+            ]],
             color='m', capsize=5, width=barwidth)
     add_labels((X)[3:4], [statistics.median(restore_durs)], ax, 'm', offset)
 
@@ -112,13 +126,16 @@ for (i, ax) in enumerate(axes_flat[:2]):
 
     # edna with temp recorrelation
     ax.bar((X+barwidth)[1:2], [statistics.median(edit_durs)],
-            yerr= [[0], [statistics.median(edit_durs) + statistics.stdev(edit_durs)]],
+            yerr= [
+                [np.percentile(edit_durs, 5)],
+                [np.percentile(edit_durs, 95)
+            ]],
             color='y', capsize=5, width=barwidth, label="Edna After Anonymization")
     add_labels((X+barwidth)[1:2], [statistics.median(edit_durs)], ax, 'y', offset)
 
     ax.set_title(title)
     ax.set_ylabel('Time (ms)')
-    ax.set_ylim(ymin=0, ymax=(statistics.median(restore_durs)+statistics.stdev(restore_durs))*2)
+    ax.set_ylim(ymin=0, ymax=(np.percentile(restore_durs, 95)*2))
     ax.set_xticks(X)
     ax.set_xticklabels(labels)
 
@@ -231,7 +248,7 @@ add_labels(X[3:], [
 title = "Lobsters Operation Latencies"
 ax.set_title(title)
 ax.set_ylabel('Time (ms)')
-ax.set_ylim(ymin=0,ymax=(statistics.median(restore_results_all)+statistics.stdev(restore_results_all))*1.5)
+ax.set_ylim(ymin=0, ymax=(np.percentile(restore_results_all,95)*1.25))
 ax.set_xticks(X)
 ax.set_xticklabels(labels)
 
