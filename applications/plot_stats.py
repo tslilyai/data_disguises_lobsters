@@ -11,12 +11,12 @@ def add_labels(x,y,ax,color,offset):
     for i in range(len(x)):
         ax.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color)
 
-fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(8,12))
+fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10,12))
 axes_flat = axes.flatten()
 barwidth = 0.25
 # positions
-X = np.arange(5)
-labels = ['Create Account', 'Edit Data', 'Delete Account', 'Restore Account', 'Anonymize Account']
+X = np.arange(6)
+labels = ['Create Account', 'Edit\nUnanonymized\nData', 'Edit\nAnonymized\nData', 'Delete Account', 'Restore Deleted\nAccount', 'Anonymize Account']
 
 # WEBSUBMIT RESULTS
 for (i, ax) in enumerate(axes_flat[:2]):
@@ -25,6 +25,7 @@ for (i, ax) in enumerate(axes_flat[:2]):
     edit_durs = []
     delete_durs = []
     restore_durs = []
+    edit_durs_noanon = []
     delete_durs_noanon = []
     restore_durs_noanon = []
 
@@ -58,6 +59,7 @@ for (i, ax) in enumerate(axes_flat[:2]):
         edit_durs = [float(x)/1000 for x in rows[2].strip().split(',')]
         delete_durs = [float(x)/1000 for x in rows[3].strip().split(',')]
         restore_durs = [float(x)/1000 for x in rows[4].strip().split(',')]
+        edit_durs_noanon = [float(x)/1000 for x in rows[5].strip().split(',')]
         delete_durs_noanon = [float(x)/1000 for x in rows[6].strip().split(',')]
         restore_durs_noanon = [float(x)/1000 for x in rows[7].strip().split(',')]
 
@@ -87,24 +89,24 @@ for (i, ax) in enumerate(axes_flat[:2]):
             color='g', capsize=5, width=barwidth)
     add_labels((X-barwidth/2)[:1], [statistics.median(account_durs_baseline)], ax, 'g', offset)
 
-    ax.bar((X-barwidth)[1:2], [statistics.median(edit_durs_baseline)],
+    ax.bar((X-barwidth/2)[1:2], [statistics.median(edit_durs_baseline)],
             yerr= [
                 [np.percentile(edit_durs_baseline, 5)],
                 [np.percentile(edit_durs_baseline, 95)
             ]],
             color='g', capsize=5, width=barwidth, label="Manual Privacy Transformation (No Edna)")
-    add_labels((X-barwidth)[1:2], [statistics.median(edit_durs_baseline)], ax, 'g', offset)
+    add_labels((X-barwidth/2)[1:2], [statistics.median(edit_durs_baseline)], ax, 'g', offset)
 
-    ax.bar((X-barwidth)[2:3], [statistics.median(delete_durs_baseline)],
+    ax.bar((X-barwidth)[3:4], [statistics.median(delete_durs_baseline)],
             yerr= [
                 [np.percentile(delete_durs_baseline, 5)],
                 [np.percentile(delete_durs_baseline, 95)
             ]],
             color='g', capsize=5, width=barwidth)
-    add_labels((X-barwidth)[2:3], [statistics.median(delete_durs_baseline)], ax, 'g', offset)
+    add_labels((X-barwidth)[3:4], [statistics.median(delete_durs_baseline)], ax, 'g', offset)
 
-    ax.bar((X-barwidth)[4:], [statistics.median(anon_durs_baseline)],  color='g', capsize=5, width=barwidth)
-    add_labels((X-barwidth)[4:], [statistics.median(anon_durs_baseline)], ax, 'g', offset)
+    ax.bar((X-barwidth)[5:], [statistics.median(anon_durs_baseline)],  color='g', capsize=5, width=barwidth)
+    add_labels((X-barwidth)[5:], [statistics.median(anon_durs_baseline)], ax, 'g', offset)
 
     ################ edna
     ax.bar((X+barwidth/2)[:1], [statistics.median(account_durs)],
@@ -115,60 +117,68 @@ for (i, ax) in enumerate(axes_flat[:2]):
             color='m', capsize=5, width=barwidth, label='Edna')
     add_labels((X+barwidth/2)[:1], [statistics.median(account_durs)], ax, 'm', offset)
 
-    ax.bar((X)[1:2], [statistics.median(edit_durs)],
+    ax.bar((X+barwidth/2)[1:2], [statistics.median(edit_durs_noanon)],
+            yerr= [
+                [np.percentile(edit_durs_noanon, 5)],
+                [np.percentile(edit_durs_noanon, 95)
+            ]],
+            color='m', capsize=5, width=barwidth)
+    add_labels((X+barwidth/2)[1:2], [statistics.median(edit_durs_noanon)], ax, 'm', offset)
+
+    ax.bar((X-barwidth/2)[2:3], [statistics.median(edit_durs)],
             yerr= [
                 [np.percentile(edit_durs, 5)],
                 [np.percentile(edit_durs, 95)
             ]],
             color='m', capsize=5, width=barwidth)
-    add_labels((X)[1:2], [statistics.median(edit_durs)], ax, 'm', offset)
+    add_labels((X-barwidth/2)[2:3], [statistics.median(edit_durs)], ax, 'm', offset)
 
-    ax.bar((X)[2:3], [statistics.median(delete_durs_noanon)],
+    ax.bar((X)[3:4], [statistics.median(delete_durs_noanon)],
             yerr= [
                 [np.percentile(delete_durs_noanon, 5)],
                 [np.percentile(delete_durs_noanon, 95)
             ]],
             color='m', capsize=5, width=barwidth)
-    add_labels((X)[2:3], [statistics.median(delete_durs_noanon)], ax, 'm', offset)
+    add_labels((X)[3:4], [statistics.median(delete_durs_noanon)], ax, 'm', offset)
 
-    ax.bar((X-barwidth/2)[3:4], [statistics.median(restore_durs_noanon)],
+    ax.bar((X-barwidth/2)[4:5], [statistics.median(restore_durs_noanon)],
             yerr= [
                 [np.percentile(restore_durs_noanon, 5)],
                 [np.percentile(restore_durs_noanon, 95)
             ]],
             color='m', capsize=5, width=barwidth)
-    add_labels((X-barwidth/2)[3:4], [statistics.median(restore_durs_noanon)], ax, 'm', offset)
+    add_labels((X-barwidth/2)[4:5], [statistics.median(restore_durs_noanon)], ax, 'm', offset)
 
-    ax.bar((X)[4:], [statistics.median(anon_durs)],  color='m', capsize=5, width=barwidth)
-    add_labels((X)[4:], [statistics.median(anon_durs)], ax, 'm', offset)
+    ax.bar((X)[5:], [statistics.median(anon_durs)],  color='m', capsize=5, width=barwidth)
+    add_labels((X)[5:], [statistics.median(anon_durs)], ax, 'm', offset)
 
     ############### edna batched
-    ax.bar((X+barwidth)[1:2], [statistics.median(edit_durs_batch)],
+    ax.bar((X+barwidth/2)[2:3], [statistics.median(edit_durs_batch)],
             yerr= [
                 [np.percentile(edit_durs_batch, 5)],
                 [np.percentile(edit_durs_batch, 95)
             ]],
-            color='c', capsize=5, width=barwidth, label="Edna (batch)")
-    add_labels((X+barwidth)[1:2], [statistics.median(edit_durs_batch)], ax, 'c', offset)
+            color='c', capsize=5, width=barwidth, label="Edna (Batching)")
+    add_labels((X+barwidth/2)[2:3], [statistics.median(edit_durs_batch)], ax, 'c', offset)
 
-    ax.bar((X+barwidth)[2:3], [statistics.median(delete_durs_batch_noanon)],
+    ax.bar((X+barwidth)[3:4], [statistics.median(delete_durs_batch_noanon)],
             yerr= [
                 [np.percentile(delete_durs_batch_noanon, 5)],
                 [np.percentile(delete_durs_batch_noanon, 95)
             ]],
             color='c', capsize=5, width=barwidth)
-    add_labels((X+barwidth)[2:3], [statistics.median(delete_durs_batch_noanon)], ax, 'c', offset)
+    add_labels((X+barwidth)[3:4], [statistics.median(delete_durs_batch_noanon)], ax, 'c', offset)
 
-    ax.bar((X+barwidth/2)[3:4], [statistics.median(restore_durs_batch_noanon)],
+    ax.bar((X+barwidth/2)[4:5], [statistics.median(restore_durs_batch_noanon)],
             yerr= [
                 [np.percentile(restore_durs_batch_noanon, 5)],
                 [np.percentile(restore_durs_batch_noanon, 95)
             ]],
             color='c', capsize=5, width=barwidth)
-    add_labels((X+barwidth/2)[3:4], [statistics.median(restore_durs_batch_noanon)], ax, 'c', offset)
+    add_labels((X+barwidth/2)[4:5], [statistics.median(restore_durs_batch_noanon)], ax, 'c', offset)
 
-    ax.bar((X+barwidth)[4:], [statistics.median(anon_durs_batch)],  color='c', capsize=5, width=barwidth)
-    add_labels((X+barwidth)[4:], [statistics.median(anon_durs_batch)], ax, 'c', offset)
+    ax.bar((X+barwidth)[5:], [statistics.median(anon_durs_batch)],  color='c', capsize=5, width=barwidth)
+    add_labels((X+barwidth)[5:], [statistics.median(anon_durs_batch)], ax, 'c', offset)
 
     ax.set_title(title)
     ax.set_ylabel('Time (ms)')
@@ -301,7 +311,7 @@ ax.bar((X)[1:3], [
         np.percentile(decay_durs, 95)],
     ],
     capsize=5,
-    color='m', width=barwidth, label="Edna (No Batching)")
+    color='m', width=barwidth, label="Edna")
 add_labels((X)[1:3], [
         statistics.median(delete_durs),
         statistics.median(decay_durs),

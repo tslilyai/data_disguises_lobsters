@@ -94,17 +94,12 @@ for i in range(len(props)):
     ys = np.array(ys)[order]
     plt.plot(xs, ys, label='{} Disguisers'.format(int(props[i]*100)))
 
-#for i in range(len(props)):
-    #axes_flat[2].scatter(delete_results[100][i].keys(), [statistics.mean(x) for x in delete_results[100][i].values()], label='edna_{}'.format(props[i]))
-#for i in range(len(props)):
-    #axes_flat[3].scatter(restore_results[100][i].keys(), [statistics.mean(x) for x in restore_results[100][i].values()], label='edna_{}'.format(props[i]))
-
 plt.xlabel('Benchmark Time (s)')
 plt.ylabel('Latency (ms)')
 plt.ylim(ymin=0)
 plt.xlim(xmin=0, xmax=nbuckets)
 
-plt.title("Edit Latency vs. Amount of Concurrent Disguising Actions")
+plt.title("Edit Latency vs. Number of of Concurrent Disguisers")
 plt.legend(loc="best")
 
 plt.tight_layout(h_pad=4)
