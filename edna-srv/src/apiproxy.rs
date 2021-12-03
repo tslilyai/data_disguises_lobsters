@@ -14,10 +14,10 @@ pub struct ApplyDisguise {
     decrypt_cap: edna::tokens::DecryptCap,
     ownership_locators: Vec<edna::tokens::LocCap>,
 }
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ApplyDisguiseResponse {
-    diff_locators: HashMap<(edna::UID, edna::DID), edna::tokens::LocCap>,
-    ownership_locators: HashMap<(edna::UID, edna::DID), edna::tokens::LocCap>,
+    pub diff_locators: HashMap<(edna::UID, edna::DID), edna::tokens::LocCap>,
+    pub ownership_locators: HashMap<(edna::UID, edna::DID), edna::tokens::LocCap>,
 }
 
 #[post("/apply_disguise/<did>/<uid>", format = "json", data = "<data>")]
@@ -68,10 +68,10 @@ pub(crate) fn reveal_disguise(
 /************************
  * Low-Level API
  ************************/
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct RegisterPrincipalResponse {
     // base64-encoded private key
-    privkey: String,
+    pub privkey: String,
 }
 
 #[post("/register_principal", format = "json", data = "<data>")]
