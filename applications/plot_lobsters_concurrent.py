@@ -76,9 +76,9 @@ for i in range(2):
     axes_flat[i].legend(loc="upper left")
 
     if i == 0:
-        axes_flat[i].set_title("Edit Latency vs. Number of Concurrent Disguisers (Unbatched)")
+        axes_flat[i].set_title("Lobsters Operation Latency vs. Number of Concurrent Disguisers (Unbatched)")
     else:
-        axes_flat[i].set_title("Edit Latency vs. Number of Concurrent Disguisers (Batched)")
+        axes_flat[i].set_title("Lobsters Operation Latency vs. Number of Concurrent Disguisers (Batched)")
 
 plt.tight_layout(h_pad=4)
 plt.savefig('lobsters_concurrent_results.pdf')
