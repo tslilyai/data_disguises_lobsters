@@ -51,11 +51,11 @@ pub async fn test_disguise() {
         db.query_drop(format!("INSERT INTO users (id, username) VALUES ({}, '{}name');", u,u)).unwrap();
 
         // create some number of comments and stories for each user
-        for s in 1..nstories {
+        for s in 0..nstories {
             short_id = short_id+1;
             db.query_drop(format!("INSERT INTO stories (short_id, user_id, url, title, created_at) VALUES ({}, {}, '{}url', '{}title', '2019-08-15 00:00:00.000');", 
                         short_id, u, s, s)).unwrap();
-            for _ in 1..ncomments {
+            for _ in 0..ncomments {
                 short_id = short_id+1;
                 db.query_drop(format!("INSERT INTO comments (short_id, story_id, user_id, comment, created_at) VALUES ({}, {}, {}, '{}comment', '2019-08-15 00:00:00.000');", 
                         short_id, s, u, short_id)).unwrap();
@@ -70,7 +70,7 @@ pub async fn test_disguise() {
     for u in 1..nusers {
         let decryptcap = user2decryptcap.get(&u).unwrap();
         let postdata = json!({
-            "decrypt_cap": decryptcap.as_bytes(),
+            "decrypt_cap": base64::decode(&decryptcap).unwrap(),
             "ownership_locators": [],
         });
 
@@ -92,7 +92,40 @@ pub async fn test_disguise() {
         }
         warn!("Deleted account of {}", u);
     }
-    // check results of delete: no answers or users exist
+    // check results of delete: user has no comments
+    for u in 1..nusers {
+        let res = db
+            .query_iter(format!("SELECT * FROM comments WHERE user_id = {};", u))
+            .unwrap();
+        let mut rows = vec![];
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+            rows.push(vals);
+        }
+        assert_eq!(rows.len(), 0);
+        let res = db
+            .query_iter(format!("SELECT * FROM stories WHERE user_id = {};", u))
+            .unwrap();
+        let mut rows = vec![];
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+            rows.push(vals);
+        }
+        assert_eq!(rows.len(), 0);
+        let res = db
+            .query_iter(format!("SELECT * FROM users WHERE id = {};", u))
+            .unwrap();
+        let mut rows = vec![];
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+            rows.push(vals);
+        }
+        assert_eq!(rows.len(), 0);
+    }
+    // TODO more checks for anon
 
     /***********************************
      * gdpr restore (no composition)
@@ -102,7 +135,7 @@ pub async fn test_disguise() {
         let decryptcap = user2decryptcap.get(&u).unwrap();
         let diffcap = user2diffcap.get(&u).unwrap();
         let postdata = json!({
-            "decrypt_cap": decryptcap.as_bytes(),
+            "decrypt_cap": base64::decode(&decryptcap).unwrap(),
             "diff_locators": [diffcap],
             "ownership_locators": [owncap],
         });
@@ -116,15 +149,59 @@ pub async fn test_disguise() {
         warn!("Restored account of {}", u);
     }
     // check
+    for u in 1..nusers {
+        let res = db
+            .query_iter(format!("SELECT * FROM comments WHERE user_id = {};", u))
+            .unwrap();
+        let mut rows = vec![];
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+            rows.push(vals);
+        }
+        assert_eq!(rows.len(), ncomments as usize*nstories as usize);
+        let res = db
+            .query_iter(format!("SELECT * FROM stories WHERE user_id = {};", u))
+            .unwrap();
+        let mut rows = vec![];
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+            rows.push(vals);
+        }
+        assert_eq!(rows.len(), nstories as usize);
+        let res = db
+            .query_iter(format!("SELECT * FROM users WHERE id = {};", u))
+            .unwrap();
+        let mut rows = vec![];
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+            rows.push(vals);
+        }
+        assert_eq!(rows.len(), 1);
+    }
 
     /**********************************
      * decay
      ***********************************/
     // decay
     for u in 1..nusers {
+        let decryptcap = user2decryptcap.get(&u).unwrap();
+        let postdata = json!({
+            "decrypt_cap": base64::decode(&decryptcap).unwrap(),
+            "ownership_locators": [],
+        });
+
         let endpoint = format!("/apply_disguise/1/{}", u);
-        let response = client.post(&endpoint).dispatch().await;
+        let response = client
+            .post(&endpoint)
+            .body(postdata.to_string())
+            .header(ContentType::JSON)
+            .dispatch()
+            .await;
         let strbody = response.into_string().await.unwrap();
+        warn!("Decay strbody response: {}", strbody);
         let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
         if let Some(dl) = body.diff_locators.get(&u.to_string()) {
             user2diffcap.insert(u, *dl);
@@ -135,7 +212,7 @@ pub async fn test_disguise() {
         warn!("Decayed account of {}", u);
     }
 
-    // check results of decay: user has no comments
+    // check results of decay: user has no associated data
     for u in 1..nusers {
         let res = db
             .query_iter(format!("SELECT * FROM comments WHERE user_id = {};", u))
@@ -147,59 +224,33 @@ pub async fn test_disguise() {
             rows.push(vals);
         }
         assert_eq!(rows.len(), 0);
+        let res = db
+            .query_iter(format!("SELECT * FROM stories WHERE user_id = {};", u))
+            .unwrap();
+        let mut rows = vec![];
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+            rows.push(vals);
+        }
+        assert_eq!(rows.len(), 0);
+        let res = db
+            .query_iter(format!("SELECT * FROM users WHERE id = {};", u))
+            .unwrap();
+        let mut rows = vec![];
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+            rows.push(vals);
+        }
+        assert_eq!(rows.len(), 0);
     }
-    // TODO more checks
-
-    /***********************************
+     /***********************************
      * gdpr deletion (composition)
      ***********************************/
-    for u in 0..nusers {
-        let owncap = user2owncap.get(&u).unwrap();
-        let decryptcap = user2decryptcap.get(&u).unwrap();
-
-        let postdata = json!({
-            "decryption_cap": decryptcap,
-            "ownership_locators": [owncap]
-        });
-
-        let endpoint = format!("/apply_disguise/0/{}", u);
-        let response = client
-            .post(&endpoint)
-            .body(postdata.to_string())
-            .header(ContentType::JSON)
-            .dispatch()
-            .await;
-        let strbody = response.into_string().await.unwrap();
-        let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
-        if let Some(dl) = body.diff_locators.get(&u.to_string()) {
-            user2diffcap.insert(u, *dl);
-        }
-        if let Some(ol) = body.ownership_locators.get(&u.to_string()) {
-            user2owncap.insert(u, *ol);
-        }
-    }
-    // check results of delete: no answers or users exist
 
     /***********************************
      * gdpr restore (composition)
      ***********************************/
-    for u in 1..nusers {
-        let owncap = user2owncap.get(&u).unwrap();
-        let decryptcap = user2decryptcap.get(&u).unwrap();
-        let diffcap = user2diffcap.get(&u).unwrap();
-        let postdata = serde_json::to_string(&vec![
-            ("diff_loc_cap", diffcap.to_string()),
-            ("decryption_cap", decryptcap.to_string()),
-            ("ownership_locators", format!("{}", owncap)),
-        ])
-        .unwrap();
-
-        client
-            .post("/reveal_disguise/0")
-            .body(postdata)
-            .header(ContentType::JSON)
-            .dispatch()
-            .await;
-    }
     // check
 }

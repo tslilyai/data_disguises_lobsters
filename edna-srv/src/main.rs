@@ -112,11 +112,10 @@ async fn main() {
         )
         .get_matches();
 
-    //if matches.is_present("test") {
+    if matches.is_present("test") {
         tests::test_disguise().await;
-        //test::test_decay_disguise();
         return;
-    //}
+    }
 
     let my_rocket = rocket(
         matches.is_present("prime"),
