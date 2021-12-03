@@ -48,6 +48,9 @@ How much does latency and storage use increase when an application uses \sys to 
     performance of concurrently executing, normal (non-disguising) application user queries?
 \end{enumerate}
 
+\head{Setup.}
+All benchmarks run on a machine with 20 dual-core Intel Xeon E5-2660 v3 CPUs.
+
 \sys-WebSubmit benchmarks run on a WebSubmit database prepopulated with 2000 total users, 20 lectures
 with 4 questions each, and answers for each question for each user.
 We measure end-to-end latency, including the time for clients to contact a (local)
@@ -62,7 +65,8 @@ These benchmarks measure the server-side latency to perform disguising and appli
 distribution from \lyt{TODO Jon's distribution stuff} (representative of Lobster's current
 scale). These benchmarks also measure the server-side latency.
 
-\head{Latency of Disguise-Related Actions.} \begin{figure}[h!] 
+\head{Latency of Disguise-Related Actions.} 
+\begin{figure}[t!] 
     \centering
     \includegraphics[width=0.5\textwidth]{figs/client_op_stats} 
     \caption{Latencies of disguise-related actions when implemented manually by the 
@@ -71,32 +75,6 @@ scale). These benchmarks also measure the server-side latency.
     percentile latencies.  } 
     \label{fig:client_opstats}
 \end{figure}
-
-\begin{table*}[t!]
-\begin{center}
-\begin{tabular}{ c | c c }
-& \multicolumn{2}{c}{\textbf{Prior Applied Disguises}} \\
-    \textbf{Op} & None & Anonymization \\
-\hline
-WebSubmit Delete & 30 & 112 \\
-WebSubmit Restore & 250 & 372\\
-HotCRP Delete & 114 & 1612 \\
-HotCRP Restore & 629 & 1856 \\
-\end{tabular}
-\quad
-\begin{tabular}{ c | c c }
- & \multicolumn{2}{c}{\textbf{Prior Applied Disguises}} \\
-    \textbf{Op w/Batching} & None & Anonymization \\
-\hline
-WebSubmit Delete  & 3 & 30 \\
-WebSubmit Restore  & 18 & 86\\
-HotCRP Delete  & 51 & 880 \\
-HotCRP Restore  & 73 & 998 
-\end{tabular}
-\end{center}
-\caption{Account delete and restore latencies before anonymization, and composed after anonymization.}
-\label{tab:composition}
-\end{table*}
 
 \begin{table*}[h!]
 \begin{center}
@@ -125,29 +103,73 @@ Decrypt Diff Token & 3.0\\
 \end{table*}
 
 %
-Figure~\ref{fig:client_opstats} shows the cost of performing disguise-related actions with and
-without \sys. We also measure the latency of actions in WebSubmit and HotCRP if composed on top of
-prior anonymization, where performing these actions requires temporary recorrelation. Note that an
-application \emph{must} use \sys to gain temporary recorrelation functionality, and use \sys to both
-to anonymize the data in the first place and to perform the recorrelation. Thus, we do not measure
-post-anonymization numbers for actions without \sys. Similarly, \sys enables account restoration or
-undecay when applying account deletion or data decay, so we have no baseline latency without \sys
-for account restoration or undecay.
+Figure~\ref{fig:client_opstats} shows the median cost across user accounts of performing disguise-related actions with and
+without \sys, and with token batching enabled in \sys. 
+Note that \sys enables editing of anonymized data and account restoration. Thus, we have no
+comparable baseline latency without \sys for editing anonymized data or account restoration. 
+Token batching also has no effect in creating user accounts and editing unanonymized data (as no
+tokens are involved).
 
-We observe that simply using \sys without temporary recorrelation greatly increases the latency of
-account deletion and anonymization.  For latency-critical tasks (such as editing data or creating an
-account), \sys incurs only a slight increase in latency \lyt{Numbers}. Temporary recorrelation
-after anonymization in order to perform edits or delete/restore accounts adds an additional
-\lyt{Numbers} increase in latency.
+\sys-WebSubmit and \sys-HotCRP support the same disguise-related operations, namely
+account creation, deletion/restoration, anonymization, and editing anonymized data.
+\sys-Lobsters supports account creation and deletion/restoration as well, but has account decay (and
+subsequent restoration) instead of account anonymization.  It does not support editing anonymized
+data (accounts can be restored in order to edit decorrelated data).
 
-We can break these costs down further into fine-grained operations shown in 
-Table~\ref{tab:opstats}, since every disguise action requires some number of DB operations; if using
-\sys, these actions also require cryptographic operations.
+\sys-WebSubmit users all have approximately the same amount of data (a set number of answers to
+lecture questions). Thus, the spread in latencies is low. The simplicity of \sys-WebSubmit's
+disguises---which touch at maximum two database tables---lead to fairly low latencies even for
+expensive operations such as restoring deleted accounts (250ms).
+
+\sys-HotCRP reviewers have slightly more variable amounts of data \lyt{TODO?} depending on the
+assignment of papers to reviewers. \sys-HotCRP's disguises are far more complex than
+\sys-WebSubmit's, touching 12 tables, and performing a mix of deletions and
+decorrelations, leading to higher median latencies in general, even for the baseline.
+
+\sys-Lobsters users' amount of data follows a skewed distribution, with most of the 5000 users having fewer than
+10 stories and comments, and a handful of users having over 300 stories and comments.
+\sys-Lobster supports more complex disguises than 
+\sys-WebSubmit and \sys-HotCRP, touching 15 tables, and performing a mix of deletions, 
+decorrelations, and modifications. This leads to a higher latency as the amount of user data grows
+comparable to that of users in \sys-HotCRP and \sys-WebSubmit.
+
+In general, using \sys without token batching increases the latency of
+disguising and revealing accounts. Latency-critical tasks such as editing (unanonymized) data or
+creating an account are largely unaffected by \sys. With token batching, we observe drastic
+improvements in the latencies of account disguising and revealing, and in edits of anonymized data.
+%
+To explain these costs, we break them down into fine-grained operations shown in
+Table~\ref{tab:opstats}: every disguise action requires some DB operations and,
+if using \sys, may require cryptographic operations.
 
 \textbf{Creating an account} with or without \sys performs a database insert. Using \sys additionally
 requires registering the new user as a principal, which assigns the user a (pre-generated)
 private-public key pair, stores metadata about the new principal's key in \sys's storage, and
 returns the corresponding private key to the application.
+Using \sys thus incurs only the cost of an extra database operation, since the high cost of key
+generation is taken offline.
+
+\textbf{Editing data} with or without \sys simply performs database updates. Editing anonymized
+data, however, requires \sys to decrypt (with the client-provided decryption capability) \emph{all}
+speaks-for tokens at the client-provided locator until it finds a speaks-for token linking the
+client to the currently-owning pseudoprincipal.  For example, if anonymization of a user account
+generates 20 speaks-for token ciphertexts at the same locator, then editing anonymized data may
+perform up to 20 decryptions to determine which pseudoprincipals the client can act for.  Token
+batching drastically decreases this cost by performing only one decryption to decrypt all speaks-for
+tokens for a particular client and disguise.
+
+\textbf{Account deletion or data decay} with or without \sys performs the same database operations to
+remove, modify, or anonymize data. \sys incurs increased costs by additionally encrypting and
+inserting one diff token for each deleted or modified object, and one speaks-for token for each
+anonymized object. 
+With token batching, encryption occurs once per account, rather than once per object. 
+
+\textbf{Account restoration} is only possible with \sys. \sys decrypts a token for each
+piece of modified/removed/anonymized data, and performs database checks to ensure the data can be restored
+(\eg that the corresponding lecture of an answer to reinsert still exists). If the checks pass
+(which they do in this benchmark), \sys restores the data stored in the diffs. 
+Token batching drastically decreases this cost by performing only one decryption to decrypt all 
+tokens to restore.
 
 \textbf{Anonymization} with or without \sys generates one pseudoprincipal per object to anonymize
 (\eg answers for lectures in WebSubmit, or reviews in HotCRP). Anonymization selects the relevant answers
@@ -155,32 +177,42 @@ to anonymize, generates new pseudoprincipals, and performs DB queries to insert 
 and to update objects to point to these new pseudopricipals (\eg updating foreign keys).
 \sys incurs increased costs by additionally generating per-pseudoprincipal speaks-for tokens, and 
 encrypting and storing these speaks-for tokens with the appropriate public keys.
+With token batching, encryption occurs once per account, rather than once per object. 
 
-\textbf{Editing data} with or without \sys simply performs update DB queries. Editing anonymized data,
-however, requires temporary recorrelation to authorize the client to speak for the pseudoprincipal
-associated with the data.  Most of the expense of temporary recorrelation comes from \sys decrypting
-(with the client-provided decryption capability) \emph{all} speaks-for tokens at the client-provided
-locator until it finds a speaks-for token linking the client to the currently-owning pseudoprincipal.
-For example, if anonymization of a user account generates 20 speaks-for token ciphertexts at the same
-locator, then editing anonymized data may perform up to 20 decryptions to
-determine which pseudoprincipals the client can act for. This can be optimized by batching all
-speaks-for tokens from one disguise into a single encrypted ciphertext, or by generating and sending
-clients per-pseudoprincipal locators instead of per-disguise locators.
+\begin{table*}[t!]
+\begin{center}
+\begin{tabular}{ c | c c }
+& \multicolumn{2}{c}{\textbf{Prior Applied Disguises}} \\
+    \textbf{Op} & None & Anonymization \\
+\hline
+WebSubmit Delete & 30 & 112 \\
+WebSubmit Restore & 250 & 372\\
+HotCRP Delete & 114 & 1612 \\
+HotCRP Restore & 629 & 1856 \\
+\end{tabular}
+\quad
+\begin{tabular}{ c | c c }
+ & \multicolumn{2}{c}{\textbf{Prior Applied Disguises}} \\
+    \textbf{Op w/Batching} & None & Anonymization \\
+\hline
+WebSubmit Delete  & 3 & 30 \\
+WebSubmit Restore  & 18 & 86\\
+HotCRP Delete  & 51 & 880 \\
+HotCRP Restore  & 73 & 998 
+\end{tabular}
+\end{center}
+\caption{Account delete and restore latencies before anonymization, and composed after anonymization.}
+\label{tab:composition}
+\end{table*}
 
-\textbf{Account deletion or data decay} with or without \sys performs the same DB operations to
-remove, modify, or anonymize data.  \sys incurs increased costs by additionally encrypting and
-inserting one diff token for each deleted or modified object, and one speaks-for token for each
-anonymized object.  Account deletion post-anonymization requires \sys to perform temporary
+\textbf{Composing Deletion After Anonymization.}
+Account deletion post-anonymization requires \sys to perform temporary
 recorrelation find data of pseudoprincipals that the user is authorized to remove along with their
-account.  \sys incurs latency increases from decrypting all speaks-for tokens of the user, and from
+account. \sys incurs latency increases from decrypting all speaks-for tokens of the user, and from
 performing the deletion or modification queries for each discovered pseudoprincipal (in addition to
 the original user).
 
-\textbf{Account restoration or undecay} is only possible with \sys. \sys decrypts a token for each
-piece of modified/removed/anonymized data, and performs DB checks to ensure the data can be restored
-(\eg that the corresponding lecture of an answer to reinsert still exists). If the checks pass
-(which they do in this benchmark), restoration restores the data stored in the diffs. Account
-restoration may also restore pseudoprincipal-associated data, which requires temporary recorrelation
+Account restoration may also restore pseudoprincipal-associated data, which requires temporary recorrelation
 to access to pseudoprincipal-associated tokens produced from the account deletion.  \sys thus
 additionally decrypt speaks-for tokens for all pseudoprincipals of the user, which causes the the
 increase in latency.\lyt{Numbers?}
