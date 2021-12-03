@@ -46,7 +46,7 @@ fn test_disguise() {
 
     let client = Client::tracked(
         rocket(
-            matches.is_present("prime"),
+            true,
             matches.is_present("batch"),
             matches.value_of("database").unwrap(),
             matches.value_of("schema").unwrap(),
