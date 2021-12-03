@@ -38,35 +38,37 @@ determine which tokens correspond to $d$ and $p$.
 
 \subsection{Performance}
 
-We evaluate performance using three applications: WebSubmit-rs, HotCRP, and Lobsters to answer the
+We evaluate performance in \sys-WebSubmit, \sys-HotCRP, and \sys-Lobsters to answer the
 following two questions.
 \begin{enumerate}
 \item \emph{Cost of Disguise-Related Actions}: How expensive are \sys-enabled disguise actions
-(disguise application with token storage, disguise revealing, and temporary recorrelation)?
-How much does latency and storage use increase when an application uses \sys
-to gain disguising and post-disguise functionality?
-\item \emph{Impact on Normal Application Use}: How do \sys-enabled disguise actions impact the performance of concurrently executing
-application user queries?.
+(disguise application with token storage, disguise revealing, and actions taken on anonymized data)?
+How much does latency and storage use increase when an application uses \sys to gain disguising and post-disguise functionality?
+\item \emph{Impact on Normal Application Use}: How do \sys-enabled disguise actions impact the
+    performance of concurrently executing, normal (non-disguising) application user queries?
 \end{enumerate}
 
-We ran WebSubmit disguises on a WebSubmit database prepopulated with 2000 total users, 20 lectures
+\sys-WebSubmit benchmarks run on a WebSubmit database prepopulated with 2000 total users, 20 lectures
 with 4 questions each, and answers for each question for each user.
+We measure end-to-end latency, including the time for clients to contact a (local)
+server and the time for server application code (including \sys's operations) to perform these
+actions and return a response.
 
-We ran HotCRP disguises on a HotCRP database prepopulated with 450 total users (50 PC members), 450
+\sys-HotCRP benchmarks run on a HotCRP database prepopulated with 450 total users (50 PC members), 450
 papers (50 accepted), and 4 reviews and 4 comments per paper distributed evenly among PC members.  
+These benchmarks measure the server-side latency to perform disguising and application operations.
 
-We ran Lobsters disguises on a Lobsters database prepopulated with \lyt{TODO}, following the
+\sys-Lobsters benchmarks run on a Lobsters database prepopulated with \lyt{TODO}, following the
 distribution from \lyt{TODO Jon's distribution stuff} (representative of Lobster's current
-scale).
+scale). These benchmarks also measure the server-side latency.
 
-\head{Latency of Disguise-Related Actions.}
-\begin{figure}[h!]
+\head{Latency of Disguise-Related Actions.} \begin{figure}[h!] 
     \centering
-        \includegraphics[width=0.5\textwidth]{figs/client_op_stats}
-    \caption{Latencies of disguise-related actions when implemented manually by the application
-    developer without \sys, and with \sys.
-    Each bar shows the median latency; the ranges indicate the 5th to 95th percentile latencies.
-    } 
+    \includegraphics[width=0.5\textwidth]{figs/client_op_stats} 
+    \caption{Latencies of disguise-related actions when implemented manually by the 
+    application developer without \sys, and with \sys.  
+    Each bar shows the median latency; ranges indicate the 5th to 95th
+    percentile latencies.  } 
     \label{fig:client_opstats}
 \end{figure}
 
@@ -96,10 +98,9 @@ HotCRP Restore  & 73 & 998
 \label{tab:composition}
 \end{table*}
 
-\begin{table}[h!]
+\begin{table*}[h!]
 \begin{center}
 \begin{tabular}{ c c }
-\hline
 \textbf{DB Op} & \textbf{Time (ms)}\\
 \hline
 Update DB Row & 0.1\\ 
@@ -107,7 +108,9 @@ Select DB Rows & 0.2\\
 Remove DB Rows & 0.2\\
 Reveal Deleted Row (DB Select + Insert) & 0.2 \\
 Create + Register Principal & 0.1\\
-\hline
+\end{tabular}
+\quad
+\begin{tabular}{ c c }
 \textbf{Crypto Op} & \textbf{Time (ms)}\\
 \hline
 Generate Keypair & 301\\
@@ -119,30 +122,8 @@ Decrypt Diff Token & 3.0\\
 \end{center}
 \caption{Amount of time required to run different operations required to apply and reveal disguises.}
 \label{tab:opstats}
-\end{table}
+\end{table*}
 
-We measured the latency of different disguise-related actions in all three applications.
-
-WebSubmit benchmarks measure end-to-end latency, including the time for clients to contact a (local)
-server and the time for server application code (including \sys's operations) to perform these
-actions and return a response.
-%
-WebSubmit benchmarks preopulate the database with 20 lectures, 4 questions per lecture, and 100
-users.
-
-HotCRP benchmarks run on prepopulated databases, and simulate the server-side application database
-operations and how the server would invoke \sys.  An end-to-end integration with the HotCRP client
-is future work; however, we imagine that modifications similar to those in WebSubmit would be
-necessary.
-%
-HotCRP benchmarks prepopulate the database with 450 total users (50 reviewers), 450 papers (50
-accepted), 4 reviews and 4 comments per paper, and a number of per-user data items (\eg paper
-watches, review preferences, etc.).  
-
-While we have an end-to-end implementation of Lobsters, we evaluate performance by generating
-server-side database queries\lyt{TODO}.
-
-%
 %
 Figure~\ref{fig:client_opstats} shows the cost of performing disguise-related actions with and
 without \sys. We also measure the latency of actions in WebSubmit and HotCRP if composed on top of

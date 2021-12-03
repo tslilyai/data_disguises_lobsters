@@ -7,78 +7,62 @@ from collections import defaultdict
 
 plt.style.use('seaborn-deep')
 
-ndisguising = [0, 1, 10, 20, 30, 50, 100]
+ndisguising = [0, 50, 100]
 maxts = 150000
 bucketwidth = 1000
 nbuckets = int(maxts/bucketwidth)
 buckets = [b * bucketwidth for b in range(nbuckets)]
 
-fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(8,8))
-axes_flat = axes.flatten()
+fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(6,4))
 
-batch = '_batch'
-for i in range(2):
-    if i == 0:
-        batch = ''
-    else:
-        batch = '_batch'
+# collect all results
+op_results = []
+op_results_batch = []
 
-    # collect all results
-    op_results = []
-    delete_results = []
-    restore_results = []
+def get_opdata(filename, results):
+    with open(filename,'r') as csvfile:
+        rows = csvfile.readlines()
+        oppairs = [x.split(':') for x in rows[0].strip().split(',')]
+        opdata = defaultdict(list)
+        for x in oppairs:
+            bucket = int((float(x[0]))/bucketwidth)
+            val = float(x[1])/1000
+            opdata[bucket].append(val)
+        results.append(opdata)
 
-    for nd in ndisguising:
-        with open('results/lobsters_results/concurrent_disguise_stats_disguising_{}group{}.csv'
-                .format(nd, batch),'r') as csvfile:
-            rows = csvfile.readlines()
-            editpairs = [x.split(':') for x in rows[0].strip().split(',')]
-            opdata = defaultdict(list)
-            for x in editpairs:
-                bucket = int((float(x[0]))/bucketwidth)
-                val = float(x[1])/1000
-                opdata[bucket].append(val)
-            op_results.append(opdata)
+for nd in ndisguising:
+    get_opdata('results/lobsters_results/concurrent_disguise_stats_disguising_{}group.csv'.format(nd),op_results)
+    get_opdata('results/lobsters_results/concurrent_disguise_stats_disguising_{}group_batch.csv'.format(nd),op_results_batch)
 
-            if nd > 0:
-                deletepairs = [x.split(':') for x in rows[1].strip().split(',')]
-                deletedata = defaultdict(list)
-                for x in deletepairs:
-                    bucket = int((float(x[0]))/bucketwidth)
-                    val = float(x[1])/1000
-                    deletedata[bucket].append(val)
+xs = list(op_results_batch[0].keys())
+order = np.argsort(xs)
+xs = np.array(xs)[order]
+ys = [statistics.mean(x) for x in op_results_batch[0].values()]
+ys = np.array(ys)[order]
+plt.plot(xs, ys, label='Baseline', color='k')
 
-                restorepairs = [x.split(':') for x in rows[2].strip().split(',')]
-                restoredata = defaultdict(list)
-                for x in restorepairs:
-                    bucket = int((float(x[0]))/bucketwidth)
-                    val = float(x[1])/1000
-                    restoredata[bucket].append(val)
+colors=['m','c']
+for r in range(1, len(ndisguising)):
+    xs = list(op_results[r].keys())
+    order = np.argsort(xs)
+    xs = np.array(xs)[order]
+    ys = [statistics.mean(x) for x in op_results[r].values()]
+    ys = np.array(ys)[order]
+    plt.plot(xs, ys, color=colors[r-1], label='{} Disguisers'.format(ndisguising[r]))
 
-                delete_results.append(deletedata)
-                restore_results.append(restoredata)
-            else:
-                delete_results.append({})
-                restore_results.append({})
+    xs = list(op_results_batch[r].keys())
+    order = np.argsort(xs)
+    xs = np.array(xs)[order]
+    ys = [statistics.mean(x) for x in op_results_batch[r].values()]
+    ys = np.array(ys)[order]
+    plt.plot(xs, ys, color=colors[r-1], linestyle=":", label='{} Disguisers (Batch)'.format(ndisguising[r]))
 
-    for r in range(len(ndisguising)):
-        xs = list(op_results[r].keys())
-        order = np.argsort(xs)
-        xs = np.array(xs)[order]
-        ys = [statistics.mean(x) for x in op_results[r].values()]
-        ys = np.array(ys)[order]
-        axes_flat[i].plot(xs, ys, label='{} Disguisers'.format(ndisguising[r]))
-
-    axes_flat[i].set_xlabel('Benchmark Time (s)')
-    axes_flat[i].set_ylabel('Latency (ms)')
-    axes_flat[i].set_ylim(ymin=0, ymax=4000)
-    axes_flat[i].set_xlim(xmin=0, xmax=nbuckets)
-    axes_flat[i].legend(loc="upper left")
-
-    if i == 0:
-        axes_flat[i].set_title("Lobsters Operation Latency vs. Number of Concurrent Disguisers (Unbatched)")
-    else:
-        axes_flat[i].set_title("Lobsters Operation Latency vs. Number of Concurrent Disguisers (Batched)")
+plt.xlabel('Benchmark Time (s)')
+plt.ylabel('Latency (ms)')
+plt.ylim(ymin=0, ymax=500)
+plt.xlim(xmin=0, xmax=100)
+plt.legend(loc="upper left")
+plt.title("Lobsters Operation Latency vs. Number of Concurrent Disguisers")
 
 plt.tight_layout(h_pad=4)
 plt.savefig('lobsters_concurrent_results.pdf')
