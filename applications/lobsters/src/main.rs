@@ -29,9 +29,6 @@ include!("statistics.rs");
 const TOTAL_TIME: u128 = 150000;
 const SCHEMA: &'static str = include_str!("../schema.sql");
 const DBNAME: &'static str = &"edna_lobsters";
-const TEST_BASELINE : u64 = 0;
-const TEST_NORMAL_DISGUISING : u64 = 1;
-const TEST_BATCH_DISGUISING : u64 = 2;
 
 #[derive(StructOpt)]
 struct Cli {
@@ -47,8 +44,6 @@ struct Cli {
     is_baseline: bool,
     #[structopt(long = "stats")]
     stats: bool,
-    #[structopt(long = "test", default_value = "1")]
-    test: u64,
 }
 
 fn init_logger() {
@@ -362,9 +357,9 @@ fn run_stats_test(
 ) {
     let mut db = edna.get_conn().unwrap();
     let filename = if batch {
-        format!("lobsters_disguise_stats.csv")
-    } else {
         format!("lobsters_disguise_stats_batch.csv")
+    } else {
+        format!("lobsters_disguise_stats.csv")
     };
     let mut file = File::create(filename).unwrap();
     file.write(
@@ -497,24 +492,10 @@ fn print_stats(
     } else {
         ""
     };
-    let filename = match args.test {
-        TEST_BASELINE => 
-        format!(
-            "concurrent_disguise_stats_{}disguisers{}_baseline.csv",
-            args.ndisguising, prefix
-        ), 
-        TEST_NORMAL_DISGUISING => 
-            format!(
-                "concurrent_disguise_stats_disguising{}.csv",
-                prefix
-            ),
-        TEST_BATCH_DISGUISING =>
-            format!(
-                "concurrent_disguise_stats_disguising_{}group{}.csv",
-                args.ndisguising, prefix
-            ),
-        _ => unimplemented!("Bad test")
-    };
+    let filename = format!(
+        "concurrent_disguise_stats_disguising_{}group{}.csv",
+        args.ndisguising, prefix
+    );
 
     // print out stats
     let mut f = OpenOptions::new()
