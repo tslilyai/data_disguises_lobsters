@@ -71,7 +71,7 @@ for i in range(2):
 
     axes_flat[i].set_xlabel('Benchmark Time (s)')
     axes_flat[i].set_ylabel('Latency (ms)')
-    axes_flat[i].set_ylim(ymin=0, ymax=4500)
+    axes_flat[i].set_ylim(ymin=0, ymax=1000)
     axes_flat[i].set_xlim(xmin=0, xmax=nbuckets)
     axes_flat[i].legend(loc="upper left")
 

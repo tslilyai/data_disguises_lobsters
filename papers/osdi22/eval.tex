@@ -187,12 +187,13 @@ necessary, in particular for non-time-sensitive disguises like GDPR-compliant ac
 
 \lyt{Include some note about how overloading the CPU with concurrent edits has some effects?}
 
-\begin{figure}[t!]
+\begin{figure*}[t!]
     \centering
         \includegraphics[width=0.5\textwidth]{figs/websubmit_concurrent_results_20lec_100users}
+        \includegraphics[width=0.5\textwidth]{figs/lobsters_concurrent_results}
     \caption{Impact of disguising (account deletion and revealing) on 100 users concurrently running
     normal application answer edits. Low-to-medium disguising load (<16 concurrently disguising users) has
     minimal effects on the baseline edit latency; high load (up to 25 users) causes latency spikes
     up to 2500ms.} 
     \label{fig:concurrent}
-\end{figure}
+\end{figure*}
