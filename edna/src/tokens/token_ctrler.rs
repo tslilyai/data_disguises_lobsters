@@ -421,7 +421,7 @@ impl TokenCtrler {
             PRINCIPAL_TABLE,
             values.join(", ")
         );
-        warn!("Insert q {}", insert_q);
+        //warn!("Insert q {}", insert_q);
         db.query_drop(&insert_q).unwrap();
         error!(
             "Edna persist {} principals: {}",
