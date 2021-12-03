@@ -32,11 +32,9 @@ pub fn generate_keys() -> Result<Vec<(RsaPrivateKey, RsaPublicKey)>, mysql::Erro
     for i in 0..nkeys {
         let private_key = RsaPrivateKey::new(&mut rng, RSA_BITS).expect("failed to generate a key");
         let privkey_vec = base64::encode(private_key.to_pkcs1_der().unwrap().as_der().to_vec());
-        warn!("Insert privkey bytes {:?}", privkey_vec);
         let pub_key = RsaPublicKey::from(&private_key);
         let pubkey_vec = base64::encode(pub_key.to_pkcs1_der().unwrap().as_der().to_vec());
         keys.push((private_key, pub_key));
-        warn!("Inserting pubkey bytes {:?}", pubkey_vec);
         values.push(format!(
             "(\'{}\', \'{}\')",
             pubkey_vec,
@@ -68,8 +66,6 @@ pub fn get_keys() -> Result<Vec<(RsaPrivateKey, RsaPublicKey)>, mysql::Error> {
         let vals = row.unwrap().unwrap();
         let pubkey_bytes: Vec<u8> = base64::decode(&mysql_val_to_string(&vals[0])).unwrap();
         let privkey_bytes: Vec<u8> = base64::decode(&mysql_val_to_string(&vals[1])).unwrap();
-        warn!("Got pubkey bytes {:?}", pubkey_bytes);
-        warn!("Got privkey bytes {:?}", privkey_bytes);
         let pubkey = RsaPublicKey::from_pkcs1_der(&pubkey_bytes).unwrap();
         let privkey = RsaPrivateKey::from_pkcs1_der(&privkey_bytes).unwrap();
         keys.push((privkey, pubkey));

@@ -1,7 +1,6 @@
 extern crate clap;
 #[macro_use]
 extern crate rocket;
-#[macro_use]
 extern crate slog;
 extern crate slog_term;
 #[macro_use]
@@ -9,19 +8,22 @@ extern crate serde_derive;
 
 mod apiproxy;
 mod lobsters_disguises;
-#[cfg(test)]
 mod tests;
 
 use clap::{App, Arg};
 use edna::EdnaClient;
 use rocket::{Build, Rocket};
 use std::sync::{Arc, Mutex};
+use std::fs;
 
-pub fn new_logger() -> slog::Logger {
-    use slog::Drain;
-    use slog::Logger;
-    use slog_term::term_full;
-    Logger::root(Mutex::new(term_full()).fuse(), o!())
+fn init_logger() {
+    let _ = env_logger::builder()
+        // Include all events in tests
+        .filter_level(log::LevelFilter::Warn)
+        // Ensure events are captured by `cargo test`
+        .is_test(true)
+        // Ignore errors initializing the logger if tests race to configure it
+        .try_init();
 }
 
 #[get("/")]
@@ -37,11 +39,12 @@ fn rocket(
     in_memory: bool,
     keypool_size: usize,
 ) -> Rocket<Build> {
+    let schemastr = fs::read_to_string(schema).unwrap();
     let edna_client = EdnaClient::new(
         prime,
         batch,
         db,
-        schema,
+        &schemastr,
         in_memory,
         keypool_size,
         lobsters_disguises::get_guise_gen(),
@@ -75,6 +78,7 @@ fn rocket(
 
 #[rocket::main]
 async fn main() {
+    init_logger();
     let matches = App::new("Edna API server")
         .arg(
             Arg::with_name("database")
@@ -86,10 +90,11 @@ async fn main() {
         )
         .arg(Arg::with_name("prime").help("Prime the database"))
         .arg(Arg::with_name("batch").help("Use token batching"))
+        .arg(Arg::with_name("test").help("Run the test"))
         .arg(
             Arg::with_name("schema")
                 .short("s")
-                .default_value("schema.sql")
+                .default_value("lobsters_disguises/schema.sql")
                 .takes_value(true)
                 .long("schema")
                 .help("File containing SQL schema to use"),
@@ -106,6 +111,12 @@ async fn main() {
                 .takes_value(true),
         )
         .get_matches();
+
+    if matches.is_present("test") {
+        tests::test_disguise().await;
+        return;
+    }
+
     let my_rocket = rocket(
         matches.is_present("prime"),
         matches.is_present("batch"),
