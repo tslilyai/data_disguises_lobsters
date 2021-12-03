@@ -26,17 +26,18 @@ GDPR-compliant account deletion
 \sys-Websumit implements account deletion (and restoration) using \sys's higher-level API.
 
 The original WebSubmit is 922LoC. Integration of \sys into WebSubmit required an additional 304LoC
-to specify disguises; 254LoC to add additional endpoints; and 809LoC added to existing code (some of
-which were to add e.g., benchmark timings). Overall, the process took less than 1-2 person-days for
+to specify disguises; 254LoC to add additional endpoints; and 809LoC added to existing code \lyt{(some of
+which were to add e.g., benchmark timings)}. Overall, the process took 1-2 person-days for
 a developer familiar with \sys, but unfamiliar with web application development and
 WebSubmit.\lyt{Not sure how to put this into context...}
 
 \subsection{Lobsters} 
-We integrated the Lobsters~\cite{lobsters} link-sharing and discussion
-application with \sys to explore data disguises in another class of web applications.
+We integrated the Lobsters~\cite{lobsters} link-sharing and discussion application with \sys to
+explore data disguises in another class of web applications.
 
-\sys-Lobsters is a fully E2E application that supports two disguises: GDPR-compliant account deletion, and automatic data decay.
-\sys-Lobsters specifies, applies, and reveals both disguises using the high-level \sys API.
+\sys-Lobsters is a fully E2E application that supports two disguises: GDPR-compliant account
+deletion, and automatic data decay.  \sys-Lobsters specifies, applies, and reveals both disguises
+using the high-level \sys API.
 
 GDPR-compliant account deletion 
 %
@@ -80,12 +81,15 @@ account deletion on top of data decay, they can simply click the URL to regain a
 restored data.
 
 The original Lobsters is \lyt{TODO}LoC. We integrate Lobsters with \sys by running \sys as a local
-server that exposes its API, and serializes arguments and return values as JSON.
+server that exposes its API, and serializes arguments and return values as JSON to the Lobsters
+application.
+Modifications to the Lobsters code required \lyt{TODO}LoC and took \lyt{TODO} person-days.
 
 \subsection{HotCRP}
 We implement two disguises to run on top of the HotCRP schema: a universal conference anonymization
 disguise, and a GDPR-compliant account deletion disguise.  \sys-HotCRP uses the high-level \sys API
 to specify, apply, and reveal both disguises.
+\sys-HotCRP also supports review editing after anonymization.  
 
 Universal conference anonymization decorrelates users from their submissions, reviews, and comments,
 as well as data such as paper watches and review ratings. User accounts remain in the database, but
@@ -112,8 +116,5 @@ This form of account deletion removes a user's relationship to submissions, but 
 submissions themselves; a different policy might go even further and automatically delete a
 submission whose last author is scrubbed.
 
-An end-to-end integration with the
-HotCRP client is future work; however, we imagine that modifications similar to those in WebSubmit
-would be necessary.
-
-\lyt{TODO: editing after decorrelation}
+\lyt{An end-to-end integration with the HotCRP client is future work; however, we imagine that modifications similar to those in WebSubmit
+would be necessary.}
