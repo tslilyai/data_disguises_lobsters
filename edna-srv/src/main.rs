@@ -9,7 +9,6 @@ extern crate serde_derive;
 
 mod apiproxy;
 mod lobsters_disguises;
-#[cfg(test)]
 mod tests;
 
 use clap::{App, Arg};
@@ -86,6 +85,7 @@ async fn main() {
         )
         .arg(Arg::with_name("prime").help("Prime the database"))
         .arg(Arg::with_name("batch").help("Use token batching"))
+        .arg(Arg::with_name("test").help("Run the test"))
         .arg(
             Arg::with_name("schema")
                 .short("s")
@@ -106,6 +106,13 @@ async fn main() {
                 .takes_value(true),
         )
         .get_matches();
+
+    if matches.is_present("test") {
+        tests::test_delete_disguise();
+        //test::test_decay_disguise();
+        return;
+    }
+
     let my_rocket = rocket(
         matches.is_present("prime"),
         matches.is_present("batch"),
