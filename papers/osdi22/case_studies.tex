@@ -56,11 +56,11 @@ This preserves application semantics for other users (\eg vote counts remain con
 users delete their accounts, and other users' comments remain visible and editable), while better
 protecting the identity of deleted users.  Furthermore, important information such as moderations on
 the user's content remain in the database, and will be recorrelated if the user decides to restore
-their account.  After Lobsters applies account deletion, Lobsters emails the user a URL with the
+their account.  After \sys-Lobsters applies account deletion, \sys-Lobsters emails the user a URL with the
 locator produced by the disguise, which when clicked, allows the user to restore their account
 (barring application updates that occurred in the interim).
 
-Lobsters automatically applies data decay to user accounts that have been inactive for over a year.
+\sys-Lobsters automatically applies data decay to user accounts that have been inactive for over a year.
 Data decay 
 %
 (1)~deletes the user account;
@@ -74,8 +74,8 @@ to newly generated pseudoprincipals.
 
 While similar to account deletion, data decay importantly does \emph{not} remove story or comment
 content, resulting in both greater utility for other users but also potentially more retained
-identifying information.  As with account deletion, Lobsters emails the user a URL with the locator
-produced by applying data decay; when users want to reactivate to return to Lobsters or compose
+identifying information.  As with account deletion, \sys-Lobsters emails the user a URL with the locator
+produced by applying data decay; when users want to reactivate to return to \sys-Lobsters or compose
 account deletion on top of data decay, they can simply click the URL to regain access to their
 restored data.
 
@@ -112,8 +112,7 @@ This form of account deletion removes a user's relationship to submissions, but 
 submissions themselves; a different policy might go even further and automatically delete a
 submission whose last author is scrubbed.
 
-We ran these disguises on a HotCRP database prepopulated with 450 total users (50 reviewers), 450
-papers (50 accepted), and 4 reviews and 4 comments per paper.  An end-to-end integration with the
+An end-to-end integration with the
 HotCRP client is future work; however, we imagine that modifications similar to those in WebSubmit
 would be necessary.
 
