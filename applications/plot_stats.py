@@ -254,7 +254,7 @@ ax.bar((X-barwidth/2)[:1], [statistics.median(account_durs_baseline)],
     yerr=get_yerr([account_durs_baseline]),
     capsize=5,
     color='g', width=barwidth, label="No Edna")
-add_labels((X-barwidth/2)[:1], [statistics.median(account_durs_baseline)], ax, 'g', 5)
+add_labels((X-barwidth/2)[:1], [statistics.median(account_durs_baseline)], ax, 'g', 10)
 
 ax.bar((X-barwidth)[1:3], [
         statistics.median(delete_durs_baseline),
@@ -266,14 +266,14 @@ ax.bar((X-barwidth)[1:3], [
 add_labels((X-barwidth)[1:3], [
         statistics.median(delete_durs_baseline),
         statistics.median(decay_durs_baseline),
-    ], ax, 'g', 5)
+    ], ax, 'g', 10)
 
 ######################## EDNA
 ax.bar((X+barwidth/2)[:1], [statistics.median(account_durs)],
     yerr=get_yerr([account_durs]),
     capsize=5,
     color='m', width=barwidth, label="Edna")
-add_labels((X+barwidth/2)[:1], [statistics.median(account_durs)], ax, 'm', 5)
+add_labels((X+barwidth/2)[:1], [statistics.median(account_durs)], ax, 'm', 10)
 
 ax.bar((X)[1:3], [
         statistics.median(delete_durs),
@@ -285,7 +285,7 @@ ax.bar((X)[1:3], [
 add_labels((X)[1:3], [
         statistics.median(delete_durs),
         statistics.median(decay_durs),
-    ], ax, 'm', 5)
+    ], ax, 'm', 10)
 
 ax.bar((X-barwidth/2)[3:], [
         statistics.median(restore_durs),
@@ -295,7 +295,7 @@ ax.bar((X-barwidth/2)[3:], [
     capsize=5, color='m', width=barwidth)
 add_labels((X-barwidth/2)[3:], [
      statistics.median(restore_durs),
-     statistics.median(undecay_durs)], ax, 'm', 5)
+     statistics.median(undecay_durs)], ax, 'm', 10)
 
 ######################## EDNA BATCH
 ax.bar((X+barwidth)[1:3], [
@@ -308,7 +308,7 @@ ax.bar((X+barwidth)[1:3], [
 add_labels((X+barwidth)[1:3], [
         statistics.median(delete_durs_batch),
         statistics.median(decay_durs_batch),
-    ], ax, 'c', 5)
+    ], ax, 'c', 10)
 
 ax.bar((X+barwidth/2)[3:], [
         statistics.median(restore_durs_batch),
@@ -318,12 +318,12 @@ ax.bar((X+barwidth/2)[3:], [
     capsize=5, color='c', width=barwidth)
 add_labels((X+barwidth/2)[3:], [
      statistics.median(restore_durs_batch),
-     statistics.median(undecay_durs_batch)], ax, 'c', 5)
+     statistics.median(undecay_durs_batch)], ax, 'c', 10)
 
 title = "Lobsters Operation Latencies"
 ax.set_title(title)
 ax.set_ylabel('Time (ms)')
-ax.set_ylim(ymin=0, ymax=np.percentile(restore_durs,95)*1.2)
+ax.set_ylim(ymin=0, ymax=np.percentile(restore_durs,95)*1.1)
 ax.set_xticks(X)
 ax.set_xticklabels(labels)
 
