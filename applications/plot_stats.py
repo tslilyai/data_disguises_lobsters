@@ -201,7 +201,7 @@ with open('results/lobsters_results/lobster_decay_baseline.csv','r') as csvfile:
         xs_decay.append(ndata)
         decay_durs_baseline.append(decay_baseline)
 
-with open("results/lobsters_results/lobsters_stats_batch.csv",'r') as csvfile:
+with open("results/lobsters_results/lobsters_disguise_stats_batch.csv",'r') as csvfile:
     rows = csvfile.readlines()[1:]
     for r in rows:
         vals = [int(x.strip()) for x in r.split(",")]
@@ -218,7 +218,7 @@ with open("results/lobsters_results/lobsters_stats_batch.csv",'r') as csvfile:
         decay_durs_batch.append(decay)
         undecay_durs_batch.append(undecay)
 
-with open("results/lobsters_results/lobsters_stats.csv",'r') as csvfile:
+with open("results/lobsters_results/lobsters_disguise_stats.csv",'r') as csvfile:
     rows = csvfile.readlines()[1:]
     for r in rows:
         vals = [int(x.strip()) for x in r.split(",")]
@@ -254,7 +254,7 @@ ax.bar((X-barwidth/2)[:1], [statistics.median(account_durs_baseline)],
     yerr=get_yerr([account_durs_baseline]),
     capsize=5,
     color='g', width=barwidth, label="No Edna")
-add_labels((X-barwidth/2)[:1], [statistics.median(account_durs_baseline)], ax, 'g', 50)
+add_labels((X-barwidth/2)[:1], [statistics.median(account_durs_baseline)], ax, 'g', 10)
 
 ax.bar((X-barwidth)[1:3], [
         statistics.median(delete_durs_baseline),
@@ -266,14 +266,14 @@ ax.bar((X-barwidth)[1:3], [
 add_labels((X-barwidth)[1:3], [
         statistics.median(delete_durs_baseline),
         statistics.median(decay_durs_baseline),
-    ], ax, 'g', 50)
+    ], ax, 'g', 10)
 
 ######################## EDNA
 ax.bar((X+barwidth/2)[:1], [statistics.median(account_durs)],
     yerr=get_yerr([account_durs]),
     capsize=5,
     color='m', width=barwidth, label="Edna")
-add_labels((X+barwidth/2)[:1], [statistics.median(account_durs)], ax, 'm', 50)
+add_labels((X+barwidth/2)[:1], [statistics.median(account_durs)], ax, 'm', 10)
 
 ax.bar((X)[1:3], [
         statistics.median(delete_durs),
@@ -285,63 +285,62 @@ ax.bar((X)[1:3], [
 add_labels((X)[1:3], [
         statistics.median(delete_durs),
         statistics.median(decay_durs),
-    ], ax, 'm', 50)
+    ], ax, 'm', 10)
 
 ax.bar((X-barwidth/2)[3:], [
         statistics.median(restore_durs),
         statistics.median(undecay_durs)
     ],
-    yerr = [
-        [np.percentile(restore_durs, 5), np.percentile(undecay_durs, 5)],
-        [np.percentile(restore_durs, 95), np.percentile(undecay_durs, 95)],
-    ],
+    yerr=get_yerr([restore_durs,undecay_durs]),
     capsize=5, color='m', width=barwidth)
 add_labels((X-barwidth/2)[3:], [
      statistics.median(restore_durs),
-     statistics.median(undecay_durs)], ax, 'm', 50)
+     statistics.median(undecay_durs)], ax, 'm', 10)
 
 ######################## EDNA BATCH
 ax.bar((X+barwidth)[1:3], [
         statistics.median(delete_durs_batch),
         statistics.median(decay_durs_batch)
     ],
-    yerr = [
-        [
-        np.percentile(delete_durs_batch, 5),
-        np.percentile(decay_durs_batch, 5)],
-        [
-         np.percentile(delete_durs_batch, 95),
-        np.percentile(decay_durs_batch, 95)],
-    ],
+    yerr=get_yerr([delete_durs_batch,decay_durs_batch]),
     capsize=5,
     color='c', width=barwidth, label="Edna (Token Batching)")
 add_labels((X+barwidth)[1:3], [
         statistics.median(delete_durs_batch),
         statistics.median(decay_durs_batch),
-    ], ax, 'c', 50)
+    ], ax, 'c', 10)
 
 ax.bar((X+barwidth/2)[3:], [
         statistics.median(restore_durs_batch),
         statistics.median(undecay_durs_batch)
     ],
-    yerr = [
-        [np.percentile(restore_durs_batch, 5), np.percentile(undecay_durs_batch, 5)],
-        [np.percentile(restore_durs_batch, 95), np.percentile(undecay_durs_batch, 95)],
-    ],
+    yerr=get_yerr([restore_durs_batch,undecay_durs_batch]),
     capsize=5, color='c', width=barwidth)
 add_labels((X+barwidth/2)[3:], [
      statistics.median(restore_durs_batch),
-     statistics.median(undecay_durs_batch)], ax, 'c', 50)
+     statistics.median(undecay_durs_batch)], ax, 'c', 10)
 
 title = "Lobsters Operation Latencies"
 ax.set_title(title)
 ax.set_ylabel('Time (ms)')
-ax.set_ylim(ymin=0, ymax=(np.percentile(restore_durs,95)*1.15))
+ax.set_ylim(ymin=0, ymax=np.percentile(restore_durs,95)*1.1)
 ax.set_xticks(X)
 ax.set_xticklabels(labels)
 
 # one legend per everything
 axes_flat[0].legend(loc='upper left');
+
+print(title,
+    statistics.median(delete_durs),
+    statistics.median(restore_durs),
+    statistics.median(delete_durs_batch),
+    statistics.median(restore_durs_batch),
+    statistics.median(decay_durs),
+    statistics.median(undecay_durs),
+    statistics.median(decay_durs_batch),
+    statistics.median(undecay_durs_batch),
+)
+
 
 fig.tight_layout(h_pad=2)
 plt.savefig('client_op_stats.pdf', dpi=300)
