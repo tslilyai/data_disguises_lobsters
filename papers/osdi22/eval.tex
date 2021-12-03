@@ -1,16 +1,34 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Evaluation}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%i
-\lyt{TODO EVAL QUESTIONS}
-\subsection{Security: do we meet our meet security goals}
-   - attack scenarios
+\subsection{Security Evaluation}
+%
+\vspace{6pt}\noindent\textbf{\emph{(1) Authorized Disguises.}}
+%
+\sys ensures that only a client properly authenticated as a principal $p$ who is authorized to invoke $d$ can apply
+(and later reveal) $d$.
+%
+
+\vspace{6pt}\noindent\textbf{\emph{(2) Secure Disguise Tokens.}}
+%
+\sys ensures that only an authenticated principal who provides decryption capability
+\privk{p} can authorize access to the disguise tokens, as well as any information
+(\eg speaks-for permissions) derived from tokens.
+%
+
+\vspace{6pt}\noindent\textbf{\emph{(3) Privacy of Disguise History.}}
+%
+\sys ensures that an attacker cannot learn the set of disguises that have disguised a principal's data.
+%
+An attacker only learns a disguise $d$ applied to $p$'s data if authenticated principal $p$
+interacts with the system to reveal or otherwise access disguised data.
 
 \subsection{Performance}
 
 We evaluate performance using three applications: WebSubmit-rs, HotCRP, and Lobsters to answer the
 following two questions.
 \begin{enumerate}
-    \item \emph{Cost of Disguise-Related Actions}: How expensive are \sys-enabled disguise actions
+\item \emph{Cost of Disguise-Related Actions}: How expensive are \sys-enabled disguise actions
 (disguise application with token storage, disguise revealing, and temporary recorrelation)?
 How much does latency and storage use increase when an application uses \sys
 to gain disguising and post-disguise functionality?
