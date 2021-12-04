@@ -11,6 +11,10 @@ def add_labels(x,y,ax,color,offset):
     for i in range(len(x)):
         ax.text(x[i], y[i]+offset, "{0:.1f}".format(y[i]), ha='center', color=color)
 
+def add_text_labels(x,y,ax,color,offset):
+    for i in range(len(x)):
+        ax.text(x[i], offset, y[i], ha='center', color=color)
+
 def get_yerr(durs):
     mins = []
     maxes = []
@@ -87,30 +91,17 @@ for (i, ax) in enumerate(axes_flat[:2]):
         edit_durs_baseline = [float(x)/1000 for x in rows[2].strip().split(',')]
         delete_durs_baseline = [float(x)/1000 for x in rows[3].strip().split(',')]
 
-
-
-    print(title,
-            statistics.median(delete_durs),
-            statistics.median(delete_durs_noanon),
-            statistics.median(restore_durs),
-            statistics.median(restore_durs_noanon),
-            statistics.median(delete_durs_batch),
-            statistics.median(delete_durs_batch_noanon),
-            statistics.median(restore_durs_batch),
-            statistics.median(restore_durs_batch_noanon),
-        )
-
     ################ add baseline closer to red line for anonymize
-    ax.bar((X-barwidth/2)[:1],
+    ax.bar((X-barwidth)[:1],
             [statistics.median(account_durs_baseline)],
             yerr=get_yerr([account_durs_baseline]),
             color='g', capsize=5, width=barwidth)
-    add_labels((X-barwidth/2)[:1], [statistics.median(account_durs_baseline)], ax, 'g', offset)
+    add_labels((X-barwidth)[:1], [statistics.median(account_durs_baseline)], ax, 'g', offset)
 
-    ax.bar((X-barwidth/2)[1:2], [statistics.median(edit_durs_baseline)],
+    ax.bar((X-barwidth)[1:2], [statistics.median(edit_durs_baseline)],
             yerr=get_yerr([edit_durs_baseline]),
             color='g', capsize=5, width=barwidth, label="Manual Privacy Transformation (No Edna)")
-    add_labels((X-barwidth/2)[1:2], [statistics.median(edit_durs_baseline)], ax, 'g', offset)
+    add_labels((X-barwidth)[1:2], [statistics.median(edit_durs_baseline)], ax, 'g', offset)
 
     ax.bar((X-barwidth)[3:4], [statistics.median(delete_durs_baseline)],
             yerr=get_yerr([delete_durs_baseline]),
@@ -120,54 +111,64 @@ for (i, ax) in enumerate(axes_flat[:2]):
     ax.bar((X-barwidth)[5:], [statistics.median(anon_durs_baseline)],  color='g', capsize=5, width=barwidth)
     add_labels((X-barwidth)[5:], [statistics.median(anon_durs_baseline)], ax, 'g', offset)
 
+    add_text_labels((X-barwidth)[2:3], ["N/A"], ax, 'g', offset)
+    add_text_labels((X-barwidth)[4:5], ["N/A"], ax, 'g', offset)
+
     ################ edna
-    ax.bar((X+barwidth/2)[:1], [statistics.median(account_durs)],
-            yerr=get_yerr([account_durs]),
-            color='m', capsize=5, width=barwidth, label='Edna')
-    add_labels((X+barwidth/2)[:1], [statistics.median(account_durs)], ax, 'm', offset)
-
-    ax.bar((X+barwidth/2)[1:2], [statistics.median(edit_durs_noanon)],
-            yerr=get_yerr([edit_durs_noanon]),
-            color='m', capsize=5, width=barwidth)
-    add_labels((X+barwidth/2)[1:2], [statistics.median(edit_durs_noanon)], ax, 'm', offset)
-
-    ax.bar((X-barwidth/2)[2:3], [statistics.median(edit_durs)],
-            yerr=get_yerr([edit_durs]),
-            color='m', capsize=5, width=barwidth)
-    add_labels((X-barwidth/2)[2:3], [statistics.median(edit_durs)], ax, 'm', offset)
-
-    ax.bar((X)[3:4], [statistics.median(delete_durs_noanon)],
-            yerr=get_yerr([delete_durs_noanon]),
-            color='m', capsize=5, width=barwidth)
-    add_labels((X)[3:4], [statistics.median(delete_durs_noanon)], ax, 'm', offset)
-
-    ax.bar((X-barwidth/2)[4:5], [statistics.median(restore_durs_noanon)],
-            yerr=get_yerr([restore_durs_noanon]),
-            color='m', capsize=5, width=barwidth)
-    add_labels((X-barwidth/2)[4:5], [statistics.median(restore_durs_noanon)], ax, 'm', offset)
-
-    ax.bar((X)[5:], [statistics.median(anon_durs)],  color='m', capsize=5, width=barwidth)
-    add_labels((X)[5:], [statistics.median(anon_durs)], ax, 'm', offset)
+    ax.bar((X), [
+        statistics.median(account_durs),
+        statistics.median(edit_durs_noanon),
+        statistics.median(edit_durs),
+        statistics.median(delete_durs_noanon),
+        statistics.median(restore_durs_noanon),
+        statistics.median(anon_durs),
+    ],
+    yerr=get_yerr([
+        account_durs,
+        edit_durs_noanon,
+        edit_durs,
+        delete_durs_noanon,
+        restore_durs_noanon,
+        anon_durs
+    ]),
+    color='m', capsize=5, width=barwidth, label='Edna')
+    add_labels((X),
+    [
+        statistics.median(account_durs),
+        statistics.median(edit_durs_noanon),
+        statistics.median(edit_durs),
+        statistics.median(delete_durs_noanon),
+        statistics.median(restore_durs_noanon),
+        statistics.median(anon_durs),
+    ], ax, 'm', offset)
 
     ############### edna batched
-    ax.bar((X+barwidth/2)[2:3], [statistics.median(edit_durs_batch)],
-            yerr=get_yerr([edit_durs_batch]),
-            color='c', capsize=5, width=barwidth, label="Edna (Token Batching)")
-    add_labels((X+barwidth/2)[2:3], [statistics.median(edit_durs_batch)], ax, 'c', offset)
-
-    ax.bar((X+barwidth)[3:4], [statistics.median(delete_durs_batch_noanon)],
-            yerr=get_yerr([delete_durs_batch_noanon]),
-            color='c', capsize=5, width=barwidth)
-    add_labels((X+barwidth)[3:4], [statistics.median(delete_durs_batch_noanon)], ax, 'c', offset)
-
-    ax.bar((X+barwidth/2)[4:5], [statistics.median(restore_durs_batch_noanon)],
-            yerr=get_yerr([restore_durs_batch_noanon]),
-            color='c', capsize=5, width=barwidth)
-    add_labels((X+barwidth/2)[4:5], [statistics.median(restore_durs_batch_noanon)], ax, 'c', offset)
-
-    ax.bar((X+barwidth)[5:], [statistics.median(anon_durs_batch)],  color='c', capsize=5, width=barwidth)
-    add_labels((X+barwidth)[5:], [statistics.median(anon_durs_batch)], ax, 'c', offset)
-
+    ax.bar((X+barwidth), [
+        statistics.median(account_durs),
+        statistics.median(edit_durs_noanon),
+        statistics.median(edit_durs_batch),
+        statistics.median(delete_durs_batch_noanon),
+        statistics.median(restore_durs_batch_noanon),
+        statistics.median(anon_durs_batch),
+    ],
+    yerr=get_yerr([
+        account_durs,
+        edit_durs_noanon,
+        edit_durs_batch,
+        delete_durs_batch_noanon,
+        restore_durs_batch_noanon,
+        anon_durs_batch
+    ]),
+    color='c', capsize=5, width=barwidth, label="Edna (Token Batching)")
+    add_labels((X+barwidth),
+    [
+        statistics.median(account_durs),
+        statistics.median(edit_durs_noanon),
+        statistics.median(edit_durs_batch),
+        statistics.median(delete_durs_batch_noanon),
+        statistics.median(restore_durs_batch_noanon),
+        statistics.median(anon_durs_batch),
+    ], ax, 'c', offset)
     ax.set_title(title)
     ax.set_ylabel('Time (ms)')
     ax.set_ylim(ymin=0, ymax=(np.percentile(restore_durs_noanon, 95)*1.15))
@@ -248,77 +249,62 @@ labels = ['Create Account',
         'Restore Deleted\nAccount',
         'Restore Decayed\nAccount']
 ax = axes_flat[2]
+offset = 20
 
 ######################## NO EDNA
-ax.bar((X-barwidth/2)[:1], [statistics.median(account_durs_baseline)],
-    yerr=get_yerr([account_durs_baseline]),
-    capsize=5,
-    color='g', width=barwidth, label="No Edna")
-add_labels((X-barwidth/2)[:1], [statistics.median(account_durs_baseline)], ax, 'g', 10)
-
-ax.bar((X-barwidth)[1:3], [
+ax.bar((X-barwidth)[:3], [
+        statistics.median(account_durs_baseline),
         statistics.median(delete_durs_baseline),
         statistics.median(decay_durs_baseline)
     ],
-    yerr=get_yerr([delete_durs_baseline, decay_durs_baseline]),
+    yerr=get_yerr([account_durs_baseline, delete_durs_baseline, decay_durs_baseline]),
     capsize=5,
-    color='g', width=barwidth)
-add_labels((X-barwidth)[1:3], [
+    color='g', width=barwidth, label="No Edna")
+add_labels((X-barwidth)[:3], [
+        statistics.median(account_durs_baseline),
         statistics.median(delete_durs_baseline),
         statistics.median(decay_durs_baseline),
-    ], ax, 'g', 10)
+    ], ax, 'g', offset)
+
+add_text_labels((X-barwidth)[3:], ["N/A", "N/A"], ax, 'g', offset)
 
 ######################## EDNA
-ax.bar((X+barwidth/2)[:1], [statistics.median(account_durs)],
-    yerr=get_yerr([account_durs]),
-    capsize=5,
-    color='m', width=barwidth, label="Edna")
-add_labels((X+barwidth/2)[:1], [statistics.median(account_durs)], ax, 'm', 10)
-
-ax.bar((X)[1:3], [
-        statistics.median(delete_durs),
-        statistics.median(decay_durs)
-    ],
-    yerr=get_yerr([delete_durs, decay_durs]),
-    capsize=5,
-    color='m', width=barwidth, label="Edna")
-add_labels((X)[1:3], [
+ax.bar((X), [
+        statistics.median(account_durs),
         statistics.median(delete_durs),
         statistics.median(decay_durs),
-    ], ax, 'm', 10)
-
-ax.bar((X-barwidth/2)[3:], [
         statistics.median(restore_durs),
         statistics.median(undecay_durs)
     ],
-    yerr=get_yerr([restore_durs,undecay_durs]),
-    capsize=5, color='m', width=barwidth)
-add_labels((X-barwidth/2)[3:], [
-     statistics.median(restore_durs),
-     statistics.median(undecay_durs)], ax, 'm', 10)
+    yerr=get_yerr([account_durs, delete_durs, decay_durs, restore_durs, undecay_durs]),
+    capsize=5,
+    color='m', width=barwidth, label="Edna")
+add_labels((X), [
+        statistics.median(account_durs),
+        statistics.median(delete_durs),
+        statistics.median(decay_durs),
+        statistics.median(restore_durs),
+        statistics.median(undecay_durs)
+    ], ax, 'm', offset)
 
 ######################## EDNA BATCH
-ax.bar((X+barwidth)[1:3], [
-        statistics.median(delete_durs_batch),
-        statistics.median(decay_durs_batch)
-    ],
-    yerr=get_yerr([delete_durs_batch,decay_durs_batch]),
-    capsize=5,
-    color='c', width=barwidth, label="Edna (Token Batching)")
-add_labels((X+barwidth)[1:3], [
+ax.bar((X+barwidth), [
+        statistics.median(account_durs),
         statistics.median(delete_durs_batch),
         statistics.median(decay_durs_batch),
-    ], ax, 'c', 10)
-
-ax.bar((X+barwidth/2)[3:], [
         statistics.median(restore_durs_batch),
         statistics.median(undecay_durs_batch)
     ],
-    yerr=get_yerr([restore_durs_batch,undecay_durs_batch]),
-    capsize=5, color='c', width=barwidth)
-add_labels((X+barwidth/2)[3:], [
-     statistics.median(restore_durs_batch),
-     statistics.median(undecay_durs_batch)], ax, 'c', 10)
+    yerr=get_yerr([account_durs, delete_durs_batch, decay_durs_batch, restore_durs_batch, undecay_durs_batch]),
+    capsize=5,
+    color='c', width=barwidth, label="Edna (Token Batching)")
+add_labels((X+barwidth), [
+        statistics.median(account_durs),
+        statistics.median(delete_durs_batch),
+        statistics.median(decay_durs_batch),
+        statistics.median(restore_durs_batch),
+        statistics.median(undecay_durs_batch)
+    ], ax, 'c', offset)
 
 title = "Lobsters Operation Latencies"
 ax.set_title(title)

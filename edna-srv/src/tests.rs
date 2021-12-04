@@ -1,5 +1,6 @@
 use super::rocket;
 use crate::apiproxy::*;
+use crate::*;
 use mysql::prelude::*;
 use mysql::{Opts, Value};
 use rocket::http::ContentType;
@@ -8,7 +9,7 @@ use std::collections::HashMap;
 use serde_json::json;
 use log::warn;
 
-pub async fn test_disguise() {
+pub async fn test_lobsters_disguise() {
     let client = Client::tracked(rocket(
         true,
         true,
@@ -16,6 +17,7 @@ pub async fn test_disguise() {
         "lobsters_disguises/schema.sql",
         true,
         10,
+        LOBSTERS_APP,
     ))
     .await
     .unwrap();
@@ -74,7 +76,7 @@ pub async fn test_disguise() {
             "ownership_locators": [],
         });
 
-        let endpoint = format!("/apply_disguise/0/{}", u);
+        let endpoint = format!("/apply_disguise/{}/0/{}", LOBSTERS_APP, u);
         let response = client
             .post(&endpoint)
             .body(postdata.to_string())
@@ -193,7 +195,7 @@ pub async fn test_disguise() {
             "ownership_locators": [],
         });
 
-        let endpoint = format!("/apply_disguise/1/{}", u);
+        let endpoint = format!("/apply_disguise/{}/1/{}", LOBSTERS_APP, u);
         let response = client
             .post(&endpoint)
             .body(postdata.to_string())
@@ -244,6 +246,178 @@ pub async fn test_disguise() {
             rows.push(vals);
         }
         assert_eq!(rows.len(), 0);
+    }
+     /***********************************
+     * gdpr deletion (composition)
+     ***********************************/
+
+    /***********************************
+     * gdpr restore (composition)
+     ***********************************/
+    // check
+}
+
+pub async fn test_hotcrp_disguise() {
+    let client = Client::tracked(rocket(
+        true,
+        true,
+        "testdb",
+        "hotcrp_disguises/schema.sql",
+        true,
+        10,
+        HOTCRP_APP,
+    ))
+    .await
+    .unwrap();
+    let mut db = mysql::Conn::new(
+        Opts::from_url(&format!(
+            "mysql://tslilyai:pass@127.0.0.1/{}",
+            "testdb"
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(db.ping(), true);
+
+    let mut user2decryptcap = HashMap::new();
+    let mut user2owncap = HashMap::new();
+    let mut user2diffcap = HashMap::new();
+    let nusers: u64 = 5;
+
+    // create all users
+    for u in 1..nusers {
+        let response = client
+            .post("/register_principal")
+            .body(json!(u.to_string()).to_string())
+            .header(ContentType::JSON)
+            .dispatch()
+            .await;
+        let strbody = response.into_string().await.unwrap();
+        let body: RegisterPrincipalResponse = serde_json::from_str(&strbody).unwrap();
+        user2decryptcap.insert(u, body.privkey);
+        // TODO datagen
+    }
+    warn!("Created {} users", nusers);
+
+    /***********************************
+     * gdpr deletion (no composition)
+     ***********************************/
+    for u in 1..nusers {
+        let decryptcap = user2decryptcap.get(&u).unwrap();
+        let postdata = json!({
+            "decrypt_cap": base64::decode(&decryptcap).unwrap(),
+            "ownership_locators": [],
+        });
+
+        let endpoint = format!("/apply_disguise/{}/0/{}", HOTCRP_APP, u);
+        let response = client
+            .post(&endpoint)
+            .body(postdata.to_string())
+            .header(ContentType::JSON)
+            .dispatch()
+            .await;
+        let strbody = response.into_string().await.unwrap();
+        warn!("Delete strbody response: {}", strbody);
+        let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
+        if let Some(dl) = body.diff_locators.get(&u.to_string()) {
+            user2diffcap.insert(u, *dl);
+        }
+        if let Some(ol) = body.ownership_locators.get(&u.to_string()) {
+            user2owncap.insert(u, *ol);
+        }
+        warn!("Deleted account of {}", u);
+    }
+    // check results of delete: user has no comments
+    for u in 1..nusers {
+        let res = db
+            .query_iter(format!("SELECT * FROM ContactInfo WHERE contactId = {};", u))
+            .unwrap();
+        let mut rows = vec![];
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+            rows.push(vals);
+        }
+        assert_eq!(rows.len(), 0);
+    }
+
+    /***********************************
+     * gdpr restore (no composition)
+     ***********************************/
+    for u in 1..nusers {
+        //let owncap = user2owncap.get(&u).unwrap();
+        let decryptcap = user2decryptcap.get(&u).unwrap();
+        let diffcap = user2diffcap.get(&u).unwrap();
+        let postdata = json!({
+            "decrypt_cap": base64::decode(&decryptcap).unwrap(),
+            "diff_locators": [diffcap],
+            "ownership_locators": [],
+        });
+
+        client
+            .post("/reveal_disguise/0")
+            .body(postdata.to_string())
+            .header(ContentType::JSON)
+            .dispatch()
+            .await;
+        warn!("Restored account of {}", u);
+    }
+    // check
+    for u in 1..nusers {
+        let res = db
+            .query_iter(format!("SELECT * FROM ContactInfo WHERE contactId = {};", u))
+            .unwrap();
+        let mut rows = vec![];
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+            rows.push(vals);
+        }
+        assert_eq!(rows.len(), 1);
+    }
+
+    /**********************************
+     * anon 
+     ***********************************/
+    // anon 
+    for u in 1..nusers {
+        let decryptcap = user2decryptcap.get(&u).unwrap();
+        let postdata = json!({
+            "decrypt_cap": base64::decode(&decryptcap).unwrap(),
+            "ownership_locators": [],
+        });
+
+        let endpoint = format!("/apply_disguise/{}/1/{}", HOTCRP_APP, u);
+        let response = client
+            .post(&endpoint)
+            .body(postdata.to_string())
+            .header(ContentType::JSON)
+            .dispatch()
+            .await;
+        let strbody = response.into_string().await.unwrap();
+        warn!("Anon strbody response: {}", strbody);
+        let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
+        if let Some(dl) = body.diff_locators.get(&u.to_string()) {
+            user2diffcap.insert(u, *dl);
+        }
+        if let Some(ol) = body.ownership_locators.get(&u.to_string()) {
+            user2owncap.insert(u, *ol);
+        }
+        warn!("Anon account of {}", u);
+    }
+
+    // check results of decay: user has no associated data
+    for u in 1..nusers {
+        let res = db
+            .query_iter(format!("SELECT * FROM ContactInfo WHERE contactId = {};", u))
+            .unwrap();
+        let mut rows = vec![];
+        for row in res {
+            let rowvals = row.unwrap().unwrap();
+            let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+            rows.push(vals);
+        }
+        assert_eq!(rows.len(), 1);
     }
      /***********************************
      * gdpr deletion (composition)

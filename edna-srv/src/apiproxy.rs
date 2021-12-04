@@ -1,4 +1,6 @@
 use crate::lobsters_disguises;
+use crate::hotcrp_disguises;
+use crate::*;
 use edna::EdnaClient;
 use rocket::serde::{json::Json, Deserialize};
 use rocket::State;
@@ -21,15 +23,20 @@ pub struct ApplyDisguiseResponse {
     pub ownership_locators: HashMap<edna::UID, edna::tokens::LocCap>,
 }
 
-#[post("/<did>/<uid>", format = "json", data = "<data>")]
+#[post("/<app>/<did>/<uid>", format = "json", data = "<data>")]
 pub(crate) fn apply_disguise(
+    app: u64,
     did: edna::DID,
     uid: edna::UID,
     data: Json<ApplyDisguise>,
     edna: &State<Arc<Mutex<EdnaClient>>>,
 ) -> Json<ApplyDisguiseResponse> {
     warn!("Applying disguise {} for {}", did, uid);
-    let disguise = lobsters_disguises::get_disguise_with_ids(did, uid);
+    let disguise = match app {
+        LOBSTERS_APP => lobsters_disguises::get_disguise_with_ids(did, uid),
+        HOTCRP_APP => hotcrp_disguises::get_disguise_with_ids(did, uid),
+        _ => unimplemented!("unsupported app")
+    };
     let mut e = edna.lock().unwrap();
     let locators = e
         .apply_disguise(
