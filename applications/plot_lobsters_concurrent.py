@@ -7,7 +7,7 @@ from collections import defaultdict
 
 plt.style.use('seaborn-deep')
 
-ndisguising = [0, 50, 100]
+ndisguising = [0, 1, 50, 100]
 maxts = 150000
 bucketwidth = 1000
 nbuckets = int(maxts/bucketwidth)
@@ -45,6 +45,7 @@ for nd in ndisguising:
     get_opdata('results/lobsters_results/concurrent_disguise_stats_disguising_{}group.csv'.format(nd),op_results,0)
     get_opdata('results/lobsters_results/concurrent_disguise_stats_disguising_{}group_batch.csv'.format(nd),op_results_batch,0)
     if nd > 0:
+        print(nd)
         get_stats('results/lobsters_results/concurrent_disguise_stats_disguising_{}group.csv'.format(nd),1)
         get_stats('results/lobsters_results/concurrent_disguise_stats_disguising_{}group_batch.csv'.format(nd),1)
         get_stats('results/lobsters_results/concurrent_disguise_stats_disguising_{}group.csv'.format(nd),2)

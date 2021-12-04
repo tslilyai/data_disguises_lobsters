@@ -16,7 +16,6 @@ buckets = [b * bucketwidth for b in range(nbuckets)]
 lec = 20
 
 # collect all results
-#normal_edit_results = []
 edit_results = []
 edit_results_batch = []
 edit_results_baseline = []
@@ -47,9 +46,6 @@ def get_stats(filename, i):
 
 get_editdata('results/websubmit_results/concurrent_disguise_stats_{}lec_{}users_30disguisers_baseline.csv'
         .format(lec, 100), edit_results_baseline)
-
-#get_editdata('results/websubmit_results/concurrent_disguise_stats_{}lec_{}users_disguising.csv'
-        #.format(lec, 100), normal_edit_results)
 
 for nd in [int(100 * prop) for prop in props]:
     get_editdata('results/websubmit_results/concurrent_disguise_stats_{}lec_{}users_disguising_{}group.csv'
