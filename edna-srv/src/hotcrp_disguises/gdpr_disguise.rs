@@ -1,7 +1,6 @@
 use crate::hotcrp_disguises::*;
 use edna::predicate::*;
 use edna::spec::*;
-use edna::*;
 use sql_parser::ast::*;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
