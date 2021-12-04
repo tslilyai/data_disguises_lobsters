@@ -6,17 +6,18 @@ rm *txt
 mkdir output
 set -e
 
-# get stats first, prime when you do this
-#for batch in ''; do
-    #RUST_LOG=error perflock ../../target/release/lobsters \
-		#--prime $batch \
-        	#--stats \
-		#--scale 1 \
-		#&> output/users$batch.out
-	#echo "Ran stats test for users"
-#done
+#get stats first, prime when you do this
+for batch in '--batch'; do
+    RUST_LOG=error perflock ../../target/release/lobsters \
+		--prime $batch \
+        	--stats \
+		--scale 1 \
+		&> output/users$batch.out
+	echo "Ran stats test for users"
+done
 
-for ndisguising in 0 1 5 10 15 20 25 30; do
+#for ndisguising in 0 1 5 10 15 20 25 30 50 100; do
+for ndisguising in 100 50 1 0; do
     for batch in '--batch' ''; do
         RUST_LOG=error perflock ../../target/release/lobsters \
             $batch \

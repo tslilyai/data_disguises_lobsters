@@ -28,7 +28,6 @@ include!("statistics.rs");
 
 const TOTAL_TIME: u128 = 150000;
 const SCHEMA: &'static str = include_str!("../schema.sql");
-const DBNAME: &'static str = &"edna_lobsters";
 
 #[derive(StructOpt)]
 struct Cli {
@@ -40,8 +39,6 @@ struct Cli {
     prime: bool,
     #[structopt(long = "batch")]
     batch: bool,
-    #[structopt(long = "is_baseline")]
-    is_baseline: bool,
     #[structopt(long = "stats")]
     stats: bool,
 }
@@ -62,15 +59,9 @@ fn main() {
     let args = Cli::from_args();
     let scale = args.scale;
     let prime = args.prime;
-    let is_baseline = args.is_baseline;
     let sampler = datagen::Sampler::new(scale);
 
-    let dbname: String;
-    if is_baseline {
-        dbname = format!("{}_baseline", DBNAME);
-    } else {
-        dbname = format!("{}_edna", DBNAME);
-    }
+    let dbname: String = "lobsters_edna".to_string();
     let mut edna = EdnaClient::new(
         args.prime,
         args.batch,
@@ -109,11 +100,12 @@ fn main() {
     let delete_durations = Arc::new(Mutex::new(vec![]));
     let restore_durations = Arc::new(Mutex::new(vec![]));
     let op_durations = Arc::new(Mutex::new(vec![]));
+    let nconcurrent = 30;
 
     let mut threads = vec![];
     let arc_sampler = Arc::new(sampler);
-    let barrier = Arc::new(Barrier::new(101));
-    for _ in 0..100 {
+    let barrier = Arc::new(Barrier::new(nconcurrent + 1));
+    for _ in 0..nconcurrent {
         let c = barrier.clone();
         let my_op_durations = op_durations.clone();
         let mut db = edna.get_conn().unwrap();
@@ -245,7 +237,6 @@ fn run_normal_thread(
         res.sort();
         warn!("user{}, {}\n", user_id, res.join(" "));
         my_op_durations.push((overall_start.elapsed(), start.elapsed()));
-        thread::sleep(time::Duration::from_millis(rng.gen_range(500, 1000)));
     }
     op_durations
         .lock()
