@@ -8,6 +8,7 @@ extern crate serde_derive;
 
 mod apiproxy;
 mod lobsters_disguises;
+mod hotcrp_disguises;
 mod tests;
 
 use clap::{App, Arg};
@@ -15,6 +16,9 @@ use edna::EdnaClient;
 use rocket::{Build, Rocket};
 use std::sync::{Arc, Mutex};
 use std::fs;
+
+pub const LOBSTERS_APP: u64 = 0;
+pub const HOTCRP_APP: u64 = 1;
 
 fn init_logger() {
     let _ = env_logger::builder()
@@ -38,8 +42,14 @@ fn rocket(
     schema: &str,
     in_memory: bool,
     keypool_size: usize,
+    app: u64,
 ) -> Rocket<Build> {
     let schemastr = fs::read_to_string(schema).unwrap();
+    let guise_gen = match app {
+        LOBSTERS_APP => lobsters_disguises::get_guise_gen(),
+        HOTCRP_APP => hotcrp_disguises::get_guise_gen(),
+        _ => unimplemented!("unsupported app")
+    };
     let edna_client = EdnaClient::new(
         prime,
         batch,
@@ -47,7 +57,7 @@ fn rocket(
         &schemastr,
         in_memory,
         keypool_size,
-        lobsters_disguises::get_guise_gen(),
+        guise_gen,
     );
     rocket::build()
         .manage(Arc::new(Mutex::new(edna_client)))
@@ -110,12 +120,30 @@ async fn main() {
                 .default_value("10")
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("application")
+                .short("a")
+                .default_value("lobsters")
+                .takes_value(true)
+                .long("app")
+                .help("Which application to run"),
+        )
         .get_matches();
 
     if matches.is_present("test") {
-        tests::test_disguise().await;
+        match matches.value_of("app").unwrap() {
+            "lobsters" => tests::test_lobsters_disguise().await,
+            "hotcrp" => tests::test_hotcrp_disguise().await,
+            _ => unimplemented!("unsupported app"),
+        }
         return;
     }
+
+    let app = match matches.value_of("app").unwrap() {
+        "lobsters" => LOBSTERS_APP ,
+        "hotcrp" => HOTCRP_APP,
+        _ => unimplemented!("unsupported app"),
+    };
 
     let my_rocket = rocket(
         matches.is_present("prime"),
@@ -124,6 +152,7 @@ async fn main() {
         matches.value_of("schema").unwrap(),
         matches.is_present("in-memory"),
         usize::from_str_radix(matches.value_of("keypool-size").unwrap(), 10).unwrap(),
+        app,
     );
     my_rocket.launch().await.expect("Failed to launch rocket");
 }
