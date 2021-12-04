@@ -7,7 +7,7 @@ mkdir output
 set -e
 
 #get stats first, prime when you do this
-for batch in '--batch'; do
+for batch in '--batch' ''; do
     RUST_LOG=error perflock ../../target/release/lobsters \
 		--prime $batch \
         	--stats \

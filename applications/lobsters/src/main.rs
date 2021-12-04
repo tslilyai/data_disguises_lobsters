@@ -172,7 +172,7 @@ fn run_normal_thread(
         let user = Some(user_id);
 
         // randomly pick next request type based on relative frequency
-        let mut seed: isize = rng.gen_range(0, 100000);
+        let mut seed: isize =rng.gen_range(0, 100000);
         let seed = &mut seed;
         let mut pick = |f| {
             let applies = *seed <= f;
