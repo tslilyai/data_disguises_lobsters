@@ -79,13 +79,31 @@ would be necessary.}
 
 \subsection{Lobsters} 
 We integrated the Lobsters~\cite{lobsters} link-sharing and discussion application with \sys to
-explore data disguises in another class of web applications. \sys-Lobsters supports two disguises:
-GDPR-compliant account deletion, and automatic data decay, both implemented \sys's high-level API.
-\sys-Lobsters' account decay allows inactive users to automatically gain privacy after a period of
-unuse (\eg a year); \sys-Lobsters emails decayed users a link with the appropriate locators that
-allows the user to return to delete their account or reactive it. A disguise such as universal
-anonymization makes less sense for an application such as Lobsters, in which users may use the
-application at very different frequencies.
+explore data disguises in another class of web applications. \sys-Lobsters supports three disguises:
+the current Lobsters deletion policy\lyt{CITE}, a GDPR-compliant account deletion, and automatic
+data decay, all implemented \sys's high-level API. 
+
+Note that a disguise such as universal anonymization makes less sense for an application such as
+Lobsters, in which users may use the application at very different frequencies.  \sys-Lobsters'
+account decay allows inactive users to automatically gain privacy after a period of unuse (\eg a
+year); \sys-Lobsters emails decayed users a link with the appropriate locators that allows the user
+to return to delete their account or reactive it. 
+
+The current Lobsters deletion policy
+%
+(1)~hides the user account by flagging it as deleted (but retains the user in the users table);
+%
+(2)~deletes the users' invitations;
+%
+(3)~hides comments with negative votes by flagging them as deleted (but retains the comment in the database)
+%
+(4)~hides private messages from the other party by flagging them as deleted (but retains the message
+in the database);
+%
+(4)~and (optionally) decorrelates a user's stories and comments by referring them
+to a \emph{single} pseudoprincipal with username \texttt{inactive-user}.
+%
+This policy allows users are able to return by simply marking user accounts as not-deleted.
 
 GDPR-compliant account deletion 
 %
@@ -97,17 +115,23 @@ stories;
 (3) modifies story and comment content to ``[deleted content]'' in order to preserve comment threads
 (and nested threads) on stories;
 %
-(4)~and decorrelates votes, stories, comments, and moderations on the user's data by referring them
-to newly generated pseudoprincipals.
+(4)~hides private messages from the other party by marking them as deleted (but retains them in the
+database);
+%
+(5)~and decorrelates private messages, votes, stories, comments, and moderations on the user's data
+by referring each object to a \emph{unique} pseudoprincipal.
 %
 
 This preserves application semantics for other users (\eg vote counts remain consistent even if
 users delete their accounts, and other users' comments remain visible and editable), while better
-protecting the identity of deleted users.  Furthermore, important information such as moderations on
-the user's content remain in the database, and will be recorrelated if the user decides to restore
-their account.  After \sys-Lobsters applies account deletion, \sys-Lobsters emails the user a URL with the
-locator produced by the disguise, which when clicked, allows the user to restore their account
-(barring application updates that occurred in the interim).
+protecting the identity of deleted users than the current policy, which assigns all decorrelated
+data to a single pseudoprincipal---yielding more information about which data may belong to a single
+deleted user---and fails to be GDPR-compliant by retaining plaintext usernames. Furthermore,
+important information such as moderations on the user's content remain in the database, and will be
+recorrelated if the user decides to restore their account.  After \sys-Lobsters applies account
+deletion, \sys-Lobsters emails the user a URL with the locator produced by the disguise, which when
+clicked, allows the user to restore their account (barring application updates that occurred in the
+interim).
 
 \sys-Lobsters automatically applies data decay to user accounts that have been inactive for over a year.
 Data decay 

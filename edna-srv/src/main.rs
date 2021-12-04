@@ -98,7 +98,7 @@ async fn main() {
                 .help("The MySQL database to use")
                 .takes_value(true),
         )
-        .arg(Arg::with_name("prime").help("Prime the database"))
+        .arg(Arg::with_name("edna-prime").help("Use Edna to prime the database"))
         .arg(Arg::with_name("batch").help("Use token batching"))
         .arg(Arg::with_name("test").help("Run the test"))
         .arg(
@@ -146,7 +146,7 @@ async fn main() {
     };
 
     let my_rocket = rocket(
-        matches.is_present("prime"),
+        matches.is_present("edna-prime"),
         matches.is_present("batch"),
         matches.value_of("database").unwrap(),
         matches.value_of("schema").unwrap(),
