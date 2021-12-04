@@ -2,42 +2,90 @@
 \section{Case Studies}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{WebSubmit.rs}
+\subsection{WebSubmit}
 WebSubmit is an answers-submission application written in Rust. 
 Its schema consists of lectures, questions, answers, and user accounts; 
 clients can create accounts and submit answers. 
-
-\sys-WebSubmit is a fully-E2E application that supports additional endpoints to perform disguise
-actions, and emails users their capabilities and locators (as these endpoints) when disguise actions
-are performed. \sys-WebSubmit supports two disguises: admin-anonymization of all answers, and
+\sys-WebSubmit supports two disguises: admin-anonymization of all answers, and
 per-user GDPR-compliant account deletion. \sys-WebSubmit also supports account restoration after
-deletion, and answer editing after anonymization.  
+deletion, and answer editing after anonymization, by emailing users a link with the appropriate
+locators when applying these disguises.
+%
 
+%
 Admin-anonymization performs per-user disguises for all users.
 Each disguise decorrelates lecture answers from the user, grouping them by lecture (so all answer
 for a particular lecture refer to the same newly generated pseudoprincipal).
 \sys-WebSubmit implements anonymization using \sys's lower-level API.
+%
 
+%
 GDPR-compliant account deletion 
 %
 (1)~deletes the user account, and 
 %
 (2)~deletes the user's answers. 
-\sys-Websumit implements account deletion (and restoration) using \sys's higher-level API.
+\sys-Websubmit implements account deletion (and restoration) using \sys's higher-level API.
+%
 
-The original WebSubmit is 922LoC. Integration of \sys into WebSubmit required an additional 304LoC
-to specify disguises; 254LoC to add additional endpoints; and 809LoC added to existing code \lyt{(some of
-which were to add e.g., benchmark timings)}. Overall, the process took 1-2 person-days for
-a developer familiar with \sys, but unfamiliar with web application development and
+%
+\sys-WebSubmit is a fully-E2E application that supports additional endpoints to perform disguise
+actions. We integrate \sys into WebSubmit as a Rust library because
+WebSubmit is a Rust application.
+The original WebSubmit is 922LoC; writing \sys-WebSubmit required an additional 304LoC
+to specify disguises; 254LoC to add additional endpoints; and 809LoC added to existing code
+\lyt{(some of which were to add e.g., benchmark timings)}. Overall, the process took 1-2 person-days
+for a developer familiar with \sys, but unfamiliar with web application development and
 WebSubmit.\lyt{Not sure how to put this into context...}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\subsection{HotCRP}
+HotCRP is a conference review application with a schema containing users (reviewers/PC members and
+authors), paper submissions, reviews, comments, tags, and per-user data such as paper watches and review ratings.
+%
+\sys-HotCRP supports similar disguises to WebSubmit: a universal conference anonymization disguise,
+and a GDPR-compliant account deletion disguise.  \sys-HotCRP uses the high-level \sys API to
+specify, apply, and reveal both disguises.  \sys-HotCRP also supports review editing after
+anonymization by emailing a link with the appropriate locators to anonymized users. Both disguises
+are implemented using \sys's higher-level API. 
+
+Universal conference anonymization decorrelates users from their submissions, reviews, and comments,
+as well as per-user data such as paper watches. User accounts remain in the database but have no
+correlated data.
+
+\lyt{This is taken from hotos} Account deletion of a user 
+%
+(1)~deletes the user account;
+%
+(2)~deletes information that's only relevant to the user, such as their review preferences;
+%
+(3)~deletes their contact author relationships to any submissions;
+%
+(4)~decorrelates their other data, such as reviews, by referring them to newly generated
+pseudoprincipals.
+
+After account deletion, a user's reviews remain in the system, but linked to different
+pseudoprincipals, making them difficult to reassociate with one another or with the user.
+%
+Pseudoprincipals have suitable default values; for example, they should be disabled, ensuring they
+have no permissions and cannot log in.
+%
+This form of account deletion removes a user's relationship to submissions, but does not remove the
+submissions themselves; a different policy might go even further and automatically delete a
+submission whose last author is scrubbed.
+
+\lyt{An end-to-end integration with the HotCRP client is future work; however, we imagine that modifications similar to those in WebSubmit
+would be necessary.}
 
 \subsection{Lobsters} 
 We integrated the Lobsters~\cite{lobsters} link-sharing and discussion application with \sys to
-explore data disguises in another class of web applications.
-
-\sys-Lobsters is a fully E2E application that supports two disguises: GDPR-compliant account
-deletion, and automatic data decay.  \sys-Lobsters specifies, applies, and reveals both disguises
-using the high-level \sys API.
+explore data disguises in another class of web applications. \sys-Lobsters supports two disguises:
+GDPR-compliant account deletion, and automatic data decay, both implemented \sys's high-level API.
+\sys-Lobsters' account decay allows inactive users to automatically gain privacy after a period of
+unuse (\eg a year); \sys-Lobsters emails decayed users a link with the appropriate locators that
+allows the user to return to delete their account or reactive it. A disguise such as universal
+anonymization makes less sense for an application such as Lobsters, in which users may use the
+application at very different frequencies.
 
 GDPR-compliant account deletion 
 %
@@ -80,41 +128,9 @@ produced by applying data decay; when users want to reactivate to return to \sys
 account deletion on top of data decay, they can simply click the URL to regain access to their
 restored data.
 
-The original Lobsters is \lyt{TODO}LoC. We integrate Lobsters with \sys by running \sys as a local
-server that exposes its API, and serializes arguments and return values as JSON to the Lobsters
-application.
+\sys-Lobsters is a fully E2E application that uses \sys by running \sys as a local
+server that exposes \sys's API, and serializes arguments and return values as JSON to the Lobsters
+application. 
+The original Lobsters is \lyt{TODO}LoC. 
 Modifications to the Lobsters code required \lyt{TODO}LoC and took \lyt{TODO} person-days.
 
-\subsection{HotCRP}
-We implement two disguises to run on top of the HotCRP schema: a universal conference anonymization
-disguise, and a GDPR-compliant account deletion disguise.  \sys-HotCRP uses the high-level \sys API
-to specify, apply, and reveal both disguises.
-\sys-HotCRP also supports review editing after anonymization.  
-
-Universal conference anonymization decorrelates users from their submissions, reviews, and comments,
-as well as data such as paper watches and review ratings. User accounts remain in the database, but
-are decorrelated from any data.
-
-\lyt{This is taken from hotos} Account deletion of a user 
-%
-(1)~deletes the user account;
-%
-(2)~deletes information that's only relevant to the user, such as their review preferences;
-%
-(3)~deletes their contact author relationships to any submissions;
-%
-(4)~decorrelates their other data, such as reviews, by referring them to newly generated
-pseudoprincipals.
-
-After account deletion, a user's review texts are still in the system, but they are linked to
-different pseudoprincipals, making them difficult to reassociate with one another or with the user.
-%
-Pseudoprincipals have suitable default values; for example, they should be disabled, ensuring they
-have no permissions and cannot log in.
-%
-This form of account deletion removes a user's relationship to submissions, but does not remove the
-submissions themselves; a different policy might go even further and automatically delete a
-submission whose last author is scrubbed.
-
-\lyt{An end-to-end integration with the HotCRP client is future work; however, we imagine that modifications similar to those in WebSubmit
-would be necessary.}
