@@ -3,18 +3,27 @@
 
 %% Problem statement
 %
-Web applications today handle copious amounts of personal information, much of it sensitive.
+Web applications today handle copious personal information, much of it sensitive, and store
+it for a long time.
+%
+For example, booking with a hotel once can cause information like your passport and phone
+numbers to be compromised by an attacker years later~\cite{starwood-hack}.
 %
 %Users' privacy and their rights to exercise control over their data in these applications
 %thus are an increasingly important concern for application developers.
 %
-Laws like the GDPR force developer to consider users' data privacy and their rights to their
-data; and many developers do want to be ``good citizens'' even beyond meeting the legal
-requirements, or are at least worried about the reputational damage of a large-scale data leak.
+Many developers want to do a good job providing privacy choices to their users, and legal
+requirements (\eg the GDPR, CCPA, and others) increasingly mandate doing so.
 %
-But doing a good job at data privacy requires extensive manual labor today, and applications
-consequently grant users little fine-grained control over how they retain and use their private
-data.
+%Even beyond meeting the legal requirements, many developers are at least worried about
+%the reputational damage of a large-scale data leak.
+%
+But doing a good job at data privacy is hard: it requires extensive manual implementation
+work today, and it is easy to get wrong.
+%
+As a result, application lack desirable privacy features, like \eg ways to remove or
+anonymize your account, or for old data to ``decay'' into lower-fidelity, less identifying
+representations over time.
 %
 
 %
