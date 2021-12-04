@@ -45,6 +45,12 @@ fn gen_anon_url(_: &str) -> String {
 fn check_anon_url(s: &str) -> bool {
     s == "deleted_url"
 }
+fn gen_true_str(_: &str) -> String {
+    true.to_string()
+}
+fn check_true(_: &str) -> bool {
+    true
+}
 
 pub fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<ObjectTransformation>>>> {
     let mut hm = HashMap::new();
@@ -223,6 +229,25 @@ pub fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Objec
     hm.insert(
         "messages".to_string(),
         Arc::new(RwLock::new(vec![
+            ObjectTransformation {
+                pred: get_eq_pred("author_user_id", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Modify {
+                    col: "deleted_by_author".to_string(),
+                    generate_modified_value: Box::new(gen_true_str),
+                    satisfies_modification: Box::new(check_true),
+                })),
+                global: false,
+            },
+            ObjectTransformation {
+                pred: get_eq_pred("recipient_user_id", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Modify {
+                    col: "deleted_by_recipient".to_string(),
+                    generate_modified_value: Box::new(gen_true_str),
+                    satisfies_modification: Box::new(check_true),
+                })),
+                global: false,
+            },
+ 
             ObjectTransformation {
                 pred: get_eq_pred("author_user_id", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
