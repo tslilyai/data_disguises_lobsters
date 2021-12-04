@@ -113,7 +113,8 @@ tokens are involved).
 account creation, deletion/restoration, anonymization, and editing anonymized data.
 \sys-Lobsters supports account creation and deletion/restoration as well, but has account decay (and
 subsequent restoration) instead of account anonymization.  It does not support editing anonymized
-data (accounts can be restored in order to edit decorrelated data).
+data (accounts can be restored in order to edit decorrelated data). In these benchmarks, we measure
+the cost of GDPR-compliant account deletion and restoration.
 
 \sys-WebSubmit users all have approximately the same amount of data (a set number of answers to
 lecture questions). Thus, the spread in latencies is low. The simplicity of \sys-WebSubmit's
@@ -157,11 +158,11 @@ perform up to 20 decryptions to determine which pseudoprincipals the client can 
 batching drastically decreases this cost by performing only one decryption to decrypt all speaks-for
 tokens for a particular client and disguise.
 
-\textbf{Account deletion or data decay} with or without \sys performs the same database operations to
-remove, modify, or anonymize data. \sys incurs increased costs by additionally encrypting and
+\textbf{Account deletion or data decay} with or without \sys performs the same database operations
+to remove, modify, or anonymize data. \sys incurs increased costs by additionally encrypting and
 inserting one diff token for each deleted or modified object, and one speaks-for token for each
-anonymized object. 
-With token batching, encryption occurs once per account, rather than once per object. 
+anonymized object.  With token batching, encryption occurs once per account, rather than once per
+object. 
 
 \textbf{Account restoration} is only possible with \sys. \sys decrypts a token for each
 piece of modified/removed/anonymized data, and performs database checks to ensure the data can be restored
