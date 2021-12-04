@@ -48,14 +48,14 @@ for r in range(1, len(ndisguising)):
     xs = np.array(xs)[order]
     ys = [statistics.mean(x) for x in op_results[r].values()]
     ys = np.array(ys)[order]
-    plt.plot(xs, ys, color=colors[r-1], label='{} Disguisers'.format(ndisguising[r]))
+    plt.plot(xs, ys, color=colors[r-1], linestyle=":", label='{} Disguisers'.format(ndisguising[r]))
 
     xs = list(op_results_batch[r].keys())
     order = np.argsort(xs)
     xs = np.array(xs)[order]
     ys = [statistics.mean(x) for x in op_results_batch[r].values()]
     ys = np.array(ys)[order]
-    plt.plot(xs, ys, color=colors[r-1], linestyle=":", label='{} Disguisers (Batch)'.format(ndisguising[r]))
+    plt.plot(xs, ys, color=colors[r-1], label='{} Disguisers (Batch)'.format(ndisguising[r]))
 
 plt.xlabel('Benchmark Time (s)')
 plt.ylabel('Latency (ms)')

@@ -2,11 +2,7 @@
 \section{Evaluation}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%i
 \subsection{Security Evaluation}
-%
-\vspace{6pt}\noindent\textbf{\emph{(1) Authorized Disguises.}}
-%
-
-\vspace{6pt}\noindent\textbf{\emph{(2) Secure Disguise Tokens.}}
+\vspace{6pt}\noindent\textbf{\emph{(1) Secure Disguise Tokens.}}
 %
 \sys secures disguise tokens by encrypting them with the public key $\pubk{p}$ of a principal $p$.
 After generating the public-private keypair for a principal, \sys does not store the corresponding
@@ -22,7 +18,7 @@ keypairs, or generates them at the time of principal registration). In addition,
 decrypt principal $p$'s tokens.
 %
 
-\vspace{6pt}\noindent\textbf{\emph{(3) Privacy of Disguise History.}}
+\vspace{6pt}\noindent\textbf{\emph{(2) Privacy of Disguise History.}}
 %
 \sys hides per-principal history of applied disguises, namely which disguises affect which
 principals' data, using locators. A client must provide locator \lcapa{pd} for \sys (or an
@@ -206,6 +202,7 @@ HotCRP Restore  & 73 & 998
 \end{table*}
 
 \textbf{Composing Deletion After Anonymization.}
+\lyt{TODO}
 Account deletion post-anonymization requires \sys to perform temporary
 recorrelation find data of pseudoprincipals that the user is authorized to remove along with their
 account. \sys incurs latency increases from decrypting all speaks-for tokens of the user, and from
@@ -217,16 +214,24 @@ to access to pseudoprincipal-associated tokens produced from the account deletio
 additionally decrypt speaks-for tokens for all pseudoprincipals of the user, which causes the the
 increase in latency.\lyt{Numbers?}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Storage Costs of Disguise-Related Actions.} 
+
 Each generated pseudoprincipal adds an additional row to the users table in WebSubmit; \sys also
 stores public-key metadata for each principal (and pseudoprincipal), and (in-memory) encrypted
 ciphertexts for tokens.  Clients keep track of capabilities and locators that are emailed to them in
 the form of URLs that allow for account restoration or post-anonymization editing.
 
-\head{Impact on Normal Application Execution.} Figure~\ref{fig:concurrent} illustrates the
-impacts of disguising when WebSubmit has 100 users continuously editing their lecture answers, with
-250-500ms pauses between edits, and in a prepopulated database containing 2000 users, 20 lectures,
-and 4 answers per lecture per user.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\head{Impact on Normal Application Execution.} 
+
+Figure~\ref{fig:concurrent} shows the impact of concurrently-running disguise actions on the latency
+of normal application operations.
+\lyt{TODO}
+
+We then test an adversarial, write-only workload with WebSubmit, where 100 normal application users
+continuously edit their lecture answers (with 250-500ms pauses between edits) 
+%in a prepopulated database containing 2000 users, 20 lectures, and 4 answers per lecture per user.k
 
 We imagine that a realistic normal amount of disguising would have 0 or 1 user at any point deleting
 or restoring their account (in addition to the 100 editing users). With one disguiser, we observe no
@@ -252,8 +257,12 @@ necessary, in particular for non-time-sensitive disguises like GDPR-compliant ac
         \includegraphics[width=0.45\textwidth]{figs/websubmit_concurrent_results_20lec_100users}
         \includegraphics[width=0.45\textwidth]{figs/lobsters_concurrent_results}
     \caption{Impact of disguising (account deletion and revealing) on 100 users concurrently running
-    normal application answer edits. Low-to-medium disguising load (<16 concurrently disguising users) has
-    minimal effects on the baseline edit latency; high load (up to 25 users) causes latency spikes
-    up to 2500ms.} 
+    normal application answer edits. \textbf{Left (WebSubmit)} tests with an adversarial,
+    write-only user workload of edits that modify the same table; here, medium disguising load (<16
+    concurrently running disguisers) has minimal effects on the baseline edit latency; high load (30
+    disguisers) causes latency spikes up to 4000ms.
+    \textbf{Right (Lobsters)} shows a normal user workload for Lobsters; here, even 100 disguisers
+    has minimal effects.
+    } 
     \label{fig:concurrent}
 \end{figure*}

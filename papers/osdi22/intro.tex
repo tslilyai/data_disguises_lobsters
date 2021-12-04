@@ -160,24 +160,23 @@ its protocols, but exposes all data accessed to the attacker.
 
 \subsection{Security Goals}
 %
-With this threat model, \sys seeks to meet three security goals:
+With this threat model, \sys seeks to meet two security goals:
 %
 
 %
-\vspace{6pt}\noindent\textbf{\emph{(1) Authorized Disguises.}}
-%
-Only a client properly authenticated as a principal $p$ who is authorized to invoke $d$ can apply
-(and later reveal) $d$.
+%\vspace{6pt}\noindent\textbf{\emph{(1) Authorized Disguises.}}
+%Only a client properly authenticated as a principal $p$ who is authorized to invoke $d$ can apply
+%(and later reveal) $d$.
 %
 
-\vspace{6pt}\noindent\textbf{\emph{(2) Secure Disguise Tokens.}}
+\vspace{6pt}\noindent\textbf{\emph{(1) Secure Disguise Tokens.}}
 %
 Only an authenticated principal who provides decryption capability
 \privk{p} can authorize access to the disguise tokens, as well as any information
 (\eg speaks-for permissions) derived from tokens.
 %
 
-\vspace{6pt}\noindent\textbf{\emph{(3) Privacy of Disguise History.}}
+\vspace{6pt}\noindent\textbf{\emph{(2) Privacy of Disguise History.}}
 %
 An attacker cannot learn the set of disguises that have disguised a principal's data.
 %

@@ -60,14 +60,14 @@ for p in range(len(props)):
     xs = np.array(xs)[order]
     ys = [statistics.mean(x) for x in edit_results[p].values()]
     ys = np.array(ys)[order]
-    plt.plot(xs, ys, color=colors[p], label='{} Disguisers'.format(int(props[p]*100,)))
+    plt.plot(xs, ys, color=colors[p], linestyle=":", label='{} Disguisers'.format(int(props[p]*100,)))
 
     xs = list(edit_results_batch[p].keys())
     order = np.argsort(xs)
     xs = np.array(xs)[order]
     ys = [statistics.mean(x) for x in edit_results_batch[p].values()]
     ys = np.array(ys)[order]
-    plt.plot(xs, ys, color=colors[p], linestyle=":", label='{} Disguisers (Batch)'.format(int(props[p]*100)))
+    plt.plot(xs, ys, color=colors[p], label='{} Disguisers (Batch)'.format(int(props[p]*100)))
 
     plt.xlabel('Benchmark Time (s)')
     plt.ylabel('Latency (ms)')
