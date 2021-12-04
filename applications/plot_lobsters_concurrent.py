@@ -19,10 +19,10 @@ fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(6,4))
 op_results = []
 op_results_batch = []
 
-def get_opdata(filename, results):
+def get_opdata(filename, results, i):
     with open(filename,'r') as csvfile:
         rows = csvfile.readlines()
-        oppairs = [x.split(':') for x in rows[0].strip().split(',')]
+        oppairs = [x.split(':') for x in rows[i].strip().split(',')]
         opdata = defaultdict(list)
         for x in oppairs:
             bucket = int((float(x[0]))/bucketwidth)
@@ -30,11 +30,28 @@ def get_opdata(filename, results):
             opdata[bucket].append(val)
         results.append(opdata)
 
-for nd in ndisguising:
-    get_opdata('results/lobsters_results/concurrent_disguise_stats_disguising_{}group.csv'.format(nd),op_results)
-    get_opdata('results/lobsters_results/concurrent_disguise_stats_disguising_{}group_batch.csv'.format(nd),op_results_batch)
+def get_stats(filename, i):
+    vals = []
+    with open(filename,'r') as csvfile:
+        rows = csvfile.readlines()
+        oppairs = [x.split(':') for x in rows[i].strip().split(',')]
+        opdata = defaultdict(list)
+        for x in oppairs:
+            val = float(x[1])/1000
+            vals.append(val)
+    print (min(vals), statistics.median(vals), max(vals))
 
-xs = list(op_results_batch[0].keys())
+for nd in ndisguising:
+    get_opdata('results/lobsters_results/concurrent_disguise_stats_disguising_{}group.csv'.format(nd),op_results,0)
+    get_opdata('results/lobsters_results/concurrent_disguise_stats_disguising_{}group_batch.csv'.format(nd),op_results_batch,0)
+    if nd > 0:
+        get_stats('results/lobsters_results/concurrent_disguise_stats_disguising_{}group.csv'.format(nd),1)
+        get_stats('results/lobsters_results/concurrent_disguise_stats_disguising_{}group_batch.csv'.format(nd),1)
+        get_stats('results/lobsters_results/concurrent_disguise_stats_disguising_{}group.csv'.format(nd),2)
+        get_stats('results/lobsters_results/concurrent_disguise_stats_disguising_{}group_batch.csv'.format(nd),2)
+
+
+xs = list(op_results[0].keys())
 order = np.argsort(xs)
 xs = np.array(xs)[order]
 ys = [statistics.mean(x) for x in op_results_batch[0].values()]

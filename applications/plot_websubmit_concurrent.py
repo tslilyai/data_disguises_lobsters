@@ -34,6 +34,17 @@ def get_editdata(filename, results):
             editdata[bucket].append(val)
         results.append(editdata)
 
+def get_stats(filename, i):
+    vals = []
+    with open(filename,'r') as csvfile:
+        rows = csvfile.readlines()
+        oppairs = [x.split(':') for x in rows[i].strip().split(',')]
+        opdata = defaultdict(list)
+        for x in oppairs:
+            val = float(x[1])/1000
+            vals.append(val)
+    print (min(vals), statistics.median(vals), max(vals))
+
 get_editdata('results/websubmit_results/concurrent_disguise_stats_{}lec_{}users_30disguisers_baseline.csv'
         .format(lec, 100), edit_results_baseline)
 
@@ -45,6 +56,11 @@ for nd in [int(100 * prop) for prop in props]:
             .format(lec, 100, nd), edit_results)
     get_editdata('results/websubmit_results/concurrent_disguise_stats_{}lec_{}users_disguising_{}group_batch.csv'
             .format(lec, 100, nd), edit_results_batch)
+    if nd > 0:
+        get_stats('results/websubmit_results/concurrent_disguise_stats_20lec_100users_disguising_{}group.csv'.format(nd),1)
+        get_stats('results/websubmit_results/concurrent_disguise_stats_20lec_100users_disguising_{}group_batch.csv'.format(nd),1)
+        get_stats('results/websubmit_results/concurrent_disguise_stats_20lec_100users_disguising_{}group.csv'.format(nd),2)
+        get_stats('results/websubmit_results/concurrent_disguise_stats_20lec_100users_disguising_{}group_batch.csv'.format(nd),2)
 
 xs = list(edit_results_baseline[0].keys())
 order = np.argsort(xs)

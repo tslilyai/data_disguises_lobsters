@@ -48,20 +48,21 @@ All benchmarks run on a machine with 20 dual-core Intel Xeon E5-2660 v3 CPUs, an
 RDMS.
 
 \head{Database Setup.}
-\sys-WebSubmit benchmarks run on a WebSubmit database prepopulated with 2000 total users, 20
+\sys-WebSubmit benchmarks run on a WebSubmit database seeded with 2000 total users, 20
 lectures with 4 questions each, and answers for each question for each user.  We measure end-to-end
 latency, including the time for clients to contact a (local) WebSubmit server, and the time for
 server application code (including \sys's operations) to perform these actions and return a
 response.
 
-\sys-HotCRP benchmarks run on a HotCRP database prepopulated with 450 total users (50 PC members),
+\sys-HotCRP benchmarks run on a HotCRP database seeded with 450 total users (50 PC members),
 450 papers (50 accepted), and 4 reviews and 4 comments per paper distributed evenly among PC
 members. These benchmarks measure the server-side latency to perform disguising and application
 operations.
 
-\sys-Lobsters benchmarks run on a Lobsters database prepopulated with \lyt{TODO}, following the
-distribution from \lyt{TODO Jon's distribution stuff} (representative of Lobster's current scale).
-These benchmarks also measure server-side latency.
+\sys-Lobsters benchmarks run on a Lobsters database seeded with 6k users, 40k stories, and 120k
+comments with votes; stories, comments, and votes are distributed among users according to the
+approximate data distribution in the Lobsters deployment in 2017\lyt{CITE}.These benchmarks also
+measure server-side latency.
 
 \head{Latency of Disguise-Related Actions.} 
 \begin{figure}[t!] 
@@ -124,12 +125,12 @@ assignment of papers to reviewers. \sys-HotCRP's disguises are far more complex 
 \sys-WebSubmit's, touching 12 tables, and performing a mix of deletions and
 decorrelations, leading to higher median latencies in general, even for the baseline.
 
-\sys-Lobsters users' amount of data follows a skewed distribution, with most of the 5000 users having fewer than
-10 stories and comments, and a handful of users having over 300 stories and comments.
-\sys-Lobster supports more complex disguises than 
-\sys-WebSubmit and \sys-HotCRP, touching 15 tables, and performing a mix of deletions, 
-decorrelations, and modifications. This leads to a higher latency as the amount of user data grows
-comparable to that of users in \sys-HotCRP and \sys-WebSubmit.
+\sys-Lobsters users' amount of data follows a skewed distribution, with most of the 5000 users
+having fewer than 10 stories and comments, and a handful of users having over 300 stories and
+comments. \sys-Lobster supports more complex disguises than \sys-WebSubmit and \sys-HotCRP,
+touching 15 tables, and performing a mix of deletions, decorrelations, and modifications. This leads
+to a higher latency as the amount of user data grows comparable to that of users in \sys-HotCRP and
+\sys-WebSubmit.
 
 In general, using \sys without token batching increases the latency of
 disguising and revealing accounts. Latency-critical tasks such as editing (unanonymized) data or
@@ -227,44 +228,61 @@ the form of URLs that allow for account restoration or post-anonymization editin
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Impact on Normal Application Execution.} 
 
-Figure~\ref{fig:concurrent} shows the impact of concurrently-running disguise actions on the latency
-of normal application operations.
-\lyt{TODO}
-
-We then test an adversarial, write-only workload with WebSubmit, where 100 normal application users
-continuously edit their lecture answers (with 250-500ms pauses between edits) 
-%in a prepopulated database containing 2000 users, 20 lectures, and 4 answers per lecture per user.k
-
-We imagine that a realistic normal amount of disguising would have 0 or 1 user at any point deleting
-or restoring their account (in addition to the 100 editing users). With one disguiser, we observe no
-increase in latency over the baseline with 0 disguisers (approximately \lyt{TODO}). 
-
-To simulate a practical worst-case scenario, we imagine that anywhere from 10 to 25 additional
-active users decide to simultaneously delete their account (\eg in response to some social media
-campaign). At some later point in time, these users decide to come back and (in the worst case)
-simultaneously restore their accounts. We observe that while 10 or 16 users disguising themselves at once
-has minimal impact on edit latency for the 100 users, 25 users doing so causes spikes up to 2500ms.  
-%
-These spikes come in pairs, with the larger second spike in the pair coinciding with concurrent
-revealing (and the first of the pair coinciding with disguising); revealing has greater impact due
-to its higher latency and compute costs.
-
-We imagine \sys can prevent such spikes by rate-limiting and queuing disguise actions when
-necessary, in particular for non-time-sensitive disguises like GDPR-compliant account deletion.
-
-\lyt{Include some note about how overloading the CPU with concurrent edits has some effects?}
-
 \begin{figure*}[t!]
     \centering
-        \includegraphics[width=0.45\textwidth]{figs/websubmit_concurrent_results_20lec_100users}
         \includegraphics[width=0.45\textwidth]{figs/lobsters_concurrent_results}
+        \includegraphics[width=0.45\textwidth]{figs/websubmit_concurrent_results_20lec_100users}
     \caption{Impact of disguising (account deletion and revealing) on 100 users concurrently running
-    normal application answer edits. \textbf{Left (WebSubmit)} tests with an adversarial,
+    normal application answer edits. 
+    \textbf{Left (Lobsters)} shows a normal user workload for Lobsters; here, even 100 disguisers
+    has minimal effects.
+    \textbf{Right (WebSubmit)} tests with an adversarial,
     write-only user workload of edits that modify the same table; here, medium disguising load (<16
     concurrently running disguisers) has minimal effects on the baseline edit latency; high load (30
     disguisers) causes latency spikes up to 4000ms.
-    \textbf{Right (Lobsters)} shows a normal user workload for Lobsters; here, even 100 disguisers
-    has minimal effects.
     } 
     \label{fig:concurrent}
 \end{figure*}
+
+Figure~\ref{fig:concurrent} shows the impact of concurrently-running disguise actions on the latency
+of normal application operations.
+
+We first test the impact of disguising in \sys-Lobsters. We first achieve ~80\% CPU load by running
+30 threads that model production Lobsters traffic. These threads simulate performing different
+Lobsters operations (\eg loading the front-page, posting stories) according to measured access
+frequencies and popularity distributions in production\lyt{CITE}. In this workload, 85\% of all
+operations are front-page loads, which fetching stories and vote counts.
+
+An additional number of threads simulate disguising users: these users (in the worst-case) decide to
+simultaneously delete their account (\eg in response to some social media campaign). At some later
+point in time, these users decide to come back and (in the worst case) simultaneously restore their
+accounts.
+
+We observe that even when the number of disguisers increases to 100, the latency of normal Lobsters
+operation remains unaffected.  At 100 disguisers, the median latency of a deletion with token batching
+increases from 16ms (shown in Figure~\ref{fig:client_opstats}) to 814ms, and the median latency of a reveal action
+increases from 12ms to 3000ms.
+\lyt{TODO???? Check server load when running concurrent test with 100 disguisers.}
+This is due to the high server load and sequential application of disguises (\sys currently applies
+disguise operations sequentially). 
+However, latency-critical Lobsters operation remain fast.
+
+We then test an adversarial, write-only workload with WebSubmit. As a baseline, we achiee ~60\% CPU
+load by running 100 threads that each continuously edit a user's lecture answers with 250-500ms
+pauses between edits. This write-heavy workload achieves particularly high contention because all
+edit queries modify the same database table; MySQL uses table-level locking for \texttt{MEMORY}
+tables.
+
+We then add an additional number of threads to simulate simultaneously disguising users.  While
+fewer than 16 users disguising themselves at once has minimal impact on edit latency, 30 users doing
+so causes spikes up to 4000ms.  These spikes come in pairs, with the larger second spike in the pair
+coinciding with concurrent revealing (and the first of the pair coinciding with disguising);
+revealing has greater impact due to its higher latency and compute costs.
+%
+Token batching improves these results by reducing the load generated by disguise actions: latency
+spikes decrease to under 1500ms.
+
+We conclude that under realistic workloads (largely reads, with queries dispersed among tables),
+disguising actions have minimal impact on normal application execution. If the workload becomes
+adversarial, \sys can prevent such spikes by rate-limiting disguise actions when necessary,
+particularly for non-time-sensitive disguises like GDPR-compliant account deletion.
