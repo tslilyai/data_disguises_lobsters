@@ -3,27 +3,30 @@
 
 %% Problem statement
 %
-Web applications today handle copious personal information, much of it sensitive, and store
-it for a long time.
+Web applications today handle copious personal information, much of it
+sensitive, and store it for a long time.
 %
-For example, booking with a hotel once can cause information like your passport and phone
-numbers to be compromised by an attacker years later~\cite{starwood-hack}.
+For example, booking with a hotel once can cause information like passport
+and phone numbers to be compromised by an attacker years
+later~\cite{starwood-hack}.
 %
-%Users' privacy and their rights to exercise control over their data in these applications
-%thus are an increasingly important concern for application developers.
+%Users' privacy and their rights to exercise control over their data in these
+%applications thus are an increasingly important concern for application
+%developers.
 %
-Many developers want to do a good job providing privacy choices to their users, and legal
-requirements (\eg the GDPR, CCPA, and others) increasingly mandate doing so.
+Many developers want to do a good job providing privacy choices to their users,
+and legal requirements (\eg the GDPR, CCPA, and others) increasingly mandate
+doing so.
 %
-%Even beyond meeting the legal requirements, many developers are at least worried about
-%the reputational damage of a large-scale data leak.
+%Even beyond meeting the legal requirements, many developers are at least
+%worried about the reputational damage of a large-scale data leak.
 %
-But doing a good job at data privacy is hard: it requires extensive manual implementation
-work today, and it is easy to get wrong.
+But doing a good job at data privacy is hard: it requires extensive manual
+implementation work today, and it is easy to get wrong.
 %
-As a result, application lack desirable privacy features, like \eg ways to remove or
-anonymize your account, or for old data to ``decay'' into lower-fidelity, less identifying
-representations over time.
+As a result, application lack desirable privacy features, like \eg ways to
+remove or anonymize a user's account, or for old data to ``decay'' into
+lower-fidelity, less identifying representations over time.
 %
 
 %
@@ -35,21 +38,30 @@ representations over time.
 
 %% Our key idea: data disguising
 %
-This paper describes \emph{data disguising}, a new systematic framework that provides
-developers with abstractions that help them implement correct, expressive, and end-user-friendly
-privacy functionality.
+This paper describes \emph{data disguising}, a new systematic framework that
+provides developers with abstractions that help them implement correct,
+expressive, and end-user-friendly privacy functionality.
 %
-Data disguises transform a user's data in a web application in privacy-preserving ways, but still
-allow the application to maintain key functionality even when a user has disguised (\ie anonymized)
-their data.
+Data disguises transform a user's data in a web application in
+privacy-preserving ways, and thus reduce the damage done when database contents
+are exposed to attacker.
 %
-Beyond simply transforming data, data disguising enables data decay (gradual anonymization over time);
-revealing of disguises (restoration of deleted data by the user, while providing strong privacy
-guarantees when deleted); and decorrelation and temporary recorrelation of users with their data for
-the purpose of editing anonymized data, or further disguising it. \lyt{<-- Fix this.}
+Crucially, though, our framework allows the application to maintain key
+functionality even when a user has disguised their data, and supports reversible
+disguises for users who want to return.
 %
-Furthermore, data disguising generalizes across web applications, handles the technical challenges
-of securing private data, and integrates with applications' database schemas and semantics.
+
+\ms{add challenges + how we overcome them.}
+%
+%Beyond simply transforming data, data disguising enables data decay (gradual
+%anonymization over time); revealing of disguises (restoration of deleted data
+%by the user, while providing strong privacy guarantees when deleted); and
+%decorrelation and temporary recorrelation of users with their data for the
+%purpose of editing anonymized data, or further disguising it.
+%
+%Furthermore, data disguising generalizes across web applications, handles the
+%technical challenges of securing private data, and integrates with
+%applications' database schemas and semantics.
 %
 
 \sys, a prototype data disguising library, enables database-backed applications to
