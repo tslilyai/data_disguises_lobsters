@@ -1,8 +1,14 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \section{Evaluation}
+\label{s:eval}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%i
+
+\ms{would like to see some evaluation questions here!}
+
 \subsection{Security Evaluation}
-\vspace{6pt}\noindent\textbf{\emph{(1) Secure Disguise Tokens.}}
+\label{s:eval-security}
+
+\paragraph{\emph{(1) Security of q.}}
 %
 \sys secures disguise tokens by encrypting them with the public key $\pubk{p}$ of a principal $p$.
 After generating the public-private keypair for a principal, \sys does not store the corresponding
@@ -28,7 +34,7 @@ thus contains no information to link bags of encrypted tokens to the same princi
 same disguise.
 
 After compromise, no such privacy is guaranteed: any use of \lcapa{pd} to apply disguise actions
-allows an attacker to learn that a disguise $d$ applied to $p$'s data. Furthermore, 
+allows an attacker to learn that a disguise $d$ applied to $p$'s data. Furthermore,
 compromise of just \privk{p} allows an attacker---without any locators \lcapa{pd}---to decrypt \emph{all} tokens and
 determine which tokens correspond to $d$ and $p$.
 
@@ -64,14 +70,14 @@ comments with votes; stories, comments, and votes are distributed among users ac
 approximate data distribution in the Lobsters deployment in 2017\lyt{CITE}.These benchmarks also
 measure server-side latency.
 
-\head{Latency of Disguise-Related Actions.} 
-\begin{figure}[t!] 
+\head{Latency of Disguise-Related Actions.}
+\begin{figure}[t!]
     \centering
-    \includegraphics[width=0.5\textwidth]{figs/client_op_stats} 
-    \caption{Latencies of disguise-related actions when implemented manually by the 
-    application developer without \sys, and with \sys.  
+    \includegraphics[width=0.5\textwidth]{figs/client_op_stats}
+    \caption{Latencies of disguise-related actions when implemented manually by the
+    application developer without \sys, and with \sys.
     Each bar shows the median latency; ranges indicate the 5th to 95th
-    percentile latencies.  } 
+    percentile latencies.  }
     \label{fig:client_opstats}
 \end{figure}
 
@@ -80,7 +86,7 @@ measure server-side latency.
 \begin{tabular}{ c c }
 \textbf{DB Op} & \textbf{Time (ms)}\\
 \hline
-Update DB Row & 0.1\\ 
+Update DB Row & 0.1\\
 Select DB Rows & 0.2\\
 Remove DB Rows & 0.2\\
 Reveal Deleted Row (DB Select + Insert) & 0.2 \\
@@ -103,9 +109,9 @@ Decrypt Diff Token & 3.0\\
 
 %
 Figure~\ref{fig:client_opstats} shows the median cost across user accounts of performing disguise-related actions with and
-without \sys, and with token batching enabled in \sys. 
+without \sys, and with token batching enabled in \sys.
 Note that \sys enables editing of anonymized data and account restoration. Thus, we have no
-comparable baseline latency without \sys for editing anonymized data or account restoration. 
+comparable baseline latency without \sys for editing anonymized data or account restoration.
 Token batching also has no effect in creating user accounts and editing unanonymized data (as no
 tokens are involved).
 
@@ -162,22 +168,22 @@ tokens for a particular client and disguise.
 to remove, modify, or anonymize data. \sys incurs increased costs by additionally encrypting and
 inserting one diff token for each deleted or modified object, and one speaks-for token for each
 anonymized object.  With token batching, encryption occurs once per account, rather than once per
-object. 
+object.
 
 \textbf{Account restoration} is only possible with \sys. \sys decrypts a token for each
 piece of modified/removed/anonymized data, and performs database checks to ensure the data can be restored
 (\eg that the corresponding lecture of an answer to reinsert still exists). If the checks pass
-(which they do in this benchmark), \sys restores the data stored in the diffs. 
-Token batching drastically decreases this cost by performing only one decryption to decrypt all 
+(which they do in this benchmark), \sys restores the data stored in the diffs.
+Token batching drastically decreases this cost by performing only one decryption to decrypt all
 tokens to restore.
 
 \textbf{Anonymization} with or without \sys generates one pseudoprincipal per object to anonymize
 (\eg answers for lectures in WebSubmit, or reviews in HotCRP). Anonymization selects the relevant answers
 to anonymize, generates new pseudoprincipals, and performs DB queries to insert new pseudoprincipals
 and to update objects to point to these new pseudopricipals (\eg updating foreign keys).
-\sys incurs increased costs by additionally generating per-pseudoprincipal speaks-for tokens, and 
+\sys incurs increased costs by additionally generating per-pseudoprincipal speaks-for tokens, and
 encrypting and storing these speaks-for tokens with the appropriate public keys.
-With token batching, encryption occurs once per account, rather than once per object. 
+With token batching, encryption occurs once per account, rather than once per object.
 
 \begin{table*}[t!]
 \begin{center}
@@ -198,7 +204,7 @@ HotCRP Restore & 629 & 1856 \\
 WebSubmit Delete  & 3 & 30 \\
 WebSubmit Restore  & 18 & 86\\
 HotCRP Delete  & 51 & 880 \\
-HotCRP Restore  & 73 & 998 
+HotCRP Restore  & 73 & 998
 \end{tabular}
 \end{center}
 \caption{Account delete and restore latencies before anonymization, and composed after anonymization.}
@@ -219,7 +225,7 @@ additionally decrypt speaks-for tokens for all pseudoprincipals of the user, whi
 increase in latency.\lyt{Numbers?}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Storage Costs of Disguise-Related Actions.} 
+\head{Storage Costs of Disguise-Related Actions.}
 
 Each generated pseudoprincipal adds an additional row to the users table in WebSubmit; \sys also
 stores public-key metadata for each principal (and pseudoprincipal), and (in-memory) encrypted
@@ -227,21 +233,21 @@ ciphertexts for tokens.  Clients keep track of capabilities and locators that ar
 the form of URLs that allow for account restoration or post-anonymization editing.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Impact on Normal Application Execution.} 
+\head{Impact on Normal Application Execution.}
 
 \begin{figure*}[t!]
     \centering
         \includegraphics[width=0.45\textwidth]{figs/lobsters_concurrent_results}
         \includegraphics[width=0.45\textwidth]{figs/websubmit_concurrent_results_20lec_100users}
     \caption{Impact of disguising (account deletion and revealing) on 100 users concurrently running
-    normal application answer edits. 
+    normal application answer edits.
     \textbf{Left (Lobsters)} shows a normal user workload for Lobsters; here, even 100 disguisers
     has minimal effects.
     \textbf{Right (WebSubmit)} tests with an adversarial,
     write-only user workload of edits that modify the same table; here, medium disguising load (<16
     concurrently running disguisers) has minimal effects on the baseline edit latency; high load (30
     disguisers) causes latency spikes up to 4000ms.
-    } 
+    }
     \label{fig:concurrent}
 \end{figure*}
 
@@ -259,7 +265,7 @@ simultaneously delete their account (\eg in response to some social media campai
 point in time, these users decide to come back and (in the worst case) simultaneously restore their
 accounts.
 We observe that even when the number of disguisers increases to 100, the latency of normal Lobsters
-operation remains unaffected.  
+operation remains unaffected.
 
 We then test an adversarial, write-only workload with WebSubmit. As a baseline, we achieve ~60\% CPU
 load by running 100 threads that each continuously edit a user's lecture answers with 250-500ms
@@ -276,10 +282,10 @@ revealing has greater impact due to its higher latency and compute costs.
 Token batching improves these results by reducing the load generated by disguise actions: latency
 spikes decrease to under 1500ms.
 
-While we focus on normal application operation latency, we note that 
+While we focus on normal application operation latency, we note that
 disguise operation latency increases proportional to the overall system load (\eg due to MySQL’s
 table-level locking). But this is acceptable, as disguises aren't time critical; in practice, they
-still complete within a few seconds even at 60-80\% system load. 
+still complete within a few seconds even at 60-80\% system load.
 %
 What matters is that normal application requests have acceptably low latency even in the presence of
 disguising, which we achieve under realistic workloads (largely reads, with queries dispersed among
