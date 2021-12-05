@@ -11,7 +11,7 @@ use serde::*;
 use std::collections::HashMap;
 use edna;
 use log::warn;
-use chrono::{Duration, Utc};
+use chrono::{Duration, Local};
 
 pub const LOBSTERS_APP: &'static str = "lobsters";
 pub const HOTCRP_APP: &'static str = "hotcrp";
@@ -66,11 +66,11 @@ pub fn main() {
    
     // get all users
     let mut users = vec![];
-    let dt = Utc::now() - Duration::days(365);
+    let dt = Local::now().naive_local() - Duration::days(365);
     
     // TODO update this in Lobsters every time a user is authenticated (controllers/application)
     let res = db.query_iter(&format!(
-        "SELECT id FROM users WHERE `last_login` > '{}';", dt.to_string())
+        "SELECT id FROM users WHERE `last_login` < '{}';", dt.to_string())
     ).expect("Could not select inactive users?");
     for r in res {
         let r = r.unwrap().unwrap();
@@ -107,15 +107,4 @@ pub fn main() {
         }*/
         // TODO send emails with locators?
     }
-
-    db.query_drop(&format!(
-        "SELECT id FROM users WHERE `last_login` > '{}';", dt.to_string())
-    )).expect("Could not update inactive users?");
-    for r in res {
-        let r = r.unwrap().unwrap();
-        let uid: String = from_value(r[0].clone());
-        users.push(uid);
-    }
-   
-
 }
