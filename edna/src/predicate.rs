@@ -70,7 +70,8 @@ impl ToString for PredClause {
                         format!("{} != {}", col, val)
                     } else {
                         format!("{} != '{}'", col, val)
-                    },                    And => format!("{} AND {}", col, val),
+                    },                    
+                    And => format!("{} AND {}", col, val),
                     Or => format!("{} OR {}", col, val),
                     BitwiseAnd => format!("{} & {}", col, val),
                     _ => unimplemented!("No support for op {}", op),
@@ -88,7 +89,7 @@ pub fn pred_to_sql_where(pred: &Vec<Vec<PredClause>>) -> String {
         for clause in and_clauses {
             ands.push(clause.to_string());
         }
-        ors.push(format!("({})", ands.join(" AND")));
+        ors.push(format!("({})", ands.join(" AND ")));
     }
     ors.join(" OR ")
 }
