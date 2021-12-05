@@ -4,13 +4,16 @@ extern crate log;
 extern crate mysql;
 extern crate rand;
 
+use chrono::Local;
 use edna::{helpers, EdnaClient};
 use log::{error, warn};
 use mysql::prelude::*;
 use rand::Rng;
 use rsa::pkcs1::ToRsaPrivateKey;
+use serde_json;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
+use std::io::BufReader;
 use std::io::Write;
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
@@ -18,8 +21,6 @@ use std::time;
 use std::time::Duration;
 use std::*;
 use structopt::StructOpt;
-use serde_json;
-use std::io::BufReader;
 
 mod datagen;
 mod disguises;
@@ -82,7 +83,11 @@ fn main() {
             let privkey_str = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
             user2decryptcap.insert(user_id, privkey_str);
         }
-        serde_json::to_writer(&File::create("decrypt_caps.json").unwrap(), &user2decryptcap).unwrap();
+        serde_json::to_writer(
+            &File::create("decrypt_caps.json").unwrap(),
+            &user2decryptcap,
+        )
+        .unwrap();
         error!("Got {} decrypt caps", user2decryptcap.len());
     } else {
         let file = File::open("decrypt_caps.json").unwrap();
@@ -111,12 +116,7 @@ fn main() {
         let mut db = edna.get_conn().unwrap();
         let my_arc_sampler = arc_sampler.clone();
         threads.push(thread::spawn(move || {
-            run_normal_thread(
-                &mut db,
-                my_arc_sampler,
-                my_op_durations,
-                c,
-            )
+            run_normal_thread(&mut db, my_arc_sampler, my_op_durations, c)
         }));
     }
     error!("Waiting for barrier!");
@@ -132,12 +132,13 @@ fn main() {
         &user2decryptcap,
         delete_durations.clone(),
         restore_durations.clone(),
-    ).unwrap();
+    )
+    .unwrap();
 
     for j in threads {
         j.join().expect("Could not join?");
     }
-    
+
     print_stats(
         &args,
         &op_durations.lock().unwrap(),
@@ -156,7 +157,7 @@ fn run_normal_thread(
     let ncomments = sampler.ncomments();
 
     let mut rng = rand::thread_rng();
-    let max_id = ncomments*10000;
+    let max_id = ncomments * 10000;
     let mut my_op_durations = vec![];
 
     barrier.wait();
@@ -172,7 +173,7 @@ fn run_normal_thread(
         let user = Some(user_id);
 
         // randomly pick next request type based on relative frequency
-        let mut seed: isize =rng.gen_range(0, 100000);
+        let mut seed: isize = rng.gen_range(0, 100000);
         let seed = &mut seed;
         let mut pick = |f| {
             let applies = *seed <= f;
@@ -215,14 +216,8 @@ fn run_normal_thread(
             // we know that every nth comment from prepopulation is to the same story
             let comments_per_story = ncomments / nstories;
             let parent = story + nstories * rng.gen_range(0, comments_per_story);
-            queriers::comment::post_comment(
-                db,
-                user,
-                id.into(),
-                story as u64,
-                Some(parent as u64),
-            )
-            .unwrap();
+            queriers::comment::post_comment(db, user, id.into(), story as u64, Some(parent as u64))
+                .unwrap();
         } else if pick(54) {
             let comment = sampler.comment_for_vote(&mut rng);
             queriers::vote::vote_on_comment(db, user, comment as u64, false).unwrap();
@@ -238,12 +233,9 @@ fn run_normal_thread(
         warn!("user{}, {}\n", user_id, res.join(" "));
         my_op_durations.push((overall_start.elapsed(), start.elapsed()));
     }
-    op_durations
-        .lock()
-        .unwrap()
-        .append(&mut my_op_durations);
+    op_durations.lock().unwrap().append(&mut my_op_durations);
 }
- 
+
 fn run_disguising_thread(
     edna: Arc<Mutex<EdnaClient>>,
     uid: u64,
@@ -260,7 +252,8 @@ fn run_disguising_thread(
     let start = time::Instant::now();
     let mut edna_locked = edna.lock().unwrap();
     let (dlcs, olcs) =
-        disguises::gdpr_disguise::apply(&mut edna_locked, uid, decryption_cap.clone(), vec![]).unwrap();
+        disguises::gdpr_disguise::apply(&mut edna_locked, uid, decryption_cap.clone(), vec![])
+            .unwrap();
     my_delete_durations.push((overall_start.elapsed(), start.elapsed()));
     drop(edna_locked);
 
@@ -272,24 +265,18 @@ fn run_disguising_thread(
     // RESUB
     let start = time::Instant::now();
     let mut edna_locked = edna.lock().unwrap();
-    let dls = match dlcs.get(&(
-        uid.to_string(),
-        disguises::gdpr_disguise::get_disguise_id(),
-    )) {
+    let dls = match dlcs.get(&(uid.to_string(), disguises::gdpr_disguise::get_disguise_id())) {
         Some(dl) => vec![*dl],
         None => vec![],
     };
-    let ols = match olcs.get(&(
-        uid.to_string(),
-        disguises::gdpr_disguise::get_disguise_id(),
-    )) {
+    let ols = match olcs.get(&(uid.to_string(), disguises::gdpr_disguise::get_disguise_id())) {
         Some(ol) => vec![*ol],
         None => vec![],
     };
     disguises::gdpr_disguise::reveal(&mut edna_locked, decryption_cap.clone(), dls, ols).unwrap();
     drop(edna_locked);
     my_restore_durations.push((overall_start.elapsed(), start.elapsed()));
-    
+
     delete_durations
         .lock()
         .unwrap()
@@ -397,8 +384,9 @@ fn run_stats_test(
         let start = time::Instant::now();
         let some_user_id: u32 = rng.gen();
         db.query_drop(&format!(
-            "INSERT INTO `users` (`username`) VALUES ({})",
-            some_user_id
+            "INSERT INTO `users` (`username`, `last_login`) VALUES ({}, '{}')",
+            some_user_id,
+            Local::now().naive_local().to_string()
         ))
         .unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
@@ -478,11 +466,7 @@ fn print_stats(
     delete_durations: &Vec<(Duration, Duration)>,
     restore_durations: &Vec<(Duration, Duration)>,
 ) {
-    let prefix = if args.batch {
-        "_batch"
-    } else {
-        ""
-    };
+    let prefix = if args.batch { "_batch" } else { "" };
     let filename = format!(
         "concurrent_disguise_stats_disguising_{}group{}.csv",
         args.ndisguising, prefix
@@ -500,7 +484,11 @@ fn print_stats(
         "{}",
         op_durations
             .iter()
-            .map(|d| format!("{}:{}", d.0.as_millis().to_string(), d.1.as_micros().to_string()))
+            .map(|d| format!(
+                "{}:{}",
+                d.0.as_millis().to_string(),
+                d.1.as_micros().to_string()
+            ))
             .collect::<Vec<String>>()
             .join(",")
     )
@@ -510,7 +498,11 @@ fn print_stats(
         "{}",
         delete_durations
             .iter()
-            .map(|d| format!("{}:{}", d.0.as_millis().to_string(), d.1.as_micros().to_string()))
+            .map(|d| format!(
+                "{}:{}",
+                d.0.as_millis().to_string(),
+                d.1.as_micros().to_string()
+            ))
             .collect::<Vec<String>>()
             .join(",")
     )
@@ -520,7 +512,11 @@ fn print_stats(
         "{}",
         restore_durations
             .iter()
-            .map(|d| format!("{}:{}", d.0.as_millis().to_string(), d.1.as_micros().to_string()))
+            .map(|d| format!(
+                "{}:{}",
+                d.0.as_millis().to_string(),
+                d.1.as_micros().to_string()
+            ))
             .collect::<Vec<String>>()
             .join(",")
     )

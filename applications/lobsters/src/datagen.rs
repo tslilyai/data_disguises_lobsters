@@ -1,9 +1,10 @@
+use crate::{queriers, COMMENTS_PER_STORY, VOTES_PER_COMMENT, VOTES_PER_STORY, VOTES_PER_USER};
+use chrono::Local;
+use histogram_sampler;
+use log::warn;
 use mysql::prelude::*;
 use rand::prelude::*;
 use rand_distr::Distribution;
-use crate::{COMMENTS_PER_STORY, VOTES_PER_COMMENT, VOTES_PER_STORY, VOTES_PER_USER, queriers};
-use log::{warn};
-use histogram_sampler;
 
 // taken from jonhoo.trawler
 
@@ -25,15 +26,16 @@ impl Sampler {
         where
             F: Fn(f64) -> f64,
         {
-            hist.into_iter().map(move |&(bin, n)| (bin, f(n as f64).round() as usize))
+            hist.into_iter()
+                .map(move |&(bin, n)| (bin, f(n as f64).round() as usize))
         }
-        let votes_per_user = adjust(VOTES_PER_USER, |n| n*scale);
+        let votes_per_user = adjust(VOTES_PER_USER, |n| n * scale);
 
-        let votes_per_story = adjust(VOTES_PER_STORY, |n| n*scale);
+        let votes_per_story = adjust(VOTES_PER_STORY, |n| n * scale);
 
-        let votes_per_comment = adjust(VOTES_PER_COMMENT, |n| n*scale);
+        let votes_per_comment = adjust(VOTES_PER_COMMENT, |n| n * scale);
 
-        let comments_per_story = adjust(COMMENTS_PER_STORY, |n| n*scale);
+        let comments_per_story = adjust(COMMENTS_PER_STORY, |n| n * scale);
 
         Sampler {
             votes_per_user: histogram_sampler::Sampler::from_bins(votes_per_user, 100),
@@ -44,7 +46,7 @@ impl Sampler {
     }
 
     pub fn user<R: rand::Rng>(&self, rng: &mut R) -> u32 {
-        self.votes_per_user.sample(rng) as u32 +1
+        self.votes_per_user.sample(rng) as u32 + 1
     }
 
     pub fn nusers(&self) -> u32 {
@@ -56,7 +58,7 @@ impl Sampler {
     }
 
     pub fn story_for_vote<R: rand::Rng>(&self, rng: &mut R) -> u32 {
-        self.votes_per_story.sample(rng) as u32 
+        self.votes_per_story.sample(rng) as u32
     }
 
     pub fn nstories(&self) -> u32 {
@@ -78,23 +80,38 @@ impl Sampler {
 pub fn gen_data(sampler: &Sampler, db: &mut mysql::PooledConn) -> (u32, u32) {
     let nstories = sampler.nstories();
     let mut rng = rand::thread_rng();
-    println!("Generating {} stories, {} comments, {} users", nstories, sampler.ncomments(), sampler.nusers());
-    db.query_drop("INSERT INTO `tags` (`tag`) VALUES ('test');").unwrap();
+    println!(
+        "Generating {} stories, {} comments, {} users",
+        nstories,
+        sampler.ncomments(),
+        sampler.nusers()
+    );
+    db.query_drop("INSERT INTO `tags` (`tag`) VALUES ('test');")
+        .unwrap();
 
     let mut users = vec![];
     for uid in 0..sampler.nusers() {
         warn!("Generating user {}", uid);
-        users.push(format!("('user{}')", uid));
+        users.push(format!(
+            "('user{}', '{}')",
+            uid,
+            Local::now().naive_local().to_string()
+        ));
     }
-    db.query_drop(format!("INSERT INTO `users` (`username`) VALUES {}", users.join(", "))).unwrap();
+    db.query_drop(format!(
+        "INSERT INTO `users` (`username`, `last_login`) VALUES {}",
+        users.join(", ")
+    ))
+    .unwrap();
 
     for id in 0..nstories {
         // NOTE: we're assuming that users who vote much also submit many stories
         let user_id = Some(sampler.user(&mut rng) as u64);
         warn!("Generating story {} for user {:?}", id, user_id);
-        queriers::stories::post_story(db, user_id, id.into(), format!("Base article {}", id)).unwrap();
+        queriers::stories::post_story(db, user_id, id.into(), format!("Base article {}", id))
+            .unwrap();
     }
-   for id in 0..sampler.ncomments(){
+    for id in 0..sampler.ncomments() {
         // NOTE: we're assuming that users who vote much also submit many stories
         let story_shortid = id % nstories; // TODO: distribution
         let user_id = Some(sampler.user(&mut rng) as u64);
@@ -113,8 +130,12 @@ pub fn gen_data(sampler: &Sampler, db: &mut mysql::PooledConn) -> (u32, u32) {
         } else {
             None
         };
-        warn!("Generating comment {} from user {:?} and story{}, parent {:?}", id, user_id, story_shortid, parent);
-        queriers::comment::post_comment(db, user_id, id.into(), story_shortid.into(), parent).unwrap();
+        warn!(
+            "Generating comment {} from user {:?} and story{}, parent {:?}",
+            id, user_id, story_shortid, parent
+        );
+        queriers::comment::post_comment(db, user_id, id.into(), story_shortid.into(), parent)
+            .unwrap();
     }
     let nstories = sampler.nstories();
     let ncomments = sampler.ncomments();
