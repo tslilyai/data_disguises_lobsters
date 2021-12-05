@@ -7,7 +7,7 @@ from collections import defaultdict
 
 plt.style.use('seaborn-deep')
 
-ndisguising = [0, 1, 50, 100]
+ndisguising = [0, 50, 100]
 maxts = 150000
 bucketwidth = 1000
 nbuckets = int(maxts/bucketwidth)

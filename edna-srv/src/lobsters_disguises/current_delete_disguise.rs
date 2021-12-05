@@ -196,13 +196,35 @@ pub fn get_table_disguises(
     hm.insert(
         "messages".to_string(),
         Arc::new(RwLock::new(vec![
+            // remove if both parties deleted
             ObjectTransformation {
-                pred: get_eq_pred("author_user_id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Modify {
-                    col: "author_user_id".to_string(),
-                    generate_modified_value: Box::new(gen_anon),
-                    satisfies_modification: Box::new(gen_true),
-                })),
+                pred: vec![
+                    vec![
+                        PredClause::ColValCmp {
+                            col: "author_user_id".to_string(),
+                            val: user_id.to_string(),
+                            op: BinaryOperator::Eq,
+                        },
+                        PredClause::ColValCmp {
+                            col: "deleted_by_recipient".to_string(),
+                            val: 1.to_string(),
+                            op: BinaryOperator::Eq,
+                        },
+                    ],
+                    vec![
+                        PredClause::ColValCmp {
+                            col: "recipient_user_id".to_string(),
+                            val: user_id.to_string(),
+                            op: BinaryOperator::Eq,
+                        },
+                        PredClause::ColValCmp {
+                            col: "deleted_by_author".to_string(),
+                            val: 1.to_string(),
+                            op: BinaryOperator::Eq,
+                        },
+                    ],
+                ],
+                trans: Arc::new(RwLock::new(TransformArgs::Remove)),
                 global: false,
             },
             ObjectTransformation {
@@ -210,15 +232,6 @@ pub fn get_table_disguises(
                 trans: Arc::new(RwLock::new(TransformArgs::Modify {
                     col: "deleted_by_author".to_string(),
                     generate_modified_value: Box::new(gen_true_str),
-                    satisfies_modification: Box::new(gen_true),
-                })),
-                global: false,
-            },
-            ObjectTransformation {
-                pred: get_eq_pred("recipient_user_id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Modify {
-                    col: "recipient_user_id".to_string(),
-                    generate_modified_value: Box::new(gen_anon),
                     satisfies_modification: Box::new(gen_true),
                 })),
                 global: false,

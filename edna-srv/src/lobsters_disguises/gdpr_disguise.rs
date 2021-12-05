@@ -229,6 +229,38 @@ pub fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Objec
     hm.insert(
         "messages".to_string(),
         Arc::new(RwLock::new(vec![
+            // remove if both parties deleted
+            ObjectTransformation {
+                pred: vec![
+                    vec![
+                        PredClause::ColValCmp {
+                            col: "author_user_id".to_string(),
+                            val: user_id.to_string(),
+                            op: BinaryOperator::Eq,
+                        },
+                        PredClause::ColValCmp {
+                            col: "deleted_by_recipient".to_string(),
+                            val: 1.to_string(),
+                            op: BinaryOperator::Eq,
+                        },
+                    ],
+                    vec![
+                        PredClause::ColValCmp {
+                            col: "recipient_user_id".to_string(),
+                            val: user_id.to_string(),
+                            op: BinaryOperator::Eq,
+                        },
+                        PredClause::ColValCmp {
+                            col: "deleted_by_author".to_string(),
+                            val: 1.to_string(),
+                            op: BinaryOperator::Eq,
+                        },
+                    ],
+                ],
+                trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+                global: false,
+            },
+            // otherwise modify and decor
             ObjectTransformation {
                 pred: get_eq_pred("author_user_id", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Modify {
@@ -247,7 +279,6 @@ pub fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Objec
                 })),
                 global: false,
             },
- 
             ObjectTransformation {
                 pred: get_eq_pred("author_user_id", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
