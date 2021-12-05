@@ -13,6 +13,7 @@ pub async fn test_lobsters_disguise() {
     let client = Client::tracked(rocket(
         true,
         true,
+        "127.0.0.1",
         "testdb",
         "lobsters_disguises/schema.sql",
         true,
@@ -23,7 +24,8 @@ pub async fn test_lobsters_disguise() {
     .unwrap();
     let mut db = mysql::Conn::new(
         Opts::from_url(&format!(
-            "mysql://tslilyai:pass@127.0.0.1/{}",
+            "mysql://tslilyai:pass@{}/{}",
+            "mariadb",
             "testdb"
         ))
         .unwrap(),

@@ -38,6 +38,7 @@ fn index() -> &'static str {
 fn rocket(
     prime: bool,
     batch: bool,
+    host: &str,
     db: &str,
     schema: &str,
     in_memory: bool,
@@ -53,6 +54,7 @@ fn rocket(
     let edna_client = EdnaClient::new(
         prime,
         batch,
+        host,
         db,
         &schemastr,
         in_memory,
@@ -142,6 +144,7 @@ async fn main() {
     let my_rocket = rocket(
         matches.is_present("edna-prime"),
         matches.is_present("batch"),
+        matches.value_of("host").unwrap(),
         matches.value_of("database").unwrap(),
         matches.value_of("schema").unwrap(),
         matches.is_present("in-memory"),

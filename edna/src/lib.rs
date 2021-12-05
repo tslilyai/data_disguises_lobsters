@@ -69,14 +69,15 @@ impl EdnaClient {
     pub fn new(
         prime: bool,
         batch: bool,
+        host: &str,
         dbname: &str,
         schema: &str,
         in_memory: bool,
         keypool_size: usize,
         guise_gen: Arc<RwLock<GuiseGen>>,
     ) -> EdnaClient {
-        init_db(prime, in_memory, dbname, schema);
-        let url = format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname);
+        init_db(prime, in_memory, host, dbname, schema);
+        let url = format!("mysql://root:password@{}/{}", host, dbname);
         EdnaClient {
             schema: schema.to_string(),
             in_memory: in_memory,
@@ -327,9 +328,9 @@ fn create_schema(db: &mut mysql::Conn, in_memory: bool, schema: &str) -> Result<
     Ok(())
 }
 
-pub fn init_db(prime: bool, in_memory: bool, dbname: &str, schema: &str) {
+pub fn init_db(prime: bool, in_memory: bool, host: &str, dbname: &str, schema: &str) {
     warn!("EDNA: Init db {}!", dbname);
-    let url = format!("mysql://tslilyai:pass@127.0.0.1");
+    let url = format!("mysql://root:password@{}", host);
     let mut db = mysql::Conn::new(Opts::from_url(&url).unwrap()).unwrap();
     if prime {
         warn!("Priming database");

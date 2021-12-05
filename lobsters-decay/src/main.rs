@@ -15,6 +15,7 @@ use chrono::{Duration, Local};
 
 pub const LOBSTERS_APP: &'static str = "lobsters";
 pub const HOTCRP_APP: &'static str = "hotcrp";
+const SERVER: &'static str = "http://localhost:8000";
 
 #[derive(Serialize, Deserialize)]
 pub struct ApplyDisguiseResponse {
@@ -65,23 +66,22 @@ pub fn main() {
     assert_eq!(db.ping(), true);
    
     // get all users
-    let mut users = vec![];
+    let mut users : Vec<String> = vec![];
     let dt = Local::now().naive_local() - Duration::days(365);
     
-    // TODO update this in Lobsters every time a user is authenticated (controllers/application)
+    warn!("Got date {}", dt.to_string());
     let res = db.query_iter(&format!(
-        "SELECT id FROM users WHERE `last_login` < '{}';", dt.to_string())
-    ).expect("Could not select inactive users?");
+        //"SELECT id FROM users WHERE `last_login` < '{}';", dt.to_string()
+        "SELECT id FROM users WHERE `username` = 'test';"
+    )).expect("Could not select inactive users?");
     for r in res {
         let r = r.unwrap().unwrap();
         let uid: String = from_value(r[0].clone());
+        warn!("got id res {}", uid);
         users.push(uid);
     }
    
-    let client = reqwest::blocking::Client::builder()
-            .cookie_store(true)
-            .build()
-            .expect("Could not build client");
+    let client = reqwest::blocking::Client::new();
 
     let postdata = json!({
         "decrypt_cap": [],
@@ -89,8 +89,9 @@ pub fn main() {
     });
 
     for u in &users {
+        warn!("Decaying user {}", u);
         // we don't need any capabilities
-        let endpoint = format!("/apply_disguise/lobsters/1/{}", u);
+        let endpoint = format!("{}/apply_disguise/lobsters/1/{}", SERVER, u);
         let response = client
             .post(&endpoint)
             .header("Content-Type", "application/json")
