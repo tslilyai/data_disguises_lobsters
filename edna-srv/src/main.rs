@@ -100,6 +100,14 @@ async fn main() {
                 .help("The MySQL database to use")
                 .takes_value(true),
         )
+         .arg(
+            Arg::with_name("host")
+                .short("j")
+                .long("host")
+                .default_value("mariadb")
+                .help("The MySQL server host to use")
+                .takes_value(true),
+        )
         .arg(Arg::with_name("edna-prime").help("Use Edna to prime the database"))
         .arg(Arg::with_name("batch").help("Use token batching"))
         .arg(Arg::with_name("test").help("Run the test"))
