@@ -263,6 +263,7 @@ pub async fn test_hotcrp_disguise() {
     let client = Client::tracked(rocket(
         true,
         true,
+        "127.0.0.1",
         "testdb",
         "hotcrp_disguises/schema.sql",
         true,
