@@ -66,6 +66,7 @@ fn main() {
     let mut edna = EdnaClient::new(
         args.prime,
         args.batch,
+        "127.0.0.1",
         &dbname,
         SCHEMA,
         true,

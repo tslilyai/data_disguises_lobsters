@@ -81,6 +81,7 @@ fn run_edna(args: &Cli) {
     let mut edna = EdnaClient::new(
         args.prime,
         args.batch,
+        "127.0.0.1",
         DBNAME,
         SCHEMA,
         true,
@@ -197,6 +198,7 @@ fn run_baseline(args: &Cli) {
     let mut edna = EdnaClient::new(
         args.prime,
         args.batch,
+        "127.0.0.1",
         DBNAME,
         SCHEMA,
         true,
