@@ -25,7 +25,7 @@ pub struct ApplyDisguiseResponse {
 
 #[post("/<app>/<did>/<uid>", format = "json", data = "<data>")]
 pub(crate) fn apply_disguise(
-    app: u64,
+    app: &str,
     did: edna::DID,
     uid: edna::UID,
     data: Json<ApplyDisguise>,

@@ -17,8 +17,8 @@ use rocket::{Build, Rocket};
 use std::sync::{Arc, Mutex};
 use std::fs;
 
-pub const LOBSTERS_APP: u64 = 0;
-pub const HOTCRP_APP: u64 = 1;
+pub const LOBSTERS_APP: &'static str = "lobsters";
+pub const HOTCRP_APP: &'static str = "hotcrp";
 
 fn init_logger() {
     let _ = env_logger::builder()
@@ -42,7 +42,7 @@ fn rocket(
     schema: &str,
     in_memory: bool,
     keypool_size: usize,
-    app: u64,
+    app: &str,
 ) -> Rocket<Build> {
     let schemastr = fs::read_to_string(schema).unwrap();
     let guise_gen = match app {
@@ -139,12 +139,6 @@ async fn main() {
         return;
     }
 
-    let app = match matches.value_of("app").unwrap() {
-        "lobsters" => LOBSTERS_APP ,
-        "hotcrp" => HOTCRP_APP,
-        _ => unimplemented!("unsupported app"),
-    };
-
     let my_rocket = rocket(
         matches.is_present("edna-prime"),
         matches.is_present("batch"),
@@ -152,7 +146,7 @@ async fn main() {
         matches.value_of("schema").unwrap(),
         matches.is_present("in-memory"),
         usize::from_str_radix(matches.value_of("keypool-size").unwrap(), 10).unwrap(),
-        app,
+        matches.value_of("app").unwrap(),
     );
     my_rocket.launch().await.expect("Failed to launch rocket");
 }
