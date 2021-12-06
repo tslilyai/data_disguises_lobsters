@@ -52,113 +52,92 @@ fn check_true(_: &str) -> bool {
     true
 }
 
-pub fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<ObjectTransformation>>>> {
+pub fn get_table_disguises(
+    user_id: u64,
+) -> HashMap<String, Arc<RwLock<Vec<ObjectTransformation>>>> {
     let mut hm = HashMap::new();
-  
+
     // REMOVE
     hm.insert(
         "hat_requests".to_string(),
-        Arc::new(RwLock::new(vec![
-            ObjectTransformation {
-                pred: get_eq_pred("user_id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Remove)),
-                global: false,
-            },
-        ])),
+        Arc::new(RwLock::new(vec![ObjectTransformation {
+            pred: get_eq_pred("user_id", user_id.to_string()),
+            trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+            global: false,
+        }])),
     );
     hm.insert(
         "hats".to_string(),
-        Arc::new(RwLock::new(vec![
-            ObjectTransformation {
-                pred: get_eq_pred("user_id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Remove)),
-                global: false,
-            },
-        ])),
+        Arc::new(RwLock::new(vec![ObjectTransformation {
+            pred: get_eq_pred("user_id", user_id.to_string()),
+            trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+            global: false,
+        }])),
     );
     hm.insert(
         "hidden_stories".to_string(),
-        Arc::new(RwLock::new(vec![
-            ObjectTransformation {
-                pred: get_eq_pred("user_id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Remove)),
-                global: false,
-            },
-        ])),
+        Arc::new(RwLock::new(vec![ObjectTransformation {
+            pred: get_eq_pred("user_id", user_id.to_string()),
+            trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+            global: false,
+        }])),
     );
     hm.insert(
         "invitations".to_string(),
-        Arc::new(RwLock::new(vec![
-            ObjectTransformation {
-                pred: get_eq_pred("user_id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Remove)),
-                global: false,
-            },
-        ])),
+        Arc::new(RwLock::new(vec![ObjectTransformation {
+            pred: get_eq_pred("user_id", user_id.to_string()),
+            trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+            global: false,
+        }])),
     );
- 
     hm.insert(
         "read_ribbons".to_string(),
-        Arc::new(RwLock::new(vec![
-            ObjectTransformation {
-                pred: get_eq_pred("user_id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Remove)),
-                global: false,
-            },
-        ])),
+        Arc::new(RwLock::new(vec![ObjectTransformation {
+            pred: get_eq_pred("user_id", user_id.to_string()),
+            trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+            global: false,
+        }])),
     );
     hm.insert(
         "saved_stories".to_string(),
-        Arc::new(RwLock::new(vec![
-            ObjectTransformation {
-                pred: get_eq_pred("user_id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Remove)),
-                global: false,
-            },
-        ])),
+        Arc::new(RwLock::new(vec![ObjectTransformation {
+            pred: get_eq_pred("user_id", user_id.to_string()),
+            trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+            global: false,
+        }])),
     );
- 
     hm.insert(
         "suggested_taggings".to_string(),
-        Arc::new(RwLock::new(vec![
-            ObjectTransformation {
-                pred: get_eq_pred("user_id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Remove)),
-                global: false,
-            },
-        ])),
+        Arc::new(RwLock::new(vec![ObjectTransformation {
+            pred: get_eq_pred("user_id", user_id.to_string()),
+            trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+            global: false,
+        }])),
     );
-     hm.insert(
+    hm.insert(
         "suggested_titles".to_string(),
-        Arc::new(RwLock::new(vec![
-            ObjectTransformation {
-                pred: get_eq_pred("user_id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Remove)),
-                global: false,
-            },
-        ])),
+        Arc::new(RwLock::new(vec![ObjectTransformation {
+            pred: get_eq_pred("user_id", user_id.to_string()),
+            trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+            global: false,
+        }])),
     );
-
-     hm.insert(
+    hm.insert(
         "tag_filters".to_string(),
-        Arc::new(RwLock::new(vec![
-            ObjectTransformation {
-                pred: get_eq_pred("user_id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Remove)),
-                global: false,
-            },
-        ])),
-     );
-     hm.insert(
+        Arc::new(RwLock::new(vec![ObjectTransformation {
+            pred: get_eq_pred("user_id", user_id.to_string()),
+            trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+            global: false,
+        }])),
+    );
+    hm.insert(
         "users".to_string(),
-        Arc::new(RwLock::new(vec![
-            ObjectTransformation {
-                pred: get_eq_pred("id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Remove)),
-                global: false,
-            },
-        ])),
-     );
+        Arc::new(RwLock::new(vec![ObjectTransformation {
+            pred: get_eq_pred("id", user_id.to_string()),
+            trans: Arc::new(RwLock::new(TransformArgs::Remove)),
+            global: false,
+        }])),
+    );
 
     // DECOR AND MODIFY
     hm.insert(
@@ -182,7 +161,6 @@ pub fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Objec
                 })),
                 global: false,
             },
- 
             ObjectTransformation {
                 pred: get_eq_pred("user_id", user_id.to_string()),
                 trans: Arc::new(RwLock::new(TransformArgs::Decor {
@@ -224,8 +202,8 @@ pub fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Objec
             },
         ])),
     );
-    
-    // DECOR ONLY 
+
+    // DECOR ONLY
     hm.insert(
         "messages".to_string(),
         Arc::new(RwLock::new(vec![
@@ -316,21 +294,18 @@ pub fn get_table_disguises(user_id: u64) -> HashMap<String, Arc<RwLock<Vec<Objec
                 })),
                 global: false,
             },
- 
         ])),
     );
     hm.insert(
         "votes".to_string(),
-        Arc::new(RwLock::new(vec![
-            ObjectTransformation {
-                pred: get_eq_pred("user_id", user_id.to_string()),
-                trans: Arc::new(RwLock::new(TransformArgs::Decor {
-                    fk_name: "users".to_string(),
-                    fk_col: "user_id".to_string(),
-                })),
-                global: false,
-            },
-        ])),
+        Arc::new(RwLock::new(vec![ObjectTransformation {
+            pred: get_eq_pred("user_id", user_id.to_string()),
+            trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                fk_name: "users".to_string(),
+                fk_col: "user_id".to_string(),
+            })),
+            global: false,
+        }])),
     );
     hm
 }

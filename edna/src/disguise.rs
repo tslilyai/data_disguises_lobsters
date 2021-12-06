@@ -506,6 +506,7 @@ impl Disguiser {
             disguise.did,
             own_tokens.len()
         );
+        let mut drop_me_later = vec![];
         for (table, transforms) in disguise.table_disguises.clone() {
             let mystats = self.stats.clone();
             let did = disguise.did;
@@ -548,18 +549,23 @@ impl Disguiser {
 
                         // BATCH REMOVE ITEMS
                         let start = time::Instant::now();
+                        // XXX hack to delete user last...
                         let delstmt = format!("DELETE FROM {} WHERE {}", table, selection);
-                        helpers::query_drop(delstmt.to_string(), db, mystats.clone()).unwrap();
-                        error!(
-                            "Edna: delete items {}: {}",
-                            delstmt,
-                            start.elapsed().as_micros()
-                        );
+                        let locked_guise_gen = self.guise_gen.read().unwrap();
+                        if locked_guise_gen.guise_name == table {
+                            drop_me_later.push(delstmt);
+                        } else {
+                            helpers::query_drop(delstmt.to_string(), db, mystats.clone()).unwrap();
+                            error!(
+                                "Edna: delete items {}: {}",
+                                delstmt,
+                                start.elapsed().as_micros()
+                            );
+                        }
 
                         // ITEM REMOVAL: ADD TOKEN RECORDS
                         let start = time::Instant::now();
                         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
-                        let locked_guise_gen = self.guise_gen.read().unwrap();
                         for i in &pred_items {
                             let ids = get_ids(&curtable_info.id_cols, i);
 
@@ -618,6 +624,16 @@ impl Disguiser {
                     }
                 }
             }
+        }
+
+        let start = time::Instant::now();
+        for delstmt in drop_me_later {
+            helpers::query_drop(delstmt.to_string(), db, self.stats.clone()).unwrap();
+            error!(
+                "Edna: delete items {}: {}",
+                delstmt,
+                start.elapsed().as_micros()
+            );
         }
     }
 
