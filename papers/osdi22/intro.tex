@@ -46,11 +46,15 @@ Data disguises transform a user's data in a web application in
 privacy-preserving ways, and thus reduce the damage done when database contents
 are exposed to attacker.
 %
-Crucially, though, our framework allows the application to maintain key
-functionality even when a user has disguised their data, and supports reversible
-disguises for users who want to return.
+Crucially, our framework allows the application to maintain key functionality even
+when a user has disguised their data, and supports reversible disguises for users
+who want to return.
 %
 
+%
+To understand the need for data disguising, consider the task an application
+developer who wishes to implement \ms{... continue here with problem setting.}
+%
 \ms{add challenges + how we overcome them.}
 %
 %Beyond simply transforming data, data disguising enables data decay (gradual
@@ -63,11 +67,24 @@ disguises for users who want to return.
 %technical challenges of securing private data, and integrates with
 %applications' database schemas and semantics.
 %
+To address this, we introduce \emph{pseudoprincipals}, which are first-class anonymous
+users that serve as stand-ins for disguised users.
+%
+An disguised principal typically---depending on the level of security and anonymity
+desired---has many pseudoprincipals, up to one for each application data object.
+%
 
-\sys, a prototype data disguising library, enables database-backed applications to
-easily support secure data disguising and provide better user privacy. \sys's API supports the
-abstraction of users and anonymous users as first-class citizens; and provides secure and private
-per-user data transformation and storage, subject to the threat model we describe in \S\ref{s:threat}.
+%
+\sys, our prototype data disguising library, provides data disguising APIs for
+database-backed web applications.
+%
+For example, \sys helps Lobsters~\cite{lobsters}, a Reddit-like discussion platform,
+support GDPR-compliant account deletion and anonymization of old contributions; and it
+anyonmizes a homework submission system used by the authors~\cite{websubmit-rs-anon}
+after the end of course while preserving students' ability to view and edit their
+homework.
+%
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Motivation}
@@ -80,7 +97,7 @@ identity. However, HotCRP's stores reviews indefinitely linked to the identity o
 leaving reviewers succeptible to unblinding in case of a data breach.
 
 To improve upon HotCRP's provided user privacy, HotCRP implement the follow disguises using \sys:
-\begin{enumerate}
+\begin{enumerate}[nosep]
     \item Per-user GDPR Account Deletion: removing all of a particular user's data such as reviews and papers.
     \item Universal Decorrelation: decorrelating users from
         their authored reviews and papers by (1) generating an
@@ -89,7 +106,7 @@ To improve upon HotCRP's provided user privacy, HotCRP implement the follow disg
     \item Universal Comment Removal: removing all comments on papers.
 \end{enumerate}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Importantly, these disguises pplace low burden on application developers and end users.
+Importantly, these disguises place low burden on application developers and end users.
 %
 When HotCRP disguises a user's data for universal decorrelation or comment removal, HotCRP emails
 the user a unique URL that it gets via invoking \sys's API.  When the user
