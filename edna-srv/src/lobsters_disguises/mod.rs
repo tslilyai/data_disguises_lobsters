@@ -20,6 +20,7 @@ pub fn get_insert_guise_cols() -> Vec<String> {
         "password_reset_token".to_string(),
         "rss_token".to_string(),
         "session_hash".to_string(),
+        "email".to_string(),
     ]
 }
 
@@ -29,12 +30,13 @@ pub fn get_insert_guise_vals() -> Vec<Expr> {
     let username: String = format!("anon{}", gid);
     vec![
         Expr::Value(Value::Number(gid.to_string())),
-        Expr::Value(Value::String(username)),
+        Expr::Value(Value::String(username.clone())),
         Expr::Value(Value::Number(0.to_string())),
         Expr::Value(Value::String(Local::now().naive_local().to_string())),
         Expr::Value(Value::String(Local::now().naive_local().to_string())),
         Expr::Value(Value::String(Local::now().naive_local().to_string())),
         Expr::Value(Value::String(Local::now().naive_local().to_string())),
+        Expr::Value(Value::String(format!("{}@mail.com", username))),
     ]
 }
 

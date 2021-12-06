@@ -66,7 +66,7 @@ pub fn main() {
     assert_eq!(db.ping(), true);
    
     // get all users
-    let mut users : Vec<(String, String)> = vec![];
+    let mut users : Vec<(u64, String)> = vec![];
     let dt = Local::now().naive_local() - Duration::days(365);
     
     warn!("Got date {}", dt.to_string());
@@ -76,7 +76,7 @@ pub fn main() {
     )).expect("Could not select inactive users?");
     for r in res {
         let r = r.unwrap().unwrap();
-        let uid: String = from_value(r[0].clone());
+        let uid: u64 = from_value(r[0].clone());
         let email: String = from_value(r[1].clone());
         warn!("got id res {}", uid);
         users.push((uid, email));
