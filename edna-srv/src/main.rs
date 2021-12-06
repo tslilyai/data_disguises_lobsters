@@ -102,7 +102,7 @@ async fn main() {
         )
          .arg(
             Arg::with_name("host")
-                .short("j")
+                .short("h")
                 .long("host")
                 .default_value("mariadb")
                 .help("The MySQL server host to use")
@@ -114,7 +114,7 @@ async fn main() {
         .arg(
             Arg::with_name("schema")
                 .short("s")
-                .default_value("lobsters_disguises/schema.sql")
+                .default_value("src/lobsters_disguises/schema.sql")
                 .takes_value(true)
                 .long("schema")
                 .help("File containing SQL schema to use"),
@@ -157,7 +157,7 @@ async fn main() {
         matches.value_of("schema").unwrap(),
         matches.is_present("in-memory"),
         usize::from_str_radix(matches.value_of("keypool-size").unwrap(), 10).unwrap(),
-        matches.value_of("app").unwrap(),
+        matches.value_of("application").unwrap(),
     );
     my_rocket.launch().await.expect("Failed to launch rocket");
 }

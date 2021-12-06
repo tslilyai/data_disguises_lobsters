@@ -81,7 +81,7 @@ impl EdnaClient {
         EdnaClient {
             schema: schema.to_string(),
             in_memory: in_memory,
-            disguiser: disguise::Disguiser::new(&url, keypool_size, guise_gen, batch),
+            disguiser: disguise::Disguiser::new(host, &url, keypool_size, guise_gen, batch),
         }
     }
 

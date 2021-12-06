@@ -9,10 +9,10 @@ const RSA_BITS: usize = 2048;
 const KEY_PAIRS_TABLE: &'static str = "KeyPairsTable";
 const KEY_PAIRS_DB: &'static str = "KeyPairsDB";
 
-pub fn generate_keys() -> Result<Vec<(RsaPrivateKey, RsaPublicKey)>, mysql::Error> {
+pub fn generate_keys(host: &str) -> Result<Vec<(RsaPrivateKey, RsaPublicKey)>, mysql::Error> {
     let mut rng = rand::thread_rng();
-    let nkeys = 10000;
-    let url = format!("mysql://tslilyai:pass@127.0.0.1");
+    let nkeys = 1000;
+    let url = format!("mysql://root:password@{}", host);
     let mut db = mysql::Conn::new(Opts::from_url(&url).unwrap())?;
     db.query_drop(&format!("DROP DATABASE IF EXISTS {};", KEY_PAIRS_DB))
         .unwrap();
@@ -54,12 +54,12 @@ pub fn generate_keys() -> Result<Vec<(RsaPrivateKey, RsaPublicKey)>, mysql::Erro
     Ok(keys)
 }
 
-pub fn get_keys() -> Result<Vec<(RsaPrivateKey, RsaPublicKey)>, mysql::Error> {
+pub fn get_keys(host: &str) -> Result<Vec<(RsaPrivateKey, RsaPublicKey)>, mysql::Error> {
     let mut keys = vec![];
-    let url = format!("mysql://tslilyai:pass@127.0.0.1");
+    let url = format!("mysql://root:password@{}", host);
     let mut db = mysql::Conn::new(Opts::from_url(&url).unwrap()).unwrap();
     if !db.select_db(&format!("{}", KEY_PAIRS_DB)) {
-        return generate_keys();
+        return generate_keys(host);
     }
     let res = db.query_iter(&format!("SELECT * FROM {}", KEY_PAIRS_TABLE))?;
     for row in res {
@@ -72,7 +72,7 @@ pub fn get_keys() -> Result<Vec<(RsaPrivateKey, RsaPublicKey)>, mysql::Error> {
     }
     if keys.is_empty() {
         warn!("Generating keys");
-        return generate_keys();
+        return generate_keys(host);
     }
     warn!("Got {} keys", keys.len());
     Ok(keys)
