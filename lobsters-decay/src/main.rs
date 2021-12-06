@@ -66,19 +66,20 @@ pub fn main() {
     assert_eq!(db.ping(), true);
    
     // get all users
-    let mut users : Vec<String> = vec![];
+    let mut users : Vec<(String, String)> = vec![];
     let dt = Local::now().naive_local() - Duration::days(365);
     
     warn!("Got date {}", dt.to_string());
     let res = db.query_iter(&format!(
-        //"SELECT id FROM users WHERE `last_login` < '{}';", dt.to_string()
-        "SELECT id FROM users WHERE `username` = 'test';"
+        //"SELECT id, email FROM users WHERE `last_login` < '{}';", dt.to_string()
+        "SELECT id, email FROM users WHERE `username` = 'test';"
     )).expect("Could not select inactive users?");
     for r in res {
         let r = r.unwrap().unwrap();
         let uid: String = from_value(r[0].clone());
+        let email: String = from_value(r[1].clone());
         warn!("got id res {}", uid);
-        users.push(uid);
+        users.push((uid, email));
     }
    
     warn!("getting client");
@@ -89,7 +90,7 @@ pub fn main() {
         "ownership_locators": [],
     });
 
-    for u in &users {
+    for (u, email) in &users {
         warn!("Decaying user {}", u);
         // we don't need any capabilities
         let endpoint = format!("{}/apply_disguise/lobsters/1/{}", SERVER, u);
@@ -100,13 +101,18 @@ pub fn main() {
             .send().unwrap();
         let strbody = response.text().unwrap();
         warn!("Decay strbody response: {}", strbody);
-        let _body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
-        /*if let Some(dl) = body.diff_locators.get(&u.to_string()) {
-            user2diffcap.insert(u, *dl);
-        }
-        if let Some(ol) = body.ownership_locators.get(&u.to_string()) {
-            user2owncap.insert(u, *ol);
-        }*/
-        // TODO send emails with locators?
+        let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
+        let dl = if let Some(dl) = body.diff_locators.get(&u.to_string()) {
+            dl.to_string()
+        } else {
+            0.to_string()
+        };
+        let ol = if let Some(ol) = body.ownership_locators.get(&u.to_string()) {
+            ol.to_string()
+        } else {
+            0.to_string()
+        };
+        // TODO send email with locators
+        warn!("Sending email to {} with ol and dl {} and {}", email, ol, dl);
     }
 }
