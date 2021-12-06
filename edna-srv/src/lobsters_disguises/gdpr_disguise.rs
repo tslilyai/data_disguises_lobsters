@@ -276,6 +276,27 @@ pub fn get_table_disguises(
         ])),
     );
     hm.insert(
+        "mod_notes".to_string(),
+        Arc::new(RwLock::new(vec![
+            ObjectTransformation {
+                pred: get_eq_pred("user_id", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "users".to_string(),
+                    fk_col: "user_id".to_string(),
+                })),
+                global: false,
+            },
+            ObjectTransformation {
+                pred: get_eq_pred("user_id", user_id.to_string()),
+                trans: Arc::new(RwLock::new(TransformArgs::Decor {
+                    fk_name: "users".to_string(),
+                    fk_col: "user_id".to_string(),
+                })),
+                global: false,
+            },
+        ])),
+    );
+    hm.insert(
         "moderations".to_string(),
         Arc::new(RwLock::new(vec![
             ObjectTransformation {

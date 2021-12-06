@@ -19,8 +19,9 @@ pub fn get_insert_guise_cols() -> Vec<String> {
         "last_login".to_string(),
         "password_reset_token".to_string(),
         "rss_token".to_string(),
-        "session_hash".to_string(),
+        "session_token".to_string(),
         "email".to_string(),
+        "created_at".to_string(),
     ]
 }
 
@@ -37,6 +38,7 @@ pub fn get_insert_guise_vals() -> Vec<Expr> {
         Expr::Value(Value::String(Local::now().naive_local().to_string())),
         Expr::Value(Value::String(Local::now().naive_local().to_string())),
         Expr::Value(Value::String(format!("{}@mail.com", username))),
+        Expr::Value(Value::String(Local::now().naive_local().to_string())),
     ]
 }
 
@@ -110,6 +112,14 @@ pub fn get_table_info() -> Arc<RwLock<HashMap<String, TableInfo>>> {
                 "author_user_id".to_string(),
                 "recipient_user_id".to_string(),
             ],
+        },
+    );
+    hm.insert(
+        "mod_notes".to_string(),
+        TableInfo {
+            name: "mod_notes".to_string(),
+            id_cols: vec!["id".to_string()],
+            owner_cols: vec!["moderator_user_id".to_string(), "user_id".to_string()],
         },
     );
     hm.insert(

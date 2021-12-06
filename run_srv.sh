@@ -11,15 +11,6 @@ sleep 5
 
 # start a new server
 cd edna-srv
-cargo run --release -- -h mariadb -d lobsters_development &
+cargo run --release -- -h mariadb -d lobsters_development
 
 echo "Server Running, wait a bit"
-
-sleep 10
-
-# eventually loop decay disguise
-echo "Running decay"
-
-cd ../lobsters-decay
-RUSTFLAGS=-Ctarget-feature=-crt-static
-cargo run --release -- -h mariadb -d lobsters_development
