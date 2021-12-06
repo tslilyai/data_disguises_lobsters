@@ -81,6 +81,7 @@ pub fn main() {
         users.push(uid);
     }
    
+    warn!("getting client");
     let client = reqwest::blocking::Client::new();
 
     let postdata = json!({
