@@ -229,22 +229,6 @@ impl Disguiser {
         );
 
         /*
-         * REMOVE
-         */
-        // WE ONLY NEED GLOBAL DIFF TOKENS because we need to potentially modify them
-        let start = time::Instant::now();
-        self.execute_removes(
-            disguise.clone(),
-            &global_diff_tokens,
-            &ownership_tokens,
-            &mut db,
-        );
-        error!(
-            "Edna: Execute removes total: {}",
-            start.elapsed().as_micros()
-        );
-
-        /*
          * Decor and modify
          */
         let start = time::Instant::now();
@@ -362,6 +346,23 @@ impl Disguiser {
                     }
                 }
             }
+
+            /*
+             * REMOVE
+             */
+            // WE ONLY NEED GLOBAL DIFF TOKENS because we need to potentially modify them
+            let start = time::Instant::now();
+            self.execute_removes(
+                disguise.clone(),
+                &global_diff_tokens,
+                &ownership_tokens,
+                &mut db,
+            );
+            error!(
+                "Edna: Execute removes total: {}",
+                start.elapsed().as_micros()
+            );
+
             // save token transforms to perform
             let mut locked_tokens = my_global_diff_tokens_to_modify.write().unwrap();
             locked_tokens.extend(token_transforms);
