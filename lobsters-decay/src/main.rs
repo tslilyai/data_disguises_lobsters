@@ -72,7 +72,7 @@ pub fn main() {
     warn!("Got date {}", dt.to_string());
     let res = db.query_iter(&format!(
         //"SELECT id, email FROM users WHERE `last_login` < '{}';", dt.to_string()
-        "SELECT id, email FROM users WHERE `username` = 'test';"
+        "SELECT id, email FROM users WHERE `id` > 2;"
     )).expect("Could not select inactive users?");
     for r in res {
         let r = r.unwrap().unwrap();

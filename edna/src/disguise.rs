@@ -335,7 +335,7 @@ impl Disguiser {
                     for dwrapper in &my_diff_tokens {
                         let d = edna_diff_token_from_bytes(&dwrapper.token_data);
                         if dwrapper.is_global && predicate::diff_token_matches_pred(p, &table, &d) {
-                            warn!("ApplyRemoves: Inserting global token {:?} to update\n", d);
+                            warn!("Apply: Inserting global token {:?} to update\n", d);
                             match token_transforms.get_mut(&dwrapper) {
                                 Some(vs) => vs.push(t.clone()),
                                 None => {
@@ -347,22 +347,7 @@ impl Disguiser {
                 }
             }
 
-            /*
-             * REMOVE
-             */
-            // WE ONLY NEED GLOBAL DIFF TOKENS because we need to potentially modify them
-            let start = time::Instant::now();
-            self.execute_removes(
-                disguise.clone(),
-                &global_diff_tokens,
-                &ownership_tokens,
-                &mut db,
-            );
-            error!(
-                "Edna: Execute removes total: {}",
-                start.elapsed().as_micros()
-            );
-
+        
             // save token transforms to perform
             let mut locked_tokens = my_global_diff_tokens_to_modify.write().unwrap();
             locked_tokens.extend(token_transforms);
@@ -373,6 +358,22 @@ impl Disguiser {
         }
         error!(
             "Edna: Execute modify/decor total: {}",
+            start.elapsed().as_micros()
+        );
+
+        /*
+         * REMOVE
+         */
+        // WE ONLY NEED GLOBAL DIFF TOKENS because we need to potentially modify them
+        let start = time::Instant::now();
+        self.execute_removes(
+            disguise.clone(),
+            &global_diff_tokens,
+            &ownership_tokens,
+            &mut db,
+        );
+        error!(
+            "Edna: Execute removes total: {}",
             start.elapsed().as_micros()
         );
 

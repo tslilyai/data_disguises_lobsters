@@ -7,7 +7,7 @@ use rocket::State;
 use rsa::pkcs1::ToRsaPrivateKey;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use log::warn;
+use log::error;
 
 /************************
  * High-Level API
@@ -93,11 +93,12 @@ pub struct RegisterPrincipalResponse {
     pub privkey: String,
 }
 
-#[post("/", format = "json", data = "<data>")]
+#[post("/", data = "<data>")]
 pub(crate) fn register_principal(
-    data: Json<edna::UID>,
+    data: String, //Json<edna::UID>,
     edna: &State<Arc<Mutex<EdnaClient>>>,
 ) -> Json<RegisterPrincipalResponse> {
+    error!("Received JSON in regprin {:?}", data);
     let mut e = edna.lock().unwrap();
     let privkey = e.register_principal(&data.to_owned());
     let privkey_str = base64::encode(&privkey.to_pkcs1_der().unwrap().as_der().to_vec());

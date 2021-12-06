@@ -17,6 +17,9 @@ pub fn get_insert_guise_cols() -> Vec<String> {
         "username".to_string(),
         "karma".to_string(),
         "last_login".to_string(),
+        "password_reset_token".to_string(),
+        "rss_token".to_string(),
+        "session_hash".to_string(),
     ]
 }
 
@@ -28,6 +31,9 @@ pub fn get_insert_guise_vals() -> Vec<Expr> {
         Expr::Value(Value::Number(gid.to_string())),
         Expr::Value(Value::String(username)),
         Expr::Value(Value::Number(0.to_string())),
+        Expr::Value(Value::String(Local::now().naive_local().to_string())),
+        Expr::Value(Value::String(Local::now().naive_local().to_string())),
+        Expr::Value(Value::String(Local::now().naive_local().to_string())),
         Expr::Value(Value::String(Local::now().naive_local().to_string())),
     ]
 }
