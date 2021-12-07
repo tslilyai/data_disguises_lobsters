@@ -8,16 +8,19 @@ from collections import defaultdict
 plt.style.use('seaborn-deep')
 
 sleeps = [10000, 5000, 1000, 100, 0]
-maxts = 150000
-bucketwidth = 1000
-nbuckets = int(maxts/bucketwidth)
-buckets = [b * bucketwidth for b in range(nbuckets)]
-
-lec = 20
+maxts = 150
 
 # collect all results
-edit_results= {}
+edit_results = {}
 fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(6,4))
+
+def get_yerr(durs):
+    mins = []
+    maxes = []
+    for i in range(len(durs)):
+        mins.append(statistics.median(durs[i]) - np.percentile(durs[i], 5))
+        maxes.append(np.percentile(durs[i], 95)-statistics.median(durs[i]))
+    return [mins, maxes]
 
 def get_data(filename, results, i):
     vals = []
@@ -29,37 +32,29 @@ def get_data(filename, results, i):
         for x in oppairs:
             val = float(x[1])/1000
             vals.append(val)
-        results[ndisguises] = [
-                np.percentile(vals, 5),
-                statistics.median(vals),
-                np.percentile(vals, 95)]
+        results[ndisguises] = vals
 
 for s in sleeps:
-    get_editdata('results/websubmit_results/concurrent_disguise_stats_{}sleep_batch.csv'.format(s), edit_results)
+    get_data('results/websubmit_results/concurrent_disguise_stats_{}sleep_batch.csv'.format(s),
+            edit_results, 1)
 
-xs = list(edit_results_baseline[0].keys())
-order = np.argsort(xs)
-xs = np.array(xs)[order]
-ys = [statistics.mean(x) for x in edit_results_baseline[0].values()]
-ys = np.array(ys)[order]
-plt.plot(xs, ys, label='Baseline', color='k')
+durs = []
+xs = []
+meds = []
+for (ndisguises, results) in edit_results.items():
+    xs.append((ndisguises/maxts))
+    meds.append(statistics.median(results))
+    durs.append(results)
 
-colors=['m','c']
-for s in sleeps:
-for p in range(len(props)):
-    xs = list(edit_results_batch[p].keys())
-    order = np.argsort(xs)
-    xs = np.array(xs)[order]
-    ys = [statistics.mean(x) for x in edit_results_batch[p].values()]
-    ys = np.array(ys)[order]
-    plt.plot(xs, ys, color=colors[p], label='{} Disguisers'.format(int(props[p]*100)))
+myyerr = get_yerr(durs)
+plt.plot(xs, meds)
+plt.errorbar(xs, meds, yerr=myyerr, fmt="o")
 
-    plt.xlabel('Benchmark Time (s)')
-    plt.ylabel('Latency (ms)')
-    plt.ylim(ymin=0, ymax=2000)
-    plt.xlim(xmin=0, xmax=100)
-    plt.legend(loc="upper left")
-    plt.title("WebSubmit Edit Latency vs. Number of Concurrent Disguisers")
+plt.xlabel('Disguises/Sec')
+plt.ylabel('Latency (ms)')
+plt.ylim(ymin=0)
+plt.xlim(xmin=0)
+plt.title("WebSubmit Edit Latency vs. Disguises/Second")
 
 plt.tight_layout(h_pad=4)
-plt.savefig('websubmit_concurrent_results_{}lec_{}users.pdf'.format(lec, 100))
+plt.savefig('websubmit_concurrent_results.pdf')

@@ -113,7 +113,8 @@ fn main() {
 
     let barrier = Arc::new(Barrier::new(args.nusers + 1));
     let mut normal_threads = vec![];
-    for u in 0..args.nusers {
+    //for u in 0..args.nusers {
+    for u in 0..1 {
         let c = Arc::clone(&barrier);
         let email = format!("{}@mail.edu", u);
         let myargs = args.clone();
@@ -133,13 +134,10 @@ fn main() {
     info!(log, "Waiting for barrier!");
     barrier.wait();
 
-    // wait a bit for things to settle before running disguisers
-    thread::sleep(time::Duration::from_millis(1000));
     let my_delete_durations = delete_durations.clone();
     let my_restore_durations = restore_durations.clone();
-    let nusers = args.nusers;
     /*run_disguising(
-        nusers,
+        args.nusers,
         ndisguising,
         user2apikey.clone(),
         user2decryptcap.clone(),
@@ -147,7 +145,6 @@ fn main() {
         my_restore_durations,
     )?;*/
     let ndisguises = run_disguising_sleeps(
-        nusers,
         args.nsleep,
         user2apikey.clone(),
         user2decryptcap.clone(),
@@ -197,7 +194,6 @@ fn run_normal(
     assert_eq!(response.status(), StatusCode::OK);
     c.wait();
 
-    let mut rng = rand::thread_rng();
     let overall_start = time::Instant::now();
     while overall_start.elapsed().as_millis() < TOTAL_TIME {
         // editing
@@ -223,7 +219,6 @@ fn run_normal(
             .send()?;
         assert_eq!(response.status(), StatusCode::OK);
         my_edit_durations.push((overall_start.elapsed(), start.elapsed()));
-        thread::sleep(time::Duration::from_millis(rng.gen_range(500..1000)));
     }
     edit_durations
         .lock()
@@ -233,7 +228,6 @@ fn run_normal(
 }
 
 fn run_disguising_sleeps(
-    nusers: usize,
     nsleep: u64,
     user2apikey: HashMap<String, String>,
     user2decryptcap: HashMap<String, String>,
@@ -246,7 +240,7 @@ fn run_disguising_sleeps(
         // wait between each round
         thread::sleep(time::Duration::from_millis(nsleep));
         let barrier = Arc::new(Barrier::new(0));
-        let u = nusers+1;
+        let u = 2;
         let email = format!("{}@mail.edu", u);
         let apikey = user2apikey.get(&email).unwrap().clone();
         let decryptcap = user2decryptcap.get(&email).unwrap().clone();
@@ -360,7 +354,7 @@ fn run_disguising_thread(
 
     // wait for any concurrent disguisers to finish
     barrier.wait();
-    // sleep for 10 seconds, then restore
+    // sleep for nsleep milliseconds, then restore
     thread::sleep(time::Duration::from_millis(nsleep));
 
     // restore
