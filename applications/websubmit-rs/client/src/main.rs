@@ -6,6 +6,9 @@ extern crate slog;
 extern crate log;
 extern crate slog_term;
 
+use mysql::prelude::*;
+use mysql::{Opts, Pool};
+use rand::Rng;
 use reqwest::*;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
@@ -14,9 +17,6 @@ use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time;
 use std::time::Duration;
-use mysql::{Opts, Pool};
-use mysql::prelude::*;
-use rand::Rng;
 
 mod args;
 
@@ -61,23 +61,28 @@ fn main() {
                 l, q, l, q
             ))
             .unwrap();
-            for u in 0..args.nusers + args.ndisguising {
-                db.query_drop(&format!("INSERT INTO answers VALUES ('{}@mail.edu', {}, {}, 'lec{}q{}answer{}', '1000-01-01 00:00:00');", 
+            /*for u in 0..args.nusers + args.ndisguising {
+                db.query_drop(&format!("INSERT INTO answers VALUES ('{}@mail.edu', {}, {}, 'lec{}q{}answer{}', '1000-01-01 00:00:00');",
                         u, l, q, l, q, u)).unwrap();
-            }
+            }*/
             // add extra data for other 90% of all users
             let mut rng = rand::thread_rng();
-            for u in args.nusers + args.ndisguising..args.nusers + args.ndisguising + args.nusers*10 {
+            //for u in args.nusers + args.ndisguising..args.nusers + args.ndisguising + args.nusers*10 {
+            for u in args.nusers..args.nusers + args.nusers * 10 {
                 db.query_drop(&format!("INSERT INTO answers VALUES ('{}@mail.edu', {}, {}, 'lec{}q{}answer{}', '1000-01-01 00:00:00');", 
                         u, l, q, l, q, u)).unwrap();
-                let num : u128 = rng.gen();
-                db.query_drop(format!("INSERT INTO users VALUES ('{}@mail.edu', '{}', 0, 0);", u, num)).unwrap();
+                let num: u128 = rng.gen();
+                db.query_drop(format!(
+                    "INSERT INTO users VALUES ('{}@mail.edu', '{}', 0, 0);",
+                    u, num
+                ))
+                .unwrap();
             }
         }
     }
     info!(log, "Inserted {} lecs with {} qs", args.nlec, args.nusers);
 
-    for u in 0..args.nusers + args.ndisguising {
+    for u in 0..args.nusers {
         let email = format!("{}@mail.edu", u);
         let response = client
             .post(&format!("{}/apikey/generate", SERVER))
@@ -85,7 +90,7 @@ fn main() {
             .send()
             .expect("Could not create new user");
         assert_eq!(response.status(), StatusCode::OK);
-     
+
         // get api key
         let file = File::open(format!("{}.{}", email, APIKEY_FILE)).unwrap();
         let mut buf_reader = BufReader::new(file);
@@ -130,31 +135,23 @@ fn main() {
     let my_delete_durations = delete_durations.clone();
     let my_restore_durations = restore_durations.clone();
     let nusers = args.nusers;
-    if args.test == args::TEST_NORMAL_DISGUISING {
-        // running 1% of disguisers in background 
-        normal_threads.push(thread::spawn(move || {
-            run_disguising(
-                nusers,
-                (nusers as f64 *0.01).ceil() as usize,
-                user2apikey.clone(),
-                user2decryptcap.clone(),
-                my_delete_durations,
-                my_restore_durations,
-            )
-        }));
-    } else if args.test == args::TEST_BATCH_DISGUISING {
-        let ndisguising = args.ndisguising;
-        normal_threads.push(thread::spawn(move || {
-            run_disguising(
-                nusers,
-                ndisguising,
-                user2apikey.clone(),
-                user2decryptcap.clone(),
-                my_delete_durations,
-                my_restore_durations,
-            )
-        }));
-    }
+    /*run_disguising(
+        nusers,
+        ndisguising,
+        user2apikey.clone(),
+        user2decryptcap.clone(),
+        my_delete_durations,
+        my_restore_durations,
+    )?;*/
+    let ndisguises = run_disguising_sleeps(
+        nusers,
+        args.nsleep,
+        user2apikey.clone(),
+        user2decryptcap.clone(),
+        my_delete_durations,
+        my_restore_durations,
+    )
+    .unwrap();
 
     let start = time::Instant::now();
     for j in normal_threads {
@@ -167,6 +164,7 @@ fn main() {
     );
     print_stats(
         &args,
+        ndisguises,
         &edit_durations.lock().unwrap(),
         &delete_durations.lock().unwrap(),
         &restore_durations.lock().unwrap(),
@@ -231,7 +229,44 @@ fn run_normal(
     Ok(())
 }
 
-fn run_disguising(
+fn run_disguising_sleeps(
+    nusers: usize,
+    nsleep: u64,
+    user2apikey: HashMap<String, String>,
+    user2decryptcap: HashMap<String, String>,
+    delete_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
+    restore_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
+) -> Result<u64> {
+    let overall_start = time::Instant::now();
+    let mut nexec = 0;
+    while overall_start.elapsed().as_millis() < TOTAL_TIME {
+        // wait between each round
+        thread::sleep(time::Duration::from_millis(nsleep));
+        let barrier = Arc::new(Barrier::new(0));
+        let u = nusers + 10;
+        let email = format!("{}@mail.edu", u);
+        let apikey = user2apikey.get(&email).unwrap().clone();
+        let decryptcap = user2decryptcap.get(&email).unwrap().clone();
+        let my_delete_durations = delete_durations.clone();
+        let my_restore_durations = restore_durations.clone();
+        let c = barrier.clone();
+        run_disguising_thread(
+            u.to_string(),
+            apikey,
+            decryptcap,
+            new_logger(),
+            my_delete_durations,
+            my_restore_durations,
+            overall_start,
+            c,
+            nsleep,
+        )?;
+        nexec += 1;
+    }
+    Ok(nexec)
+}
+
+/*fn run_disguising_ndisguisers(
     nusers: usize,
     ndisguising: usize,
     user2apikey: HashMap<String, String>,
@@ -263,6 +298,7 @@ fn run_disguising(
                     my_restore_durations,
                     overall_start,
                     c,
+                    10000, // sleep btwn disguise and reveal
                 )
             }));
         }
@@ -271,8 +307,8 @@ fn run_disguising(
         }
     }
     Ok(())
-}
- 
+}*/
+
 fn run_disguising_thread(
     uid: String,
     apikey: String,
@@ -282,6 +318,7 @@ fn run_disguising_thread(
     restore_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
     overall_start: time::Instant,
     barrier: Arc<Barrier>,
+    nsleep: u64,
 ) -> Result<()> {
     let mut my_delete_durations = vec![];
     let mut my_restore_durations = vec![];
@@ -321,7 +358,7 @@ fn run_disguising_thread(
     // wait for any concurrent disguisers to finish
     barrier.wait();
     // sleep for 10 seconds, then restore
-    thread::sleep(time::Duration::from_millis(10000));
+    thread::sleep(time::Duration::from_millis(nsleep));
 
     // restore
     let start = time::Instant::now();
@@ -336,7 +373,7 @@ fn run_disguising_thread(
         .send()?;
     assert_eq!(response.status(), StatusCode::OK);
     my_restore_durations.push((overall_start.elapsed(), start.elapsed()));
-    
+
     delete_durations
         .lock()
         .unwrap()
@@ -350,33 +387,12 @@ fn run_disguising_thread(
 
 fn print_stats(
     args: &args::Args,
+    ndisguises: u64,
     edit_durations: &Vec<(Duration, Duration)>,
     delete_durations: &Vec<(Duration, Duration)>,
     restore_durations: &Vec<(Duration, Duration)>,
 ) {
-    let prefix = if args.batch {
-        "_batch"
-    } else {
-        ""
-    };
-    let filename = match args.test {
-        args::TEST_BASELINE => 
-        format!(
-            "concurrent_disguise_stats_{}lec_{}users_{}disguisers{}_baseline.csv",
-            args.nlec, args.nusers, prefix, args.ndisguising
-        ), 
-        args::TEST_NORMAL_DISGUISING => 
-            format!(
-                "concurrent_disguise_stats_{}lec_{}users_disguising{}.csv",
-                args.nlec, args.nusers, prefix
-            ),
-        args::TEST_BATCH_DISGUISING =>
-            format!(
-                "concurrent_disguise_stats_{}lec_{}users_disguising_{}group{}.csv",
-                args.nlec, args.nusers, args.ndisguising, prefix
-            ),
-            _ => unimplemented!("Bad test")
-    };
+    let filename = format!("concurrent_disguise_stats_{}sleep_batch.csv", args.nsleep);
 
     // print out stats
     let mut f = OpenOptions::new()
@@ -385,12 +401,19 @@ fn print_stats(
         .truncate(true)
         .open(&filename)
         .unwrap();
+
+    writeln!(f, "{}", ndisguises).unwrap();
+
     writeln!(
         f,
         "{}",
         edit_durations
             .iter()
-            .map(|d| format!("{}:{}", d.0.as_millis().to_string(), d.1.as_micros().to_string()))
+            .map(|d| format!(
+                "{}:{}",
+                d.0.as_millis().to_string(),
+                d.1.as_micros().to_string()
+            ))
             .collect::<Vec<String>>()
             .join(",")
     )
@@ -400,7 +423,11 @@ fn print_stats(
         "{}",
         delete_durations
             .iter()
-            .map(|d| format!("{}:{}", d.0.as_millis().to_string(), d.1.as_micros().to_string()))
+            .map(|d| format!(
+                "{}:{}",
+                d.0.as_millis().to_string(),
+                d.1.as_micros().to_string()
+            ))
             .collect::<Vec<String>>()
             .join(",")
     )
@@ -410,7 +437,11 @@ fn print_stats(
         "{}",
         restore_durations
             .iter()
-            .map(|d| format!("{}:{}", d.0.as_millis().to_string(), d.1.as_micros().to_string()))
+            .map(|d| format!(
+                "{}:{}",
+                d.0.as_millis().to_string(),
+                d.1.as_micros().to_string()
+            ))
             .collect::<Vec<String>>()
             .join(",")
     )

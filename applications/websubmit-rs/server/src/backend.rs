@@ -51,7 +51,7 @@ impl MySqlBackend {
         };
         let edna = EdnaClient::new(
             args.prime,
-            args.batch,
+            true, // batch
             "127.0.0.1",
             dbname,
             &schema,

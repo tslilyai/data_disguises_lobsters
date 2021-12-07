@@ -25,7 +25,7 @@ impl Disguiser {
     /**************************************************
      * Functions for lower-level disguising
      *************************************************/
-    pub fn new(dbhost: &str, url: &str, keypool_size: usize, guise_gen: Arc<RwLock<GuiseGen>>, batch: bool) -> Disguiser {
+    pub fn new(dbserver: &str, url: &str, keypool_size: usize, guise_gen: Arc<RwLock<GuiseGen>>, batch: bool) -> Disguiser {
         let opts = Opts::from_url(&url).unwrap();
         let pool = Pool::new(opts).unwrap();
         let stats = Arc::new(Mutex::new(stats::QueryStat::new()));
@@ -35,7 +35,7 @@ impl Disguiser {
             stats: stats.clone(),
             token_ctrler: Arc::new(Mutex::new(TokenCtrler::new(
                 keypool_size,
-                dbhost.to_string(),
+                dbserver,
                 &mut pool.get_conn().unwrap(),
                 stats.clone(),
                 batch,

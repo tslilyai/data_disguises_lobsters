@@ -15,7 +15,6 @@ pub struct Args {
     pub nlec: usize,
     pub nqs: usize,
     pub prime: bool,
-    pub batch: bool,
     pub benchmark: bool,
     pub config: config::Config,
     pub schema: String,
@@ -75,12 +74,6 @@ pub fn parse_args() -> Args {
                 .value_name("NQS")
                 .default_value("0")
         ).arg(
-            Arg::with_name("batch")
-                .long("batch")
-                .takes_value(true)
-                .value_name("PRIME")
-                .default_value("true")
-        ).arg(
             Arg::with_name("prime")
                 .short("p")
                 .long("prime")
@@ -112,7 +105,6 @@ pub fn parse_args() -> Args {
         nlec: usize::from_str(args.value_of("nlec").unwrap()).unwrap(),
         nqs: usize::from_str(args.value_of("nqs").unwrap()).unwrap(),
         prime: bool::from_str(args.value_of("prime").unwrap()).unwrap(),
-        batch: bool::from_str(args.value_of("batch").unwrap()).unwrap(),
         benchmark: bool::from_str(args.value_of("benchmark").unwrap()).unwrap(),
         schema: String::from(args.value_of("schema").unwrap()),
         config: config,

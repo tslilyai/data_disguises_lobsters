@@ -3,32 +3,20 @@ use std::str::FromStr;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 
-pub const TEST_BASELINE : u64 = 0;
-pub const TEST_NORMAL_DISGUISING : u64 = 1;
-pub const TEST_BATCH_DISGUISING : u64 = 2;
-
 #[derive(Clone, Debug)]
 pub struct Args {
     pub nusers: usize,
-    pub ndisguising: usize,
+    //pub ndisguising: usize,
+    pub nsleep: u64,
     pub nlec: usize,
     pub nqs: usize,
-    pub test: u64,
     pub db: String,
-    pub batch: bool,
 }
 
 pub fn parse_args() -> Args {
     let args = App::new("websubmit")
         .version("0.0.1")
         .about("Class submission system.")
-        .arg(
-            Arg::with_name("batch")
-                .long("batch")
-                .takes_value(true)
-                .value_name("PRIME")
-                .default_value("true")
-        )
         .arg(
             Arg::with_name("db")
                 .long("db")
@@ -37,13 +25,21 @@ pub fn parse_args() -> Args {
                 .default_value("myclass"),
         )
         .arg(
+            Arg::with_name("nsleep")
+                .short("s")
+                .long("nsleep")
+                .takes_value(true)
+                .value_name("NSLEEP")
+                .default_value("10000"),
+        )
+        /*.arg(
             Arg::with_name("ndisguising")
                 .short("d")
                 .long("ndisguising")
                 .takes_value(true)
                 .value_name("NDIGUISING")
                 .default_value("2"),
-        )
+        )*/
         .arg(
             Arg::with_name("nusers")
                 .short("u")
@@ -66,23 +62,14 @@ pub fn parse_args() -> Args {
                 .long("nqs")
                 .takes_value(true)
                 .value_name("NQS")
-                .default_value("2"),
-        ).arg(
-            Arg::with_name("test")
-                .short("t")
-                .long("test")
-                .takes_value(true)
-                .value_name("test")
-                .default_value("false"),
+                .default_value("4"),
         )
         .get_matches();
     Args {
         nusers: usize::from_str(args.value_of("nusers").unwrap()).unwrap(),
-        ndisguising: usize::from_str(args.value_of("ndisguising").unwrap()).unwrap(),
+        nsleep: u64::from_str(args.value_of("nsleep").unwrap()).unwrap(),
         nlec: usize::from_str(args.value_of("nlec").unwrap()).unwrap(),
         nqs: usize::from_str(args.value_of("nqs").unwrap()).unwrap(),
-        test: u64::from_str(args.value_of("test").unwrap()).unwrap(),
-        batch: bool::from_str(args.value_of("batch").unwrap()).unwrap(),
         db: String::from(args.value_of("db").unwrap()),
     }
 }

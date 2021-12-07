@@ -70,7 +70,7 @@ pub struct TokenCtrler {
     pseudoprincipal_keys_pool: Vec<(RsaPrivateKey, RsaPublicKey)>,
     poolsize: usize,
     batch: bool,
-    dbhost: String,
+    dbserver: String,
 
     // (p,d) capability -> set of token ciphertext for principal+disguise
     pub enc_diffs_map: HashMap<LocCap, Vec<EncData>>,
@@ -97,7 +97,7 @@ pub struct TokenCtrler {
 impl TokenCtrler {
     pub fn new(
         poolsize: usize,
-        dbhost: String,
+        dbserver: &str,
         db: &mut mysql::PooledConn,
         stats: Arc<Mutex<QueryStat>>,
         batch: bool,
@@ -107,7 +107,7 @@ impl TokenCtrler {
             pseudoprincipal_keys_pool: vec![],
             poolsize: poolsize,
             batch: batch,
-            dbhost: dbhost,
+            dbserver: dbserver.to_string(),
             enc_diffs_map: HashMap::new(),
             enc_ownership_map: HashMap::new(),
             global_diff_tokens: HashMap::new(),
@@ -159,7 +159,7 @@ impl TokenCtrler {
             self.poolsize,
         );
         let start = time::Instant::now();
-        let keys = get_keys(&self.dbhost).unwrap();
+        let keys = get_keys(&self.dbserver).unwrap();
         warn!("Got {} keys", keys.len());
         //let curlen = self.pseudoprincipal_keys_pool.len();
         //for _ in curlen..self.poolsize {

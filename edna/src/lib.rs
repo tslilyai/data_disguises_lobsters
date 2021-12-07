@@ -77,11 +77,18 @@ impl EdnaClient {
         guise_gen: Arc<RwLock<GuiseGen>>,
     ) -> EdnaClient {
         init_db(prime, in_memory, host, dbname, schema);
-        let url = format!("mysql://root:password@{}/{}", host, dbname);
+        //XXX 
+        let root_url = if !prime {
+            format!("mysql://root:password@{}", host)
+        } else {
+            format!("mysql://tslilyai:pass@{}", host)
+        };
+        let overall_url = format!("{}/{}", root_url, dbname);
         EdnaClient {
             schema: schema.to_string(),
             in_memory: in_memory,
-            disguiser: disguise::Disguiser::new(host, &url, keypool_size, guise_gen, batch),
+            disguiser: disguise::Disguiser::new(
+                &root_url, &overall_url, keypool_size, guise_gen, batch),
         }
     }
 
@@ -330,7 +337,7 @@ fn create_schema(db: &mut mysql::Conn, in_memory: bool, schema: &str) -> Result<
 
 pub fn init_db(prime: bool, in_memory: bool, host: &str, dbname: &str, schema: &str) {
     warn!("EDNA: Init db {}!", dbname);
-    let url = format!("mysql://root:password@{}", host);
+    let url = format!("mysql://tslilyai:pass@{}", host);
     let mut db = mysql::Conn::new(Opts::from_url(&url).unwrap()).unwrap();
     if prime {
         warn!("Priming database");

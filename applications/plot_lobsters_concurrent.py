@@ -16,7 +16,6 @@ buckets = [b * bucketwidth for b in range(nbuckets)]
 fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(6,4))
 
 # collect all results
-op_results = []
 op_results_batch = []
 
 def get_opdata(filename, results, i):
@@ -42,42 +41,32 @@ def get_stats(filename, i):
     print (min(vals), statistics.median(vals), max(vals))
 
 for nd in ndisguising:
-    get_opdata('results/lobsters_results/concurrent_disguise_stats_disguising_{}group.csv'.format(nd),op_results,0)
     get_opdata('results/lobsters_results/concurrent_disguise_stats_disguising_{}group_batch.csv'.format(nd),op_results_batch,0)
     if nd > 0:
         print(nd)
-        get_stats('results/lobsters_results/concurrent_disguise_stats_disguising_{}group.csv'.format(nd),1)
         get_stats('results/lobsters_results/concurrent_disguise_stats_disguising_{}group_batch.csv'.format(nd),1)
-        get_stats('results/lobsters_results/concurrent_disguise_stats_disguising_{}group.csv'.format(nd),2)
         get_stats('results/lobsters_results/concurrent_disguise_stats_disguising_{}group_batch.csv'.format(nd),2)
 
 
-xs = list(op_results[0].keys())
+xs = list(op_results_batch[0].keys())
 order = np.argsort(xs)
 xs = np.array(xs)[order]
 ys = [statistics.mean(x) for x in op_results_batch[0].values()]
 ys = np.array(ys)[order]
 plt.plot(xs, ys, label='Baseline', color='k')
 
-colors=['m','c']
+colors = ['c', 'm']
 for r in range(1, len(ndisguising)):
-    xs = list(op_results[r].keys())
-    order = np.argsort(xs)
-    xs = np.array(xs)[order]
-    ys = [statistics.mean(x) for x in op_results[r].values()]
-    ys = np.array(ys)[order]
-    plt.plot(xs, ys, color=colors[r-1], linestyle=":", label='{} Disguisers'.format(ndisguising[r]))
-
     xs = list(op_results_batch[r].keys())
     order = np.argsort(xs)
     xs = np.array(xs)[order]
     ys = [statistics.mean(x) for x in op_results_batch[r].values()]
     ys = np.array(ys)[order]
-    plt.plot(xs, ys, color=colors[r-1], label='{} Disguisers (Batch)'.format(ndisguising[r]))
+    plt.plot(xs, ys, color=colors[r-1], label='{} Disguisers'.format(ndisguising[r]))
 
 plt.xlabel('Benchmark Time (s)')
 plt.ylabel('Latency (ms)')
-plt.ylim(ymin=0, ymax=500)
+plt.ylim(ymin=0, ymax=300)
 plt.xlim(xmin=0, xmax=100)
 plt.legend(loc="upper left")
 plt.title("Lobsters Operation Latency vs. Number of Concurrent Disguisers")

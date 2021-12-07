@@ -7,53 +7,29 @@ rm -rf output
 mkdir output
 
 set -e
+l=20
+u=100
 
-for batch in false; do
-	for l in 20; do
-	    for u in 20; do
-		#ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
-#
-#		sleep 8
-#
-#		echo "Starting server"
-#		RUST_LOG=error ../../target/release/websubmit-server \
-#			-i myclass --schema server/src/schema.sql --config server/sample-config.toml \
-#			--benchmark false --prime true --batch $batch \
-#			--nusers 0 --nlec 0 --nqs 0 &> \
-#			output/server_${l}lec_${u}users_normal_disguising.out &
-#
-#		sleep 15
-#
-		#echo "Running client"
-#		RUST_LOG=error ../../target/release/websubmit-client \
-			#--nusers $u --nlec $l --nqs 4 \
-#			--batch $batch --test 1 --db myclass &> \
-##			output/${l}lec_${u}users_normal_disguising.out
-#		echo "Ran test(1) for $l lecture and $u users"
-#
-		for t in 0 2; do
-			for nd in $((u/10)) $((u/8)) $((u/6)) $((u/4)) 20 30; do
-			ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
+for s in 10000 5000 1000 100 0; do
+    ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
 
-			sleep 8
+    sleep 8
 
-			echo "Starting server"
-			RUST_LOG=error ../../target/release/websubmit-server \
-				-i myclass --schema server/src/schema.sql --config server/sample-config.toml \
-				--benchmark false --prime true --batch $batch \
-				--nusers 0 --nlec 0 --nqs 0 &> \
-				output/server_${l}lec_${u}users_${nd}disguisers_$t.out &
+    echo "Starting server"
+    RUST_LOG=error ../../target/release/websubmit-server \
+        -i myclass --schema server/src/schema.sql --config server/sample-config.toml \
+        --benchmark false --prime true \
+        --nusers 0 --nlec 0 --nqs 0 &> \
+        output/server_${l}lec_${u}users_${s}sleep.out &
 
-			sleep 15
+    sleep 15
 
-			echo "Running client"
-			RUST_LOG=error ../../target/release/websubmit-client \
-				--nusers $u --nlec $l --nqs 4 --ndisguising $nd \
-				--batch $batch --test $t --db myclass &> \
-				output/${l}lec_${u}users_${nd}disguisers_$t.out
-			echo "Ran test($t) for $l lecture and $u, $nd users"
-		    done
-		done
-	    done
-	done
+    echo "Running client"
+    RUST_LOG=error ../../target/release/websubmit-client \
+        --nusers $u --nlec $l --nqs 4 --nsleep $s \
+        --db myclass &> \
+        output/client_${l}lec_${u}users_${s}sleep.out
+    echo "Ran test($t) for $l lecture and $u, $s sleep"
+
+    rm *.txt
 done
