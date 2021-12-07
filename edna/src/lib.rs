@@ -78,7 +78,7 @@ impl EdnaClient {
     ) -> EdnaClient {
         init_db(prime, in_memory, host, dbname, schema);
         //XXX 
-        let root_url = if !prime {
+        let root_url = if host != "127.0.0.1" {
             format!("mysql://root:password@{}", host)
         } else {
             format!("mysql://tslilyai:pass@{}", host)

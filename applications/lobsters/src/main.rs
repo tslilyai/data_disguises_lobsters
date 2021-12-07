@@ -34,8 +34,8 @@ const SCHEMA: &'static str = include_str!("../schema.sql");
 struct Cli {
     #[structopt(long = "scale", default_value = "1")]
     scale: f64,
-    #[structopt(long = "ndisguising", default_value = "1")]
-    ndisguising: u64,
+    #[structopt(long = "nsleep", default_value = "10000")]
+    nsleep: u64,
     #[structopt(long = "prime")]
     prime: bool,
     #[structopt(long = "stats")]
@@ -125,9 +125,9 @@ fn main() {
     thread::sleep(time::Duration::from_millis(1000));
 
     let arc_edna = Arc::new(Mutex::new(edna));
-    run_disguising(
+    let ndisguises = run_disguising_sleeps(
         arc_edna,
-        args.ndisguising,
+        args.nsleep,
         &user2decryptcap,
         delete_durations.clone(),
         restore_durations.clone(),
@@ -140,6 +140,7 @@ fn main() {
 
     print_stats(
         &args,
+        ndisguises,
         &op_durations.lock().unwrap(),
         &delete_durations.lock().unwrap(),
         &restore_durations.lock().unwrap(),
@@ -243,6 +244,7 @@ fn run_disguising_thread(
     restore_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
     overall_start: time::Instant,
     barrier: Arc<Barrier>,
+    nsleep: u64,
 ) {
     let mut my_delete_durations = vec![];
     let mut my_restore_durations = vec![];
@@ -259,7 +261,7 @@ fn run_disguising_thread(
     // wait for any concurrent disguisers to finish
     barrier.wait();
     // sleep for 10 seconds, then restore
-    thread::sleep(time::Duration::from_millis(10000));
+    thread::sleep(time::Duration::from_millis(nsleep));
 
     // RESUB
     let start = time::Instant::now();
@@ -286,7 +288,40 @@ fn run_disguising_thread(
         .append(&mut my_restore_durations);
 }
 
-fn run_disguising(
+fn run_disguising_sleeps(
+    edna: Arc<Mutex<EdnaClient>>,
+    nsleep: u64,
+    user2decryptcap: &HashMap<u64, Vec<u8>>,
+    delete_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
+    restore_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
+) -> Result<u64, mysql::Error> {
+    let overall_start = time::Instant::now();
+    let mut nexec = 0;
+    while overall_start.elapsed().as_millis() < TOTAL_TIME {
+        // wait between each round
+        thread::sleep(time::Duration::from_millis(nsleep));
+        let barrier = Arc::new(Barrier::new(0));
+        let my_edna = edna.clone();
+        let decryptcap = user2decryptcap.get(&101).unwrap().clone();
+        let my_delete_durations = delete_durations.clone();
+        let my_restore_durations = restore_durations.clone();
+        let c = barrier.clone();
+        run_disguising_thread(
+            my_edna,
+            101,
+            &decryptcap,
+            my_delete_durations,
+            my_restore_durations,
+            overall_start,
+            c,
+            nsleep,
+        );
+        nexec += 1;
+    }
+    Ok(nexec)
+}
+
+/*fn run_disguising(
     edna: Arc<Mutex<EdnaClient>>,
     ndisguising: u64,
     user2decryptcap: &HashMap<u64, Vec<u8>>,
@@ -316,6 +351,7 @@ fn run_disguising(
                     my_restore_durations,
                     overall_start,
                     c,
+                    10000,
                 )
             }));
         }
@@ -324,7 +360,7 @@ fn run_disguising(
         }
     }
     Ok(())
-}
+}*/
 
 fn run_stats_test(
     edna: &mut EdnaClient,
@@ -456,14 +492,12 @@ fn run_stats_test(
 
 fn print_stats(
     args: &Cli,
-    op_durations: &Vec<(Duration, Duration)>,
+    ndisguises: u64,
+    edit_durations: &Vec<(Duration, Duration)>,
     delete_durations: &Vec<(Duration, Duration)>,
     restore_durations: &Vec<(Duration, Duration)>,
 ) {
-    let filename = format!(
-        "concurrent_disguise_stats_disguising_{}group_batch.csv",
-        args.ndisguising
-    );
+    let filename = format!("concurrent_disguise_stats_{}sleep_batch.csv", args.nsleep);
 
     // print out stats
     let mut f = OpenOptions::new()
@@ -472,10 +506,13 @@ fn print_stats(
         .truncate(true)
         .open(&filename)
         .unwrap();
+
+    writeln!(f, "{}", ndisguises).unwrap();
+
     writeln!(
         f,
         "{}",
-        op_durations
+        edit_durations
             .iter()
             .map(|d| format!(
                 "{}:{}",
