@@ -7,7 +7,7 @@ from collections import defaultdict
 
 plt.style.use('seaborn-deep')
 
-sleeps = [100000, 0]
+sleeps = [1000000, 0]
 maxts = 150
 
 # collect all results

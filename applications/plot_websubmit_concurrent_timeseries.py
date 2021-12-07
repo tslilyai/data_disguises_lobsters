@@ -7,8 +7,9 @@ from collections import defaultdict
 
 plt.style.use('seaborn-deep')
 
-sleeps = [100000, 0]
-maxts = 150000
+sleeps = [1000000, 0]
+users = [100, 30, 1]
+maxts = 120000
 bucketwidth = 1000
 nbuckets = int(maxts/bucketwidth)
 buckets = [b * bucketwidth for b in range(nbuckets)]
@@ -31,8 +32,8 @@ def get_editdata(filename, results):
             editdata[bucket].append(val)
         results.append(editdata)
 
-for s in sleeps:
-    get_editdata('results/websubmit_results/concurrent_disguise_stats_{}sleep_batch.csv'.format(s),
+for u in users:
+    get_editdata('results/websubmit_results/concurrent_{}users_0sleep.csv'.format(u),
             edit_results_batch)
 
 for s in range(len(sleeps)):
@@ -41,11 +42,11 @@ for s in range(len(sleeps)):
     xs = np.array(xs)[order]
     ys = [statistics.mean(x) for x in edit_results_batch[s].values()]
     ys = np.array(ys)[order]
-    plt.plot(xs, ys, label='{}ms Btwn Disguises'.format(sleeps[s]))
+    plt.plot(xs, ys, label='{} Normal Users'.format(users[s]))
 
     plt.xlabel('Benchmark Time (s)')
     plt.ylabel('Latency (ms)')
-    plt.ylim(ymin=0, ymax=3)
+    plt.ylim(ymin=0, ymax=20)
     plt.xlim(xmin=0, xmax=100)
     plt.legend(loc="upper left")
     plt.title("WebSubmit Edit Latency vs. Disguiser Sleep Time")
