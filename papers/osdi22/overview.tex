@@ -99,6 +99,21 @@ support, implements them in terms of \sys's API, and exposes hooks to invoke dis
 users who are empowered to trigger them (\eg individual users for account deletion, but
 administrators for global anonymization).
 %
+
+\subsection{\sys Operation}
+
+\begin{figure}[t]
+  \centering
+  \ms{Would LOVE to have a figure here.}
+  \caption{\sys handles application requests to disguise or reveal data. Only the
+    encryption of \sys's stored records is trusted.}
+  \label{f:edna-overview}
+\end{figure}
+
+
+\section{API}
+\label{s:api}
+
 \sys exposes two APIs:
 \begin{enumerate}[nosep]
  \item A high-level API (Figure~\ref{f:api-high}) for applications that want \sys to do
@@ -115,14 +130,6 @@ abstractions, we primarily discuss the low-level API in this paper.
 %
 \S\ref{s:api-high} briefly describes the high-level API.
 %
-
-\subsection{Disguise Execution}
-%
-
-\ms{Would LOVE to have a figure here.}
-
-\section{API}
-\label{s:api}
 
 \ms{I just dumped old content here; this needs reorganizing.}
 
