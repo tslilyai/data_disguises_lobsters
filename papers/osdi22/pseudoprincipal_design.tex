@@ -1,22 +1,22 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Pseudoprincipal Tokens Design}
+\subsection{Pseudoprincipal Records Design}
 
 To apply one disguise on top of another in a way that supports, \eg comment removal after universal
 decorrelation, \sys should support disguises that modify data belonging to pseudoprincipals, and which
-produce tokens for pseudoprincipals.
+produce records for pseudoprincipals.
 %
 For example, after universal decorrelation, pseudoprincipals own every paper or review. If the
-application then performs a disguise to remove papers, the corresponding diff token would be
+application then performs a disguise to remove papers, the corresponding diff record would be
 associated with pseudoprincipals.
 
-To secure these tokens, \sys needs to encrypt them in some way. The simplest way would be to use
+To secure these records, \sys needs to encrypt them in some way. The simplest way would be to use
 \pubk{p}, where $p$ is the real principal linked to the pseudoprincipal being disguised.
 However, \sys does not know which real user corresponds to which pseudoprincipals (for
 unlinkability, the application server/\sys cannot store pseudoprincipal-user correspondences). 
 
 Instead, \sys associates each pseudoprincipal $q$ with a keypair \pubk{q} and \privk{q}, and treats
-pseudoprincipals the same as any other principal in the system. \sys encrypts pseudoprincipal tokens
-with \pubk{q}, and requires decryption capability \privk{q} to access these tokens. \sys must
+pseudoprincipals the same as any other principal in the system. \sys encrypts pseudoprincipal records
+with \pubk{q}, and requires decryption capability \privk{q} to access these records. \sys must
 securely store pseudoprincipal decryption capabilities \privk{q} such that only authorized
 users---those who can speak for the original principal linked to pseudoprincipals---can
 access them.
@@ -43,18 +43,18 @@ capability of pseudoprincipal $q$.
 %that $p$ has decorrelated data because associated pseudoprincipal private keys are not stored
 %publically with $p$'s ID.
 
-\head{Securing Pseudoprincipal Token Access.}
-When \sys saves a disguise token $\mathcal{T}_{pd}$ from disguise $d$ associated with pseudoprincipal $q$, \sys:
+\head{Securing Pseudoprincipal Record Access.}
+When \sys saves a disguise record $\mathcal{T}_{pd}$ from disguise $d$ associated with pseudoprincipal $q$, \sys:
 \begin{enumerate}
-    \item creates a token wrapper $W$ for the token $\mathcal{T}_{qd}$
+    \item creates a record wrapper $W$ for the record $\mathcal{T}_{qd}$
     \item encrypts $W$ with \pubk{q} to produce $\enc(\pubk{q}, W)$
     \item stores $\enc(\pubk{q}, W)$ at location \lcapa{qd}
     \item encrypts \lcapa{qd} with \pubk{q} to produce $\enc(\pubk{q}, \lcapa{qd})$
     \item stores \enc(\pubk{q}, \lcapa{qd}) associated with principal $q$'s ID
 \end{enumerate}
-Note that the process for pseudoprincipal tokens is the same as that for real principal tokens up to
+Note that the process for pseudoprincipal records is the same as that for real principal records up to
 step (4): \sys stores encrypted \lcapa{qd} associated with $q$'s ID, whereas \sys returns all locators to
-the application when producing real principal tokens (and then forgets these locators).
+the application when producing real principal records (and then forgets these locators).
 This is because the application and \sys may not know which original principal can speak for $q$,
 and therefore cannot \eg email \lcapa{qd} to the appropriate user.
 
@@ -64,20 +64,20 @@ created by a disguise, and therefore any disguise metadata regarding $q$ has alr
 dissociated from the original principal $p$'s identity.
 
 With this extended design, a client speaking for $p$ that provides decryption capability \privk{p}
-and locator \lcapa{dp} authorizes access to \emph{both} $p$'s tokens for disguise $d$ \emph{and} all
-tokens of all pseudoprincipals $q$ created during disguise $d$ linked to $p$.
+and locator \lcapa{dp} authorizes access to \emph{both} $p$'s records for disguise $d$ \emph{and} all
+records of all pseudoprincipals $q$ created during disguise $d$ linked to $p$.
 
 Given a data capability \privk{p}, \sys can can access \privk{q} by decrypting \enc(\pubk{p},
 \privk{q}).
 %
 With \privk{q}, \sys can decrypt all \enc(\pubk{q}, \lcapa{qd}) to locate all $q$'s encrypted
-tokens, and then decrypt these tokens with \privk{q}. 
+records, and then decrypt these records with \privk{q}. 
 
 Thus, \sys can recursively disguise pseudoprincipals of some original principal $p$ such that only a
-user who can speak for $p$ can access these pseudoprincipals' associated tokens.
+user who can speak for $p$ can access these pseudoprincipals' associated records.
 Importantly, these users can do so using only $p$'s decryption capability and locators.
 Furthermore, this design still meets our security goals: decryption capabilities secure all disguise
-tokens, and an adversary learns no disguise metadata about real users.
+records, and an adversary learns no disguise metadata about real users.
 
 \lyt{Note somewhere that pseudoprincipals and recursive disguising are why we need asymmetric crypto; otherwise, we
 could just send the symmetric key to the original user being disguised?}
@@ -86,18 +86,18 @@ could just send the symmetric key to the original user being disguised?}
 Recall that \sys removes any metadata about a principal when the principal is removed by the
 application during a disguise.
 However, \sys cannot simply remove pseudoprincipal metadata because this metadata includes \lcapa{qd}
-ciphertexts. Removing \lcapa{qd} removes the ability to find any of the encrypted token bags
-located at \lcapa{qd}. Thus, if \sys wanted to access $q$'s tokens for \eg disguise reversal, \sys
-would need to attempt to decrypt every encrypted token bag at every location.
+ciphertexts. Removing \lcapa{qd} removes the ability to find any of the encrypted record bags
+located at \lcapa{qd}. Thus, if \sys wanted to access $q$'s records for \eg disguise reversal, \sys
+would need to attempt to decrypt every encrypted record bag at every location.
 
 A pseudoprincipal is often deleted while \sys has knowledge of the link between $q$ and
-original principal $p$ (\eg, when a client deletes $p$'s account and provides speaks-for tokens
+original principal $p$ (\eg, when a client deletes $p$'s account and provides speaks-for records
 to \sys to delete $p$'s anoymized data). In these scenarios, \sys can encrypt the
 \lcapa{qd} ciphertexts with \pubk{p} and store the ciphertexts at some locator that is then emailed
 to the real user speaking for $p$.
 
 However, without knowledge of this link, \sys only has two choices when $q$ is removed by the
-application: delete $q$'s metadata at the cost of losing (efficient) access to $q$'s tokens, or
+application: delete $q$'s metadata at the cost of losing (efficient) access to $q$'s records, or
 retain $q$'s metadata at the cost slightly weaker security (an adversary learns that a
 pseudoprincipal existed and some data had been decorrelated at some point, even if the corresponding
 user or data has since been deleted).

@@ -2,7 +2,29 @@
 \label{s:design}
 
 \subsection{Abstractions}
+An application using \sys's API works with three main abstractions: (1) natural principals and
+pseudoprincipals, (2) diff records and speaks-for records, and (3) record locators.
 
+\emph{Application principals $p$} correspond to users of the application that are uniquely identifiable
+(\eg via a user ID). An application represents principals as \eg a record in a \fn{users} database
+table, or some other data object in its datastore.
+\emph{Pseudoprincipals $q$} are a subset of principals that correspond to anonymous users not tied to any natural
+person. A pseudoprincipal may or may not be indistinguishable from principals correlated to natural
+persons (what we call a \emph{natural principal}): for example, it
+may have no write permissions.
+
+\sys allows applications to encrypt, store, and retrieve \emph{diff records} and \emph{speaks-for
+records} produced by a disguise. A diff record \tdiff{pd} stores the pre-to-post-disguise diff of
+$p$'s data disguised by $d$. A speaks-for record \town{pd} stores links between pseudoprincipals
+produced by disguise $d$ to (natural or pseudo) principal $p$.
+\sys handles secure storage of records for the application by encrypting records with per-principal
+public keys \pubk{p}. Clients maintain the corresponding \privk{p}.
+
+\sys stores record ciphertexts from disguise $d$ for principal $p$ in a record bag indexed by 
+\emph{record locator \lcapa{pd}}. \sys and the application do not store locators; instead, 
+clients maintain locators for natural principals whose disguised data they wish to later reveal.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{API}
 \label{s:api}
 
@@ -37,8 +59,8 @@ websubmit-rs is used by students at a U.S.\ university to submit homework assign
 \sys exposes an API (Table~\ref{tab:api}) to web applications that wish to support secure
 disguising.
 %
-The API allows the application to start and end disguises; securely save diff and speaks-for token
-data; and extract token data when necessary to enable post-disguise temporary recorrelation or
+The API allows the application to start and end disguises; securely save diff and speaks-for record
+data; and extract record data when necessary to enable post-disguise temporary recorrelation or
 disguise revealing.
 %
 \sys also provides a higher-level convenience API (Table~\ref{tab:high_level_api}) that enables
@@ -59,15 +81,15 @@ with \sys by invoking \fn{RegisterPrincipal}. \sys generates a public-private ke
 application. \sys saves the public key \pubk{p} with $p$'s ID.
 
 The application handles passing \privk{p} to the client; \privk{p} will allow the user running the
-client to later access $p$'s disguise tokens.
+client to later access $p$'s disguise records.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Disguising and Disguise Tokens.}
+\head{Disguising and Disguise Records.}
 When a client speaking for principal $p$ wants to apply a disguise $d$,
 the application invokes \fn{StartDisguise} to signal \sys that a new disguise has begun.
 The application then performs the disguise's data updates (\eg, removing or modifying
 data objects). If the application wishes for the original data to be later revealed, the
-application generates some custom diff and invokes \fn{SaveDiffToken} with the diff.
+application generates some custom diff and invokes \fn{SaveDiffRecord} with the diff.
 
 In the case that the application decorrelates a data object from a principal, the application
 queries \sys for a new pseudoprincipal owner for the data object (to preserve referential integrity)
@@ -75,11 +97,11 @@ using \fn{CreatePseudoprincipal}. \sys returns the pseudoprincipal's ID and obje
 application handles properly inserting the pseudoprincipal object.  If the application wishes for
 the original owning principal to be temporarily or permanently recorrelated with the data object,
 the application generates any speaks-for information it wishes to save, and invokes
-\fn{SaveSpeaksForToken} with both the original principal's and new pseudoprincipal's IDs.
+\fn{SaveSpeaksForRecord} with both the original principal's and new pseudoprincipal's IDs.
 
 When the disguise is complete, the application invokes \fn{EndDisguise}. This informs \sys to erase
-any sensitive data, complete any token encryption operations, and to return to the application a
-pair of locators that will allow \sys later to locate the (encrypted) diff and speaks-for tokens
+any sensitive data, complete any record encryption operations, and to return to the application a
+pair of locators that will allow \sys later to locate the (encrypted) diff and speaks-for records
 produced by the disguise respectively.
 
 The application handles passing the locators \lcapa{pd} to the user speaking for $p$; to ensure that
@@ -91,14 +113,14 @@ retain locators.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Disguise Revealing.}
 In order to reveal the original state of data disguised by $d$ for principal $p$, the application
-needs to retrieve the diff and speaks-for tokens of $p$ from $d$ storing information about the undisguised
+needs to retrieve the diff and speaks-for records of $p$ from $d$ storing information about the undisguised
 state prior to applying $d$.
 This requires the application to obtain the locators \lcapa{pd} and decryption capability \privk{p}
 from a client speaking for $p$.
 
-With these in hand, the application calls \fn{GetTokensOfDisguise}, which returns the set of
-(plaintext) diff and speaks-for tokens from disguise $d$ for principal $p$; the application then uses
-the token data to reveal data as appropriate.
+With these in hand, the application calls \fn{GetRecordsOfDisguise}, which returns the set of
+(plaintext) diff and speaks-for records from disguise $d$ for principal $p$; the application then uses
+the record data to reveal data as appropriate.
 \lyt{Add details about how sometimes we need multiple locators $d' \neq d$ because of pseudoprincipals?}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -113,8 +135,8 @@ originally belonged to $p$ when $p$ deletes their account.
 principal using \fn{GetPseudoprincipalsOf}, which returns the set of corresponding pseudoprincipal
 IDs. The application must provide (obtaining from the client) any locators \lcapa{pd} from
 anonymizing disguises $d$ that produced the pseudoprincipals in question, as well as the client's
-decryption capability \privk{p}. This allows \sys to inspect the content of speaks-for tokens and
-verify links between principal $p$ and pseudoprincipals stored in speaks-for tokens.
+decryption capability \privk{p}. This allows \sys to inspect the content of speaks-for records and
+verify links between principal $p$ and pseudoprincipals stored in speaks-for records.
 
 Once the application knows which pseudoprincipals $p'$ correspond to a principal $p$, the application can
 authorize a client acting on behalf of $p$ to act on behalf of $p'$.
@@ -125,14 +147,14 @@ If an application developer does not want to implement the necessary data transf
 application and revealing, the developer can provide a disguise specification in a language provided
 by \sys, which includes schema information and supports a restricted set of SQL database
 modifications. When \fn{ApplyDisguise} is invoked with the disguise specification, \sys applies the
-disguise data transformations and automatically generates the appropriate diff and speaks-for tokens.
+disguise data transformations and automatically generates the appropriate diff and speaks-for records.
 
 Similarly, when \fn{RevealDisguise} is invoked, \sys can interpret the automatically-generated diff and
-speaks-for tokens and perform the data modifications to restore the original state of data (given
+speaks-for records and perform the data modifications to restore the original state of data (given
 that no subsequent updates had been performed since disguising).
 
 Application handling of locators and decryption capabilities remains the same: \fn{ApplyDisguise}
 takes optional locators and decryption capabilities to support disguise composition, and produces
 locators for the applied disguise; \fn{RevealDisguise} takes locators and decryption capabilities to
-locate and access tokens to reveal.
+locate and access records to reveal.
 

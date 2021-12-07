@@ -46,48 +46,48 @@ disguises, but which now belongs to anonymous users.
 
 \ms{end dump}
 
-\subsection{Secure Disguise Tokens Design}
-Applications save disguise metadata in the form of tokens: speaks-for tokens \town{pd} save information linking
-principals to anonymous pseudoprincipals, and diff tokens \tdiff{pd} save information about modifications
+\subsection{Secure Disguise Records Design}
+Applications save disguise metadata in the form of records: speaks-for records \town{pd} save information linking
+principals to anonymous pseudoprincipals, and diff records \tdiff{pd} save information about modifications
 performed during the disguise.
-We discuss here how the \sys securely stores tokens produced by applications upon disguising, and
-how \sys allows applications to efficiently and securely retrieve these tokens.
+We discuss here how the \sys securely stores records produced by applications upon disguising, and
+how \sys allows applications to efficiently and securely retrieve these records.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Token Wrappers.}
-In order to generically handle token data, \sys stores all tokens in token wrappers.
-Wrappers store the bytes of the token \tdiff{pd} or \town{pd} (provided
+\head{Record Wrappers.}
+In order to generically handle record data, \sys stores all records in record wrappers.
+Wrappers store the bytes of the record \tdiff{pd} or \town{pd} (provided
 by the application), a correlated principal ID $p$, and the disguise ID $d$ of the disguise producing the
-token. In addition, \sys includes a random nonce in the token wrapper to prevent known plaintext
+record. In addition, \sys includes a random nonce in the record wrapper to prevent known plaintext
 attacks.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Securing Token Access.}
+\head{Securing Record Access.}
 When a new principal $p$ is created, \sys produces a private-public keypair, and returns \privk{p} to
 the application (which then sends it to the appropriate client). \sys stores \pubk{p} associated
 with principal ID $p$.
 If a principal $p$ is removed from the application during a disguise, \sys deletes any corresponding metadata, namely
 the record of \pubk{p}.
 
-\sys secures a principal $p$'s tokens by storing them in a token wrapper, and encrypting the wrapper
+\sys secures a principal $p$'s records by storing them in a record wrapper, and encrypting the wrapper
 with \pubk{p}. Only a client holding the private key \privk{p}---the decryption
-capability---can access these tokens.
+capability---can access these records.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Securing Disguise History.}
 \sys should not leak information that $d$ disguised principal $p$ if $p$ interacts with the system
 to reveal or otherwise access disguised data. In particular, \sys should avoid an adversary learning
-that encrypted tokens exist for a particular $p$ and $d$, since this allows the adversary to deduce
+that encrypted records exist for a particular $p$ and $d$, since this allows the adversary to deduce
 that $d$ disguised $p$. For example, \sys should not reveal that a principal $p$ has invoked GDPR
 deletion.
 
-A strawman solution could store all encrypted tokens in one large bag, so those from
+A strawman solution could store all encrypted records in one large bag, so those from
 $d$ for $p$ are indistinguishable from those from $d'$ for $p'$. When \sys then gets a request for
-tokens from disguise $d$ and for principal $p$, \sys attempts to decrypt (using a provided
-decryption capability \privk{p}) all tokens in order to find the relevant ones.
+records from disguise $d$ and for principal $p$, \sys attempts to decrypt (using a provided
+decryption capability \privk{p}) all records in order to find the relevant ones.
 
 To make this process more efficient, \sys uses \emph{locators \lcapa{pd}}. For each $p$ and $d$,
-\sys stores encrypted tokens \tdiff{pd} and \town{pd} in a randomly located bag pointed to by
+\sys stores encrypted records \tdiff{pd} and \town{pd} in a randomly located bag pointed to by
 locator \lcapa{pd}. \sys returns all locators produced by a disguise to the application; to ensure
 that locators don't leak information that disguise $d$ applied to $p$, \sys then forgets all locator
 information, and the application should ensure that locators are stored external to the application
@@ -97,22 +97,22 @@ Note that with this design, an adversary without access to \lcapa{pd} can learn 
 for \emph{some} $p$ and $d$, but cannot identify \emph{which} $p$ or $d$.
 %
 Furthermore, an adversary with access to decryption capability \privk{p} would not need locators to
-discover $p$'s disguise history: they can decrypt every token in every bag to see which bags they
+discover $p$'s disguise history: they can decrypt every record in every bag to see which bags they
 can successful decrypt. Using locators just makes such an attack less efficient.
 %
 These scenarios are outside our threat model.
 
 \lyt{
-An alternative design might remove encrypted tokens completely (and \eg store them in external per-user
+An alternative design might remove encrypted records completely (and \eg store them in external per-user
 vaults or email them to the client).
 This leaves no trace in \sys or the application, and would prevent the adversary from learning
 anything. However, this places a large burden on the client.
 Maybe put this in future work?
 }
 
-To summarize, when \sys saves a disguise token $\mathcal{T}_{pd}$ from disguise $d$ associated with principal $p$, \sys:
+To summarize, when \sys saves a disguise record $\mathcal{T}_{pd}$ from disguise $d$ associated with principal $p$, \sys:
 \begin{enumerate}
-    \item creates a token wrapper $W$ for the token $\mathcal{T}_{pd}$
+    \item creates a record wrapper $W$ for the record $\mathcal{T}_{pd}$
     \item encrypts $W$ with \pubk{p} to produce $\enc(\pubk{p}, W)$
     \item stores $\enc(\pubk{p}, W)$ at location \lcapa{pd}
     \item returns \lcapa{pd} to the application, where it is sent to the appropriate user and then
