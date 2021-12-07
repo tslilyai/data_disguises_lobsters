@@ -213,16 +213,15 @@ HotCRP Restore  & 73 & 998
 
 \textbf{Composing Deletion After Anonymization.}
 \lyt{TODO}
-Account deletion post-anonymization requires \sys to perform temporary
-recorrelation find data of pseudoprincipals that the user is authorized to remove along with their
-account. \sys incurs latency increases from decrypting all speaks-for records of the user, and from
-performing the deletion or modification queries for each discovered pseudoprincipal (in addition to
-the original user).
+Account deletion post-anonymization requires \sys to perform temporary recorrelation find data of
+pseudoprincipals that the user is authorized to remove along with their account. \sys incurs latency
+increases from decrypting all speaks-for records of the user, and from performing the deletion or
+modification queries for each discovered pseudoprincipal (in addition to the original user).
 
-Account restoration may also restore pseudoprincipal-associated data, which requires temporary recorrelation
-to access to pseudoprincipal-associated records produced from the account deletion.  \sys thus
-additionally decrypt speaks-for records for all pseudoprincipals of the user, which causes the the
-increase in latency.\lyt{Numbers?}
+Account restoration may also restore pseudoprincipal-associated data, which requires temporary
+recorrelation to access to pseudoprincipal-associated records produced from the account deletion.
+\sys thus additionally decrypt speaks-for records for all pseudoprincipals of the user, which causes
+the the increase in latency.\lyt{Numbers?}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Storage Costs of Disguise-Related Actions.}
