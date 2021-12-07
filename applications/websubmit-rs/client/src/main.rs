@@ -66,23 +66,26 @@ fn main() {
                         u, l, q, l, q, u)).unwrap();
             }*/
             // add extra data for other 90% of all users
-            let mut rng = rand::thread_rng();
             //for u in args.nusers + args.ndisguising..args.nusers + args.ndisguising + args.nusers*10 {
             for u in args.nusers..args.nusers + args.nusers * 10 {
                 db.query_drop(&format!("INSERT INTO answers VALUES ('{}@mail.edu', {}, {}, 'lec{}q{}answer{}', '1000-01-01 00:00:00');", 
                         u, l, q, l, q, u)).unwrap();
-                let num: u128 = rng.gen();
-                db.query_drop(format!(
-                    "INSERT INTO users VALUES ('{}@mail.edu', '{}', 0, 0);",
-                    u, num
-                ))
-                .unwrap();
+
             }
         }
     }
+    let mut rng = rand::thread_rng();
+    for u in args.nusers+2..args.nusers +2 + args.nusers * 10 {
+        let num: u128 = rng.gen();
+        db.query_drop(format!(
+            "INSERT INTO users VALUES ('{}@mail.edu', '{}', 0, 0);",
+            u, num
+        ))
+        .unwrap();
+    }
     info!(log, "Inserted {} lecs with {} qs", args.nlec, args.nusers);
 
-    for u in 0..args.nusers {
+    for u in 0..args.nusers + 2 {
         let email = format!("{}@mail.edu", u);
         let response = client
             .post(&format!("{}/apikey/generate", SERVER))
@@ -243,7 +246,7 @@ fn run_disguising_sleeps(
         // wait between each round
         thread::sleep(time::Duration::from_millis(nsleep));
         let barrier = Arc::new(Barrier::new(0));
-        let u = nusers + 10;
+        let u = nusers+1;
         let email = format!("{}@mail.edu", u);
         let apikey = user2apikey.get(&email).unwrap().clone();
         let decryptcap = user2decryptcap.get(&email).unwrap().clone();

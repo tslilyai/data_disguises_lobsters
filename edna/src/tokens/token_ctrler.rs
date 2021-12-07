@@ -320,7 +320,7 @@ impl TokenCtrler {
         persist: bool,
         db: &mut mysql::PooledConn,
     ) {
-        warn!("Re-registering saved principal {}", uid);
+        error!("Re-registering saved principal {}", uid);
         let pdata = PrincipalData {
             pubkey: pubkey.clone(),
             is_anon: is_anon,
@@ -342,7 +342,7 @@ impl TokenCtrler {
         db: &mut mysql::PooledConn,
         persist: bool,
     ) -> RsaPrivateKey {
-        warn!("Registering principal {}", uid);
+        error!("Registering principal {}", uid);
         let (private_key, pubkey) = self.get_pseudoprincipal_key_from_pool();
         let pdata = PrincipalData {
             pubkey: pubkey,
@@ -424,7 +424,7 @@ impl TokenCtrler {
             PRINCIPAL_TABLE,
             values.join(", ")
         );
-        //warn!("Insert q {}", insert_q);
+        error!("Persist Principals insert q {}", insert_q);
         db.query_drop(&insert_q).unwrap();
         error!(
             "Edna persist {} principals: {}",
@@ -446,7 +446,7 @@ impl TokenCtrler {
         let mut ptoken = new_remove_principal_token_wrapper(uid, did, &p);
         self.insert_user_diff_token_wrapper(&mut ptoken);
         self.tmp_remove_principals.insert(uid.to_string());
-        error!("Edna: mark principal to remove : {}", start.elapsed().as_micros());        
+        error!("Edna: mark principal {} to remove : {}", uid, start.elapsed().as_micros());        
     }
 
     pub fn remove_principal(&mut self, uid: &UID, db: &mut mysql::PooledConn) {
@@ -456,9 +456,9 @@ impl TokenCtrler {
         if pdata.is_none() {
             return;
         } else {
-            warn!("Removing principal {}\n", uid);
+            error!("Removing principal {}\n", uid);
             self.principal_data.remove(uid);
-            warn!(
+            error!(
                 "DELETE FROM {} WHERE {} = \'{}\'",
                 PRINCIPAL_TABLE,
                 UID_COL,

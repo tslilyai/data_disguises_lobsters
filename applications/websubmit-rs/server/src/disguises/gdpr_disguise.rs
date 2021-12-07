@@ -65,7 +65,6 @@ fn get_table_disguises(
     hm.insert(
         "users".to_string(),
         Arc::new(RwLock::new(vec![
-            // only modify if a PC member
             ObjectTransformation {
                 pred: get_eq_pred("email", user_email.clone()),
                 trans: Arc::new(RwLock::new(TransformArgs::Remove)),

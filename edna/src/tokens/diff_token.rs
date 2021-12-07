@@ -252,6 +252,7 @@ impl EdnaDiffToken {
                     ownership_loc_caps: self.ownership_loc_caps.clone(),
                     diff_loc_caps: self.diff_loc_caps.clone(),
                 };
+                error!("Going to reveal principal {}", self.uid);
                 token_ctrler.register_saved_principal(
                     &self.uid,
                     pdata.is_anon,
@@ -312,7 +313,7 @@ impl EdnaDiffToken {
                     db,
                     stats.clone(),
                 )?;
-                error!("Reveal removed data: {}", start.elapsed().as_micros());
+                error!("Reveal removed data for {}: {}", self.guise_name, start.elapsed().as_micros());
             }
             MODIFY_GUISE => {
                 // get current guise in db

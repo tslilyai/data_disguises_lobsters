@@ -5,7 +5,7 @@ use crate::tokens::*;
 use crate::*;
 #[cfg(feature = "flame_it")]
 use flamer::flame;
-use log::error;
+use log::warn;
 use mysql::{Opts, Pool};
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
@@ -74,7 +74,7 @@ impl Disguiser {
             let new_uid = new_parent_vals[uid_ix].to_string();
             self.pseudoprincipal_data_pool.push((new_uid, rowvals));
         }
-        error!(
+        warn!(
             "Repopulated pseudoprincipal data pool of size {}: {}",
             self.poolsize,
             start.elapsed().as_micros()
@@ -124,7 +124,7 @@ impl Disguiser {
         let (dts, own_tokens) =
             locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps);
         diff_tokens.extend(dts.iter().cloned());
-        error!(
+        warn!(
             "Edna: Get tokens for reveal: {}",
             start.elapsed().as_micros()
         );
@@ -190,7 +190,7 @@ impl Disguiser {
                 }
             }
         }
-        error!("Reveal tokens: {}", start.elapsed().as_micros());
+        warn!("Reveal tokens: {}", start.elapsed().as_micros());
 
         drop(locked_token_ctrler);
         self.end_disguise_action();
@@ -223,7 +223,7 @@ impl Disguiser {
             &ownership_loc_caps,
         );
         drop(locked_token_ctrler);
-        error!(
+        warn!(
             "Edna: Get all user tokens for disguise: {}",
             start.elapsed().as_micros()
         );
@@ -356,7 +356,7 @@ impl Disguiser {
             //warn!("Thread {:?} exiting", thread::current().id());
             //}));
         }
-        error!(
+        warn!(
             "Edna: Execute modify/decor total: {}",
             start.elapsed().as_micros()
         );
@@ -372,7 +372,7 @@ impl Disguiser {
             &ownership_tokens,
             &mut db,
         );
-        error!(
+        warn!(
             "Edna: Execute removes total: {}",
             start.elapsed().as_micros()
         );
@@ -394,7 +394,7 @@ impl Disguiser {
         let loc_caps = locked_token_ctrler.save_and_clear(&mut db);
         drop(locked_token_ctrler);
         self.end_disguise_action();
-        error!("Edna: apply disguise: {}", start.elapsed().as_micros());
+        warn!("Edna: apply disguise: {}", start.elapsed().as_micros());
         Ok(loc_caps)
     }
 
@@ -488,7 +488,7 @@ impl Disguiser {
             }
         }
         drop(locked_token_ctrler);
-        error!(
+        warn!(
             "Edna: modify global diff tokens: {}",
             start.elapsed().as_micros()
         );
@@ -535,16 +535,23 @@ impl Disguiser {
                             mystats.clone(),
                         )
                         .unwrap();
-                        let pred_items: HashSet<&Vec<RowVal>> =
-                            HashSet::from_iter(selected_rows.iter());
-                        error!(
+                        let pred_items: HashSet<Vec<RowVal>> =
+                            HashSet::from_iter(selected_rows.iter().cloned());
+                        warn!(
+                            "Edna: select items for remove {}: {:?}",
+                            selection,
+                            pred_items
+                        );
+ 
+                        warn!(
                             "Edna: select items for remove {}: {}",
                             selection,
                             start.elapsed().as_micros()
                         );
                         warn!(
-                            "ApplyPred: Got {} selected rows matching predicate {:?}\n",
+                            "ApplyPred: Got {} selected rows matching table {} predicate {:?}\n",
                             pred_items.len(),
+                            table,
                             p
                         );
 
@@ -557,7 +564,7 @@ impl Disguiser {
                             drop_me_later.push(delstmt);
                         } else {
                             helpers::query_drop(delstmt.to_string(), db, mystats.clone()).unwrap();
-                            error!(
+                            warn!(
                                 "Edna: delete items {}: {}",
                                 delstmt,
                                 start.elapsed().as_micros()
@@ -588,11 +595,12 @@ impl Disguiser {
                                 // if we're working on a guise table (e.g., a users table)
                                 // remove the user
                                 if locked_guise_gen.guise_name == table {
+                                    warn!("Found item to delete from table {} that is guise", table);
                                     locked_token_ctrler.mark_principal_to_be_removed(&token.uid, token.did);
                                 }
                             }
                         }
-                        error!(
+                        warn!(
                             "Edna: insert {} remove tokens: {}",
                             pred_items.len(),
                             start.elapsed().as_micros()
@@ -617,7 +625,7 @@ impl Disguiser {
                                 }
                             }
                         }
-                        error!(
+                        warn!(
                             "get matching global tokens to remove: {}",
                             start.elapsed().as_micros()
                         );
@@ -630,8 +638,8 @@ impl Disguiser {
         let start = time::Instant::now();
         for delstmt in drop_me_later {
             helpers::query_drop(delstmt.to_string(), db, self.stats.clone()).unwrap();
-            error!(
-                "Edna: delete items {}: {}",
+            warn!(
+                "Edna: delete user {}: {}",
                 delstmt,
                 start.elapsed().as_micros()
             );
@@ -710,7 +718,7 @@ fn decor_items(
             stats.clone(),
         )
         .unwrap();
-        error!("Insert PP: {}", start.elapsed().as_micros());
+        warn!("Insert PP: {}", start.elapsed().as_micros());
 
         // actually register the anon principal, including saving an ownership token for the old uid
         // token is always inserted ``privately''
@@ -726,7 +734,7 @@ fn decor_items(
             new_uid.to_string(),
         ));
         token_ctrler.register_anon_principal(&old_uid, &new_uid, did, own_token_bytes, db);
-        error!("Register anon principal: {}", start.elapsed().as_micros());
+        warn!("Register anon principal: {}", start.elapsed().as_micros());
 
         // B. UPDATE CHILD FOREIGN KEY
         let start = time::Instant::now();
@@ -745,7 +753,7 @@ fn decor_items(
             stats.clone(),
         )
         .unwrap();
-        error!("Update decor fk: {}", start.elapsed().as_micros());
+        warn!("Update decor fk: {}", start.elapsed().as_micros());
     }
 
     /*
@@ -788,7 +796,7 @@ fn modify_item(
         stats.clone(),
     )
     .unwrap();
-    error!("Update column for modify: {}", start.elapsed().as_micros());
+    warn!("Update column for modify: {}", start.elapsed().as_micros());
 
     // TOKEN INSERT
     let start = time::Instant::now();
@@ -817,7 +825,7 @@ fn modify_item(
             token_ctrler.insert_global_diff_token_wrapper(&update_token);
         }
     }
-    error!("Update token inserted: {}", start.elapsed().as_micros());
+    warn!("Update token inserted: {}", start.elapsed().as_micros());
 
     let mut locked_stats = stats.lock().unwrap();
     locked_stats.mod_dur += start.elapsed();
