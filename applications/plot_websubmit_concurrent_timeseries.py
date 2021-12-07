@@ -7,7 +7,7 @@ from collections import defaultdict
 
 plt.style.use('seaborn-deep')
 
-sleeps = [10000, 5000, 1000, 100, 0]
+sleeps = [100000, 0]
 maxts = 150000
 bucketwidth = 1000
 nbuckets = int(maxts/bucketwidth)
@@ -41,11 +41,11 @@ for s in range(len(sleeps)):
     xs = np.array(xs)[order]
     ys = [statistics.mean(x) for x in edit_results_batch[s].values()]
     ys = np.array(ys)[order]
-    plt.plot(xs, ys, linestyle=":", label='{} Sleep'.format(sleeps[s]))
+    plt.plot(xs, ys, label='{}ms Btwn Disguises'.format(sleeps[s]))
 
     plt.xlabel('Benchmark Time (s)')
     plt.ylabel('Latency (ms)')
-    plt.ylim(ymin=0)
+    plt.ylim(ymin=0, ymax=3)
     plt.xlim(xmin=0, xmax=100)
     plt.legend(loc="upper left")
     plt.title("WebSubmit Edit Latency vs. Disguiser Sleep Time")
