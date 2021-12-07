@@ -1,7 +1,19 @@
 use crate::*;
+use crate::disguises::*;
 use mysql::*;
 use mysql::from_value;
-use rand::Rng;
+
+pub fn insert_new_user(db: &mut mysql::PooledConn) -> String {
+    let cols = get_insert_guise_cols();
+    let vals : Vec<String> = get_insert_guise_vals().iter().map(|v| v.to_string()).collect();
+    db.query_drop(&format!(
+        "INSERT INTO {} ({}) VALUES ({});",
+        "users",
+        cols.join(","),
+        vals.join(","),
+    )).unwrap();
+    return vals[0].clone();
+}
 
 pub fn apply_decay(
     uid: u64,
@@ -9,7 +21,6 @@ pub fn apply_decay(
 ) -> Result<()> {
     let mut db = edna.get_conn()?;
     let mut db2 = edna.get_conn()?;
-    let mut rng = rand::thread_rng();
     db.query_drop(&format!("DELETE FROM users WHERE id={}", uid))?;
     db.query_drop(&format!("DELETE FROM hat_requests WHERE user_id={}", uid))?;
     db.query_drop(&format!("DELETE FROM hats WHERE user_id={}", uid))?;
@@ -24,8 +35,7 @@ pub fn apply_decay(
     let res = db.query_iter(&format!("SELECT id FROM comments WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
-        db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("UPDATE comments SET user_id={} WHERE id={}", new_user, id))?;
     }
 
@@ -33,37 +43,50 @@ pub fn apply_decay(
     let res = db.query_iter(&format!("SELECT id FROM stories WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
-        db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("UPDATE stories SET user_id={} WHERE id={}", new_user, id))?;
     }
 
     let res = db.query_iter(&format!("SELECT id FROM messages WHERE author_user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
-        db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("UPDATE messages SET author_user_id={} WHERE id={}", new_user, id))?;
     }
     let res = db.query_iter(&format!("SELECT id FROM messages WHERE recipient_user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE messages SET recipient_user_id={} WHERE id={}", new_user, id))?;
     }
 
-    let res = db.query_iter(&format!("SELECT id FROM moderations WHERE moderator_user_id = {}", uid))?;
+    let res = db.query_iter(&format!("SELECT id FROM mod_notes WHERE moderator_user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
+        let new_user = insert_new_user(&mut db2);
+        db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
+        db2.query_drop(&format!("UPDATE mod_notes SET moderator_user_id={} WHERE id={}", new_user, id))?;
+    }
+    let res = db.query_iter(&format!("SELECT id FROM mod_notes WHERE user_id = {}", uid))?;
+    for row in res {
+        let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
+        let new_user = insert_new_user(&mut db2);
+        db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
+        db2.query_drop(&format!("UPDATE mod_notes SET user_id={} WHERE id={}", new_user, id))?;
+    }
+
+   let res = db.query_iter(&format!("SELECT id FROM moderations WHERE moderator_user_id = {}", uid))?;
+    for row in res {
+        let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE moderations SET moderator_user_id={} WHERE id={}", new_user, id))?;
     }
     let res = db.query_iter(&format!("SELECT id FROM moderations WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
         db2.query_drop(&format!("UPDATE moderations SET user_id={} WHERE id={}", new_user, id))?;
     }
@@ -71,8 +94,7 @@ pub fn apply_decay(
     let res = db.query_iter(&format!("SELECT id FROM votes WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
-        db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("UPDATE votes SET user_id={} WHERE id={}", new_user, id))?;
     }
 
@@ -85,7 +107,6 @@ pub fn apply_delete(
 ) -> Result<()> {
     let mut db = edna.get_conn()?;
     let mut db2 = edna.get_conn()?;
-    let mut rng = rand::thread_rng();
     db.query_drop(&format!("DELETE FROM users WHERE id={}", uid))?;
     db.query_drop(&format!("DELETE FROM hat_requests WHERE user_id={}", uid))?;
     db.query_drop(&format!("DELETE FROM hats WHERE user_id={}", uid))?;
@@ -102,8 +123,7 @@ pub fn apply_delete(
     let res = db.query_iter(&format!("SELECT id FROM comments WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
-        db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("UPDATE comments SET user_id={} WHERE id={}", new_user, id))?;
     }
 
@@ -113,46 +133,53 @@ pub fn apply_delete(
     let res = db.query_iter(&format!("SELECT id FROM stories WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
-        db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("UPDATE stories SET user_id={} WHERE id={}", new_user, id))?;
     }
 
     let res = db.query_iter(&format!("SELECT id FROM messages WHERE author_user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
-        db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("UPDATE messages SET author_user_id={} WHERE id={}", new_user, id))?;
     }
     let res = db.query_iter(&format!("SELECT id FROM messages WHERE recipient_user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
-        db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("UPDATE messages SET recipient_user_id={} WHERE id={}", new_user, id))?;
+    }
+
+    let res = db.query_iter(&format!("SELECT id FROM mod_notes WHERE moderator_user_id = {}", uid))?;
+    for row in res {
+        let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
+        let new_user = insert_new_user(&mut db2);
+        db2.query_drop(&format!("UPDATE mod_notes SET moderator_user_id={} WHERE id={}", new_user, id))?;
+    }
+    let res = db.query_iter(&format!("SELECT id FROM mod_notes WHERE user_id = {}", uid))?;
+    for row in res {
+        let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
+        let new_user = insert_new_user(&mut db2);
+        db2.query_drop(&format!("UPDATE mod_notes SET user_id={} WHERE id={}", new_user, id))?;
     }
 
     let res = db.query_iter(&format!("SELECT id FROM moderations WHERE moderator_user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
-        db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("UPDATE moderations SET moderator_user_id={} WHERE id={}", new_user, id))?;
     }
     let res = db.query_iter(&format!("SELECT id FROM moderations WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
-        db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("UPDATE moderations SET user_id={} WHERE id={}", new_user, id))?;
     }
 
     let res = db.query_iter(&format!("SELECT id FROM votes WHERE user_id = {}", uid))?;
     for row in res {
         let id : u64 = from_value(row.unwrap().unwrap()[0].clone());
-        let new_user = rng.gen::<u32>().to_string();
-        db2.query_drop(&format!("INSERT INTO `users` (`username`) VALUES ({})", new_user)).unwrap();
+        let new_user = insert_new_user(&mut db2);
         db2.query_drop(&format!("UPDATE votes SET user_id={} WHERE id={}", new_user, id))?;
     }
 

@@ -96,7 +96,7 @@ fn main() {
     }
 
     if args.stats {
-        run_stats_test(&mut edna, &sampler, &user2decryptcap);
+        run_stats_test(&mut edna, &sampler, &user2decryptcap, prime);
         return;
     }
 
@@ -366,9 +366,14 @@ fn run_stats_test(
     edna: &mut EdnaClient,
     sampler: &datagen::Sampler,
     user2decryptcaps: &HashMap<u64, Vec<u8>>,
+    prime: bool,
 ) {
     let mut db = edna.get_conn().unwrap();
-    let filename = format!("lobsters_disguise_stats_batch.csv");
+    let filename = if prime {
+        format!("lobsters_disguise_stats_batch.csv")
+    } else {
+        format!("lobsters_disguise_stats_baseline_batch.csv")
+    };
     let mut file = File::create(filename).unwrap();
     file.write(
         "uid, ndata, create_baseline, create_edna, decay, undecay, delete, restore, baseline\n"
@@ -378,6 +383,17 @@ fn run_stats_test(
     let mut rng = rand::thread_rng();
 
     for u in 0..sampler.nusers() {
+        // baseline delete
+        // only measure this if we're not priming, so we don't mess up the DB again...
+        let start = time::Instant::now();
+        if !prime {
+            disguises::baseline::apply_delete(u as u64 + 1, edna).unwrap();
+            //disguises::baseline::apply_decay(user_id, edna).unwrap();
+            file.write(format!("{}\n", start.elapsed().as_micros()).as_bytes())
+                .unwrap();
+            return
+        }
+
         // sample every 50 users
         if u % 70 != 0 {
             continue;
@@ -477,13 +493,6 @@ fn run_stats_test(
         };
         disguises::gdpr_disguise::reveal(edna, decryption_cap.clone(), dls, ols).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
-            .unwrap();
-
-        // baseline delete
-        let start = time::Instant::now();
-        //disguises::baseline::apply_delete(user_id, edna).unwrap();
-        //disguises::baseline::apply_decay(user_id, edna).unwrap();
-        file.write(format!("{}\n", start.elapsed().as_micros()).as_bytes())
             .unwrap();
     }
 
