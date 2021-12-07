@@ -38,8 +38,6 @@ struct Cli {
     ndisguising: u64,
     #[structopt(long = "prime")]
     prime: bool,
-    #[structopt(long = "batch")]
-    batch: bool,
     #[structopt(long = "stats")]
     stats: bool,
 }
@@ -65,7 +63,7 @@ fn main() {
     let dbname: String = "lobsters_edna".to_string();
     let mut edna = EdnaClient::new(
         args.prime,
-        args.batch,
+        true, // batch
         "127.0.0.1",
         &dbname,
         SCHEMA,
@@ -98,7 +96,7 @@ fn main() {
     }
 
     if args.stats {
-        run_stats_test(&mut edna, &sampler, &user2decryptcap, args.batch);
+        run_stats_test(&mut edna, &sampler, &user2decryptcap);
         return;
     }
 
@@ -332,14 +330,9 @@ fn run_stats_test(
     edna: &mut EdnaClient,
     sampler: &datagen::Sampler,
     user2decryptcaps: &HashMap<u64, Vec<u8>>,
-    batch: bool,
 ) {
     let mut db = edna.get_conn().unwrap();
-    let filename = if batch {
-        format!("lobsters_disguise_stats_batch.csv")
-    } else {
-        format!("lobsters_disguise_stats.csv")
-    };
+    let filename = format!("lobsters_disguise_stats_batch.csv");
     let mut file = File::create(filename).unwrap();
     file.write(
         "uid, ndata, create_baseline, create_edna, decay, undecay, delete, restore, baseline\n"
@@ -467,10 +460,9 @@ fn print_stats(
     delete_durations: &Vec<(Duration, Duration)>,
     restore_durations: &Vec<(Duration, Duration)>,
 ) {
-    let prefix = if args.batch { "_batch" } else { "" };
     let filename = format!(
-        "concurrent_disguise_stats_disguising_{}group{}.csv",
-        args.ndisguising, prefix
+        "concurrent_disguise_stats_disguising_{}group_batch.csv",
+        args.ndisguising
     );
 
     // print out stats

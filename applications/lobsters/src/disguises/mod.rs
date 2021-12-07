@@ -18,17 +18,27 @@ pub fn get_insert_guise_cols() -> Vec<String> {
         "username".to_string(),
         "karma".to_string(),
         "last_login".to_string(),
+        "password_reset_token".to_string(),
+        "rss_token".to_string(),
+        "session_token".to_string(),
+        "email".to_string(),
+        "created_at".to_string(),
     ]
 }
 
 pub fn get_insert_guise_vals() -> Vec<Expr> {
     let mut rng = rand::thread_rng();
-    let gid: u32 = rng.gen_range(10000, i32::MAX as u32);
+    let gid: u32 = rng.gen_range(10000,i32::MAX as u32);
     let username: String = format!("anon{}", gid);
     vec![
         Expr::Value(Value::Number(gid.to_string())),
-        Expr::Value(Value::String(username)),
+        Expr::Value(Value::String(username.clone())),
         Expr::Value(Value::Number(0.to_string())),
+        Expr::Value(Value::String(Local::now().naive_local().to_string())),
+        Expr::Value(Value::String(Local::now().naive_local().to_string())),
+        Expr::Value(Value::String(Local::now().naive_local().to_string())),
+        Expr::Value(Value::String(Local::now().naive_local().to_string())),
+        Expr::Value(Value::String(format!("{}@mail.com", username))),
         Expr::Value(Value::String(Local::now().naive_local().to_string())),
     ]
 }
@@ -103,6 +113,14 @@ pub fn get_table_info() -> Arc<RwLock<HashMap<String, TableInfo>>> {
                 "author_user_id".to_string(),
                 "recipient_user_id".to_string(),
             ],
+        },
+    );
+    hm.insert(
+        "mod_notes".to_string(),
+        TableInfo {
+            name: "mod_notes".to_string(),
+            id_cols: vec!["id".to_string()],
+            owner_cols: vec!["moderator_user_id".to_string(), "user_id".to_string()],
         },
     );
     hm.insert(
