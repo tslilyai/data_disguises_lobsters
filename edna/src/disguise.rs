@@ -231,7 +231,7 @@ impl Disguiser {
         /*
          * Decor and modify
          */
-        let start = time::Instant::now();
+        let decor_start = time::Instant::now();
         for (table, transforms) in disguise.table_disguises.clone() {
             let mystats = self.stats.clone();
             let my_global_diff_tokens_to_modify = self.global_diff_tokens_to_modify.clone();
@@ -342,7 +342,6 @@ impl Disguiser {
                     }
                 }
             }
-
         
             // save token transforms to perform
             let mut locked_tokens = my_global_diff_tokens_to_modify.write().unwrap();
@@ -354,14 +353,14 @@ impl Disguiser {
         }
         warn!(
             "Edna: Execute modify/decor total: {}",
-            start.elapsed().as_micros()
+            decor_start.elapsed().as_micros()
         );
 
         /*
          * REMOVE
          */
         // WE ONLY NEED GLOBAL DIFF TOKENS because we need to potentially modify them
-        let start = time::Instant::now();
+        let remove_start = time::Instant::now();
         self.execute_removes(
             disguise.clone(),
             &global_diff_tokens,
@@ -370,7 +369,7 @@ impl Disguiser {
         );
         warn!(
             "Edna: Execute removes total: {}",
-            start.elapsed().as_micros()
+            remove_start.elapsed().as_micros()
         );
 
         // wait until all mysql queries are done

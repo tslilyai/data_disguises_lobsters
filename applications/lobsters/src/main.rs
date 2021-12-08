@@ -13,7 +13,7 @@ use rsa::pkcs1::ToRsaPrivateKey;
 use serde_json;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::io::BufReader;
+//use std::io::BufReader;
 use std::io::Write;
 use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
@@ -27,7 +27,7 @@ mod disguises;
 mod queriers;
 include!("statistics.rs");
 
-const TOTAL_TIME: u128 = 100000;
+const TOTAL_TIME: u128 = 50000;
 const SCHEMA: &'static str = include_str!("../schema.sql");
 
 #[derive(StructOpt)]
@@ -118,7 +118,8 @@ fn main() {
 
     let mut user_stories = 0;
     let mut user_comments = 0;
-    let mut user_to_disguise = nusers as u64 - 1;
+    let mut user_votes = 0;
+    let mut user_to_disguise = 1 as u64;
     let res = db
         .query_iter(format!(
             r"SELECT COUNT(*) FROM stories WHERE user_id={};",
@@ -132,6 +133,17 @@ fn main() {
     }
     let res = db
         .query_iter(format!(
+            r"SELECT COUNT(*) FROM votes WHERE user_id={};",
+           user_to_disguise
+        ))
+        .unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        user_votes = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+    }
+    let res = db
+        .query_iter(format!(
             r"SELECT COUNT(*) FROM comments WHERE user_id={};",
            user_to_disguise
         ))
@@ -141,7 +153,7 @@ fn main() {
         assert_eq!(vals.len(), 1);
         user_comments = helpers::mysql_val_to_u64(&vals[0]).unwrap();
     }
-    error!("Going to disguise user with {} stories and {} comments ({} total)", user_stories, user_comments, user_stories+user_comments);
+    error!("Going to disguise user with {} stories, {} comments, {} votes ({} total)", user_stories, user_comments, user_votes, user_stories+user_votes+user_comments);
 
     let mut threads = vec![];
     let arc_sampler = Arc::new(sampler);
@@ -159,7 +171,8 @@ fn main() {
     barrier.wait();
 
     let arc_edna = Arc::new(Mutex::new(edna));
-    let ndisguises = run_disguising_sleeps(
+    let ndisguises = 0;
+    /*let ndisguises = run_disguising_sleeps(
         &args,
         arc_edna,
         user_to_disguise,
@@ -167,7 +180,7 @@ fn main() {
         delete_durations.clone(),
         restore_durations.clone(),
     )
-    .unwrap();
+    .unwrap();*/
 
     for j in threads {
         j.join().expect("Could not join?");
@@ -217,27 +230,35 @@ fn run_normal_thread(
         };
 
         let mut res = vec![];
+        let mut op = "read_story"; 
         if pick(55842) {
             // XXX: we're assuming here that stories with more votes are viewed more
             let story = sampler.story_for_vote(&mut rng) as u64;
             res = queriers::stories::read_story(db, user, story).unwrap();
         } else if pick(30105) {
+            op = "frontpage";
             res = queriers::frontpage::query_frontpage(db, user).unwrap();
         } else if pick(6702) {
             // XXX: we're assuming that users who vote a lot are also "popular"
+            op = "prof";
             queriers::user::get_profile(db, user_id).unwrap();
         } else if pick(4674) {
+            op = "getcomments";
             queriers::comment::get_comments(db, user).unwrap();
         } else if pick(967) {
+            op = "getrecent";
             queriers::recent::recent(db, user).unwrap();
         } else if pick(630) {
+            op = "votecomment";
             let comment = sampler.comment_for_vote(&mut rng);
             queriers::vote::vote_on_comment(db, user, comment as u64, true).unwrap();
         } else if pick(475) {
+            op = "votestory";
             let story = sampler.story_for_vote(&mut rng);
             queriers::vote::vote_on_story(db, user, story as u64, true).unwrap();
         } else if pick(316) {
             // comments without a parent
+            op = "postcomment";
             let id = rng.gen_range(ncomments, max_id);
             let story = sampler.story_for_comment(&mut rng);
             queriers::comment::post_comment(db, user, id as u64, story as u64, None).unwrap();
@@ -245,6 +266,7 @@ fn run_normal_thread(
             queriers::user::login(db, user_id).unwrap();
         } else if pick(71) {
             // comments with a parent
+            op = "postcommentparent";
             let id = rng.gen_range(ncomments, max_id);
             let story = sampler.story_for_comment(&mut rng);
             // we need to pick a comment that's on the chosen story
@@ -254,19 +276,22 @@ fn run_normal_thread(
             queriers::comment::post_comment(db, user, id.into(), story as u64, Some(parent as u64))
                 .unwrap();
         } else if pick(54) {
+            op = "votecomment";
             let comment = sampler.comment_for_vote(&mut rng);
             queriers::vote::vote_on_comment(db, user, comment as u64, false).unwrap();
         } else if pick(53) {
+            op = "poststory";
             let id = rng.gen_range(nstories, max_id);
             queriers::stories::post_story(db, user, id as u64, format!("benchmark {}", id))
                 .unwrap();
         } else {
+            op = "votestory";
             let story = sampler.story_for_vote(&mut rng);
             queriers::vote::vote_on_story(db, user, story as u64, false).unwrap();
         }
         res.sort();
-        //warn!("user{}, {}\n", user_id, res.join(" "));
         my_op_durations.push((overall_start.elapsed(), start.elapsed()));
+        //error!("user{} {}: {}", user_id, op, start.elapsed().as_micros());
     }
     op_durations.lock().unwrap().append(&mut my_op_durations);
 }

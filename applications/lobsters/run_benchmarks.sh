@@ -15,12 +15,12 @@ set -e
 #	&> output/users.out
 #echo "Ran stats primed test for users"
 
-for u in 0 1 30; do
+for u in 1 ; do
 	RUST_LOG=error perflock ../../target/release/lobsters \
 		--scale 1.5 \
 		--nsleep 0\
 		--nconcurrent $u \
-		--filename "${u}users_expensive" \
-	&> output/users$s-$u.out
+		--filename "${u}users_nodisguising" \
+	&> output/users$s-$u-nodisguising.out
 	echo "Ran concurrent test for $u users 0 sleep"
 done
