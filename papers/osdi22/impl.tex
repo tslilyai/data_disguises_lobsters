@@ -5,7 +5,7 @@
 \sys is implemented in \note{XXX} lines of Rust. To allow non-Rust applications to use \sys, we
 expose HTTP endpoints for each \sys API call and run \sys as a webserver using the Rocket framework.
 
-\subsection{Securely Storing Records} 
+\subsection{Securely Storing Records}
 %
 An application using \sys hands \sys speaks-for records \town{pd} and diff records and \tdiff{pd}
 during the course of applying disguise $d$.
@@ -15,7 +15,7 @@ plaintext attacks. Encryption with \pubk{p} ensures that only a client holding p
 can access these records.
 
 \sys must store these encrypted records without leaking that some disguise $d$ applied to principal
-$p$.  For example, \sys should not reveal that a principal $p$ has invoked GDPR deletion.  
+$p$.  For example, \sys should not reveal that a principal $p$ has invoked GDPR deletion.
 %
 Consequently, \sys cannot store any mapping from $p$ or $d$ to a bag of encrypted records.  However,
 \sys must be able to---given $p$, $d$, and \privk{p}---decrypt and return records \tdiff{pd} and
@@ -27,7 +27,7 @@ necessary in practice.  To implement such a partitioning, \sys creates randomly-
 \emph{locators} \lcapa{pd} (represented as integer pointers): for each $p$ and $d$, \sys stores
 encrypted records \tdiff{pd} and \town{pd} in a bag mapped to by  locator \lcapa{pd}, which it and
 the application forget after sending the locator to the client.
- 
+
 %To summarize, when \sys saves a disguise record $\mathcal{T}_{pd}$ from disguise $d$ associated with principal $p$, \sys:
 %\begin{enumerate}
 %    \item creates a record wrapper $W$ for the record $\mathcal{T}_{pd}$
@@ -39,7 +39,9 @@ the application forget after sending the locator to the client.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Recursive Disguising: Disguising Pseudoprincipals}
-\begin{figure}[t!]
+\label{s:composition}
+
+\begin{figure}[t]
     \centering
     %\includegraphics[width=0.5\textwidth]{figs/client_op_stats}
     \caption{Accessing recursively disguised pseudoprincipal records.}
@@ -78,7 +80,7 @@ records from disguise $d$.
 
 Because of the recursive nature of disguises, $p$ itself may be a pseudoprincipal and not a natural
 principal! Thus, the application cannot simply send \privk{q} via \eg email to principal $p$ when it
-creates a pseudoprincipal $q$ for $p$. 
+creates a pseudoprincipal $q$ for $p$.
 
 Generating a single private-public keypair is prohibitively expensive (requiring over 300ms). To
 make pseudoprincipal creation---a common operation in disguising---cheap, \sys maintains a
@@ -92,14 +94,14 @@ observe that the application and \sys cannot send \lcapa{qd} to some email addre
 pseudoprincipal!  To protect pseudoprincipal locators \lcapa{qd}, \sys encrypts \lcapa{qd} with the
 pseudoprincipal's public key \pubk{q} and stores $\enc(\pubk{q}, \lcapa{qd}$) in \sys's metadata for $q$ (which
 also includes \pubk{q}). This contrasts with how \sys returns locators to the application when
-storing records for natural principals. 
+storing records for natural principals.
 
 We illustrate in Figure~\ref{f:recursive} how a client that provides private key \privk{p} for
 natural principal $p$ and locator \lcapa{pd} may access \emph{both} $p$'s records for disguise $d$
 \emph{and} all records of all pseudoprincipals $q$ created during disguise $d$ to decorrelate data
 from $p$.  \sys can access \privk{q} by decrypting \enc(\pubk{p}, \privk{q}) with \privk{p}.  With
 \privk{q}, \sys can decrypt all \enc(\pubk{q}, \lcapa{qd}) to locate all $q$'s encrypted records,
-and then decrypt these records with \privk{q}. 
+and then decrypt these records with \privk{q}.
 
 \lyt{Should we note somewhere that pseudoprincipals and recursive disguising are why we need asymmetric
 crypto; otherwise, we could just send the symmetric key to the original user being disguised?}
@@ -109,7 +111,7 @@ Recall that \sys removes any metadata (\eg \pubk{p}) about principal $p$ when a 
 $p$'s corresponding principal object.
 However, \sys cannot simply remove pseudoprincipal $q$'s metadata when $q$ is removed: this metadata
 includes \lcapa{qd} ciphertexts. Removing \lcapa{qd} removes the ability to find $q$'s encrypted
-record bags efficiently. 
+record bags efficiently.
 %If \sys wanted to access $q$'s records for \eg disguise reversal, \sys would need
 %to attempt to decrypt every encrypted record bag at every location.
 
@@ -124,7 +126,7 @@ has since been deleted). \sys currently does the latter and retains pseudoprinci
 %to \sys to delete $p$'s anoymized data). In these scenarios, \sys can .
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{High-Level Disguise Specifications.} 
+\subsection{High-Level Disguise Specifications.}
 \sys's high-level disguising API can be used for a restricted set of disguises in applications that
 use SQL databases, represent objects as database rows and express principal data ownership via
 foreign-key relationships.
@@ -137,7 +139,7 @@ operations:
     \item Modify: change an attribute of the data object.
     \item Remove: delete the data object.
     \item Decorrelate: generate a pseudoprincipal $q$, and rewrite the foreign key to original
-        principal $p$ from the data object to instead point to $q$. 
+        principal $p$ from the data object to instead point to $q$.
 \end{enumerate}
 Decorrelation creates a speaks-for record \town{pd} containing the created pseudoprincipal's
 ID; removal produces a diff record \tdiff{pd} with the removed object's value; and modification
@@ -156,8 +158,8 @@ include the column name, and the selected policy on how to generate values for t
 \end{itemize}
 
 When revealing disguise $d$, \sys retrieves all records accessible with the provided decryption capability
-and locator, and restores the undisguised state by updating the relevant object rows in the database. 
-To prevent accidental revealing of data that has been updated since $d$ was applied, 
+and locator, and restores the undisguised state by updating the relevant object rows in the database.
+To prevent accidental revealing of data that has been updated since $d$ was applied,
 \sys will first check that the data to restore is still in its disguised state. If the state of data does
 not match the recorded disguised state, then \sys knows the record corresponds to a stale and
 overwritten update, and will refuse to restore the undisguised state.

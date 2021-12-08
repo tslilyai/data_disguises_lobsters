@@ -73,9 +73,9 @@ StoreDiff(p: UID, did: DisguiseID, data: Vec<u8>);
 StoreSpeaksFor(p1: UID, p2: UID, did: DisguiseID);
 
 // diffs stored at loc as part of disguise did
-DiffsForDisguise(did: DisguiseID, privk: PrivKey, loc: Locator) -> Vec<Vec<u8>>;
+DiffsForDisguise(did: DisguiseID, privk: PrivKey, loc: Locator, del: bool) -> Vec<Vec<u8>>;
 // principals that p speaks for (stored at loc)
-PseudoprincipalsOf(p: UID, privk: PrivKey, loc: Locator) -> Vec<UID>;
+PseudoprincipalsOf(p: UID, privk: PrivKey, loc: Locator, del: bool) -> Vec<UID>;
 \end{lstlisting}
 \caption{\sys's low-level API.}
 \label{f:api-low}

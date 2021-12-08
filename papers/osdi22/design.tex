@@ -273,22 +273,38 @@ can later restore their---anonymized---account.)
 %
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\subsection{Disguising and Revealing with the High-Level API}
+\subsection{High-Level API}
 \label{s:api-high}
 
-If an application developer does not want to handle writing the necessary
-database transformations and generation/storage of diff and speaks-for records, the developer can
-provide a disguise specification in a high-level language provided by \sys. This spec includes
-schema annotations and supports a restricted set of SQL database modifications. When
-\fn{ApplyDisguise} is invoked with the disguise specification, \sys applies the specified
-modifications and automatically generates the appropriate diff and speaks-for records.
+%
+Applications with relatively simple disguises can use \sys's high-level API to
+delegate the necessary database transformations, generation of diff and speaks-for
+records, and pseudoprincipal management to \sys.
+%
+To do so, the application developer provides a declarative disguise specification in
+\sys high-level domain-specific language (DSL).
+%
+The DSL includes schema annotations and supports a restricted set of SQL database
+modifications.
+%
+When the application invokes \fn{ApplyDisguise} with a disguise specification, \sys
+applies the specified changes, creates pseudoprincipals, generates the appropriate
+diff and speaks-for records, and stores them encryptedly.
+%
+Similarly, \fn{RevealDisguise} tells \sys to interpret the diff and speaks-for
+records and apply the database changes to restore the original state.
+%
+(If the disguised records have changed in the database, \sys leaves the modified,
+disguised record in place rather than restoring.)
+%
 
-Similarly, when \fn{RevealDisguise} is invoked, \sys can interpret the automatically-generated diff
-and speaks-for records and perform the data modifications to restore the original state of data
-(given that no subsequent updates had been performed since disguising).
-
-Application handling of locators and decryption capabilities remains the same: \fn{ApplyDisguise}
-takes optional locators and decryption capabilities to support disguise composition (\eg deletion
-after anonymization). \fn{ApplyDisguise} returns locators for the applied disguise.
-\fn{RevealDisguise} takes locators and decryption capabilities to locate and access records to
-reveal.
+%
+Handling of locators and private keys remains the application's responsibility:
+\fn{ApplyDisguise} returns locators for the applied disguise that the
+application conveys to the client; and \fn{RevealDisguise} takes locators and a
+private key to locate and decrypt records to reveal.
+%
+Finally, \fn{ApplyDisguise} takes optional locators and decryption capabilities
+to support disguise composition (\eg deletion after anonymization), which
+we discuss in \S\ref{s:composition}.
+%
