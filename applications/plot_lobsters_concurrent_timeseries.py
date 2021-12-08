@@ -8,6 +8,7 @@ from collections import defaultdict
 plt.style.use('seaborn-deep')
 
 sleeps = [100000, 0]
+users = [100, 30, 1, 0]
 maxts = 150000
 bucketwidth = 1000
 nbuckets = int(maxts/bucketwidth)
@@ -29,23 +30,28 @@ def get_opdata(filename, results, i):
             opdata[bucket].append(val)
         results.append(opdata)
 
-for s in sleeps:
-    get_opdata('results/lobsters_results/concurrent_disguise_stats_{}sleep_batch.csv'.format(s),op_results_batch,1)
+for u in users:
+    get_opdata('results/lobsters_results/concurrent_disguise_stats_{}users_0sleep_batch.csv'.format(u),
+            op_results_batch, 1)
 
-for s in range(len(sleeps)):
+for s in range(len(users)):
     xs = list(op_results_batch[s].keys())
     order = np.argsort(xs)
     xs = np.array(xs)[order]
     ys = [statistics.mean(x) for x in op_results_batch[s].values()]
     ys = np.array(ys)[order]
-    plt.plot(xs, ys, linestyle=":", label='{} Sleep'.format(sleeps[s]))
+    if users[s] == 0:
+        label = '30 Normal Users, No Disguisers'
+    else:
+        label='{} Normal Users'.format(users[s])
+    plt.plot(xs, ys, label=label)
 
     plt.xlabel('Benchmark Time (s)')
     plt.ylabel('Latency (ms)')
-    plt.ylim(ymin=0)
+    plt.ylim(ymin=0, ymax=2000)
     plt.xlim(xmin=0, xmax=100)
-    plt.legend(loc="upper left")
-    plt.title("Lobsters Op Latency vs. Disguiser Sleep Time")
+    plt.legend(loc="upper right")
+    plt.title("Lobsters Op Latency vs. Number Normal Users")
 
 plt.tight_layout(h_pad=4)
 plt.savefig('lobsters_concurrent_results_timeseries.pdf')

@@ -99,44 +99,16 @@ Modifications to the Lobsters code required \lyt{TODO}LoC and took \lyt{TODO} pe
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{WebSubmit}
 \label{s:case-websubmit}
+%
+We integrate \sys into WebSubmit~\cite{websubmit-rs-anon} as a Rust library to support the two
+disguises described in our running example from \S\ref{s:api}, namely intructor-initiated answer anonymization, and GDPR-compliant user account deletion.
 
-%
-WebSubmit is a homework submission application written in Rust, based on the Rocket
-framework~\cite{rocket-rs}.
-%
-It has a simple schema that consists of tables for lectures, questions, answers,
-and user accounts.
-%
-Clients create an account, submit homework answers, and view their submissions.
-%
-Course staff can view all submitted answers, as well as add and edit lectures and
-questions.
-%
-The original WebSubmit lacks privacy transformations and retains student
-details and answers forever.
-%
-
-%
-We wrote two disguises for WebSubmit: instructor-initiated anonymization of all answers
-(\eg at the end of the semester), and GDPR-compliant user account deletion.
-%
-With \sys, WebSubmit also allows users to restore their deleted accounts, and allows
-students to view and edit their answers after anonymization.
-%
-Anonymization performs a per-user disguise for each user.
-%
-Each disguise decorrelates lecture answers from the user, but keeps the answers grouped
-by lecture (\ie one pseudoprincipal per set of lecture answers).
-%
-Our version of WebSubmit uses \sys's lower-level API, and sends locators and keys to users
-via email.
+Our version of WebSubmit uses \sys's lower-level API, and sends locators and keys to users via
+email.
 %
 We added new HTTP endpoints for editing disguised data and restoring a deleted account.
 %
 
-%
-We integrate \sys into WebSubmit as a Rust library.
-%
 The original WebSubmit has 922 LoC; adding \sys's disguises required an additional 304 LoC
 to specify the disguises, 254 LoC for two additional HTTP endpoints; and 809 LoC added to
 existing code \lyt{(some of which were to add \eg benchmark timings)} \ms{can we subtract the

@@ -3,6 +3,31 @@
 %    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
 %\textbf{API Call} & \textbf{Description} \\
 %\hline
+%    \fn{ApplyDisguise($p$, $d$, DisguiseSpec dSpec, \privk{p}, \{\lcapa{pd'}\})}
+%        $\rightarrow$ (\lcapa{pd}, \lcapa{pd}) &
+%        Applies disguise $d$, returning a parit of locators required to later locate disguise $d$'s
+%        diff and speaks-for records respectively.
+%        \vspace{6pt}\\
+%        \fn{RevealDisguise($p$, $d$, \privk{p}, \lcapa{pd})} $\rightarrow$ ()&
+%        Reveals disguise $d$ by reversing data stored in records produced by disguise $d$ accessible
+%        using \lcapa{pd} and \privk{p}.
+%        \lyt{In practice this takes a set of \lcapa{} from different disguises because of
+%        pseudoprincipals}
+%\end{tabular}
+\begin{lstlisting}[language=Rust, style=rust]
+RegisterPrincipal(p: UID) -> PrivKey;
+ApplyDisguise(p: UID, spec: DisguiseSpec, privk: PrivKey, locs: Vec<Locator>) -> (DisguiseID, Vec<Locator>);
+RevealDisguise(p: UID, did: DisguiseID, privk: PrivKey, locs: Locator);
+\end{lstlisting}
+\caption{\sys's higher-level API.}
+\label{f:api-high}
+\end{figure}
+
+\begin{figure}[t]
+%\centering
+%    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
+%\textbf{API Call} & \textbf{Description} \\
+%\hline
 %\fn{RegisterPrincipal($p$)} $\rightarrow$ \privk{p} & Registers $p$ as
 %        a principal, returning a private key \privk{p} corresponding to a principal-specific public
 %        key $\pubk{p}$ known to \sys.\\
@@ -35,48 +60,25 @@
 %        reveal links between $p$ and its pseudoprincipals.\\
 %    \end{tabular}
 \begin{lstlisting}[language=Rust, style=rust]
-RegisterPrincipal(princ: UID) -> PrivKey;
-CreatePseudoprincipal() -> (UID, PrincMetadata);
-DeregisterPrincipal(princ: UID);
+RegisterPrincipal(p: UID, pubk: PubKey);
+CreatePseudoprincipal() -> (UID, PrincipalData);
+DeregisterPrincipal(p: UID);
 
 StartDisguise() -> DisguiseID;
 EndDisguise(did: DisguiseID) -> Vec<Locator>;
 
 // stores an encrypted diff with app-specific content
-StoreDiff(princ: UID, did: DisguiseID, data: Vec<u8>);
-// stores encrypted mapping that princ1 speaks for princ2
-StoreSpeaksFor(princ1: UID, princ2: UID, did: DisguiseID, data: Vec<u8>);
+StoreDiff(p: UID, did: DisguiseID, data: Vec<u8>);
+// stores encrypted mapping that p1 speaks for p2
+StoreSpeaksFor(p1: UID, p2: UID, did: DisguiseID);
 
 // get diffs stored as part of did at loc
-DiffsForDisguise(did: DisguiseID, pk: PrivKey, loc: Locator) -> Vec<Vec<u8>>;
-// get principals that princ speaks for (stored at loc)
-PseudoprincipalsOf(princ: UID, pk: PrivKey, loc: Locator) -> Vec<UID>;
+DiffsForDisguise(did: DisguiseID, privk: PrivKey, loc: Locator) -> Vec<Vec<u8>>;
+// principals that p speaks for (stored at loc)
+PseudoprincipalsOf(p: UID, privk: PrivKey, loc: Locator) -> Vec<UID>;
 \end{lstlisting}
 \caption{\sys's low-level API.}
 \label{f:api-low}
 \end{figure}
 
-\begin{figure}[t]
-%\centering
-%    \begin{tabular}{ p{.5\linewidth} p{.5\linewidth} }
-%\textbf{API Call} & \textbf{Description} \\
-%\hline
-%    \fn{ApplyDisguise($p$, $d$, DisguiseSpec dSpec, \privk{p}, \{\lcapa{pd'}\})}
-%        $\rightarrow$ (\lcapa{pd}, \lcapa{pd}) &
-%        Applies disguise $d$, returning a parit of locators required to later locate disguise $d$'s
-%        diff and speaks-for records respectively.
-%        \vspace{6pt}\\
-%        \fn{RevealDisguise($p$, $d$, \privk{p}, \lcapa{pd})} $\rightarrow$ ()&
-%        Reveals disguise $d$ by reversing data stored in records produced by disguise $d$ accessible
-%        using \lcapa{pd} and \privk{p}.
-%        \lyt{In practice this takes a set of \lcapa{} from different disguises because of
-%        pseudoprincipals}
-%\end{tabular}
-\begin{lstlisting}[language=Rust, style=rust]
-RegisterPrincipal(princ: UID) -> PrivKey;
-ApplyDisguise(princ: UID, spec: DisguiseSpec, pk: PrivKey, locs: Vec<Locator>) -> (DisguiseID, Vec<Locator>);
-RevealDisguise(princ: UID, did: DisguiseID, pk: PrivKey, locs: Locator);
-\end{lstlisting}
-\caption{\sys's higher-level API.}
-\label{f:api-high}
-\end{figure}
+

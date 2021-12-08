@@ -33,14 +33,7 @@ labels = ['Create Account', 'Edit\nUnanonymized\nData', 'Edit\nAnonymized\nData'
 # WEBSUBMIT RESULTS
 for (i, ax) in enumerate(axes_flat[:2]):
     account_durs = []
-    anon_durs = []
-    edit_durs = []
-    delete_durs = []
-    restore_durs = []
     edit_durs_noanon = []
-    delete_durs_noanon = []
-    restore_durs_noanon = []
-
     anon_durs_batch = []
     delete_durs_batch = []
     restore_durs_batch = []
@@ -53,34 +46,23 @@ for (i, ax) in enumerate(axes_flat[:2]):
     edit_durs_baseline = []
     delete_durs_baseline = []
 
-    filename = "results/hotcrp_results/hotcrp_disguise_stats_450users.csv"
     filename_baseline = "results/hotcrp_results/hotcrp_disguise_stats_450users_baseline.csv"
     filename_batch = "results/hotcrp_results/hotcrp_disguise_stats_450users_batch.csv"
     title = "HotCRP Reviewer Operation Latencies"
-    offset = 5
+    offset = 2
     if i == 0:
-        filename = 'results/websubmit_results/disguise_stats_{}lec_{}users.csv'.format(20, 100)
-        filename_baseline = 'results/websubmit_results/disguise_stats_{}lec_{}users_baseline.csv'.format(20, 100)
+        filename_baseline = 'results/websubmit_results/disguise_stats_{}lec_{}users_batch_baseline.csv'.format(20, 100)
         filename_batch = 'results/websubmit_results/disguise_stats_{}lec_{}users_batch.csv'.format(20, 100)
         title = "WebSubmit Operation Latencies"
         offset = 0.5
-    with open(filename,'r') as csvfile:
-        rows = csvfile.readlines()
-        account_durs = [int(x)/1000 for x in rows[0].strip().split(',')]
-        anon_durs = [int(x)/1000/100 for x in rows[1].strip().split(',')]
-        edit_durs = [float(x)/1000 for x in rows[2].strip().split(',')]
-        delete_durs = [float(x)/1000 for x in rows[3].strip().split(',')]
-        restore_durs = [float(x)/1000 for x in rows[4].strip().split(',')]
-        edit_durs_noanon = [float(x)/1000 for x in rows[5].strip().split(',')]
-        delete_durs_noanon = [float(x)/1000 for x in rows[6].strip().split(',')]
-        restore_durs_noanon = [float(x)/1000 for x in rows[7].strip().split(',')]
-
     with open(filename_batch,'r') as csvfile:
         rows = csvfile.readlines()
+        account_durs = [int(x)/1000 for x in rows[0].strip().split(',')]
         anon_durs_batch = [int(x)/1000/100 for x in rows[1].strip().split(',')]
         edit_durs_batch = [float(x)/1000 for x in rows[2].strip().split(',')]
         delete_durs_batch = [float(x)/1000 for x in rows[3].strip().split(',')]
         restore_durs_batch = [float(x)/1000 for x in rows[4].strip().split(',')]
+        edit_durs_noanon = [float(x)/1000 for x in rows[5].strip().split(',')]
         delete_durs_batch_noanon = [float(x)/1000 for x in rows[6].strip().split(',')]
         restore_durs_batch_noanon = [float(x)/1000 for x in rows[7].strip().split(',')]
 
@@ -113,34 +95,6 @@ for (i, ax) in enumerate(axes_flat[:2]):
 
     add_text_labels((X-barwidth/2)[2:3], ["N/A"], ax, 'g', offset)
     add_text_labels((X-barwidth/2)[4:5], ["N/A"], ax, 'g', offset)
-
-    ################ edna
-    #ax.bar((X), [
-    #    statistics.median(account_durs),
-    #    statistics.median(edit_durs_noanon),
-    #    statistics.median(edit_durs),
-    #    statistics.median(delete_durs_noanon),
-    #    statistics.median(restore_durs_noanon),
-    #    statistics.median(anon_durs),
-    #],
-    #yerr=get_yerr([
-    #    account_durs,
-    #    edit_durs_noanon,
-    #    edit_durs,
-    #    delete_durs_noanon,
-    #    restore_durs_noanon,
-    #    anon_durs
-    #]),
-    #color='m', capsize=5, width=barwidth, label='Edna')
-    #add_labels((X),
-    #[
-    #    statistics.median(account_durs),
-    #    statistics.median(edit_durs_noanon),
-    #    statistics.median(edit_durs),
-    #    statistics.median(delete_durs_noanon),
-    #    statistics.median(restore_durs_noanon),
-    #    statistics.median(anon_durs),
-    #], ax, 'm', offset)
 
     ############### edna batched
     ax.bar((X+barwidth/2), [
@@ -176,7 +130,6 @@ for (i, ax) in enumerate(axes_flat[:2]):
     ax.set_xticklabels(labels)
 
 # LOBSTERS
-xs = []
 account_durs = []
 delete_durs = []
 restore_durs = []
@@ -190,39 +143,22 @@ undecay_durs_batch = []
 
 account_durs_baseline = []
 delete_durs_baseline = []
-xs_decay = []
 decay_durs_baseline = []
 
-with open('results/lobsters_results/lobster_decay_baseline.csv','r') as csvfile:
+with open('results/lobsters_results/lobsters_disguise_stats_baseline_batch.csv','r') as csvfile:
     rows = csvfile.readlines()[1:]
     for r in rows:
         vals = [int(x.strip()) for x in r.split(",")]
-        ndata = vals[1]
-        decay_baseline = vals[2]/1000
-        xs_decay.append(ndata)
+        decay_baseline = vals[0]/1000
         decay_durs_baseline.append(decay_baseline)
+        delete_durs_baseline.append(decay_baseline)
 
 with open("results/lobsters_results/lobsters_disguise_stats_batch.csv",'r') as csvfile:
     rows = csvfile.readlines()[1:]
-    for r in rows:
-        vals = [int(x.strip()) for x in r.split(",")]
-        ndata = vals[1]
-        vals = [x/1000 for x in vals]
-        decay = vals[4]
-        undecay = vals[5]
-        delete = vals[6]
-        restore = vals[7]
-
-        xs.append(ndata)
-        delete_durs_batch.append(delete)
-        restore_durs_batch.append(restore)
-        decay_durs_batch.append(decay)
-        undecay_durs_batch.append(undecay)
-
-with open("results/lobsters_results/lobsters_disguise_stats.csv",'r') as csvfile:
-    rows = csvfile.readlines()[1:]
-    for r in rows:
-        vals = [int(x.strip()) for x in r.split(",")]
+    rowvec = [int(x.strip()) for x in rows[0].split(",")[:-1]]
+    rows = [rowvec[i:i + 8] for i in range(0, len(rowvec), 8)]
+    for vals in rows:
+        #vals = [int(x.strip()) for x in r.split(",")]
         ndata = vals[1]
         vals = [x/1000 for x in vals]
         create_baseline = vals[2]
@@ -231,16 +167,13 @@ with open("results/lobsters_results/lobsters_disguise_stats.csv",'r') as csvfile
         undecay = vals[5]
         delete = vals[6]
         restore = vals[7]
-        delete_baseline = vals[8]
 
-        xs.append(ndata)
         account_durs.append(create_edna);
+        delete_durs_batch.append(delete)
+        restore_durs_batch.append(restore)
+        decay_durs_batch.append(decay)
+        undecay_durs_batch.append(undecay)
         account_durs_baseline.append(create_baseline);
-        delete_durs.append(delete)
-        delete_durs_baseline.append(delete_baseline)
-        restore_durs.append(restore)
-        decay_durs.append(decay)
-        undecay_durs.append(undecay)
 
 X = np.arange(5)
 labels = ['Create Account',
@@ -249,7 +182,7 @@ labels = ['Create Account',
         'Restore Deleted\nAccount',
         'Restore Decayed\nAccount']
 ax = axes_flat[2]
-offset = 8
+offset = 7
 
 ######################## NO EDNA
 ax.bar((X-barwidth/2)[:3], [
@@ -268,25 +201,6 @@ add_labels((X-barwidth/2)[:3], [
 
 add_text_labels((X-barwidth/2)[3:], ["N/A", "N/A"], ax, 'g', offset)
 
-######################## EDNA
-#ax.bar((X), [
-        #statistics.median(account_durs),
-        #statistics.median(delete_durs),
-        #statistics.median(decay_durs),
-        #statistics.median(restore_durs),
-        #statistics.median(undecay_durs)
-    #],
-    #yerr=get_yerr([account_durs, delete_durs, decay_durs, restore_durs, undecay_durs]),
-    #capsize=5,
-    #color='m', width=barwidth, label="Edna")
-#add_labels((X), [
-        #statistics.median(account_durs),
-        #statistics.median(delete_durs),
-        #statistics.median(decay_durs),
-        #statistics.median(restore_durs),
-        #statistics.median(undecay_durs)
-    #], ax, 'm', offset)
-#
 ######################## EDNA BATCH
 ax.bar((X+barwidth/2), [
         statistics.median(account_durs),
@@ -315,18 +229,5 @@ ax.set_xticklabels(labels)
 
 # one legend per everything
 axes_flat[0].legend(loc='upper left');
-
-print(title,
-    statistics.median(delete_durs),
-    statistics.median(restore_durs),
-    statistics.median(delete_durs_batch),
-    statistics.median(restore_durs_batch),
-    statistics.median(decay_durs),
-    statistics.median(undecay_durs),
-    statistics.median(decay_durs_batch),
-    statistics.median(undecay_durs_batch),
-)
-
-
 fig.tight_layout(h_pad=2)
 plt.savefig('client_op_stats.pdf', dpi=300)
