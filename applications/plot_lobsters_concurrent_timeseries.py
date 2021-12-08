@@ -46,7 +46,7 @@ xs = op_results[0].keys()
 ys = op_results[0].values()
 label ='1 Normal Users: {}'.format("No Disguiser")
 plt.scatter(xs, ys, label=label)
-plt.ylim(ymin=0, ymax=200)
+plt.ylim(ymin=0, ymax=400)
 plt.tight_layout(h_pad=4)
 plt.savefig('lobsters_concurrent_results_timeseries_nodisguiser.pdf')
 

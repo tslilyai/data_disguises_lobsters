@@ -69,12 +69,12 @@ Instead, when \sys creates a new pseudoprincipal for $p$, \sys generates a keypa
 Just like with natural principals, \sys stores \pubk{q} and uses it to encrypt $q$'s records.
 
 \sys then stores \privk{q} such that access to \privk{q} and thus also $q$'s records requires
-\privk{p}: \sys 
-%
-(1) encrypts \privk{q} with \pubk{p} to produce $\enc(\pubk{p}, \privk{q})$,
-%
-(2) and stores $\enc(\pubk{p}, \privk{q})$ at location \lcapa{pd} along with $p$'s encrypted diff
+\privk{p} by
+\begin{enumerate}
+    \item encrypting \privk{q} with \pubk{p} to produce $\enc(\pubk{p}, \privk{q})$, and
+    \item storing $\enc(\pubk{p}, \privk{q})$ at location \lcapa{pd} along with $p$'s encrypted diff
 records from disguise $d$.
+\end{enumerate}
 
 Because of the recursive nature of disguises, $p$ itself may be a pseudoprincipal and not a natural
 principal! Thus, the application cannot simply send \privk{q} via \eg email to principal $p$ when it
