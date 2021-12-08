@@ -771,8 +771,8 @@ fn modify_items(
 
     let start = time::Instant::now();
     // update column for this item
-    error!("UPDATE {} SET {} = {} WHERE {}", table, col, new_val, selection);
-    query_drop(format!("UPDATE {} SET {} = {} WHERE {}", table, col, new_val, selection),
+    //error!("UPDATE {} SET {} = '{}' WHERE {}", table, col, new_val, selection);
+    query_drop(format!("UPDATE {} SET {} = '{}' WHERE {}", table, col, new_val, selection),
         db,
         stats.clone(),
     )
