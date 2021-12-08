@@ -56,6 +56,7 @@ impl EncData {
 pub struct PrincipalData {
     pub pubkey: RsaPublicKey,
     pub is_anon: bool,
+    pub should_remove: bool,
 
     // only nonempty for pseudoprincipals!
     pub ownership_loc_caps: Vec<LocCap>,
@@ -124,7 +125,7 @@ impl TokenCtrler {
         db.query_drop("SET max_heap_table_size = 4294967295;")
             .unwrap();
         let createq = format!(
-            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, pubkey varchar(1024), ownershipToks varchar(255), diffToks varchar(255), PRIMARY KEY ({})) ENGINE = MEMORY;",
+            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, should_remove tinyint, pubkey varchar(1024), ownershipToks varchar(255), diffToks varchar(255), PRIMARY KEY ({})) ENGINE = MEMORY;",
             PRINCIPAL_TABLE, UID_COL, UID_COL);
         db.query_drop(&createq).unwrap();
         let selected = get_query_rows_str(
@@ -135,13 +136,15 @@ impl TokenCtrler {
         .unwrap();
         for row in selected {
             let is_anon: bool = row[1].value == "1";
-            let pubkey_bytes: Vec<u8> = serde_json::from_str(&row[2].value).unwrap();
+            let should_remove: bool = row[2].value == "1";
+            let pubkey_bytes: Vec<u8> = serde_json::from_str(&row[3].value).unwrap();
             let pubkey = RsaPublicKey::from_pkcs1_der(&pubkey_bytes).unwrap();
-            let ownership_toks = serde_json::from_str(&row[3].value).unwrap();
-            let diff_toks = serde_json::from_str(&row[4].value).unwrap();
+            let ownership_toks = serde_json::from_str(&row[4].value).unwrap();
+            let diff_toks = serde_json::from_str(&row[5].value).unwrap();
             tctrler.register_saved_principal(
                 &row[0].value,
                 is_anon,
+                should_remove,
                 &pubkey,
                 ownership_toks,
                 diff_toks,
@@ -314,6 +317,7 @@ impl TokenCtrler {
         &mut self,
         uid: &UID,
         is_anon: bool,
+        should_remove: bool,
         pubkey: &RsaPublicKey,
         ot: Vec<LocCap>,
         dt: Vec<LocCap>,
@@ -326,6 +330,7 @@ impl TokenCtrler {
             is_anon: is_anon,
             ownership_loc_caps: ot,
             diff_loc_caps: dt,
+            should_remove: should_remove,
         };
         if persist {
             self.mark_principal_to_insert(uid, &pdata);
@@ -349,6 +354,7 @@ impl TokenCtrler {
             is_anon: is_anon,
             ownership_loc_caps: vec![],
             diff_loc_caps: vec![],
+            should_remove: false,
         };
 
         self.mark_principal_to_insert(uid, &pdata);
@@ -452,10 +458,16 @@ impl TokenCtrler {
     pub fn remove_principal(&mut self, uid: &UID, db: &mut mysql::PooledConn) {
         // actually remove
         let start = time::Instant::now();
-        let pdata = self.principal_data.get(uid);
+        let pdata = self.principal_data.get_mut(uid);
         if pdata.is_none() {
             return;
+        } 
+        let mut pdata = pdata.unwrap();
+        if !pdata.diff_loc_caps.is_empty() || !pdata.ownership_loc_caps.is_empty() {
+            // mark as to_remove
+            pdata.should_remove = true;
         } else {
+            // actually remove metadata
             warn!("Removing principal {}\n", uid);
             self.principal_data.remove(uid);
             warn!(
@@ -1020,6 +1032,7 @@ impl TokenCtrler {
         decrypt_cap: &DecryptCap,
         diff_loc_caps: &Vec<LocCap>,
         ownership_loc_caps: &Vec<LocCap>,
+        reveal: bool,
     ) -> (Vec<DiffTokenWrapper>, Vec<OwnershipTokenWrapper>) {
         let mut diff_tokens = vec![];
         let mut own_tokens = vec![];
@@ -1097,6 +1110,7 @@ impl TokenCtrler {
                                 &privkey,
                                 &pp.diff_loc_caps,
                                 &pp.ownership_loc_caps,
+                                reveal,
                             );
                             diff_tokens.append(&mut pp_diff_tokens);
                             own_tokens.append(&mut pp_own_tokens);
@@ -1113,6 +1127,7 @@ impl TokenCtrler {
         &self,
         decrypt_cap: &DecryptCap,
         ownership_loc_caps: &Vec<LocCap>,
+        reveal: bool,
     ) -> Vec<UID> {
         let mut uids = vec![];
         if decrypt_cap.is_empty() {
@@ -1150,7 +1165,7 @@ impl TokenCtrler {
                         warn!("Getting tokens of pseudoprincipal {}", new_uid);
                         if let Some(pp) = self.principal_data.get(&new_uid) {
                             let ppuids =
-                                self.get_user_pseudoprincipals(&pk, &pp.ownership_loc_caps);
+                                self.get_user_pseudoprincipals(&pk, &pp.ownership_loc_caps, reveal);
                             uids.extend(ppuids.iter().cloned());
                         }
                     }
@@ -1244,7 +1259,7 @@ mod tests {
         assert!(ctrler.tmp_diff_loc_caps.is_empty());
 
         // get tokens
-        let (diff_tokens, _) = ctrler.get_user_tokens(did, &private_key_vec, &vec![lc], &vec![]);
+        let (diff_tokens, _) = ctrler.get_user_tokens(did, &private_key_vec, &vec![lc], &vec![], reveal);
         assert_eq!(diff_tokens.len(), 1);
         assert_eq!(diff_tokens[0], remove_token);
     }
@@ -1312,7 +1327,7 @@ mod tests {
                 let dc = dcaps.get(&(u.to_string(), d as u64)).unwrap().clone();
                 // get tokens
                 let (diff_tokens, _) =
-                    ctrler.get_user_tokens(d as u64, &priv_keys[u - 1], &vec![dc], &vec![]);
+                    ctrler.get_user_tokens(d as u64, &priv_keys[u - 1], &vec![dc], &vec![], reveal);
                 assert_eq!(diff_tokens.len(), (iters as usize));
                 for i in 0..iters {
                     let dt = edna_diff_token_from_bytes(&diff_tokens[i].token_data);
@@ -1405,7 +1420,7 @@ mod tests {
                 let lc = lcaps.get(&(u.to_string(), d as u64)).unwrap().clone();
                 // get tokens
                 let (diff_tokens, own_tokens) =
-                    ctrler.get_user_tokens(d as u64, &priv_keys[u as usize - 1], &vec![dc], &vec![lc]);
+                    ctrler.get_user_tokens(d as u64, &priv_keys[u as usize - 1], &vec![dc], &vec![lc], reveal);
                 assert_eq!(diff_tokens.len(), 1);
                 assert_eq!(own_tokens.len(), 1);
                 let dt = edna_diff_token_from_bytes(&diff_tokens[0].token_data);

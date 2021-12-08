@@ -70,7 +70,7 @@ Just like with natural principals, \sys stores \pubk{q} and uses it to encrypt $
 
 \sys then stores \privk{q} such that access to \privk{q} and thus also $q$'s records requires
 \privk{p} by
-\begin{enumerate}
+\begin{enumerate}[nosep]
     \item encrypting \privk{q} with \pubk{p} to produce $\enc(\pubk{p}, \privk{q})$, and
     \item storing $\enc(\pubk{p}, \privk{q})$ at location \lcapa{pd} along with $p$'s encrypted diff
 records from disguise $d$.
@@ -129,12 +129,11 @@ has since been deleted). \sys currently does the latter and retains pseudoprinci
 use SQL databases, represent objects as database rows and express principal data ownership via
 foreign-key relationships.
 
-Disguises specifications consist of predicated disguise operation specifications. \sys performs each operation
-by selecting database objects that satisfy the predicate; performing SQL queries to modify the
-objects; and automatically generating and storing records corresponding to the operation performed
-using \sys's lower-level API.
-\sys supports three high-level disguise specification operations:
-\begin{enumerate}
+Disguises specifications consist of predicated disguise operation specifications and a
+pseudoprincipal-generation specification. 
+\sys performs each operation by selecting database objects that satisfy the predicate; performing SQL queries to modify the objects; and automatically generating and storing records corresponding to the operation performed using \sys's lower-level API.  \sys supports three high-level disguise specification
+operations:
+\begin{enumerate}[nosep]
     \item Modify: change an attribute of the data object.
     \item Remove: delete the data object.
     \item Decorrelate: generate a pseudoprincipal $q$, and rewrite the foreign key to original
@@ -143,6 +142,18 @@ using \sys's lower-level API.
 Decorrelation creates a speaks-for record \town{pd} containing the created pseudoprincipal's
 ID; removal produces a diff record \tdiff{pd} with the removed object's value; and modification
 produces a diff record \tdiff{pd} containing the old and new values of the modified object.
+
+Pseudoprincipal generation specifications consist of a list of per-column policies that each
+include the column name, and the selected policy on how to generate values for that column.
+\sys supports the following policies:
+\begin{itemize}[nosep]
+    \item Random string of length $n$
+    \item Random email
+    \item Random phone number
+    \item Timestamp
+    \item Constant value $c$
+    \item Random number (optionally in a range)
+\end{itemize}
 
 When revealing disguise $d$, \sys retrieves all records accessible with the provided decryption capability
 and locator, and restores the undisguised state by updating the relevant object rows in the database. 

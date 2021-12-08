@@ -131,11 +131,12 @@ impl EdnaClient {
         decrypt_cap: tokens::DecryptCap,
         diff_loc_caps: Vec<tokens::LocCap>,
         own_loc_caps: Vec<tokens::LocCap>,
+        reveal: bool,
     ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
         let locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
         let (dts, own_tokens) =
-            locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps);
+            locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps, reveal);
         diff_tokens.extend(dts.iter().cloned());
         drop(locked_token_ctrler);
         (
@@ -149,53 +150,8 @@ impl EdnaClient {
                 .collect(),
         )
     }
-    /*
-    pub fn get_tokens_of_disguise_and_mark_revealed(
-        &self,
-        did: DID,
-        decrypt_cap: tokens::DecryptCap,
-        diff_loc_caps: Vec<tokens::LocCap>,
-        own_loc_caps: Vec<tokens::LocCap>,
-    ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
-        let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
-        let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
-        let (dts, own_tokens) =
-            locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps);
-        diff_tokens.extend(dts.iter().cloned());
 
-        for dwrapper in &diff_tokens {
-            locked_token_ctrler.mark_diff_token_revealed(
-                did,
-                dwrapper,
-                &decrypt_cap,
-                &diff_loc_caps,
-                &own_loc_caps,
-            );
-        }
-
-        for owrapper in &own_tokens {
-            locked_token_ctrler.mark_ownership_token_revealed(
-                did,
-                owrapper,
-                &decrypt_cap,
-                &own_loc_caps,
-            );
-        }
-
-        drop(locked_token_ctrler);
-        (
-            diff_tokens
-                .iter()
-                .map(|wrapper| wrapper.token_data.clone())
-                .collect(),
-            own_tokens
-                .iter()
-                .map(|wrapper| wrapper.token_data.clone())
-                .collect(),
-        )
-    }
-
-    pub fn get_global_tokens(&self) -> Vec<Vec<u8>> {
+    /*pub fn get_global_tokens(&self) -> Vec<Vec<u8>> {
         let locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         let global_diff_tokens = locked_token_ctrler.get_all_global_diff_tokens();
         drop(locked_token_ctrler);
@@ -206,7 +162,7 @@ impl EdnaClient {
     }
 
     // TODO add API calls to remove/modify global tokens?
-    */
+    */ 
 
     //-----------------------------------------------------------------------------
     // Save arbitrary diffs performed by the disguise for the purpose of later
@@ -259,9 +215,10 @@ impl EdnaClient {
         &self,
         decrypt_cap: tokens::DecryptCap,
         ownership_loc_caps: Vec<tokens::LocCap>,
+        reveal: bool,
     ) -> Vec<UID> {
         self.disguiser
-            .get_pseudoprincipals(&decrypt_cap, &ownership_loc_caps)
+            .get_pseudoprincipals(&decrypt_cap, &ownership_loc_caps, reveal)
     }
 
     /**********************************************************************

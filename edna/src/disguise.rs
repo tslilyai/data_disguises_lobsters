@@ -3,8 +3,6 @@ use crate::spec::*;
 use crate::stats::*;
 use crate::tokens::*;
 use crate::*;
-#[cfg(feature = "flame_it")]
-use flamer::flame;
 use log::{warn, error};
 use mysql::{Opts, Pool};
 use std::collections::{HashMap, HashSet};
@@ -81,7 +79,6 @@ impl Disguiser {
         );
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     pub fn create_new_pseudoprincipal(&mut self) -> (UID, Vec<RowVal>) {
         match self.pseudoprincipal_data_pool.pop() {
             Some(vs) => vs,
@@ -97,9 +94,10 @@ impl Disguiser {
         &self,
         decrypt_cap: &DecryptCap,
         ownership_loc_caps: &Vec<LocCap>,
+        reveal: bool,
     ) -> Vec<UID> {
         let locked_token_ctrler = self.token_ctrler.lock().unwrap();
-        let uids = locked_token_ctrler.get_user_pseudoprincipals(decrypt_cap, ownership_loc_caps);
+        let uids = locked_token_ctrler.get_user_pseudoprincipals(decrypt_cap, ownership_loc_caps, reveal);
         drop(locked_token_ctrler);
         uids
     }
@@ -122,7 +120,7 @@ impl Disguiser {
         let start = time::Instant::now();
         let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
         let (dts, own_tokens) =
-            locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps);
+            locked_token_ctrler.get_user_tokens(did, &decrypt_cap, &diff_loc_caps, &own_loc_caps, true);
         diff_tokens.extend(dts.iter().cloned());
         warn!(
             "Edna: Get tokens for reveal: {}",
@@ -176,7 +174,7 @@ impl Disguiser {
                 Ok(d) => {
                     if d.did == did {
                         warn!("Reversing token {:?}\n", d);
-                        let revealed = d.reveal(&mut db, self.stats.clone())?;
+                        let revealed = d.reveal(&mut locked_token_ctrler, &mut db, self.stats.clone())?;
                         if revealed {
                             warn!("Decor Ownership Token reversed!\n");
                             /*locked_token_ctrler.mark_ownership_token_revealed(
@@ -221,6 +219,7 @@ impl Disguiser {
             &decrypt_cap,
             &vec![],
             &ownership_loc_caps,
+            false,
         );
         drop(locked_token_ctrler);
         warn!(
@@ -394,7 +393,6 @@ impl Disguiser {
         Ok(loc_caps)
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     fn modify_global_diff_tokens(&mut self, disguise: Arc<Disguise>) {
         let start = time::Instant::now();
         let did = disguise.did;
@@ -490,7 +488,6 @@ impl Disguiser {
         );
     }
 
-    #[cfg_attr(feature = "flame_it", flame)]
     fn execute_removes(
         &self,
         disguise: Arc<Disguise>,
@@ -651,7 +648,6 @@ impl Disguiser {
 /*
  * Also only used by higher-level disguise specs
  */
-#[cfg_attr(feature = "flame_it", flame)]
 fn decor_items(
     did: DID,
     token_ctrler: &mut TokenCtrler,
@@ -753,7 +749,6 @@ fn decor_items(
     }
 }
 
-#[cfg_attr(feature = "flame_it", flame)]
 fn modify_items(
     did: DID,
     global: bool,
