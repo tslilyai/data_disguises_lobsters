@@ -8,8 +8,6 @@
 \subsection{Security Evaluation}
 \label{s:eval-security}
 
-\paragraph{\emph{(1) Security of q.}}
-%
 \sys secures disguise records by encrypting them with the public key $\pubk{p}$ of a principal $p$.
 After generating the public-private keypair for a principal, \sys does not store the corresponding
 private key \privk{p} (principal $p$'s decryption capability). Only a client speaking for the
@@ -24,14 +22,12 @@ keypairs, or generates them at the time of principal registration). In addition,
 decrypt principal $p$'s records.
 %
 
-\vspace{6pt}\noindent\textbf{\emph{(2) Privacy of Disguise History.}}
-%
-\sys hides per-principal history of applied disguises, namely which disguises affect which
-principals' data, using locators. A client must provide locator \lcapa{pd} for \sys (or an
-adversary) to determine that a bag of encrypted records came from disguise $d$ applied to
+\sys also successfully hides the per-principal history of applied disguises, namely which disguises
+affect which principals' data, using locators. A client must provide locator \lcapa{pd} for \sys (or
+an adversary) to determine that a bag of encrypted records came from disguise $d$ applied to
 (non-pseudoprincipal) $p$. \sys does not store these per-disguise and per-principal locators, and
-thus contains no information to link bags of encrypted records to the same principal or to the
-same disguise.
+thus contains no information to link bags of encrypted records to the same principal or to the same
+disguise.
 
 After compromise, no such privacy is guaranteed: any use of \lcapa{pd} to apply disguise actions
 allows an attacker to learn that a disguise $d$ applied to $p$'s data. Furthermore,

@@ -16,8 +16,8 @@
 %\end{tabular}
 \begin{lstlisting}[language=Rust, style=rust]
 RegisterPrincipal(p: UID) -> PrivKey;
-ApplyDisguise(p: UID, spec: DisguiseSpec, pk: PrivKey, locs: Vec<Locator>) -> (DisguiseID, Vec<Locator>);
-RevealDisguise(p: UID, did: DisguiseID, pk: PrivKey, locs: Locator);
+ApplyDisguise(p: UID, spec: DisguiseSpec, privk: PrivKey, locs: Vec<Locator>) -> (DisguiseID, Vec<Locator>);
+RevealDisguise(p: UID, did: DisguiseID, privk: PrivKey, locs: Locator);
 \end{lstlisting}
 \caption{\sys's higher-level API.}
 \label{f:api-high}
@@ -60,7 +60,7 @@ RevealDisguise(p: UID, did: DisguiseID, pk: PrivKey, locs: Locator);
 %        reveal links between $p$ and its pseudoprincipals.\\
 %    \end{tabular}
 \begin{lstlisting}[language=Rust, style=rust]
-RegisterPrincipal(p: UID) -> PrivKey;
+RegisterPrincipal(p: UID, pubk: PubKey);
 CreatePseudoprincipal() -> (UID, PrincipalData);
 DeregisterPrincipal(p: UID);
 
@@ -73,9 +73,9 @@ StoreDiff(p: UID, did: DisguiseID, data: Vec<u8>);
 StoreSpeaksFor(p1: UID, p2: UID, did: DisguiseID);
 
 // get diffs stored as part of did at loc
-DiffsForDisguise(did: DisguiseID, pk: PrivKey, loc: Locator) -> Vec<Vec<u8>>;
+DiffsForDisguise(did: DisguiseID, privk: PrivKey, loc: Locator) -> Vec<Vec<u8>>;
 // principals that p speaks for (stored at loc)
-PseudoprincipalsOf(p: UID, pk: PrivKey, loc: Locator) -> Vec<UID>;
+PseudoprincipalsOf(p: UID, privk: PrivKey, loc: Locator) -> Vec<UID>;
 \end{lstlisting}
 \caption{\sys's low-level API.}
 \label{f:api-low}

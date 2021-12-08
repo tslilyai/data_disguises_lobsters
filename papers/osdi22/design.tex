@@ -87,12 +87,12 @@ view and edit their answers after anonymization.
 
 \head{(1) Register principals.}
 Prior to performing any disguises, WebSubmit registers every client who creates an account by
-invoking \fn{RegisterPrincipal} with the new principal's UID $p$ (the value of the \fn{id} column in the \fn{users} table).
-\sys generates a public-private key pair for $p$, returning private key \privk{p} to 
-WebSubmit, and saving the public key \pubk{p}.
-WebSubmit emails \privk{p} to the client; \privk{p} will allow the client to later access $p$'s
-disguised data. Both \sys and WebSubmit forget \privk{p} so that no attacker who compromises
-WebSubmit can gain the key. 
+invoking \fn{RegisterPrincipal} with the new principal's UID $p$ (the value of the \fn{id} column in
+the \fn{users} table) and a public key \pubk{p} from the client that pairs with the client's private
+key \privk{p}.  \sys saves public key \pubk{p}.
+%WebSubmit emails \privk{p} to the client; \privk{p} will allow the client to later access $p$'s
+%disguised data. Both \sys and WebSubmit forget \privk{p} so that no attacker who compromises
+%WebSubmit can gain the key. 
 
 \head{(2) Start a disguise.}
 WebSubmit's disguises start when either a client wants to delete their account, or the admin wants
@@ -140,8 +140,8 @@ anonymized; and (3) users who delete their account after their answers have been
 delete their anonymized answers.
 
 \head{(1) Restoring $p$'s deleted account.}
-When a client who deleted $p$'s account wants to restore it, the client finds its private key
-\privk{p} emailed to it upon $p$'s registration, and the locators \lcapa{pd} emailed to it by WebSubmit when account deletion disguise $d$ was applied to $p$. 
+When a client who deleted $p$'s account wants to restore it, the client retrieves its private key
+\privk{p} as well as the locators \lcapa{pd} emailed to it by WebSubmit when account deletion disguise $d$ was applied to $p$. 
 The client sends these to WebSubmit, which invokes \fn{DiffsForDisguise} with the \lcapa{pd} and \privk{p}, which returns the set of (plaintext) diff records from disguise $d$ for principal $p$. 
 WebSubmit also invokes \fn{PseudoprincipalsOf} with the \lcapa{pd} and \privk{p} to determine which
 pseudoprincipals' data should be recorrelated back with $p$.
