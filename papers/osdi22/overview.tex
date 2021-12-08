@@ -109,3 +109,76 @@ administrators for global anonymization).
     encryption of \sys's stored records is trusted.}
   \label{f:edna-overview}
 \end{figure}
+
+%
+Figure~\ref{f:edna-overview} shows an overview of \sys's operation.
+%
+Clients (on the right) use a web application, which stores their data in a
+relational database.
+%
+Interactions between the clients and the webapp can be synchronous (via HTTP
+requests) or asynchronous (\eg if the webapp sends emails to users).
+%
+
+%
+In normal application operation, \sys is uninvolved, except that the application
+registers each newly signed-up user with \sys.
+%
+This is so that \sys can set up the cryptographic keys for this new \emph{principal}.
+%
+\sys generates a public-private key pair and returns the private keys to the
+client (via the web application), but keeps a record of the public key associated
+with the application's unique ID for the new principal.
+%
+
+%
+In response to a user request to initiate a privacy transformation (\eg an account
+deletion), or an application decision to perform a privacy transformation (\eg a
+data anonymization cron job), the application invokes \sys.
+%
+\sys disguises the relevant data, encrypts the original data with the relevant
+principal's public key, and stores it in its encrypted record store.
+%
+Finally, \sys forgets the principal's public key and any metadata related to the
+principal.
+%
+The application's database now contains disguised data in place of the original
+data, and the server lacks any information about the disguised principal.
+%
+
+%
+Disguises may change the data's content (\eg overwriting it with placeholder data),
+delete data entirely, or \emph{decorrelate} it.
+%
+Decorrelation is crucial when the association pattern may reveal information
+even in the absence of data.
+%
+Such metadata often allows for complete deanonymization of users even after their
+identifying information is removed~\cite{xxx}.
+%
+In Lobsters, for example, the tags a user has created and applied to their posts,
+or the tags of the posts that the user has commented on, may well allow an attacker
+conclude their identity.
+%
+Yet, simply removing the data would break the application---in the example,
+popular tags on Lobsters would simply disappear.
+%
+\sys's decorrelation re-associates disguised data with fake principals, whose
+only \emph{raison d'être} is to maintain application integrity by owning disguised
+data.
+%
+
+%
+Finally, users may wish to reveal their disguised data, either temporarily or
+permanently.
+%
+To do so, the client provides cryptographic material that allows \sys to locate
+and decrypt the original data.
+%
+The client supplies this material to the web application, which invokes \sys
+to obtain the plaintext data.
+%
+Depending on the use case, the application may then either re-disguise a
+potentially modified form of the data and store it in \sys again, or update the
+application database to replace disguised data with original data.
+%
