@@ -235,7 +235,7 @@ and $p$'s private key to determine which pseudoprincipals' data should be
 recorrelated back with $p$.
 %
 
-\head{(2) Accessing anonymized answers.}
+\head{(2) Accessing Anonymized Answers.}
 %
 When a client chooses to edit their anonymized answer, the client provides $p$'s
 private key and the locators \lcapa{pd} email to by WebSubmit when it applied
@@ -251,7 +251,7 @@ WebSubmit authorizes $p$ to edit the answers.
 Finally, WebSubmit forgets the private key and locators provided by the client.
 %
 
-\head{(3) Deleting anonymized answers.}
+\head{(3) Deleting Anonymized Answers.}
 %
 A client may choose to delete their account after the instructor anonymized the
 class.
@@ -265,8 +265,11 @@ WebSubmit then invokes \fn{PseudoprincipalsOf} with the \lcapa{pd} and the priva
 key to determine which pseudoprincipals $p$ may speak-for, and deletes the answers
 of these pseudoprincipals.
 %
-As before, WebSubmit then forgets the private key and locators, and also invokes
-\fn{ForgetPrincipal} to tell \sys to forget the now-useless pseudoprincipals.
+As before, WebSubmit then forgets the private key and locators, and also removes
+the pseudoprincipals from the application database.
+%
+(\sys must continue to remember the pseudoprincipals, however, so that the user
+can later restore their---anonymized---account.)
 %
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
