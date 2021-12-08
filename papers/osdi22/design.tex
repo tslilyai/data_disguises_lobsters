@@ -38,16 +38,10 @@ clients maintain locators for natural principals whose disguised data they wish 
    relationships.
  \item A low-level API (Figure~\ref{f:api-low}) that provides application developers with
    additional control. This API allows custom organization of disguised data, lets the application
-        make its own database modifications, and is schema-agnostic. This API requires applications
-        to produce and interpret diff records, and tell \sys about speaks-for links between
-        principals and pseudoprincipals. 
+   make its own database modifications, and is schema-agnostic. This API requires applications
+   to produce and interpret diff records, and tell \sys about speaks-for links between
+   principals and pseudoprincipals. 
 \end{enumerate}
-%
-To use either API, applications provide \sys with a description of how the application represents
-principals, how to interpret unique principal IDs, and how to
-generate new principal objects.
-%
-
 %
 \sys's high-level API is internally implemented in terms of the low-level API and its
 abstractions. We primarily discuss the low-level API in this paper.
@@ -56,7 +50,13 @@ abstractions. We primarily discuss the low-level API in this paper.
 %
 
 %
-We structure the API description around an example application, WebSubmit~\cite{websubmit-rs-anon}.
+To use either API, applications provide \sys with a description of how the application represents
+principals, how to interpret unique principal IDs, and how to
+generate new principal objects.
+%
+
+%
+We structure our discussion of the lower-level API around an example application, WebSubmit~\cite{websubmit-rs-anon}.
 %
 WebSubmit is a homework submission application written in Rust, based on the Rocket
 framework~\cite{rocket-rs}, and is used by students at a U.S.\ university to submit homework assignments for classes.
@@ -83,86 +83,111 @@ the answers grouped by lecture (\ie one pseudoprincipal per set of lecture answe
 With \sys, WebSubmit also allows users to restore their deleted accounts, and allows students to
 view and edit their answers after anonymization.
 
-\subsection{Disguising}
+\subsection{How to disguise with \sys?}
 
-\head{Principal Registration.}
-Every client who creates an application account for principal $p$ registers the principal's unique id
-with \sys by invoking \fn{RegisterPrincipal}. \sys generates a public-private key pair, returning private key \privk{p} to the
-application. \sys saves the public key \pubk{p} with $p$'s ID.
+\head{(1) Register principals.}
+Prior to performing any disguises, WebSubmit registers every client who creates an account by
+invoking \fn{RegisterPrincipal} with the new principal's UID $p$ (the value of the \fn{id} column in the \fn{users} table).
+\sys generates a public-private key pair for $p$, returning private key \privk{p} to 
+WebSubmit, and saving the public key \pubk{p}.
+WebSubmit emails \privk{p} to the client; \privk{p} will allow the client to later access $p$'s
+disguised data. Both \sys and WebSubmit forget \privk{p} so that no attacker who compromises
+WebSubmit can gain the key. 
 
-The application handles passing \privk{p} to the client; \privk{p} will allow the user running the
-client to later access $p$'s disguise records.
+\head{(2) Start a disguise.}
+WebSubmit's disguises start when either a client wants to delete their account, or the admin wants
+to anonymize the class.
+When this occurs, WebSubmit first \fn{StartDisguise} to signal \sys that a new disguise has begun,
+and receives back the ID $d$ of the disguise.
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Disguising and Disguise Records.}
-When a client speaking for principal $p$ wants to apply a disguise $d$,
-the application invokes \fn{StartDisguise} to signal \sys that a new disguise has begun.
-The application then performs the disguise's data updates (\eg, removing or modifying
-data objects). If the application wishes for the original data to be later revealed, the
-application generates some custom diff and invokes \fn{SaveDiffRecord} with the diff.
+\head{(3) Perform disguise database transformations and store records.}
+WebSubmit then performs the appropriate database updates.  To delete principal $p$'s account,
+WebSubmit first retrieves the account record from the \fn{users} table and all the principal's
+answers from the \fn{answers} table. WebSubmit then removes the answers and the account using
+\fn{DELETE} queries.  WebSubmit creates a blob of bytes consisting of the $p$'s account and $p$'s
+answers, and invokes \fn{StoreDiff} with $p$, $d$, and these bytes. \sys securely stores
+these bytes until WebSubmit wants to retrieve them to operate on disguised data (\S\ref{s:op-disg}). 
 
-In the case that the application decorrelates a data object from a principal, the application
-queries \sys for a new pseudoprincipal owner for the data object (to preserve referential integrity)
-using \fn{CreatePseudoprincipal}. \sys returns the pseudoprincipal's ID and object data; the
-application handles properly inserting the pseudoprincipal object.  If the application wishes for
-the original owning principal to be temporarily or permanently recorrelated with the data object,
-the application generates any speaks-for information it wishes to save, and invokes
-\fn{SaveSpeaksForRecord} with both the original principal's and new pseudoprincipal's IDs.
+To anonymize principal $p$'s account, WebSubmit first retrieves the account record from the \fn{users}
+table and all the principal's answers from the \fn{answers} table. WebSubmit then removes the
+account using a \fn{DELETE} query, and then \emph{decorrelates} the principal's answers. 
+To decorrelate, WebSubmit
+\begin{enumerate}
+%
+\item invokes \fn{CreatePseudoprincipal} to get \sys to generate a \fn{users} table record for a new
+    pseudoprincipal, and a new principal UID $p_{\texttt{anon}}$;
+%
+\item \fn{UPDATE}s the answers' foreign keys to \fn{users} to point to $q$ instead of $p$;
+%
+\item and invokes \fn{StoreSpeaksFor} with $p$, $p_{\texttt{anon}}$, and $d$ to tell
+    \sys to securely store the speaks-for link between $p$ and $p_{\texttt{anon}}$.
+\end{enumerate}
 
-When the disguise is complete, the application invokes \fn{EndDisguise}. This informs \sys to erase
-any sensitive data, complete any record encryption operations, and to return to the application a
-pair of locators that will allow \sys later to locate the (encrypted) diff and speaks-for records
-produced by the disguise respectively.
+\head{(4) End the disguise.}
+When the disguise is complete, WebSubmit invokes \fn{EndDisguise}. This informs \sys to complete any
+record encryption operations and return (and then forget) two locators \lcapa{pd} that will allow \sys
+to later locate the (encrypted) diff and speaks-for records stored during $d$'s application.
+%
+WebSubmit emails these locators to the client speaking for $p$, and then forgets them to ensure that
+attackers cannot learn that $d$ was applied to $p$.
 
-The application handles passing the locators \lcapa{pd} to the user speaking for $p$; to ensure that
-adversaries cannot learn that disguise $d$ applied to principal $p$, the application should not
-retain locators.
+\subsection{How to operate on disguised data?}
+\label{s:op-disg}
 
-\subsection{Operations on Disguised Data}
-\head{Disguise Revealing.}
-In order to reveal the original state of data disguised by $d$ for principal $p$, the application
-needs to retrieve the diff and speaks-for records of $p$ from $d$ storing information about the undisguised
-state prior to applying $d$.
-This requires the application to obtain the locators \lcapa{pd} and decryption capability \privk{p}
-from a client speaking for $p$.
+WebSubmit can use \sys to operate on disguised data in the following three ways: (1) users can
+restore deleted accounts; (2) users can view and edit answers even after their answers have been
+anonymized; and (3) users who delete their account after their answers have been anonymized can
+delete their anonymized answers.
 
-With these in hand, the application calls \fn{GetRecordsOfDisguise}, which returns the set of
-(plaintext) diff and speaks-for records from disguise $d$ for principal $p$; the application then uses
-the record data to reveal data as appropriate.
-\lyt{Add details about how sometimes we need multiple locators $d' \neq d$ because of pseudoprincipals?}
+\head{(1) Restoring $p$'s deleted account.}
+When a client who deleted $p$'s account wants to restore it, the client finds its private key
+\privk{p} emailed to it upon $p$'s registration, and the locators \lcapa{pd} emailed to it by WebSubmit when account deletion disguise $d$ was applied to $p$. 
+The client sends these to WebSubmit, which invokes \fn{DiffsForDisguise} with the \lcapa{pd} and \privk{p}, which returns the set of (plaintext) diff records from disguise $d$ for principal $p$. 
+WebSubmit also invokes \fn{PseudoprincipalsOf} with the \lcapa{pd} and \privk{p} to determine which
+pseudoprincipals' data should be recorrelated back with $p$.
 
-\head{Temporary Authorization.}
-The application may also wish to temporarily recorrelate users with their data by temporarily
-authorizing them to act on behalf of a pseudoprincipal. For example, users can temporarily act as
-anonymous users to edit their anonymized lecture answers. Furthermore, applications may wish to
-\emph{compose} disguises on top of anonymized data, to \eg delete now-anonymized data that
-originally belonged to $p$ when $p$ deletes their account.
+In the case of account deletion, $p$ has no pseudoprincipals (deletion applies no decorrelations).
+WebSubmit thus only has to handle diff records, which are blobs containing $p$'s deleted answers and
+account data.  WebSubmit then \fn{INSERT}s these records back into the database, and account
+restoration is complete. 
+%\lyt{Should we add details about how sometimes we need multiple locators
+%from multiple disguises $d' \neq d$ because of pseudoprincipals?}
 
-\sys allows the application to query for all pseudoprincipals corresponding to a particular
-principal using \fn{GetPseudoprincipalsOf}, which returns the set of corresponding pseudoprincipal
-IDs. The application must provide (obtaining from the client) any locators \lcapa{pd} from
-anonymizing disguises $d$ that produced the pseudoprincipals in question, as well as the client's
-decryption capability \privk{p}. This allows \sys to inspect the content of speaks-for records and
-verify links between principal $p$ and pseudoprincipals stored in speaks-for records.
+\head{(2) Accessing anonymized answers.}
+When a client wants to edit their anonymized answer, the client retrieves private key
+\privk{p} and the locators \lcapa{pd} emailed to it by WebSubmit when anonymization disguise $d$ was
+applied to $p$. The client sends these along with the request to edit a particular lectures'
+answers. 
 
-Once the application knows which pseudoprincipals $p'$ correspond to a principal $p$, the application can
-authorize a client acting on behalf of $p$ to act on behalf of $p'$.
+When it receives the request, WebSubmit invokes \fn{PseudoprincipalsOf} with the \lcapa{pd} and
+\privk{p} to determine which pseudoprincipals $p$ may speak-for.  Once WebSubmit confirms that $p$
+may speak-for the principal who owns the answers to be edited, WebSubmit authorizes $p$ to edit the
+answers.
+
+\head{(3) Deleting anonymized answers.} When a client wants to delete their account, but their
+answers have been anonymized, the client retrieves private key \privk{p} and the locators \lcapa{pd}
+emailed to it by WebSubmit when anonymization disguise $d$ was applied to $p$. The client sends
+these along with the request to delete $p$'s account.
+
+Similar to when a client wants to edit anonymized answers, WebSubmit invokes \fn{PseudoprincipalsOf}
+with the \lcapa{pd} and \privk{p} to determine which pseudoprincipals $p$ may speak-for.  WebSubmit
+then deletes the answers of these pseudoprincipals.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Disguising and Revealing with the High-Level API.}
-\label{s:api-high} 
-If an application developer does not want to implement the necessary data transformations for disguise
-application and revealing, the developer can provide a disguise specification in a language provided
-by \sys, which includes schema information and supports a restricted set of SQL database
-modifications. When \fn{ApplyDisguise} is invoked with the disguise specification, \sys applies the
-disguise data transformations and automatically generates the appropriate diff and speaks-for records.
+\label{s:api-high} If an application developer does not want to handle writing the necessary
+database transformations and generation/storage of diff and speaks-for records, the developer can
+provide a disguise specification in a high-level language provided by \sys. This spec includes
+schema annotations and supports a restricted set of SQL database modifications. When
+\fn{ApplyDisguise} is invoked with the disguise specification, \sys applies the specified
+modifications and automatically generates the appropriate diff and speaks-for records.
 
-Similarly, when \fn{RevealDisguise} is invoked, \sys can interpret the automatically-generated diff and
-speaks-for records and perform the data modifications to restore the original state of data (given
-that no subsequent updates had been performed since disguising).
+Similarly, when \fn{RevealDisguise} is invoked, \sys can interpret the automatically-generated diff
+and speaks-for records and perform the data modifications to restore the original state of data
+(given that no subsequent updates had been performed since disguising).
 
 Application handling of locators and decryption capabilities remains the same: \fn{ApplyDisguise}
-takes optional locators and decryption capabilities to support disguise composition, and produces
-locators for the applied disguise; \fn{RevealDisguise} takes locators and decryption capabilities to
-locate and access records to reveal.
-
+takes optional locators and decryption capabilities to support disguise composition (\eg deletion
+after anonymization). \fn{ApplyDisguise} returns locators for the applied disguise.
+\fn{RevealDisguise} takes locators and decryption capabilities to locate and access records to
+reveal.

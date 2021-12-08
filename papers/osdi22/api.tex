@@ -61,7 +61,7 @@ RevealDisguise(p: UID, did: DisguiseID, pk: PrivKey, locs: Locator);
 %    \end{tabular}
 \begin{lstlisting}[language=Rust, style=rust]
 RegisterPrincipal(p: UID) -> PrivKey;
-CreatePseudoprincipal() -> (UID, PrincMetadata);
+CreatePseudoprincipal() -> (UID, PrincipalData);
 DeregisterPrincipal(p: UID);
 
 StartDisguise() -> DisguiseID;
