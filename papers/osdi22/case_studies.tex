@@ -96,15 +96,17 @@ application.
 The original Lobsters is \lyt{TODO}LoC.
 Modifications to the Lobsters code required \lyt{TODO}LoC and took \lyt{TODO} person-days.
 
+\lyt{Do we need to talk about how Lobsters uses \eg keystores, and the high-level API doesn't deal
+with this?}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{WebSubmit}
 \label{s:case-websubmit}
 %
-We integrate \sys into WebSubmit~\cite{websubmit-rs-anon} as a Rust library to support the two
-disguises described in our running example from \S\ref{s:api}, namely intructor-initiated answer anonymization, and GDPR-compliant user account deletion.
-
-Our version of WebSubmit uses \sys's lower-level API, and sends locators and keys to users via
-email.
+We integrate \sys into WebSubmit~\cite{websubmit-rs-anon} as a Rust library. Our version of 
+WebSubmit supports the two disguises described in our \S\ref{s:api} running example using \sys's
+lower-level API: intructor-initiated answer anonymization, and GDPR-compliant user account deletion.
+WebSubmit sends locators and keys to users via email.
 %
 We added new HTTP endpoints for editing disguised data and restoring a deleted account.
 %
