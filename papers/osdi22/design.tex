@@ -2,27 +2,61 @@
 \label{s:design}
 
 \subsection{Abstractions}
-An application using \sys's API works with three main abstractions: (1) natural principals and
-pseudoprincipals, (2) diff records and speaks-for records, and (3) record locators.
+%
+\sys interacts with the application through three key abstractions:
+\one{} principals, \two{} diffs and speaks-for records, and
+\three{} record locators.
+%
 
-\emph{Application principals $p$} correspond to users of the application that are uniquely identifiable
-(\eg via a user ID). An application represents principals as \eg a record in a \fn{users} database
-table, or some other data object in its datastore.
-\emph{Pseudoprincipals} are a subset of principals that correspond to anonymous users not tied to any natural
-person. A pseudoprincipal may or may not be indistinguishable from principals correlated to natural
-persons (what we call a \emph{natural principal}): for example, it
-may have no write permissions.
+%
+Principals are holders of cryptographic keys and locators, and correspond to
+uniquely identifiable application users (\eg via a user ID).
+%
+An application represents principals as a record in a \fn{users} table or some
+other datastore abstraction.
+%
+\sys refers to human application users as \emph{natural principals}.
+%
+Natural principals have data rights (\eg under the GDPR) and interact with
+the application.
+%
+By contrast, \emph{pseudoprincipals} are anonymous users generated as part of
+\sys's disguises, and inserted into the application's principal storage
+to maintain application-level functionality while decorrelating data.
+%
+A pseudoprincipal may or may not observably differ from a natural principal
+at the application level.
+%
 
-\sys allows applications to encrypt, store, and retrieve \emph{diff records} and \emph{speaks-for
-records} produced by a disguise. A diff record \tdiff{pd} stores the pre-to-post-disguise diff of
-$p$'s data disguised by $d$. A speaks-for record \town{pd} stores links between pseudoprincipals
-produced by disguise $d$ to (natural or pseudo) principal $p$.
-\sys handles secure storage of records for the application by encrypting records with per-principal
-public keys \pubk{p}. Clients maintain the corresponding \privk{p}.
+%
+When they invoke \sys's disguise and reveal APIs, they cause \sys to encrypt,
+store, and retrieve \emph{diff records} and \emph{speaks-for records}.
+%
+A diff record stores a set of database changes that the disguise made.
+%
+A speaks-for record stores links between pseudoprincipals produced by a
+disguise and another principal.
+%
+\sys securely stores these records for the application by encrypting records
+with per-principal public keys.
+%
+Only clients hold the private keys for natural principals, so once disguised,
+a natural principal's data can only be revealed with their involvement.
+%
 
-\sys stores record ciphertexts from disguise $d$ for principal $p$ in a record bag indexed by 
-\emph{record locator \lcapa{pd}}. \sys and the application do not store locators; instead, 
-clients maintain locators for natural principals whose disguised data they wish to later reveal.
+%
+\sys stores record ciphertexts from disguise $d$ for principal $p$ in a record
+bag indexed by \emph{record locator \lcapa{pd}}.
+%
+Locators are opaque byte strings that clients use to tell \sys which bag to
+use in a reveal operation.
+%
+The application only handles locators transiently and should not store them;
+instead, its role is to communicate the locators to clients.
+%
+Locators are strictly a performance optimization, and \sys's security
+properties are unaffected by their existence.
+%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{API}
@@ -40,7 +74,7 @@ clients maintain locators for natural principals whose disguised data they wish 
    additional control. This API allows custom organization of disguised data, lets the application
    make its own database modifications, and is schema-agnostic. This API requires applications
    to produce and interpret diff records, and tell \sys about speaks-for links between
-   principals and pseudoprincipals. 
+   principals and pseudoprincipals.
 \end{enumerate}
 %
 \sys's high-level API is internally implemented in terms of the low-level API and its
@@ -92,7 +126,7 @@ the \fn{users} table) and a public key \pubk{p} from the client that pairs with 
 key \privk{p}.  \sys saves public key \pubk{p}.
 %WebSubmit emails \privk{p} to the client; \privk{p} will allow the client to later access $p$'s
 %disguised data. Both \sys and WebSubmit forget \privk{p} so that no attacker who compromises
-%WebSubmit can gain the key. 
+%WebSubmit can gain the key.
 
 \head{(2) Start a disguise.}
 WebSubmit's disguises start when either a client wants to delete their account, or the admin wants
@@ -106,11 +140,11 @@ WebSubmit first retrieves the account record from the \fn{users} table and all t
 answers from the \fn{answers} table. WebSubmit then removes the answers and the account using
 \fn{DELETE} queries.  WebSubmit creates a blob of bytes consisting of the $p$'s account and $p$'s
 answers, and invokes \fn{StoreDiff} with $p$, $d$, and these bytes. \sys securely stores
-these bytes until WebSubmit wants to retrieve them to operate on disguised data (\S\ref{s:op-disg}). 
+these bytes until WebSubmit wants to retrieve them to operate on disguised data (\S\ref{s:op-disg}).
 
 To anonymize principal $p$'s account, WebSubmit first retrieves the account record from the \fn{users}
 table and all the principal's answers from the \fn{answers} table. WebSubmit then removes the
-account using a \fn{DELETE} query, and then \emph{decorrelates} the principal's answers. 
+account using a \fn{DELETE} query, and then \emph{decorrelates} the principal's answers.
 To decorrelate, WebSubmit
 \begin{enumerate}
 %
@@ -141,15 +175,15 @@ delete their anonymized answers.
 
 \head{(1) Restoring $p$'s deleted account.}
 When a client who deleted $p$'s account wants to restore it, the client retrieves its private key
-\privk{p} as well as the locators \lcapa{pd} emailed to it by WebSubmit when account deletion disguise $d$ was applied to $p$. 
-The client sends these to WebSubmit, which invokes \fn{DiffsForDisguise} with the \lcapa{pd} and \privk{p}, which returns the set of (plaintext) diff records from disguise $d$ for principal $p$. 
+\privk{p} as well as the locators \lcapa{pd} emailed to it by WebSubmit when account deletion disguise $d$ was applied to $p$.
+The client sends these to WebSubmit, which invokes \fn{DiffsForDisguise} with the \lcapa{pd} and \privk{p}, which returns the set of (plaintext) diff records from disguise $d$ for principal $p$.
 WebSubmit also invokes \fn{PseudoprincipalsOf} with the \lcapa{pd} and \privk{p} to determine which
 pseudoprincipals' data should be recorrelated back with $p$.
 
 In the case of account deletion, $p$ has no pseudoprincipals (deletion applies no decorrelations).
 WebSubmit thus only has to handle diff records, which are blobs containing $p$'s deleted answers and
 account data.  WebSubmit then \fn{INSERT}s these records back into the database, and account
-restoration is complete. 
+restoration is complete.
 %\lyt{Should we add details about how sometimes we need multiple locators
 %from multiple disguises $d' \neq d$ because of pseudoprincipals?}
 
@@ -157,7 +191,7 @@ restoration is complete.
 When a client wants to edit their anonymized answer, the client retrieves private key
 \privk{p} and the locators \lcapa{pd} emailed to it by WebSubmit when anonymization disguise $d$ was
 applied to $p$. The client sends these along with the request to edit a particular lectures'
-answers. 
+answers.
 
 When it receives the request, WebSubmit invokes \fn{PseudoprincipalsOf} with the \lcapa{pd} and
 \privk{p} to determine which pseudoprincipals $p$ may speak-for.  Once WebSubmit confirms that $p$
