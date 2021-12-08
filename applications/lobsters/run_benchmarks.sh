@@ -7,24 +7,20 @@ mkdir output
 set -e
 
 #get stats first, prime when you do this
-# get baselines
-RUST_LOG=error perflock ../../target/release/lobsters \
-	--stats \
-	--scale 1.5 \
-	&> output/users.out
-echo "Ran stats test for users"
+# TODO get baselines
+#RUST_LOG=error perflock ../../target/release/lobsters \
+#	--prime \
+#	--stats \
+#	--scale 0.1 \
+#	&> output/users.out
+#echo "Ran stats primed test for users"
 
-RUST_LOG=error perflock ../../target/release/lobsters \
-	--prime \
-	--stats \
-	--scale 1.5 \
-	&> output/users.out
-echo "Ran stats primed test for users"
-
-for s in 10000 5000 1000 100 0; do
+for u in 0 1 30; do
 	RUST_LOG=error perflock ../../target/release/lobsters \
-	    --scale 1.5 \
-	    --nsleep $s\
-    	&> output/users$s.out
-	echo "Ran concurrent test for users $s sleep"
+		--scale 1.5 \
+		--nsleep 0\
+		--nconcurrent $u \
+		--filename "${u}users_expensive" \
+	&> output/users$s-$u.out
+	echo "Ran concurrent test for $u users 0 sleep"
 done

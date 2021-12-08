@@ -27,8 +27,6 @@ const DBNAME: &'static str = &"test_hotcrp";
 pub struct Cli {
     #[structopt(long = "prime")]
     prime: bool,
-    #[structopt(long = "batch")]
-    batch: bool,
     #[structopt(long = "baseline")]
     baseline: bool,
     // Generates nusers_nonpc+nusers_pc users
@@ -80,7 +78,7 @@ fn run_edna(args: &Cli) {
     let nusers = args.nusers_nonpc + args.nusers_pc;
     let mut edna = EdnaClient::new(
         args.prime,
-        args.batch,
+        true,
         "127.0.0.1",
         DBNAME,
         SCHEMA,
@@ -184,7 +182,6 @@ fn run_edna(args: &Cli) {
         delete_durations_preanon,
         restore_durations_preanon,
         false,
-        args.batch,
     );
 }
 
@@ -197,7 +194,7 @@ fn run_baseline(args: &Cli) {
     let nusers = args.nusers_nonpc + args.nusers_pc;
     let mut edna = EdnaClient::new(
         args.prime,
-        args.batch,
+        true,
         "127.0.0.1",
         DBNAME,
         SCHEMA,
@@ -349,7 +346,6 @@ fn run_baseline(args: &Cli) {
         vec![],
         vec![],
         true,
-        args.batch,
     );
 }
 
@@ -364,16 +360,12 @@ fn print_stats(
     delete_durations_preanon: Vec<Duration>,
     restore_durations_preanon: Vec<Duration>,
     baseline: bool,
-    batch: bool,
 ) {
     let filename = if baseline {
         format!("hotcrp_disguise_stats_{}users_baseline.csv", nusers)
-    } else if batch {
-        format!("hotcrp_disguise_stats_{}users_batch.csv", nusers)
     } else {
-        format!("hotcrp_disguise_stats_{}users.csv", nusers)
-    };
-
+        format!("hotcrp_disguise_stats_{}users_batch.csv", nusers)
+    }; 
     // print out stats
     let mut f = OpenOptions::new()
         .create(true)

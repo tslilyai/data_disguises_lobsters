@@ -5,7 +5,7 @@ use crate::tokens::*;
 use crate::*;
 #[cfg(feature = "flame_it")]
 use flamer::flame;
-use log::warn;
+use log::{warn, error};
 use mysql::{Opts, Pool};
 use std::collections::{HashMap, HashSet};
 use std::iter::FromIterator;
@@ -273,9 +273,8 @@ impl Disguiser {
                         mystats.clone(),
                     )
                     .unwrap();
-
                     warn!(
-                        "ApplyPred: Got {} selected rows matching predicate {:?}\n",
+                        "ApplyPredDecor: Got {} selected rows matching predicate {:?}\n",
                         selected_rows.len(),
                         p
                     );
@@ -303,28 +302,25 @@ impl Disguiser {
                             );
                             drop(locked_token_ctrler);
                         }
-
                         TransformArgs::Modify {
                             col,
                             generate_modified_value,
                             ..
                         } => {
                             let mut locked_token_ctrler = my_token_ctrler.lock().unwrap();
-                            for i in &selected_rows {
-                                let old_val = get_value_of_col(&i, &col).unwrap();
-                                modify_item(
-                                    did,
-                                    t.global,
-                                    &mut locked_token_ctrler,
-                                    mystats.clone(),
-                                    &table,
-                                    curtable_info,
-                                    col,
-                                    (*(generate_modified_value))(&old_val),
-                                    i,
-                                    &mut db,
-                                );
-                            }
+                            modify_items(
+                                did,
+                                t.global,
+                                &mut locked_token_ctrler,
+                                mystats.clone(),
+                                &table,
+                                curtable_info,
+                                col,
+                                (*(generate_modified_value))(""),
+                                &selected_rows,
+                                selection,
+                                &mut db,
+                            );
                             drop(locked_token_ctrler);
                         }
                         _ => (),
@@ -755,16 +751,10 @@ fn decor_items(
         .unwrap();
         warn!("Update decor fk: {}", start.elapsed().as_micros());
     }
-
-    /*
-    let mut locked_stats = stats.lock().unwrap();
-    locked_stats.decor_dur += start.elapsed();
-    drop(locked_stats);
-    */
 }
 
 #[cfg_attr(feature = "flame_it", flame)]
-fn modify_item(
+fn modify_items(
     did: DID,
     global: bool,
     token_ctrler: &mut TokenCtrler,
@@ -773,25 +763,16 @@ fn modify_item(
     table_info: &TableInfo,
     col: &str,
     new_val: String,
-    i: &Vec<RowVal>,
+    items: &Vec<Vec<RowVal>>,
+    selection: String,
     db: &mut mysql::PooledConn,
 ) {
     warn!("Thread {:?} starting mod {}", thread::current().id(), table);
 
     let start = time::Instant::now();
-
     // update column for this item
-    let i_select = get_select_of_row(&table_info.id_cols, &i);
-    query_drop(
-        Statement::Update(UpdateStatement {
-            table_name: string_to_objname(&table),
-            assignments: vec![Assignment {
-                id: Ident::new(col.clone()),
-                value: Expr::Value(Value::String(new_val.clone())),
-            }],
-            selection: Some(i_select),
-        })
-        .to_string(),
+    error!("UPDATE {} SET {} = {} WHERE {}", table, col, new_val, selection);
+    query_drop(format!("UPDATE {} SET {} = {} WHERE {}", table, col, new_val, selection),
         db,
         stats.clone(),
     )
@@ -800,35 +781,32 @@ fn modify_item(
 
     // TOKEN INSERT
     let start = time::Instant::now();
-    let new_obj: Vec<RowVal> = i
-        .iter()
-        .map(|v| {
-            if &v.column == col {
-                RowVal {
-                    column: v.column.clone(),
-                    value: new_val.clone(),
+    for i in items {
+        let new_obj: Vec<RowVal> = i
+            .iter()
+            .map(|v| {
+                if &v.column == col {
+                    RowVal {
+                        column: v.column.clone(),
+                        value: new_val.clone(),
+                    }
+                } else {
+                    v.clone()
                 }
+            })
+            .collect();
+        let ids = get_ids(&table_info.id_cols, &i);
+        let mut update_token =
+            new_modify_token_wrapper(did, table.to_string(), ids, i.to_vec(), new_obj, global);
+        for owner_col in &table_info.owner_cols {
+            let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
+            update_token.uid = owner_uid.clone();
+            if !global {
+                token_ctrler.insert_user_diff_token_wrapper(&update_token);
             } else {
-                v.clone()
+                token_ctrler.insert_global_diff_token_wrapper(&update_token);
             }
-        })
-        .collect();
-    let ids = get_ids(&table_info.id_cols, &i);
-    let mut update_token =
-        new_modify_token_wrapper(did, table.to_string(), ids, i.clone(), new_obj, global);
-    for owner_col in &table_info.owner_cols {
-        let owner_uid = get_value_of_col(&i, &owner_col).unwrap();
-        update_token.uid = owner_uid.clone();
-        if !global {
-            token_ctrler.insert_user_diff_token_wrapper(&update_token);
-        } else {
-            token_ctrler.insert_global_diff_token_wrapper(&update_token);
         }
     }
     warn!("Update token inserted: {}", start.elapsed().as_micros());
-
-    let mut locked_stats = stats.lock().unwrap();
-    locked_stats.mod_dur += start.elapsed();
-    drop(locked_stats);
-    warn!("Thread {:?} modify {}", thread::current().id(), table);
 }

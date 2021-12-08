@@ -18,8 +18,7 @@ rocket = "0.5.0-rc.1"
 #, features = ["secrets"]}
 rsa = "0.5.0"
 rust-crypto = "0.2.36"
-slog = "2.4.0" 
-#, features = ["max_level_trace", "release_max_level_trace"] }
+slog = {version = "2.4.0", features = ["release_max_level_warn"] }
 slog-term = "2.4.0"
 toml = "0.2.1"
 serde = "1.0"

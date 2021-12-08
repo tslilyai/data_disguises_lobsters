@@ -15,24 +15,24 @@ pub const NULLSTR: &'static str = "NULL";
 pub fn query_drop(
     q: String,
     conn: &mut mysql::PooledConn,
-    stats: Arc<Mutex<QueryStat>>,
+    _stats: Arc<Mutex<QueryStat>>,
 ) -> Result<(), mysql::Error> {
-    let mut locked_stats = stats.lock().unwrap();
     warn!("query_drop: {}\n", q);
+    /*let mut locked_stats = stats.lock().unwrap();
     locked_stats.nqueries += 1;
-    drop(locked_stats);
+    drop(locked_stats);*/
     conn.query_drop(q)
 }
 
 pub fn query_drop_txn(
     q: String,
     txn: &mut mysql::Transaction,
-    stats: Arc<Mutex<QueryStat>>,
+    _stats: Arc<Mutex<QueryStat>>,
 ) -> Result<(), mysql::Error> {
-    let mut locked_stats = stats.lock().unwrap();
     warn!("query_drop: {}\n", q);
+    /*let mut locked_stats = stats.lock().unwrap();
     locked_stats.nqueries += 1;
-    drop(locked_stats);
+    drop(locked_stats);*/
     txn.query_drop(q)
 }
 
@@ -40,12 +40,12 @@ pub fn query_drop_txn(
 pub fn get_query_rows_str_txn(
     qstr: &str,
     txn: &mut mysql::Transaction,
-    stats: Arc<Mutex<QueryStat>>,
+    _stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     warn!("get_query_rows: {}\n", qstr);
-    let mut locked_stats = stats.lock().unwrap();
+    /*let mut locked_stats = stats.lock().unwrap();
     locked_stats.nqueries += 1;
-    drop(locked_stats);
+    drop(locked_stats);*/
 
     let mut rows = vec![];
     let res = txn.query_iter(qstr)?;
@@ -78,12 +78,12 @@ pub fn get_query_rows_str_txn(
 pub fn get_query_rows_str(
     qstr: &str,
     conn: &mut mysql::PooledConn,
-    stats: Arc<Mutex<QueryStat>>,
+    _stats: Arc<Mutex<QueryStat>>,
 ) -> Result<Vec<Vec<RowVal>>, mysql::Error> {
     warn!("get_query_rows: {}\n", qstr);
-    let mut locked_stats = stats.lock().unwrap();
+    /*let mut locked_stats = stats.lock().unwrap();
     locked_stats.nqueries += 1;
-    drop(locked_stats);
+    drop(locked_stats);*/
 
     let mut rows = vec![];
     let res = conn.query_iter(qstr)?;

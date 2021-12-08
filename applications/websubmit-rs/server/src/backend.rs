@@ -60,7 +60,7 @@ impl MySqlBackend {
             disguises::get_guise_gen(), /*in-mem*/
         );
         let opts = Opts::from_url(&format!("mysql://tslilyai:pass@127.0.0.1/{}", dbname)).unwrap();
-        let pool = Pool::new(opts).unwrap();
+        let pool = Pool::new_manual(30, 256, opts).unwrap();
 
         let mut db = pool.get_conn().unwrap();
 
@@ -191,7 +191,7 @@ impl MySqlBackend {
             let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
             rows.push(vals);
         }
-        warn!(self.log, "WS Backend: query {}: {}", q.clone(), start.elapsed().as_micros());
+        info!(self.log, "WS Backend: query {}: {}", q.clone(), start.elapsed().as_micros());
         return rows;
     }
 
@@ -202,7 +202,7 @@ impl MySqlBackend {
         self.handle()
             .exec_drop(q.clone(), vals)
             .expect(&format!("failed to insert into {}, query {}!", table, q));
-        warn!(self.log, "WS Backend: insert {}: {}", q.clone(), start.elapsed().as_micros());
+        info!(self.log, "WS Backend: insert {}: {}", q.clone(), start.elapsed().as_micros());
     }
 
     pub fn update(&self, table: &str, keys: Vec<Value>, vals: Vec<(usize, Value)>) {
@@ -233,7 +233,7 @@ impl MySqlBackend {
         self.handle()
             .exec_drop(q.clone(), args)
             .expect(&format!("failed to update {}, query {}!", table, q));
-        warn!(self.log, "WS Backend: update {}: {}", q.clone(), start.elapsed().as_micros());
+        info!(self.log, "WS Backend: update {}: {}", q.clone(), start.elapsed().as_micros());
     }
 
     pub fn insert_or_update(&self, table: &str, rec: Vec<Value>, update_vals: Vec<(u64, Value)>) {
@@ -267,6 +267,6 @@ impl MySqlBackend {
         self.handle()
             .exec_drop(q.clone(), args)
             .expect(&format!("failed to insert-update {}, query {}!", table, q));
-        warn!(self.log, "WS Backend: Insert or update {}: {}", q.clone(), start.elapsed().as_micros());
+        info!(self.log, "WS Backend: Insert or update {}: {}", q.clone(), start.elapsed().as_micros());
     }
 }

@@ -1,5 +1,5 @@
 use crate::helpers::*;
-use log::{debug, warn, error};
+use log::{debug, warn};
 use rand;
 use regex::*;
 use sql_parser::ast::*;
@@ -214,7 +214,7 @@ pub fn process_schema_stmt(stmt: &str, in_memory: bool) -> String {
         }
     }
     new.push_str(";");
-    error!("helpers new:{}", new);
+    warn!("helpers new:{}", new);
     new
 }
 

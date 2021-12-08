@@ -10,10 +10,10 @@ set -e
 l=20
 u=100
 
-for s in 10000 5000 1000 100 0; do
+for s in 0; do
     ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
 
-    sleep 5
+    sleep 2
 
     echo "Starting server"
     RUST_LOG=error ../../target/release/websubmit-server \
@@ -22,10 +22,10 @@ for s in 10000 5000 1000 100 0; do
         --nusers 0 --nlec 0 --nqs 0 &> \
         output/server_${l}lec_${u}users_${s}sleep.out &
 
-    sleep 15
+    sleep 5
 
     echo "Running client"
-    RUST_LOG=error ../../target/release/websubmit-client \
+    RUST_LOG=error perflock ../../target/release/websubmit-client \
         --nusers $u --nlec $l --nqs 4 --nsleep $s \
         --db myclass &> \
         output/client_${l}lec_${u}users_${s}sleep.out

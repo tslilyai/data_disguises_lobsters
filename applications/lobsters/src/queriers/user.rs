@@ -1,6 +1,6 @@
 extern crate mysql;
 extern crate log;
-//use log::{warn};
+use log::{error};
 
 use mysql::prelude::*;
 use std::*;
@@ -10,7 +10,7 @@ pub fn login(db: &mut mysql::PooledConn, uid: u64) -> Result<(), mysql::Error> {
             "SELECT 1 as one FROM `users` WHERE `users`.`username` = 'user{}'",
              uid-1))?;
     if user.is_none() {
-        assert!(false);
+        error!("user {} could not log in?", uid);
         db.query_drop(format!("INSERT INTO `users` (`username`) VALUES ('user{}')",uid-1))?;
     }
     Ok(())

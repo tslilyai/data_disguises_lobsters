@@ -100,7 +100,7 @@ pub fn apply(
                     vec![],
                 );
                 drop(edna);
-                warn!(
+                info!(
                     bg.log,
                     "WSAnon: save pseudoprincipals: {}",
                     start.elapsed().as_micros()
@@ -128,7 +128,7 @@ pub fn apply(
         if !pps.is_empty() {
             let start = time::Instant::now();
             db.query_drop(&format!(r"INSERT INTO `users` VALUES {};", pps.join(",")))?;
-            warn!(
+            info!(
                 bg.log,
                 "WSAnon: INSERT INTO `users` VALUES {};: {}",
                 pps.join(","),
@@ -146,7 +146,7 @@ pub fn apply(
                     }
                 }),
             )?;
-            warn!(
+            info!(
                 bg.log,
                 "WSAnon: update {} fks: {}",
                 updates.len(),
@@ -162,7 +162,7 @@ pub fn apply(
             locators.0.extend(&mut res.0.into_iter());
             locators.1.extend(&mut res.1.into_iter());
         }
-        warn!(
+        info!(
             bg.log,
             "WSAnon: total: {}",
             beginning_start.elapsed().as_micros()

@@ -4,7 +4,7 @@ use crate::tokens::*;
 use crate::{RowVal, DID, UID};
 #[cfg(feature = "flame_it")]
 use flamer::flame;
-use log::{error, warn};
+use log::{warn};
 use rand::{thread_rng, Rng};
 use rsa::pkcs1::{FromRsaPublicKey, ToRsaPublicKey};
 use serde::{Deserialize, Serialize};
@@ -252,7 +252,7 @@ impl EdnaDiffToken {
                     ownership_loc_caps: self.ownership_loc_caps.clone(),
                     diff_loc_caps: self.diff_loc_caps.clone(),
                 };
-                error!("Going to reveal principal {}", self.uid);
+                warn!("Going to reveal principal {}", self.uid);
                 token_ctrler.register_saved_principal(
                     &self.uid,
                     pdata.is_anon,
@@ -262,7 +262,7 @@ impl EdnaDiffToken {
                     true,
                     db,
                 );
-                error!("Reveal removed principal: {}", start.elapsed().as_micros());
+                warn!("Reveal removed principal: {}", start.elapsed().as_micros());
             }
 
             REMOVE_GUISE => {
@@ -313,7 +313,7 @@ impl EdnaDiffToken {
                     db,
                     stats.clone(),
                 )?;
-                error!("Reveal removed data for {}: {}", self.guise_name, start.elapsed().as_micros());
+                warn!("Reveal removed data for {}: {}", self.guise_name, start.elapsed().as_micros());
             }
             MODIFY_GUISE => {
                 // get current guise in db

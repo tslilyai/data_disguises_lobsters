@@ -27,7 +27,7 @@ mod disguises;
 mod queriers;
 include!("statistics.rs");
 
-const TOTAL_TIME: u128 = 150000;
+const TOTAL_TIME: u128 = 100000;
 const SCHEMA: &'static str = include_str!("../schema.sql");
 
 #[derive(StructOpt)]
@@ -36,6 +36,10 @@ struct Cli {
     scale: f64,
     #[structopt(long = "nsleep", default_value = "10000")]
     nsleep: u64,
+    #[structopt(long = "filename", default_value = "")]
+    filename: String,
+    #[structopt(long = "nconcurrent", default_value = "1")]
+    nconcurrent: usize,
     #[structopt(long = "prime")]
     prime: bool,
     #[structopt(long = "stats")]
@@ -59,6 +63,7 @@ fn main() {
     let scale = args.scale;
     let prime = args.prime;
     let sampler = datagen::Sampler::new(scale);
+    let nusers = sampler.nusers();
 
     let dbname: String = "lobsters_edna".to_string();
     let mut edna = EdnaClient::new(
@@ -68,32 +73,38 @@ fn main() {
         &dbname,
         SCHEMA,
         true,
-        sampler.nusers() as usize * 200, // assume each user has 200 pieces of data
+        nusers as usize * 200, // assume each user has 200 pieces of data
         disguises::get_guise_gen(),      /*in-mem*/
     );
 
-    // we'll read the private keys from file if we've primed already
     let mut user2decryptcap = HashMap::new();
     if prime {
         datagen::gen_data(&sampler, &mut edna.get_conn().unwrap());
-        for u in 0..sampler.nusers() {
-            let user_id = u as u64 + 1;
-            let private_key = edna.register_principal(&user_id.to_string());
-            let privkey_str = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
-            user2decryptcap.insert(user_id, privkey_str);
-        }
-        serde_json::to_writer(
-            &File::create("decrypt_caps.json").unwrap(),
-            &user2decryptcap,
-        )
-        .unwrap();
-        error!("Got {} decrypt caps", user2decryptcap.len());
-    } else {
+    }
+    // create private keys, save in file jic if we've primed already
+    //if prime {
+    let mut db = edna.get_conn().unwrap();
+    db.query_drop("DELETE FROM EdnaPrincipals WHERE uid >= 0").unwrap();
+    // clear extra pseudoprincipals
+    db.query_drop("DELETE FROM users WHERE id >= 10000").unwrap();
+    for u in 0..nusers {
+        let user_id = u as u64 + 1;
+        let private_key = edna.register_principal(&user_id.to_string());
+        let privkey_str = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
+        user2decryptcap.insert(user_id, privkey_str);
+    }
+    serde_json::to_writer(
+        &File::create("decrypt_caps.json").unwrap(),
+        &user2decryptcap,
+    )
+    .unwrap();
+    error!("Got {} decrypt caps", user2decryptcap.len());
+    /*} else {
         let file = File::open("decrypt_caps.json").unwrap();
         let reader = BufReader::new(file);
         user2decryptcap = serde_json::from_reader(reader).unwrap();
         error!("Got {} decrypt caps", user2decryptcap.len());
-    }
+    }*/
 
     if args.stats {
         run_stats_test(&mut edna, &sampler, &user2decryptcap, prime);
@@ -104,12 +115,38 @@ fn main() {
     let delete_durations = Arc::new(Mutex::new(vec![]));
     let restore_durations = Arc::new(Mutex::new(vec![]));
     let op_durations = Arc::new(Mutex::new(vec![]));
-    let nconcurrent = 30;
+
+    let mut user_stories = 0;
+    let mut user_comments = 0;
+    let mut user_to_disguise = nusers as u64 - 1;
+    let res = db
+        .query_iter(format!(
+            r"SELECT COUNT(*) FROM stories WHERE user_id={};",
+          user_to_disguise 
+        ))
+        .unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        user_stories = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+    }
+    let res = db
+        .query_iter(format!(
+            r"SELECT COUNT(*) FROM comments WHERE user_id={};",
+           user_to_disguise
+        ))
+        .unwrap();
+    for row in res {
+        let vals = row.unwrap().unwrap();
+        assert_eq!(vals.len(), 1);
+        user_comments = helpers::mysql_val_to_u64(&vals[0]).unwrap();
+    }
+    error!("Going to disguise user with {} stories and {} comments ({} total)", user_stories, user_comments, user_stories+user_comments);
 
     let mut threads = vec![];
     let arc_sampler = Arc::new(sampler);
-    let barrier = Arc::new(Barrier::new(nconcurrent + 1));
-    for _ in 0..nconcurrent {
+    let barrier = Arc::new(Barrier::new(args.nconcurrent + 1));
+    for _ in 0..args.nconcurrent {
         let c = barrier.clone();
         let my_op_durations = op_durations.clone();
         let mut db = edna.get_conn().unwrap();
@@ -121,13 +158,11 @@ fn main() {
     error!("Waiting for barrier!");
     barrier.wait();
 
-    // wait a bit for things to settle before running disguisers
-    thread::sleep(time::Duration::from_millis(1000));
-
     let arc_edna = Arc::new(Mutex::new(edna));
     let ndisguises = run_disguising_sleeps(
+        &args,
         arc_edna,
-        args.nsleep,
+        user_to_disguise,
         &user2decryptcap,
         delete_durations.clone(),
         restore_durations.clone(),
@@ -230,7 +265,7 @@ fn run_normal_thread(
             queriers::vote::vote_on_story(db, user, story as u64, false).unwrap();
         }
         res.sort();
-        warn!("user{}, {}\n", user_id, res.join(" "));
+        //warn!("user{}, {}\n", user_id, res.join(" "));
         my_op_durations.push((overall_start.elapsed(), start.elapsed()));
     }
     op_durations.lock().unwrap().append(&mut my_op_durations);
@@ -260,7 +295,7 @@ fn run_disguising_thread(
 
     // wait for any concurrent disguisers to finish
     barrier.wait();
-    // sleep for 10 seconds, then restore
+    // sleep for some seconds, then restore
     thread::sleep(time::Duration::from_millis(nsleep));
 
     // RESUB
@@ -289,32 +324,34 @@ fn run_disguising_thread(
 }
 
 fn run_disguising_sleeps(
+    args: &Cli,
     edna: Arc<Mutex<EdnaClient>>,
-    nsleep: u64,
+    uid: u64,
     user2decryptcap: &HashMap<u64, Vec<u8>>,
     delete_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
     restore_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
 ) -> Result<u64, mysql::Error> {
     let overall_start = time::Instant::now();
     let mut nexec = 0;
+    let mut rng = rand::thread_rng();
     while overall_start.elapsed().as_millis() < TOTAL_TIME {
         // wait between each round
-        thread::sleep(time::Duration::from_millis(nsleep));
+        thread::sleep(time::Duration::from_millis(args.nsleep));
         let barrier = Arc::new(Barrier::new(0));
         let my_edna = edna.clone();
-        let decryptcap = user2decryptcap.get(&101).unwrap().clone();
+        let decryptcap = user2decryptcap.get(&uid).unwrap().clone();
         let my_delete_durations = delete_durations.clone();
         let my_restore_durations = restore_durations.clone();
         let c = barrier.clone();
         run_disguising_thread(
             my_edna,
-            101,
+            uid,
             &decryptcap,
             my_delete_durations,
             my_restore_durations,
             overall_start,
             c,
-            nsleep,
+            args.nsleep,
         );
         nexec += 1;
     }
@@ -391,11 +428,11 @@ fn run_stats_test(
             //disguises::baseline::apply_decay(user_id, edna).unwrap();
             file.write(format!("{}\n", start.elapsed().as_micros()).as_bytes())
                 .unwrap();
-            return
+            continue; 
         }
 
         // sample every 50 users
-        if u % 70 != 0 {
+        if u % 50 != 0 {
             continue;
         }
         let user_id = u as u64 + 1;
@@ -447,6 +484,30 @@ fn run_stats_test(
             disguises::data_decay::apply(edna, user_id, decryption_cap.clone(), vec![]).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
             .unwrap();
+        
+        // checks
+        let res = db
+            .query_iter(format!(
+                r"SELECT COUNT(*) FROM stories WHERE user_id={};",
+                user_id
+            ))
+            .unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 1);
+            assert_eq!(helpers::mysql_val_to_u64(&vals[0]).unwrap(), 0);
+        }
+        let res = db
+            .query_iter(format!(
+                r"SELECT COUNT(*) FROM comments WHERE user_id={};",
+                user_id
+            ))
+            .unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 1);
+            assert_eq!(helpers::mysql_val_to_u64(&vals[0]).unwrap(), 0);
+        }
 
         // UNDECAY
         let start = time::Instant::now();
@@ -467,6 +528,32 @@ fn run_stats_test(
         disguises::data_decay::reveal(edna, decryption_cap.clone(), dls, ols).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
             .unwrap();
+        
+        // checks
+        let res = db
+            .query_iter(format!(
+                r"SELECT COUNT(*) FROM stories WHERE user_id={};",
+                user_id
+            ))
+            .unwrap();
+
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 1);
+            assert_eq!(helpers::mysql_val_to_u64(&vals[0]).unwrap(), user_stories);
+        }
+        let res = db
+            .query_iter(format!(
+                r"SELECT COUNT(*) FROM comments WHERE user_id={};",
+                user_id
+            ))
+            .unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 1);
+            assert_eq!(helpers::mysql_val_to_u64(&vals[0]).unwrap(), user_comments);
+        }
+
 
         // UNSUB
         let start = time::Instant::now();
@@ -474,6 +561,29 @@ fn run_stats_test(
             disguises::gdpr_disguise::apply(edna, user_id, decryption_cap.clone(), vec![]).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
             .unwrap();
+        // checks
+        let res = db
+            .query_iter(format!(
+                r"SELECT COUNT(*) FROM stories WHERE user_id={};",
+                user_id
+            ))
+            .unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 1);
+            assert_eq!(helpers::mysql_val_to_u64(&vals[0]).unwrap(), 0);
+        }
+        let res = db
+            .query_iter(format!(
+                r"SELECT COUNT(*) FROM comments WHERE user_id={};",
+                user_id
+            ))
+            .unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 1);
+            assert_eq!(helpers::mysql_val_to_u64(&vals[0]).unwrap(), 0);
+        }
 
         // RESUB
         let start = time::Instant::now();
@@ -494,6 +604,33 @@ fn run_stats_test(
         disguises::gdpr_disguise::reveal(edna, decryption_cap.clone(), dls, ols).unwrap();
         file.write(format!("{}, ", start.elapsed().as_micros()).as_bytes())
             .unwrap();
+        // checks
+        let res = db
+            .query_iter(format!(
+                r"SELECT COUNT(*) FROM stories WHERE user_id={};",
+                user_id
+            ))
+            .unwrap();
+
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 1);
+            assert_eq!(helpers::mysql_val_to_u64(&vals[0]).unwrap(), user_stories);
+        }
+        let res = db
+            .query_iter(format!(
+                r"SELECT COUNT(*) FROM comments WHERE user_id={};",
+                user_id
+            ))
+            .unwrap();
+        for row in res {
+            let vals = row.unwrap().unwrap();
+            assert_eq!(vals.len(), 1);
+            assert_eq!(helpers::mysql_val_to_u64(&vals[0]).unwrap(), user_comments);
+        }
+
+
+        file.write(format!("\n").as_bytes()).unwrap();
     }
 
     file.flush().unwrap();
@@ -506,7 +643,9 @@ fn print_stats(
     delete_durations: &Vec<(Duration, Duration)>,
     restore_durations: &Vec<(Duration, Duration)>,
 ) {
-    let filename = format!("concurrent_disguise_stats_{}sleep_batch.csv", args.nsleep);
+    error!("Finished {} disguises", ndisguises);
+
+    let filename = format!("concurrent_disguise_stats_{}.csv", args.filename);
 
     // print out stats
     let mut f = OpenOptions::new()

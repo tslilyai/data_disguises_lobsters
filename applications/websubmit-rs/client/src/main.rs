@@ -17,6 +17,7 @@ use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time;
 use std::time::Duration;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 mod args;
 
@@ -27,7 +28,7 @@ pub fn new_logger() -> slog::Logger {
     Logger::root(Mutex::new(term_full()).fuse(), o!())
 }
 
-const TOTAL_TIME: u128 = 150000;
+const TOTAL_TIME: u128 = 100000;
 const SERVER: &'static str = "http://localhost:8000";
 const APIKEY_FILE: &'static str = "apikey.txt";
 const DECRYPT_FILE: &'static str = "decrypt.txt";
@@ -44,6 +45,7 @@ fn main() {
     let mut user2apikey = HashMap::new();
     let mut user2decryptcap = HashMap::new();
 
+    let ndisguising = 0;
     let client = reqwest::blocking::Client::builder()
         .cookie_store(true)
         .build()
@@ -61,12 +63,6 @@ fn main() {
                 l, q, l, q
             ))
             .unwrap();
-            /*for u in 0..args.nusers + args.ndisguising {
-                db.query_drop(&format!("INSERT INTO answers VALUES ('{}@mail.edu', {}, {}, 'lec{}q{}answer{}', '1000-01-01 00:00:00');",
-                        u, l, q, l, q, u)).unwrap();
-            }*/
-            // add extra data for other 90% of all users
-            //for u in args.nusers + args.ndisguising..args.nusers + args.ndisguising + args.nusers*10 {
             for u in args.nusers..args.nusers + args.nusers * 10 {
                 db.query_drop(&format!("INSERT INTO answers VALUES ('{}@mail.edu', {}, {}, 'lec{}q{}answer{}', '1000-01-01 00:00:00');", 
                         u, l, q, l, q, u)).unwrap();
@@ -75,7 +71,7 @@ fn main() {
         }
     }
     let mut rng = rand::thread_rng();
-    for u in args.nusers+2..args.nusers +2 + args.nusers * 10 {
+    for u in args.nusers+ndisguising..args.nusers +ndisguising + args.nusers * 10 {
         let num: u128 = rng.gen();
         db.query_drop(format!(
             "INSERT INTO users VALUES ('{}@mail.edu', '{}', 0, 0);",
@@ -85,7 +81,7 @@ fn main() {
     }
     info!(log, "Inserted {} lecs with {} qs", args.nlec, args.nusers);
 
-    for u in 0..args.nusers + 2 {
+    for u in 0..args.nusers + ndisguising {
         let email = format!("{}@mail.edu", u);
         let response = client
             .post(&format!("{}/apikey/generate", SERVER))
@@ -113,18 +109,19 @@ fn main() {
 
     let barrier = Arc::new(Barrier::new(args.nusers + 1));
     let mut normal_threads = vec![];
-    //for u in 0..args.nusers {
-    for u in 0..1 {
+    for u in 0..args.nusers {
         let c = Arc::clone(&barrier);
         let email = format!("{}@mail.edu", u);
         let myargs = args.clone();
         let apikey = user2apikey.get(&email).unwrap().clone();
         let my_edit_durations = edit_durations.clone();
         normal_threads.push(thread::spawn(move || {
+            let log = new_logger();
+            error!(log, "Spawning normal thread");
             run_normal(
                 u.to_string(),
                 apikey,
-                new_logger(),
+                log,
                 myargs,
                 my_edit_durations,
                 c,
@@ -146,6 +143,8 @@ fn main() {
     )?;*/
     let ndisguises = run_disguising_sleeps(
         args.nsleep,
+        args.nusers as u64,
+        ndisguising as u64,
         user2apikey.clone(),
         user2decryptcap.clone(),
         my_delete_durations,
@@ -229,38 +228,49 @@ fn run_normal(
 
 fn run_disguising_sleeps(
     nsleep: u64,
+    nusers: u64,
+    ndisguising: u64,
     user2apikey: HashMap<String, String>,
     user2decryptcap: HashMap<String, String>,
     delete_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
     restore_durations: Arc<Mutex<Vec<(Duration, Duration)>>>,
 ) -> Result<u64> {
     let overall_start = time::Instant::now();
-    let mut nexec = 0;
+    let nexec = Arc::new(AtomicU64::new(0));
     while overall_start.elapsed().as_millis() < TOTAL_TIME {
         // wait between each round
         thread::sleep(time::Duration::from_millis(nsleep));
+        // just start right away
         let barrier = Arc::new(Barrier::new(0));
-        let u = 2;
-        let email = format!("{}@mail.edu", u);
-        let apikey = user2apikey.get(&email).unwrap().clone();
-        let decryptcap = user2decryptcap.get(&email).unwrap().clone();
-        let my_delete_durations = delete_durations.clone();
-        let my_restore_durations = restore_durations.clone();
-        let c = barrier.clone();
-        run_disguising_thread(
-            u.to_string(),
-            apikey,
-            decryptcap,
-            new_logger(),
-            my_delete_durations,
-            my_restore_durations,
-            overall_start,
-            c,
-            nsleep,
-        )?;
-        nexec += 1;
+        let mut disguising_threads = vec![];
+        for u in nusers..nusers+ndisguising {
+            let email = format!("{}@mail.edu", u);
+            let apikey = user2apikey.get(&email).unwrap().clone();
+            let decryptcap = user2decryptcap.get(&email).unwrap().clone();
+            let my_delete_durations = delete_durations.clone();
+            let my_restore_durations = restore_durations.clone();
+            let c = barrier.clone();
+            let mynexec = nexec.clone();
+            disguising_threads.push(thread::spawn(move || {
+                run_disguising_thread(
+                    u.to_string(),
+                    apikey,
+                    decryptcap,
+                    new_logger(),
+                    my_delete_durations,
+                    my_restore_durations,
+                    overall_start,
+                    c,
+                    nsleep, // sleep btwn disguise and reveal
+                ).unwrap();
+                mynexec.fetch_add(1, Ordering::SeqCst);
+            }));
+        }
+        for j in disguising_threads {
+            j.join().expect("Could not join?");
+        }
     }
-    Ok(nexec)
+    Ok(nexec.load(Ordering::SeqCst))
 }
 
 /*fn run_disguising_ndisguisers(

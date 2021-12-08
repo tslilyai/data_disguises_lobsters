@@ -8,7 +8,7 @@ use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
 #[cfg(feature = "flame_it")]
 use flamer::flame;
-use log::{error, warn};
+use log::{warn};
 use mysql::prelude::*;
 use rand::{rngs::OsRng, RngCore};
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
@@ -167,7 +167,7 @@ impl TokenCtrler {
         //   RsaPrivateKey::new(&mut self.rng, RSA_BITS).expect("failed to generate a key");
         //let pub_key = RsaPublicKey::from(&private_key);
         self.pseudoprincipal_keys_pool.extend(keys);
-        error!(
+        warn!(
             "Edna: Repopulated pseudoprincipal key pool of size {}: {}",
             self.poolsize,
             start.elapsed().as_micros()
@@ -320,7 +320,7 @@ impl TokenCtrler {
         persist: bool,
         db: &mut mysql::PooledConn,
     ) {
-        error!("Re-registering saved principal {}", uid);
+        warn!("Re-registering saved principal {}", uid);
         let pdata = PrincipalData {
             pubkey: pubkey.clone(),
             is_anon: is_anon,
@@ -342,7 +342,7 @@ impl TokenCtrler {
         db: &mut mysql::PooledConn,
         persist: bool,
     ) -> RsaPrivateKey {
-        error!("Registering principal {}", uid);
+        warn!("Registering principal {}", uid);
         let (private_key, pubkey) = self.get_pseudoprincipal_key_from_pool();
         let pdata = PrincipalData {
             pubkey: pubkey,
@@ -387,7 +387,7 @@ impl TokenCtrler {
             &private_key,
         );
         self.insert_ownership_token_wrapper(&own_token_wrapped);
-        error!(
+        warn!(
             "Edna: register anon principal: {}",
             start.elapsed().as_micros()
         );
@@ -424,9 +424,9 @@ impl TokenCtrler {
             PRINCIPAL_TABLE,
             values.join(", ")
         );
-        error!("Persist Principals insert q {}", insert_q);
+        warn!("Persist Principals insert q {}", insert_q);
         db.query_drop(&insert_q).unwrap();
-        error!(
+        warn!(
             "Edna persist {} principals: {}",
             self.tmp_principals_to_insert.len(),
             start.elapsed().as_micros()
@@ -446,7 +446,7 @@ impl TokenCtrler {
         let mut ptoken = new_remove_principal_token_wrapper(uid, did, &p);
         self.insert_user_diff_token_wrapper(&mut ptoken);
         self.tmp_remove_principals.insert(uid.to_string());
-        error!("Edna: mark principal {} to remove : {}", uid, start.elapsed().as_micros());        
+        warn!("Edna: mark principal {} to remove : {}", uid, start.elapsed().as_micros());        
     }
 
     pub fn remove_principal(&mut self, uid: &UID, db: &mut mysql::PooledConn) {
@@ -456,9 +456,9 @@ impl TokenCtrler {
         if pdata.is_none() {
             return;
         } else {
-            error!("Removing principal {}\n", uid);
+            warn!("Removing principal {}\n", uid);
             self.principal_data.remove(uid);
-            error!(
+            warn!(
                 "DELETE FROM {} WHERE {} = \'{}\'",
                 PRINCIPAL_TABLE,
                 UID_COL,
@@ -472,7 +472,7 @@ impl TokenCtrler {
             ))
             .unwrap();
         }
-        error!("Edna: remove principal: {}", start.elapsed().as_micros());
+        warn!("Edna: remove principal: {}", start.elapsed().as_micros());
     }
 
     /*
@@ -522,7 +522,7 @@ impl TokenCtrler {
                     self.enc_ownership_map.insert(lc, vec![enc_pppk]);
                 }
             }
-            error!("EdnaBatch: Inserted {} own tokens for {}", pppks.len(), uid);
+            warn!("EdnaBatch: Inserted {} own tokens for {}", pppks.len(), uid);
         }
         let dkeys = self.tmp_diff_tokens.keys().cloned().collect::<Vec<_>>();
         for (uid, did) in &dkeys {
@@ -530,7 +530,7 @@ impl TokenCtrler {
             let p = self
                 .principal_data
                 .get_mut(uid)
-                .expect("no user with uid found?");
+                .expect(&format!("no user with uid {} found?", uid));
 
             // generate key
             let mut key: Vec<u8> = repeat(0u8).take(16).collect();
@@ -565,9 +565,9 @@ impl TokenCtrler {
                     self.enc_diffs_map.insert(cap, vec![enctoken]);
                 }
             }
-            error!("EdnaBatch: Inserted {} diff tokens for {}", dts.len(), uid);
+            warn!("EdnaBatch: Inserted {} diff tokens for {}", dts.len(), uid);
         }
-        error!(
+        warn!(
             "EdnaBatch: Inserted {} user own tokens and {} user diff tokens: {}", okeys.len(), dkeys.len(), start.elapsed().as_micros(),
         );
     }
@@ -622,7 +622,7 @@ impl TokenCtrler {
                 self.enc_ownership_map.insert(lc, vec![enc_pppk]);
             }
         }
-        error!(
+        warn!(
             "Edna: encrypt and insert ownership token: {}",
             start.elapsed().as_micros()
         );
@@ -684,7 +684,7 @@ impl TokenCtrler {
                 self.enc_diffs_map.insert(cap, vec![enctoken]);
             }
         }
-        error!(
+        warn!(
             "Edna: insert and encrypt diff token: {}",
             start.elapsed().as_micros()
         );
@@ -1036,7 +1036,7 @@ impl TokenCtrler {
 
                     if self.batch {
                         let mut tokens = diff_tokens_from_bytes(&plaintext);
-                        error!(
+                        warn!(
                             "EdnaBatch: Decrypted diff tokens added {}: {}", tokens.len(), start.elapsed().as_micros(),
                         );
                         diff_tokens.append(&mut tokens);
@@ -1046,7 +1046,7 @@ impl TokenCtrler {
                         if !token.revealed && token.did == did {
                             diff_tokens.push(token.clone());
                         }
-                        error!(
+                        warn!(
                             "Edna: Decrypted tokens pushed to len {}: {}", diff_tokens.len(), start.elapsed().as_micros(),
                         );
                     }
@@ -1064,7 +1064,7 @@ impl TokenCtrler {
                     let mut new_uids = vec![];
                     if self.batch {
                         let mut tokens = ownership_tokens_from_bytes(&plaintext);
-                        error!(
+                        warn!(
                             "EdnaBatch: Decrypted own tokens added {}: {}", tokens.len(), start.elapsed().as_micros(),
                         );
 
@@ -1076,7 +1076,7 @@ impl TokenCtrler {
                         let pk = ownership_token_from_bytes(&plaintext);
                         own_tokens.push(pk.clone());
                         new_uids.push((pk.new_uid, pk.priv_key));
-                        error!(
+                        warn!(
                             "Edna: Decrypt pseudoprincipal token in get_tokens: {}",
                             start.elapsed().as_micros()
                         );
