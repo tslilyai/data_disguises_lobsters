@@ -62,7 +62,7 @@ RevealDisguise(p: UID, did: DisguiseID, privk: PrivKey, locs: Locator);
 \begin{lstlisting}[language=Rust, style=rust]
 RegisterPrincipal(p: UID, pubk: PubKey);
 RegisterPseudoprincipal(pp: UID);
-DeregisterPrincipal(p: UID);
+ForgetPrincipal(p: UID);
 
 StartDisguise() -> DisguiseID;
 EndDisguise(did: DisguiseID) -> Vec<Locator>;
