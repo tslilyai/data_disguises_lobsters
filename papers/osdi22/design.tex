@@ -8,7 +8,7 @@ pseudoprincipals, (2) diff records and speaks-for records, and (3) record locato
 \emph{Application principals $p$} correspond to users of the application that are uniquely identifiable
 (\eg via a user ID). An application represents principals as \eg a record in a \fn{users} database
 table, or some other data object in its datastore.
-\emph{Pseudoprincipals $q$} are a subset of principals that correspond to anonymous users not tied to any natural
+\emph{Pseudoprincipals} are a subset of principals that correspond to anonymous users not tied to any natural
 person. A pseudoprincipal may or may not be indistinguishable from principals correlated to natural
 persons (what we call a \emph{natural principal}): for example, it
 may have no write permissions.
@@ -37,44 +37,54 @@ clients maintain locators for natural principals whose disguised data they wish 
    a declarative disguise specification and a database schema with foreign key
    relationships.
  \item A low-level API (Figure~\ref{f:api-low}) that provides application developers with
-   additional control. This API allows custom organization of disguised data, lets the
-   application make its own database modifications, and is schema-agnostic.
+   additional control. This API allows custom organization of disguised data, lets the application
+        make its own database modifications, and is schema-agnostic. This API requires applications
+        to produce and interpret diff records, and tell \sys about speaks-for links between
+        principals and pseudoprincipals. 
 \end{enumerate}
 %
+To use either API, applications provide \sys with a description of how the application represents
+principals, how to interpret unique principal IDs, and how to
+generate new principal objects.
+%
+
+%
 \sys's high-level API is internally implemented in terms of the low-level API and its
-abstractions, we primarily discuss the low-level API in this paper.
+abstractions. We primarily discuss the low-level API in this paper.
 %
 \S\ref{s:api-high} briefly describes the high-level API.
 %
 
-\ms{I just dumped old content here; this needs reorganizing.}
+%
+We structure the API description around an example application, WebSubmit~\cite{websubmit-rs-anon}.
+%
+WebSubmit is a homework submission application written in Rust, based on the Rocket
+framework~\cite{rocket-rs}, and is used by students at a U.S.\ university to submit homework assignments for classes.
+%
+It has a simple schema that consists of tables for lectures, questions, answers,
+and user accounts.
+%
+Clients create an account, submit homework answers, and view their submissions.
+%
+Course staff can view all submitted answers, as well as add and edit lectures and
+questions.
+%
+The original WebSubmit lacks privacy transformations and retains student
+details and answers forever.
+%
 
 %
-We structure the API description around an example application, websubmit-rs~\cite{websubmit-rs}.
+We wrote two disguises for WebSubmit using the low-level API: (1) instructor-initiated anonymization
+of all answers (\eg at the end of the semester), and (2) GDPR-compliant user account deletion.
 %
-websubmit-rs is used by students at a U.S.\ university to submit homework assignments for classes.
+Anonymization performs per-user disguises that decorrelate lecture answers from the user, but keeps
+the answers grouped by lecture (\ie one pseudoprincipal per set of lecture answers).
 %
-
-
-\sys exposes an API (Table~\ref{tab:api}) to web applications that wish to support secure
-disguising.
-%
-The API allows the application to start and end disguises; securely save diff and speaks-for record
-data; and extract record data when necessary to enable post-disguise temporary recorrelation or
-disguise revealing.
-%
-\sys also provides a higher-level convenience API (Table~\ref{tab:high_level_api}) that enables
-applications to apply and reveal (a restricted set) of disguises without needing to implement the
-disguise's application database modifications.
-
-To use \sys's API, applications must provide \sys with a description of principal IDs and how to
-generate new principal objects.
+With \sys, WebSubmit also allows users to restore their deleted accounts, and allows students to
+view and edit their answers after anonymization.
 
 \subsection{Disguising}
 
-We next describe how an application uses \sys's API.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Principal Registration.}
 Every client who creates an application account for principal $p$ registers the principal's unique id
 with \sys by invoking \fn{RegisterPrincipal}. \sys generates a public-private key pair, returning private key \privk{p} to the
@@ -109,8 +119,6 @@ adversaries cannot learn that disguise $d$ applied to principal $p$, the applica
 retain locators.
 
 \subsection{Operations on Disguised Data}
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Disguise Revealing.}
 In order to reveal the original state of data disguised by $d$ for principal $p$, the application
 needs to retrieve the diff and speaks-for records of $p$ from $d$ storing information about the undisguised
@@ -123,7 +131,6 @@ With these in hand, the application calls \fn{GetRecordsOfDisguise}, which retur
 the record data to reveal data as appropriate.
 \lyt{Add details about how sometimes we need multiple locators $d' \neq d$ because of pseudoprincipals?}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \head{Temporary Authorization.}
 The application may also wish to temporarily recorrelate users with their data by temporarily
 authorizing them to act on behalf of a pseudoprincipal. For example, users can temporarily act as
@@ -142,7 +149,8 @@ Once the application knows which pseudoprincipals $p'$ correspond to a principal
 authorize a client acting on behalf of $p$ to act on behalf of $p'$.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\head{Disguising and Revealing with the High-Level API.}
+\subsection{Disguising and Revealing with the High-Level API.}
+\label{s:api-high} 
 If an application developer does not want to implement the necessary data transformations for disguise
 application and revealing, the developer can provide a disguise specification in a language provided
 by \sys, which includes schema information and supports a restricted set of SQL database
