@@ -11,8 +11,10 @@ use mysql::prelude::*;
 use rand::{rngs::OsRng, RngCore};
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
 use rsa::{PaddingScheme, PublicKey, RsaPrivateKey, RsaPublicKey};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
+use std::convert::TryInto;
 use std::iter::repeat;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time;
@@ -24,7 +26,7 @@ type Aes128Cbc = Cbc<Aes128, Pkcs7>;
 const PRINCIPAL_TABLE: &'static str = "EdnaPrincipals";
 const UID_COL: &'static str = "uid";
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub struct EncData {
     pub enc_key: Vec<u8>,
     pub enc_data: Vec<u8>,
@@ -56,7 +58,7 @@ pub struct PrincipalData {
     pub should_remove: bool,
 
     // only nonempty for pseudoprincipals!
-    pub loc_caps: HashSet<LocCap>,
+    pub loc_caps: HashSet<EncData>,
 }
 
 #[derive(Clone)]
@@ -125,7 +127,7 @@ impl TokenCtrler {
             .unwrap();
         //db.query_drop(&format!("DROP TABLE {};", PRINCIPAL_TABLE)).unwrap();
         let createq = format!(
-            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, should_remove tinyint, pubkey varchar(1024), locs varchar(255), PRIMARY KEY ({})) ENGINE = MEMORY;",
+            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, should_remove tinyint, pubkey varchar(1024), locs varchar(2048), PRIMARY KEY ({})) ENGINE = MEMORY;",
             PRINCIPAL_TABLE, UID_COL, UID_COL);
         db.query_drop(&createq).unwrap();
         let selected = get_query_rows_str(
@@ -204,11 +206,18 @@ impl TokenCtrler {
         for ((uid, _), c) in lcs.iter() {
             let p = self
                 .principal_data
-                .get_mut(uid)
+                .get(uid)
                 .expect(&format!("no user with uid {} when saving?", uid));
+            let pubkey = p.pubkey.clone();
             // save to principal data if no email (pseudoprincipal)
             if p.is_anon {
-                p.loc_caps.insert(*c);
+                let enc_lc = self
+                    .encrypt_with_pubkey(&pubkey, &c.to_be_bytes().to_vec())
+                    .clone();
+
+                // hack because of mut borrow stuff...
+                let p = self.principal_data.get_mut(uid).unwrap();
+                p.loc_caps.insert(enc_lc);
 
                 // update persistence
                 let uidstr = uid.trim_matches('\'');
@@ -266,7 +275,7 @@ impl TokenCtrler {
         is_anon: bool,
         should_remove: bool,
         pubkey: &RsaPublicKey,
-        lc: HashSet<LocCap>,
+        lc: HashSet<EncData>,
         persist: bool,
         db: &mut mysql::PooledConn,
     ) {
@@ -444,12 +453,59 @@ impl TokenCtrler {
     /*
      * PRINCIPAL TOKEN INSERT
      */
+    fn encrypt_with_pubkey(&mut self, pubkey: &RsaPublicKey, bytes: &Vec<u8>) -> EncData {
+        // generate key
+        let mut key: Vec<u8> = repeat(0u8).take(16).collect();
+        self.rng.fill_bytes(&mut key[..]);
+
+        // encrypt key with pubkey
+        let padding = PaddingScheme::new_pkcs1v15_encrypt();
+        let enc_key = pubkey
+            .encrypt(&mut self.rng, padding, &key[..])
+            .expect("failed to encrypt");
+
+        // encrypt pppk with key
+        let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
+        self.rng.fill_bytes(&mut iv[..]);
+        let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
+        let encrypted = cipher.encrypt_vec(bytes);
+        EncData {
+            enc_key: enc_key,
+            enc_data: encrypted,
+            iv: iv,
+        }
+    }
+
+    fn update_batch_privkeys_at_loc(&mut self, uid: UID, lc: &LocCap, pks: &Vec<PrivkeyToken>) {
+        let p = self
+            .principal_data
+            .get(&uid)
+            .expect("no user with uid found?")
+            .clone();
+        let plaintext = serialize_to_bytes(pks);
+        let enc_pppk = self.encrypt_with_pubkey(&p.pubkey, &plaintext);
+        // insert the encrypted pppk into locating capability
+        match self.enc_privkeys_map.get_mut(lc) {
+            Some(ts) => {
+                ts.push(enc_pppk);
+            }
+            None => {
+                self.enc_privkeys_map.insert(*lc, vec![enc_pppk]);
+            }
+        }
+        warn!("EdnaBatch: Saved {} pk tokens for {}", pks.len(), uid);
+    }
+
     fn insert_batch_tokens(&mut self) {
         let start = time::Instant::now();
         let pkkeys = self.tmp_privkey_tokens.keys().cloned().collect::<Vec<_>>();
         for (uid, did) in &pkkeys {
             let lc = self.get_loc_cap(uid, *did);
-            let pppks = self.tmp_privkey_tokens.get(&(uid.to_string(), *did)).unwrap().clone();
+            let pppks = self
+                .tmp_privkey_tokens
+                .get(&(uid.to_string(), *did))
+                .unwrap()
+                .clone();
             warn!("EdnaBatch: Inserted {} pk tokens for {}", pppks.len(), uid);
             self.update_batch_privkeys_at_loc(uid.to_string(), &lc, &pppks);
         }
@@ -458,33 +514,16 @@ impl TokenCtrler {
             let lc = self.get_loc_cap(uid, *did);
             let p = self
                 .principal_data
-                .get_mut(uid)
+                .get(uid)
                 .expect("no user with uid found?");
-
-            // generate key
-            let mut key: Vec<u8> = repeat(0u8).take(16).collect();
-            self.rng.fill_bytes(&mut key[..]);
-
-            // encrypt key with pubkey
-            let padding = PaddingScheme::new_pkcs1v15_encrypt();
-            let enc_key = p
-                .pubkey
-                .encrypt(&mut self.rng, padding, &key[..])
-                .expect("failed to encrypt");
-
-            // encrypt pppk with key
-            let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
-            self.rng.fill_bytes(&mut iv[..]);
-            let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
-
-            let pppks = self.tmp_own_tokens.get(&(uid.to_string(), *did)).unwrap();
+            let pubkey = p.pubkey.clone();
+            let pppks = self
+                .tmp_own_tokens
+                .get(&(uid.to_string(), *did))
+                .unwrap()
+                .clone();
             let plaintext = serialize_to_bytes(&pppks);
-            let encrypted = cipher.encrypt_vec(&plaintext);
-            let enc_pppk = EncData {
-                enc_key: enc_key,
-                enc_data: encrypted,
-                iv: iv,
-            };
+            let enc_pppk = self.encrypt_with_pubkey(&pubkey, &plaintext);
 
             // insert the encrypted pppk into locating capability
             match self.enc_ownership_map.get_mut(&lc) {
@@ -502,34 +541,16 @@ impl TokenCtrler {
             let cap = self.get_loc_cap(uid, *did);
             let p = self
                 .principal_data
-                .get_mut(uid)
+                .get(uid)
                 .expect(&format!("no user with uid {} found?", uid));
-
-            // generate key
-            let mut key: Vec<u8> = repeat(0u8).take(16).collect();
-            self.rng.fill_bytes(&mut key[..]);
-
-            // encrypt key with pubkey
-            let padding = PaddingScheme::new_pkcs1v15_encrypt();
-            let enc_key = p
-                .pubkey
-                .encrypt(&mut self.rng, padding, &key[..])
-                .expect("failed to encrypt");
-
-            // encrypt and add the token to the map of encrypted tokens
-            let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
-            self.rng.fill_bytes(&mut iv[..]);
-            let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
-
-            let dts = self.tmp_diff_tokens.get(&(uid.to_string(), *did)).unwrap();
+            let pubkey = p.pubkey.clone();
+            let dts = self
+                .tmp_diff_tokens
+                .get(&(uid.to_string(), *did))
+                .unwrap()
+                .clone();
             let plaintext = serialize_to_bytes(&dts);
-            let encrypted = cipher.encrypt_vec(&plaintext);
-            assert_eq!(encrypted.len() % 16, 0);
-            let enctoken = EncData {
-                enc_key: enc_key,
-                enc_data: encrypted,
-                iv: iv,
-            };
+            let enctoken = self.encrypt_with_pubkey(&pubkey, &plaintext);
             match self.enc_diffs_map.get_mut(&cap) {
                 Some(ts) => {
                     ts.push(enctoken);
@@ -570,28 +591,10 @@ impl TokenCtrler {
         }
 
         let p = p.unwrap();
-        // generate key
-        let mut key: Vec<u8> = repeat(0u8).take(16).collect();
-        self.rng.fill_bytes(&mut key[..]);
-
-        // encrypt key with pubkey
-        let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        let enc_key = p
-            .pubkey
-            .encrypt(&mut self.rng, padding, &key[..])
-            .expect("failed to encrypt");
-
+        let pubk = p.pubkey.clone();
         // encrypt pppk with key
-        let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
-        self.rng.fill_bytes(&mut iv[..]);
-        let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
         let plaintext = serialize_to_bytes(&pppk);
-        let encrypted = cipher.encrypt_vec(&plaintext);
-        let enc_pppk = EncData {
-            enc_key: enc_key,
-            enc_data: encrypted,
-            iv: iv,
-        };
+        let enc_pppk = self.encrypt_with_pubkey(&pubk, &plaintext);
 
         // insert the encrypted pppk into locating capability
         let lc = self.get_loc_cap(&pppk.old_uid, pppk.did);
@@ -631,28 +634,9 @@ impl TokenCtrler {
         }
 
         let p = p.unwrap();
-        // generate key
-        let mut key: Vec<u8> = repeat(0u8).take(16).collect();
-        self.rng.fill_bytes(&mut key[..]);
-
-        // encrypt key with pubkey
-        let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        let enc_key = p
-            .pubkey
-            .encrypt(&mut self.rng, padding, &key[..])
-            .expect("failed to encrypt");
-
-        // encrypt pppk with key
-        let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
-        self.rng.fill_bytes(&mut iv[..]);
-        let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
+        let pubk = p.pubkey.clone();
         let plaintext = serialize_to_bytes(&pppk);
-        let encrypted = cipher.encrypt_vec(&plaintext);
-        let enc_pppk = EncData {
-            enc_key: enc_key,
-            enc_data: encrypted,
-            iv: iv,
-        };
+        let enc_pppk = self.encrypt_with_pubkey(&pubk, &plaintext);
 
         // insert the encrypted pppk into locating capability
         let lc = self.get_loc_cap(&pppk.old_uid, pppk.did);
@@ -691,32 +675,11 @@ impl TokenCtrler {
 
         let p = self
             .principal_data
-            .get_mut(uid)
+            .get(uid)
             .expect("no user with uid found?");
-
-        // generate key
-        let mut key: Vec<u8> = repeat(0u8).take(16).collect();
-        self.rng.fill_bytes(&mut key[..]);
-
-        // encrypt key with pubkey
-        let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        let enc_key = p
-            .pubkey
-            .encrypt(&mut self.rng, padding, &key[..])
-            .expect("failed to encrypt");
-
-        // encrypt and add the token to the map of encrypted tokens
-        let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
-        self.rng.fill_bytes(&mut iv[..]);
-        let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
+        let pubk = p.pubkey.clone();
         let plaintext = serialize_to_bytes(&token);
-        let encrypted = cipher.encrypt_vec(&plaintext);
-        assert_eq!(encrypted.len() % 16, 0);
-        let enctoken = EncData {
-            enc_key: enc_key,
-            enc_data: encrypted,
-            iv: iv,
-        };
+        let enctoken = self.encrypt_with_pubkey(&pubk, &plaintext);
         match self.enc_diffs_map.get_mut(&cap) {
             Some(ts) => {
                 ts.push(enctoken);
@@ -984,7 +947,12 @@ impl TokenCtrler {
                         privkey.len(),
                         &pp.loc_caps,
                     );
-                    for lc in pp.loc_caps {
+                    for enclc in pp.loc_caps {
+                        let (_, lcbytes) = enclc.decrypt_encdata(&privkey);
+                        let tmp: [u8; 8] = lcbytes
+                            .try_into()
+                            .expect("Could not turn u64 vec into bytes?");
+                        let lc: LocCap = u64::from_be_bytes(tmp);
                         let (mut pp_diff_tokens, mut pp_own_tokens) =
                             self.get_user_tokens(&privkey, &lc);
                         diff_tokens.append(&mut pp_diff_tokens);
@@ -1111,18 +1079,23 @@ impl TokenCtrler {
                             pkt.priv_key.len(),
                             new_pp.loc_caps,
                         );
-                        // XXX TODO encrypt/decrypt
 
-                        // for each locator that the pp has
-                        for pplc in new_pp.loc_caps.clone() {
+                        // XXX TODO encrypt/decrypt
+                        for enclc in new_pp.loc_caps.clone() {
+                            let (_, lcbytes) = enclc.decrypt_encdata(&pkt.priv_key);
+                            let tmp: [u8; 8] = lcbytes
+                                .try_into()
+                                .expect("Could not turn u64 vec into bytes?");
+                            let pplc: LocCap = u64::from_be_bytes(tmp);
+
+                            // for each locator that the pp has
                             // clean up the tokens at the locators
                             let (no_diffs_at_loc, no_owns_at_loc, no_pks_at_loc) =
                                 self.cleanup_user_tokens(did, &pkt.priv_key, &pplc, db);
                             // remove loc from pp if nothing's left at that loc
                             let mut removed = false;
                             if no_diffs_at_loc && no_owns_at_loc && no_pks_at_loc {
-                                //self.enc_privkeys_map.remove(&pplc);
-                                removed = new_pp.loc_caps.remove(&pplc);
+                                removed = new_pp.loc_caps.remove(&enclc);
                             }
 
                             // remove the pp if it has no more bags and should be removed,
@@ -1166,46 +1139,6 @@ impl TokenCtrler {
         }
         // return whether we removed bags
         (no_diffs_at_loc, no_owns_at_loc, no_pks_at_loc)
-    }
-
-    pub fn update_batch_privkeys_at_loc(&mut self, uid: UID, lc: &LocCap, pks: &Vec<PrivkeyToken>) {
-        let p = self
-            .principal_data
-            .get_mut(&uid)
-            .expect("no user with uid found?");
-
-        // generate key
-        let mut key: Vec<u8> = repeat(0u8).take(16).collect();
-        self.rng.fill_bytes(&mut key[..]);
-
-        // encrypt key with pubkey
-        let padding = PaddingScheme::new_pkcs1v15_encrypt();
-        let enc_key = p
-            .pubkey
-            .encrypt(&mut self.rng, padding, &key[..])
-            .expect("failed to encrypt");
-
-        // encrypt pppk with key
-        let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
-        self.rng.fill_bytes(&mut iv[..]);
-        let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
-        let plaintext = serialize_to_bytes(pks);
-        let encrypted = cipher.encrypt_vec(&plaintext);
-        let enc_pppk = EncData {
-            enc_key: enc_key,
-            enc_data: encrypted,
-            iv: iv,
-        };
-        // insert the encrypted pppk into locating capability
-        match self.enc_privkeys_map.get_mut(lc) {
-            Some(ts) => {
-                ts.push(enc_pppk);
-            }
-            None => {
-                self.enc_privkeys_map.insert(*lc, vec![enc_pppk]);
-            }
-        }
-        warn!("EdnaBatch: Saved {} pk tokens for {}", pks.len(), uid);
     }
 
     pub fn get_user_pseudoprincipals(
@@ -1261,7 +1194,15 @@ impl TokenCtrler {
                     for (new_uid, pk) in new_uids {
                         warn!("Getting tokens of pseudoprincipal {}", new_uid);
                         if let Some(pp) = self.principal_data.get(&new_uid) {
-                            let ppuids = self.get_user_pseudoprincipals(&pk, &pp.loc_caps);
+                            let mut pplcs = HashSet::new();
+                            for enclc in &pp.loc_caps {
+                                let (_, lcbytes) = enclc.decrypt_encdata(&pk);
+                                let tmp: [u8; 8] = lcbytes
+                                    .try_into()
+                                    .expect("Could not turn u64 vec into bytes?");
+                                pplcs.insert(u64::from_be_bytes(tmp));
+                            }
+                            let ppuids = self.get_user_pseudoprincipals(&pk, &pplcs);
                             uids.extend(ppuids.iter().cloned());
                         }
                     }
@@ -1365,8 +1306,7 @@ mod tests {
         assert!(ctrler.tmp_loc_caps.is_empty());
 
         // get tokens
-        let (diff_tokens, _) =
-            ctrler.get_user_tokens(&private_key_vec, &lc);
+        let (diff_tokens, _) = ctrler.get_user_tokens(&private_key_vec, &lc);
         assert_eq!(diff_tokens.len(), 1);
         assert_eq!(diff_tokens[0], remove_token);
     }
@@ -1444,8 +1384,7 @@ mod tests {
 
             for d in 1..iters {
                 let lc = caps.get(&(u.to_string(), d as u64)).unwrap().clone();
-                let (diff_tokens, _) =
-                    ctrler.get_user_tokens(&priv_keys[u - 1], &lc);
+                let (diff_tokens, _) = ctrler.get_user_tokens(&priv_keys[u - 1], &lc);
                 assert_eq!(diff_tokens.len(), (iters as usize));
                 for i in 0..iters {
                     let dt = edna_diff_token_from_bytes(&diff_tokens[i].token_data);
