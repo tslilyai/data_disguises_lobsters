@@ -29,12 +29,12 @@ class SettingsController < ApplicationController
     #  disown_text = " and disowned your stories and comments."
     #  InactiveUser.disown_all_by_author! @user
     #end
-    
+
     # Edna: disguise user.
     uid = @user.id.to_s
     api_instance = SwaggerClient::DefaultApi.new
     body = SwaggerClient::ApplyDisguise.new() # ApplyDisguise |
-    body.decrypt_cap = []
+    body.decrypt_cap = Base64.decode64(params[:user][:pkey]).bytes
     body.ownership_locators = []
     app = 'lobsters' # String |
     did = 0 # Integer |

@@ -157,13 +157,14 @@ class UsersController < ApplicationController
       .includes(:user, :hat, :story => :user)
       .joins(:story)
   end
-
+  
   def recover_account
     api_instance = SwaggerClient::DefaultApi.new
     body = SwaggerClient::RevealDisguise.new # RevealDisguise |
-    body.decrypt_cap = params[:pkey].unpack("C*")
+    body.decrypt_cap = Base64.decode64(params[:pkey]).bytes
     body.diff_locators = [params[:difflocator].to_i]
     body.ownership_locators = [params[:ownershiplocator].to_i]
+    # ^ Might need to change; sometimes no OLs are emitted. should default to []
     did = 0 # Integer |
 
     puts body.decrypt_cap
