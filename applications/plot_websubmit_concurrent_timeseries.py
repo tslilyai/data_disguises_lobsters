@@ -7,8 +7,8 @@ from collections import defaultdict
 
 plt.style.use('seaborn-deep')
 
-nds = [0, 1]#, 1]
-users = [100, 30]#, 1]
+nds = [0, 1]
+users = [100, 30, 1]
 maxts = 120000
 bucketwidth = 1000
 nbuckets = int(maxts/bucketwidth)
@@ -48,9 +48,9 @@ for u in users:
 
 plt.xlabel('Benchmark Time (s)')
 plt.ylabel('Latency (ms)')
-plt.ylim(ymin=0, ymax=20)
+plt.ylim(ymin=0, ymax=30)
 plt.xlim(xmin=0, xmax=100)
 plt.legend(loc="upper left")
-plt.title("WebSubmit Edit Latency vs. Disguiser Sleep Time")
+plt.title("WebSubmit Edit Latency")
 plt.tight_layout(h_pad=4)
 plt.savefig('websubmit_concurrent_results_timeseries.pdf')
