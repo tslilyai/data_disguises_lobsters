@@ -126,25 +126,24 @@ impl Disguiser {
         // XXX revealing all global tokens when a disguise is reversed
         let start = time::Instant::now();
         let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
-        let (dts, own_tokens, _, _) = locked_token_ctrler.get_user_tokens(
+        let (dts, own_tokens) = locked_token_ctrler.get_user_tokens(
             did,
             &decrypt_cap,
             &HashSet::from_iter(diff_loc_caps.iter().cloned()),
             &HashSet::from_iter(own_loc_caps.iter().cloned()),
-            true,
-            &mut db,
         );
         diff_tokens.extend(dts.iter().cloned());
         warn!(
             "Edna: Get tokens for reveal: {}",
             start.elapsed().as_micros()
         );
+        let mut failed = false;
 
         // reverse REMOVE tokens first
         let start = time::Instant::now();
         for dwrapper in &diff_tokens {
             let d = edna_diff_token_from_bytes(&dwrapper.token_data);
-            if dwrapper.did == did && !dwrapper.revealed && d.update_type == REMOVE_GUISE {
+            if dwrapper.did == did && !dwrapper.revealed && (d.update_type == REMOVE_GUISE || d.update_type == REMOVE_PRINCIPAL) {
                 warn!("Reversing remove token {:?}\n", d);
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut db, self.stats.clone())?;
                 if revealed {
@@ -156,6 +155,9 @@ impl Disguiser {
                         &diff_loc_caps,
                         &own_loc_caps,
                     );*/
+                } else {
+                    failed = true;
+                    warn!("Failed to reverse remove token");
                 }
             }
         }
@@ -163,7 +165,7 @@ impl Disguiser {
         for dwrapper in &diff_tokens {
             // only reverse tokens of disguise if not yet revealed
             let d = edna_diff_token_from_bytes(&dwrapper.token_data);
-            if dwrapper.did == did && !dwrapper.revealed && d.update_type != REMOVE_GUISE {
+            if dwrapper.did == did && !dwrapper.revealed && d.update_type != REMOVE_GUISE && d.update_type != REMOVE_PRINCIPAL {
                 warn!("Reversing token {:?}\n", d);
                 let revealed = d.reveal(&mut locked_token_ctrler, &mut db, self.stats.clone())?;
                 if revealed {
@@ -175,6 +177,9 @@ impl Disguiser {
                         &diff_loc_caps,
                         &own_loc_caps,
                     );*/
+                } else {
+                    failed = true;
+                    warn!("Failed to reverse non-remove token");
                 }
             }
         }
@@ -197,11 +202,23 @@ impl Disguiser {
                                 &decrypt_cap,
                                 &own_loc_caps,
                             );*/
+                        } else {
+                            failed = true;
                         }
                     }
                 }
             }
         }
+        if !failed {
+            locked_token_ctrler.cleanup_user_tokens(
+                did,
+                &decrypt_cap,
+                &HashSet::from_iter(diff_loc_caps.iter().cloned()),
+                &HashSet::from_iter(own_loc_caps.iter().cloned()),
+                &mut db,
+            );
+        }
+
         warn!("Reveal tokens: {}", start.elapsed().as_micros());
 
         drop(locked_token_ctrler);
@@ -228,13 +245,11 @@ impl Disguiser {
         let start = time::Instant::now();
         let mut locked_token_ctrler = self.token_ctrler.lock().unwrap();
         let global_diff_tokens = locked_token_ctrler.get_all_global_diff_tokens();
-        let (_, ownership_tokens, _, _) = locked_token_ctrler.get_user_tokens(
+        let (_, ownership_tokens) = locked_token_ctrler.get_user_tokens(
             disguise.did,
             &decrypt_cap,
             &HashSet::new(),
             &HashSet::from_iter(ownership_loc_caps.iter().cloned()),
-            false,
-            &mut db,
         );
         drop(locked_token_ctrler);
         warn!(

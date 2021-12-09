@@ -130,24 +130,39 @@ impl EdnaClient {
     // Additional function to get and mark tokens revealed (if tokens are retrieved for the
     // purpose of reversal)
     //-----------------------------------------------------------------------------
+    pub fn cleanup_tokens_of_disguise(
+        &self,
+        did: DID,
+        decrypt_cap: tokens::DecryptCap,
+        diff_loc_caps: Vec<tokens::LocCap>,
+        own_loc_caps: Vec<tokens::LocCap>,
+    ) {
+        let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
+        let mut db = self.get_conn().unwrap();
+        locked_token_ctrler.cleanup_user_tokens(
+            did,
+            &decrypt_cap,
+            &HashSet::from_iter(diff_loc_caps.iter().cloned()),
+            &HashSet::from_iter(own_loc_caps.iter().cloned()),
+            &mut db,
+        );
+        drop(locked_token_ctrler);
+    }
+
     pub fn get_tokens_of_disguise(
         &self,
         did: DID,
         decrypt_cap: tokens::DecryptCap,
         diff_loc_caps: Vec<tokens::LocCap>,
         own_loc_caps: Vec<tokens::LocCap>,
-        reveal: bool,
     ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
         let mut locked_token_ctrler = self.disguiser.token_ctrler.lock().unwrap();
         let mut diff_tokens = locked_token_ctrler.get_global_diff_tokens_of_disguise(did);
-        let mut db = self.get_conn().unwrap();
-        let (dts, own_tokens, _, _) = locked_token_ctrler.get_user_tokens(
+        let (dts, own_tokens) = locked_token_ctrler.get_user_tokens(
             did,
             &decrypt_cap,
             &HashSet::from_iter(diff_loc_caps.iter().cloned()),
             &HashSet::from_iter(own_loc_caps.iter().cloned()),
-            reveal,
-            &mut db,
         );
         diff_tokens.extend(dts.iter().cloned());
         drop(locked_token_ctrler);

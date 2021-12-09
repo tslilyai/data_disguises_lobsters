@@ -6,7 +6,7 @@ use crate::{DID, UID};
 use aes::Aes128;
 use block_modes::block_padding::Pkcs7;
 use block_modes::{BlockMode, Cbc};
-use log::{warn};
+use log::warn;
 use mysql::prelude::*;
 use rand::{rngs::OsRng, RngCore};
 use rsa::pkcs1::{FromRsaPrivateKey, FromRsaPublicKey, ToRsaPublicKey};
@@ -406,17 +406,20 @@ impl TokenCtrler {
             let empty_vec = serde_json::to_string(&v).unwrap();
             let uid = uid.trim_matches('\'');
             values.push(format!(
-                "(\'{}\', {}, \'{}\', \'{}\', \'{}\')",
+                "(\'{}\', {}, {}, \'{}\', \'{}\', \'{}\')",
                 uid,
                 if pdata.is_anon { 1 } else { 0 },
+                if pdata.should_remove { 1 } else { 0 },
                 serde_json::to_string(&pubkey_vec).unwrap(),
                 empty_vec,
                 empty_vec
             ));
         }
         let insert_q = format!(
-            "INSERT INTO {} VALUES {} AS new ON DUPLICATE UPDATE {} = new.{}, {} = new.{};",
+            "INSERT INTO {} ({}, is_anon, should_remove, pubkey, ownershipToks, diffToks) \
+                VALUES {} ON DUPLICATE KEY UPDATE {} = VALUES({}), {} = VALUES({});",
             PRINCIPAL_TABLE,
+            UID_COL,
             values.join(", "),
             "ownershipToks",
             "ownershipToks",
@@ -444,7 +447,11 @@ impl TokenCtrler {
         let mut ptoken = new_remove_principal_token_wrapper(uid, did, &p);
         self.insert_user_diff_token_wrapper(&mut ptoken);
         self.tmp_remove_principals.insert(uid.to_string());
-        warn!("Edna: mark principal {} to remove : {}", uid, start.elapsed().as_micros());        
+        warn!(
+            "Edna: mark principal {} to remove : {}",
+            uid,
+            start.elapsed().as_micros()
+        );
     }
 
     pub fn remove_principal(&mut self, uid: &UID, db: &mut mysql::PooledConn) {
@@ -453,7 +460,7 @@ impl TokenCtrler {
         let pdata = self.principal_data.get_mut(uid);
         if pdata.is_none() {
             return;
-        } 
+        }
         let mut pdata = pdata.unwrap();
         if !pdata.diff_loc_caps.is_empty() || !pdata.ownership_loc_caps.is_empty() {
             // mark as to_remove
@@ -491,7 +498,7 @@ impl TokenCtrler {
                 .principal_data
                 .get_mut(uid)
                 .expect("no user with uid found?");
-            
+
             // generate key
             let mut key: Vec<u8> = repeat(0u8).take(16).collect();
             self.rng.fill_bytes(&mut key[..]);
@@ -507,7 +514,7 @@ impl TokenCtrler {
             let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
             self.rng.fill_bytes(&mut iv[..]);
             let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
-           
+
             let pppks = self.tmp_own_tokens.get(&(uid.to_string(), *did)).unwrap();
             let plaintext = serialize_to_bytes(&pppks);
             let encrypted = cipher.encrypt_vec(&plaintext);
@@ -551,7 +558,7 @@ impl TokenCtrler {
             let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
             self.rng.fill_bytes(&mut iv[..]);
             let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
-            
+
             let dts = self.tmp_diff_tokens.get(&(uid.to_string(), *did)).unwrap();
             let plaintext = serialize_to_bytes(&dts);
             let encrypted = cipher.encrypt_vec(&plaintext);
@@ -572,7 +579,10 @@ impl TokenCtrler {
             warn!("EdnaBatch: Inserted {} diff tokens for {}", dts.len(), uid);
         }
         warn!(
-            "EdnaBatch: Inserted {} user own tokens and {} user diff tokens: {}", okeys.len(), dkeys.len(), start.elapsed().as_micros(),
+            "EdnaBatch: Inserted {} user own tokens and {} user diff tokens: {}",
+            okeys.len(),
+            dkeys.len(),
+            start.elapsed().as_micros(),
         );
     }
 
@@ -584,10 +594,16 @@ impl TokenCtrler {
             return;
         }
         if self.batch {
-            match self.tmp_own_tokens.get_mut(&(pppk.old_uid.clone(), pppk.did)) {
+            match self
+                .tmp_own_tokens
+                .get_mut(&(pppk.old_uid.clone(), pppk.did))
+            {
                 Some(ots) => ots.push(pppk.clone()),
-                None => {self.tmp_own_tokens.insert((pppk.old_uid.clone(), pppk.did.clone()), vec![pppk.clone()]);},
-            } 
+                None => {
+                    self.tmp_own_tokens
+                        .insert((pppk.old_uid.clone(), pppk.did.clone()), vec![pppk.clone()]);
+                }
+            }
             return;
         }
 
@@ -635,16 +651,16 @@ impl TokenCtrler {
         let start = time::Instant::now();
         let did = token.did;
         let uid = &token.uid;
-        warn!(
-            "inserting user diff token with uid {} did {}",
-            uid, did
-        );
+        warn!("inserting user diff token with uid {} did {}", uid, did);
 
         if self.batch {
             match self.tmp_diff_tokens.get_mut(&(uid.clone(), did.clone())) {
                 Some(dts) => dts.push(token.clone()),
-                None => {self.tmp_diff_tokens.insert((uid.clone(), did.clone()), vec![token.clone()]);},
-            } 
+                None => {
+                    self.tmp_diff_tokens
+                        .insert((uid.clone(), did.clone()), vec![token.clone()]);
+                }
+            }
             return;
         }
 
@@ -849,17 +865,13 @@ impl TokenCtrler {
         decrypt_cap: &DecryptCap,
         diff_loc_caps: &HashSet<LocCap>,
         ownership_loc_caps: &HashSet<LocCap>,
-        reveal: bool,
-        db: &mut mysql::PooledConn,
-    ) -> (Vec<DiffTokenWrapper>, Vec<OwnershipTokenWrapper>, HashSet<LocCap>, HashSet<LocCap>) {
+    ) -> (Vec<DiffTokenWrapper>, Vec<OwnershipTokenWrapper>) {
         // XXX delete locators + encrypted tokens if should reveal
         // remove pseudoprincipal metadata if caps are empty
         let mut diff_tokens = vec![];
         let mut own_tokens = vec![];
-        let mut diff_locs_to_remove = HashSet::new();
-        let mut own_locs_to_remove = HashSet::new();
         if decrypt_cap.is_empty() {
-            return (diff_tokens, own_tokens, diff_locs_to_remove, own_locs_to_remove);
+            return (diff_tokens, own_tokens);
         }
         for loc_cap in diff_loc_caps {
             if let Some(tokenls) = self.enc_diffs_map.get(&loc_cap) {
@@ -872,31 +884,23 @@ impl TokenCtrler {
                     if self.batch {
                         let mut tokens = diff_tokens_from_bytes(&plaintext);
                         warn!(
-                            "EdnaBatch: Decrypted diff tokens added {}: {}", tokens.len(), start.elapsed().as_micros(),
+                            "EdnaBatch: Decrypted diff tokens added {}: {}",
+                            tokens.len(),
+                            start.elapsed().as_micros(),
                         );
-                        if !tokens.is_empty() && tokens[0].did == did {
-                            diff_tokens.append(&mut tokens);
-                        }
-                        // remove if we found a matching token
-                        if reveal && (tokens.is_empty() || tokens[0].did == did) {
-                            diff_locs_to_remove.insert(*loc_cap);
-                        }
+                        diff_tokens.append(&mut tokens);
+                        // remove if we found a matching token for the disguise
                     } else {
                         let token = diff_token_from_bytes(&plaintext);
                         // add token to list only if it hasn't be revealed before
-                        if token.did == did {
-                            diff_tokens.push(token.clone());
-                            // remove loc cap if matching disguise
-                            if reveal {
-                                diff_locs_to_remove.insert(*loc_cap);
-                            }
-                        }
+                        diff_tokens.push(token.clone());
                         warn!(
-                            "Edna: Decrypted tokens pushed to len {}: {}", diff_tokens.len(), start.elapsed().as_micros(),
+                            "Edna: Decrypted tokens pushed to len {}: {}",
+                            diff_tokens.len(),
+                            start.elapsed().as_micros(),
                         );
                     }
                 }
-                
             }
         }
         // get allowed pseudoprincipal diff tokens for all owned pseudoprincipals
@@ -906,32 +910,24 @@ impl TokenCtrler {
                     let start = time::Instant::now();
                     // decrypt with decrypt_cap provided by client
                     let (_, plaintext) = enc_pk.decrypt_encdata(decrypt_cap);
-                   
+
                     let mut new_uids = vec![];
                     if self.batch {
                         let mut tokens = ownership_tokens_from_bytes(&plaintext);
                         warn!(
-                            "EdnaBatch: Decrypted own tokens added {}: {}", tokens.len(), start.elapsed().as_micros(),
+                            "EdnaBatch: Decrypted own tokens added {}: {}",
+                            tokens.len(),
+                            start.elapsed().as_micros(),
                         );
                         // get ALL new_uids regardless of disguise that token came from
                         for pk in &tokens {
                             new_uids.push((pk.new_uid.clone(), pk.priv_key.clone()));
                         }
                         // only return own tokens for this disguise though
-                        if !tokens.is_empty() && tokens[0].did == did {
-                            own_tokens.append(&mut tokens);
-                        }
-                        if reveal && (tokens.is_empty() || tokens[0].did == did) {
-                            own_locs_to_remove.insert(*lc);
-                        }
+                        own_tokens.append(&mut tokens);
                     } else {
                         let pk = ownership_token_from_bytes(&plaintext);
-                        if pk.did == did {
-                            own_tokens.push(pk.clone());
-                            if reveal {
-                                own_locs_to_remove.insert(*lc);
-                            }
-                        }
+                        own_tokens.push(pk.clone());
                         new_uids.push((pk.new_uid, pk.priv_key));
                         warn!(
                             "Edna: Decrypt pseudoprincipal token in get_tokens: {}",
@@ -942,7 +938,7 @@ impl TokenCtrler {
                     // get all tokens of pseudoprincipal
                     for (new_uid, privkey) in new_uids {
                         if let Some(pp) = self.principal_data.get(&new_uid) {
-                            let mut pp = pp.clone();
+                            let pp = pp.clone();
                             warn!(
                                 "Getting tokens of pseudoprincipal {} with data {}, {:?}, {:?}",
                                 new_uid,
@@ -950,32 +946,149 @@ impl TokenCtrler {
                                 pp.diff_loc_caps,
                                 pp.ownership_loc_caps
                             );
-                            let (mut pp_diff_tokens, mut pp_own_tokens, diff_locs_to_remove, own_locs_to_remove) = self.get_user_tokens(
+                            let (mut pp_diff_tokens, mut pp_own_tokens) = self.get_user_tokens(
                                 did,
                                 &privkey,
                                 &pp.diff_loc_caps,
                                 &pp.ownership_loc_caps,
-                                reveal,
-                                db,
                             );
-                            // remove locs from pp
-                            for dl in &diff_locs_to_remove {
-                                pp.diff_loc_caps.remove(dl);
-                            }
-                            for ol in &own_locs_to_remove {
-                                pp.ownership_loc_caps.remove(ol);
-                            }
-                            if pp.should_remove && pp.diff_loc_caps.is_empty() && pp.ownership_loc_caps.is_empty() {
-                                // either remove the principal metadata
-                                self.remove_principal(&new_uid, db);
-                            } else {
-                                // or update the principal data record in edna
-                                self.mark_principal_to_insert(&new_uid, &pp);
-                                self.persist_principals(db);
-                                self.principal_data.insert(new_uid, pp.clone());
-                            }
                             diff_tokens.append(&mut pp_diff_tokens);
                             own_tokens.append(&mut pp_own_tokens);
+                        }
+                    }
+                }
+            }
+        }
+        // return tokens matching disguise and the removed locs from this iteration
+        (diff_tokens, own_tokens)
+    }
+
+    pub fn cleanup_user_tokens(
+        &mut self,
+        did: DID,
+        decrypt_cap: &DecryptCap,
+        diff_loc_caps: &HashSet<LocCap>,
+        ownership_loc_caps: &HashSet<LocCap>,
+        db: &mut mysql::PooledConn,
+    ) -> (HashSet<LocCap>, HashSet<LocCap>) {
+        // XXX delete locators + encrypted tokens if should reveal
+        // remove pseudoprincipal metadata if caps are empty
+        let mut diff_locs_to_remove = HashSet::new();
+        let mut own_locs_to_remove = HashSet::new();
+        if decrypt_cap.is_empty() {
+            return (diff_locs_to_remove, own_locs_to_remove);
+        }
+        for loc_cap in diff_loc_caps {
+            if let Some(tokenls) = self.enc_diffs_map.get(&loc_cap) {
+                warn!("Getting tokens of user from ls len {}", tokenls.len());
+                for enc_token in tokenls.clone() {
+                    let start = time::Instant::now();
+                    // decrypt token with decrypt_cap provided by client
+                    let (_, plaintext) = enc_token.decrypt_encdata(decrypt_cap);
+
+                    if self.batch {
+                        let tokens = diff_tokens_from_bytes(&plaintext);
+                        warn!(
+                            "EdnaBatch: Decrypted diff tokens added {}: {}",
+                            tokens.len(),
+                            start.elapsed().as_micros(),
+                        );
+                        // remove if we found a matching token for the disguise
+                        if tokens.is_empty() || tokens[0].did == did {
+                            diff_locs_to_remove.insert(*loc_cap);
+                        }
+                    } else {
+                        let token = diff_token_from_bytes(&plaintext);
+                        // remove loc cap if matching disguise
+                        if token.did == did {
+                            diff_locs_to_remove.insert(*loc_cap);
+                        }
+                    }
+                    warn!(
+                        "Edna: Decrypted locs to remove pushed to len {}: {}",
+                        diff_locs_to_remove.len(),
+                        start.elapsed().as_micros(),
+                    );
+                }
+            }
+        }
+        // get allowed pseudoprincipal diff tokens for all owned pseudoprincipals
+        for lc in ownership_loc_caps {
+            if let Some(pks) = self.enc_ownership_map.get(&lc) {
+                for enc_pk in &pks.clone() {
+                    let start = time::Instant::now();
+                    // decrypt with decrypt_cap provided by client
+                    let (_, plaintext) = enc_pk.decrypt_encdata(decrypt_cap);
+
+                    let mut new_uids = vec![];
+                    if self.batch {
+                        let tokens = ownership_tokens_from_bytes(&plaintext);
+                        warn!(
+                            "EdnaBatch: Decrypted own tokens added {}: {}",
+                            tokens.len(),
+                            start.elapsed().as_micros(),
+                        );
+                        // get ALL new_uids regardless of disguise that token came from
+                        for pk in &tokens {
+                            new_uids.push((pk.new_uid.clone(), pk.priv_key.clone()));
+                        }
+                        if tokens.is_empty() || tokens[0].did == did {
+                            own_locs_to_remove.insert(*lc);
+                        }
+                    } else {
+                        let pk = ownership_token_from_bytes(&plaintext);
+                        own_locs_to_remove.insert(*lc);
+                        new_uids.push((pk.new_uid, pk.priv_key));
+                        warn!(
+                            "Edna: Decrypt pseudoprincipal token in get_tokens: {}",
+                            start.elapsed().as_micros()
+                        );
+                    }
+
+                    // get all tokens of pseudoprincipal
+                    for (new_uid, privkey) in new_uids {
+                        if let Some(pp) = self.principal_data.get(&new_uid) {
+                            let len_diffs = pp.diff_loc_caps.len();
+                            let len_owns = pp.ownership_loc_caps.len();
+                            let mut new_pp = pp.clone();
+                            warn!(
+                                "Getting tokens of pseudoprincipal {} with data {}, {:?}, {:?}",
+                                new_uid,
+                                privkey.len(),
+                                new_pp.diff_loc_caps,
+                                new_pp.ownership_loc_caps
+                            );
+                            let (diff_locs_to_remove, own_locs_to_remove) = self
+                                .cleanup_user_tokens(
+                                    did,
+                                    &privkey,
+                                    &new_pp.diff_loc_caps,
+                                    &new_pp.ownership_loc_caps,
+                                    db,
+                                );
+                            // remove locs from pp
+                            for dl in &diff_locs_to_remove {
+                                new_pp.diff_loc_caps.remove(dl);
+                            }
+                            for ol in &own_locs_to_remove {
+                                new_pp.ownership_loc_caps.remove(ol);
+                            }
+                            if new_pp.should_remove
+                                && new_pp.diff_loc_caps.is_empty()
+                                && new_pp.ownership_loc_caps.is_empty()
+                            {
+                                // either remove the principal metadata
+                                warn!("Removing metadata of {}", new_uid);
+                                self.remove_principal(&new_uid, db);
+                            } else if new_pp.diff_loc_caps.len() != len_diffs
+                                || new_pp.ownership_loc_caps.len() != len_owns
+                            {
+                                // or update the principal data record in edna
+                                warn!("Updating metadata of {}", new_uid);
+                                self.mark_principal_to_insert(&new_uid, &new_pp);
+                                self.persist_principals(db);
+                                self.principal_data.insert(new_uid, new_pp.clone());
+                            }
                         }
                     }
                 }
@@ -988,8 +1101,8 @@ impl TokenCtrler {
         for ol in &own_locs_to_remove {
             self.enc_ownership_map.remove(ol);
         }
-        // return tokens matching disguise and the removed locs from this iteration
-        (diff_tokens, own_tokens, diff_locs_to_remove, own_locs_to_remove)
+        // return the removed locs from this iteration
+        (diff_locs_to_remove, own_locs_to_remove)
     }
 
     pub fn get_user_pseudoprincipals(
@@ -1085,11 +1198,22 @@ mod tests {
     fn test_insert_user_token_single() {
         init_logger();
         let dbname = "testTokenCtrlerUser".to_string();
-        let edna = EdnaClient::new(true, true, &dbname, "", true, 2, get_guise_gen());
+        let edna = EdnaClient::new(
+            true,
+            true,
+            "127.0.0.1",
+            &dbname,
+            "",
+            true,
+            2,
+            get_guise_gen(),
+        );
         let mut db = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(2, &mut db, stats, false);
+        // don't batch here bc token ctrler checks tmp_locators
+        let mut ctrler =
+            TokenCtrler::new(2, "mysql://tslilyai:pass@127.0.0.1", &mut db, stats, false);
 
         let did = 1;
         let uid = 11;
@@ -1130,7 +1254,10 @@ mod tests {
         assert!(ctrler.tmp_diff_loc_caps.is_empty());
 
         // get tokens
-        let (diff_tokens, _) = ctrler.get_user_tokens(did, &private_key_vec, &vec![lc], &vec![], reveal);
+        let mut dcs = HashSet::new();
+        dcs.insert(lc);
+        let (diff_tokens, _) =
+            ctrler.get_user_tokens(did as u64, &private_key_vec, &dcs, &HashSet::new());
         assert_eq!(diff_tokens.len(), 1);
         assert_eq!(diff_tokens[0], remove_token);
     }
@@ -1140,11 +1267,26 @@ mod tests {
         init_logger();
         let iters = 5;
         let dbname = "testTokenCtrlerUserMulti".to_string();
-        let edna = EdnaClient::new(true, true, &dbname, "", true, iters, get_guise_gen());
+        let edna = EdnaClient::new(
+            true,
+            true,
+            "127.0.0.1",
+            &dbname,
+            "",
+            true,
+            iters,
+            get_guise_gen(),
+        );
         let mut db = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(iters, &mut db, stats, true);
+        let mut ctrler = TokenCtrler::new(
+            iters,
+            "mysql://tslilyai:pass@127.0.0.1",
+            &mut db,
+            stats,
+            true,
+        );
 
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
@@ -1197,8 +1339,10 @@ mod tests {
             for d in 1..iters {
                 let dc = dcaps.get(&(u.to_string(), d as u64)).unwrap().clone();
                 // get tokens
+                let mut dcs = HashSet::new();
+                dcs.insert(dc);
                 let (diff_tokens, _) =
-                    ctrler.get_user_tokens(d as u64, &priv_keys[u - 1], &vec![dc], &vec![], reveal);
+                    ctrler.get_user_tokens(d as u64, &priv_keys[u - 1], &dcs, &HashSet::new());
                 assert_eq!(diff_tokens.len(), (iters as usize));
                 for i in 0..iters {
                     let dt = edna_diff_token_from_bytes(&diff_tokens[i].token_data);
@@ -1216,11 +1360,26 @@ mod tests {
         init_logger();
         let iters = 5;
         let dbname = "testTokenCtrlerUserPK".to_string();
-        let edna = EdnaClient::new(true, true, &dbname, "", true, iters, get_guise_gen());
+        let edna = EdnaClient::new(
+            true,
+            true,
+            "127.0.0.1",
+            &dbname,
+            "",
+            true,
+            iters,
+            get_guise_gen(),
+        );
         let mut db = edna.get_conn().unwrap();
         let stats = edna.get_stats();
 
-        let mut ctrler = TokenCtrler::new(iters, &mut db, stats, true);
+        let mut ctrler = TokenCtrler::new(
+            iters,
+            "mysql://tslilyai:pass@127.0.0.1",
+            &mut db,
+            stats,
+            true,
+        );
 
         let guise_name = "guise".to_string();
         let guise_ids = vec![];
@@ -1290,8 +1449,12 @@ mod tests {
                 let dc = dcaps.get(&(u.to_string(), d as u64)).unwrap().clone();
                 let lc = lcaps.get(&(u.to_string(), d as u64)).unwrap().clone();
                 // get tokens
+                let mut dcs = HashSet::new();
+                dcs.insert(dc);
+                let mut lcs = HashSet::new();
+                lcs.insert(lc);
                 let (diff_tokens, own_tokens) =
-                    ctrler.get_user_tokens(d as u64, &priv_keys[u as usize - 1], &vec![dc], &vec![lc], reveal);
+                    ctrler.get_user_tokens(d as u64, &priv_keys[u as usize - 1], &dcs, &lcs);
                 assert_eq!(diff_tokens.len(), 1);
                 assert_eq!(own_tokens.len(), 1);
                 let dt = edna_diff_token_from_bytes(&diff_tokens[0].token_data);
