@@ -170,7 +170,7 @@ User accounts remain in the database, but have no data.
 %
 Account deletion \one{} deletes the user's account; \two{} deletes information
 that's only relevant to the user, such as their review preferences;
-\three{} deletes their contact author relationships to papers; and
+\three{} deletes their author relationships to papers; and
 \four{} decorrelates the remainder of their data, such as reviews, to
 individual pseudoprincipals.
 %
@@ -180,9 +180,9 @@ another or with the natural principal.
 Pseudoprincipals have suitable default properties provided by HotCRP; for example,
 they are marked as disabled, so that they have no permissions and cannot log in.
 %
-%This account deletion disguise removes a user's relationship to submitted papers,
-%but does not remove the papers themselves; a different policy might go even
-%further and automatically delete a submission whose last author is scrubbed.
+This account deletion disguise removes a user's relationship to co-authored papers,
+but does not remove the papers themselves; a different policy might go even
+further and automatically delete a submission whose last author is removed.
 %
 
 An end-to-end integration with the HotCRP client is future work; however, we believe
