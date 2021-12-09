@@ -364,12 +364,11 @@ impl TokenCtrler {
             let empty_vec = serde_json::to_string(&v).unwrap();
             let uid = uid.trim_matches('\'');
             values.push(format!(
-                "(\'{}\', {}, {}, \'{}\', \'{}\', \'{}\')",
+                "(\'{}\', {}, {}, \'{}\', \'{}\')",
                 uid,
                 if pdata.is_anon { 1 } else { 0 },
                 if pdata.should_remove { 1 } else { 0 },
                 serde_json::to_string(&pubkey_vec).unwrap(),
-                empty_vec,
                 empty_vec
             ));
         }
@@ -450,46 +449,9 @@ impl TokenCtrler {
         let pkkeys = self.tmp_privkey_tokens.keys().cloned().collect::<Vec<_>>();
         for (uid, did) in &pkkeys {
             let lc = self.get_loc_cap(uid, *did);
-            let p = self
-                .principal_data
-                .get_mut(uid)
-                .expect("no user with uid found?");
-
-            // generate key
-            let mut key: Vec<u8> = repeat(0u8).take(16).collect();
-            self.rng.fill_bytes(&mut key[..]);
-
-            // encrypt key with pubkey
-            let padding = PaddingScheme::new_pkcs1v15_encrypt();
-            let enc_key = p
-                .pubkey
-                .encrypt(&mut self.rng, padding, &key[..])
-                .expect("failed to encrypt");
-
-            // encrypt pppk with key
-            let mut iv: Vec<u8> = repeat(0u8).take(16).collect();
-            self.rng.fill_bytes(&mut iv[..]);
-            let cipher = Aes128Cbc::new_from_slices(&key, &iv).unwrap();
-
-            let pppks = self.tmp_own_tokens.get(&(uid.to_string(), *did)).unwrap();
-            let plaintext = serialize_to_bytes(&pppks);
-            let encrypted = cipher.encrypt_vec(&plaintext);
-            let enc_pppk = EncData {
-                enc_key: enc_key,
-                enc_data: encrypted,
-                iv: iv,
-            };
-
-            // insert the encrypted pppk into locating capability
-            match self.enc_privkeys_map.get_mut(&lc) {
-                Some(ts) => {
-                    ts.push(enc_pppk);
-                }
-                None => {
-                    self.enc_ownership_map.insert(lc, vec![enc_pppk]);
-                }
-            }
-            warn!("EdnaBatch: Inserted {} own tokens for {}", pppks.len(), uid);
+            let pppks = self.tmp_privkey_tokens.get(&(uid.to_string(), *did)).unwrap().clone();
+            warn!("EdnaBatch: Inserted {} pk tokens for {}", pppks.len(), uid);
+            self.update_batch_privkeys_at_loc(uid.to_string(), &lc, &pppks);
         }
         let okeys = self.tmp_own_tokens.keys().cloned().collect::<Vec<_>>();
         for (uid, did) in &okeys {
@@ -924,7 +886,6 @@ impl TokenCtrler {
     //this would remove locators regardless of success in revealing
     pub fn get_user_tokens(
         &mut self,
-        did: DID,
         decrypt_cap: &DecryptCap,
         lc: &LocCap,
     ) -> (Vec<DiffTokenWrapper>, Vec<OwnershipTokenWrapper>) {
@@ -948,15 +909,11 @@ impl TokenCtrler {
                         start.elapsed().as_micros(),
                     );
                     // remove if we found a matching token for the disguise
-                    if !tokens.is_empty() && tokens[0].did == did {
-                        diff_tokens.append(&mut tokens);
-                    }
+                    diff_tokens.append(&mut tokens);
                 } else {
                     let token = diff_token_from_bytes(&plaintext);
                     // add token to list only if it hasn't be revealed before
-                    if token.did == did {
-                        diff_tokens.push(token.clone());
-                    }
+                    diff_tokens.push(token.clone());
                     warn!(
                         "Edna: Decrypted tokens pushed to len {}: {}",
                         diff_tokens.len(),
@@ -979,15 +936,10 @@ impl TokenCtrler {
                         tokens.len(),
                         start.elapsed().as_micros(),
                     );
-                    // only return own tokens for this disguise though
-                    if !tokens.is_empty() && tokens[0].did == did {
-                        own_tokens.append(&mut tokens);
-                    }
+                    own_tokens.append(&mut tokens);
                 } else {
                     let ot = ownership_token_from_bytes(&plaintext);
-                    if ot.did == did {
-                        own_tokens.push(ot.clone());
-                    }
+                    own_tokens.push(ot.clone());
                     warn!(
                         "Edna: Decrypt pseudoprincipal token in get_tokens: {}",
                         start.elapsed().as_micros()
@@ -1034,7 +986,7 @@ impl TokenCtrler {
                     );
                     for lc in pp.loc_caps {
                         let (mut pp_diff_tokens, mut pp_own_tokens) =
-                            self.get_user_tokens(did, &privkey, &lc);
+                            self.get_user_tokens(&privkey, &lc);
                         diff_tokens.append(&mut pp_diff_tokens);
                         own_tokens.append(&mut pp_own_tokens);
                     }
@@ -1414,7 +1366,7 @@ mod tests {
 
         // get tokens
         let (diff_tokens, _) =
-            ctrler.get_user_tokens(did as u64, &private_key_vec, &lc);
+            ctrler.get_user_tokens(&private_key_vec, &lc);
         assert_eq!(diff_tokens.len(), 1);
         assert_eq!(diff_tokens[0], remove_token);
     }
@@ -1493,7 +1445,7 @@ mod tests {
             for d in 1..iters {
                 let lc = caps.get(&(u.to_string(), d as u64)).unwrap().clone();
                 let (diff_tokens, _) =
-                    ctrler.get_user_tokens(d as u64, &priv_keys[u - 1], &lc);
+                    ctrler.get_user_tokens(&priv_keys[u - 1], &lc);
                 assert_eq!(diff_tokens.len(), (iters as usize));
                 for i in 0..iters {
                     let dt = edna_diff_token_from_bytes(&diff_tokens[i].token_data);
@@ -1597,7 +1549,7 @@ mod tests {
             for d in 1..iters {
                 let lc = caps.get(&(u.to_string(), d as u64)).unwrap().clone();
                 let (diff_tokens, own_tokens) =
-                    ctrler.get_user_tokens(d as u64, &priv_keys[u as usize - 1], &lc);
+                    ctrler.get_user_tokens(&priv_keys[u as usize - 1], &lc);
                 assert_eq!(diff_tokens.len(), 1);
                 assert_eq!(own_tokens.len(), 1);
                 let dt = edna_diff_token_from_bytes(&diff_tokens[0].token_data);

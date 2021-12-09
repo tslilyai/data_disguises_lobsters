@@ -145,7 +145,7 @@ impl EdnaClient {
 
     pub fn get_tokens_of_disguise(
         &self,
-        did: DID,
+        _did: DID,
         decrypt_cap: tokens::DecryptCap,
         loc_caps: Vec<tokens::LocCap>,
     ) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
@@ -155,8 +155,9 @@ impl EdnaClient {
         let mut diff_tokens = vec![];
         let mut own_tokens = vec![];
         for lc in loc_caps {
+            // XXX ignore did for now?
             let (dts, ots) = locked_token_ctrler.get_user_tokens(
-                did,
+                //did,
                 &decrypt_cap,
                 &lc,
             );

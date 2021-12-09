@@ -127,7 +127,6 @@ impl Disguiser {
         let mut own_tokens = vec![];
         for lc in &loc_caps {
             let (dts, ots) = locked_token_ctrler.get_user_tokens(
-                did,
                 &decrypt_cap,
                 lc,
             );
@@ -226,7 +225,6 @@ impl Disguiser {
         let mut ownership_tokens = vec![];
         for lc in &loc_caps {
             let (_, mut ots) = locked_token_ctrler.get_user_tokens(
-                disguise.did,
                 &decrypt_cap,
                 lc,
             );
@@ -245,7 +243,7 @@ impl Disguiser {
         for (table, transforms) in disguise.table_disguises.clone() {
             let mystats = self.stats.clone();
             let my_global_diff_tokens_to_modify = self.global_diff_tokens_to_modify.clone();
-            let my_diff_tokens = global_diff_tokens.clone();
+            let my_diff_tokens : Vec<DiffTokenWrapper> = vec![];//global_diff_tokens.clone();
             let my_own_tokens = ownership_tokens.clone();
             let my_token_ctrler = self.token_ctrler.clone();
 
