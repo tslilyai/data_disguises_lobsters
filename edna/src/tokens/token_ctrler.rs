@@ -1058,13 +1058,13 @@ impl TokenCtrler {
         decrypt_cap: &DecryptCap,
         lc: &LocCap,
         db: &mut mysql::PooledConn,
-    ) -> (HashSet<LocCap>, HashSet<LocCap>) {
+    ) -> (bool, bool) {
         // delete locators + encrypted tokens 
         // remove pseudoprincipal metadata if caps are empty
-        let mut diff_locs_to_remove = HashSet::new();
-        let mut own_locs_to_remove = HashSet::new();
+        let mut removed_dl = false;
+        let mut removed_ol = false;
         if decrypt_cap.is_empty() {
-            return (diff_locs_to_remove, own_locs_to_remove);
+            return (false, false);
         }
         if let Some(tokenls) = self.enc_diffs_map.get(&lc) {
             warn!("Getting tokens of user from ls len {}", tokenls.len());
@@ -1082,20 +1082,15 @@ impl TokenCtrler {
                     );
                     // remove if we found a matching token for the disguise
                     if tokens.is_empty() || tokens[0].did == did {
-                        diff_locs_to_remove.insert(*lc);
+                        removed_dl = true;
                     }
                 } else {
                     let token = diff_token_from_bytes(&plaintext);
                     // remove loc cap if matching disguise
                     if token.did == did {
-                        diff_locs_to_remove.insert(*lc);
+                        removed_dl = true;
                     }
                 }
-                warn!(
-                    "Edna: Decrypted locs to remove pushed to len {}: {}",
-                    diff_locs_to_remove.len(),
-                    start.elapsed().as_micros(),
-                );
             }
         }
         if let Some(pks) = self.enc_ownership_map.get(&lc) {
@@ -1112,12 +1107,12 @@ impl TokenCtrler {
                         start.elapsed().as_micros(),
                     );
                     if tokens.is_empty() || tokens[0].did == did {
-                        own_locs_to_remove.insert(*lc);
+                        removed_ol = true;
                     }
                 } else {
                     let token = ownership_token_from_bytes(&plaintext);
                     if token.did == did {
-                        own_locs_to_remove.insert(*lc);
+                        removed_ol = true;
                     }
                     warn!(
                         "Edna: Decrypt pseudoprincipal token in get_tokens: {}",
@@ -1136,7 +1131,7 @@ impl TokenCtrler {
                 if self.batch {
                     let tokens = privkey_tokens_from_bytes(&plaintext);
                     warn!(
-                        "EdnaBatch: Decrypted own tokens added {}: {}",
+                        "EdnaBatch: Decrypted pk tokens added {}: {}",
                         tokens.len(),
                         start.elapsed().as_micros(),
                     );
@@ -1155,7 +1150,6 @@ impl TokenCtrler {
                 // get all tokens of pseudoprincipal
                 for (new_uid, privkey) in &new_uids {
                     if let Some(pp) = self.principal_data.get(new_uid) {
-                        let len_lcs = pp.loc_caps.len();
                         let mut new_pp = pp.clone();
                         warn!(
                             "Getting tokens of pseudoprincipal {} with data {}, {:?}",
@@ -1163,30 +1157,27 @@ impl TokenCtrler {
                             privkey.len(),
                             new_pp.loc_caps,
                         );
+                        // XXX TODO encrypt/decrypt
                         for pplc in new_pp.loc_caps.clone() {
-                            let (diff_locs_to_remove, own_locs_to_remove) = self
+                            let (removed_dl, removed_ol) = self
                                 .cleanup_user_tokens(
                                     did,
                                     &privkey,
                                     &pplc,
                                     db,
                                 );
-                            // remove locs from pp
-                            // XXX TODO can't remove locator if still has some diff or sf or
-                            // privkeys
-                            // need to get intersection? and check privkeys?
-                            // encrypt
-                            for dl in &diff_locs_to_remove {
-                                new_pp.loc_caps.remove(dl);
+                            // remove locs from pp if both dts and ots match did
+                            // XXX TODO can't remove locator if still has privkeys
+                            let mut removed = false;
+                            if removed_dl && removed_ol {
+                                removed = new_pp.loc_caps.remove(&pplc);
                             }
-                            if new_pp.should_remove
-                                && new_pp.loc_caps.is_empty()
-                            {
+                            if new_pp.should_remove && new_pp.loc_caps.is_empty() {
                                 // either remove the principal metadata
                                 warn!("Removing metadata of {}", new_uid);
                                 self.remove_principal(&new_uid, db);
-                            } else if new_pp.loc_caps.len() != len_lcs {
-                                // or update the principal data record in edna
+                            } else if removed {
+                                // or update the principal data record in edna if changed
                                 warn!("Updating metadata of {}", new_uid);
                                 self.mark_principal_to_insert(&new_uid, &new_pp);
                                 self.persist_principals(db);
@@ -1198,15 +1189,15 @@ impl TokenCtrler {
             }
         }
         // actually remove locs
-        for dl in &diff_locs_to_remove {
-            self.enc_diffs_map.remove(dl);
+        if removed_dl {
+            self.enc_diffs_map.remove(lc);
         }
-        for ol in &own_locs_to_remove {
-            self.enc_ownership_map.remove(ol);
+        if removed_ol {
+            self.enc_ownership_map.remove(lc);
         }
         // TODO privkeys?
-        // return the removed locs from this iteration
-        (diff_locs_to_remove, own_locs_to_remove)
+        // return whether we removed the dl and ol bags
+        (removed_dl, removed_ol)
     }
 
     pub fn get_user_pseudoprincipals(
