@@ -88,6 +88,58 @@ module SwaggerClient
       end
       return data, status_code, headers
     end
+    # @param body 
+    # @param [Hash] opts the optional parameters
+    # @return [nil]
+    def apiproxy_cleanup_tokens_of_disguise(body, opts = {})
+      apiproxy_cleanup_tokens_of_disguise_with_http_info(body, opts)
+      nil
+    end
+
+    # @param body 
+    # @param [Hash] opts the optional parameters
+    # @return [Array<(nil, Integer, Hash)>] nil, response status code and response headers
+    def apiproxy_cleanup_tokens_of_disguise_with_http_info(body, opts = {})
+      if @api_client.config.debugging
+        @api_client.config.logger.debug 'Calling API: DefaultApi.apiproxy_cleanup_tokens_of_disguise ...'
+      end
+      # verify the required parameter 'body' is set
+      if @api_client.config.client_side_validation && body.nil?
+        fail ArgumentError, "Missing the required parameter 'body' when calling DefaultApi.apiproxy_cleanup_tokens_of_disguise"
+      end
+      # resource path
+      local_var_path = '/cleanup_tokens_of_disguise'
+
+      # query parameters
+      query_params = opts[:query_params] || {}
+
+      # header parameters
+      header_params = opts[:header_params] || {}
+      # HTTP header 'Content-Type'
+      header_params['Content-Type'] = @api_client.select_header_content_type(['application/json'])
+
+      # form parameters
+      form_params = opts[:form_params] || {}
+
+      # http body (model)
+      post_body = opts[:body] || @api_client.object_to_http_body(body) 
+
+      return_type = opts[:return_type] 
+
+      auth_names = opts[:auth_names] || []
+      data, status_code, headers = @api_client.call_api(:POST, local_var_path,
+        :header_params => header_params,
+        :query_params => query_params,
+        :form_params => form_params,
+        :body => post_body,
+        :auth_names => auth_names,
+        :return_type => return_type)
+
+      if @api_client.config.debugging
+        @api_client.config.logger.debug "API called: DefaultApi#apiproxy_cleanup_tokens_of_disguise\nData: #{data.inspect}\nStatus code: #{status_code}\nHeaders: #{headers}"
+      end
+      return data, status_code, headers
+    end
     # @param [Hash] opts the optional parameters
     # @return [CreatePseudoprincipalResponse]
     def apiproxy_create_pseudoprincipal(opts = {})
@@ -324,7 +376,7 @@ module SwaggerClient
       # HTTP header 'Accept' (if needed)
       header_params['Accept'] = @api_client.select_header_accept(['application/json'])
       # HTTP header 'Content-Type'
-      header_params['Content-Type'] = @api_client.select_header_content_type(['application/json'])
+      header_params['Content-Type'] = @api_client.select_header_content_type(['application/octet-stream'])
 
       # form parameters
       form_params = opts[:form_params] || {}

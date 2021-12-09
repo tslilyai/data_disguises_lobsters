@@ -13,23 +13,19 @@ require 'date'
 
 module SwaggerClient
   class EndDisguiseResponse
-    attr_accessor :diff_locators
-
-    attr_accessor :ownership_locators
+    attr_accessor :locators
 
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
-        :'diff_locators' => :'diff_locators',
-        :'ownership_locators' => :'ownership_locators'
+        :'locators' => :'locators'
       }
     end
 
     # Attribute type mapping.
     def self.openapi_types
       {
-        :'diff_locators' => :'Object',
-        :'ownership_locators' => :'Object'
+        :'locators' => :'Object'
       }
     end
 
@@ -54,15 +50,9 @@ module SwaggerClient
         h[k.to_sym] = v
       }
 
-      if attributes.key?(:'diff_locators')
-        if (value = attributes[:'diff_locators']).is_a?(Hash)
-          self.diff_locators = value
-        end
-      end
-
-      if attributes.key?(:'ownership_locators')
-        if (value = attributes[:'ownership_locators']).is_a?(Hash)
-          self.ownership_locators = value
+      if attributes.key?(:'locators')
+        if (value = attributes[:'locators']).is_a?(Hash)
+          self.locators = value
         end
       end
     end
@@ -71,12 +61,8 @@ module SwaggerClient
     # @return Array for valid properties with the reasons
     def list_invalid_properties
       invalid_properties = Array.new
-      if @diff_locators.nil?
-        invalid_properties.push('invalid value for "diff_locators", diff_locators cannot be nil.')
-      end
-
-      if @ownership_locators.nil?
-        invalid_properties.push('invalid value for "ownership_locators", ownership_locators cannot be nil.')
+      if @locators.nil?
+        invalid_properties.push('invalid value for "locators", locators cannot be nil.')
       end
 
       invalid_properties
@@ -85,8 +71,7 @@ module SwaggerClient
     # Check to see if the all the properties in the model are valid
     # @return true if the model is valid
     def valid?
-      return false if @diff_locators.nil?
-      return false if @ownership_locators.nil?
+      return false if @locators.nil?
       true
     end
 
@@ -95,8 +80,7 @@ module SwaggerClient
     def ==(o)
       return true if self.equal?(o)
       self.class == o.class &&
-          diff_locators == o.diff_locators &&
-          ownership_locators == o.ownership_locators
+          locators == o.locators
     end
 
     # @see the `==` method
@@ -108,7 +92,7 @@ module SwaggerClient
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [diff_locators, ownership_locators].hash
+      [locators].hash
     end
 
     # Builds the object from hash

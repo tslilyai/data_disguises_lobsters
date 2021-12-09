@@ -15,13 +15,13 @@ module SwaggerClient
   class ApplyDisguise
     attr_accessor :decrypt_cap
 
-    attr_accessor :ownership_locators
+    attr_accessor :locators
 
     # Attribute mapping from ruby-style variable name to JSON key.
     def self.attribute_map
       {
         :'decrypt_cap' => :'decrypt_cap',
-        :'ownership_locators' => :'ownership_locators'
+        :'locators' => :'locators'
       }
     end
 
@@ -29,7 +29,7 @@ module SwaggerClient
     def self.openapi_types
       {
         :'decrypt_cap' => :'Object',
-        :'ownership_locators' => :'Object'
+        :'locators' => :'Object'
       }
     end
 
@@ -60,9 +60,9 @@ module SwaggerClient
         end
       end
 
-      if attributes.key?(:'ownership_locators')
-        if (value = attributes[:'ownership_locators']).is_a?(Array)
-          self.ownership_locators = value
+      if attributes.key?(:'locators')
+        if (value = attributes[:'locators']).is_a?(Array)
+          self.locators = value
         end
       end
     end
@@ -75,8 +75,8 @@ module SwaggerClient
         invalid_properties.push('invalid value for "decrypt_cap", decrypt_cap cannot be nil.')
       end
 
-      if @ownership_locators.nil?
-        invalid_properties.push('invalid value for "ownership_locators", ownership_locators cannot be nil.')
+      if @locators.nil?
+        invalid_properties.push('invalid value for "locators", locators cannot be nil.')
       end
 
       invalid_properties
@@ -86,7 +86,7 @@ module SwaggerClient
     # @return true if the model is valid
     def valid?
       return false if @decrypt_cap.nil?
-      return false if @ownership_locators.nil?
+      return false if @locators.nil?
       true
     end
 
@@ -96,7 +96,7 @@ module SwaggerClient
       return true if self.equal?(o)
       self.class == o.class &&
           decrypt_cap == o.decrypt_cap &&
-          ownership_locators == o.ownership_locators
+          locators == o.locators
     end
 
     # @see the `==` method
@@ -108,7 +108,7 @@ module SwaggerClient
     # Calculates hash code according to all attributes.
     # @return [Integer] Hash code
     def hash
-      [decrypt_cap, ownership_locators].hash
+      [decrypt_cap, locators].hash
     end
 
     # Builds the object from hash
