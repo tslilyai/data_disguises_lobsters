@@ -14,7 +14,7 @@ set -e
 #echo "Ran stats primed test for users"
 
 for d in cheap expensive none ; do
-	for u in 1 30 100; do
+	for u in 1 30 ; do
 		RUST_BACKTRACE=1 RUST_LOG=error perflock ../../target/release/lobsters \
 			--scale 1.5 \
 			--nsleep 0\

@@ -145,7 +145,6 @@ pub(crate) fn end_disguise(
 pub struct GetPseudoprincipals {
     decrypt_cap: edna::tokens::DecryptCap,
     ownership_locators: Vec<edna::tokens::LocCap>,
-    reveal: bool,
 }
 
 #[post("/", format = "json", data = "<data>")]
@@ -156,7 +155,7 @@ pub(crate) fn get_pseudoprincipals_of(
     let e = edna.lock().unwrap();
     // TODO(malte): cloning here because get_pseudoprincipals expects owned caps; may be fine to
     // use refs in the Edna API here?
-    let pps = e.get_pseudoprincipals(data.decrypt_cap.clone(), data.ownership_locators.clone(), data.reveal);
+    let pps = e.get_pseudoprincipals(data.decrypt_cap.clone(), data.ownership_locators.clone());
     return Json(pps);
 }
 
@@ -166,7 +165,6 @@ pub struct GetTokensOfDisguise {
     decrypt_cap: edna::tokens::DecryptCap,
     diff_locators: Vec<edna::tokens::LocCap>,
     ownership_locators: Vec<edna::tokens::LocCap>,
-    reveal: bool,
 }
 
 #[derive(Serialize)]
@@ -186,12 +184,32 @@ pub(crate) fn get_tokens_of_disguise(
         data.decrypt_cap.clone(),
         data.diff_locators.clone(),
         data.ownership_locators.clone(),
-        data.reveal,
     );
     return Json(GetTokensOfDisguiseResponse {
         diff_tokens: tokens.0,
         ownership_tokens: tokens.1,
     });
+}
+
+#[derive(Deserialize)]
+pub struct CleanupTokensOfDisguise {
+    did: edna::DID,
+    decrypt_cap: edna::tokens::DecryptCap,
+    diff_locators: Vec<edna::tokens::LocCap>,
+    ownership_locators: Vec<edna::tokens::LocCap>,
+}
+#[post("/", format = "json", data = "<data>")]
+pub(crate) fn cleanup_tokens_of_disguise(
+    data: Json<GetTokensOfDisguise>,
+    edna: &State<Arc<Mutex<EdnaClient>>>,
+) {
+    let e = edna.lock().unwrap();
+    e.cleanup_tokens_of_disguise(
+        data.did,
+        data.decrypt_cap.clone(),
+        data.diff_locators.clone(),
+        data.ownership_locators.clone(),
+    );
 }
 
 #[derive(Serialize)]

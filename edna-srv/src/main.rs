@@ -77,6 +77,10 @@ fn rocket(
             "/get_tokens_of_disguise",
             routes![apiproxy::get_tokens_of_disguise],
         )
+        .mount(
+            "/cleanup_tokens_of_disguise",
+            routes![apiproxy::cleanup_tokens_of_disguise],
+        )
         .mount("/save_diff_token", routes![apiproxy::save_diff_token])
         .mount(
             "/save_pseudoprincipal_token",
