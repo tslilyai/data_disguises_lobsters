@@ -23,10 +23,11 @@ Consequently, \sys cannot store any mapping from $p$ or $d$ to a bag of encrypte
 
 While \sys could attempt to decrypt \emph{all} encrypted records with \privk{p},
 clearly such a solution would be impractical and partitioning encrypted records by $p$ and/or $d$ is
-necessary in practice.  To implement such a partitioning, \sys creates randomly-generated
-\emph{locators} \lcapa{pd} (represented as integer pointers): for each $p$ and $d$, \sys stores
-encrypted records \tdiff{pd} and \town{pd} in a bag mapped to by  locator \lcapa{pd}, which it and
-the application forget after sending the locator to the client.
+necessary in practice.  To implement such a partitioning, \sys uses locators \lcapa{pd} represented
+as integer pointers: each \lcapa{pd} points to a bag of either encrypted diff records or encrypted
+speaks-for records. \sys maintains the map from locators to encrypted record bags, but importantly
+forgets which principal and disguise produced the locator.
+\lyt{repeat of design}
 
 %To summarize, when \sys saves a disguise record $\mathcal{T}_{pd}$ from disguise $d$ associated with principal $p$, \sys:
 %\begin{enumerate}
@@ -91,17 +92,18 @@ single class, and multiply this by the maximum number of answers each user can s
 \head{What does \sys do with pseudoprincipal locators?}
 \sys stores $q$'s encrypted records from disguise $d$ at some locator \lcapa{qd}.  However, we again
 observe that the application and \sys cannot send \lcapa{qd} to some email address when $q$ is a
-pseudoprincipal!  To protect pseudoprincipal locators \lcapa{qd}, \sys encrypts \lcapa{qd} with the
-pseudoprincipal's public key \pubk{q} and stores $\enc(\pubk{q}, \lcapa{qd}$) in \sys's metadata for $q$ (which
-also includes \pubk{q}). This contrasts with how \sys returns locators to the application when
-storing records for natural principals.
+pseudoprincipal! Instead, \sys saves \lcapa{qd} as part of $q$'s metadata (which also contains $\pubk{q}$).
+
+%To protect pseudoprincipal locators \lcapa{qd}, \sys encrypts \lcapa{qd} with the
+%pseudoprincipal's public key \pubk{q} and stores $\enc(\pubk{q}, \lcapa{qd}$) in \sys's metadata for $q$ (which also includes \pubk{q}). This contrasts with how \sys returns locators to the application when storing records for natural principals.
 
 We illustrate in Figure~\ref{f:recursive} how a client that provides private key \privk{p} for
 natural principal $p$ and locator \lcapa{pd} may access \emph{both} $p$'s records for disguise $d$
 \emph{and} all records of all pseudoprincipals $q$ created during disguise $d$ to decorrelate data
-from $p$.  \sys can access \privk{q} by decrypting \enc(\pubk{p}, \privk{q}) with \privk{p}.  With
-\privk{q}, \sys can decrypt all \enc(\pubk{q}, \lcapa{qd}) to locate all $q$'s encrypted records,
-and then decrypt these records with \privk{q}.
+from $p$.  \sys accesses \privk{q} by decrypting \enc(\pubk{p}, \privk{q}) with \privk{p}. With
+\privk{q} and \lcapa{qd'} from $q$'s metadata, \sys locates all $q$'s encrypted records,
+and then decrypts these records with \privk{q}.
+\lyt{TODO clearing of records, $d' \neq d$}
 
 \lyt{Should we note somewhere that pseudoprincipals and recursive disguising are why we need asymmetric
 crypto; otherwise, we could just send the symmetric key to the original user being disguised?}
@@ -147,15 +149,8 @@ produces a diff record \tdiff{pd} containing the old and new values of the modif
 
 Pseudoprincipal generation specifications consist of a list of per-column policies that each
 include the column name, and the selected policy on how to generate values for that column.
-\sys supports the following policies:
-\begin{itemize}[nosep]
-    \item Random string of length $n$
-    \item Random email
-    \item Random phone number
-    \item Timestamp
-    \item Constant value $c$
-    \item Random number (optionally in a range)
-\end{itemize}
+\sys supports policies to set values as constants, or to generate random and/or unique strings, emails, past timestamps, phone
+numbers, and numbers (in a range).
 
 When revealing disguise $d$, \sys retrieves all records accessible with the provided decryption capability
 and locator, and restores the undisguised state by updating the relevant object rows in the database.

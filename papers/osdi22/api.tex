@@ -68,7 +68,7 @@ StartDisguise() -> DisguiseID;
 EndDisguise(did: DisguiseID) -> Vec<Locator>;
 
 // stores an encrypted diff with app-specific content
-StoreDiff(p: UID, did: DisguiseID, data: Vec<u8>);
+StoreDiff(p: UID, did: DisguiseID, buffer: Vec<u8>);
 // stores encrypted mapping that p1 speaks for p2
 StoreSpeaksFor(p1: UID, p2: UID, did: DisguiseID);
 
