@@ -8,7 +8,7 @@ mkdir output
 
 for baseline in false true ; do
 	for l in 20 ; do
-	    for u in 2 ; do
+	    for u in 100 ; do
 		RUST_LOG=error perflock ../../../target/release/websubmit-server \
 			-i myclass --schema src/schema.sql --config sample-config.toml \
 			--benchmark true --prime true --baseline $baseline \
