@@ -2,41 +2,53 @@
 \section{Implementation}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%i
 
-\sys is implemented in \note{XXX} lines of Rust. To allow non-Rust applications to use \sys, we
-expose HTTP endpoints for each \sys API call and run \sys as a webserver using the Rocket framework.
-
-\subsection{Securely Storing Records}
 %
-An application using \sys hands \sys speaks-for records \town{pd} and diff records and \tdiff{pd}
-during the course of applying disguise $d$.
+We implemented our \sys prototype in \note{XXX} lines of Rust.
 %
-Prior to encrypting these records, \sys appends a random nonce to the diff record to prevent known
-plaintext attacks. Encryption with \pubk{p} ensures that only a client holding private key \privk{p}
-can access these records.
-
-\sys must store these encrypted records without leaking that some disguise $d$ applied to principal
-$p$.  For example, \sys should not reveal that a principal $p$ has invoked GDPR deletion.
+We also provide an API server that exposes a JSON-HTTP API that applications
+can use to invoke \sys.
 %
-Consequently, \sys cannot store any mapping from $p$ or $d$ to a bag of encrypted records.  However,
-\sys must be able to---given $p$, $d$, and \privk{p}---decrypt and return records \tdiff{pd} and
-\town{pd} to the application when it invokes \fn{DiffsForDisguise} or \fn{Psuedoprincipals}.
+In the following, we discuss key implementation details that \sys relies for
+security and performance.
+%
 
-While \sys could attempt to decrypt \emph{all} encrypted records with \privk{p},
-clearly such a solution would be impractical and partitioning encrypted records by $p$ and/or $d$ is
-necessary in practice.  To implement such a partitioning, \sys uses locators \lcapa{pd} represented
-as integer pointers: each \lcapa{pd} points to a bag of either encrypted diff records or encrypted
-speaks-for records. \sys maintains the map from locators to encrypted record bags, but importantly
-forgets which principal and disguise produced the locator.
-\lyt{repeat of design}
+\subsection{Secure Record Storage}
+%
+An application hands \sys database diffs and speaks-for records when it applies
+a disguise $d$.
+%
+Prior to encrypting these records, \sys appends a random nonce to the plaintext
+to prevent known-plaintext attacks.
+%
+Encryption ensures that only a client with $p$'s private key can reveal these
+records.
+%
 
-%To summarize, when \sys saves a disguise record $\mathcal{T}_{pd}$ from disguise $d$ associated with principal $p$, \sys:
-%\begin{enumerate}
-%    \item creates a record wrapper $W$ for the record $\mathcal{T}_{pd}$
-%    \item encrypts $W$ with \pubk{p} to produce $\enc(\pubk{p}, W)$
-%    \item stores $\enc(\pubk{p}, W)$ at location \lcapa{pd}
-%    \item returns \lcapa{pd} to the application, where it is sent to the appropriate user and then
-%        forgotten by the server
-%\end{enumerate}
+%
+\sys must store encrypted records without leaking that disguise $d$ applied to
+principal $p$.
+%
+For example, if \sys revealed that a principal has invoked GDPR deletion, it
+might violate the GDPR.
+%
+Consequently, \sys must avoid storing any mapping from $p$ or $d$ to a bag of
+encrypted records, as must the application.
+%
+However, \sys must also be able to---given $p$, $d$, and $p$'s private
+key---decrypt and return records to the application when it invokes
+\fn{DiffsForDisguise} or \fn{PseudoprincipalsOf}.
+%
+While \sys could attempt to decrypt \emph{all} encrypted records with $p$'s
+private key, this is clearly too slow for applications with a large amount
+of data in \sys.
+%
+But the client can help the application (and, thus, \sys) identify the bag
+of encrypted records for $(p, d)$.
+%
+This is the role of \sys's locators: each \lcapa{pd} points to a bag of
+encrypted records, and \sys maintains an index from locators to bags,
+but---crucially---forgets which $(p, d)$ produced the locator.
+%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \subsection{Recursive Disguising: Disguising Pseudoprincipals}
@@ -134,7 +146,7 @@ use SQL databases, represent objects as database rows and express principal data
 foreign-key relationships.
 
 Disguises specifications consist of predicated disguise operation specifications and a
-pseudoprincipal-generation specification. 
+pseudoprincipal-generation specification.
 \sys performs each operation by selecting database objects that satisfy the predicate; performing SQL queries to modify the objects; and automatically generating and storing records corresponding to the operation performed using \sys's lower-level API.  \sys supports three high-level disguise specification
 operations:
 \begin{enumerate}[nosep]
