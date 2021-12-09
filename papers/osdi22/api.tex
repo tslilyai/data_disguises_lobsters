@@ -60,22 +60,28 @@ RevealDisguise(p: UID, did: DisguiseID, privk: PrivKey, locs: Locator);
 %        reveal links between $p$ and its pseudoprincipals.\\
 %    \end{tabular}
 \begin{lstlisting}[language=Rust, style=rust]
+// Principal operations.
 RegisterPrincipal(p: UID, pubk: PubKey);
 RegisterPseudoprincipal(pp: UID);
 ForgetPrincipal(p: UID);
 
+// Disguise operations.
 StartDisguise() -> DisguiseID;
-EndDisguise(did: DisguiseID) -> Vec<Locator>;
+EndDisguise(did: DisguiseID) -> Locator;
+// Stores an encrypted diff with app-provided
+// content during active disguise.
+StoreDiff(p: UID, buffer: Vec<u8>);
+// Stores encrypted mapping that p1 speaks for p2
+// during active disguise.
+StoreSpeaksFor(p1: UID, p2: UID);
 
-// stores an encrypted diff with app-specific content
-StoreDiff(p: UID, did: DisguiseID, buffer: Vec<u8>);
-// stores encrypted mapping that p1 speaks for p2
-StoreSpeaksFor(p1: UID, p2: UID, did: DisguiseID);
-
-// diffs stored at loc as part of disguise did
-DiffsForDisguise(did: DisguiseID, privk: PrivKey, loc: Locator, del: bool) -> Vec<Vec<u8>>;
-// principals that p speaks for (stored at loc)
-PseudoprincipalsOf(p: UID, privk: PrivKey, loc: Locator, del: bool) -> Vec<UID>;
+// Operations on data stored in Edna.
+// Obtain diffs at loc stored by disguise did.
+DiffsForDisguise(did: DisguiseID, privk: PrivKey, loc: Locator) -> Vec<Vec<u8>>;
+// Principals that p speaks for (stored at loc).
+PseudoprincipalsOf(p: UID, privk: PrivKey, loc: Locator) -> Vec<UID>;
+// Drop encrypted data at locator (irreversible).
+ForgetData(loc: Locator);
 \end{lstlisting}
 \caption{\sys's low-level API.}
 \label{f:api-low}
