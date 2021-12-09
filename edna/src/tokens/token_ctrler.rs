@@ -125,7 +125,7 @@ impl TokenCtrler {
             .unwrap();
         //db.query_drop(&format!("DROP TABLE {};", PRINCIPAL_TABLE)).unwrap();
         let createq = format!(
-            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, should_remove tinyint, pubkey varchar(1024), locs varchar(255)), PRIMARY KEY ({})) ENGINE = MEMORY;",
+            "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, should_remove tinyint, pubkey varchar(1024), locs varchar(255), PRIMARY KEY ({})) ENGINE = MEMORY;",
             PRINCIPAL_TABLE, UID_COL, UID_COL);
         db.query_drop(&createq).unwrap();
         let selected = get_query_rows_str(
@@ -1398,7 +1398,7 @@ mod tests {
         remove_token.uid = uid.to_string();
         ctrler.insert_user_diff_token_wrapper(&mut remove_token);
         let lc = ctrler
-            .get_tmp_reveal_capability(&uid.to_string(), did)
+            .get_tmp_capability(&uid.to_string(), did)
             .unwrap()
             .clone();
         ctrler.clear_tmp();
@@ -1413,10 +1413,8 @@ mod tests {
         assert!(ctrler.tmp_loc_caps.is_empty());
 
         // get tokens
-        let mut dcs = HashSet::new();
-        dcs.insert(lc);
         let (diff_tokens, _) =
-            ctrler.get_user_tokens(did as u64, &private_key_vec, &dcs, &HashSet::new());
+            ctrler.get_user_tokens(did as u64, &private_key_vec, &lc);
         assert_eq!(diff_tokens.len(), 1);
         assert_eq!(diff_tokens[0], remove_token);
     }
@@ -1454,8 +1452,7 @@ mod tests {
 
         let mut priv_keys = vec![];
 
-        let mut lcaps = HashMap::new();
-        let mut dcaps = HashMap::new();
+        let mut caps = HashMap::new();
         for u in 1..iters {
             let private_key = ctrler.register_principal(&u.to_string(), false, &mut db, true);
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
@@ -1476,9 +1473,8 @@ mod tests {
                     remove_token.uid = u.to_string();
                     ctrler.insert_user_diff_token_wrapper(&mut remove_token);
                 }
-                let (dcs, lcs) = ctrler.save_and_clear(&mut db);
-                dcaps.extend(dcs);
-                lcaps.extend(lcs);
+                let lcs = ctrler.save_and_clear(&mut db);
+                caps.extend(lcs);
             }
         }
         assert_eq!(ctrler.global_diff_tokens.len(), 0);
@@ -1495,12 +1491,9 @@ mod tests {
             assert!(p.loc_caps.is_empty());
 
             for d in 1..iters {
-                let dc = dcaps.get(&(u.to_string(), d as u64)).unwrap().clone();
-                // get tokens
-                let mut dcs = HashSet::new();
-                dcs.insert(dc);
+                let lc = caps.get(&(u.to_string(), d as u64)).unwrap().clone();
                 let (diff_tokens, _) =
-                    ctrler.get_user_tokens(d as u64, &priv_keys[u - 1], &dcs, &HashSet::new());
+                    ctrler.get_user_tokens(d as u64, &priv_keys[u - 1], &lc);
                 assert_eq!(diff_tokens.len(), (iters as usize));
                 for i in 0..iters {
                     let dt = edna_diff_token_from_bytes(&diff_tokens[i].token_data);
@@ -1548,8 +1541,7 @@ mod tests {
         let mut rng = OsRng;
         let mut priv_keys = vec![];
 
-        let mut dcaps = HashMap::new();
-        let mut lcaps = HashMap::new();
+        let mut caps = HashMap::new();
         for u in 1..iters {
             let private_key = ctrler.register_principal(&u.to_string(), false, &mut db, true);
             let private_key_vec = private_key.to_pkcs1_der().unwrap().as_der().to_vec();
@@ -1589,9 +1581,8 @@ mod tests {
                     own_token_bytes,
                     &mut db,
                 );
-                let (dcs, lcs) = ctrler.save_and_clear(&mut db);
-                dcaps.extend(dcs);
-                lcaps.extend(lcs);
+                let lc = ctrler.save_and_clear(&mut db);
+                caps.extend(lc);
             }
         }
         assert_eq!(ctrler.global_diff_tokens.len(), 0);
@@ -1604,15 +1595,9 @@ mod tests {
                 .expect("failed to get user?");
 
             for d in 1..iters {
-                let dc = dcaps.get(&(u.to_string(), d as u64)).unwrap().clone();
-                let lc = lcaps.get(&(u.to_string(), d as u64)).unwrap().clone();
-                // get tokens
-                let mut dcs = HashSet::new();
-                dcs.insert(dc);
-                let mut lcs = HashSet::new();
-                lcs.insert(lc);
+                let lc = caps.get(&(u.to_string(), d as u64)).unwrap().clone();
                 let (diff_tokens, own_tokens) =
-                    ctrler.get_user_tokens(d as u64, &priv_keys[u as usize - 1], &dcs, &lcs);
+                    ctrler.get_user_tokens(d as u64, &priv_keys[u as usize - 1], &lc);
                 assert_eq!(diff_tokens.len(), 1);
                 assert_eq!(own_tokens.len(), 1);
                 let dt = edna_diff_token_from_bytes(&diff_tokens[0].token_data);
