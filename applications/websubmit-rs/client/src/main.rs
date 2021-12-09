@@ -45,7 +45,7 @@ fn main() {
     let mut user2apikey = HashMap::new();
     let mut user2decryptcap = HashMap::new();
 
-    let ndisguising = 0;
+    let ndisguising = args.ndisguising;
     let client = reqwest::blocking::Client::builder()
         .cookie_store(true)
         .build()
@@ -164,6 +164,7 @@ fn main() {
     print_stats(
         &args,
         ndisguises,
+        ndisguising as u64,
         &edit_durations.lock().unwrap(),
         &delete_durations.lock().unwrap(),
         &restore_durations.lock().unwrap(),
@@ -395,11 +396,12 @@ fn run_disguising_thread(
 fn print_stats(
     args: &args::Args,
     ndisguises: u64,
+    ndisguising: u64,
     edit_durations: &Vec<(Duration, Duration)>,
     delete_durations: &Vec<(Duration, Duration)>,
     restore_durations: &Vec<(Duration, Duration)>,
 ) {
-    let filename = format!("concurrent_disguise_stats_{}sleep_batch.csv", args.nsleep);
+    let filename = format!("concurrent_{}users_{}sleep_{}disguisers.csv", args.nusers, args.nsleep, ndisguising);
 
     // print out stats
     let mut f = OpenOptions::new()

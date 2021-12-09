@@ -8,7 +8,8 @@ mkdir output
 
 set -e
 l=20
-u=100
+u=30
+nd=0
 
 for s in 0; do
     ps -ef | grep 'websubmit-server' | grep -v grep | awk '{print $2}' | xargs -r kill -9 || true
@@ -26,10 +27,10 @@ for s in 0; do
 
     echo "Running client"
     RUST_LOG=error perflock ../../target/release/websubmit-client \
-        --nusers $u --nlec $l --nqs 4 --nsleep $s \
+        --nusers $u --nlec $l --nqs 4 --nsleep $s --ndisguising $nd \
         --db myclass &> \
         output/client_${l}lec_${u}users_${s}sleep.out
-    echo "Ran test($t) for $l lecture and $u, $s sleep"
+    echo "Ran test($t) for $l lecture and $u users, $s sleep"
 
     rm *.txt
 done
