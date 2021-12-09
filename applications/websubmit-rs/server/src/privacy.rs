@@ -11,8 +11,9 @@ use rocket::http::{Cookie, CookieJar};
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
+use edna::tokens::LocCap;
 
 #[derive(Serialize)]
 pub(crate) struct LectureQuestion {
@@ -67,9 +68,7 @@ pub(crate) fn anonymize_answers(
     bg: &State<MySqlBackend>,
     config: &State<Config>,
 ) -> Redirect {
-    let (dlcs, olcs) =
-        disguises::universal_anon_disguise::apply(&*bg, config.is_baseline).unwrap();
-    assert!(dlcs.len() == 0);
+    let olcs = disguises::universal_anon_disguise::apply(&*bg, config.is_baseline).unwrap();
     //let local: DateTime<Local> = Local::now();
     for ((uid, _did), olc) in olcs {
         email::send(
@@ -231,7 +230,7 @@ pub(crate) fn delete_submit(
             .map(|olc| u64::from_str(olc).unwrap())
             .collect()
     };
-    let (dlcs, olcs) = disguises::gdpr_disguise::apply(
+    let lcs = disguises::gdpr_disguise::apply(
         &*bg,
         apikey.user.clone(),
         decryption_cap,
@@ -243,15 +242,12 @@ pub(crate) fn delete_submit(
     // linked to these pseudoprincipals and they remain in Edna, we don't need to deal with them
     //assert!(dlcs.len() <= 1);
     //assert!(olcs.len() <= 1);
-    debug!(bg.log, "Got DLCs {:?} and OLCS {:?}", dlcs, olcs);
-    let dlc_str = match dlcs.get(&(apikey.user.clone(), disguises::gdpr_disguise::get_did())) {
-        Some(dlc) => dlc.to_string(),
+    debug!(bg.log, "Got LCS {:?}", lcs);
+    let dlc_str = match lcs.get(&(apikey.key.clone(), disguises::gdpr_disguise::get_did())) {
+        Some(dlc) => format!("{}", dlc),
         None => 0.to_string(),
     };
-    let olc_str = match olcs.get(&(apikey.key.clone(), disguises::gdpr_disguise::get_did())) {
-        Some(olc) => format!("{},{}", data.ownership_loc_caps, olc),
-        None => data.ownership_loc_caps.clone(),
-    };
+    let olc_str = data.ownership_loc_caps.clone();
 
     email::send(
         bg.log.clone(),
@@ -282,7 +278,7 @@ pub(crate) fn restore_account(
 ) -> Redirect {
     let decryption_cap: Vec<u8> =
         base64::decode(&data.decryption_cap).expect("Bad decryption capability in post request");
-    let mut own_loc_caps: Vec<u64> = vec![];
+    let mut own_loc_caps: HashSet<LocCap> = HashSet::new();
     if !data.ownership_loc_caps.is_empty() {
         // get ownership caps from data for composition of GDPR on top of anonymization
         own_loc_caps = data
@@ -292,12 +288,12 @@ pub(crate) fn restore_account(
             .map(|olc| u64::from_str(olc).unwrap())
             .collect();
     }
+    own_loc_caps.insert(data.diff_loc_cap);
 
     disguises::gdpr_disguise::reveal(
         &*bg,
         decryption_cap,
-        vec![data.diff_loc_cap],
-        own_loc_caps,
+        own_loc_caps.into_iter().collect::<Vec<LocCap>>(),
         config.is_baseline,
     )
     .expect("Failed to reverse GDPR deletion disguise");

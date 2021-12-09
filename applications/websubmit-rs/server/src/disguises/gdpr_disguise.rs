@@ -19,16 +19,13 @@ pub fn apply(
     loc_caps: Vec<tokens::LocCap>,
     is_baseline: bool,
 ) -> Result<
-    (
         HashMap<(UID, DID), tokens::LocCap>,
-        HashMap<(UID, DID), tokens::LocCap>,
-    ),
     mysql::Error,
 > {
     if is_baseline {
         bg.handle().query_drop(&format!("DELETE FROM answers WHERE `user` = '{}'", user_email))?;
         bg.handle().query_drop(&format!("DELETE FROM users WHERE email = '{}'", user_email))?;
-        return Ok((HashMap::new(), HashMap::new()));
+        return Ok(HashMap::new());
     }
     let gdpr_disguise = get_disguise(user_email);
     bg.edna.lock().unwrap().apply_disguise(Arc::new(gdpr_disguise), decryption_cap, loc_caps)
@@ -37,14 +34,13 @@ pub fn apply(
 pub fn reveal(
     bg: &MySqlBackend,
     decryption_cap: tokens::DecryptCap,
-    diff_loc_caps: Vec<tokens::LocCap>,
-    own_loc_caps: Vec<tokens::LocCap>,
+    loc_caps: Vec<tokens::LocCap>,
     is_baseline: bool,
 ) -> Result<(), mysql::Error> {
     if is_baseline {
         return Ok(());
     }
-    bg.edna.lock().unwrap().reverse_disguise(get_did(), decryption_cap, diff_loc_caps, own_loc_caps)
+    bg.edna.lock().unwrap().reverse_disguise(get_did(), decryption_cap, loc_caps)
 }
 
 fn get_disguise(user_email: UID) -> Disguise {
