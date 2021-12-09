@@ -19,8 +19,7 @@ const SERVER: &'static str = "http://localhost:8000";
 
 #[derive(Serialize, Deserialize)]
 pub struct ApplyDisguiseResponse {
-    pub diff_locators: HashMap<edna::UID, edna::tokens::LocCap>,
-    pub ownership_locators: HashMap<edna::UID, edna::tokens::LocCap>,
+    pub locators: HashMap<edna::UID, edna::tokens::LocCap>,
 }
 
 fn init_logger() {
@@ -102,17 +101,12 @@ pub fn main() {
         let strbody = response.text().unwrap();
         warn!("Decay strbody response: {}", strbody);
         let body: ApplyDisguiseResponse = serde_json::from_str(&strbody).unwrap();
-        let dl = if let Some(dl) = body.diff_locators.get(&u.to_string()) {
-            dl.to_string()
-        } else {
-            0.to_string()
-        };
-        let ol = if let Some(ol) = body.ownership_locators.get(&u.to_string()) {
-            ol.to_string()
+        let l = if let Some(l) = body.locators.get(&u.to_string()) {
+            l.to_string()
         } else {
             0.to_string()
         };
         // TODO send email with locators
-        warn!("Sending email to {} with ol and dl {} and {}", email, ol, dl);
+        warn!("Sending email to {} with l {}", email, l);
     }
 }
