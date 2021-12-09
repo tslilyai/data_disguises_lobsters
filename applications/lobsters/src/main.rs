@@ -121,10 +121,12 @@ fn main() {
     let mut user_stories = 0;
     let mut user_comments = 0;
     let mut user_votes = 0;
-    let mut user_to_disguise = match args.disguiser {
-        "cheap".to_string() => 1 as u64,
-        "expensive".to_string() => nusers as u64,
-        _ => 0 as u64,
+    let user_to_disguise = if args.disguiser  == "cheap" {
+        1 as u64
+    } else if args.disguiser == "expensive" {
+        nusers as u64
+    } else {
+        0
     };
     let res = db
         .query_iter(format!(
@@ -186,7 +188,7 @@ fn main() {
             delete_durations.clone(),
             restore_durations.clone(),
         )
-        .unwrap();
+        .unwrap()
     } else {
         0
     };

@@ -121,6 +121,7 @@ impl TokenCtrler {
         // TODO always an in-memory table
         db.query_drop("SET max_heap_table_size = 4294967295;")
             .unwrap();
+        db.query_drop(&format!("DROP TABLE {};", PRINCIPAL_TABLE)).unwrap();
         let createq = format!(
             "CREATE TABLE IF NOT EXISTS {} ({} varchar(255), is_anon tinyint, should_remove tinyint, pubkey varchar(1024), ownershipToks varchar(255), diffToks varchar(255), PRIMARY KEY ({})) ENGINE = MEMORY;",
             PRINCIPAL_TABLE, UID_COL, UID_COL);
