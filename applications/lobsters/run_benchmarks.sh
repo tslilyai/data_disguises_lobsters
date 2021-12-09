@@ -9,7 +9,7 @@ set -e
 #RUST_LOG=error perflock ../../target/release/lobsters \
 #	--prime \
 #	--stats \
-#	--scale 0.1 \
+#	--scale 1.5 \
 #	&> output/users.out
 #echo "Ran stats primed test for users"
 
