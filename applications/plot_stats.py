@@ -145,20 +145,10 @@ account_durs_baseline = []
 delete_durs_baseline = []
 decay_durs_baseline = []
 
-with open('results/lobsters_results/lobsters_disguise_stats_baseline_batch.csv','r') as csvfile:
+with open("results/lobsters_results/lobsters_disguise_stats.csv",'r') as csvfile:
     rows = csvfile.readlines()[1:]
     for r in rows:
         vals = [int(x.strip()) for x in r.split(",")]
-        decay_baseline = vals[0]/1000
-        decay_durs_baseline.append(decay_baseline)
-        delete_durs_baseline.append(decay_baseline)
-
-with open("results/lobsters_results/lobsters_disguise_stats_batch.csv",'r') as csvfile:
-    rows = csvfile.readlines()[1:]
-    rowvec = [int(x.strip()) for x in rows[0].split(",")[:-1]]
-    rows = [rowvec[i:i + 8] for i in range(0, len(rowvec), 8)]
-    for vals in rows:
-        #vals = [int(x.strip()) for x in r.split(",")]
         ndata = vals[1]
         vals = [x/1000 for x in vals]
         create_baseline = vals[2]
@@ -167,6 +157,7 @@ with open("results/lobsters_results/lobsters_disguise_stats_batch.csv",'r') as c
         undecay = vals[5]
         delete = vals[6]
         restore = vals[7]
+        baseline_delete = vals[8]
 
         account_durs.append(create_edna);
         delete_durs_batch.append(delete)
@@ -174,6 +165,8 @@ with open("results/lobsters_results/lobsters_disguise_stats_batch.csv",'r') as c
         decay_durs_batch.append(decay)
         undecay_durs_batch.append(undecay)
         account_durs_baseline.append(create_baseline);
+        delete_durs_baseline.append(baseline_delete);
+        decay_durs_baseline.append(baseline_delete);
 
 X = np.arange(5)
 labels = ['Create Account',
@@ -223,7 +216,7 @@ add_labels((X+barwidth/2), [
 title = "Lobsters Operation Latencies"
 ax.set_title(title)
 ax.set_ylabel('Time (ms)')
-ax.set_ylim(ymin=0, ymax=np.percentile(delete_durs_batch,95)*1.1)
+ax.set_ylim(ymin=0, ymax=np.percentile(restore_durs_batch,95)*1.1)
 ax.set_xticks(X)
 ax.set_xticklabels(labels)
 
