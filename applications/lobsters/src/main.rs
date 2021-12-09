@@ -302,10 +302,8 @@ fn run_normal_thread(
         }
         res.sort();
         my_op_durations.push((overall_start.elapsed(), start.elapsed()));
-        let dur = start.elapsed().as_micros();
-        if dur > 50000 {
-            error!("user{} {}: {}", user_id, op, dur);
-        }
+        //let dur = start.elapsed().as_micros();
+        //error!("user{} {}: {}", user_id, op, dur);
     }
     op_durations.lock().unwrap().append(&mut my_op_durations);
 }
